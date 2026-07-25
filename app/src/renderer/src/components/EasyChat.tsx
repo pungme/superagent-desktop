@@ -84,11 +84,32 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
   const thinkingIdRef = useRef<string | null>(null)
   const registerAgent = useStore((s) => s.registerAgent)
+
+  // Elapsed "Working Ns" timer while a turn is running.
+  useEffect(() => {
+    if (!generating) {
+      setElapsed(0)
+      return
+    }
+    const start = Date.now()
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500)
+    return () => clearInterval(t)
+  }, [generating])
+
+  // Grow the input with its content, up to the CSS max-height.
+  const autoResize = (): void => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+  }
 
   const handleEvent = useCallback((event: Record<string, unknown>) => {
     const type = event.type as string
@@ -244,6 +265,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     setInput('')
     setThinking(true)
     setGenerating(true)
+    if (inputRef.current) inputRef.current.style.height = 'auto'
   }
 
   const stop = (): void => {
@@ -294,22 +316,27 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
             </div>
           )
         })}
-        {thinking && (
+        {generating && (
           <div className="easy-thinking">
             <span />
             <span />
             <span />
+            {elapsed > 0 && <span className="easy-elapsed">Working {elapsed}s</span>}
           </div>
         )}
       </div>
       <div className="easy-input-row">
         <textarea
+          ref={inputRef}
           className="easy-input"
           value={input}
           placeholder={ready ? 'Message Claude…' : 'Starting…'}
           rows={1}
           disabled={!ready}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value)
+            autoResize()
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
