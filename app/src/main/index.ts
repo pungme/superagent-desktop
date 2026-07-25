@@ -8,6 +8,7 @@ import { registerPtyIpc, killAllPtys } from './pty'
 import { registerBrowserIpc } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
+import { startHookServer, registerHookIpc } from './hooks'
 
 if (is.dev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
@@ -65,6 +66,8 @@ app.whenReady().then(() => {
   registerPtyIpc()
   registerBrowserIpc()
   registerStoreIpc()
+  registerHookIpc()
+  startHookServer()
 
   ipcMain.handle('dialog:pickFolder', async () => {
     const win = BrowserWindow.getFocusedWindow()

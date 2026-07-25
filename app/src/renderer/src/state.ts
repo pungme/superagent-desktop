@@ -15,6 +15,10 @@ interface CoveState {
   setStatus: (workspaceId: string, status: WorkspaceStatus) => void
   addPort: (workspaceId: string, port: number) => void
   toggleBrowser: (workspaceId: string) => void
+  sessionIds: Record<string, string>
+  hooksEnabled: boolean
+  setHooksEnabled: (v: boolean) => void
+  startHookListener: () => void
 
   addGroup: () => Promise<void>
   renameGroup: (id: string, name: string) => Promise<void>
@@ -30,6 +34,8 @@ export const useStore = create<CoveState>((set, get) => ({
   statuses: {},
   ports: {},
   browserOpen: {},
+  sessionIds: {},
+  hooksEnabled: false,
 
   refresh: async () => {
     const tree = await window.cove.storeTree()
@@ -54,6 +60,24 @@ export const useStore = create<CoveState>((set, get) => ({
     set((s) => ({
       browserOpen: { ...s.browserOpen, [workspaceId]: !s.browserOpen[workspaceId] }
     })),
+  setHooksEnabled: (v) => set({ hooksEnabled: v }),
+
+  startHookListener: () => {
+    window.cove.hooksStatus().then((v) => set({ hooksEnabled: v }))
+    window.cove.onHookEvent((e) => {
+      if (!e.workspaceId) return
+      if (e.status) {
+        set((s) => ({ statuses: { ...s.statuses, [e.workspaceId]: e.status! } }))
+      }
+      if (e.sessionId) {
+        set((s) => ({ sessionIds: { ...s.sessionIds, [e.workspaceId]: e.sessionId! } }))
+        window.cove.updateWorkspace(e.workspaceId, { lastSessionId: e.sessionId })
+      }
+    })
+    window.cove.onFocusWorkspace((workspaceId) => {
+      if (workspaceId) set({ activeWorkspaceId: workspaceId })
+    })
+  },
 
   addGroup: async () => {
     const tree = await window.cove.createGroup('New group')

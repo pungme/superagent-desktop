@@ -28,12 +28,21 @@ export interface TreeGroup {
   workspaces: Workspace[]
 }
 
+export interface HookEvent {
+  workspaceId: string
+  event: string
+  status?: 'idle' | 'working' | 'needs-you'
+  sessionId?: string
+  body: Record<string, unknown>
+}
+
 export interface CoveApi {
   ptyCreate: (opts: {
     cwd?: string
     cols: number
     rows: number
     command?: string
+    workspaceId?: string
   }) => Promise<string>
   ptyWrite: (id: string, data: string) => void
   ptyResize: (id: string, cols: number, rows: number) => void
@@ -72,6 +81,12 @@ export interface CoveApi {
   ) => Promise<TreeGroup[]>
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
+
+  onHookEvent: (cb: (e: HookEvent) => void) => () => void
+  onFocusWorkspace: (cb: (workspaceId: string) => void) => () => void
+  hooksStatus: () => Promise<boolean>
+  hooksInstall: () => Promise<{ ok: boolean; error?: string }>
+  hooksUninstall: () => Promise<boolean>
 }
 
 const cove: CoveApi = {
@@ -124,7 +139,21 @@ const cove: CoveApi = {
   updateWorkspace: (id, patch) => ipcRenderer.invoke('store:updateWorkspace', id, patch),
   moveWorkspace: (workspaceId, toGroupId, toIndex) =>
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
-  pickFolder: () => ipcRenderer.invoke('dialog:pickFolder')
+  pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
+
+  onHookEvent: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, ev: HookEvent): void => cb(ev)
+    ipcRenderer.on('hook:event', listener)
+    return () => ipcRenderer.removeListener('hook:event', listener)
+  },
+  onFocusWorkspace: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, id: string): void => cb(id)
+    ipcRenderer.on('hook:focus-workspace', listener)
+    return () => ipcRenderer.removeListener('hook:focus-workspace', listener)
+  },
+  hooksStatus: () => ipcRenderer.invoke('hooks:status'),
+  hooksInstall: () => ipcRenderer.invoke('hooks:install'),
+  hooksUninstall: () => ipcRenderer.invoke('hooks:uninstall')
 }
 
 if (process.contextIsolated) {

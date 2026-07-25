@@ -2,6 +2,8 @@ import { ipcMain, WebContents } from 'electron'
 import * as pty from 'node-pty'
 import { randomUUID } from 'crypto'
 import os from 'os'
+import { getHookUrl } from './hooks'
+import { getMcpUrl } from './mcp'
 
 export interface PtyCreateOptions {
   cwd?: string
@@ -10,6 +12,8 @@ export interface PtyCreateOptions {
   /** Command to run instead of the login shell (e.g. `claude`). Runs inside the shell so PATH/env are right. */
   command?: string
   env?: Record<string, string>
+  /** Workspace this terminal belongs to — surfaced to Claude Code hooks. */
+  workspaceId?: string
 }
 
 interface PtySession {
@@ -41,7 +45,12 @@ export function createPty(owner: WebContents, opts: PtyCreateOptions): string {
       ...opts.env,
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
-      TERM_PROGRAM: 'Cove'
+      TERM_PROGRAM: 'Cove',
+      // Surfaced to Claude Code hooks + the browser MCP server so this session
+      // reports status to Cove and can drive its own workspace's browser pane.
+      COVE_HOOK_URL: getHookUrl(),
+      COVE_MCP_URL: getMcpUrl(),
+      ...(opts.workspaceId ? { COVE_WORKSPACE_ID: opts.workspaceId } : {})
     } as Record<string, string>
   })
 
