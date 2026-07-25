@@ -1002,6 +1002,55 @@ button {
   position: relative;
 }
 
+.easy-attachments {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.easy-attachment {
+  position: relative;
+}
+
+.easy-attachment img {
+  height: 56px;
+  width: auto;
+  max-width: 120px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+}
+
+.easy-attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: var(--text-primary);
+  color: var(--bg-content);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.easy-msg-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.easy-msg-images img {
+  max-width: 220px;
+  max-height: 180px;
+  border-radius: 8px;
+}
+
 .easy-mention-menu {
   position: absolute;
   bottom: calc(100% - 6px);

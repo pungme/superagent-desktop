@@ -88,13 +88,22 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
   return id
 }
 
-export function sendToAgent(id: string, text: string): void {
+export interface AgentImage {
+  mediaType: string
+  data: string // base64
+}
+
+export function sendToAgent(id: string, text: string, images: AgentImage[] = []): void {
   const session = sessions.get(id)
   if (!session) return
-  const message = {
-    type: 'user',
-    message: { role: 'user', content: [{ type: 'text', text }] }
-  }
+  const content = [
+    ...images.map((im) => ({
+      type: 'image',
+      source: { type: 'base64', media_type: im.mediaType, data: im.data }
+    })),
+    ...(text ? [{ type: 'text', text }] : [])
+  ]
+  const message = { type: 'user', message: { role: 'user', content } }
   session.proc.stdin.write(JSON.stringify(message) + '\n')
 }
 
@@ -124,7 +133,9 @@ export function killAllAgents(): void {
 
 export function registerAgentIpc(): void {
   ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => startAgent(e.sender, opts))
-  ipcMain.on('agent:send', (_e, id: string, text: string) => sendToAgent(id, text))
+  ipcMain.on('agent:send', (_e, id: string, text: string, images?: AgentImage[]) =>
+    sendToAgent(id, text, images ?? [])
+  )
   ipcMain.on('agent:interrupt', (_e, id: string) => interruptAgent(id))
   ipcMain.on('agent:stop', (_e, id: string) => stopAgent(id))
 }
