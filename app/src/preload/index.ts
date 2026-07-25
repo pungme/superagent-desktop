@@ -104,6 +104,7 @@ export interface CoveApi {
     claudeVersion: string | null
     loggedIn: boolean
   }>
+  envVersion: () => Promise<{ claudeInstalled: boolean; claudeVersion: string | null }>
 
   routinesList: (workspaceId?: string) => Promise<Routine[]>
   routinesCreate: (
@@ -215,6 +216,7 @@ const cove: CoveApi = {
   },
 
   envDetect: () => ipcRenderer.invoke('env:detect'),
+  envVersion: () => ipcRenderer.invoke('env:version'),
 
   routinesList: (workspaceId) => ipcRenderer.invoke('routines:list', workspaceId),
   routinesCreate: (workspaceId, workspacePath, prompt, intervalMinutes) =>

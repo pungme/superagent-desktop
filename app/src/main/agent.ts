@@ -1,9 +1,10 @@
 import { ipcMain, WebContents } from 'electron'
-import { spawn, execSync, ChildProcessWithoutNullStreams } from 'child_process'
+import { spawn, ChildProcessWithoutNullStreams } from 'child_process'
 import { randomUUID } from 'crypto'
 import os from 'os'
 import { getHookUrl } from './hooks'
 import { getMcpUrl, writeWorkspaceMcpConfig } from './mcp'
+import { findClaude } from './claude-cli'
 
 /**
  * "Easy mode" — drives the real `claude` binary in streaming-JSON mode so we can
@@ -27,26 +28,6 @@ export interface AgentStartOptions {
   cwd?: string
   workspaceId?: string
   mcpConfigPath?: string
-}
-
-let cachedClaudePath: string | null = null
-
-function findClaude(): string {
-  if (cachedClaudePath) return cachedClaudePath
-  try {
-    // Resolve via a login shell so we get the user's real PATH (nvm/homebrew/~/.local/bin).
-    const shell = process.env.SHELL || '/bin/zsh'
-    const resolved = execSync(`${shell} -lic 'command -v claude' 2>/dev/null`, {
-      encoding: 'utf8'
-    })
-      .trim()
-      .split('\n')
-      .pop()
-    cachedClaudePath = resolved && resolved.length > 0 ? resolved : 'claude'
-  } catch {
-    cachedClaudePath = 'claude'
-  }
-  return cachedClaudePath
 }
 
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {

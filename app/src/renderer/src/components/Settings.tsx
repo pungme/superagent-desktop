@@ -14,7 +14,8 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const [version, setVersion] = useState<string | null>(null)
 
   useEffect(() => {
-    window.cove.envDetect().then((e) => setVersion(e.claudeVersion))
+    // Version-only detection — avoids the slow `claude -p` login probe.
+    window.cove.envVersion().then((e) => setVersion(e.claudeVersion))
   }, [])
 
   const toggleHooks = async (): Promise<void> => {
