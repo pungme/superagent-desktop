@@ -11,33 +11,71 @@ interface ChatMessage {
 interface ToolCall {
   id: string
   name: string
-  input: string
+  detail: string
 }
 
-type Item = { kind: 'msg'; msg: ChatMessage } | { kind: 'tool'; tool: ToolCall }
+type Item =
+  | { kind: 'msg'; msg: ChatMessage }
+  | { kind: 'tool'; tool: ToolCall }
+  | { kind: 'thinking'; id: string; text: string }
 
 interface EasyChatProps {
   cwd: string
   workspaceId: string
 }
 
-// Friendly labels for the noisy internal tool names.
-function toolLabel(name: string): string {
-  if (name.startsWith('mcp__cove-browser__browser_'))
-    return '🌐 ' + name.replace('mcp__cove-browser__browser_', '').replace(/_/g, ' ')
-  const map: Record<string, string> = {
-    Bash: '⌘ Running a command',
-    Read: '📄 Reading a file',
-    Edit: '✏️ Editing a file',
-    Write: '✏️ Writing a file',
-    Glob: '🔎 Finding files',
-    Grep: '🔎 Searching',
-    WebFetch: '🌐 Fetching a page',
-    WebSearch: '🔎 Searching the web',
-    TodoWrite: '✓ Updating the plan',
-    Task: '🤖 Running a sub-agent'
+// Short verb + icon for the noisy internal tool names.
+function toolLabel(name: string): { icon: string; verb: string } {
+  if (name.startsWith('mcp__cove-browser__browser_')) {
+    const action = name.replace('mcp__cove-browser__browser_', '').replace(/_/g, ' ')
+    return { icon: '🌐', verb: action }
   }
-  return map[name] || `🔧 ${name}`
+  const map: Record<string, { icon: string; verb: string }> = {
+    Bash: { icon: '⌘', verb: 'Running' },
+    Read: { icon: '📄', verb: 'Reading' },
+    Edit: { icon: '✏️', verb: 'Editing' },
+    Write: { icon: '✏️', verb: 'Writing' },
+    MultiEdit: { icon: '✏️', verb: 'Editing' },
+    Glob: { icon: '🔎', verb: 'Finding files' },
+    Grep: { icon: '🔎', verb: 'Searching' },
+    WebFetch: { icon: '🌐', verb: 'Fetching' },
+    WebSearch: { icon: '🔎', verb: 'Searching the web' },
+    TodoWrite: { icon: '✓', verb: 'Planning' },
+    Task: { icon: '🤖', verb: 'Sub-agent' },
+    ToolSearch: { icon: '🧰', verb: 'Finding tools' }
+  }
+  return map[name] ?? { icon: '🔧', verb: name }
+}
+
+// Pull the most meaningful field out of a tool's input for a one-line detail.
+function toolDetail(input: unknown): string {
+  if (!input || typeof input !== 'object') return ''
+  const o = input as Record<string, unknown>
+  const pick =
+    o.query ?? o.url ?? o.pattern ?? o.command ?? o.prompt ?? o.description ?? o.text
+  if (typeof pick === 'string') return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
+  if (typeof o.file_path === 'string') return o.file_path.split('/').pop() ?? ''
+  return ''
+}
+
+// Group consecutive tool items so a run of tool calls renders as one compact strip.
+type Row =
+  | { kind: 'msg'; msg: ChatMessage }
+  | { kind: 'thinking'; id: string; text: string }
+  | { kind: 'tools'; tools: ToolCall[] }
+
+function toRows(items: Item[]): Row[] {
+  const rows: Row[] = []
+  for (const it of items) {
+    if (it.kind === 'tool') {
+      const last = rows[rows.length - 1]
+      if (last && last.kind === 'tools') last.tools.push(it.tool)
+      else rows.push({ kind: 'tools', tools: [it.tool] })
+    } else {
+      rows.push(it)
+    }
+  }
+  return rows
 }
 
 export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element {
@@ -48,6 +86,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const streamingIdRef = useRef<string | null>(null)
+  const thinkingIdRef = useRef<string | null>(null)
   const registerAgent = useStore((s) => s.registerAgent)
 
   const handleEvent = useCallback((event: Record<string, unknown>) => {
@@ -72,6 +111,10 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
             ...prev,
             { kind: 'msg', msg: { id, role: 'assistant', text: '', streaming: true } }
           ])
+        } else if (block?.type === 'thinking') {
+          const id = `t-${Date.now()}-${Math.random()}`
+          thinkingIdRef.current = id
+          setItems((prev) => [...prev, { kind: 'thinking', id, text: '' }])
         }
       } else if (evType === 'content_block_delta') {
         const delta = ev.delta as Record<string, unknown>
@@ -85,7 +128,18 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
                 : it
             )
           )
+        } else if (delta?.type === 'thinking_delta') {
+          const tid = thinkingIdRef.current
+          const chunk = (delta.thinking as string) ?? ''
+          setItems((prev) =>
+            prev.map((it) =>
+              it.kind === 'thinking' && it.id === tid ? { ...it, text: it.text + chunk } : it
+            )
+          )
         }
+      } else if (evType === 'content_block_stop') {
+        // A thinking block ended — stop appending to it.
+        thinkingIdRef.current = null
       }
       return
     }
@@ -103,7 +157,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
               tool: {
                 id: block.id as string,
                 name: block.name as string,
-                input: JSON.stringify(block.input)
+                detail: toolDetail(block.input)
               }
             }
           ])
@@ -197,18 +251,38 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
           </div>
         )}
         {items.length === 0 && !ready && <div className="easy-empty">Starting Claude…</div>}
-        {items.map((it, i) =>
-          it.kind === 'msg' ? (
-            <div key={it.msg.id + i} className={`easy-msg easy-${it.msg.role}`}>
-              {it.msg.text}
-              {it.msg.streaming && <span className="easy-caret" />}
-            </div>
-          ) : (
-            <div key={it.tool.id + i} className="easy-tool">
-              <span className="easy-tool-label">{toolLabel(it.tool.name)}</span>
+        {toRows(items).map((row, i) => {
+          if (row.kind === 'msg') {
+            return (
+              <div key={row.msg.id + i} className={`easy-msg easy-${row.msg.role}`}>
+                {row.msg.text}
+                {row.msg.streaming && <span className="easy-caret" />}
+              </div>
+            )
+          }
+          if (row.kind === 'thinking') {
+            if (!row.text) return null
+            return (
+              <div key={row.id} className="easy-thought">
+                {row.text}
+              </div>
+            )
+          }
+          return (
+            <div key={'tools-' + i} className="easy-tools">
+              {row.tools.map((t, j) => {
+                const { icon, verb } = toolLabel(t.name)
+                return (
+                  <span key={t.id + j} className="easy-tool" title={t.detail}>
+                    <span className="easy-tool-icon">{icon}</span>
+                    <span className="easy-tool-verb">{verb}</span>
+                    {t.detail && <span className="easy-tool-detail">{t.detail}</span>}
+                  </span>
+                )
+              })}
             </div>
           )
-        )}
+        })}
         {thinking && (
           <div className="easy-thinking">
             <span />
