@@ -782,6 +782,29 @@ button {
   opacity: 0.4;
 }
 
+.easy-stop {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.easy-stop-square {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: var(--bg-content);
+}
+
+.easy-stop:hover {
+  opacity: 0.85;
+}
+
 .split-side {
   min-width: 0;
   min-height: 0;

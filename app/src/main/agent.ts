@@ -98,6 +98,18 @@ export function sendToAgent(id: string, text: string): void {
   session.proc.stdin.write(JSON.stringify(message) + '\n')
 }
 
+/** Interrupt the current generation without ending the session (keeps context). */
+export function interruptAgent(id: string): void {
+  const session = sessions.get(id)
+  if (!session) return
+  const control = {
+    type: 'control_request',
+    request_id: randomUUID(),
+    request: { subtype: 'interrupt' }
+  }
+  session.proc.stdin.write(JSON.stringify(control) + '\n')
+}
+
 export function stopAgent(id: string): void {
   const session = sessions.get(id)
   if (session) {
@@ -113,5 +125,6 @@ export function killAllAgents(): void {
 export function registerAgentIpc(): void {
   ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => startAgent(e.sender, opts))
   ipcMain.on('agent:send', (_e, id: string, text: string) => sendToAgent(id, text))
+  ipcMain.on('agent:interrupt', (_e, id: string) => interruptAgent(id))
   ipcMain.on('agent:stop', (_e, id: string) => stopAgent(id))
 }
