@@ -1,7 +1,45 @@
 import { useState, useMemo, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import hljs from 'highlight.js'
+// Core + a curated language set keeps the bundle small vs. the full 190-language build.
+import hljs from 'highlight.js/lib/core'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
+import python from 'highlight.js/lib/languages/python'
+import bash from 'highlight.js/lib/languages/bash'
+import json from 'highlight.js/lib/languages/json'
+import xml from 'highlight.js/lib/languages/xml'
+import css from 'highlight.js/lib/languages/css'
+import markdown from 'highlight.js/lib/languages/markdown'
+import go from 'highlight.js/lib/languages/go'
+import rust from 'highlight.js/lib/languages/rust'
+import java from 'highlight.js/lib/languages/java'
+import sql from 'highlight.js/lib/languages/sql'
+import yaml from 'highlight.js/lib/languages/yaml'
+
+for (const [name, lang] of Object.entries({
+  javascript,
+  typescript,
+  python,
+  bash,
+  json,
+  xml,
+  css,
+  markdown,
+  go,
+  rust,
+  java,
+  sql,
+  yaml
+})) {
+  hljs.registerLanguage(name, lang)
+}
+hljs.registerAliases(['js', 'jsx'], { languageName: 'javascript' })
+hljs.registerAliases(['ts', 'tsx'], { languageName: 'typescript' })
+hljs.registerAliases(['py'], { languageName: 'python' })
+hljs.registerAliases(['sh', 'shell', 'zsh'], { languageName: 'bash' })
+hljs.registerAliases(['html'], { languageName: 'xml' })
+hljs.registerAliases(['yml'], { languageName: 'yaml' })
 
 function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
