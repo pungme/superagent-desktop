@@ -2,17 +2,20 @@ import { useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { WorkspaceView } from './components/WorkspaceView'
 import { HookConsent } from './components/HookConsent'
+import { PreviewToast } from './components/PreviewToast'
 import { useStore } from './state'
 
 function App(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const activeId = useStore((s) => s.activeWorkspaceId)
   const startHookListener = useStore((s) => s.startHookListener)
+  const startBrowsingListener = useStore((s) => s.startBrowsingListener)
   const active = tree.flatMap((g) => g.workspaces).find((w) => w.id === activeId)
 
   useEffect(() => {
     startHookListener()
-  }, [startHookListener])
+    startBrowsingListener()
+  }, [startHookListener, startBrowsingListener])
 
   return (
     <div className="app">
@@ -31,6 +34,7 @@ function App(): React.JSX.Element {
           </div>
         )}
       </main>
+      <PreviewToast />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowserState } from '../../../preload'
+import { useStore } from '../state'
 
 interface BrowserPaneProps {
   paneId: string
@@ -8,6 +9,11 @@ interface BrowserPaneProps {
 }
 
 export function BrowserPane({ paneId, partition, initialUrl }: BrowserPaneProps): React.JSX.Element {
+  const previewUrl = useStore((s) => s.previewUrls[paneId])
+  const reloadOnIdle = useStore((s) => s.reloadOnIdle[paneId] ?? true)
+  const setReloadOnIdle = useStore((s) => s.setReloadOnIdle)
+  const browsing = useStore((s) => s.browsingWorkspaceId === paneId)
+  const stopBrowsing = useStore((s) => s.stopBrowsing)
   const hostRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<BrowserState>({
     url: '',
@@ -59,6 +65,11 @@ export function BrowserPane({ paneId, partition, initialUrl }: BrowserPaneProps)
     }
   }, [paneId, partition, initialUrl, syncBounds])
 
+  // Navigate when a preview URL is requested (e.g. clicking a port chip).
+  useEffect(() => {
+    if (previewUrl) window.cove.browserNavigate(paneId, previewUrl)
+  }, [paneId, previewUrl])
+
   const submitAddress = (): void => {
     if (addressInput.trim()) window.cove.browserNavigate(paneId, addressInput.trim())
     setEditing(false)
@@ -107,6 +118,13 @@ export function BrowserPane({ paneId, partition, initialUrl }: BrowserPaneProps)
           }}
         />
         <button
+          className={`browser-nav-btn ${reloadOnIdle ? 'on' : ''}`}
+          onClick={() => setReloadOnIdle(paneId, !reloadOnIdle)}
+          title={reloadOnIdle ? 'Auto-reload when Claude finishes: on' : 'Auto-reload: off'}
+        >
+          ↻
+        </button>
+        <button
           className="browser-nav-btn"
           onClick={() => window.cove.browserOpenExternal(paneId)}
           title="Open in your browser"
@@ -115,6 +133,15 @@ export function BrowserPane({ paneId, partition, initialUrl }: BrowserPaneProps)
         </button>
       </div>
       <div ref={hostRef} className="browser-host">
+        {browsing && (
+          <div className="browsing-indicator">
+            <span className="browsing-pulse" />
+            Claude is browsing…
+            <button className="browsing-stop" onClick={stopBrowsing}>
+              Stop
+            </button>
+          </div>
+        )}
         {crashed && (
           <div className="browser-crashed">
             <p>This page crashed.</p>

@@ -8,16 +8,19 @@ import * as auto from './automation'
 /**
  * Cove's browser-automation MCP server.
  * HTTP transport on 127.0.0.1 with a per-launch secret in the path.
- * Sessions launched by Cove get the URL via --mcp-config / env.
- *
- * v0: single "spike" pane. M4 scopes tool calls to the calling session's workspace.
+ * Each Cove-launched claude session gets a config whose URL carries ?ws=<id>,
+ * so tool calls are scoped to that session's own workspace browser pane.
  */
 
-const PANE_ID = 'spike'
+import { app } from 'electron'
+import { writeFileSync } from 'fs'
+import { join } from 'path'
+
 let port = 0
 let secret = ''
 
-function buildServer(): McpServer {
+function buildServer(paneId: string): McpServer {
+  const PANE_ID = paneId
   const server = new McpServer({ name: 'cove-browser', version: '0.1.0' })
 
   server.registerTool(
@@ -108,6 +111,27 @@ function buildServer(): McpServer {
     })
   )
 
+  server.registerTool(
+    'browser_evaluate',
+    {
+      description:
+        'Evaluate a JavaScript expression in the page and return the JSON result. Example: "document.title" or "document.querySelectorAll(\'.item\').length".',
+      inputSchema: { expression: z.string() }
+    },
+    async ({ expression }) => ({
+      content: [{ type: 'text', text: await auto.evaluate(PANE_ID, expression) }]
+    })
+  )
+
+  server.registerTool(
+    'browser_network',
+    {
+      description: 'Recent network requests, failed and error-status ones first. Good for finding broken API calls.',
+      inputSchema: {}
+    },
+    async () => ({ content: [{ type: 'text', text: JSON.stringify(auto.network(PANE_ID)) }] })
+  )
+
   return server
 }
 
@@ -128,8 +152,11 @@ export function startMcpServer(): Promise<{ url: string }> {
       return
     }
     try {
+      // Scope tools to the workspace named in ?ws=<id> (falls back to "spike" for the dev pane).
+      const wsParam = new URL(req.url, 'http://127.0.0.1').searchParams.get('ws')
+      const paneId = wsParam || 'spike'
       // Stateless mode: fresh server+transport per request, no session tracking.
-      const server = buildServer()
+      const server = buildServer(paneId)
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
       res.on('close', () => {
         transport.close()
@@ -159,4 +186,18 @@ export function startMcpServer(): Promise<{ url: string }> {
 
 export function getMcpUrl(): string {
   return port ? `http://127.0.0.1:${port}/mcp/${secret}` : ''
+}
+
+/**
+ * Write a per-workspace MCP config file and return its path.
+ * The URL carries ?ws=<id> so tool calls hit this workspace's browser pane.
+ */
+export function writeWorkspaceMcpConfig(workspaceId: string): string {
+  const url = `${getMcpUrl()}?ws=${encodeURIComponent(workspaceId)}`
+  const configPath = join(app.getPath('userData'), `mcp-${workspaceId}.json`)
+  writeFileSync(
+    configPath,
+    JSON.stringify({ mcpServers: { 'cove-browser': { type: 'http', url } } })
+  )
+  return configPath
 }

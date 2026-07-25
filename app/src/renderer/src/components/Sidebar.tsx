@@ -30,6 +30,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
   const setActive = useStore((s) => s.setActive)
   const removeWorkspace = useStore((s) => s.removeWorkspace)
+  const openPreview = useStore((s) => s.openPreview)
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: ws.id,
@@ -47,7 +48,14 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       <StatusDot status={status} />
       <span className="sidebar-item-name">{ws.name}</span>
       {ports.length > 0 && (
-        <span className="port-chip" title={`Dev server on port ${ports[ports.length - 1]}`}>
+        <span
+          className="port-chip"
+          title={`Open localhost:${ports[ports.length - 1]} in the preview`}
+          onClick={(e) => {
+            e.stopPropagation()
+            openPreview(ws.id, ports[ports.length - 1])
+          }}
+        >
           :{ports[ports.length - 1]}
         </span>
       )}

@@ -3,7 +3,7 @@ import * as pty from 'node-pty'
 import { randomUUID } from 'crypto'
 import os from 'os'
 import { getHookUrl } from './hooks'
-import { getMcpUrl } from './mcp'
+import { getMcpUrl, writeWorkspaceMcpConfig } from './mcp'
 
 export interface PtyCreateOptions {
   cwd?: string
@@ -31,9 +31,18 @@ function defaultShell(): string {
 export function createPty(owner: WebContents, opts: PtyCreateOptions): string {
   const id = randomUUID()
   const shell = defaultShell()
+
+  // For a Cove-launched claude in a workspace, inject the per-workspace MCP config
+  // so Claude can drive that workspace's browser pane.
+  let command = opts.command
+  if (command && opts.workspaceId && /^claude(\s|$)/.test(command.trim())) {
+    const configPath = writeWorkspaceMcpConfig(opts.workspaceId)
+    command = `${command} --mcp-config ${JSON.stringify(configPath)}`
+  }
+
   // -l → login shell so the user's real PATH (nvm, homebrew, ~/.local/bin) is loaded.
   // -i + -c lets us drop straight into a command (like `claude`) while keeping that env.
-  const args = opts.command ? ['-il', '-c', opts.command] : ['-l']
+  const args = command ? ['-il', '-c', command] : ['-l']
 
   const proc = pty.spawn(shell, args, {
     name: 'xterm-256color',

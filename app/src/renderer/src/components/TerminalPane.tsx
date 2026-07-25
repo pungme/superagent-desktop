@@ -5,6 +5,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { extractPorts } from '../lib/ports'
+import { useStore } from '../state'
 
 const DARK_THEME = {
   background: '#1e1f24',
@@ -46,6 +47,7 @@ export function TerminalPane({
   onPort
 }: TerminalPaneProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
+  const registerPty = useStore((s) => s.registerPty)
 
   useEffect(() => {
     const container = containerRef.current
@@ -82,6 +84,7 @@ export function TerminalPane({
           window.cove.ptyKill(id)
           return
         }
+        if (workspaceId) registerPty(workspaceId, id)
         const offData = window.cove.onPtyData(id, (data) => {
           term.write(data)
           if (onPort) for (const port of extractPorts(data)) onPort(port)
