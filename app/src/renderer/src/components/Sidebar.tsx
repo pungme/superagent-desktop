@@ -119,7 +119,11 @@ function GroupSection({
             {group.name}
           </span>
         )}
-        <button className="group-add" title="Add a project folder" onClick={() => addWorkspace(group.id)}>
+        <button
+          className="group-add"
+          title="Add a project folder"
+          onClick={() => addWorkspace(group.id)}
+        >
           +
         </button>
       </div>

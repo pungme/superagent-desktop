@@ -30,10 +30,11 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
   }, [ws.id])
 
   useEffect(() => {
-    refresh()
+    // setState lives inside the promise callback (not the synchronous effect body).
+    window.cove.routinesList(ws.id).then(setRoutines)
     const off = window.cove.onRoutinesChanged(refresh)
     return off
-  }, [refresh])
+  }, [ws.id, refresh])
 
   const create = async (): Promise<void> => {
     if (!prompt.trim()) return
@@ -71,7 +72,11 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
                 <option value={24}>1 day</option>
               </select>
             </label>
-            <button className="skills-action routine-add" onClick={create} disabled={!prompt.trim()}>
+            <button
+              className="skills-action routine-add"
+              onClick={create}
+              disabled={!prompt.trim()}
+            >
               Add routine
             </button>
           </div>

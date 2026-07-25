@@ -117,7 +117,9 @@ export interface CoveApi {
   routinesRunNow: (id: string) => void
   onRoutinesChanged: (cb: () => void) => () => void
 
-  skillsList: (projectPath?: string) => Promise<
+  skillsList: (
+    projectPath?: string
+  ) => Promise<
     { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
   >
   skillsInstallStarters: () => Promise<

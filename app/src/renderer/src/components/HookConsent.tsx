@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../state'
 
 /**
@@ -8,12 +8,10 @@ import { useStore } from '../state'
 export function HookConsent(): React.JSX.Element | null {
   const hooksEnabled = useStore((s) => s.hooksEnabled)
   const setHooksEnabled = useStore((s) => s.setHooksEnabled)
-  const [dismissed, setDismissed] = useState(false)
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem('cove.hookConsentDismissed') === '1'
+  )
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    setDismissed(localStorage.getItem('cove.hookConsentDismissed') === '1')
-  }, [])
 
   if (hooksEnabled || dismissed) return null
 

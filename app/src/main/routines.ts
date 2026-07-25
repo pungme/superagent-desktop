@@ -95,8 +95,7 @@ export function createRoutineForWorkspace(
   intervalMinutes: number
 ): { ok: boolean; message: string } {
   const ws = db.prepare('SELECT path FROM workspaces WHERE id = ?').get(workspaceId) as
-    | { path: string }
-    | undefined
+    { path: string } | undefined
   if (!ws) return { ok: false, message: `Unknown workspace ${workspaceId}` }
   const requestedMs = intervalMinutes * 60 * 1000
   createRoutine(workspaceId, ws.path, prompt, requestedMs)

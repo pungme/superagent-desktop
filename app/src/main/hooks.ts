@@ -69,8 +69,7 @@ export function startHookServer(): Promise<string> {
     if (event === 'Notification') {
       const focused = BrowserWindow.getFocusedWindow()
       if (!focused && Notification.isSupported()) {
-        const message =
-          typeof body.message === 'string' ? body.message : 'Claude needs your input'
+        const message = typeof body.message === 'string' ? body.message : 'Claude needs your input'
         const n = new Notification({ title: 'Cove — Claude needs you', body: message })
         n.on('click', () => {
           const win = BrowserWindow.getAllWindows()[0]
@@ -171,9 +170,7 @@ export function installHooks(): { ok: boolean; error?: string } {
 
     const settingsPath = claudeSettingsPath()
     mkdirSync(dirname(settingsPath), { recursive: true })
-    const settings = existsSync(settingsPath)
-      ? JSON.parse(readFileSync(settingsPath, 'utf8'))
-      : {}
+    const settings = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, 'utf8')) : {}
 
     writeFileSync(settingsPath, JSON.stringify(mergeCoveHooks(settings, scriptPath), null, 2))
     console.log('[hooks] installed into', settingsPath)

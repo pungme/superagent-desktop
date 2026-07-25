@@ -158,7 +158,11 @@ function ensureDebugger(paneId: string): WebContents {
         netBuffers.set(paneId, buf)
       } else if (method === 'Network.loadingFailed') {
         const buf = netBuffers.get(paneId) ?? []
-        buf.push({ url: params.request?.url ?? '(unknown)', failed: params.errorText, ts: Date.now() })
+        buf.push({
+          url: params.request?.url ?? '(unknown)',
+          failed: params.errorText,
+          ts: Date.now()
+        })
         if (buf.length > 200) buf.shift()
         netBuffers.set(paneId, buf)
       }
@@ -281,10 +285,10 @@ export async function pressKey(paneId: string, key: string): Promise<string> {
 export function consoleLogs(paneId: string): ConsoleEntry[] {
   ensureDebugger(paneId)
   const buf = consoleBuffers.get(paneId) ?? []
-  return [...buf.filter((e) => e.level === 'error'), ...buf.filter((e) => e.level !== 'error')].slice(
-    0,
-    50
-  )
+  return [
+    ...buf.filter((e) => e.level === 'error'),
+    ...buf.filter((e) => e.level !== 'error')
+  ].slice(0, 50)
 }
 
 export async function evaluate(paneId: string, expression: string): Promise<string> {

@@ -22,7 +22,11 @@ export function parseDescription(content: string): string {
   const fm = content.match(/^---\n([\s\S]*?)\n---\n?/)
   if (fm) {
     const desc = fm[1].match(/^description:\s*(.+)$/m)
-    if (desc) return desc[1].trim().replace(/^["']|["']$/g, '').slice(0, 140)
+    if (desc)
+      return desc[1]
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .slice(0, 140)
     body = content.slice(fm[0].length)
   }
   const lines = body.split('\n').map((l) => l.trim())

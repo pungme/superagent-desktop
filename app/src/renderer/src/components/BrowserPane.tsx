@@ -8,7 +8,11 @@ interface BrowserPaneProps {
   initialUrl?: string
 }
 
-export function BrowserPane({ paneId, partition, initialUrl }: BrowserPaneProps): React.JSX.Element {
+export function BrowserPane({
+  paneId,
+  partition,
+  initialUrl
+}: BrowserPaneProps): React.JSX.Element {
   const previewUrl = useStore((s) => s.previewUrls[paneId])
   const reloadOnIdle = useStore((s) => s.reloadOnIdle[paneId] ?? true)
   const setReloadOnIdle = useStore((s) => s.setReloadOnIdle)

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../state'
 
 interface Skill {
@@ -23,16 +23,13 @@ export function SkillsPanel({
   const [loading, setLoading] = useState(true)
   const sendToClaude = useStore((s) => s.sendToClaude)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    const list = await window.cove.skillsList(projectPath)
-    setSkills(list)
-    setLoading(false)
-  }, [projectPath])
-
   useEffect(() => {
-    refresh()
-  }, [refresh])
+    // setState lives inside the promise callback (not the synchronous effect body).
+    window.cove.skillsList(projectPath).then((list) => {
+      setSkills(list)
+      setLoading(false)
+    })
+  }, [projectPath])
 
   const run = (skill: Skill): void => {
     // Commands are slash-invocable; skills are invoked by asking Claude to use them.

@@ -17,8 +17,13 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
     setChecking(false)
   }
 
+  // Runs once on mount; `checking` already starts true, so we fetch without
+  // a synchronous setState in the effect body.
   useEffect(() => {
-    check()
+    window.cove.envDetect().then((status) => {
+      setEnv(status)
+      setChecking(false)
+    })
   }, [])
 
   const ready = env?.claudeInstalled && env?.loggedIn
@@ -31,7 +36,9 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
         <p className="onboarding-sub">A friendly home for Claude Code.</p>
 
         <div className="onboarding-steps">
-          <div className={`onboarding-step ${env?.claudeInstalled ? 'ok' : checking ? '' : 'todo'}`}>
+          <div
+            className={`onboarding-step ${env?.claudeInstalled ? 'ok' : checking ? '' : 'todo'}`}
+          >
             <span className="step-icon">{env?.claudeInstalled ? '✓' : checking ? '…' : '!'}</span>
             <div className="step-body">
               <strong>Claude Code installed</strong>
@@ -57,7 +64,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
             <div className="step-body">
               <strong>Signed in</strong>
               {env?.loggedIn ? (
-                <span>You're signed in and ready.</span>
+                <span>You&rsquo;re signed in and ready.</span>
               ) : env?.claudeInstalled ? (
                 <span>
                   Open a terminal and run <code>claude</code> once to sign in, then re-check.

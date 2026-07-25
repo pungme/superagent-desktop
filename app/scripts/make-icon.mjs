@@ -34,10 +34,9 @@ const svg = `
 
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1024, height: 1024 } })
-await page.setContent(
-  `<style>*{margin:0}body{width:1024px;height:1024px}</style>${svg}`,
-  { waitUntil: 'networkidle' }
-)
+await page.setContent(`<style>*{margin:0}body{width:1024px;height:1024px}</style>${svg}`, {
+  waitUntil: 'networkidle'
+})
 const png = await page.locator('svg').screenshot({ omitBackground: true })
 writeFileSync(out, png)
 console.log('wrote', out)

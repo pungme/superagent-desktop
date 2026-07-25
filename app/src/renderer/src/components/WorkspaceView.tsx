@@ -94,7 +94,11 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
           </button>
         </div>
         <div className="workspace-toolbar-spacer" />
-        <button className="toolbar-btn" onClick={() => setRoutinesOpen(true)} title="Scheduled tasks">
+        <button
+          className="toolbar-btn"
+          onClick={() => setRoutinesOpen(true)}
+          title="Scheduled tasks"
+        >
           ⏱ Routines
         </button>
         <button className="toolbar-btn" onClick={() => setSkillsOpen(true)} title="Your skills">
@@ -113,10 +117,7 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
       {/* Terminal stays mounted (stable position) whether or not the browser is open,
           so toggling the preview never kills the Claude session. */}
       <div ref={containerRef} className="content-split">
-        <div
-          className="split-side"
-          style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}
-        >
+        <div className="split-side" style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}>
           {easyMode ? (
             <EasyChat cwd={ws.path} workspaceId={ws.id} />
           ) : (
