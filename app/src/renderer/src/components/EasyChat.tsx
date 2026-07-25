@@ -141,7 +141,9 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const [elapsed, setElapsed] = useState(0)
   const [resetKey, setResetKey] = useState(0)
   const [files, setFiles] = useState<string[]>([])
+  const [commands, setCommands] = useState<string[]>([])
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
   const agentIdRef = useRef<string | null>(null)
@@ -160,9 +162,10 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     return () => clearInterval(t)
   }, [generating])
 
-  // Load the project's files once for @-mention autocomplete.
+  // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
     window.cove.filesList(cwd).then(setFiles)
+    window.cove.skillsList(cwd).then((list) => setCommands(list.map((s) => s.name)))
   }, [cwd])
 
   // Grow the input with its content, up to the CSS max-height.
@@ -173,12 +176,19 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     el.style.height = Math.min(el.scrollHeight, 160) + 'px'
   }
 
-  // Detect a "@query" being typed at the caret, for the file dropdown.
+  // Detect a "/command" at the start, or an "@file" at the caret, for the dropdown.
   const updateMention = (value: string): void => {
+    const cmd = /^\/(\S*)$/.exec(value)
+    if (cmd) {
+      setMentionKind('cmd')
+      setMentionQuery(cmd[1])
+      setMentionIndex(0)
+      return
+    }
     const el = inputRef.current
     const caret = el ? el.selectionStart : value.length
-    const before = value.slice(0, caret)
-    const m = /(^|\s)@([\w./-]*)$/.exec(before)
+    const m = /(^|\s)@([\w./-]*)$/.exec(value.slice(0, caret))
+    setMentionKind('file')
     setMentionQuery(m ? m[2] : null)
     setMentionIndex(0)
   }
@@ -186,14 +196,19 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const mentionMatches =
     mentionQuery === null
       ? []
-      : (mentionQuery === ''
-          ? files
-          : files.filter((f) => f.toLowerCase().includes(mentionQuery.toLowerCase()))
-        ).slice(0, 8)
+      : (() => {
+          const pool = mentionKind === 'cmd' ? commands : files
+          const q = mentionQuery.toLowerCase()
+          return (q === '' ? pool : pool.filter((f) => f.toLowerCase().includes(q))).slice(0, 8)
+        })()
 
-  const pickMention = (path: string): void => {
-    // Replace the trailing "@query" with "@path ".
-    setInput((prev) => prev.replace(/@[\w./-]*$/, `@${path} `))
+  const pickMention = (item: string): void => {
+    if (mentionKind === 'cmd') {
+      setInput(`/${item} `)
+    } else {
+      // Replace the trailing "@query" with "@path ".
+      setInput((prev) => prev.replace(/@[\w./-]*$/, `@${item} `))
+    }
     setMentionQuery(null)
     inputRef.current?.focus()
   }
@@ -510,7 +525,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
                 onMouseEnter={() => setMentionIndex(idx)}
                 onClick={() => pickMention(f)}
               >
-                {f}
+                {mentionKind === 'cmd' ? `/${f}` : f}
               </button>
             ))}
           </div>
@@ -519,7 +534,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
           ref={inputRef}
           className="easy-input"
           value={input}
-          placeholder={ready ? 'Message Claude…  (@ to add a file)' : 'Starting…'}
+          placeholder={ready ? 'Message Claude…  (/ commands · @ files)' : 'Starting…'}
           rows={1}
           disabled={!ready}
           onChange={(e) => {
