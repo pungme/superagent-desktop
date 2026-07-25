@@ -77,6 +77,20 @@ export function initStore(): void {
       COLORS[0]
     )
   }
+
+  // E2E test hook: seed a deterministic workspace so tests don't need the native dialog.
+  if (process.env.COVE_E2E_PROJECT) {
+    const path = process.env.COVE_E2E_PROJECT
+    const exists = db.prepare('SELECT id FROM workspaces WHERE path = ?').get(path)
+    if (!exists) {
+      const group = db.prepare('SELECT id FROM groups ORDER BY position LIMIT 1').get() as {
+        id: string
+      }
+      db.prepare(
+        'INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId) VALUES (?, ?, ?, ?, 0, NULL, NULL)'
+      ).run(randomUUID(), group.id, 'e2e-project', path)
+    }
+  }
 }
 
 function nextPosition(table: 'groups' | 'workspaces', where?: [string, string]): number {
