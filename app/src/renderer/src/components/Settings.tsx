@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
+import { SlideOverPanel } from './SlideOverPanel'
 
 interface SettingsProps {
   onClose: () => void
@@ -36,84 +37,76 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   }
 
   return (
-    <div className="skills-overlay" onClick={onClose}>
-      <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="skills-header">
-          <span>Settings</span>
-          <button className="skills-close" onClick={onClose}>
-            ×
-          </button>
-        </div>
-        <div className="settings-body">
-          <div className="settings-row">
-            <div className="settings-label">
-              <strong>Appearance</strong>
-              <span>Light, dark, or match your system.</span>
-            </div>
-            <div className="mode-switch">
-              {(['light', 'dark', 'system'] as const).map((t) => (
-                <button
-                  key={t}
-                  className={`mode-switch-btn ${theme === t ? 'active' : ''}`}
-                  onClick={() => setTheme(t)}
-                >
-                  {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto'}
-                </button>
-              ))}
-            </div>
+    <SlideOverPanel title="Settings" onClose={onClose} variant="center">
+      <div className="settings-body">
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Appearance</strong>
+            <span>Light, dark, or match your system.</span>
           </div>
-
-          <div className="settings-row">
-            <div className="settings-label">
-              <strong>Default mode</strong>
-              <span>How new projects open.</span>
-            </div>
-            <div className="mode-switch">
+          <div className="mode-switch">
+            {(['light', 'dark', 'system'] as const).map((t) => (
               <button
-                className={`mode-switch-btn ${easyMode ? 'active' : ''}`}
-                onClick={() => setEasyMode(true)}
+                key={t}
+                className={`mode-switch-btn ${theme === t ? 'active' : ''}`}
+                onClick={() => setTheme(t)}
               >
-                Easy
+                {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto'}
               </button>
-              <button
-                className={`mode-switch-btn ${!easyMode ? 'active' : ''}`}
-                onClick={() => setEasyMode(false)}
-              >
-                Terminal
-              </button>
-            </div>
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-label">
-              <strong>Status badges</strong>
-              <span>Show when Claude is working or needs you.</span>
-            </div>
-            <label className="switch">
-              <input type="checkbox" checked={hooksEnabled} onChange={toggleHooks} />
-              <span className="switch-slider" />
-            </label>
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-label">
-              <strong>Developer mode</strong>
-              <span>Show DevTools and verbose details.</span>
-            </div>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={devMode}
-                onChange={(e) => toggleDev(e.target.checked)}
-              />
-              <span className="switch-slider" />
-            </label>
+            ))}
           </div>
         </div>
-        <div className="settings-footer">
-          <span>Cove · Claude Code {version ?? ''}</span>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Default mode</strong>
+            <span>How new projects open.</span>
+          </div>
+          <div className="mode-switch">
+            <button
+              className={`mode-switch-btn ${easyMode ? 'active' : ''}`}
+              onClick={() => setEasyMode(true)}
+            >
+              Easy
+            </button>
+            <button
+              className={`mode-switch-btn ${!easyMode ? 'active' : ''}`}
+              onClick={() => setEasyMode(false)}
+            >
+              Terminal
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Status badges</strong>
+            <span>Show when Claude is working or needs you.</span>
+          </div>
+          <label className="switch">
+            <input type="checkbox" checked={hooksEnabled} onChange={toggleHooks} />
+            <span className="switch-slider" />
+          </label>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Developer mode</strong>
+            <span>Show DevTools and verbose details.</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={devMode}
+              onChange={(e) => toggleDev(e.target.checked)}
+            />
+            <span className="switch-slider" />
+          </label>
         </div>
       </div>
-    </div>
+      <div className="settings-footer">
+        <span>Cove · Claude Code {version ?? ''}</span>
+      </div>
+    </SlideOverPanel>
   )
 }

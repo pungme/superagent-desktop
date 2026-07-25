@@ -141,23 +141,20 @@ export interface CoveApi {
   hooksUninstall: () => Promise<boolean>
 }
 
+/** Subscribe to an IPC channel; returns an unsubscribe fn. Collapses the repeated on<X> boilerplate. */
+function subscribe(channel: string, cb: (...args: unknown[]) => void): () => void {
+  const listener = (_e: Electron.IpcRendererEvent, ...args: unknown[]): void => cb(...args)
+  ipcRenderer.on(channel, listener)
+  return () => ipcRenderer.removeListener(channel, listener)
+}
+
 const cove: CoveApi = {
   ptyCreate: (opts) => ipcRenderer.invoke('pty:create', opts),
   ptyWrite: (id, data) => ipcRenderer.send('pty:write', id, data),
   ptyResize: (id, cols, rows) => ipcRenderer.send('pty:resize', id, cols, rows),
   ptyKill: (id) => ipcRenderer.send('pty:kill', id),
-  onPtyData: (id, cb) => {
-    const channel = `pty:data:${id}`
-    const listener = (_e: Electron.IpcRendererEvent, data: string): void => cb(data)
-    ipcRenderer.on(channel, listener)
-    return () => ipcRenderer.removeListener(channel, listener)
-  },
-  onPtyExit: (id, cb) => {
-    const channel = `pty:exit:${id}`
-    const listener = (_e: Electron.IpcRendererEvent, code: number): void => cb(code)
-    ipcRenderer.on(channel, listener)
-    return () => ipcRenderer.removeListener(channel, listener)
-  },
+  onPtyData: (id, cb) => subscribe(`pty:data:${id}`, (data) => cb(data as string)),
+  onPtyExit: (id, cb) => subscribe(`pty:exit:${id}`, (code) => cb(code as number)),
 
   browserCreate: (id, partition) => ipcRenderer.invoke('browser:create', id, partition),
   browserSetBounds: (id, b) => ipcRenderer.send('browser:set-bounds', id, b),
@@ -168,24 +165,10 @@ const cove: CoveApi = {
   browserReload: (id) => ipcRenderer.send('browser:reload', id),
   browserOpenExternal: (id) => ipcRenderer.send('browser:open-external', id),
   browserDestroy: (id) => ipcRenderer.send('browser:destroy', id),
-  onBrowserState: (id, cb) => {
-    const channel = `browser:state:${id}`
-    const listener = (_e: Electron.IpcRendererEvent, s: BrowserState): void => cb(s)
-    ipcRenderer.on(channel, listener)
-    return () => ipcRenderer.removeListener(channel, listener)
-  },
-  onBrowserCrashed: (id, cb) => {
-    const channel = `browser:crashed:${id}`
-    const listener = (): void => cb()
-    ipcRenderer.on(channel, listener)
-    return () => ipcRenderer.removeListener(channel, listener)
-  },
+  onBrowserState: (id, cb) => subscribe(`browser:state:${id}`, (s) => cb(s as BrowserState)),
+  onBrowserCrashed: (id, cb) => subscribe(`browser:crashed:${id}`, () => cb()),
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
-  onBrowserActivity: (cb) => {
-    const listener = (_e: Electron.IpcRendererEvent, id: string): void => cb(id)
-    ipcRenderer.on('browser:activity', listener)
-    return () => ipcRenderer.removeListener('browser:activity', listener)
-  },
+  onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
   createGroup: (name) => ipcRenderer.invoke('store:createGroup', name),
@@ -226,11 +209,7 @@ const cove: CoveApi = {
   routinesSetEnabled: (id, enabled) => ipcRenderer.invoke('routines:setEnabled', id, enabled),
   routinesDelete: (id) => ipcRenderer.invoke('routines:delete', id),
   routinesRunNow: (id) => ipcRenderer.send('routines:runNow', id),
-  onRoutinesChanged: (cb) => {
-    const listener = (): void => cb()
-    ipcRenderer.on('routines:changed', listener)
-    return () => ipcRenderer.removeListener('routines:changed', listener)
-  },
+  onRoutinesChanged: (cb) => subscribe('routines:changed', () => cb()),
 
   skillsList: (projectPath) => ipcRenderer.invoke('skills:list', projectPath),
   skillsInstallStarters: () => ipcRenderer.invoke('skills:installStarters'),
@@ -238,30 +217,12 @@ const cove: CoveApi = {
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
   agentSend: (id, text) => ipcRenderer.send('agent:send', id, text),
   agentStop: (id) => ipcRenderer.send('agent:stop', id),
-  onAgentEvent: (id, cb) => {
-    const channel = `agent:event:${id}`
-    const listener = (_e: Electron.IpcRendererEvent, event: Record<string, unknown>): void =>
-      cb(event)
-    ipcRenderer.on(channel, listener)
-    return () => ipcRenderer.removeListener(channel, listener)
-  },
-  onAgentExit: (id, cb) => {
-    const channel = `agent:exit:${id}`
-    const listener = (_e: Electron.IpcRendererEvent, code: number): void => cb(code)
-    ipcRenderer.on(channel, listener)
-    return () => ipcRenderer.removeListener(channel, listener)
-  },
+  onAgentEvent: (id, cb) =>
+    subscribe(`agent:event:${id}`, (event) => cb(event as Record<string, unknown>)),
+  onAgentExit: (id, cb) => subscribe(`agent:exit:${id}`, (code) => cb(code as number)),
 
-  onHookEvent: (cb) => {
-    const listener = (_e: Electron.IpcRendererEvent, ev: HookEvent): void => cb(ev)
-    ipcRenderer.on('hook:event', listener)
-    return () => ipcRenderer.removeListener('hook:event', listener)
-  },
-  onFocusWorkspace: (cb) => {
-    const listener = (_e: Electron.IpcRendererEvent, id: string): void => cb(id)
-    ipcRenderer.on('hook:focus-workspace', listener)
-    return () => ipcRenderer.removeListener('hook:focus-workspace', listener)
-  },
+  onHookEvent: (cb) => subscribe('hook:event', (ev) => cb(ev as HookEvent)),
+  onFocusWorkspace: (cb) => subscribe('hook:focus-workspace', (id) => cb(id as string)),
   hooksStatus: () => ipcRenderer.invoke('hooks:status'),
   hooksInstall: () => ipcRenderer.invoke('hooks:install'),
   hooksUninstall: () => ipcRenderer.invoke('hooks:uninstall')

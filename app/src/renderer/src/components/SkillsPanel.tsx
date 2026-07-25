@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
+import { SlideOverPanel } from './SlideOverPanel'
 
 interface Skill {
   name: string
@@ -52,40 +53,32 @@ export function SkillsPanel({
   }
 
   return (
-    <div className="skills-overlay" onClick={onClose}>
-      <div className="skills-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="skills-header">
-          <span>Skills</span>
-          <button className="skills-close" onClick={onClose}>
-            ×
-          </button>
-        </div>
-        <div className="skills-list">
-          {loading && <div className="skills-empty">Loading…</div>}
-          {!loading && skills.length === 0 && (
-            <div className="skills-empty">
-              <p>No skills yet.</p>
-              <button className="skills-action" onClick={installStarters}>
-                Add starter skills
-              </button>
-            </div>
-          )}
-          {skills.map((s) => (
-            <button key={s.name} className="skill-item" onClick={() => run(s)}>
-              <div className="skill-item-top">
-                <span className="skill-name">{s.kind === 'command' ? `/${s.name}` : s.name}</span>
-                <span className={`skill-scope skill-scope-${s.scope}`}>{s.scope}</span>
-              </div>
-              {s.description && <span className="skill-desc">{s.description}</span>}
+    <SlideOverPanel title="Skills" onClose={onClose}>
+      <div className="skills-list">
+        {loading && <div className="skills-empty">Loading…</div>}
+        {!loading && skills.length === 0 && (
+          <div className="skills-empty">
+            <p>No skills yet.</p>
+            <button className="skills-action" onClick={installStarters}>
+              Add starter skills
             </button>
-          ))}
-        </div>
-        <div className="skills-footer">
-          <button className="skills-action" onClick={saveAsSkill}>
-            + Save last session as a skill
+          </div>
+        )}
+        {skills.map((s) => (
+          <button key={s.name} className="skill-item" onClick={() => run(s)}>
+            <div className="skill-item-top">
+              <span className="skill-name">{s.kind === 'command' ? `/${s.name}` : s.name}</span>
+              <span className={`skill-scope skill-scope-${s.scope}`}>{s.scope}</span>
+            </div>
+            {s.description && <span className="skill-desc">{s.description}</span>}
           </button>
-        </div>
+        ))}
       </div>
-    </div>
+      <div className="skills-footer">
+        <button className="skills-action" onClick={saveAsSkill}>
+          + Save last session as a skill
+        </button>
+      </div>
+    </SlideOverPanel>
   )
 }
