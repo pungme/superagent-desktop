@@ -1,17 +1,25 @@
+import { useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { WorkspaceView } from './components/WorkspaceView'
+import { HookConsent } from './components/HookConsent'
 import { useStore } from './state'
 
 function App(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const activeId = useStore((s) => s.activeWorkspaceId)
+  const startHookListener = useStore((s) => s.startHookListener)
   const active = tree.flatMap((g) => g.workspaces).find((w) => w.id === activeId)
+
+  useEffect(() => {
+    startHookListener()
+  }, [startHookListener])
 
   return (
     <div className="app">
       <Sidebar />
       <main className="content">
         <div className="content-titlebar" />
+        <HookConsent />
         {active ? (
           <WorkspaceView key={active.id} ws={active} />
         ) : (

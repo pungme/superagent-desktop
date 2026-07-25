@@ -438,6 +438,68 @@ button {
   border-radius: 7px;
 }
 
+/* ---------- Consent banner ---------- */
+
+.consent-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 12px 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(139, 143, 248, 0.12);
+  border: 1px solid rgba(139, 143, 248, 0.25);
+}
+
+.consent-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.consent-text strong {
+  font-weight: 600;
+}
+
+.consent-text span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.consent-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.consent-primary,
+.consent-secondary {
+  border: none;
+  border-radius: 7px;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.consent-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.consent-primary:disabled {
+  opacity: 0.6;
+}
+
+.consent-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.consent-secondary:hover {
+  background: var(--hover);
+}
+
 /* ---------- Empty state ---------- */
 
 .empty-state {

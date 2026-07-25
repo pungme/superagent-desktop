@@ -26,6 +26,7 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
           key={ws.id}
           cwd={ws.path}
           command="claude"
+          workspaceId={ws.id}
           onPort={(port) => addPort(ws.id, port)}
         />
         {browserOpen && (

@@ -33,11 +33,18 @@ const DARK_THEME = {
 interface TerminalPaneProps {
   cwd?: string
   command?: string
+  workspaceId?: string
   onExit?: (code: number) => void
   onPort?: (port: number) => void
 }
 
-export function TerminalPane({ cwd, command, onExit, onPort }: TerminalPaneProps): React.JSX.Element {
+export function TerminalPane({
+  cwd,
+  command,
+  workspaceId,
+  onExit,
+  onPort
+}: TerminalPaneProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -69,7 +76,7 @@ export function TerminalPane({ cwd, command, onExit, onPort }: TerminalPaneProps
     let cleanupPty: (() => void) | undefined
 
     window.cove
-      .ptyCreate({ cwd, command, cols: term.cols, rows: term.rows })
+      .ptyCreate({ cwd, command, workspaceId, cols: term.cols, rows: term.rows })
       .then((id) => {
         if (disposed) {
           window.cove.ptyKill(id)
