@@ -93,6 +93,9 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const [generating, setGenerating] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [resetKey, setResetKey] = useState(0)
+  const [files, setFiles] = useState<string[]>([])
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionIndex, setMentionIndex] = useState(0)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -109,12 +112,42 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     return () => clearInterval(t)
   }, [generating])
 
+  // Load the project's files once for @-mention autocomplete.
+  useEffect(() => {
+    window.cove.filesList(cwd).then(setFiles)
+  }, [cwd])
+
   // Grow the input with its content, up to the CSS max-height.
   const autoResize = (): void => {
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+  }
+
+  // Detect a "@query" being typed at the caret, for the file dropdown.
+  const updateMention = (value: string): void => {
+    const el = inputRef.current
+    const caret = el ? el.selectionStart : value.length
+    const before = value.slice(0, caret)
+    const m = /(^|\s)@([\w./-]*)$/.exec(before)
+    setMentionQuery(m ? m[2] : null)
+    setMentionIndex(0)
+  }
+
+  const mentionMatches =
+    mentionQuery === null
+      ? []
+      : (mentionQuery === ''
+          ? files
+          : files.filter((f) => f.toLowerCase().includes(mentionQuery.toLowerCase()))
+        ).slice(0, 8)
+
+  const pickMention = (path: string): void => {
+    // Replace the trailing "@query" with "@path ".
+    setInput((prev) => prev.replace(/@[\w./-]*$/, `@${path} `))
+    setMentionQuery(null)
+    inputRef.current?.focus()
   }
 
   const handleEvent = useCallback((event: Record<string, unknown>) => {
@@ -368,18 +401,55 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
         )}
       </div>
       <div className="easy-input-row">
+        {mentionMatches.length > 0 && (
+          <div className="easy-mention-menu">
+            {mentionMatches.map((f, idx) => (
+              <button
+                key={f}
+                className={`easy-mention-item ${idx === mentionIndex ? 'active' : ''}`}
+                onMouseEnter={() => setMentionIndex(idx)}
+                onClick={() => pickMention(f)}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           ref={inputRef}
           className="easy-input"
           value={input}
-          placeholder={ready ? 'Message Claude…' : 'Starting…'}
+          placeholder={ready ? 'Message Claude…  (@ to add a file)' : 'Starting…'}
           rows={1}
           disabled={!ready}
           onChange={(e) => {
             setInput(e.target.value)
             autoResize()
+            updateMention(e.target.value)
           }}
           onKeyDown={(e) => {
+            if (mentionMatches.length > 0) {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setMentionIndex((i) => (i + 1) % mentionMatches.length)
+                return
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length)
+                return
+              }
+              if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault()
+                pickMention(mentionMatches[mentionIndex])
+                return
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setMentionQuery(null)
+                return
+              }
+            }
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               send()
