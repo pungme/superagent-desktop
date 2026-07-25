@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { WorkspaceView } from './components/WorkspaceView'
 import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
+import { Onboarding } from './components/Onboarding'
 import { useStore } from './state'
 
 function App(): React.JSX.Element {
@@ -11,11 +12,23 @@ function App(): React.JSX.Element {
   const startHookListener = useStore((s) => s.startHookListener)
   const startBrowsingListener = useStore((s) => s.startBrowsingListener)
   const active = tree.flatMap((g) => g.workspaces).find((w) => w.id === activeId)
+  const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
 
   useEffect(() => {
     startHookListener()
     startBrowsingListener()
   }, [startHookListener, startBrowsingListener])
+
+  if (!onboarded) {
+    return (
+      <Onboarding
+        onDone={() => {
+          localStorage.setItem('cove.onboarded', '1')
+          setOnboarded(true)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="app">
