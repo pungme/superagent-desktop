@@ -15,14 +15,48 @@ interface ToolCall {
   detail: string
 }
 
+interface DiffHunk {
+  removed: string[]
+  added: string[]
+}
+
+interface FileDiff {
+  id: string
+  file: string
+  hunks: DiffHunk[]
+}
+
 type Item =
   | { kind: 'msg'; msg: ChatMessage }
   | { kind: 'tool'; tool: ToolCall }
+  | { kind: 'diff'; diff: FileDiff }
   | { kind: 'thinking'; id: string; text: string }
 
 interface EasyChatProps {
   cwd: string
   workspaceId: string
+}
+
+// Build a diff card from an Edit/Write/MultiEdit tool's input (returns null for other tools).
+function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
+  if (!input || typeof input !== 'object') return null
+  const o = input as Record<string, unknown>
+  const file = typeof o.file_path === 'string' ? (o.file_path.split('/').pop() ?? '') : ''
+  const lines = (s: unknown): string[] => (typeof s === 'string' && s ? s.split('\n') : [])
+  if (name === 'Edit' && (o.old_string || o.new_string)) {
+    return { id, file, hunks: [{ removed: lines(o.old_string), added: lines(o.new_string) }] }
+  }
+  if (name === 'Write' && o.content) {
+    return { id, file, hunks: [{ removed: [], added: lines(o.content) }] }
+  }
+  if (name === 'MultiEdit' && Array.isArray(o.edits)) {
+    const hunks = (o.edits as Record<string, unknown>[]).map((e) => ({
+      removed: lines(e.old_string),
+      added: lines(e.new_string)
+    }))
+    return { id, file, hunks }
+  }
+  return null
 }
 
 const SUGGESTIONS = [
@@ -69,6 +103,7 @@ function toolDetail(input: unknown): string {
 type Row =
   | { kind: 'msg'; msg: ChatMessage }
   | { kind: 'thinking'; id: string; text: string }
+  | { kind: 'diff'; diff: FileDiff }
   | { kind: 'tools'; tools: ToolCall[] }
 
 function toRows(items: Item[]): Row[] {
@@ -212,16 +247,14 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
       for (const block of content) {
         if (block.type === 'tool_use') {
           setThinking(false)
+          const name = block.name as string
+          const id = block.id as string
+          const diff = toolDiff(name, id, block.input)
           setItems((prev) => [
             ...prev,
-            {
-              kind: 'tool',
-              tool: {
-                id: block.id as string,
-                name: block.name as string,
-                detail: toolDetail(block.input)
-              }
-            }
+            diff
+              ? { kind: 'diff', diff }
+              : { kind: 'tool', tool: { id, name, detail: toolDetail(block.input) } }
           ])
         }
       }
@@ -389,6 +422,40 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
             return (
               <div key={row.id} className="easy-thought">
                 {row.text}
+              </div>
+            )
+          }
+          if (row.kind === 'diff') {
+            const d = row.diff
+            const added = d.hunks.reduce((n, h) => n + h.added.length, 0)
+            const removed = d.hunks.reduce((n, h) => n + h.removed.length, 0)
+            return (
+              <div key={d.id} className="easy-diff">
+                <div className="easy-diff-head">
+                  <span className="easy-diff-file">✏️ {d.file}</span>
+                  <span className="easy-diff-stat">
+                    {added > 0 && <span className="easy-diff-plus">+{added}</span>}
+                    {removed > 0 && <span className="easy-diff-minus">−{removed}</span>}
+                  </span>
+                </div>
+                <pre className="easy-diff-body">
+                  {d.hunks.map((h, hi) => (
+                    <span key={hi}>
+                      {h.removed.map((l, li) => (
+                        <span key={'r' + li} className="easy-diff-del">
+                          - {l}
+                          {'\n'}
+                        </span>
+                      ))}
+                      {h.added.map((l, li) => (
+                        <span key={'a' + li} className="easy-diff-add">
+                          + {l}
+                          {'\n'}
+                        </span>
+                      ))}
+                    </span>
+                  ))}
+                </pre>
               </div>
             )
           }

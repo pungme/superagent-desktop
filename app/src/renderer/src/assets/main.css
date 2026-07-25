@@ -842,6 +842,73 @@ button {
   color: var(--syn-tag);
 }
 
+/* ---------- Inline file-edit diff cards ---------- */
+
+.easy-diff {
+  align-self: flex-start;
+  max-width: 85%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.easy-diff-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.easy-diff-file {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  color: var(--text-primary);
+}
+
+.easy-diff-stat {
+  display: flex;
+  gap: 8px;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.easy-diff-plus {
+  color: #3fb950;
+}
+
+.easy-diff-minus {
+  color: #f85149;
+}
+
+.easy-diff-body {
+  margin: 0;
+  padding: 6px 0;
+  overflow-x: auto;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.easy-diff-del {
+  display: block;
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--text-primary);
+  padding: 0 10px;
+  white-space: pre;
+}
+
+.easy-diff-add {
+  display: block;
+  background: rgba(63, 185, 80, 0.14);
+  color: var(--text-primary);
+  padding: 0 10px;
+  white-space: pre;
+}
+
 /* Claude's thinking — dim, like the terminal shows it greyed. */
 .easy-thought {
   align-self: flex-start;
