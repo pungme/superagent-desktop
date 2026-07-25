@@ -3,6 +3,7 @@ import { useStore } from '../state'
 import { TerminalPane } from './TerminalPane'
 import { BrowserPane } from './BrowserPane'
 import { EasyChat } from './EasyChat'
+import { SkillsPanel } from './SkillsPanel'
 import type { Workspace } from '../../../preload'
 
 export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
@@ -13,6 +14,7 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
   const ports = useStore((s) => s.ports[ws.id])
   const easyMode = useStore((s) => s.easyMode)
   const setEasyMode = useStore((s) => s.setEasyMode)
+  const [skillsOpen, setSkillsOpen] = useState(false)
 
   const checkMySite = (): void => {
     const port = ports?.[ports.length - 1]
@@ -76,6 +78,9 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
           </button>
         </div>
         <div className="workspace-toolbar-spacer" />
+        <button className="toolbar-btn" onClick={() => setSkillsOpen(true)} title="Your skills">
+          ✦ Skills
+        </button>
         <button className="toolbar-btn" onClick={checkMySite} title="Ask Claude to test your site">
           🔍 Check my site
         </button>
@@ -121,6 +126,13 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
           </>
         )}
       </div>
+      {skillsOpen && (
+        <SkillsPanel
+          workspaceId={ws.id}
+          projectPath={ws.path}
+          onClose={() => setSkillsOpen(false)}
+        />
+      )}
     </div>
   )
 }

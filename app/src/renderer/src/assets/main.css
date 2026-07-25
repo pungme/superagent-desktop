@@ -597,6 +597,149 @@ button {
   background: rgba(249, 117, 131, 0.32);
 }
 
+/* ---------- Skills panel ---------- */
+
+.skills-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.skills-panel {
+  width: 340px;
+  height: 100%;
+  background: #26272e;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  animation: slide-in 0.18s ease;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+.skills-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 10px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.skills-close {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  width: 24px;
+}
+
+.skills-close:hover {
+  color: var(--text-primary);
+}
+
+.skills-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skills-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--text-tertiary);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 30px;
+}
+
+.skill-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--text-primary);
+}
+
+.skill-item:hover {
+  background: var(--hover);
+}
+
+.skill-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.skill-name {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 12.5px;
+  color: var(--accent);
+  flex: 1;
+}
+
+.skill-scope {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.skill-scope-global {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-tertiary);
+}
+
+.skill-scope-project {
+  background: rgba(110, 231, 183, 0.16);
+  color: #6ee7b7;
+}
+
+.skill-desc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.skills-footer {
+  padding: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.skills-action {
+  width: 100%;
+  border: none;
+  background: rgba(139, 143, 248, 0.16);
+  color: var(--accent);
+  padding: 9px;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.skills-action:hover {
+  background: rgba(139, 143, 248, 0.26);
+}
+
 /* ---------- Preview toast ---------- */
 
 .preview-toast {

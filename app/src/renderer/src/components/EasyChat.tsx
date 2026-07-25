@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useStore } from '../state'
 
 interface ChatMessage {
   id: string
@@ -47,6 +48,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const streamingIdRef = useRef<string | null>(null)
+  const registerAgent = useStore((s) => s.registerAgent)
 
   useEffect(() => {
     let disposed = false
@@ -59,6 +61,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
         return
       }
       agentIdRef.current = id
+      registerAgent(workspaceId, id)
       // Ready as soon as the process is up — in stream-json input mode claude
       // waits for the first user message before it emits anything.
       setReady(true)
@@ -78,6 +81,21 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [items, thinking])
+
+  // Messages injected from toolbar actions (Skills, "Check my site") in Easy mode.
+  useEffect(() => {
+    const onInjected = (e: Event): void => {
+      const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
+      if (detail.workspaceId !== workspaceId) return
+      setItems((prev) => [
+        ...prev,
+        { kind: 'msg', msg: { id: `u-${Date.now()}`, role: 'user', text: detail.text } }
+      ])
+      setThinking(true)
+    }
+    window.addEventListener('cove:easy-user-message', onInjected)
+    return () => window.removeEventListener('cove:easy-user-message', onInjected)
+  }, [workspaceId])
 
   const handleEvent = useCallback((event: Record<string, unknown>) => {
     const type = event.type as string

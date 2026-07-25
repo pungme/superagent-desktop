@@ -1,0 +1,94 @@
+import { useEffect, useState, useCallback } from 'react'
+import { useStore } from '../state'
+
+interface Skill {
+  name: string
+  description: string
+  scope: 'global' | 'project'
+  kind: 'skill' | 'command'
+}
+
+interface SkillsPanelProps {
+  workspaceId: string
+  projectPath: string
+  onClose: () => void
+}
+
+export function SkillsPanel({
+  workspaceId,
+  projectPath,
+  onClose
+}: SkillsPanelProps): React.JSX.Element {
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [loading, setLoading] = useState(true)
+  const sendToClaude = useStore((s) => s.sendToClaude)
+
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    const list = await window.cove.skillsList(projectPath)
+    setSkills(list)
+    setLoading(false)
+  }, [projectPath])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  const run = (skill: Skill): void => {
+    // Commands are slash-invocable; skills are invoked by asking Claude to use them.
+    const message = skill.kind === 'command' ? `/${skill.name}` : `Use the "${skill.name}" skill.`
+    sendToClaude(workspaceId, message)
+    onClose()
+  }
+
+  const saveAsSkill = (): void => {
+    sendToClaude(
+      workspaceId,
+      'Turn what you just did into a reusable Claude Code skill: create a .claude/skills/<short-name>/SKILL.md in this project with proper frontmatter (name, description) and clear instructions so I can run it again later. Then tell me the skill name.'
+    )
+    onClose()
+  }
+
+  const installStarters = async (): Promise<void> => {
+    const list = await window.cove.skillsInstallStarters()
+    setSkills(list)
+  }
+
+  return (
+    <div className="skills-overlay" onClick={onClose}>
+      <div className="skills-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="skills-header">
+          <span>Skills</span>
+          <button className="skills-close" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="skills-list">
+          {loading && <div className="skills-empty">Loading…</div>}
+          {!loading && skills.length === 0 && (
+            <div className="skills-empty">
+              <p>No skills yet.</p>
+              <button className="skills-action" onClick={installStarters}>
+                Add starter skills
+              </button>
+            </div>
+          )}
+          {skills.map((s) => (
+            <button key={s.name} className="skill-item" onClick={() => run(s)}>
+              <div className="skill-item-top">
+                <span className="skill-name">{s.kind === 'command' ? `/${s.name}` : s.name}</span>
+                <span className={`skill-scope skill-scope-${s.scope}`}>{s.scope}</span>
+              </div>
+              {s.description && <span className="skill-desc">{s.description}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="skills-footer">
+          <button className="skills-action" onClick={saveAsSkill}>
+            + Save last session as a skill
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
