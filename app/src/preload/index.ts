@@ -97,6 +97,12 @@ export interface CoveApi {
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
 
+  envDetect: () => Promise<{
+    claudeInstalled: boolean
+    claudeVersion: string | null
+    loggedIn: boolean
+  }>
+
   routinesList: (workspaceId?: string) => Promise<Routine[]>
   routinesCreate: (
     workspaceId: string,
@@ -186,6 +192,8 @@ const cove: CoveApi = {
   moveWorkspace: (workspaceId, toGroupId, toIndex) =>
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
+
+  envDetect: () => ipcRenderer.invoke('env:detect'),
 
   routinesList: (workspaceId) => ipcRenderer.invoke('routines:list', workspaceId),
   routinesCreate: (workspaceId, workspacePath, prompt, intervalMinutes) =>

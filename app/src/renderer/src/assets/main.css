@@ -1095,6 +1095,152 @@ button {
   background: var(--hover);
 }
 
+/* ---------- Onboarding ---------- */
+
+.onboarding {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-content);
+  -webkit-app-region: drag;
+}
+
+.onboarding-card {
+  width: 440px;
+  max-width: 90%;
+  padding: 40px 36px;
+  text-align: center;
+  -webkit-app-region: no-drag;
+}
+
+.onboarding-logo {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.onboarding-card h1 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.onboarding-sub {
+  color: var(--text-secondary);
+  margin-top: 6px;
+  margin-bottom: 28px;
+}
+
+.onboarding-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.onboarding-step {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.step-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.onboarding-step.ok .step-icon {
+  background: rgba(110, 231, 183, 0.2);
+  color: #6ee7b7;
+}
+
+.onboarding-step.todo .step-icon {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+
+.step-body span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.step-body code {
+  display: inline-block;
+  margin-top: 4px;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 7px;
+  border-radius: 5px;
+  color: var(--text-primary);
+}
+
+.onboarding-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.onboarding-recheck {
+  border: none;
+  background: var(--hover);
+  color: var(--text-primary);
+  padding: 10px 20px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.onboarding-recheck:hover:not(:disabled) {
+  background: var(--active);
+}
+
+.onboarding-continue {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.onboarding-continue:disabled {
+  opacity: 0.45;
+}
+
+.onboarding-skip {
+  margin-top: 14px;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.onboarding-skip:hover {
+  color: var(--text-secondary);
+}
+
 /* ---------- Empty state ---------- */
 
 .empty-state {
