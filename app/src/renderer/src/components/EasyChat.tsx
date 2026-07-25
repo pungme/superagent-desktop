@@ -92,12 +92,10 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const thinkingIdRef = useRef<string | null>(null)
   const registerAgent = useStore((s) => s.registerAgent)
 
-  // Elapsed "Working Ns" timer while a turn is running.
+  // Elapsed "Working Ns" timer while a turn is running. (Reset happens in the
+  // event handlers that clear `generating`, so no synchronous setState here.)
   useEffect(() => {
-    if (!generating) {
-      setElapsed(0)
-      return
-    }
+    if (!generating) return
     const start = Date.now()
     const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500)
     return () => clearInterval(t)
@@ -202,6 +200,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     if (type === 'result') {
       setThinking(false)
       setGenerating(false)
+      setElapsed(0)
       streamingIdRef.current = null
     }
   }, [])
@@ -273,6 +272,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     if (id) window.cove.agentInterrupt(id)
     setThinking(false)
     setGenerating(false)
+    setElapsed(0)
   }
 
   return (
