@@ -37,6 +37,19 @@ interface EasyChatProps {
   workspaceId: string
 }
 
+// Drop lines shared by the start/end of both sides so only the real change shows.
+function trimCommon(removed: string[], added: string[]): DiffHunk {
+  let start = 0
+  while (start < removed.length && start < added.length && removed[start] === added[start]) start++
+  let endR = removed.length
+  let endA = added.length
+  while (endR > start && endA > start && removed[endR - 1] === added[endA - 1]) {
+    endR--
+    endA--
+  }
+  return { removed: removed.slice(start, endR), added: added.slice(start, endA) }
+}
+
 // Build a diff card from an Edit/Write/MultiEdit tool's input (returns null for other tools).
 function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
   if (!input || typeof input !== 'object') return null
@@ -44,16 +57,15 @@ function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
   const file = typeof o.file_path === 'string' ? (o.file_path.split('/').pop() ?? '') : ''
   const lines = (s: unknown): string[] => (typeof s === 'string' && s ? s.split('\n') : [])
   if (name === 'Edit' && (o.old_string || o.new_string)) {
-    return { id, file, hunks: [{ removed: lines(o.old_string), added: lines(o.new_string) }] }
+    return { id, file, hunks: [trimCommon(lines(o.old_string), lines(o.new_string))] }
   }
   if (name === 'Write' && o.content) {
     return { id, file, hunks: [{ removed: [], added: lines(o.content) }] }
   }
   if (name === 'MultiEdit' && Array.isArray(o.edits)) {
-    const hunks = (o.edits as Record<string, unknown>[]).map((e) => ({
-      removed: lines(e.old_string),
-      added: lines(e.new_string)
-    }))
+    const hunks = (o.edits as Record<string, unknown>[]).map((e) =>
+      trimCommon(lines(e.old_string), lines(e.new_string))
+    )
     return { id, file, hunks }
   }
   return null
