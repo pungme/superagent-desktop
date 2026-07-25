@@ -726,6 +726,19 @@ button {
   animation-delay: 0.3s;
 }
 
+.easy-elapsed {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  align-self: center;
+  animation: none;
+  width: auto;
+  height: auto;
+  background: none;
+  border-radius: 0;
+}
+
 @keyframes bounce {
   0%,
   60%,
