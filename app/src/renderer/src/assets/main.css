@@ -467,6 +467,58 @@ button {
   text-align: center;
 }
 
+.easy-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+  max-width: 380px;
+}
+
+.easy-suggestion {
+  border: 1px solid var(--border);
+  background: var(--hover);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  padding: 7px 13px;
+  border-radius: 999px;
+}
+
+.easy-suggestion:hover {
+  background: var(--active);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* Copy button on assistant messages (appears on hover). */
+.easy-assistant {
+  position: relative;
+}
+
+.easy-msg-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  border: none;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.easy-assistant:hover .easy-msg-copy {
+  opacity: 1;
+}
+
+.easy-msg-copy:hover {
+  background: var(--active);
+  color: var(--text-primary);
+}
+
 .easy-msg {
   max-width: 80%;
   padding: 10px 13px;

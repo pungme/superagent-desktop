@@ -25,6 +25,13 @@ interface EasyChatProps {
   workspaceId: string
 }
 
+const SUGGESTIONS = [
+  'Explain what this project does',
+  'Find and fix a bug',
+  'Add a small feature',
+  'Check my site works'
+]
+
 // Short verb + icon for the noisy internal tool names.
 function toolLabel(name: string): { icon: string; verb: string } {
   if (name.startsWith('mcp__cove-browser__browser_')) {
@@ -252,8 +259,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     return () => window.removeEventListener('cove:easy-user-message', onInjected)
   }, [workspaceId])
 
-  const send = (): void => {
-    const text = input.trim()
+  const submit = (text: string): void => {
     const id = agentIdRef.current
     if (!text || !id || !ready) return
     setItems((prev) => [
@@ -266,6 +272,8 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     setGenerating(true)
     if (inputRef.current) inputRef.current.style.height = 'auto'
   }
+
+  const send = (): void => submit(input.trim())
 
   const stop = (): void => {
     const id = agentIdRef.current
@@ -281,15 +289,32 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
         {items.length === 0 && ready && (
           <div className="easy-empty">
             <p>Tell Claude what you&rsquo;d like to build or change.</p>
+            <div className="easy-suggestions">
+              {SUGGESTIONS.map((s) => (
+                <button key={s} className="easy-suggestion" onClick={() => submit(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {items.length === 0 && !ready && <div className="easy-empty">Starting Claude…</div>}
         {toRows(items).map((row, i) => {
           if (row.kind === 'msg') {
+            const isAssistant = row.msg.role === 'assistant'
             return (
               <div key={row.msg.id + i} className={`easy-msg easy-${row.msg.role}`}>
-                {row.msg.role === 'assistant' ? <Markdown text={row.msg.text} /> : row.msg.text}
+                {isAssistant ? <Markdown text={row.msg.text} /> : row.msg.text}
                 {row.msg.streaming && <span className="easy-caret" />}
+                {isAssistant && !row.msg.streaming && row.msg.text && (
+                  <button
+                    className="easy-msg-copy"
+                    title="Copy"
+                    onClick={() => navigator.clipboard.writeText(row.msg.text)}
+                  >
+                    Copy
+                  </button>
+                )}
               </div>
             )
           }
