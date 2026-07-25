@@ -14,6 +14,7 @@ import { registerAgentIpc, killAllAgents } from './agent'
 import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
+import { buildMenu } from './menu'
 
 if (is.dev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
@@ -77,6 +78,7 @@ app.whenReady().then(() => {
   registerSkillsIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
+  buildMenu()
   startHookServer()
   startRoutines()
 

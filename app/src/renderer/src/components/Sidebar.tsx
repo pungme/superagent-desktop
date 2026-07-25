@@ -173,6 +173,13 @@ export function Sidebar(): React.JSX.Element {
         <button className="sidebar-add-group" onClick={() => addGroup()}>
           + New group
         </button>
+        <button
+          className="sidebar-settings"
+          title="Settings"
+          onClick={() => window.dispatchEvent(new CustomEvent('cove:open-settings'))}
+        >
+          ⚙
+        </button>
       </div>
     </aside>
   )

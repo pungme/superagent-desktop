@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { useStore } from '../state'
 import { TerminalPane } from './TerminalPane'
 import { BrowserPane } from './BrowserPane'
@@ -17,6 +17,20 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
   const setEasyMode = useStore((s) => s.setEasyMode)
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [routinesOpen, setRoutinesOpen] = useState(false)
+
+  useEffect(() => {
+    const onSkills = (): void => setSkillsOpen(true)
+    const onRoutines = (): void => setRoutinesOpen(true)
+    const onToggle = (): void => toggleBrowser(ws.id)
+    window.addEventListener('cove:menu-skills', onSkills)
+    window.addEventListener('cove:menu-routines', onRoutines)
+    window.addEventListener('cove:menu-toggle-preview', onToggle)
+    return () => {
+      window.removeEventListener('cove:menu-skills', onSkills)
+      window.removeEventListener('cove:menu-routines', onRoutines)
+      window.removeEventListener('cove:menu-toggle-preview', onToggle)
+    }
+  }, [ws.id, toggleBrowser])
 
   const checkMySite = (): void => {
     const port = ports?.[ports.length - 1]
