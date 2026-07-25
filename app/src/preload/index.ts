@@ -97,6 +97,7 @@ export interface CoveApi {
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
 
+  setTheme: (source: 'system' | 'light' | 'dark') => void
   onMenu: (cb: (action: string) => void) => () => void
 
   envDetect: () => Promise<{
@@ -198,6 +199,7 @@ const cove: CoveApi = {
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
 
+  setTheme: (source) => ipcRenderer.send('theme:set', source),
   onMenu: (cb) => {
     const actions = [
       'menu:settings',
