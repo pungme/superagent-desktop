@@ -20,6 +20,11 @@ if (is.dev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
 }
 
+// E2E tests point userData at a throwaway dir so they never touch real config.
+if (process.env.COVE_USER_DATA) {
+  app.setPath('userData', process.env.COVE_USER_DATA)
+}
+
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1280,
