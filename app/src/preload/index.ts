@@ -84,6 +84,12 @@ export interface CoveApi {
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
 
+  agentStart: (opts: { cwd?: string; workspaceId?: string }) => Promise<string>
+  agentSend: (id: string, text: string) => void
+  agentStop: (id: string) => void
+  onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
+  onAgentExit: (id: string, cb: (code: number) => void) => () => void
+
   onHookEvent: (cb: (e: HookEvent) => void) => () => void
   onFocusWorkspace: (cb: (workspaceId: string) => void) => () => void
   hooksStatus: () => Promise<boolean>
@@ -148,6 +154,23 @@ const cove: CoveApi = {
   moveWorkspace: (workspaceId, toGroupId, toIndex) =>
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
+
+  agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
+  agentSend: (id, text) => ipcRenderer.send('agent:send', id, text),
+  agentStop: (id) => ipcRenderer.send('agent:stop', id),
+  onAgentEvent: (id, cb) => {
+    const channel = `agent:event:${id}`
+    const listener = (_e: Electron.IpcRendererEvent, event: Record<string, unknown>): void =>
+      cb(event)
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
+  },
+  onAgentExit: (id, cb) => {
+    const channel = `agent:exit:${id}`
+    const listener = (_e: Electron.IpcRendererEvent, code: number): void => cb(code)
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
+  },
 
   onHookEvent: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, ev: HookEvent): void => cb(ev)

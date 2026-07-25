@@ -119,7 +119,9 @@ type HookSettings = { hooks?: Record<string, unknown[]> } & Record<string, unkno
 export function mergeCoveHooks(settings: HookSettings, scriptPath: string): HookSettings {
   const next: HookSettings = { ...settings, hooks: { ...(settings.hooks ?? {}) } }
   for (const event of HOOK_EVENTS) {
-    const command = `sh ${JSON.stringify(scriptPath).slice(1, -1)} ${event}`
+    // Single-quote the path — userData lives under "~/Library/Application Support" (has a space).
+    const quoted = `'${scriptPath.replace(/'/g, `'\\''`)}'`
+    const command = `sh ${quoted} ${event}`
     const entry = { hooks: [{ type: 'command', command }] }
     const existing = Array.isArray(next.hooks![event]) ? next.hooks![event] : []
     const withoutCove = existing.filter((e) => !JSON.stringify(e).includes('cove-hook.sh'))

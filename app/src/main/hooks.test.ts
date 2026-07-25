@@ -37,6 +37,14 @@ describe('mergeCoveHooks', () => {
     expect(out.model).toBe('opus')
     expect(out.theme).toBe('dark')
   })
+
+  it('quotes the script path so spaces (Application Support) do not break the shell', () => {
+    const out = mergeCoveHooks({}, SCRIPT)
+    const cmd = (out.hooks!.Stop as { hooks: { command: string }[] }[])[0].hooks[0].command
+    // The path has a space; it must be quoted.
+    expect(cmd).toContain(`'${SCRIPT}'`)
+    expect(cmd).toBe(`sh '${SCRIPT}' Stop`)
+  })
 })
 
 describe('removeCoveHooks', () => {

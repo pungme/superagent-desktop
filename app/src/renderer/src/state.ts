@@ -35,6 +35,9 @@ interface CoveState {
   registerPty: (workspaceId: string, ptyId: string) => void
   sendToClaude: (workspaceId: string, text: string) => void
 
+  easyMode: boolean
+  setEasyMode: (v: boolean) => void
+
   addGroup: () => Promise<void>
   renameGroup: (id: string, name: string) => Promise<void>
   toggleCollapse: (id: string, collapsed: boolean) => Promise<void>
@@ -56,6 +59,7 @@ export const useStore = create<CoveState>((set, get) => ({
   toast: null,
   browsingWorkspaceId: null,
   ptyIds: {},
+  easyMode: localStorage.getItem('cove.easyMode') === '1',
 
   refresh: async () => {
     const tree = await window.cove.storeTree()
@@ -112,6 +116,10 @@ export const useStore = create<CoveState>((set, get) => ({
     })
   },
 
+  setEasyMode: (v) => {
+    localStorage.setItem('cove.easyMode', v ? '1' : '0')
+    set({ easyMode: v })
+  },
   registerPty: (workspaceId, ptyId) =>
     set((s) => ({ ptyIds: { ...s.ptyIds, [workspaceId]: ptyId } })),
   sendToClaude: (workspaceId, text) => {
