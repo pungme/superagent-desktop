@@ -1,0 +1,98 @@
+import { useEffect, useState } from 'react'
+import { useStore } from '../state'
+
+interface SettingsProps {
+  onClose: () => void
+}
+
+export function Settings({ onClose }: SettingsProps): React.JSX.Element {
+  const easyMode = useStore((s) => s.easyMode)
+  const setEasyMode = useStore((s) => s.setEasyMode)
+  const hooksEnabled = useStore((s) => s.hooksEnabled)
+  const setHooksEnabled = useStore((s) => s.setHooksEnabled)
+  const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
+  const [version, setVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    window.cove.envDetect().then((e) => setVersion(e.claudeVersion))
+  }, [])
+
+  const toggleHooks = async (): Promise<void> => {
+    if (hooksEnabled) {
+      await window.cove.hooksUninstall()
+      setHooksEnabled(false)
+    } else {
+      const res = await window.cove.hooksInstall()
+      if (res.ok) setHooksEnabled(true)
+    }
+  }
+
+  const toggleDev = (v: boolean): void => {
+    localStorage.setItem('cove.devMode', v ? '1' : '0')
+    setDevMode(v)
+  }
+
+  return (
+    <div className="skills-overlay" onClick={onClose}>
+      <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="skills-header">
+          <span>Settings</span>
+          <button className="skills-close" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="settings-body">
+          <div className="settings-row">
+            <div className="settings-label">
+              <strong>Default mode</strong>
+              <span>How new projects open.</span>
+            </div>
+            <div className="mode-switch">
+              <button
+                className={`mode-switch-btn ${easyMode ? 'active' : ''}`}
+                onClick={() => setEasyMode(true)}
+              >
+                Easy
+              </button>
+              <button
+                className={`mode-switch-btn ${!easyMode ? 'active' : ''}`}
+                onClick={() => setEasyMode(false)}
+              >
+                Terminal
+              </button>
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-label">
+              <strong>Status badges</strong>
+              <span>Show when Claude is working or needs you.</span>
+            </div>
+            <label className="switch">
+              <input type="checkbox" checked={hooksEnabled} onChange={toggleHooks} />
+              <span className="switch-slider" />
+            </label>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-label">
+              <strong>Developer mode</strong>
+              <span>Show DevTools and verbose details.</span>
+            </div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={devMode}
+                onChange={(e) => toggleDev(e.target.checked)}
+              />
+              <span className="switch-slider" />
+            </label>
+          </div>
+        </div>
+        <div className="settings-footer">
+          <span>Cove · Claude Code {version ?? ''}</span>
+        </div>
+      </div>
+    </div>
+  )
+}

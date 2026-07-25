@@ -97,6 +97,8 @@ export interface CoveApi {
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
 
+  onMenu: (cb: (action: string) => void) => () => void
+
   envDetect: () => Promise<{
     claudeInstalled: boolean
     claudeVersion: string | null
@@ -192,6 +194,23 @@ const cove: CoveApi = {
   moveWorkspace: (workspaceId, toGroupId, toIndex) =>
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
+
+  onMenu: (cb) => {
+    const actions = [
+      'menu:settings',
+      'menu:new-project',
+      'menu:new-group',
+      'menu:skills',
+      'menu:routines',
+      'menu:toggle-preview'
+    ]
+    const listeners = actions.map((action) => {
+      const l = (): void => cb(action.replace('menu:', ''))
+      ipcRenderer.on(action, l)
+      return [action, l] as const
+    })
+    return () => listeners.forEach(([action, l]) => ipcRenderer.removeListener(action, l))
+  },
 
   envDetect: () => ipcRenderer.invoke('env:detect'),
 

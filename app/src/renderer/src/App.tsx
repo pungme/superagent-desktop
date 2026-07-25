@@ -4,6 +4,7 @@ import { WorkspaceView } from './components/WorkspaceView'
 import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { Onboarding } from './components/Onboarding'
+import { Settings } from './components/Settings'
 import { useStore } from './state'
 
 function App(): React.JSX.Element {
@@ -13,11 +14,34 @@ function App(): React.JSX.Element {
   const startBrowsingListener = useStore((s) => s.startBrowsingListener)
   const active = tree.flatMap((g) => g.workspaces).find((w) => w.id === activeId)
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const addGroup = useStore((s) => s.addGroup)
+  const addWorkspace = useStore((s) => s.addWorkspace)
 
   useEffect(() => {
     startHookListener()
     startBrowsingListener()
   }, [startHookListener, startBrowsingListener])
+
+  useEffect(() => {
+    const openSettings = (): void => setSettingsOpen(true)
+    window.addEventListener('cove:open-settings', openSettings)
+    return () => window.removeEventListener('cove:open-settings', openSettings)
+  }, [])
+
+  useEffect(() => {
+    return window.cove.onMenu((action) => {
+      if (action === 'settings') setSettingsOpen(true)
+      else if (action === 'new-group') addGroup()
+      else if (action === 'new-project') {
+        const firstGroup = useStore.getState().tree[0]
+        if (firstGroup) addWorkspace(firstGroup.id)
+      } else {
+        // skills / routines / toggle-preview are workspace-scoped; forward via window event
+        window.dispatchEvent(new CustomEvent(`cove:menu-${action}`))
+      }
+    })
+  }, [addGroup, addWorkspace])
 
   if (!onboarded) {
     return (
@@ -48,6 +72,7 @@ function App(): React.JSX.Element {
         )}
       </main>
       <PreviewToast />
+      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )
 }
