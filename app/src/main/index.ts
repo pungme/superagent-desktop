@@ -12,6 +12,7 @@ import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
 import { registerSkillsIpc } from './skills'
+import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 
 if (is.dev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
@@ -73,7 +74,9 @@ app.whenReady().then(() => {
   registerAutomationIpc()
   registerAgentIpc()
   registerSkillsIpc()
+  registerRoutinesIpc()
   startHookServer()
+  startRoutines()
 
   ipcMain.handle('dialog:pickFolder', async () => {
     const win = BrowserWindow.getFocusedWindow()
@@ -105,6 +108,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   killAllPtys()
   killAllAgents()
+  stopRoutines()
 })
 
 app.on('window-all-closed', () => {

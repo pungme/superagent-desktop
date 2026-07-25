@@ -4,6 +4,7 @@ import { TerminalPane } from './TerminalPane'
 import { BrowserPane } from './BrowserPane'
 import { EasyChat } from './EasyChat'
 import { SkillsPanel } from './SkillsPanel'
+import { RoutinesPanel } from './RoutinesPanel'
 import type { Workspace } from '../../../preload'
 
 export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
@@ -15,6 +16,7 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
   const easyMode = useStore((s) => s.easyMode)
   const setEasyMode = useStore((s) => s.setEasyMode)
   const [skillsOpen, setSkillsOpen] = useState(false)
+  const [routinesOpen, setRoutinesOpen] = useState(false)
 
   const checkMySite = (): void => {
     const port = ports?.[ports.length - 1]
@@ -78,6 +80,9 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
           </button>
         </div>
         <div className="workspace-toolbar-spacer" />
+        <button className="toolbar-btn" onClick={() => setRoutinesOpen(true)} title="Scheduled tasks">
+          ⏱ Routines
+        </button>
         <button className="toolbar-btn" onClick={() => setSkillsOpen(true)} title="Your skills">
           ✦ Skills
         </button>
@@ -133,6 +138,7 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
           onClose={() => setSkillsOpen(false)}
         />
       )}
+      {routinesOpen && <RoutinesPanel ws={ws} onClose={() => setRoutinesOpen(false)} />}
     </div>
   )
 }

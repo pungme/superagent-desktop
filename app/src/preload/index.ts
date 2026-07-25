@@ -28,6 +28,19 @@ export interface TreeGroup {
   workspaces: Workspace[]
 }
 
+export interface Routine {
+  id: string
+  workspaceId: string
+  workspacePath: string
+  prompt: string
+  intervalMs: number
+  enabled: number
+  nextRunAt: number
+  lastRunAt: number | null
+  lastRunStatus: 'ok' | 'error' | 'running' | null
+  lastRunSummary: string | null
+}
+
 export interface HookEvent {
   workspaceId: string
   event: string
@@ -83,6 +96,18 @@ export interface CoveApi {
   ) => Promise<TreeGroup[]>
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
+
+  routinesList: (workspaceId?: string) => Promise<Routine[]>
+  routinesCreate: (
+    workspaceId: string,
+    workspacePath: string,
+    prompt: string,
+    intervalMinutes: number
+  ) => Promise<Routine>
+  routinesSetEnabled: (id: string, enabled: boolean) => Promise<Routine[]>
+  routinesDelete: (id: string) => Promise<Routine[]>
+  routinesRunNow: (id: string) => void
+  onRoutinesChanged: (cb: () => void) => () => void
 
   skillsList: (projectPath?: string) => Promise<
     { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
@@ -161,6 +186,18 @@ const cove: CoveApi = {
   moveWorkspace: (workspaceId, toGroupId, toIndex) =>
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
+
+  routinesList: (workspaceId) => ipcRenderer.invoke('routines:list', workspaceId),
+  routinesCreate: (workspaceId, workspacePath, prompt, intervalMinutes) =>
+    ipcRenderer.invoke('routines:create', workspaceId, workspacePath, prompt, intervalMinutes),
+  routinesSetEnabled: (id, enabled) => ipcRenderer.invoke('routines:setEnabled', id, enabled),
+  routinesDelete: (id) => ipcRenderer.invoke('routines:delete', id),
+  routinesRunNow: (id) => ipcRenderer.send('routines:runNow', id),
+  onRoutinesChanged: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('routines:changed', listener)
+    return () => ipcRenderer.removeListener('routines:changed', listener)
+  },
 
   skillsList: (projectPath) => ipcRenderer.invoke('skills:list', projectPath),
   skillsInstallStarters: () => ipcRenderer.invoke('skills:installStarters'),
