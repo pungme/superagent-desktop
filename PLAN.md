@@ -1,5 +1,8 @@
 # Cove — a friendly terminal for Claude Code
 
+> **Build status (v1 complete):** All milestones M0–M5 built, tested, and committed on `main`. Every planned feature ships plus the user-requested **Easy Mode** chat. 21 unit tests + 5 Electron e2e tests green; `dist/Cove-1.0.0.dmg` packages and launches. Remaining before public release: real code-signing/notarization (needs Apple Developer account), and the v1.1 multi-agent adapters (M6). See §8 iteration log and the milestone checklists below (all checked).
+
+
 > Working title: **Cove** (placeholder — rename anytime).
 > One-liner: *The Arc browser of terminals — a clean, tab-grouped workspace where Claude Code builds your projects and can drive a built-in browser to check its own work.*
 
