@@ -11,6 +11,7 @@ import { registerStoreIpc } from './store'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
+import { registerSkillsIpc } from './skills'
 
 if (is.dev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
@@ -71,6 +72,7 @@ app.whenReady().then(() => {
   registerHookIpc()
   registerAutomationIpc()
   registerAgentIpc()
+  registerSkillsIpc()
   startHookServer()
 
   ipcMain.handle('dialog:pickFolder', async () => {

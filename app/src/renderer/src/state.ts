@@ -32,7 +32,9 @@ interface CoveState {
   startBrowsingListener: () => void
 
   ptyIds: Record<string, string>
+  agentIds: Record<string, string>
   registerPty: (workspaceId: string, ptyId: string) => void
+  registerAgent: (workspaceId: string, agentId: string) => void
   sendToClaude: (workspaceId: string, text: string) => void
 
   easyMode: boolean
@@ -59,6 +61,7 @@ export const useStore = create<CoveState>((set, get) => ({
   toast: null,
   browsingWorkspaceId: null,
   ptyIds: {},
+  agentIds: {},
   easyMode: localStorage.getItem('cove.easyMode') === '1',
 
   refresh: async () => {
@@ -122,12 +125,26 @@ export const useStore = create<CoveState>((set, get) => ({
   },
   registerPty: (workspaceId, ptyId) =>
     set((s) => ({ ptyIds: { ...s.ptyIds, [workspaceId]: ptyId } })),
+  registerAgent: (workspaceId, agentId) =>
+    set((s) => ({ agentIds: { ...s.agentIds, [workspaceId]: agentId } })),
   sendToClaude: (workspaceId, text) => {
-    const ptyId = get().ptyIds[workspaceId]
-    if (ptyId) {
-      // Type the prompt and submit it into the live Claude session.
-      window.cove.ptyWrite(ptyId, text)
-      setTimeout(() => window.cove.ptyWrite(ptyId, '\r'), 60)
+    const s = get()
+    if (s.easyMode) {
+      // Easy mode: send as a chat message to the streaming agent.
+      const agentId = s.agentIds[workspaceId]
+      if (agentId) {
+        window.cove.agentSend(agentId, text)
+        window.dispatchEvent(
+          new CustomEvent('cove:easy-user-message', { detail: { workspaceId, text } })
+        )
+      }
+    } else {
+      const ptyId = s.ptyIds[workspaceId]
+      if (ptyId) {
+        // Type the prompt and submit it into the live Claude session.
+        window.cove.ptyWrite(ptyId, text)
+        setTimeout(() => window.cove.ptyWrite(ptyId, '\r'), 60)
+      }
     }
   },
 

@@ -84,6 +84,13 @@ export interface CoveApi {
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
 
+  skillsList: (projectPath?: string) => Promise<
+    { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
+  >
+  skillsInstallStarters: () => Promise<
+    { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
+  >
+
   agentStart: (opts: { cwd?: string; workspaceId?: string }) => Promise<string>
   agentSend: (id: string, text: string) => void
   agentStop: (id: string) => void
@@ -154,6 +161,9 @@ const cove: CoveApi = {
   moveWorkspace: (workspaceId, toGroupId, toIndex) =>
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
+
+  skillsList: (projectPath) => ipcRenderer.invoke('skills:list', projectPath),
+  skillsInstallStarters: () => ipcRenderer.invoke('skills:installStarters'),
 
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
   agentSend: (id, text) => ipcRenderer.send('agent:send', id, text),
