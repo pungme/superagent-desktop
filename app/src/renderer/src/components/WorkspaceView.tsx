@@ -33,8 +33,12 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
   }, [ws.id, toggleBrowser])
 
   const checkMySite = (): void => {
+    // Prefer a detected dev-server port (Terminal mode); otherwise fall back to the
+    // workspace's known browser URL so Easy mode (no PTY, no port detection) still
+    // gives Claude a concrete address.
     const port = ports?.[ports.length - 1]
-    const where = port ? `the preview at localhost:${port}` : 'my site in the browser'
+    const url = port ? `localhost:${port}` : (ws.browserUrl ?? '')
+    const where = url ? `the preview at ${url}` : 'my site in the browser pane'
     if (!browserOpen) toggleBrowser(ws.id)
     sendToClaude(
       ws.id,
