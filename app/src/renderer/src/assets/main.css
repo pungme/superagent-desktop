@@ -7,13 +7,24 @@
 :root {
   --sidebar-width: 244px;
   --titlebar-height: 52px;
+
+  /* Dark theme (default) */
   --bg-content: #1e1f24;
+  --bg-panel: #26272e;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
   --text-primary: rgba(255, 255, 255, 0.86);
   --text-secondary: rgba(255, 255, 255, 0.5);
   --text-tertiary: rgba(255, 255, 255, 0.32);
   --accent: #8b8ff8;
+  --accent-soft: rgba(139, 143, 248, 0.16);
+  --accent-fg: #ffffff;
   --hover: rgba(255, 255, 255, 0.07);
   --active: rgba(255, 255, 255, 0.12);
+  --shadow: rgba(0, 0, 0, 0.4);
+  --assistant-bubble: rgba(255, 255, 255, 0.06);
+  --content-hairline: rgba(255, 255, 255, 0.06);
+
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -25,11 +36,48 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* Light theme — premium, airy, Apple-flavored */
+:root[data-theme='light'] {
+  --bg-content: #ffffff;
+  --bg-panel: #f6f6f8;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.13);
+  --text-primary: rgba(0, 0, 0, 0.85);
+  --text-secondary: rgba(0, 0, 0, 0.5);
+  --text-tertiary: rgba(0, 0, 0, 0.36);
+  --accent: #6366f1;
+  --accent-soft: rgba(99, 102, 241, 0.12);
+  --accent-fg: #ffffff;
+  --hover: rgba(0, 0, 0, 0.05);
+  --active: rgba(0, 0, 0, 0.08);
+  --shadow: rgba(0, 0, 0, 0.16);
+  --assistant-bubble: rgba(0, 0, 0, 0.05);
+  --content-hairline: rgba(0, 0, 0, 0.06);
+}
+
 html,
 body,
 #root {
   height: 100%;
   background: transparent;
+}
+
+/* Smooth theme transitions on the surfaces that flip. */
+.content,
+.sidebar-item,
+.sidebar-group,
+.easy-msg,
+.easy-tool,
+.toolbar-btn,
+.mode-switch,
+.settings-panel,
+.skills-panel,
+.browser-address,
+.easy-input {
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease;
 }
 
 button {
@@ -73,7 +121,7 @@ button {
 }
 
 .sidebar-group.drop-target {
-  background: rgba(139, 143, 248, 0.14);
+  background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px rgba(139, 143, 248, 0.4);
 }
 
@@ -279,7 +327,7 @@ button {
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
-  background: rgba(139, 143, 248, 0.14);
+  background: var(--accent-soft);
   padding: 1px 5px;
   border-radius: 5px;
   flex-shrink: 0;
@@ -300,7 +348,7 @@ button {
   border-top-left-radius: 10px;
   overflow: hidden;
   margin-top: 8px;
-  box-shadow: -0.5px -0.5px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: -0.5px -0.5px 0 var(--content-hairline);
 }
 
 .content-titlebar {
@@ -384,7 +432,7 @@ button {
 }
 
 .mode-switch-btn.active {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--active);
   color: var(--text-primary);
 }
 
@@ -437,7 +485,7 @@ button {
 
 .easy-assistant {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--assistant-bubble);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
 }
@@ -474,8 +522,8 @@ button {
   max-width: 100%;
   font-size: 11.5px;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--hover);
+  border: 1px solid var(--border);
   padding: 3px 9px;
   border-radius: 999px;
 }
@@ -555,7 +603,7 @@ button {
   align-items: flex-end;
   gap: 8px;
   padding: 10px 14px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border);
 }
 
 .easy-input {
@@ -564,7 +612,7 @@ button {
   max-height: 160px;
   border: none;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--hover);
   color: var(--text-primary);
   font-family: inherit;
   font-size: 13px;
@@ -574,7 +622,7 @@ button {
 }
 
 .easy-input:focus {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--active);
   box-shadow: 0 0 0 2px var(--accent);
 }
 
@@ -614,7 +662,7 @@ button {
   position: absolute;
   inset: 0 2px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--assistant-bubble);
   transition: background 0.12s ease;
 }
 
@@ -640,7 +688,7 @@ button {
   border: 1px solid rgba(139, 143, 248, 0.4);
   color: var(--text-primary);
   font-size: 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 20px var(--shadow);
   backdrop-filter: blur(8px);
 }
 
@@ -680,12 +728,12 @@ button {
 .skills-panel {
   width: 340px;
   height: 100%;
-  background: #26272e;
+  background: var(--bg-panel);
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   animation: slide-in 0.18s ease;
-  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.35);
+  box-shadow: -10px 0 40px var(--shadow);
 }
 
 @keyframes slide-in {
@@ -775,7 +823,7 @@ button {
 }
 
 .skill-scope-global {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--active);
   color: var(--text-tertiary);
 }
 
@@ -792,13 +840,13 @@ button {
 
 .skills-footer {
   padding: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border);
 }
 
 .skills-action {
   width: 100%;
   border: none;
-  background: rgba(139, 143, 248, 0.16);
+  background: var(--accent-soft);
   color: var(--accent);
   padding: 9px;
   border-radius: 8px;
@@ -821,7 +869,7 @@ button {
   resize: none;
   border: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--hover);
   color: var(--text-primary);
   font-family: inherit;
   font-size: 12.5px;
@@ -960,7 +1008,7 @@ button {
   border-radius: 12px;
   background: rgba(30, 31, 36, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px var(--shadow);
   font-size: 13px;
   animation: toast-in 0.2s ease;
 }
@@ -1020,7 +1068,7 @@ button {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid var(--border);
 }
 
 .browser-toolbar {
@@ -1053,7 +1101,7 @@ button {
 
 .browser-nav-btn.on {
   color: var(--accent);
-  background: rgba(139, 143, 248, 0.16);
+  background: var(--accent-soft);
 }
 
 .browser-address {
@@ -1111,7 +1159,7 @@ button {
   margin: 0 12px 8px;
   padding: 12px 14px;
   border-radius: 10px;
-  background: rgba(139, 143, 248, 0.12);
+  background: var(--accent-soft);
   border: 1px solid rgba(139, 143, 248, 0.25);
 }
 
@@ -1171,10 +1219,10 @@ button {
   max-width: 90%;
   margin: auto;
   align-self: center;
-  background: #26272e;
+  background: var(--bg-panel);
   border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 60px var(--shadow);
   display: flex;
   flex-direction: column;
 }
@@ -1194,7 +1242,7 @@ button {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-row:last-child {
@@ -1214,7 +1262,7 @@ button {
 
 .settings-footer {
   padding: 12px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--text-tertiary);
 }
@@ -1235,7 +1283,7 @@ button {
 .switch-slider {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--active);
   border-radius: 999px;
   transition: background 0.15s ease;
 }
@@ -1309,8 +1357,8 @@ button {
   gap: 12px;
   padding: 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--hover);
+  border: 1px solid var(--border);
 }
 
 .step-icon {
@@ -1323,7 +1371,7 @@ button {
   justify-content: center;
   font-size: 13px;
   font-weight: 700;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--active);
   color: var(--text-secondary);
 }
 

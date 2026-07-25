@@ -18,10 +18,18 @@ function App(): React.JSX.Element {
   const addGroup = useStore((s) => s.addGroup)
   const addWorkspace = useStore((s) => s.addWorkspace)
 
+  const applyTheme = useStore((s) => s.applyTheme)
+
   useEffect(() => {
     startHookListener()
     startBrowsingListener()
-  }, [startHookListener, startBrowsingListener])
+    applyTheme()
+    // Re-apply when the OS light/dark preference changes (matters for "System").
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (): void => applyTheme()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [startHookListener, startBrowsingListener, applyTheme])
 
   useEffect(() => {
     const openSettings = (): void => setSettingsOpen(true)

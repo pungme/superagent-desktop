@@ -39,6 +39,10 @@ interface CoveState {
   easyMode: boolean
   setEasyMode: (v: boolean) => void
 
+  theme: 'system' | 'light' | 'dark'
+  setTheme: (t: 'system' | 'light' | 'dark') => void
+  applyTheme: () => void
+
   addGroup: () => Promise<void>
   renameGroup: (id: string, name: string) => Promise<void>
   toggleCollapse: (id: string, collapsed: boolean) => Promise<void>
@@ -61,6 +65,7 @@ export const useStore = create<CoveState>((set, get) => ({
   ptyIds: {},
   agentIds: {},
   easyMode: localStorage.getItem('cove.easyMode') === '1',
+  theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
 
   refresh: async () => {
     const tree = await window.cove.storeTree()
@@ -120,6 +125,23 @@ export const useStore = create<CoveState>((set, get) => ({
   setEasyMode: (v) => {
     localStorage.setItem('cove.easyMode', v ? '1' : '0')
     set({ easyMode: v })
+  },
+
+  setTheme: (t) => {
+    localStorage.setItem('cove.theme', t)
+    set({ theme: t })
+    get().applyTheme()
+  },
+  applyTheme: () => {
+    const { theme } = get()
+    const resolved =
+      theme === 'system'
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+        : theme
+    document.documentElement.setAttribute('data-theme', resolved)
+    window.cove.setTheme?.(theme)
   },
   registerPty: (workspaceId, ptyId) =>
     set((s) => ({ ptyIds: { ...s.ptyIds, [workspaceId]: ptyId } })),

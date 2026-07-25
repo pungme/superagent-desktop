@@ -31,6 +31,34 @@ const DARK_THEME = {
   brightWhite: '#fafbfc'
 }
 
+const LIGHT_THEME = {
+  background: '#ffffff',
+  foreground: '#1f2328',
+  cursor: '#6366f1',
+  cursorAccent: '#ffffff',
+  selectionBackground: 'rgba(99, 102, 241, 0.2)',
+  black: '#24292e',
+  red: '#d1242f',
+  green: '#1a7f37',
+  yellow: '#9a6700',
+  blue: '#0969da',
+  magenta: '#8250df',
+  cyan: '#1b7c83',
+  white: '#6e7781',
+  brightBlack: '#57606a',
+  brightRed: '#cf222e',
+  brightGreen: '#1a7f37',
+  brightYellow: '#7d4e00',
+  brightBlue: '#218bff',
+  brightMagenta: '#a475f9',
+  brightCyan: '#3192aa',
+  brightWhite: '#8c959f'
+}
+
+function currentTerminalTheme(): typeof DARK_THEME {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? LIGHT_THEME : DARK_THEME
+}
+
 interface TerminalPaneProps {
   cwd?: string
   command?: string
@@ -61,7 +89,7 @@ export function TerminalPane({
       allowTransparency: true,
       macOptionIsMeta: true,
       scrollback: 10000,
-      theme: DARK_THEME
+      theme: currentTerminalTheme()
     })
     const fit = new FitAddon()
     term.loadAddon(fit)

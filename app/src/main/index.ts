@@ -66,9 +66,12 @@ function createWindow(): BrowserWindow {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('dev.cove.app')
 
-  // v0 ships dark-only; light theme is an M5 task. Forcing dark keeps the
-  // sidebar vibrancy legible regardless of the system setting.
-  nativeTheme.themeSource = 'dark'
+  // Theme (drives the sidebar vibrancy). The renderer sends the user's choice;
+  // default to following the system until it does.
+  nativeTheme.themeSource = 'system'
+  ipcMain.on('theme:set', (_e, source: 'system' | 'light' | 'dark') => {
+    nativeTheme.themeSource = source
+  })
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

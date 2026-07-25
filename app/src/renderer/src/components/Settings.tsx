@@ -8,6 +8,8 @@ interface SettingsProps {
 export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const easyMode = useStore((s) => s.easyMode)
   const setEasyMode = useStore((s) => s.setEasyMode)
+  const theme = useStore((s) => s.theme)
+  const setTheme = useStore((s) => s.setTheme)
   const hooksEnabled = useStore((s) => s.hooksEnabled)
   const setHooksEnabled = useStore((s) => s.setHooksEnabled)
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
@@ -43,6 +45,24 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
           </button>
         </div>
         <div className="settings-body">
+          <div className="settings-row">
+            <div className="settings-label">
+              <strong>Appearance</strong>
+              <span>Light, dark, or match your system.</span>
+            </div>
+            <div className="mode-switch">
+              {(['light', 'dark', 'system'] as const).map((t) => (
+                <button
+                  key={t}
+                  className={`mode-switch-btn ${theme === t ? 'active' : ''}`}
+                  onClick={() => setTheme(t)}
+                >
+                  {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="settings-row">
             <div className="settings-label">
               <strong>Default mode</strong>
