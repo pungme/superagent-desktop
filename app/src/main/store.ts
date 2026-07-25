@@ -26,14 +26,6 @@ export interface Workspace {
   lastSessionId: string | null
 }
 
-export interface Tab {
-  id: string
-  workspaceId: string
-  kind: 'claude' | 'shell' | 'browser'
-  title: string
-  position: number
-}
-
 let db: Database.Database
 
 const COLORS = ['#8b8ff8', '#6ee7b7', '#fbbf24', '#f472b6', '#60a5fa', '#fb923c']
@@ -58,13 +50,6 @@ export function initStore(): void {
       position INTEGER NOT NULL,
       browserUrl TEXT,
       lastSessionId TEXT
-    );
-    CREATE TABLE IF NOT EXISTS tabs (
-      id TEXT PRIMARY KEY,
-      workspaceId TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-      kind TEXT NOT NULL,
-      title TEXT NOT NULL,
-      position INTEGER NOT NULL
     );
   `)
 
