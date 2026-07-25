@@ -96,6 +96,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const [files, setFiles] = useState<string[]>([])
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionIndex, setMentionIndex] = useState(0)
+  const [atBottom, setAtBottom] = useState(true)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -273,9 +274,24 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     }
   }, [cwd, workspaceId, registerAgent, handleEvent, resetKey])
 
+  // Auto-scroll only when the user is already near the bottom, so scrolling up
+  // to read scrollback isn't interrupted.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [items, thinking])
+    if (atBottom) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+  }, [items, thinking, atBottom])
+
+  const onScroll = (): void => {
+    const el = scrollRef.current
+    if (!el) return
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    setAtBottom(near)
+  }
+
+  const scrollToBottom = (): void => {
+    const el = scrollRef.current
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    setAtBottom(true)
+  }
 
   // Messages injected from toolbar actions (Skills, "Check my site") in Easy mode.
   useEffect(() => {
@@ -335,7 +351,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
           ✎ New chat
         </button>
       )}
-      <div className="easy-scroll" ref={scrollRef}>
+      <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length === 0 && ready && (
           <div className="easy-empty">
             <p>Tell Claude what you&rsquo;d like to build or change.</p>
@@ -400,6 +416,11 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
           </div>
         )}
       </div>
+      {!atBottom && items.length > 0 && (
+        <button className="easy-scrolldown" onClick={scrollToBottom} title="Scroll to bottom">
+          ↓
+        </button>
+      )}
       <div className="easy-input-row">
         {mentionMatches.length > 0 && (
           <div className="easy-mention-menu">
