@@ -1,6 +1,7 @@
-import { useState, memo } from 'react'
+import { useState, useMemo, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import hljs from 'highlight.js'
 
 function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
@@ -9,6 +10,18 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.E
     setCopied(true)
     setTimeout(() => setCopied(false), 1400)
   }
+
+  const highlighted = useMemo(() => {
+    try {
+      if (lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
+      }
+      return hljs.highlightAuto(code).value
+    } catch {
+      return null
+    }
+  }, [code, lang])
+
   return (
     <div className="md-code">
       <div className="md-code-head">
@@ -18,7 +31,11 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.E
         </button>
       </div>
       <pre>
-        <code>{code}</code>
+        {highlighted ? (
+          <code className="hljs" dangerouslySetInnerHTML={{ __html: highlighted }} />
+        ) : (
+          <code>{code}</code>
+        )}
       </pre>
     </div>
   )

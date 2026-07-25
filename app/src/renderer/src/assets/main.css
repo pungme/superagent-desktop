@@ -25,6 +25,16 @@
   --assistant-bubble: rgba(255, 255, 255, 0.06);
   --content-hairline: rgba(255, 255, 255, 0.06);
 
+  /* Syntax colors — GitHub dark palette (default). */
+  --syn-keyword: #ff7b72;
+  --syn-string: #a5d6ff;
+  --syn-number: #79c0ff;
+  --syn-comment: #8b949e;
+  --syn-function: #d2a8ff;
+  --syn-builtin: #ffa657;
+  --syn-attr: #79c0ff;
+  --syn-tag: #7ee787;
+
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -53,6 +63,16 @@
   --shadow: rgba(0, 0, 0, 0.16);
   --assistant-bubble: rgba(0, 0, 0, 0.05);
   --content-hairline: rgba(0, 0, 0, 0.06);
+
+  /* Syntax colors — GitHub light palette. */
+  --syn-keyword: #cf222e;
+  --syn-string: #0a3069;
+  --syn-number: #0550ae;
+  --syn-comment: #6e7781;
+  --syn-function: #8250df;
+  --syn-builtin: #e36209;
+  --syn-attr: #0550ae;
+  --syn-tag: #116329;
 }
 
 html,
@@ -759,6 +779,67 @@ button {
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-primary);
+}
+
+/* highlight.js token colors, theme-aware (GitHub palettes). */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-doctag,
+.hljs-type,
+.hljs-name,
+.hljs-strong {
+  color: var(--syn-keyword);
+}
+
+.hljs-string,
+.hljs-title.class_,
+.hljs-template-tag,
+.hljs-addition,
+.hljs-regexp {
+  color: var(--syn-string);
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-selector-attr,
+.hljs-meta {
+  color: var(--syn-number);
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-deletion {
+  color: var(--syn-comment);
+  font-style: italic;
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--syn-function);
+}
+
+.hljs-built_in,
+.hljs-class .hljs-title,
+.hljs-params {
+  color: var(--syn-builtin);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-property {
+  color: var(--syn-attr);
+}
+
+.hljs-tag {
+  color: var(--syn-tag);
 }
 
 /* Claude's thinking — dim, like the terminal shows it greyed. */
