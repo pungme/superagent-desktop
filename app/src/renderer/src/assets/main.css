@@ -906,6 +906,26 @@ button {
   }
 }
 
+.easy-scrolldown {
+  position: absolute;
+  bottom: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-size: 15px;
+  box-shadow: 0 4px 14px var(--shadow);
+}
+
+.easy-scrolldown:hover {
+  background: var(--active);
+}
+
 .easy-input-row {
   display: flex;
   align-items: flex-end;
