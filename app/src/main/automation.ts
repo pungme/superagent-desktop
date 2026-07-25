@@ -1,0 +1,226 @@
+import { WebContents } from 'electron'
+import { getPaneWebContents } from './browser'
+
+/**
+ * Browser automation primitives operating on a workspace's browser pane.
+ * Used by the MCP server; every action is visible in the pane (principle #5).
+ *
+ * Page reading uses the indexed-interactive-element model: read_page returns
+ * numbered visible elements, click targets an index or visible text. Text
+ * targeting survives DOM shifts (modals) better than indices.
+ */
+
+const READ_PAGE_JS = String.raw`(() => {
+  const MAX = 200;
+  const isVisible = (el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return false;
+    const s = getComputedStyle(el);
+    if (s.visibility === 'hidden' || s.display === 'none' || s.opacity === '0') return false;
+    return true;
+  };
+  const els = [...document.querySelectorAll(
+    'a, button, input, textarea, select, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="checkbox"], [contenteditable="true"]'
+  )].filter(isVisible).slice(0, MAX);
+  window.__coveIdx = new Map();
+  const items = els.map((el, i) => {
+    window.__coveIdx.set(i, el);
+    const r = el.getBoundingClientRect();
+    return {
+      index: i,
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role') || undefined,
+      text: (el.innerText || el.value || '').trim().slice(0, 120) || undefined,
+      placeholder: el.getAttribute('placeholder') || undefined,
+      ariaLabel: el.getAttribute('aria-label') || undefined,
+      type: el.getAttribute('type') || undefined,
+      href: el.tagName === 'A' ? (el.getAttribute('href') || '').slice(0, 200) : undefined,
+      cx: Math.round(r.x + r.width / 2),
+      cy: Math.round(r.y + r.height / 2)
+    };
+  });
+  const text = (document.body?.innerText || '').replace(/\n{3,}/g, '\n\n').slice(0, 12000);
+  return { url: location.href, title: document.title, text, elements: items };
+})()`
+
+function elementCenterJs(target: { index?: number; text?: string }): string {
+  if (target.index !== undefined) {
+    return String.raw`(() => {
+      const el = window.__coveIdx && window.__coveIdx.get(${target.index});
+      if (!el || !el.isConnected) return null;
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+    })()`
+  }
+  const needle = JSON.stringify(target.text ?? '')
+  return String.raw`(() => {
+    const needle = ${needle}.trim().toLowerCase();
+    const els = [...document.querySelectorAll('a, button, input, textarea, select, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [contenteditable="true"]')];
+    const match = els.find((el) => {
+      const t = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().toLowerCase();
+      return t === needle;
+    }) || els.find((el) => {
+      const t = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().toLowerCase();
+      return t.includes(needle);
+    });
+    if (!match) return null;
+    match.scrollIntoView({ block: 'center', inline: 'center' });
+    const r = match.getBoundingClientRect();
+    return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+  })()`
+}
+
+interface ConsoleEntry {
+  level: string
+  message: string
+  ts: number
+}
+
+const consoleBuffers = new Map<string, ConsoleEntry[]>()
+const attached = new Set<string>()
+
+function wc(paneId: string): WebContents {
+  const contents = getPaneWebContents(paneId)
+  if (!contents) throw new Error(`No browser pane "${paneId}" — is the browser open?`)
+  return contents
+}
+
+function ensureDebugger(paneId: string): WebContents {
+  const contents = wc(paneId)
+  if (!attached.has(paneId)) {
+    contents.debugger.attach('1.3')
+    attached.add(paneId)
+    contents.once('destroyed', () => {
+      attached.delete(paneId)
+      consoleBuffers.delete(paneId)
+    })
+    contents.debugger.on('detach', () => attached.delete(paneId))
+    contents.debugger.on('message', (_e, method, params) => {
+      if (method === 'Runtime.consoleAPICalled') {
+        const buf = consoleBuffers.get(paneId) ?? []
+        const message = (params.args ?? [])
+          .map((a: { value?: unknown; description?: string }) =>
+            a.value !== undefined ? String(a.value) : (a.description ?? '')
+          )
+          .join(' ')
+        buf.push({ level: params.type, message: message.slice(0, 500), ts: Date.now() })
+        if (buf.length > 200) buf.shift()
+        consoleBuffers.set(paneId, buf)
+      }
+    })
+    contents.debugger.sendCommand('Runtime.enable').catch(() => {})
+  }
+  return contents
+}
+
+export async function navigate(paneId: string, url: string): Promise<string> {
+  const contents = wc(paneId)
+  let target = url.trim()
+  if (!/^[a-z]+:\/\//i.test(target)) {
+    target = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/.test(target)
+      ? `http://${target}`
+      : `https://${target}`
+  }
+  await contents.loadURL(target)
+  return contents.getURL()
+}
+
+export async function screenshot(paneId: string): Promise<string> {
+  const contents = ensureDebugger(paneId)
+  const { data } = (await contents.debugger.sendCommand('Page.captureScreenshot', {
+    format: 'png'
+  })) as { data: string }
+  return data
+}
+
+export async function readPage(paneId: string): Promise<unknown> {
+  const contents = wc(paneId)
+  return contents.executeJavaScript(READ_PAGE_JS)
+}
+
+export async function click(
+  paneId: string,
+  target: { index?: number; text?: string }
+): Promise<string> {
+  const contents = ensureDebugger(paneId)
+  const pos = (await contents.executeJavaScript(elementCenterJs(target))) as {
+    x: number
+    y: number
+  } | null
+  if (!pos) {
+    throw new Error(
+      target.index !== undefined
+        ? `Element index ${target.index} not found — call browser_read_page again (indices shift when the page changes)`
+        : `No visible element matching text "${target.text}"`
+    )
+  }
+  const base = { x: pos.x, y: pos.y, button: 'left', clickCount: 1 }
+  await contents.debugger.sendCommand('Input.dispatchMouseEvent', {
+    ...base,
+    type: 'mousePressed'
+  })
+  await contents.debugger.sendCommand('Input.dispatchMouseEvent', {
+    ...base,
+    type: 'mouseReleased'
+  })
+  return `clicked at ${pos.x},${pos.y}`
+}
+
+export async function typeText(paneId: string, text: string): Promise<string> {
+  const contents = ensureDebugger(paneId)
+  for (const char of text) {
+    await contents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'char', text: char })
+  }
+  return `typed ${text.length} characters`
+}
+
+export async function pressKey(paneId: string, key: string): Promise<string> {
+  const contents = ensureDebugger(paneId)
+  const codes: Record<string, { keyCode: number; code: string }> = {
+    Enter: { keyCode: 13, code: 'Enter' },
+    Tab: { keyCode: 9, code: 'Tab' },
+    Escape: { keyCode: 27, code: 'Escape' },
+    Backspace: { keyCode: 8, code: 'Backspace' },
+    ArrowDown: { keyCode: 40, code: 'ArrowDown' },
+    ArrowUp: { keyCode: 38, code: 'ArrowUp' }
+  }
+  const k = codes[key]
+  if (!k) throw new Error(`Unsupported key "${key}" (supported: ${Object.keys(codes).join(', ')})`)
+  await contents.debugger.sendCommand('Input.dispatchKeyEvent', {
+    type: 'rawKeyDown',
+    windowsVirtualKeyCode: k.keyCode,
+    code: k.code,
+    key
+  })
+  await contents.debugger.sendCommand('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    windowsVirtualKeyCode: k.keyCode,
+    code: k.code,
+    key
+  })
+  return `pressed ${key}`
+}
+
+export function consoleLogs(paneId: string): ConsoleEntry[] {
+  ensureDebugger(paneId)
+  const buf = consoleBuffers.get(paneId) ?? []
+  return [...buf.filter((e) => e.level === 'error'), ...buf.filter((e) => e.level !== 'error')].slice(
+    0,
+    50
+  )
+}
+
+export async function waitFor(paneId: string, text: string, timeoutMs: number): Promise<string> {
+  const contents = wc(paneId)
+  const deadline = Date.now() + Math.min(timeoutMs, 15000)
+  const needle = JSON.stringify(text)
+  while (Date.now() < deadline) {
+    const found = (await contents.executeJavaScript(
+      `(document.body?.innerText || '').toLowerCase().includes(${needle}.toLowerCase())`
+    )) as boolean
+    if (found) return `"${text}" is on the page`
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  throw new Error(`Timed out waiting for "${text}"`)
+}

@@ -1,0 +1,137 @@
+import { BrowserWindow, WebContentsView, ipcMain, shell } from 'electron'
+
+export interface BrowserBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface BrowserPane {
+  id: string
+  view: WebContentsView
+  window: BrowserWindow
+  visible: boolean
+}
+
+const panes = new Map<string, BrowserPane>()
+
+const ALLOWED_INSECURE = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+function isNavigable(url: string): boolean {
+  try {
+    const u = new URL(url)
+    if (u.protocol === 'https:') return true
+    if (u.protocol === 'http:') return ALLOWED_INSECURE.has(u.hostname) || true // http allowed in v0 spike; tighten in M4
+    return false
+  } catch {
+    return false
+  }
+}
+
+export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
+  if (panes.has(id)) return
+
+  const view = new WebContentsView({
+    webPreferences: {
+      partition,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  view.setBackgroundColor('#ffffff')
+
+  const pane: BrowserPane = { id, view, window, visible: false }
+  panes.set(id, pane)
+
+  const wc = view.webContents
+  const sendState = (): void => {
+    if (window.isDestroyed()) return
+    window.webContents.send(`browser:state:${id}`, {
+      url: wc.getURL(),
+      title: wc.getTitle(),
+      canGoBack: wc.navigationHistory.canGoBack(),
+      canGoForward: wc.navigationHistory.canGoForward(),
+      loading: wc.isLoading()
+    })
+  }
+  wc.on('did-navigate', sendState)
+  wc.on('did-navigate-in-page', sendState)
+  wc.on('page-title-updated', sendState)
+  wc.on('did-start-loading', sendState)
+  wc.on('did-stop-loading', sendState)
+  wc.setWindowOpenHandler(({ url }) => {
+    // target=_blank etc. navigate the same pane — one browser per workspace (v1)
+    if (isNavigable(url)) wc.loadURL(url)
+    return { action: 'deny' }
+  })
+  wc.on('render-process-gone', () => {
+    if (!window.isDestroyed()) window.webContents.send(`browser:crashed:${id}`)
+  })
+}
+
+export function destroyBrowserPane(id: string): void {
+  const pane = panes.get(id)
+  if (!pane) return
+  panes.delete(id)
+  hidePane(pane)
+  pane.view.webContents.close()
+}
+
+function hidePane(pane: BrowserPane): void {
+  if (pane.visible && !pane.window.isDestroyed()) {
+    pane.window.contentView.removeChildView(pane.view)
+  }
+  pane.visible = false
+}
+
+export function getPaneWebContents(id: string): Electron.WebContents | undefined {
+  return panes.get(id)?.view.webContents
+}
+
+export function registerBrowserIpc(): void {
+  ipcMain.handle('browser:create', (e, id: string, partition: string) => {
+    const window = BrowserWindow.fromWebContents(e.sender)
+    if (window) createBrowserPane(window, id, partition)
+  })
+  ipcMain.on('browser:set-bounds', (_e, id: string, bounds: BrowserBounds) => {
+    const pane = panes.get(id)
+    if (!pane || pane.window.isDestroyed()) return
+    if (!pane.visible) {
+      pane.window.contentView.addChildView(pane.view)
+      pane.visible = true
+    }
+    pane.view.setBounds(bounds)
+  })
+  ipcMain.on('browser:hide', (_e, id: string) => {
+    const pane = panes.get(id)
+    if (pane) hidePane(pane)
+  })
+  ipcMain.on('browser:navigate', (_e, id: string, rawUrl: string) => {
+    const wc = getPaneWebContents(id)
+    if (!wc) return
+    let url = rawUrl.trim()
+    if (!/^[a-z]+:\/\//i.test(url)) {
+      // Bare host or localhost:3000 style input
+      url = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/.test(url)
+        ? `http://${url}`
+        : `https://${url}`
+    }
+    if (isNavigable(url)) wc.loadURL(url)
+  })
+  ipcMain.on('browser:back', (_e, id: string) => {
+    getPaneWebContents(id)?.navigationHistory.goBack()
+  })
+  ipcMain.on('browser:forward', (_e, id: string) => {
+    getPaneWebContents(id)?.navigationHistory.goForward()
+  })
+  ipcMain.on('browser:reload', (_e, id: string) => {
+    getPaneWebContents(id)?.reload()
+  })
+  ipcMain.on('browser:open-external', (_e, id: string) => {
+    const url = getPaneWebContents(id)?.getURL()
+    if (url) shell.openExternal(url)
+  })
+  ipcMain.on('browser:destroy', (_e, id: string) => destroyBrowserPane(id))
+}
