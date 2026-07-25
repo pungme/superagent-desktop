@@ -1,4 +1,4 @@
-import { BrowserWindow, IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow } from 'electron'
 import { IncomingMessage } from 'http'
 
 /** Send an IPC message to every open window (skipping destroyed ones). */
@@ -45,5 +45,10 @@ export function partitionFor(workspaceId: string): string {
   return `persist:ws-${workspaceId}`
 }
 
-/** Suppress the unused-import warning for IpcMainInvokeEvent re-export consumers. */
-export type { IpcMainInvokeEvent }
+/** Encode / decode the offscreen routine pane id (packs workspaceId + "routine"). */
+export function routinePaneId(workspaceId: string): string {
+  return `${workspaceId}::routine`
+}
+export function workspaceIdFromPane(paneId: string): string {
+  return paneId.split('::')[0]
+}

@@ -16,6 +16,7 @@ import { app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { createRoutineForWorkspace } from './routines'
+import { readJsonBody, workspaceIdFromPane } from './util'
 
 let port = 0
 let secret = ''
@@ -146,20 +147,12 @@ function buildServer(paneId: string): McpServer {
     },
     async ({ prompt, intervalMinutes }) => {
       // Strip the "::routine" suffix so routine-launched sessions map to the real workspace.
-      const workspaceId = PANE_ID.split('::')[0]
-      const res = createRoutineForWorkspace(workspaceId, prompt, intervalMinutes)
+      const res = createRoutineForWorkspace(workspaceIdFromPane(PANE_ID), prompt, intervalMinutes)
       return { content: [{ type: 'text', text: res.message }] }
     }
   )
 
   return server
-}
-
-async function readBody(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = []
-  for await (const chunk of req) chunks.push(chunk as Buffer)
-  const raw = Buffer.concat(chunks).toString('utf8')
-  return raw ? JSON.parse(raw) : undefined
 }
 
 export function startMcpServer(): Promise<{ url: string }> {
@@ -172,9 +165,13 @@ export function startMcpServer(): Promise<{ url: string }> {
       return
     }
     try {
-      // Scope tools to the workspace named in ?ws=<id> (falls back to "spike" for the dev pane).
-      const wsParam = new URL(req.url, 'http://127.0.0.1').searchParams.get('ws')
-      const paneId = wsParam || 'spike'
+      // Scope tools to the workspace named in ?ws=<id> (always present — see writeWorkspaceMcpConfig).
+      const paneId = new URL(req.url, 'http://127.0.0.1').searchParams.get('ws')
+      if (!paneId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'missing ws param' }))
+        return
+      }
       // Stateless mode: fresh server+transport per request, no session tracking.
       const server = buildServer(paneId)
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
@@ -183,7 +180,7 @@ export function startMcpServer(): Promise<{ url: string }> {
         server.close()
       })
       await server.connect(transport)
-      await transport.handleRequest(req, res, await readBody(req))
+      await transport.handleRequest(req, res, await readJsonBody(req))
     } catch (err) {
       console.error('[mcp] request failed:', err)
       if (!res.headersSent) {

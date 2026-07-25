@@ -3,7 +3,6 @@ import { basename } from 'path'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { writeFileSync } from 'fs'
 import { registerPtyIpc, killAllPtys } from './pty'
 import { registerBrowserIpc } from './browser'
 import { startMcpServer } from './mcp'
@@ -100,15 +99,9 @@ app.whenReady().then(() => {
     return { path, name: basename(path) }
   })
 
-  startMcpServer().then(({ url }) => {
-    // Config file for `claude --mcp-config` (Cove-launched sessions pass this).
-    const configPath = join(app.getPath('userData'), 'claude-mcp-config.json')
-    writeFileSync(
-      configPath,
-      JSON.stringify({ mcpServers: { 'cove-browser': { type: 'http', url } } }, null, 2)
-    )
-    console.log(`[mcp] claude config written to ${configPath}`)
-  })
+  // Every launch writes its own per-workspace MCP config (with ?ws=…), so no
+  // global config file is needed.
+  startMcpServer()
 
   createWindow()
 

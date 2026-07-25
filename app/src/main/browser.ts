@@ -1,4 +1,5 @@
 import { BrowserWindow, WebContentsView, ipcMain, shell } from 'electron'
+import { normalizeUrl } from './util'
 
 export interface BrowserBounds {
   x: number
@@ -126,13 +127,7 @@ export function registerBrowserIpc(): void {
   ipcMain.on('browser:navigate', (_e, id: string, rawUrl: string) => {
     const wc = getPaneWebContents(id)
     if (!wc) return
-    let url = rawUrl.trim()
-    if (!/^[a-z]+:\/\//i.test(url)) {
-      // Bare host or localhost:3000 style input
-      url = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/.test(url)
-        ? `http://${url}`
-        : `https://${url}`
-    }
+    const url = normalizeUrl(rawUrl)
     if (isNavigable(url)) wc.loadURL(url)
   })
   ipcMain.on('browser:back', (_e, id: string) => {

@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from 'fs'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
+import { broadcastToWindows, readJsonBody } from './util'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -30,23 +31,6 @@ const EVENT_STATUS: Record<string, WorkspaceStatus> = {
 let hookPort = 0
 let hookSecret = ''
 
-function broadcast(channel: string, payload: unknown): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(channel, payload)
-  }
-}
-
-async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = []
-  for await (const c of req) chunks.push(c as Buffer)
-  const raw = Buffer.concat(chunks).toString('utf8')
-  try {
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
 export function startHookServer(): Promise<string> {
   hookSecret = randomBytes(12).toString('hex')
   const base = `/hook/${hookSecret}`
@@ -58,13 +42,13 @@ export function startHookServer(): Promise<string> {
     }
     const event = req.url.slice(base.length + 1).split('?')[0] || 'unknown'
     const workspaceId = (req.headers['x-cove-workspace'] as string) || ''
-    const body = await readJson(req)
+    const body = await readJsonBody(req)
     res.writeHead(200).end('ok')
 
     const status = EVENT_STATUS[event]
     const sessionId = typeof body.session_id === 'string' ? body.session_id : undefined
 
-    broadcast('hook:event', { workspaceId, event, status, sessionId, body })
+    broadcastToWindows('hook:event', { workspaceId, event, status, sessionId, body })
 
     if (event === 'Notification') {
       const focused = BrowserWindow.getFocusedWindow()

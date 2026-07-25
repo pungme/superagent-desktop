@@ -1,5 +1,6 @@
-import { WebContents, BrowserWindow, ipcMain } from 'electron'
+import { WebContents, ipcMain } from 'electron'
 import { getPaneWebContents } from './browser'
+import { broadcastToWindows, pushBounded, normalizeUrl } from './util'
 
 /**
  * Browser automation primitives operating on a workspace's browser pane.
@@ -91,9 +92,7 @@ const stopped = new Set<string>()
 
 /** Notify the renderer that Claude is acting on this pane (drives the "Claude is browsing" indicator). */
 export function signalActivity(paneId: string): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send('browser:activity', paneId)
-  }
+  broadcastToWindows('browser:activity', paneId)
 }
 
 /** User pressed Stop: detach the debugger and reject the next tool call for a short cooldown. */
@@ -117,9 +116,6 @@ function assertNotStopped(paneId: string): void {
 
 export function registerAutomationIpc(): void {
   ipcMain.on('browser:stop-automation', (_e, paneId: string) => stopAutomation(paneId))
-  ipcMain.on('browser:allow-external', (_e, paneId: string, allow: boolean) =>
-    setAllowExternal(paneId, allow)
-  )
 }
 
 function wc(paneId: string): WebContents {
@@ -142,29 +138,28 @@ function ensureDebugger(paneId: string): WebContents {
     contents.debugger.on('detach', () => attached.delete(paneId))
     contents.debugger.on('message', (_e, method, params) => {
       if (method === 'Runtime.consoleAPICalled') {
-        const buf = consoleBuffers.get(paneId) ?? []
         const message = (params.args ?? [])
           .map((a: { value?: unknown; description?: string }) =>
             a.value !== undefined ? String(a.value) : (a.description ?? '')
           )
           .join(' ')
-        buf.push({ level: params.type, message: message.slice(0, 500), ts: Date.now() })
-        if (buf.length > 200) buf.shift()
-        consoleBuffers.set(paneId, buf)
+        pushBounded(consoleBuffers, paneId, {
+          level: params.type,
+          message: message.slice(0, 500),
+          ts: Date.now()
+        })
       } else if (method === 'Network.responseReceived') {
-        const buf = netBuffers.get(paneId) ?? []
-        buf.push({ url: params.response?.url, status: params.response?.status, ts: Date.now() })
-        if (buf.length > 200) buf.shift()
-        netBuffers.set(paneId, buf)
+        pushBounded(netBuffers, paneId, {
+          url: params.response?.url,
+          status: params.response?.status,
+          ts: Date.now()
+        })
       } else if (method === 'Network.loadingFailed') {
-        const buf = netBuffers.get(paneId) ?? []
-        buf.push({
+        pushBounded(netBuffers, paneId, {
           url: params.request?.url ?? '(unknown)',
           failed: params.errorText,
           ts: Date.now()
         })
-        if (buf.length > 200) buf.shift()
-        netBuffers.set(paneId, buf)
       }
     })
     contents.debugger.sendCommand('Runtime.enable').catch(() => {})
@@ -173,33 +168,19 @@ function ensureDebugger(paneId: string): WebContents {
   return contents
 }
 
-// Per-workspace opt-in to let the agent navigate to non-localhost origins.
-const allowExternal = new Set<string>()
-
-export function setAllowExternal(paneId: string, allow: boolean): void {
-  if (allow) allowExternal.add(paneId)
-  else allowExternal.delete(paneId)
-}
-
 function isLocalHost(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
 }
 
 export async function navigate(paneId: string, url: string): Promise<string> {
   const contents = wc(paneId)
-  let target = url.trim()
-  if (!/^[a-z]+:\/\//i.test(target)) {
-    target = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/.test(target)
-      ? `http://${target}`
-      : `https://${target}`
-  }
-  // Guardrail: by default the agent may only drive local sites (the user's own
-  // dev servers). External navigation requires an explicit per-workspace opt-in.
+  const target = normalizeUrl(url)
+  // Guardrail: the agent may only drive local sites (the user's own dev servers).
   const host = new URL(target).hostname
-  if (!isLocalHost(host) && !allowExternal.has(paneId)) {
+  if (!isLocalHost(host)) {
     throw new Error(
-      `Blocked navigation to ${host}. Cove only lets the agent browse localhost by default. ` +
-        `The user can enable external sites for this project in the browser toolbar.`
+      `Blocked navigation to ${host}. Cove only lets the agent browse local sites ` +
+        `(localhost / 127.0.0.1) — the user can open other sites in the browser pane by hand.`
     )
   }
   await contents.loadURL(target)

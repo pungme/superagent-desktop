@@ -7,6 +7,7 @@ import { writeWorkspaceMcpConfig } from './mcp'
 import { getHookUrl } from './hooks'
 import { getDb } from './store'
 import { findClaude } from './claude-cli'
+import { broadcastToWindows, partitionFor, routinePaneId } from './util'
 
 /**
  * Routines — scheduled natural-language browser tasks.
@@ -128,9 +129,7 @@ function notify(title: string, body: string): void {
 }
 
 function broadcast(): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send('routines:changed')
-  }
+  broadcastToWindows('routines:changed')
 }
 
 export async function runRoutine(routine: Routine): Promise<void> {
@@ -144,9 +143,9 @@ export async function runRoutine(routine: Routine): Promise<void> {
   broadcast()
 
   // Offscreen pane sharing the workspace's cookies, scoped MCP config for it.
-  const paneId = `${routine.workspaceId}::routine`
+  const paneId = routinePaneId(routine.workspaceId)
   const win = BrowserWindow.getAllWindows()[0]
-  if (win) ensureOffscreenPane(win, paneId, `persist:ws-${routine.workspaceId}`)
+  if (win) ensureOffscreenPane(win, paneId, partitionFor(routine.workspaceId))
   const mcpConfig = writeWorkspaceMcpConfig(paneId)
 
   const result = await new Promise<{ ok: boolean; summary: string }>((resolve) => {
