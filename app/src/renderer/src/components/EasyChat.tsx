@@ -7,6 +7,13 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   text: string
   streaming?: boolean
+  images?: string[] // data URLs, for user messages
+}
+
+interface PendingImage {
+  mediaType: string
+  data: string // base64 (no data-URL prefix)
+  url: string // data URL for preview
 }
 
 interface ToolCall {
@@ -146,6 +153,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -167,6 +175,24 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     window.cove.filesList(cwd).then(setFiles)
     window.cove.skillsList(cwd).then((list) => setCommands(list.map((s) => s.name)))
   }, [cwd])
+
+  // Paste a screenshot/image into the composer.
+  const onPaste = (e: React.ClipboardEvent): void => {
+    const imgItems = [...e.clipboardData.items].filter((it) => it.type.startsWith('image/'))
+    if (imgItems.length === 0) return
+    e.preventDefault()
+    for (const item of imgItems) {
+      const file = item.getAsFile()
+      if (!file) continue
+      const reader = new FileReader()
+      reader.onload = (): void => {
+        const url = reader.result as string
+        const data = url.split(',')[1] ?? ''
+        setPendingImages((prev) => [...prev, { mediaType: file.type, data, url }])
+      }
+      reader.readAsDataURL(file)
+    }
+  }
 
   // Grow the input with its content, up to the CSS max-height.
   const autoResize = (): void => {
@@ -369,21 +395,34 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     return () => window.removeEventListener('cove:easy-user-message', onInjected)
   }, [workspaceId])
 
-  const submit = (text: string): void => {
+  const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
-    if (!text || !id || !ready) return
+    if ((!text && images.length === 0) || !id || !ready) return
     setItems((prev) => [
       ...prev,
-      { kind: 'msg', msg: { id: `u-${Date.now()}`, role: 'user', text } }
+      {
+        kind: 'msg',
+        msg: {
+          id: `u-${Date.now()}`,
+          role: 'user',
+          text,
+          images: images.length ? images.map((im) => im.url) : undefined
+        }
+      }
     ])
-    window.cove.agentSend(id, text)
+    window.cove.agentSend(
+      id,
+      text,
+      images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
+    )
     setInput('')
+    setPendingImages([])
     setThinking(true)
     setGenerating(true)
     if (inputRef.current) inputRef.current.style.height = 'auto'
   }
 
-  const send = (): void => submit(input.trim())
+  const send = (): void => submit(input.trim(), pendingImages)
 
   const stop = (): void => {
     const id = agentIdRef.current
@@ -430,6 +469,13 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
             const isAssistant = row.msg.role === 'assistant'
             return (
               <div key={row.msg.id + i} className={`easy-msg easy-${row.msg.role}`}>
+                {row.msg.images && row.msg.images.length > 0 && (
+                  <div className="easy-msg-images">
+                    {row.msg.images.map((src, ii) => (
+                      <img key={ii} src={src} alt="attachment" />
+                    ))}
+                  </div>
+                )}
                 {isAssistant ? <Markdown text={row.msg.text} /> : row.msg.text}
                 {row.msg.streaming && <span className="easy-caret" />}
                 {isAssistant && !row.msg.streaming && row.msg.text && (
@@ -530,13 +576,30 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
             ))}
           </div>
         )}
+        {pendingImages.length > 0 && (
+          <div className="easy-attachments">
+            {pendingImages.map((img, idx) => (
+              <div key={idx} className="easy-attachment">
+                <img src={img.url} alt="pasted" />
+                <button
+                  className="easy-attachment-remove"
+                  onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={inputRef}
           className="easy-input"
           value={input}
-          placeholder={ready ? 'Message Claude…  (/ commands · @ files)' : 'Starting…'}
+          placeholder={ready ? 'Message Claude…  (/ commands · @ files · paste an image)' : 'Starting…'}
           rows={1}
           disabled={!ready}
+          onPaste={onPaste}
           onChange={(e) => {
             setInput(e.target.value)
             autoResize()
@@ -576,7 +639,11 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
             <span className="easy-stop-square" />
           </button>
         ) : (
-          <button className="easy-send" onClick={send} disabled={!ready || !input.trim()}>
+          <button
+            className="easy-send"
+            onClick={send}
+            disabled={!ready || (!input.trim() && pendingImages.length === 0)}
+          >
             ↑
           </button>
         )}

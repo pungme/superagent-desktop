@@ -130,7 +130,11 @@ export interface CoveApi {
   >
 
   agentStart: (opts: { cwd?: string; workspaceId?: string }) => Promise<string>
-  agentSend: (id: string, text: string) => void
+  agentSend: (
+    id: string,
+    text: string,
+    images?: { mediaType: string; data: string }[]
+  ) => void
   agentInterrupt: (id: string) => void
   agentStop: (id: string) => void
   onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
@@ -218,7 +222,7 @@ const cove: CoveApi = {
   skillsInstallStarters: () => ipcRenderer.invoke('skills:installStarters'),
 
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
-  agentSend: (id, text) => ipcRenderer.send('agent:send', id, text),
+  agentSend: (id, text, images) => ipcRenderer.send('agent:send', id, text, images),
   agentInterrupt: (id) => ipcRenderer.send('agent:interrupt', id),
   agentStop: (id) => ipcRenderer.send('agent:stop', id),
   onAgentEvent: (id, cb) =>
