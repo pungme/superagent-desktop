@@ -50,53 +50,6 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const streamingIdRef = useRef<string | null>(null)
   const registerAgent = useStore((s) => s.registerAgent)
 
-  useEffect(() => {
-    let disposed = false
-    let offEvent: (() => void) | undefined
-    let offExit: (() => void) | undefined
-
-    window.cove.agentStart({ cwd, workspaceId }).then((id) => {
-      if (disposed) {
-        window.cove.agentStop(id)
-        return
-      }
-      agentIdRef.current = id
-      registerAgent(workspaceId, id)
-      // Ready as soon as the process is up — in stream-json input mode claude
-      // waits for the first user message before it emits anything.
-      setReady(true)
-      offEvent = window.cove.onAgentEvent(id, handleEvent)
-      offExit = window.cove.onAgentExit(id, () => setReady(false))
-    })
-
-    return () => {
-      disposed = true
-      offEvent?.()
-      offExit?.()
-      if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cwd, workspaceId])
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [items, thinking])
-
-  // Messages injected from toolbar actions (Skills, "Check my site") in Easy mode.
-  useEffect(() => {
-    const onInjected = (e: Event): void => {
-      const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId) return
-      setItems((prev) => [
-        ...prev,
-        { kind: 'msg', msg: { id: `u-${Date.now()}`, role: 'user', text: detail.text } }
-      ])
-      setThinking(true)
-    }
-    window.addEventListener('cove:easy-user-message', onInjected)
-    return () => window.removeEventListener('cove:easy-user-message', onInjected)
-  }, [workspaceId])
-
   const handleEvent = useCallback((event: Record<string, unknown>) => {
     const type = event.type as string
 
@@ -176,6 +129,52 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     }
   }, [])
 
+  useEffect(() => {
+    let disposed = false
+    let offEvent: (() => void) | undefined
+    let offExit: (() => void) | undefined
+
+    window.cove.agentStart({ cwd, workspaceId }).then((id) => {
+      if (disposed) {
+        window.cove.agentStop(id)
+        return
+      }
+      agentIdRef.current = id
+      registerAgent(workspaceId, id)
+      // Ready as soon as the process is up — in stream-json input mode claude
+      // waits for the first user message before it emits anything.
+      setReady(true)
+      offEvent = window.cove.onAgentEvent(id, handleEvent)
+      offExit = window.cove.onAgentExit(id, () => setReady(false))
+    })
+
+    return () => {
+      disposed = true
+      offEvent?.()
+      offExit?.()
+      if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
+    }
+  }, [cwd, workspaceId, registerAgent, handleEvent])
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+  }, [items, thinking])
+
+  // Messages injected from toolbar actions (Skills, "Check my site") in Easy mode.
+  useEffect(() => {
+    const onInjected = (e: Event): void => {
+      const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
+      if (detail.workspaceId !== workspaceId) return
+      setItems((prev) => [
+        ...prev,
+        { kind: 'msg', msg: { id: `u-${Date.now()}`, role: 'user', text: detail.text } }
+      ])
+      setThinking(true)
+    }
+    window.addEventListener('cove:easy-user-message', onInjected)
+    return () => window.removeEventListener('cove:easy-user-message', onInjected)
+  }, [workspaceId])
+
   const send = (): void => {
     const text = input.trim()
     const id = agentIdRef.current
@@ -194,7 +193,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
       <div className="easy-scroll" ref={scrollRef}>
         {items.length === 0 && ready && (
           <div className="easy-empty">
-            <p>Tell Claude what you'd like to build or change.</p>
+            <p>Tell Claude what you&rsquo;d like to build or change.</p>
           </div>
         )}
         {items.length === 0 && !ready && <div className="easy-empty">Starting Claude…</div>}

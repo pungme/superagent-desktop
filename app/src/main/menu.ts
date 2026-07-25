@@ -86,7 +86,11 @@ export function buildMenu(): void {
     },
     {
       label: 'Window',
-      submenu: [{ role: 'minimize' }, { role: 'zoom' }, ...(isMac ? [{ role: 'front' as const }] : [])]
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [{ role: 'front' as const }] : [])
+      ]
     },
     {
       role: 'help',

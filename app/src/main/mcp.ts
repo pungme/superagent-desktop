@@ -127,7 +127,8 @@ function buildServer(paneId: string): McpServer {
   server.registerTool(
     'browser_network',
     {
-      description: 'Recent network requests, failed and error-status ones first. Good for finding broken API calls.',
+      description:
+        'Recent network requests, failed and error-status ones first. Good for finding broken API calls.',
       inputSchema: {}
     },
     async () => ({ content: [{ type: 'text', text: JSON.stringify(auto.network(PANE_ID)) }] })

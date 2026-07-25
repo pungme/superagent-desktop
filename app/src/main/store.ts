@@ -71,11 +71,9 @@ export function initStore(): void {
   // Seed a default group on first run so the sidebar is never empty.
   const count = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
   if (count === 0) {
-    db.prepare('INSERT INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, 0)').run(
-      randomUUID(),
-      'My projects',
-      COLORS[0]
-    )
+    db.prepare(
+      'INSERT INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, 0)'
+    ).run(randomUUID(), 'My projects', COLORS[0])
   }
 
   // E2E test hook: seed a deterministic workspace so tests don't need the native dialog.
@@ -107,9 +105,7 @@ export interface TreeGroup extends Group {
 
 export function getTree(): TreeGroup[] {
   const groups = db.prepare('SELECT * FROM groups ORDER BY position').all() as Group[]
-  const workspaces = db
-    .prepare('SELECT * FROM workspaces ORDER BY position')
-    .all() as Workspace[]
+  const workspaces = db.prepare('SELECT * FROM workspaces ORDER BY position').all() as Workspace[]
   return groups.map((g) => ({
     ...g,
     workspaces: workspaces.filter((w) => w.groupId === g.id)
@@ -124,12 +120,9 @@ export function registerStoreIpc(): void {
   ipcMain.handle('store:createGroup', (_e, name: string) => {
     const id = randomUUID()
     const color = COLORS[nextPosition('groups') % COLORS.length]
-    db.prepare('INSERT INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, ?)').run(
-      id,
-      name || 'New group',
-      color,
-      nextPosition('groups')
-    )
+    db.prepare(
+      'INSERT INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, ?)'
+    ).run(id, name || 'New group', color, nextPosition('groups'))
     return getTree()
   })
 
@@ -172,8 +165,7 @@ export function registerStoreIpc(): void {
     'store:updateWorkspace',
     (_e, id: string, patch: Partial<Pick<Workspace, 'browserUrl' | 'lastSessionId' | 'name'>>) => {
       const cur = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as
-        | Workspace
-        | undefined
+        Workspace | undefined
       if (!cur) return getTree()
       db.prepare(
         'UPDATE workspaces SET browserUrl = ?, lastSessionId = ?, name = ? WHERE id = ?'
