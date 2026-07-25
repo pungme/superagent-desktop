@@ -92,6 +92,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const [ready, setReady] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [elapsed, setElapsed] = useState(0)
+  const [resetKey, setResetKey] = useState(0)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -237,7 +238,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
     }
-  }, [cwd, workspaceId, registerAgent, handleEvent])
+  }, [cwd, workspaceId, registerAgent, handleEvent, resetKey])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
@@ -283,8 +284,24 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     setElapsed(0)
   }
 
+  const newChat = (): void => {
+    setItems([])
+    setInput('')
+    setThinking(false)
+    setGenerating(false)
+    setElapsed(0)
+    setReady(false)
+    // Bumping resetKey tears down the current agent and starts a fresh session.
+    setResetKey((k) => k + 1)
+  }
+
   return (
     <div className="easy-chat">
+      {items.length > 0 && (
+        <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
+          ✎ New chat
+        </button>
+      )}
       <div className="easy-scroll" ref={scrollRef}>
         {items.length === 0 && ready && (
           <div className="easy-empty">
