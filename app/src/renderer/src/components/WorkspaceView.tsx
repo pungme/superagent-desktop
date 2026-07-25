@@ -2,6 +2,7 @@ import { useRef, useState, useCallback } from 'react'
 import { useStore } from '../state'
 import { TerminalPane } from './TerminalPane'
 import { BrowserPane } from './BrowserPane'
+import { EasyChat } from './EasyChat'
 import type { Workspace } from '../../../preload'
 
 export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
@@ -10,6 +11,8 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
   const addPort = useStore((s) => s.addPort)
   const sendToClaude = useStore((s) => s.sendToClaude)
   const ports = useStore((s) => s.ports[ws.id])
+  const easyMode = useStore((s) => s.easyMode)
+  const setEasyMode = useStore((s) => s.setEasyMode)
 
   const checkMySite = (): void => {
     const port = ports?.[ports.length - 1]
@@ -58,6 +61,20 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
       <div className="workspace-toolbar">
         <span className="workspace-title">{ws.name}</span>
         <span className="workspace-path">{ws.path}</span>
+        <div className="mode-switch" role="tablist">
+          <button
+            className={`mode-switch-btn ${easyMode ? 'active' : ''}`}
+            onClick={() => setEasyMode(true)}
+          >
+            Easy
+          </button>
+          <button
+            className={`mode-switch-btn ${!easyMode ? 'active' : ''}`}
+            onClick={() => setEasyMode(false)}
+          >
+            Terminal
+          </button>
+        </div>
         <div className="workspace-toolbar-spacer" />
         <button className="toolbar-btn" onClick={checkMySite} title="Ask Claude to test your site">
           🔍 Check my site
@@ -76,12 +93,16 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
           className="split-side"
           style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}
         >
-          <TerminalPane
-            cwd={ws.path}
-            command="claude"
-            workspaceId={ws.id}
-            onPort={(port) => addPort(ws.id, port)}
-          />
+          {easyMode ? (
+            <EasyChat cwd={ws.path} workspaceId={ws.id} />
+          ) : (
+            <TerminalPane
+              cwd={ws.path}
+              command="claude"
+              workspaceId={ws.id}
+              onPort={(port) => addPort(ws.id, port)}
+            />
+          )}
         </div>
         {browserOpen && (
           <>

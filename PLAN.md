@@ -177,6 +177,16 @@ What the semi-prosumer actually experiences:
 
 **Honest limits (shown in UI, not buried):** many platforms (Instagram, X, LinkedIn…) prohibit automated actions like mass-following and actively detect bots — routines are built for *your own* sites and for checking/monitoring; third-party-site automation is at the user's own risk and may get accounts flagged. Cove does not ship anti-bot fingerprint evasion (servus-ai's stealth shims are deliberately **not** ported).
 
+### 3.5b Easy Mode — Claude Code as a clean chat, not a terminal (user request, BUILT)
+
+Two ways to work in every workspace, toggled in the toolbar:
+- **Terminal** — the real `claude` TUI in xterm (power users, full fidelity).
+- **Easy** — a calm Codex-style chat: user bubbles, streamed assistant replies, friendly tool cards ("⌘ Running a command", "🌐 navigate", "✏️ Editing a file") instead of raw tool JSON, and a thinking indicator.
+
+**How, without shipping any AI (principle #6):** Easy Mode spawns the *same* `claude` binary in streaming mode — `claude -p --output-format stream-json --input-format stream-json --include-partial-messages --verbose` — kept alive to read one JSON user message per line from stdin. Cove parses the event stream (`stream_event` text deltas → live typing; `assistant` tool_use blocks → tool cards; `result` → turn end) and renders chat. Same binary, same subscription, same MCP browser tools (per-workspace config injected), same hooks. It's a *view* over Claude Code, not a reimplementation.
+
+Gotcha learned in build: in stream-json input mode `claude` emits nothing until the first user message, so the composer must enable on process start, not on the `init` event (that deadlocks). `claude` is resolved to an absolute path via a login shell so `spawn` finds it outside the terminal's PATH.
+
 ### 3.6 Skills library — surface agent skills like first-class features
 
 Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, project `.claude/skills/`) and slash commands (`.claude/commands/*.md`) — but they're invisible unless you know the dotfiles. Cove makes them visible and prosumer-friendly:

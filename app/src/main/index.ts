@@ -10,6 +10,7 @@ import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
+import { registerAgentIpc, killAllAgents } from './agent'
 
 if (is.dev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
@@ -69,6 +70,7 @@ app.whenReady().then(() => {
   registerStoreIpc()
   registerHookIpc()
   registerAutomationIpc()
+  registerAgentIpc()
   startHookServer()
 
   ipcMain.handle('dialog:pickFolder', async () => {
@@ -100,6 +102,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   killAllPtys()
+  killAllAgents()
 })
 
 app.on('window-all-closed', () => {
