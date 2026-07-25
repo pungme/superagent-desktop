@@ -15,7 +15,6 @@ interface CoveState {
   setStatus: (workspaceId: string, status: WorkspaceStatus) => void
   addPort: (workspaceId: string, port: number) => void
   toggleBrowser: (workspaceId: string) => void
-  sessionIds: Record<string, string>
   hooksEnabled: boolean
   setHooksEnabled: (v: boolean) => void
   startHookListener: () => void
@@ -54,7 +53,6 @@ export const useStore = create<CoveState>((set, get) => ({
   statuses: {},
   ports: {},
   browserOpen: {},
-  sessionIds: {},
   hooksEnabled: false,
   previewUrls: {},
   reloadOnIdle: {},
@@ -163,7 +161,6 @@ export const useStore = create<CoveState>((set, get) => ({
         }
       }
       if (e.sessionId) {
-        set((s) => ({ sessionIds: { ...s.sessionIds, [e.workspaceId]: e.sessionId! } }))
         window.cove.updateWorkspace(e.workspaceId, { lastSessionId: e.sessionId })
       }
     })

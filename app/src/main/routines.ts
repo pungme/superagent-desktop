@@ -1,11 +1,12 @@
-import { app, ipcMain, BrowserWindow, Notification, powerMonitor } from 'electron'
-import { join } from 'path'
-import { spawn, execSync } from 'child_process'
-import Database from 'better-sqlite3'
+import { ipcMain, BrowserWindow, Notification, powerMonitor } from 'electron'
+import { spawn } from 'child_process'
+import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import { ensureOffscreenPane } from './browser'
 import { writeWorkspaceMcpConfig } from './mcp'
 import { getHookUrl } from './hooks'
+import { getDb } from './store'
+import { findClaude } from './claude-cli'
 
 /**
  * Routines — scheduled natural-language browser tasks.
@@ -47,8 +48,8 @@ let ticker: ReturnType<typeof setInterval> | null = null
 const running = new Set<string>()
 
 function initDb(): void {
-  db = new Database(join(app.getPath('userData'), 'cove.db'))
-  db.pragma('journal_mode = WAL')
+  // Reuse the shared connection opened by the store (no second handle on cove.db).
+  db = getDb()
   db.exec(`
     CREATE TABLE IF NOT EXISTS routines (
       id TEXT PRIMARY KEY,
@@ -120,22 +121,6 @@ export function deleteRoutine(id: string): void {
 // Date.now() is fine in the Electron main process (only workflow scripts forbid it).
 function nowMs(): number {
   return Date.now()
-}
-
-let cachedClaude: string | null = null
-function findClaude(): string {
-  if (cachedClaude) return cachedClaude
-  try {
-    const shell = process.env.SHELL || '/bin/zsh'
-    const r = execSync(`${shell} -lic 'command -v claude' 2>/dev/null`, { encoding: 'utf8' })
-      .trim()
-      .split('\n')
-      .pop()
-    cachedClaude = r && r.length ? r : 'claude'
-  } catch {
-    cachedClaude = 'claude'
-  }
-  return cachedClaude
 }
 
 function notify(title: string, body: string): void {

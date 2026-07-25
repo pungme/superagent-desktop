@@ -28,6 +28,11 @@ export interface Workspace {
 
 let db: Database.Database
 
+/** Shared connection to cove.db. Call after initStore() has run (during app startup). */
+export function getDb(): Database.Database {
+  return db
+}
+
 const COLORS = ['#8b8ff8', '#6ee7b7', '#fbbf24', '#f472b6', '#60a5fa', '#fb923c']
 
 export function initStore(): void {

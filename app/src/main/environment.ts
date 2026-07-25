@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { execSync } from 'child_process'
+import { loginShellExec } from './claude-cli'
 
 /**
  * Detects whether the user's machine is ready: is the `claude` binary installed,
@@ -12,32 +12,23 @@ export interface EnvStatus {
   loggedIn: boolean
 }
 
-function shell(): string {
-  return process.env.SHELL || '/bin/zsh'
-}
-
-function loginShellExec(cmd: string, timeoutMs = 8000): string {
-  return execSync(`${shell()} -lic ${JSON.stringify(cmd)} 2>/dev/null`, {
-    encoding: 'utf8',
-    timeout: timeoutMs
-  }).trim()
-}
-
-export function detectEnvironment(): EnvStatus {
-  let claudeInstalled = false
-  let claudeVersion: string | null = null
-  let loggedIn = false
-
+/** Cheap check: is claude installed, and what version? No inference call. */
+export function detectVersion(): { claudeInstalled: boolean; claudeVersion: string | null } {
   try {
     const version = loginShellExec('claude --version')
     if (version) {
-      claudeInstalled = true
       // e.g. "2.1.220 (Claude Code)" → "2.1.220"
-      claudeVersion = version.split(/\s+/)[0] || version
+      return { claudeInstalled: true, claudeVersion: version.split(/\s+/)[0] || version }
     }
   } catch {
-    claudeInstalled = false
+    // not installed
   }
+  return { claudeInstalled: false, claudeVersion: null }
+}
+
+export function detectEnvironment(): EnvStatus {
+  const { claudeInstalled, claudeVersion } = detectVersion()
+  let loggedIn = false
 
   if (claudeInstalled) {
     // A logged-out claude prints an auth prompt / non-zero exit for a trivial print.
@@ -55,4 +46,6 @@ export function detectEnvironment(): EnvStatus {
 
 export function registerEnvironmentIpc(): void {
   ipcMain.handle('env:detect', () => detectEnvironment())
+  // Version-only: cheap, no inference call. Used by Settings.
+  ipcMain.handle('env:version', () => detectVersion())
 }
