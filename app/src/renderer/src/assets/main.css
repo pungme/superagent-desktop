@@ -458,14 +458,60 @@ button {
   }
 }
 
-.easy-tool {
+/* A run of tool calls renders as one compact wrapping strip. */
+.easy-tools {
   align-self: flex-start;
-  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-width: 85%;
+}
+
+.easy-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  font-size: 11.5px;
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 5px 11px;
+  padding: 3px 9px;
   border-radius: 999px;
+}
+
+.easy-tool-icon {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.easy-tool-verb {
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+.easy-tool-detail {
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+}
+
+/* Claude's thinking — dim, like the terminal shows it greyed. */
+.easy-thought {
+  align-self: flex-start;
+  max-width: 85%;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  white-space: pre-wrap;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  padding: 2px 0 2px 12px;
+  max-height: 140px;
+  overflow-y: auto;
 }
 
 .easy-thinking {
