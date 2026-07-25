@@ -9,6 +9,7 @@ import { registerBrowserIpc } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
 import { startHookServer, registerHookIpc } from './hooks'
+import { registerAutomationIpc } from './automation'
 
 if (is.dev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
@@ -67,6 +68,7 @@ app.whenReady().then(() => {
   registerBrowserIpc()
   registerStoreIpc()
   registerHookIpc()
+  registerAutomationIpc()
   startHookServer()
 
   ipcMain.handle('dialog:pickFolder', async () => {

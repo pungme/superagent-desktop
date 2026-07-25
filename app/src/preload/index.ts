@@ -61,6 +61,8 @@ export interface CoveApi {
   browserDestroy: (id: string) => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
   onBrowserCrashed: (id: string, cb: () => void) => () => void
+  browserStopAutomation: (id: string) => void
+  onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
 
   storeTree: () => Promise<TreeGroup[]>
   createGroup: (name: string) => Promise<TreeGroup[]>
@@ -127,6 +129,12 @@ const cove: CoveApi = {
     const listener = (): void => cb()
     ipcRenderer.on(channel, listener)
     return () => ipcRenderer.removeListener(channel, listener)
+  },
+  browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
+  onBrowserActivity: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, id: string): void => cb(id)
+    ipcRenderer.on('browser:activity', listener)
+    return () => ipcRenderer.removeListener('browser:activity', listener)
   },
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
