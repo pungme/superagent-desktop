@@ -1,0 +1,30 @@
+import { Sidebar } from './components/Sidebar'
+import { WorkspaceView } from './components/WorkspaceView'
+import { useStore } from './state'
+
+function App(): React.JSX.Element {
+  const tree = useStore((s) => s.tree)
+  const activeId = useStore((s) => s.activeWorkspaceId)
+  const active = tree.flatMap((g) => g.workspaces).find((w) => w.id === activeId)
+
+  return (
+    <div className="app">
+      <Sidebar />
+      <main className="content">
+        <div className="content-titlebar" />
+        {active ? (
+          <WorkspaceView key={active.id} ws={active} />
+        ) : (
+          <div className="empty-state">
+            <div className="empty-state-inner">
+              <h1>Welcome to Cove</h1>
+              <p>Add a project folder from the sidebar to start a Claude session.</p>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  )
+}
+
+export default App
