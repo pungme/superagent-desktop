@@ -13,6 +13,7 @@ import { registerAgentIpc, killAllAgents } from './agent'
 import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
+import { registerFilesIpc } from './files'
 import { buildMenu } from './menu'
 
 if (is.dev) {
@@ -85,6 +86,7 @@ app.whenReady().then(() => {
   registerSkillsIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
+  registerFilesIpc()
   buildMenu()
   startHookServer()
   startRoutines()

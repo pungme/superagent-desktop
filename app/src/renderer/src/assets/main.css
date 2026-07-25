@@ -831,6 +831,43 @@ button {
   gap: 8px;
   padding: 10px 14px 14px;
   border-top: 1px solid var(--border);
+  position: relative;
+}
+
+.easy-mention-menu {
+  position: absolute;
+  bottom: calc(100% - 6px);
+  left: 14px;
+  right: 60px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px var(--shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.easy-mention-item {
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.easy-mention-item.active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
 }
 
 .easy-input {
