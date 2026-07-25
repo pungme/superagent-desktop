@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useStore } from '../state'
+import { Markdown } from './Markdown'
 
 interface ChatMessage {
   id: string
@@ -254,7 +255,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
           if (row.kind === 'msg') {
             return (
               <div key={row.msg.id + i} className={`easy-msg easy-${row.msg.role}`}>
-                {row.msg.text}
+                {row.msg.role === 'assistant' ? <Markdown text={row.msg.text} /> : row.msg.text}
                 {row.msg.streaming && <span className="easy-caret" />}
               </div>
             )
