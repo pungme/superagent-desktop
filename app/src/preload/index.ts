@@ -130,6 +130,7 @@ export interface CoveApi {
 
   agentStart: (opts: { cwd?: string; workspaceId?: string }) => Promise<string>
   agentSend: (id: string, text: string) => void
+  agentInterrupt: (id: string) => void
   agentStop: (id: string) => void
   onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
   onAgentExit: (id: string, cb: (code: number) => void) => () => void
@@ -216,6 +217,7 @@ const cove: CoveApi = {
 
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
   agentSend: (id, text) => ipcRenderer.send('agent:send', id, text),
+  agentInterrupt: (id) => ipcRenderer.send('agent:interrupt', id),
   agentStop: (id) => ipcRenderer.send('agent:stop', id),
   onAgentEvent: (id, cb) =>
     subscribe(`agent:event:${id}`, (event) => cb(event as Record<string, unknown>)),

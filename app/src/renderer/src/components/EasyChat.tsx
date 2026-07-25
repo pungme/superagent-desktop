@@ -83,6 +83,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const streamingIdRef = useRef<string | null>(null)
@@ -179,6 +180,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
 
     if (type === 'result') {
       setThinking(false)
+      setGenerating(false)
       streamingIdRef.current = null
     }
   }, [])
@@ -224,6 +226,7 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
         { kind: 'msg', msg: { id: `u-${Date.now()}`, role: 'user', text: detail.text } }
       ])
       setThinking(true)
+      setGenerating(true)
     }
     window.addEventListener('cove:easy-user-message', onInjected)
     return () => window.removeEventListener('cove:easy-user-message', onInjected)
@@ -240,6 +243,14 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     window.cove.agentSend(id, text)
     setInput('')
     setThinking(true)
+    setGenerating(true)
+  }
+
+  const stop = (): void => {
+    const id = agentIdRef.current
+    if (id) window.cove.agentInterrupt(id)
+    setThinking(false)
+    setGenerating(false)
   }
 
   return (
@@ -306,9 +317,15 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
             }
           }}
         />
-        <button className="easy-send" onClick={send} disabled={!ready || !input.trim()}>
-          ↑
-        </button>
+        {generating ? (
+          <button className="easy-stop" onClick={stop} title="Stop generating">
+            <span className="easy-stop-square" />
+          </button>
+        ) : (
+          <button className="easy-send" onClick={send} disabled={!ready || !input.trim()}>
+            ↑
+          </button>
+        )}
       </div>
     </div>
   )
