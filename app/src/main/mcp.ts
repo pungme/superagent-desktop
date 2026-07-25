@@ -15,6 +15,7 @@ import * as auto from './automation'
 import { app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
+import { createRoutineForWorkspace } from './routines'
 
 let port = 0
 let secret = ''
@@ -130,6 +131,24 @@ function buildServer(paneId: string): McpServer {
       inputSchema: {}
     },
     async () => ({ content: [{ type: 'text', text: JSON.stringify(auto.network(PANE_ID)) }] })
+  )
+
+  server.registerTool(
+    'create_routine',
+    {
+      description:
+        'Schedule a recurring task for this project (e.g. "check the homepage loads"). Store the user\'s own wording as the prompt, minus the recurrence phrase. Minimum interval is 60 minutes — if the user asks for less, tell them you are using 60 and continue. Routines only run while Cove is open.',
+      inputSchema: {
+        prompt: z.string().describe("The task to run each time, in the user's own words"),
+        intervalMinutes: z.number().describe('How often to run, in minutes (min 60)')
+      }
+    },
+    async ({ prompt, intervalMinutes }) => {
+      // Strip the "::routine" suffix so routine-launched sessions map to the real workspace.
+      const workspaceId = PANE_ID.split('::')[0]
+      const res = createRoutineForWorkspace(workspaceId, prompt, intervalMinutes)
+      return { content: [{ type: 'text', text: res.message }] }
+    }
   )
 
   return server

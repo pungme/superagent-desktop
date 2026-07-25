@@ -71,6 +71,21 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   })
 }
 
+/**
+ * Create an offscreen pane for a routine — never attached to the window, so
+ * scheduled automation runs invisibly. Shares the visible pane's session
+ * partition, so a login the user did by hand carries over.
+ */
+export function ensureOffscreenPane(window: BrowserWindow, id: string, partition: string): void {
+  if (panes.has(id)) return
+  const view = new WebContentsView({
+    webPreferences: { partition, contextIsolation: true, nodeIntegration: false, sandbox: true }
+  })
+  view.setBackgroundColor('#ffffff')
+  view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
+  panes.set(id, { id, view, window, visible: false })
+}
+
 export function destroyBrowserPane(id: string): void {
   const pane = panes.get(id)
   if (!pane) return

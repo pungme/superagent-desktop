@@ -740,6 +740,143 @@ button {
   background: rgba(139, 143, 248, 0.26);
 }
 
+/* ---------- Routines ---------- */
+
+.routine-new {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.routine-prompt {
+  width: 100%;
+  resize: none;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.routine-prompt:focus {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.routine-new-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.routine-new-row label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.routine-new-row select {
+  background: var(--hover);
+  border: none;
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.routine-add {
+  width: auto;
+  padding: 6px 12px;
+}
+
+.routine-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.routine-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.routine-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.routine-toggle input {
+  accent-color: var(--accent);
+}
+
+.routine-cadence {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.routine-run,
+.routine-delete {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+.routine-run:hover {
+  background: var(--hover);
+  color: #6ee7b7;
+}
+
+.routine-delete:hover {
+  background: var(--hover);
+  color: #f97583;
+}
+
+.routine-prompt-text {
+  font-size: 12.5px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.routine-status {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.routine-status-ok {
+  color: #6ee7b7;
+}
+
+.routine-status-error {
+  color: #f97583;
+}
+
+.routine-status-running {
+  color: var(--accent);
+}
+
+.routine-summary {
+  color: var(--text-tertiary);
+}
+
+.routine-note {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
 /* ---------- Preview toast ---------- */
 
 .preview-toast {
