@@ -51,8 +51,7 @@ function toolLabel(name: string): { icon: string; verb: string } {
 function toolDetail(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
   const o = input as Record<string, unknown>
-  const pick =
-    o.query ?? o.url ?? o.pattern ?? o.command ?? o.prompt ?? o.description ?? o.text
+  const pick = o.query ?? o.url ?? o.pattern ?? o.command ?? o.prompt ?? o.description ?? o.text
   if (typeof pick === 'string') return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
   if (typeof o.file_path === 'string') return o.file_path.split('/').pop() ?? ''
   return ''
