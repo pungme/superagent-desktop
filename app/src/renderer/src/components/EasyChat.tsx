@@ -113,11 +113,25 @@ function toolLabel(name: string): { icon: string; verb: string } {
 }
 
 // Pull the most meaningful field out of a tool's input for a one-line detail.
+// A ToolSearch "select:a,b,c" query → a short, human list ("browser navigate, …").
+function friendlyToolNames(select: string): string {
+  const names = select
+    .replace(/^select:/, '')
+    .split(',')
+    .map((n) => n.trim().replace(/^mcp__[a-z0-9-]+__/i, '').replace(/_/g, ' '))
+    .filter(Boolean)
+  const shown = names.slice(0, 3).join(', ')
+  return names.length > 3 ? `${shown} +${names.length - 3}` : shown
+}
+
 function toolDetail(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
   const o = input as Record<string, unknown>
   const pick = o.query ?? o.url ?? o.pattern ?? o.command ?? o.prompt ?? o.description ?? o.text
-  if (typeof pick === 'string') return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
+  if (typeof pick === 'string') {
+    if (pick.startsWith('select:')) return friendlyToolNames(pick)
+    return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
+  }
   if (typeof o.file_path === 'string') return o.file_path.split('/').pop() ?? ''
   return ''
 }
