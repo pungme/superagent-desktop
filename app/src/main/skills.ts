@@ -64,8 +64,10 @@ function readCommandsDir(dir: string, scope: Skill['scope']): Skill[] {
   for (const entry of readdirSync(dir)) {
     if (!entry.endsWith('.md')) continue
     const path = join(dir, entry)
-    if (!statSync(path).isFile()) continue
     try {
+      // Inside the try: a broken symlink named *.md would otherwise throw here
+      // and abort discovery of every skill/command, not just this one entry.
+      if (!statSync(path).isFile()) continue
       out.push({
         name: entry.replace(/\.md$/, ''),
         description: parseDescription(readFileSync(path, 'utf8')),
