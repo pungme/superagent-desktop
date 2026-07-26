@@ -18,9 +18,11 @@ function App(): React.JSX.Element {
   // Keep every opened workspace mounted so switching tabs never restarts its
   // session — only the active one is shown; the rest run hidden in the background.
   const [opened, setOpened] = useState<string[]>([])
-  useEffect(() => {
-    if (activeId && !opened.includes(activeId)) setOpened((prev) => [...prev, activeId])
-  }, [activeId, opened])
+  if (activeId && !opened.includes(activeId)) {
+    // Adjust state during render (the documented React pattern) when a new
+    // workspace becomes active — it's re-rendered immediately.
+    setOpened([...opened, activeId])
+  }
   const openedWorkspaces = opened
     .map((id) => allWorkspaces.find((w) => w.id === id))
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))

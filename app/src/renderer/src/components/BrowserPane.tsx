@@ -32,7 +32,9 @@ export function BrowserPane({
   const [addressInput, setAddressInput] = useState('')
   const [editing, setEditing] = useState(false)
   const visibleRef = useRef(visible)
-  visibleRef.current = visible
+  useEffect(() => {
+    visibleRef.current = visible
+  }, [visible])
 
   const syncBounds = useCallback((): void => {
     // Don't position the native view while this workspace is hidden — it would
