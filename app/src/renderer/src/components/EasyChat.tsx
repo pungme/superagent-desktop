@@ -437,6 +437,8 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const newChat = (): void => {
     setItems([])
     setInput('')
+    setPendingImages([])
+    setMentionQuery(null)
     setThinking(false)
     setGenerating(false)
     setElapsed(0)
