@@ -5,6 +5,7 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
+import { NewProjectDialog } from './components/NewProjectDialog'
 import { useStore } from './state'
 
 function App(): React.JSX.Element {
@@ -100,6 +101,7 @@ function App(): React.JSX.Element {
         )}
       </main>
       <PreviewToast />
+      <NewProjectDialog />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )

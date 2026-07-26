@@ -17,6 +17,7 @@ export interface Workspace {
   position: number
   browserUrl: string | null
   lastSessionId: string | null
+  kind: 'app' | 'browser'
 }
 
 export interface TreeGroup {
@@ -88,6 +89,10 @@ export interface CoveApi {
     groupId: string,
     name: string,
     path: string
+  ) => Promise<{ tree: TreeGroup[]; workspaceId: string }>
+  createBrowserWorkspace: (
+    groupId: string,
+    name: string
   ) => Promise<{ tree: TreeGroup[]; workspaceId: string }>
   deleteWorkspace: (id: string) => Promise<TreeGroup[]>
   updateWorkspace: (
@@ -178,6 +183,8 @@ const cove: CoveApi = {
   deleteGroup: (id) => ipcRenderer.invoke('store:deleteGroup', id),
   createWorkspace: (groupId, name, path) =>
     ipcRenderer.invoke('store:createWorkspace', groupId, name, path),
+  createBrowserWorkspace: (groupId, name) =>
+    ipcRenderer.invoke('store:createBrowserWorkspace', groupId, name),
   deleteWorkspace: (id) => ipcRenderer.invoke('store:deleteWorkspace', id),
   updateWorkspace: (id, patch) => ipcRenderer.invoke('store:updateWorkspace', id, patch),
   moveWorkspace: (workspaceId, toGroupId, toIndex) =>

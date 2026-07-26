@@ -1,5 +1,6 @@
 import { app, ipcMain } from 'electron'
 import { join } from 'path'
+import { mkdirSync } from 'fs'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 
@@ -16,6 +17,8 @@ export interface Group {
   position: number
 }
 
+export type WorkspaceKind = 'app' | 'browser'
+
 export interface Workspace {
   id: string
   groupId: string
@@ -24,6 +27,7 @@ export interface Workspace {
   position: number
   browserUrl: string | null
   lastSessionId: string | null
+  kind: WorkspaceKind
 }
 
 let db: Database.Database
@@ -57,6 +61,12 @@ export function initStore(): void {
       lastSessionId TEXT
     );
   `)
+
+  // Migration: add the project-kind column to pre-existing databases.
+  const cols = db.prepare('PRAGMA table_info(workspaces)').all() as { name: string }[]
+  if (!cols.some((c) => c.name === 'kind')) {
+    db.exec("ALTER TABLE workspaces ADD COLUMN kind TEXT NOT NULL DEFAULT 'app'")
+  }
 
   // Seed a default group on first run so the sidebar is never empty.
   const count = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
@@ -141,7 +151,19 @@ export function registerStoreIpc(): void {
   ipcMain.handle('store:createWorkspace', (_e, groupId: string, name: string, path: string) => {
     const id = randomUUID()
     db.prepare(
-      'INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId) VALUES (?, ?, ?, ?, ?, NULL, NULL)'
+      "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, ?, ?, ?, NULL, NULL, 'app')"
+    ).run(id, groupId, name, path, nextPosition('workspaces', ['groupId', groupId]))
+    return { tree: getTree(), workspaceId: id }
+  })
+
+  // Browser project: no folder to pick — give Claude a private scratch cwd so
+  // headless runs/routines have somewhere to work, and mark it kind='browser'.
+  ipcMain.handle('store:createBrowserWorkspace', (_e, groupId: string, name: string) => {
+    const id = randomUUID()
+    const path = join(app.getPath('userData'), 'browser-projects', id)
+    mkdirSync(path, { recursive: true })
+    db.prepare(
+      "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, ?, ?, ?, NULL, NULL, 'browser')"
     ).run(id, groupId, name, path, nextPosition('workspaces', ['groupId', groupId]))
     return { tree: getTree(), workspaceId: id }
   })
