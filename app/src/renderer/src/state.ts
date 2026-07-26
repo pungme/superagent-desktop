@@ -39,9 +39,7 @@ interface CoveState {
   stopBrowsing: () => void
   startBrowsingListener: () => void
 
-  ptyIds: Record<string, string>
   agentIds: Record<string, string>
-  registerPty: (workspaceId: string, ptyId: string) => void
   registerAgent: (workspaceId: string, agentId: string) => void
   sendToClaude: (workspaceId: string, text: string) => void
 
@@ -78,7 +76,6 @@ export const useStore = create<CoveState>((set, get) => ({
   reloadOnIdle: {},
   toast: null,
   browsingWorkspaceId: null,
-  ptyIds: {},
   agentIds: {},
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
 
@@ -158,8 +155,6 @@ export const useStore = create<CoveState>((set, get) => ({
     document.documentElement.setAttribute('data-theme', resolved)
     window.cove.setTheme?.(theme)
   },
-  registerPty: (workspaceId, ptyId) =>
-    set((s) => ({ ptyIds: { ...s.ptyIds, [workspaceId]: ptyId } })),
   registerAgent: (workspaceId, agentId) =>
     set((s) => ({ agentIds: { ...s.agentIds, [workspaceId]: agentId } })),
   sendToClaude: (workspaceId, text) => {

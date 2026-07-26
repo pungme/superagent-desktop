@@ -51,19 +51,6 @@ export interface HookEvent {
 }
 
 export interface CoveApi {
-  ptyCreate: (opts: {
-    cwd?: string
-    cols: number
-    rows: number
-    command?: string
-    workspaceId?: string
-  }) => Promise<string>
-  ptyWrite: (id: string, data: string) => void
-  ptyResize: (id: string, cols: number, rows: number) => void
-  ptyKill: (id: string) => void
-  onPtyData: (id: string, cb: (data: string) => void) => () => void
-  onPtyExit: (id: string, cb: (code: number) => void) => () => void
-
   browserCreate: (id: string, partition: string) => Promise<void>
   browserSetBounds: (id: string, b: { x: number; y: number; width: number; height: number }) => void
   browserHide: (id: string) => void
@@ -164,13 +151,6 @@ function subscribe(channel: string, cb: (...args: unknown[]) => void): () => voi
 }
 
 const cove: CoveApi = {
-  ptyCreate: (opts) => ipcRenderer.invoke('pty:create', opts),
-  ptyWrite: (id, data) => ipcRenderer.send('pty:write', id, data),
-  ptyResize: (id, cols, rows) => ipcRenderer.send('pty:resize', id, cols, rows),
-  ptyKill: (id) => ipcRenderer.send('pty:kill', id),
-  onPtyData: (id, cb) => subscribe(`pty:data:${id}`, (data) => cb(data as string)),
-  onPtyExit: (id, cb) => subscribe(`pty:exit:${id}`, (code) => cb(code as number)),
-
   browserCreate: (id, partition) => ipcRenderer.invoke('browser:create', id, partition),
   browserSetBounds: (id, b) => ipcRenderer.send('browser:set-bounds', id, b),
   browserHide: (id) => ipcRenderer.send('browser:hide', id),

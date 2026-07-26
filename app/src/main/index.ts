@@ -3,7 +3,6 @@ import { basename } from 'path'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { registerPtyIpc, killAllPtys } from './pty'
 import { registerBrowserIpc } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
@@ -77,7 +76,6 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  registerPtyIpc()
   registerBrowserIpc()
   registerStoreIpc()
   registerHookIpc()
@@ -113,7 +111,6 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
-  killAllPtys()
   killAllAgents()
   stopRoutines()
 })
