@@ -42,6 +42,7 @@ type Item =
 interface EasyChatProps {
   cwd: string
   workspaceId: string
+  initialSessionId?: string | null
 }
 
 // Drop lines shared by the start/end of both sides so only the real change shows.
@@ -141,7 +142,7 @@ function toRows(items: Item[]): Row[] {
   return rows
 }
 
-export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element {
+export function EasyChat({ cwd, workspaceId, initialSessionId }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
@@ -161,6 +162,8 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
   const thinkingIdRef = useRef<string | null>(null)
+  // Session to resume so context survives restarts; updated once claude reports it.
+  const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
   const registerAgent = useStore((s) => s.registerAgent)
 
   // Elapsed "Working Ns" timer while a turn is running. (Reset happens in the
@@ -177,6 +180,40 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     window.cove.filesList(cwd).then(setFiles)
     window.cove.skillsList(cwd).then((list) => setCommands(list.map((s) => s.name)))
   }, [cwd])
+
+  // Restore the persisted transcript on mount, then save it (debounced) as it
+  // changes — so the conversation is still here after Cove is reopened.
+  const hydratedRef = useRef(false)
+  useEffect(() => {
+    let alive = true
+    window.cove.chatLoad(workspaceId).then((json) => {
+      if (!alive) return
+      if (json) {
+        try {
+          const saved = JSON.parse(json) as Item[]
+          if (saved.length) setItems((prev) => (prev.length === 0 ? saved : prev))
+        } catch {
+          // Ignore a corrupt blob — start fresh.
+        }
+      }
+      hydratedRef.current = true
+    })
+    return () => {
+      alive = false
+    }
+  }, [workspaceId])
+
+  useEffect(() => {
+    if (!hydratedRef.current) return
+    const t = setTimeout(() => {
+      // Persist a clean copy — no mid-stream flags to reanimate on reload.
+      const clean = items.map((it) =>
+        it.kind === 'msg' && it.msg.streaming ? { ...it, msg: { ...it.msg, streaming: false } } : it
+      )
+      window.cove.chatSave(workspaceId, JSON.stringify(clean))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [items, workspaceId])
 
   // Paste a screenshot/image into the composer.
   const onPaste = (e: React.ClipboardEvent): void => {
@@ -260,118 +297,129 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     inputRef.current?.focus()
   }
 
-  const handleEvent = useCallback((event: Record<string, unknown>) => {
-    const type = event.type as string
+  const handleEvent = useCallback(
+    (event: Record<string, unknown>) => {
+      const type = event.type as string
 
-    if (type === 'system' && (event.subtype as string) === 'init') {
-      setReady(true)
-      return
-    }
-
-    if (type === 'stream_event') {
-      const ev = event.event as Record<string, unknown>
-      const evType = ev?.type as string
-      if (evType === 'content_block_start') {
-        const block = ev.content_block as Record<string, unknown>
-        if (block?.type === 'text') {
-          // Begin a new streaming assistant message.
-          const id = `a-${Date.now()}-${Math.random()}`
-          streamingIdRef.current = id
-          setThinking(false)
-          setItems((prev) => [
-            ...prev,
-            { kind: 'msg', msg: { id, role: 'assistant', text: '', streaming: true } }
-          ])
-        } else if (block?.type === 'thinking') {
-          const id = `t-${Date.now()}-${Math.random()}`
-          thinkingIdRef.current = id
-          setItems((prev) => [...prev, { kind: 'thinking', id, text: '' }])
+      if (type === 'system' && (event.subtype as string) === 'init') {
+        setReady(true)
+        // Remember the session id so we can resume this conversation next launch.
+        const sid = event.session_id as string | undefined
+        if (sid && sid !== resumeIdRef.current) {
+          resumeIdRef.current = sid
+          window.cove.updateWorkspace(workspaceId, { lastSessionId: sid })
         }
-      } else if (evType === 'content_block_delta') {
-        const delta = ev.delta as Record<string, unknown>
-        if (delta?.type === 'text_delta') {
-          const sid = streamingIdRef.current
-          const chunk = delta.text as string
+        return
+      }
+
+      if (type === 'stream_event') {
+        const ev = event.event as Record<string, unknown>
+        const evType = ev?.type as string
+        if (evType === 'content_block_start') {
+          const block = ev.content_block as Record<string, unknown>
+          if (block?.type === 'text') {
+            // Begin a new streaming assistant message.
+            const id = `a-${Date.now()}-${Math.random()}`
+            streamingIdRef.current = id
+            setThinking(false)
+            setItems((prev) => [
+              ...prev,
+              { kind: 'msg', msg: { id, role: 'assistant', text: '', streaming: true } }
+            ])
+          } else if (block?.type === 'thinking') {
+            const id = `t-${Date.now()}-${Math.random()}`
+            thinkingIdRef.current = id
+            setItems((prev) => [...prev, { kind: 'thinking', id, text: '' }])
+          }
+        } else if (evType === 'content_block_delta') {
+          const delta = ev.delta as Record<string, unknown>
+          if (delta?.type === 'text_delta') {
+            const sid = streamingIdRef.current
+            const chunk = delta.text as string
+            setItems((prev) =>
+              prev.map((it) =>
+                it.kind === 'msg' && it.msg.id === sid
+                  ? { ...it, msg: { ...it.msg, text: it.msg.text + chunk } }
+                  : it
+              )
+            )
+          } else if (delta?.type === 'thinking_delta') {
+            const tid = thinkingIdRef.current
+            const chunk = (delta.thinking as string) ?? ''
+            setItems((prev) =>
+              prev.map((it) =>
+                it.kind === 'thinking' && it.id === tid ? { ...it, text: it.text + chunk } : it
+              )
+            )
+          }
+        } else if (evType === 'content_block_stop') {
+          // A thinking block ended — stop appending to it.
+          thinkingIdRef.current = null
+        }
+        return
+      }
+
+      if (type === 'assistant') {
+        const msg = event.message as Record<string, unknown>
+        const content = (msg?.content as Record<string, unknown>[]) || []
+        for (const block of content) {
+          if (block.type === 'tool_use') {
+            setThinking(false)
+            const name = block.name as string
+            const id = block.id as string
+            const diff = toolDiff(name, id, block.input)
+            setItems((prev) => [
+              ...prev,
+              diff
+                ? { kind: 'diff', diff }
+                : { kind: 'tool', tool: { id, name, detail: toolDetail(block.input) } }
+            ])
+          }
+        }
+        // Finalize the streaming text message.
+        const sid = streamingIdRef.current
+        if (sid) {
           setItems((prev) =>
             prev.map((it) =>
               it.kind === 'msg' && it.msg.id === sid
-                ? { ...it, msg: { ...it.msg, text: it.msg.text + chunk } }
+                ? { ...it, msg: { ...it.msg, streaming: false } }
                 : it
             )
           )
-        } else if (delta?.type === 'thinking_delta') {
-          const tid = thinkingIdRef.current
-          const chunk = (delta.thinking as string) ?? ''
-          setItems((prev) =>
-            prev.map((it) =>
-              it.kind === 'thinking' && it.id === tid ? { ...it, text: it.text + chunk } : it
-            )
-          )
         }
-      } else if (evType === 'content_block_stop') {
-        // A thinking block ended — stop appending to it.
-        thinkingIdRef.current = null
+        return
       }
-      return
-    }
 
-    if (type === 'assistant') {
-      const msg = event.message as Record<string, unknown>
-      const content = (msg?.content as Record<string, unknown>[]) || []
-      for (const block of content) {
-        if (block.type === 'tool_use') {
-          setThinking(false)
-          const name = block.name as string
-          const id = block.id as string
-          const diff = toolDiff(name, id, block.input)
-          setItems((prev) => [
-            ...prev,
-            diff
-              ? { kind: 'diff', diff }
-              : { kind: 'tool', tool: { id, name, detail: toolDetail(block.input) } }
-          ])
-        }
+      if (type === 'result') {
+        setThinking(false)
+        setGenerating(false)
+        setElapsed(0)
+        streamingIdRef.current = null
       }
-      // Finalize the streaming text message.
-      const sid = streamingIdRef.current
-      if (sid) {
-        setItems((prev) =>
-          prev.map((it) =>
-            it.kind === 'msg' && it.msg.id === sid
-              ? { ...it, msg: { ...it.msg, streaming: false } }
-              : it
-          )
-        )
-      }
-      return
-    }
-
-    if (type === 'result') {
-      setThinking(false)
-      setGenerating(false)
-      setElapsed(0)
-      streamingIdRef.current = null
-    }
-  }, [])
+    },
+    [workspaceId]
+  )
 
   useEffect(() => {
     let disposed = false
     let offEvent: (() => void) | undefined
     let offExit: (() => void) | undefined
 
-    window.cove.agentStart({ cwd, workspaceId }).then((id) => {
-      if (disposed) {
-        window.cove.agentStop(id)
-        return
-      }
-      agentIdRef.current = id
-      registerAgent(workspaceId, id)
-      // Ready as soon as the process is up — in stream-json input mode claude
-      // waits for the first user message before it emits anything.
-      setReady(true)
-      offEvent = window.cove.onAgentEvent(id, handleEvent)
-      offExit = window.cove.onAgentExit(id, () => setReady(false))
-    })
+    window.cove
+      .agentStart({ cwd, workspaceId, resumeSessionId: resumeIdRef.current })
+      .then((id) => {
+        if (disposed) {
+          window.cove.agentStop(id)
+          return
+        }
+        agentIdRef.current = id
+        registerAgent(workspaceId, id)
+        // Ready as soon as the process is up — in stream-json input mode claude
+        // waits for the first user message before it emits anything.
+        setReady(true)
+        offEvent = window.cove.onAgentEvent(id, handleEvent)
+        offExit = window.cove.onAgentExit(id, () => setReady(false))
+      })
 
     return () => {
       disposed = true
@@ -462,6 +510,10 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     setGenerating(false)
     setElapsed(0)
     setReady(false)
+    window.cove.chatClear(workspaceId)
+    // Forget the resumed session so the next agent starts a brand-new one.
+    resumeIdRef.current = null
+    window.cove.updateWorkspace(workspaceId, { lastSessionId: null })
     // Bumping resetKey tears down the current agent and starts a fresh session.
     setResetKey((k) => k + 1)
   }

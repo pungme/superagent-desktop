@@ -20,6 +20,7 @@ interface AgentSession {
   proc: ChildProcessWithoutNullStreams
   owner: WebContents
   buffer: string
+  killed?: boolean
 }
 
 const sessions = new Map<string, AgentSession>()
@@ -28,63 +29,78 @@ export interface AgentStartOptions {
   cwd?: string
   workspaceId?: string
   mcpConfigPath?: string
+  /** Resume a prior conversation by session id (so history/context persists). */
+  resumeSessionId?: string | null
 }
 
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
   const id = randomUUID()
-  const args = [
-    '-p',
-    '--output-format',
-    'stream-json',
-    '--input-format',
-    'stream-json',
-    '--include-partial-messages',
-    '--verbose'
-  ]
   const mcpConfig =
     opts.mcpConfigPath || (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId) : undefined)
-  if (mcpConfig) args.push('--mcp-config', mcpConfig)
 
-  const proc = spawn(findClaude(), args, {
-    cwd: opts.cwd || os.homedir(),
-    env: {
-      ...process.env,
-      COVE_HOOK_URL: getHookUrl(),
-      COVE_MCP_URL: getMcpUrl(),
-      ...(opts.workspaceId ? { COVE_WORKSPACE_ID: opts.workspaceId } : {})
-    },
-    // Login shell resolves the user's PATH (nvm/homebrew/~/.local/bin).
-    shell: false
-  }) as ChildProcessWithoutNullStreams
+  // `resume` reloads the workspace's previous session; if that session is gone
+  // claude exits at once, so we fall back to a fresh session exactly once.
+  const spawnProc = (resume: string | null): void => {
+    const args = [
+      '-p',
+      '--output-format',
+      'stream-json',
+      '--input-format',
+      'stream-json',
+      '--include-partial-messages',
+      '--verbose'
+    ]
+    if (resume) args.unshift('--resume', resume)
+    if (mcpConfig) args.push('--mcp-config', mcpConfig)
 
-  const session: AgentSession = { id, proc, owner, buffer: '' }
-  sessions.set(id, session)
+    const proc = spawn(findClaude(), args, {
+      cwd: opts.cwd || os.homedir(),
+      env: {
+        ...process.env,
+        COVE_HOOK_URL: getHookUrl(),
+        COVE_MCP_URL: getMcpUrl(),
+        ...(opts.workspaceId ? { COVE_WORKSPACE_ID: opts.workspaceId } : {})
+      },
+      // Login shell resolves the user's PATH (nvm/homebrew/~/.local/bin).
+      shell: false
+    }) as ChildProcessWithoutNullStreams
 
-  proc.stdout.on('data', (chunk: Buffer) => {
-    session.buffer += chunk.toString('utf8')
-    let nl: number
-    while ((nl = session.buffer.indexOf('\n')) >= 0) {
-      const line = session.buffer.slice(0, nl).trim()
-      session.buffer = session.buffer.slice(nl + 1)
-      if (!line) continue
-      try {
-        const event = JSON.parse(line)
-        if (!owner.isDestroyed()) owner.send(`agent:event:${id}`, event)
-      } catch {
-        // partial or non-JSON line; ignore
+    const session: AgentSession = { id, proc, owner, buffer: '' }
+    sessions.set(id, session)
+
+    proc.stdout.on('data', (chunk: Buffer) => {
+      session.buffer += chunk.toString('utf8')
+      let nl: number
+      while ((nl = session.buffer.indexOf('\n')) >= 0) {
+        const line = session.buffer.slice(0, nl).trim()
+        session.buffer = session.buffer.slice(nl + 1)
+        if (!line) continue
+        try {
+          const event = JSON.parse(line)
+          if (!owner.isDestroyed()) owner.send(`agent:event:${id}`, event)
+        } catch {
+          // partial or non-JSON line; ignore
+        }
       }
-    }
-  })
+    })
 
-  proc.stderr.on('data', (chunk: Buffer) => {
-    if (!owner.isDestroyed()) owner.send(`agent:stderr:${id}`, chunk.toString('utf8'))
-  })
+    proc.stderr.on('data', (chunk: Buffer) => {
+      if (!owner.isDestroyed()) owner.send(`agent:stderr:${id}`, chunk.toString('utf8'))
+    })
 
-  proc.on('exit', (code) => {
-    sessions.delete(id)
-    if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, code ?? 0)
-  })
+    proc.on('exit', (code) => {
+      sessions.delete(id)
+      if (session.killed) return
+      if (resume) {
+        // The resume target was unavailable — retry once with a fresh session.
+        spawnProc(null)
+        return
+      }
+      if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, code ?? 0)
+    })
+  }
 
+  spawnProc(opts.resumeSessionId ?? null)
   return id
 }
 
@@ -122,6 +138,7 @@ export function interruptAgent(id: string): void {
 export function stopAgent(id: string): void {
   const session = sessions.get(id)
   if (session) {
+    session.killed = true // don't trigger the resume→fresh fallback on a deliberate stop
     sessions.delete(id)
     session.proc.kill()
   }

@@ -7,8 +7,6 @@ interface SettingsProps {
 }
 
 export function Settings({ onClose }: SettingsProps): React.JSX.Element {
-  const easyMode = useStore((s) => s.easyMode)
-  const setEasyMode = useStore((s) => s.setEasyMode)
   const theme = useStore((s) => s.theme)
   const setTheme = useStore((s) => s.setTheme)
   const hooksEnabled = useStore((s) => s.hooksEnabled)
@@ -54,27 +52,6 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                 {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto'}
               </button>
             ))}
-          </div>
-        </div>
-
-        <div className="settings-row">
-          <div className="settings-label">
-            <strong>Default mode</strong>
-            <span>How new projects open.</span>
-          </div>
-          <div className="mode-switch">
-            <button
-              className={`mode-switch-btn ${easyMode ? 'active' : ''}`}
-              onClick={() => setEasyMode(true)}
-            >
-              Easy
-            </button>
-            <button
-              className={`mode-switch-btn ${!easyMode ? 'active' : ''}`}
-              onClick={() => setEasyMode(false)}
-            >
-              Terminal
-            </button>
           </div>
         </div>
 

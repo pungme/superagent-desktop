@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useStore } from '../state'
 
 interface FileTreeProps {
   cwd: string
@@ -83,16 +82,10 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
     })
 
   const reference = (relPath: string): void => {
-    const s = useStore.getState()
-    const text = `@${relPath} `
-    if (s.easyMode) {
-      window.dispatchEvent(
-        new CustomEvent('cove:insert-reference', { detail: { workspaceId, text } })
-      )
-    } else {
-      const ptyId = s.ptyIds[workspaceId]
-      if (ptyId) window.cove.ptyWrite(ptyId, text)
-    }
+    // Insert an @-reference into the chat composer for this workspace.
+    window.dispatchEvent(
+      new CustomEvent('cove:insert-reference', { detail: { workspaceId, text: `@${relPath} ` } })
+    )
   }
 
   const rows: React.JSX.Element[] = []

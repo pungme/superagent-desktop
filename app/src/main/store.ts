@@ -60,6 +60,10 @@ export function initStore(): void {
       browserUrl TEXT,
       lastSessionId TEXT
     );
+    CREATE TABLE IF NOT EXISTS chats (
+      workspaceId TEXT PRIMARY KEY,
+      data TEXT NOT NULL
+    );
   `)
 
   // Migration: add the project-kind column to pre-existing databases.
@@ -170,7 +174,23 @@ export function registerStoreIpc(): void {
 
   ipcMain.handle('store:deleteWorkspace', (_e, id: string) => {
     db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
+    db.prepare('DELETE FROM chats WHERE workspaceId = ?').run(id)
     return getTree()
+  })
+
+  // Persisted chat transcript (a JSON blob of the conversation) per workspace.
+  ipcMain.handle('chat:load', (_e, workspaceId: string) => {
+    const row = db.prepare('SELECT data FROM chats WHERE workspaceId = ?').get(workspaceId) as
+      { data: string } | undefined
+    return row?.data ?? null
+  })
+  ipcMain.on('chat:save', (_e, workspaceId: string, data: string) => {
+    db.prepare(
+      'INSERT INTO chats (workspaceId, data) VALUES (?, ?) ON CONFLICT(workspaceId) DO UPDATE SET data = excluded.data'
+    ).run(workspaceId, data)
+  })
+  ipcMain.on('chat:clear', (_e, workspaceId: string) => {
+    db.prepare('DELETE FROM chats WHERE workspaceId = ?').run(workspaceId)
   })
 
   ipcMain.handle(
