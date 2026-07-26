@@ -45,9 +45,6 @@ interface CoveState {
   registerAgent: (workspaceId: string, agentId: string) => void
   sendToClaude: (workspaceId: string, text: string) => void
 
-  easyMode: boolean
-  setEasyMode: (v: boolean) => void
-
   theme: 'system' | 'light' | 'dark'
   setTheme: (t: 'system' | 'light' | 'dark') => void
   applyTheme: () => void
@@ -83,7 +80,6 @@ export const useStore = create<CoveState>((set, get) => ({
   browsingWorkspaceId: null,
   ptyIds: {},
   agentIds: {},
-  easyMode: localStorage.getItem('cove.easyMode') === '1',
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
 
   refresh: async () => {
@@ -146,11 +142,6 @@ export const useStore = create<CoveState>((set, get) => ({
     })
   },
 
-  setEasyMode: (v) => {
-    localStorage.setItem('cove.easyMode', v ? '1' : '0')
-    set({ easyMode: v })
-  },
-
   setTheme: (t) => {
     localStorage.setItem('cove.theme', t)
     set({ theme: t })
@@ -172,23 +163,13 @@ export const useStore = create<CoveState>((set, get) => ({
   registerAgent: (workspaceId, agentId) =>
     set((s) => ({ agentIds: { ...s.agentIds, [workspaceId]: agentId } })),
   sendToClaude: (workspaceId, text) => {
-    const s = get()
-    if (s.easyMode) {
-      // Easy mode: send as a chat message to the streaming agent.
-      const agentId = s.agentIds[workspaceId]
-      if (agentId) {
-        window.cove.agentSend(agentId, text)
-        window.dispatchEvent(
-          new CustomEvent('cove:easy-user-message', { detail: { workspaceId, text } })
-        )
-      }
-    } else {
-      const ptyId = s.ptyIds[workspaceId]
-      if (ptyId) {
-        // Type the prompt and submit it into the live Claude session.
-        window.cove.ptyWrite(ptyId, text)
-        setTimeout(() => window.cove.ptyWrite(ptyId, '\r'), 60)
-      }
+    // Send as a chat message to the streaming agent (the single Chat mode).
+    const agentId = get().agentIds[workspaceId]
+    if (agentId) {
+      window.cove.agentSend(agentId, text)
+      window.dispatchEvent(
+        new CustomEvent('cove:easy-user-message', { detail: { workspaceId, text } })
+      )
     }
   },
 
@@ -248,7 +229,10 @@ export const useStore = create<CoveState>((set, get) => ({
     set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
   },
   createBrowserProject: async (groupId) => {
-    const { tree, workspaceId } = await window.cove.createBrowserWorkspace(groupId, 'Browser project')
+    const { tree, workspaceId } = await window.cove.createBrowserWorkspace(
+      groupId,
+      'Browser project'
+    )
     set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
   },
   removeWorkspace: async (id) => {

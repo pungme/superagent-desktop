@@ -1,9 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { useStore } from '../state'
-import { TerminalPane } from './TerminalPane'
+import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
 import { FileTree } from './FileTree'
-import { EasyChat } from './EasyChat'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
 import type { Workspace } from '../../../preload'
@@ -20,11 +19,8 @@ export function WorkspaceView({
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
   const toggleFiles = useStore((s) => s.toggleFiles)
-  const addPort = useStore((s) => s.addPort)
   const sendToClaude = useStore((s) => s.sendToClaude)
   const ports = useStore((s) => s.ports[ws.id])
-  const easyMode = useStore((s) => s.easyMode)
-  const setEasyMode = useStore((s) => s.setEasyMode)
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [routinesOpen, setRoutinesOpen] = useState(false)
 
@@ -96,20 +92,6 @@ export function WorkspaceView({
       <div className="workspace-toolbar">
         <span className="workspace-title">{ws.name}</span>
         <span className="workspace-path">{ws.path}</span>
-        <div className="mode-switch" role="tablist">
-          <button
-            className={`mode-switch-btn ${easyMode ? 'active' : ''}`}
-            onClick={() => setEasyMode(true)}
-          >
-            Easy
-          </button>
-          <button
-            className={`mode-switch-btn ${!easyMode ? 'active' : ''}`}
-            onClick={() => setEasyMode(false)}
-          >
-            Terminal
-          </button>
-        </div>
         <div className="workspace-toolbar-spacer" />
         <button
           className="toolbar-btn"
@@ -140,8 +122,8 @@ export function WorkspaceView({
           {browserOpen ? 'Hide preview' : 'Show preview'}
         </button>
       </div>
-      {/* Terminal stays mounted (stable position) whether or not the browser is open,
-          so toggling the preview never kills the Claude session. */}
+      {/* The chat stays mounted (stable position) whether or not the browser is
+          open, so toggling the preview never disturbs the conversation. */}
       <div ref={containerRef} className="content-split">
         {filesOpen && ws.kind !== 'browser' && (
           <div className="files-side">
@@ -149,16 +131,7 @@ export function WorkspaceView({
           </div>
         )}
         <div className="split-side" style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}>
-          {easyMode ? (
-            <EasyChat cwd={ws.path} workspaceId={ws.id} />
-          ) : (
-            <TerminalPane
-              cwd={ws.path}
-              command="claude"
-              workspaceId={ws.id}
-              onPort={(port) => addPort(ws.id, port)}
-            />
-          )}
+          <EasyChat cwd={ws.path} workspaceId={ws.id} initialSessionId={ws.lastSessionId} />
         </div>
         {browserOpen && (
           <>

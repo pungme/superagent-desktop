@@ -46,7 +46,10 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       {...listeners}
     >
       <StatusDot status={status} />
-      <span className="sidebar-item-kind" title={ws.kind === 'browser' ? 'Browser project' : 'Code project'}>
+      <span
+        className="sidebar-item-kind"
+        title={ws.kind === 'browser' ? 'Browser project' : 'Code project'}
+      >
         {ws.kind === 'browser' ? '🌐' : '📁'}
       </span>
       <span className="sidebar-item-name">{ws.name}</span>

@@ -102,6 +102,10 @@ export interface CoveApi {
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
 
+  chatLoad: (workspaceId: string) => Promise<string | null>
+  chatSave: (workspaceId: string, data: string) => void
+  chatClear: (workspaceId: string) => void
+
   setTheme: (source: 'system' | 'light' | 'dark') => void
   onMenu: (cb: (action: string) => void) => () => void
 
@@ -134,7 +138,11 @@ export interface CoveApi {
     { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
   >
 
-  agentStart: (opts: { cwd?: string; workspaceId?: string }) => Promise<string>
+  agentStart: (opts: {
+    cwd?: string
+    workspaceId?: string
+    resumeSessionId?: string | null
+  }) => Promise<string>
   agentSend: (id: string, text: string, images?: { mediaType: string; data: string }[]) => void
   agentInterrupt: (id: string) => void
   agentStop: (id: string) => void
@@ -190,6 +198,10 @@ const cove: CoveApi = {
   moveWorkspace: (workspaceId, toGroupId, toIndex) =>
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
+
+  chatLoad: (workspaceId) => ipcRenderer.invoke('chat:load', workspaceId),
+  chatSave: (workspaceId, data) => ipcRenderer.send('chat:save', workspaceId, data),
+  chatClear: (workspaceId) => ipcRenderer.send('chat:clear', workspaceId),
 
   setTheme: (source) => ipcRenderer.send('theme:set', source),
   onMenu: (cb) => {
