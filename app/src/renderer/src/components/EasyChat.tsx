@@ -600,7 +600,9 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
           ref={inputRef}
           className="easy-input"
           value={input}
-          placeholder={ready ? 'Message Claude…  (/ commands · @ files · paste an image)' : 'Starting…'}
+          placeholder={
+            ready ? 'Message Claude…  (/ commands · @ files · paste an image)' : 'Starting…'
+          }
           rows={1}
           disabled={!ready}
           onPaste={onPaste}
