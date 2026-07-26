@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useStore } from '../state'
 import { TerminalPane } from './TerminalPane'
 import { BrowserPane } from './BrowserPane'
+import { FileTree } from './FileTree'
 import { EasyChat } from './EasyChat'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
@@ -16,6 +17,8 @@ export function WorkspaceView({
 }): React.JSX.Element {
   const browserOpen = useStore((s) => s.browserOpen[ws.id] ?? false)
   const toggleBrowser = useStore((s) => s.toggleBrowser)
+  const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
+  const toggleFiles = useStore((s) => s.toggleFiles)
   const addPort = useStore((s) => s.addPort)
   const sendToClaude = useStore((s) => s.sendToClaude)
   const ports = useStore((s) => s.ports[ws.id])
@@ -121,6 +124,13 @@ export function WorkspaceView({
           🔍 Check my site
         </button>
         <button
+          className={`toolbar-btn ${filesOpen ? 'on' : ''}`}
+          onClick={() => toggleFiles(ws.id)}
+          title="Project files"
+        >
+          📁 Files
+        </button>
+        <button
           className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
           onClick={() => toggleBrowser(ws.id)}
         >
@@ -130,6 +140,11 @@ export function WorkspaceView({
       {/* Terminal stays mounted (stable position) whether or not the browser is open,
           so toggling the preview never kills the Claude session. */}
       <div ref={containerRef} className="content-split">
+        {filesOpen && (
+          <div className="files-side">
+            <FileTree cwd={ws.path} workspaceId={ws.id} />
+          </div>
+        )}
         <div className="split-side" style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}>
           {easyMode ? (
             <EasyChat cwd={ws.path} workspaceId={ws.id} />

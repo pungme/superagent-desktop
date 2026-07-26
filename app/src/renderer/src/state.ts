@@ -9,12 +9,14 @@ interface CoveState {
   statuses: Record<string, WorkspaceStatus>
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
+  filesOpen: Record<string, boolean>
 
   refresh: () => Promise<void>
   setActive: (id: string) => void
   setStatus: (workspaceId: string, status: WorkspaceStatus) => void
   addPort: (workspaceId: string, port: number) => void
   toggleBrowser: (workspaceId: string) => void
+  toggleFiles: (workspaceId: string) => void
   hooksEnabled: boolean
   setHooksEnabled: (v: boolean) => void
   startHookListener: () => void
@@ -57,6 +59,7 @@ export const useStore = create<CoveState>((set, get) => ({
   statuses: {},
   ports: {},
   browserOpen: {},
+  filesOpen: {},
   hooksEnabled: false,
   previewUrls: {},
   reloadOnIdle: {},
@@ -90,6 +93,11 @@ export const useStore = create<CoveState>((set, get) => ({
         toast: { workspaceId, port }
       }
     }),
+  toggleFiles: (workspaceId) =>
+    set((s) => ({
+      filesOpen: { ...s.filesOpen, [workspaceId]: !s.filesOpen[workspaceId] }
+    })),
+
   toggleBrowser: (workspaceId) =>
     set((s) => ({
       browserOpen: { ...s.browserOpen, [workspaceId]: !s.browserOpen[workspaceId] }
@@ -180,6 +188,10 @@ export const useStore = create<CoveState>((set, get) => ({
           if (s.browserOpen[e.workspaceId] && s.reloadOnIdle[e.workspaceId]) {
             window.cove.browserReload(e.workspaceId)
           }
+          // Let the file tree re-read the project (Claude may have added/removed files).
+          window.dispatchEvent(
+            new CustomEvent('cove:workspace-idle', { detail: { workspaceId: e.workspaceId } })
+          )
         }
       }
       if (e.sessionId) {
