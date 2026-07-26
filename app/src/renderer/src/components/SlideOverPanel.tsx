@@ -1,4 +1,5 @@
 import { ReactNode } from 'react'
+import { useOverlayLock } from '../state'
 
 interface SlideOverPanelProps {
   title: string
@@ -15,6 +16,8 @@ export function SlideOverPanel({
   children,
   variant = 'side'
 }: SlideOverPanelProps): React.JSX.Element {
+  // Hide the native browser view while this panel is open (it would cover it).
+  useOverlayLock()
   return (
     <div className="skills-overlay" onClick={onClose}>
       <div

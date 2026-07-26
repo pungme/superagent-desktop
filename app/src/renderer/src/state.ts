@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useEffect } from 'react'
 import type { TreeGroup } from '../../preload'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
@@ -10,6 +11,12 @@ interface CoveState {
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
   filesOpen: Record<string, boolean>
+
+  // Count of open HTML overlays (slide-overs, modals). While > 0 the native
+  // browser view is hidden so it can't cover them.
+  overlayCount: number
+  enterOverlay: () => void
+  exitOverlay: () => void
 
   refresh: () => Promise<void>
   setActive: (id: string) => void
@@ -66,6 +73,9 @@ export const useStore = create<CoveState>((set, get) => ({
   ports: {},
   browserOpen: {},
   filesOpen: {},
+  overlayCount: 0,
+  enterOverlay: () => set((s) => ({ overlayCount: s.overlayCount + 1 })),
+  exitOverlay: () => set((s) => ({ overlayCount: Math.max(0, s.overlayCount - 1) })),
   hooksEnabled: false,
   previewUrls: {},
   reloadOnIdle: {},
@@ -258,3 +268,18 @@ export const useStore = create<CoveState>((set, get) => ({
     set({ tree })
   }
 }))
+
+/**
+ * While `active`, register an open HTML overlay so the native browser view
+ * hides itself (native WebContentsViews always paint above HTML and would
+ * otherwise cover slide-overs and modals).
+ */
+export function useOverlayLock(active = true): void {
+  const enterOverlay = useStore((s) => s.enterOverlay)
+  const exitOverlay = useStore((s) => s.exitOverlay)
+  useEffect(() => {
+    if (!active) return
+    enterOverlay()
+    return exitOverlay
+  }, [active, enterOverlay, exitOverlay])
+}

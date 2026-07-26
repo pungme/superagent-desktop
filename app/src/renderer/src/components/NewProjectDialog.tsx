@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
-import { useStore } from '../state'
+import { useStore, useOverlayLock } from '../state'
 
 export function NewProjectDialog(): React.JSX.Element | null {
   const groupId = useStore((s) => s.newProjectGroupId)
   const close = useStore((s) => s.closeNewProject)
   const createCode = useStore((s) => s.createCodeProject)
   const createBrowser = useStore((s) => s.createBrowserProject)
+  // Hide the native browser view while the dialog is open (only when shown).
+  useOverlayLock(!!groupId)
 
   useEffect(() => {
     if (!groupId) return
