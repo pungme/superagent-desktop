@@ -204,6 +204,25 @@ export function EasyChat({ cwd, workspaceId }: EasyChatProps): React.JSX.Element
     el.style.height = Math.min(el.scrollHeight, 160) + 'px'
   }
 
+  // Insert a file reference (clicked in the file tree) into the composer — don't send.
+  useEffect(() => {
+    const onInsert = (e: Event): void => {
+      const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
+      if (detail.workspaceId !== workspaceId) return
+      setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + detail.text)
+      const el = inputRef.current
+      if (el) {
+        el.focus()
+        requestAnimationFrame(() => {
+          el.style.height = 'auto'
+          el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+        })
+      }
+    }
+    window.addEventListener('cove:insert-reference', onInsert)
+    return () => window.removeEventListener('cove:insert-reference', onInsert)
+  }, [workspaceId])
+
   // Detect a "/command" at the start, or an "@file" at the caret, for the dropdown.
   const updateMention = (value: string): void => {
     const cmd = /^\/(\S*)$/.exec(value)
