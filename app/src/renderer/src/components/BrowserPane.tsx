@@ -43,6 +43,8 @@ export function BrowserPane({
   const [suggestIndex, setSuggestIndex] = useState(-1)
   const [showSuggest, setShowSuggest] = useState(false)
   const focusedRef = useRef(false)
+  const suggestSeqRef = useRef(0)
+  const pendingNavRef = useRef<string | null>(null)
   const visibleRef = useRef(visible)
   useEffect(() => {
     visibleRef.current = visible
@@ -112,6 +114,7 @@ export function BrowserPane({
   // Mirror the real page URL into the bar — but only on an actual URL change and
   // only while the user isn't editing, so typed text never flickers to a stale value.
   useEffect(() => {
+    pendingNavRef.current = null
     if (!focusedRef.current) setAddressInput(state.url)
   }, [state.url])
 
@@ -121,6 +124,10 @@ export function BrowserPane({
   }, [state.url, state.title])
 
   const go = (target: string): void => {
+    // Show the destination immediately and hold it until the page actually loads
+    // (the state.url effect clears pendingNav), so the bar doesn't blink backwards.
+    pendingNavRef.current = target
+    setAddressInput(target)
     window.cove.browserNavigate(paneId, target)
     setShowSuggest(false)
     setSuggestIndex(-1)
@@ -128,6 +135,7 @@ export function BrowserPane({
   }
 
   const refreshSuggestions = async (text: string): Promise<void> => {
+    const seq = ++suggestSeqRef.current
     const primary = interpretOmnibox(text)
     const out: Suggestion[] = []
     if (primary) {
@@ -137,7 +145,11 @@ export function BrowserPane({
           : { kind: 'url', target: primary.target, label: text.trim() }
       )
     }
-    const hist = text.trim() ? await window.cove.historySearch(text.trim()) : []
+    const hist = text.trim()
+      ? await window.cove.historySearch(text.trim()).catch(() => [])
+      : []
+    // Drop results from a superseded keystroke so suggestions can't flicker back.
+    if (seq !== suggestSeqRef.current) return
     for (const h of hist) {
       if (out.some((s) => s.target === h.url)) continue
       out.push({ kind: 'url', target: h.url, label: h.title || h.url, sub: h.url })
@@ -213,7 +225,9 @@ export function BrowserPane({
               focusedRef.current = false
               // Delay so a mousedown on a suggestion still registers.
               setTimeout(() => setShowSuggest(false), 120)
-              setAddressInput(state.url)
+              // Revert to the current URL, unless a navigation is in flight (then
+              // keep showing where we're headed until it loads).
+              setAddressInput(pendingNavRef.current ?? state.url)
             }}
             onChange={(e) => {
               setAddressInput(e.target.value)
