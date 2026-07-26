@@ -3,6 +3,7 @@ import {
   DndContext,
   DragEndEvent,
   PointerSensor,
+  closestCenter,
   useSensor,
   useSensors,
   useDraggable,
@@ -36,11 +37,18 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     id: ws.id,
     data: { index, groupId: ws.groupId }
   })
+  // Also a drop target, so dragging over a row lets us reorder relative to it
+  // (not just append to the group).
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: ws.id })
+  const setRefs = (node: HTMLElement | null): void => {
+    setNodeRef(node)
+    setDropRef(node)
+  }
 
   return (
     <div
-      ref={setNodeRef}
-      className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
+      ref={setRefs}
+      className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver ? 'drop-before' : ''}`}
       onClick={() => setActive(ws.id)}
       {...attributes}
       {...listeners}
@@ -161,18 +169,41 @@ export function Sidebar(): React.JSX.Element {
   }, [refresh])
 
   const onDragEnd = (e: DragEndEvent): void => {
-    const overId = e.over?.id
-    if (typeof overId === 'string' && overId.startsWith('group:')) {
+    const activeId = String(e.active.id)
+    const overId = e.over?.id ? String(e.over.id) : null
+    if (!overId || overId === activeId) return
+
+    const locate = (id: string): { groupId: string; index: number } | null => {
+      for (const g of tree) {
+        const index = g.workspaces.findIndex((w) => w.id === id)
+        if (index >= 0) return { groupId: g.id, index }
+      }
+      return null
+    }
+    const src = locate(activeId)
+    if (!src) return
+
+    // Dropped on a group's empty area → append to that group.
+    if (overId.startsWith('group:')) {
       const toGroupId = overId.slice('group:'.length)
       const group = tree.find((g) => g.id === toGroupId)
-      moveWorkspace(String(e.active.id), toGroupId, group?.workspaces.length ?? 0)
+      moveWorkspace(activeId, toGroupId, group?.workspaces.length ?? 0)
+      return
     }
+
+    // Dropped on a specific row → insert before it. When reordering down within
+    // the same group, removing the item first shifts the target left by one.
+    const dst = locate(overId)
+    if (!dst) return
+    const sameGroup = dst.groupId === src.groupId
+    const toIndex = sameGroup && src.index < dst.index ? dst.index - 1 : dst.index
+    moveWorkspace(activeId, dst.groupId, toIndex)
   }
 
   return (
     <aside className="sidebar">
       <div className="sidebar-drag-region" />
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="sidebar-scroll">
           {tree.map((group) => (
             <GroupSection key={group.id} group={group} />

@@ -235,6 +235,11 @@ button {
   opacity: 0.4;
 }
 
+/* Insert-before indicator while dragging another workspace over this row. */
+.sidebar-item.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
 .sidebar-item-name {
   flex: 1;
   white-space: nowrap;

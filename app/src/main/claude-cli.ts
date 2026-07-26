@@ -25,9 +25,14 @@ export function findClaude(): string {
   if (cachedPath) return cachedPath
   try {
     const resolved = loginShellExec('command -v claude').split('\n').pop()
-    cachedPath = resolved && resolved.length > 0 ? resolved : 'claude'
+    // Only cache a real resolution. Caching the bare-`claude` fallback would pin
+    // it for the whole process even after the PATH later exposes the binary.
+    if (resolved && resolved.length > 0) {
+      cachedPath = resolved
+      return cachedPath
+    }
   } catch {
-    cachedPath = 'claude'
+    // fall through to the un-cached fallback
   }
-  return cachedPath
+  return 'claude'
 }

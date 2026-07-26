@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { readdirSync, statSync } from 'fs'
+import { readdirSync, lstatSync } from 'fs'
 import { join, relative } from 'path'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
@@ -19,10 +19,12 @@ const SKIP_DIRS = new Set([
   'venv'
 ])
 
+const MAX_DEPTH = 12
+
 export function listProjectFiles(root: string, max = 1000): string[] {
   const out: string[] = []
-  const walk = (dir: string): void => {
-    if (out.length >= max) return
+  const walk = (dir: string, depth: number): void => {
+    if (out.length >= max || depth > MAX_DEPTH) return
     let entries: string[]
     try {
       entries = readdirSync(dir)
@@ -33,17 +35,21 @@ export function listProjectFiles(root: string, max = 1000): string[] {
       if (out.length >= max) return
       if (SKIP_DIRS.has(entry)) continue
       const full = join(dir, entry)
-      let st: ReturnType<typeof statSync>
+      let st: ReturnType<typeof lstatSync>
       try {
-        st = statSync(full)
+        // lstat (not stat) so we can see symlinks without following them — never
+        // descend into a symlinked dir, which is how directory cycles would recurse
+        // forever.
+        st = lstatSync(full)
       } catch {
         continue
       }
-      if (st.isDirectory()) walk(full)
-      else out.push(relative(root, full))
+      if (st.isSymbolicLink()) continue
+      if (st.isDirectory()) walk(full, depth + 1)
+      else if (st.isFile()) out.push(relative(root, full))
     }
   }
-  walk(root)
+  walk(root, 0)
   return out.sort()
 }
 

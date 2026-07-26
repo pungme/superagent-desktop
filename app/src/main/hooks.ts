@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Notification, ipcMain } from 'electron'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { randomBytes } from 'crypto'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from 'fs'
+import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, chmodSync } from 'fs'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
@@ -116,13 +116,17 @@ export function mergeCoveHooks(settings: HookSettings, scriptPath: string): Hook
 /** Pure: strip every Cove hook back out, dropping now-empty event arrays. */
 export function removeCoveHooks(settings: HookSettings): HookSettings {
   if (!settings.hooks) return settings
-  const hooks: Record<string, unknown[]> = {}
+  const hooks: Record<string, unknown> = {}
   for (const [event, arr] of Object.entries(settings.hooks)) {
-    if (!Array.isArray(arr)) continue
+    if (!Array.isArray(arr)) {
+      // Preserve anything we don't recognize rather than silently dropping it.
+      hooks[event] = arr
+      continue
+    }
     const kept = arr.filter((e) => !JSON.stringify(e).includes('cove-hook.sh'))
     if (kept.length > 0) hooks[event] = kept
   }
-  return { ...settings, hooks }
+  return { ...settings, hooks: hooks as HookSettings['hooks'] }
 }
 
 function hookScriptPath(): string {
@@ -131,6 +135,14 @@ function hookScriptPath(): string {
 
 function claudeSettingsPath(): string {
   return join(homedir(), '.claude', 'settings.json')
+}
+
+/** Write settings.json atomically (temp + rename) so a crash mid-write can never
+ * leave the user's real Claude config truncated. */
+function writeSettingsAtomic(settingsPath: string, settings: HookSettings): void {
+  const tmp = `${settingsPath}.cove-tmp`
+  writeFileSync(tmp, JSON.stringify(settings, null, 2))
+  renameSync(tmp, settingsPath)
 }
 
 export function hooksInstalled(): boolean {
@@ -156,7 +168,7 @@ export function installHooks(): { ok: boolean; error?: string } {
     mkdirSync(dirname(settingsPath), { recursive: true })
     const settings = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, 'utf8')) : {}
 
-    writeFileSync(settingsPath, JSON.stringify(mergeCoveHooks(settings, scriptPath), null, 2))
+    writeSettingsAtomic(settingsPath, mergeCoveHooks(settings, scriptPath))
     console.log('[hooks] installed into', settingsPath)
     return { ok: true }
   } catch (err) {
@@ -169,7 +181,7 @@ export function uninstallHooks(): void {
   if (!existsSync(settingsPath)) return
   try {
     const settings = JSON.parse(readFileSync(settingsPath, 'utf8'))
-    writeFileSync(settingsPath, JSON.stringify(removeCoveHooks(settings), null, 2))
+    writeSettingsAtomic(settingsPath, removeCoveHooks(settings))
   } catch {
     // best effort
   }
