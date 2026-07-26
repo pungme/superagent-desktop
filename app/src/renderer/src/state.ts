@@ -177,7 +177,11 @@ export const useStore = create<CoveState>((set, get) => ({
         // Refresh the preview when Claude finishes a turn, if enabled for this workspace.
         if (e.status === 'idle') {
           const s = get()
-          if (s.browserOpen[e.workspaceId] && s.reloadOnIdle[e.workspaceId]) {
+          // reloadOnIdle defaults to true (matches the toolbar toggle's default),
+          // so a code project with the preview open refreshes after Claude's turn.
+          // Browser projects have browserOpen undefined here, so they're skipped —
+          // we don't want to reload a page the user is having Claude drive.
+          if (s.browserOpen[e.workspaceId] && (s.reloadOnIdle[e.workspaceId] ?? true)) {
             window.cove.browserReload(e.workspaceId)
           }
           // Let the file tree re-read the project (Claude may have added/removed files).
