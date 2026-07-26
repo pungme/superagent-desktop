@@ -486,7 +486,9 @@ export function EasyChat({
 
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
-    if ((!text && images.length === 0) || !id || !ready) return
+    // While a turn is streaming the Send button is a Stop button; keep the Enter
+    // key consistent so a keystroke can't inject a message mid-turn.
+    if ((!text && images.length === 0) || !id || !ready || generating) return
     setItems((prev) => [
       ...prev,
       {
