@@ -62,7 +62,9 @@ function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
   if (!input || typeof input !== 'object') return null
   const o = input as Record<string, unknown>
   const file = typeof o.file_path === 'string' ? (o.file_path.split('/').pop() ?? '') : ''
-  const lines = (s: unknown): string[] => (typeof s === 'string' && s ? s.split('\n') : [])
+  // Drop one trailing newline so a spurious empty "+"/"-" line isn't shown.
+  const lines = (s: unknown): string[] =>
+    typeof s === 'string' && s ? s.replace(/\n$/, '').split('\n') : []
   if (name === 'Edit' && (o.old_string || o.new_string)) {
     return { id, file, hunks: [trimCommon(lines(o.old_string), lines(o.new_string))] }
   }
