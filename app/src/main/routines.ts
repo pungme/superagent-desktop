@@ -2,7 +2,7 @@ import { ipcMain, BrowserWindow, Notification, powerMonitor } from 'electron'
 import { spawn } from 'child_process'
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
-import { ensureOffscreenPane } from './browser'
+import { ensureOffscreenPane, destroyBrowserPane } from './browser'
 import { writeWorkspaceMcpConfig } from './mcp'
 import { getHookUrl } from './hooks'
 import { getDb } from './store'
@@ -144,71 +144,91 @@ export async function runRoutine(routine: Routine): Promise<void> {
 
   // Offscreen pane sharing the workspace's cookies, scoped MCP config for it.
   const paneId = routinePaneId(routine.workspaceId)
-  const win = BrowserWindow.getAllWindows()[0]
-  if (win) ensureOffscreenPane(win, paneId, partitionFor(routine.workspaceId))
-  const mcpConfig = writeWorkspaceMcpConfig(paneId)
+  let result: { ok: boolean; summary: string } = {
+    ok: false,
+    summary: 'Run failed to start.'
+  }
 
-  const result = await new Promise<{ ok: boolean; summary: string }>((resolve) => {
-    const proc = spawn(
-      findClaude(),
-      [
-        '-p',
-        routine.prompt,
-        '--output-format',
-        'json',
-        '--mcp-config',
-        mcpConfig,
-        '--allowedTools',
-        'mcp__cove-browser__browser_navigate',
-        'mcp__cove-browser__browser_read_page',
-        'mcp__cove-browser__browser_click',
-        'mcp__cove-browser__browser_type',
-        'mcp__cove-browser__browser_screenshot',
-        'mcp__cove-browser__browser_console',
-        'mcp__cove-browser__browser_network',
-        'mcp__cove-browser__browser_wait_for',
-        '--max-turns',
-        String(MAX_TURNS)
-      ],
-      {
-        cwd: routine.workspacePath,
-        env: {
-          ...process.env,
-          COVE_HOOK_URL: getHookUrl(),
-          COVE_WORKSPACE_ID: paneId
+  try {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) ensureOffscreenPane(win, paneId, partitionFor(routine.workspaceId))
+    const mcpConfig = writeWorkspaceMcpConfig(paneId)
+
+    result = await new Promise<{ ok: boolean; summary: string }>((resolve) => {
+      const proc = spawn(
+        findClaude(),
+        [
+          '-p',
+          routine.prompt,
+          '--output-format',
+          'json',
+          '--mcp-config',
+          mcpConfig,
+          '--allowedTools',
+          'mcp__cove-browser__browser_navigate',
+          'mcp__cove-browser__browser_read_page',
+          'mcp__cove-browser__browser_click',
+          'mcp__cove-browser__browser_type',
+          'mcp__cove-browser__browser_screenshot',
+          'mcp__cove-browser__browser_console',
+          'mcp__cove-browser__browser_network',
+          'mcp__cove-browser__browser_wait_for',
+          '--max-turns',
+          String(MAX_TURNS)
+        ],
+        {
+          cwd: routine.workspacePath,
+          env: {
+            ...process.env,
+            COVE_HOOK_URL: getHookUrl(),
+            COVE_WORKSPACE_ID: paneId
+          }
         }
-      }
+      )
+
+      let out = ''
+      const timer = setTimeout(() => {
+        proc.kill()
+        resolve({ ok: false, summary: 'Timed out after 5 minutes.' })
+      }, RUN_TIMEOUT_MS)
+
+      proc.stdin.on('error', () => {})
+      proc.stdout.on('data', (c) => (out += c.toString()))
+      proc.on('error', (e) => {
+        clearTimeout(timer)
+        resolve({ ok: false, summary: `Failed to launch: ${e.message}` })
+      })
+      proc.on('exit', () => {
+        clearTimeout(timer)
+        try {
+          const json = JSON.parse(out)
+          const summary = (json.result || '(no summary)').toString().slice(0, 500)
+          resolve({ ok: json.is_error !== true, summary })
+        } catch {
+          resolve({ ok: false, summary: 'Could not parse the run result.' })
+        }
+      })
+    })
+  } catch (e) {
+    result = { ok: false, summary: `Run failed to start: ${(e as Error).message}` }
+  } finally {
+    // Release the lock first so the routine can never wedge in "running" and stop
+    // rescheduling, even if a later cleanup step throws.
+    running.delete(routine.id)
+    db.prepare(
+      'UPDATE routines SET lastRunStatus = ?, lastRunSummary = ?, lastRunAt = ?, nextRunAt = ? WHERE id = ?'
+    ).run(
+      result.ok ? 'ok' : 'error',
+      result.summary,
+      nowMs(),
+      nowMs() + routine.intervalMs,
+      routine.id
     )
-
-    let out = ''
-    const timer = setTimeout(() => {
-      proc.kill()
-      resolve({ ok: false, summary: 'Timed out after 5 minutes.' })
-    }, RUN_TIMEOUT_MS)
-
-    proc.stdout.on('data', (c) => (out += c.toString()))
-    proc.on('error', (e) => {
-      clearTimeout(timer)
-      resolve({ ok: false, summary: `Failed to launch: ${e.message}` })
-    })
-    proc.on('exit', () => {
-      clearTimeout(timer)
-      try {
-        const json = JSON.parse(out)
-        const summary = (json.result || '(no summary)').toString().slice(0, 500)
-        resolve({ ok: json.is_error !== true, summary })
-      } catch {
-        resolve({ ok: false, summary: 'Could not parse the run result.' })
-      }
-    })
-  })
-
-  const interval = routine.intervalMs
-  db.prepare(
-    'UPDATE routines SET lastRunStatus = ?, lastRunSummary = ?, lastRunAt = ?, nextRunAt = ? WHERE id = ?'
-  ).run(result.ok ? 'ok' : 'error', result.summary, nowMs(), nowMs() + interval, routine.id)
-  running.delete(routine.id)
-  broadcast()
+    // Free the offscreen WebContentsView (cookies live in the partition, not the
+    // pane, so login persists); the next run recreates it on demand.
+    destroyBrowserPane(paneId)
+    broadcast()
+  }
 
   if (!result.ok) {
     notify('Cove routine failed', result.summary.slice(0, 120))
@@ -222,7 +242,7 @@ function tick(): void {
     .all(now) as Routine[]
   for (const routine of due) {
     // One catch-up run max: nextRunAt advances inside runRoutine, missed slots dropped.
-    void runRoutine(routine)
+    runRoutine(routine).catch(() => {})
   }
 }
 
@@ -265,6 +285,6 @@ export function registerRoutinesIpc(): void {
   })
   ipcMain.on('routines:runNow', (_e, id: string) => {
     const r = db.prepare('SELECT * FROM routines WHERE id = ?').get(id) as Routine | undefined
-    if (r) void runRoutine(r)
+    if (r) runRoutine(r).catch(() => {})
   })
 }

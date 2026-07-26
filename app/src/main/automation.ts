@@ -134,6 +134,7 @@ function ensureDebugger(paneId: string): WebContents {
     contents.once('destroyed', () => {
       attached.delete(paneId)
       consoleBuffers.delete(paneId)
+      netBuffers.delete(paneId)
     })
     contents.debugger.on('detach', () => attached.delete(paneId))
     contents.debugger.on('message', (_e, method, params) => {

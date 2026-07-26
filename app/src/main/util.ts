@@ -8,12 +8,26 @@ export function broadcastToWindows(channel: string, payload?: unknown): void {
   }
 }
 
-/** Drain an HTTP request body and JSON-parse it; returns {} on empty/invalid. */
+const MAX_BODY_BYTES = 8 * 1024 * 1024 // 8 MB — bodies carry screenshots/images
+
+/**
+ * Drain an HTTP request body and JSON-parse it; returns {} on empty/invalid/too
+ * large. Never throws — a socket error mid-body or an oversized body resolves to
+ * {} rather than rejecting (an unhandled rejection here would crash main).
+ */
 export async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = []
-  for await (const chunk of req) chunks.push(chunk as Buffer)
-  const raw = Buffer.concat(chunks).toString('utf8')
   try {
+    const chunks: Buffer[] = []
+    let size = 0
+    for await (const chunk of req) {
+      size += (chunk as Buffer).length
+      if (size > MAX_BODY_BYTES) {
+        req.destroy()
+        return {}
+      }
+      chunks.push(chunk as Buffer)
+    }
+    const raw = Buffer.concat(chunks).toString('utf8')
     return raw ? JSON.parse(raw) : {}
   } catch {
     return {}

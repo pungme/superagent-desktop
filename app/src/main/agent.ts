@@ -49,8 +49,13 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
   const mcpConfig =
     opts.mcpConfigPath || (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId) : undefined)
 
-  // `resume` reloads the workspace's previous session; if that session is gone
-  // claude exits at once, so we fall back to a fresh session exactly once.
+  // A valid resume emits a system/init line at once; a missing session makes
+  // claude exit immediately with nothing on stdout. So "produced output" tells a
+  // successful start from a failed resume — and we only fall back to a fresh
+  // session when a resume never produced anything (not on a later crash, which
+  // would silently discard a working conversation).
+  let sawOutput = false
+
   const spawnProc = (resume: string | null): void => {
     const args = [
       '-p',
@@ -80,7 +85,12 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
     const session: AgentSession = { id, proc, owner, buffer: '' }
     sessions.set(id, session)
 
+    // Writing to a claude that has already closed stdin throws EPIPE; without a
+    // listener that becomes an unhandled 'error' and crashes the main process.
+    proc.stdin.on('error', () => {})
+
     proc.stdout.on('data', (chunk: Buffer) => {
+      sawOutput = true
       session.buffer += chunk.toString('utf8')
       let nl: number
       while ((nl = session.buffer.indexOf('\n')) >= 0) {
@@ -103,8 +113,9 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
     proc.on('exit', (code) => {
       sessions.delete(id)
       if (session.killed) return
-      if (resume) {
-        // The resume target was unavailable — retry once with a fresh session.
+      if (resume && !sawOutput) {
+        // The resume target was unavailable (claude exited before emitting
+        // anything) — retry once with a fresh session.
         spawnProc(null)
         return
       }
@@ -123,7 +134,7 @@ export interface AgentImage {
 
 export function sendToAgent(id: string, text: string, images: AgentImage[] = []): void {
   const session = sessions.get(id)
-  if (!session) return
+  if (!session || !session.proc.stdin.writable) return
   const content = [
     ...images.map((im) => ({
       type: 'image',
@@ -138,7 +149,7 @@ export function sendToAgent(id: string, text: string, images: AgentImage[] = [])
 /** Interrupt the current generation without ending the session (keeps context). */
 export function interruptAgent(id: string): void {
   const session = sessions.get(id)
-  if (!session) return
+  if (!session || !session.proc.stdin.writable) return
   const control = {
     type: 'control_request',
     request_id: randomUUID(),
