@@ -93,6 +93,9 @@ export interface CoveApi {
   chatSave: (workspaceId: string, data: string) => void
   chatClear: (workspaceId: string) => void
 
+  historyRecord: (url: string, title: string) => void
+  historySearch: (query: string) => Promise<{ url: string; title: string }[]>
+
   setTheme: (source: 'system' | 'light' | 'dark') => void
   onMenu: (cb: (action: string) => void) => () => void
 
@@ -129,6 +132,7 @@ export interface CoveApi {
     cwd?: string
     workspaceId?: string
     resumeSessionId?: string | null
+    browserProject?: boolean
   }) => Promise<string>
   agentSend: (id: string, text: string, images?: { mediaType: string; data: string }[]) => void
   agentInterrupt: (id: string) => void
@@ -182,6 +186,9 @@ const cove: CoveApi = {
   chatLoad: (workspaceId) => ipcRenderer.invoke('chat:load', workspaceId),
   chatSave: (workspaceId, data) => ipcRenderer.send('chat:save', workspaceId, data),
   chatClear: (workspaceId) => ipcRenderer.send('chat:clear', workspaceId),
+
+  historyRecord: (url, title) => ipcRenderer.send('history:record', url, title, Date.now()),
+  historySearch: (query) => ipcRenderer.invoke('history:search', query),
 
   setTheme: (source) => ipcRenderer.send('theme:set', source),
   onMenu: (cb) => {

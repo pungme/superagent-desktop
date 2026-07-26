@@ -64,6 +64,12 @@ export function initStore(): void {
       workspaceId TEXT PRIMARY KEY,
       data TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS history (
+      url TEXT PRIMARY KEY,
+      title TEXT,
+      visitCount INTEGER NOT NULL DEFAULT 1,
+      lastVisit INTEGER NOT NULL
+    );
   `)
 
   // Migration: add the project-kind column to pre-existing databases.
@@ -191,6 +197,28 @@ export function registerStoreIpc(): void {
   })
   ipcMain.on('chat:clear', (_e, workspaceId: string) => {
     db.prepare('DELETE FROM chats WHERE workspaceId = ?').run(workspaceId)
+  })
+
+  // Browsing history — powers omnibar autocomplete.
+  ipcMain.on('history:record', (_e, url: string, title: string, at: number) => {
+    if (!/^https?:\/\//i.test(url)) return
+    db.prepare(
+      `INSERT INTO history (url, title, visitCount, lastVisit) VALUES (?, ?, 1, ?)
+       ON CONFLICT(url) DO UPDATE SET
+         visitCount = visitCount + 1,
+         lastVisit = excluded.lastVisit,
+         title = COALESCE(NULLIF(excluded.title, ''), title)`
+    ).run(url, title || '', at)
+  })
+  ipcMain.handle('history:search', (_e, query: string, limit = 6) => {
+    const q = `%${query.trim()}%`
+    return db
+      .prepare(
+        `SELECT url, title FROM history
+         WHERE url LIKE ? OR title LIKE ?
+         ORDER BY visitCount DESC, lastVisit DESC LIMIT ?`
+      )
+      .all(q, q, limit) as { url: string; title: string }[]
   })
 
   ipcMain.handle(
