@@ -6,12 +6,14 @@ interface BrowserPaneProps {
   paneId: string
   partition: string
   initialUrl?: string
+  visible?: boolean
 }
 
 export function BrowserPane({
   paneId,
   partition,
-  initialUrl
+  initialUrl,
+  visible = true
 }: BrowserPaneProps): React.JSX.Element {
   const previewUrl = useStore((s) => s.previewUrls[paneId])
   const reloadOnIdle = useStore((s) => s.reloadOnIdle[paneId] ?? true)
@@ -29,8 +31,13 @@ export function BrowserPane({
   const [crashed, setCrashed] = useState(false)
   const [addressInput, setAddressInput] = useState('')
   const [editing, setEditing] = useState(false)
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
 
   const syncBounds = useCallback((): void => {
+    // Don't position the native view while this workspace is hidden — it would
+    // overlay the active one.
+    if (!visibleRef.current) return
     const host = hostRef.current
     if (!host) return
     const r = host.getBoundingClientRect()
@@ -42,6 +49,12 @@ export function BrowserPane({
       height: Math.round(r.height)
     })
   }, [paneId])
+
+  // Show/hide the native view as this workspace becomes active/inactive.
+  useEffect(() => {
+    if (visible) syncBounds()
+    else window.cove.browserHide(paneId)
+  }, [visible, paneId, syncBounds])
 
   useEffect(() => {
     let alive = true

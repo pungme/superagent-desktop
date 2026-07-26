@@ -7,7 +7,13 @@ import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
 import type { Workspace } from '../../../preload'
 
-export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
+export function WorkspaceView({
+  ws,
+  visible = true
+}: {
+  ws: Workspace
+  visible?: boolean
+}): React.JSX.Element {
   const browserOpen = useStore((s) => s.browserOpen[ws.id] ?? false)
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const addPort = useStore((s) => s.addPort)
@@ -18,7 +24,10 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [routinesOpen, setRoutinesOpen] = useState(false)
 
+  // Only the visible workspace responds to global menu actions (all opened
+  // workspaces stay mounted for keep-alive).
   useEffect(() => {
+    if (!visible) return
     const onSkills = (): void => setSkillsOpen(true)
     const onRoutines = (): void => setRoutinesOpen(true)
     const onToggle = (): void => toggleBrowser(ws.id)
@@ -30,7 +39,7 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
       window.removeEventListener('cove:menu-routines', onRoutines)
       window.removeEventListener('cove:menu-toggle-preview', onToggle)
     }
-  }, [ws.id, toggleBrowser])
+  }, [ws.id, toggleBrowser, visible])
 
   const checkMySite = (): void => {
     // Prefer a detected dev-server port (Terminal mode); otherwise fall back to the
@@ -145,6 +154,7 @@ export function WorkspaceView({ ws }: { ws: Workspace }): React.JSX.Element {
                 paneId={ws.id}
                 partition={`persist:ws-${ws.id}`}
                 initialUrl={ws.browserUrl ?? undefined}
+                visible={visible}
               />
             </div>
           </>
