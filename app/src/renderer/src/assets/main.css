@@ -155,7 +155,7 @@ button {
 .group-caret {
   border: none;
   background: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 9px;
   width: 14px;
   transition: transform 0.12s ease;
@@ -269,7 +269,7 @@ button {
 .sidebar-add-group {
   border: none;
   background: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-align: left;
   padding: 6px 8px;
   border-radius: 8px;
@@ -279,7 +279,7 @@ button {
 .group-empty:hover,
 .sidebar-add-group:hover {
   background: var(--hover);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .sidebar-footer {
@@ -296,7 +296,7 @@ button {
 .sidebar-settings {
   border: none;
   background: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 15px;
   width: 30px;
   height: 30px;
