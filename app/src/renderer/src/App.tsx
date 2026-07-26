@@ -85,7 +85,7 @@ function App(): React.JSX.Element {
           <div className="empty-state">
             <div className="empty-state-inner">
               <h1>Welcome to Cove</h1>
-              <p>Add a project folder from the sidebar to start a Claude session.</p>
+              <p>Add a project from the sidebar — a code folder or a browser project — to get started.</p>
             </div>
           </div>
         ) : (
