@@ -82,7 +82,11 @@ export function BrowserPane({
 
   useEffect(() => {
     let alive = true
-    const offState = window.cove.onBrowserState(paneId, (s) => setState(s))
+    const offState = window.cove.onBrowserState(paneId, (s) => {
+      setState(s)
+      // A fresh load means the page recovered — drop any stale crash overlay.
+      if (s.loading) setCrashed(false)
+    })
     const offCrash = window.cove.onBrowserCrashed(paneId, () => setCrashed(true))
 
     window.cove.browserCreate(paneId, partition).then(() => {
@@ -218,6 +222,8 @@ export function BrowserPane({
             autoComplete="off"
             onFocus={(e) => {
               focusedRef.current = true
+              // A new edit starts fresh — don't let a stale in-flight target linger.
+              pendingNavRef.current = null
               e.target.select()
               refreshSuggestions(addressInput)
             }}

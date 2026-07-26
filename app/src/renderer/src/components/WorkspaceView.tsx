@@ -156,14 +156,18 @@ export function WorkspaceView({
           </>
         )}
       </div>
-      {skillsOpen && (
+      {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
+          mounted, or its overlay lock would blank the active workspace's preview. */}
+      {skillsOpen && visible && (
         <SkillsPanel
           workspaceId={ws.id}
           projectPath={ws.path}
           onClose={() => setSkillsOpen(false)}
         />
       )}
-      {routinesOpen && <RoutinesPanel ws={ws} onClose={() => setRoutinesOpen(false)} />}
+      {routinesOpen && visible && (
+        <RoutinesPanel ws={ws} onClose={() => setRoutinesOpen(false)} />
+      )}
     </div>
   )
 }
