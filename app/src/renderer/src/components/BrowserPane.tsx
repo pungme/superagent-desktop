@@ -36,10 +36,17 @@ export function BrowserPane({
     visibleRef.current = visible
   }, [visible])
 
+  // An open slide-over/modal must not be covered by the native browser view.
+  const overlayOpen = useStore((s) => s.overlayCount > 0)
+  const overlayRef = useRef(overlayOpen)
+  useEffect(() => {
+    overlayRef.current = overlayOpen
+  }, [overlayOpen])
+
   const syncBounds = useCallback((): void => {
-    // Don't position the native view while this workspace is hidden — it would
-    // overlay the active one.
-    if (!visibleRef.current) return
+    // Don't position the native view while this workspace is hidden (it would
+    // overlay the active one) or while an HTML overlay is open (it would cover it).
+    if (!visibleRef.current || overlayRef.current) return
     const host = hostRef.current
     if (!host) return
     const r = host.getBoundingClientRect()
@@ -52,11 +59,12 @@ export function BrowserPane({
     })
   }, [paneId])
 
-  // Show/hide the native view as this workspace becomes active/inactive.
+  // Show/hide the native view as this workspace becomes active/inactive, or as
+  // an HTML overlay opens/closes over it.
   useEffect(() => {
-    if (visible) syncBounds()
+    if (visible && !overlayOpen) syncBounds()
     else window.cove.browserHide(paneId)
-  }, [visible, paneId, syncBounds])
+  }, [visible, overlayOpen, paneId, syncBounds])
 
   useEffect(() => {
     let alive = true
