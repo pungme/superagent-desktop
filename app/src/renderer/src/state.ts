@@ -214,6 +214,10 @@ export const useStore = create<CoveState>((set, get) => ({
     set({ tree, activeWorkspaceId: workspaceId })
   },
   removeWorkspace: async (id) => {
+    // Tear down the workspace's browser view. The PTY and Easy-mode agent are
+    // stopped by their panes' unmount effects, but the WebContentsView has no
+    // such hook (it's kept alive across preview toggles), so destroy it here.
+    window.cove.browserDestroy(id)
     const tree = await window.cove.deleteWorkspace(id)
     set({ tree })
     if (get().activeWorkspaceId === id) {
