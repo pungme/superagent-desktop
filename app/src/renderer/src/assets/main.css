@@ -377,6 +377,12 @@ button {
   -webkit-app-region: drag;
 }
 
+.workspace-host {
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
 .workspace-view {
   flex: 1;
   display: flex;
