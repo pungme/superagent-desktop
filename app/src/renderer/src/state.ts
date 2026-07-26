@@ -51,6 +51,12 @@ interface CoveState {
   addWorkspace: (groupId: string) => Promise<void>
   removeWorkspace: (id: string) => Promise<void>
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<void>
+
+  // New-project chooser (Code vs Browser project).
+  newProjectGroupId: string | null
+  closeNewProject: () => void
+  createCodeProject: (groupId: string) => Promise<void>
+  createBrowserProject: (groupId: string) => Promise<void>
 }
 
 export const useStore = create<CoveState>((set, get) => ({
@@ -215,7 +221,13 @@ export const useStore = create<CoveState>((set, get) => ({
     const tree = await window.cove.updateGroup(id, { collapsed: collapsed ? 1 : 0 })
     set({ tree })
   },
+  // Opens the Code-vs-Browser chooser rather than immediately picking a folder.
   addWorkspace: async (groupId) => {
+    set({ newProjectGroupId: groupId })
+  },
+  newProjectGroupId: null,
+  closeNewProject: () => set({ newProjectGroupId: null }),
+  createCodeProject: async (groupId) => {
     const picked = await window.cove.pickFolder()
     if (!picked) return
     const { tree, workspaceId } = await window.cove.createWorkspace(
@@ -223,7 +235,11 @@ export const useStore = create<CoveState>((set, get) => ({
       picked.name,
       picked.path
     )
-    set({ tree, activeWorkspaceId: workspaceId })
+    set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
+  },
+  createBrowserProject: async (groupId) => {
+    const { tree, workspaceId } = await window.cove.createBrowserWorkspace(groupId, 'Browser project')
+    set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
   },
   removeWorkspace: async (id) => {
     // Tear down the workspace's browser view. The PTY and Easy-mode agent are

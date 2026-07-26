@@ -15,7 +15,8 @@ export function WorkspaceView({
   ws: Workspace
   visible?: boolean
 }): React.JSX.Element {
-  const browserOpen = useStore((s) => s.browserOpen[ws.id] ?? false)
+  // Browser projects open with the preview showing by default.
+  const browserOpen = useStore((s) => s.browserOpen[ws.id] ?? ws.kind === 'browser')
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
   const toggleFiles = useStore((s) => s.toggleFiles)
@@ -123,13 +124,15 @@ export function WorkspaceView({
         <button className="toolbar-btn" onClick={checkMySite} title="Ask Claude to test your site">
           🔍 Check my site
         </button>
-        <button
-          className={`toolbar-btn ${filesOpen ? 'on' : ''}`}
-          onClick={() => toggleFiles(ws.id)}
-          title="Project files"
-        >
-          📁 Files
-        </button>
+        {ws.kind !== 'browser' && (
+          <button
+            className={`toolbar-btn ${filesOpen ? 'on' : ''}`}
+            onClick={() => toggleFiles(ws.id)}
+            title="Project files"
+          >
+            📁 Files
+          </button>
+        )}
         <button
           className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
           onClick={() => toggleBrowser(ws.id)}
@@ -140,7 +143,7 @@ export function WorkspaceView({
       {/* Terminal stays mounted (stable position) whether or not the browser is open,
           so toggling the preview never kills the Claude session. */}
       <div ref={containerRef} className="content-split">
-        {filesOpen && (
+        {filesOpen && ws.kind !== 'browser' && (
           <div className="files-side">
             <FileTree cwd={ws.path} workspaceId={ws.id} />
           </div>
