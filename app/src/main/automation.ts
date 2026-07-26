@@ -168,21 +168,11 @@ function ensureDebugger(paneId: string): WebContents {
   return contents
 }
 
-function isLocalHost(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
-}
-
 export async function navigate(paneId: string, url: string): Promise<string> {
   const contents = wc(paneId)
   const target = normalizeUrl(url)
-  // Guardrail: the agent may only drive local sites (the user's own dev servers).
-  const host = new URL(target).hostname
-  if (!isLocalHost(host)) {
-    throw new Error(
-      `Blocked navigation to ${host}. Cove only lets the agent browse local sites ` +
-        `(localhost / 127.0.0.1) — the user can open other sites in the browser pane by hand.`
-    )
-  }
+  // The agent drives the user's own browser on their own machine — real sites
+  // included (that's the whole point of browser automation / routines).
   await contents.loadURL(target)
   return contents.getURL()
 }

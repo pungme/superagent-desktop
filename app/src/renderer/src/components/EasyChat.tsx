@@ -43,6 +43,7 @@ interface EasyChatProps {
   cwd: string
   workspaceId: string
   initialSessionId?: string | null
+  browserProject?: boolean
 }
 
 // Drop lines shared by the start/end of both sides so only the real change shows.
@@ -142,7 +143,12 @@ function toRows(items: Item[]): Row[] {
   return rows
 }
 
-export function EasyChat({ cwd, workspaceId, initialSessionId }: EasyChatProps): React.JSX.Element {
+export function EasyChat({
+  cwd,
+  workspaceId,
+  initialSessionId,
+  browserProject
+}: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
@@ -406,7 +412,7 @@ export function EasyChat({ cwd, workspaceId, initialSessionId }: EasyChatProps):
     let offExit: (() => void) | undefined
 
     window.cove
-      .agentStart({ cwd, workspaceId, resumeSessionId: resumeIdRef.current })
+      .agentStart({ cwd, workspaceId, resumeSessionId: resumeIdRef.current, browserProject })
       .then((id) => {
         if (disposed) {
           window.cove.agentStop(id)
@@ -427,7 +433,7 @@ export function EasyChat({ cwd, workspaceId, initialSessionId }: EasyChatProps):
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
     }
-  }, [cwd, workspaceId, registerAgent, handleEvent, resetKey])
+  }, [cwd, workspaceId, registerAgent, handleEvent, resetKey, browserProject])
 
   // Auto-scroll only when the user is already near the bottom, so scrolling up
   // to read scrollback isn't interrupted.

@@ -131,7 +131,12 @@ export function WorkspaceView({
           </div>
         )}
         <div className="split-side" style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}>
-          <EasyChat cwd={ws.path} workspaceId={ws.id} initialSessionId={ws.lastSessionId} />
+          <EasyChat
+            cwd={ws.path}
+            workspaceId={ws.id}
+            initialSessionId={ws.lastSessionId}
+            browserProject={ws.kind === 'browser'}
+          />
         </div>
         {browserOpen && (
           <>

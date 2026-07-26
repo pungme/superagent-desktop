@@ -31,7 +31,18 @@ export interface AgentStartOptions {
   mcpConfigPath?: string
   /** Resume a prior conversation by session id (so history/context persists). */
   resumeSessionId?: string | null
+  /** Browser-first workspace: steer Claude to drive the visible browser. */
+  browserProject?: boolean
 }
+
+const BROWSER_SYSTEM_PROMPT =
+  'You are working inside Cove, a desktop app with a live Chromium browser pane open and ' +
+  'visible to the user, right next to this chat. To browse the web or interact with ANY ' +
+  'website, use the cove-browser tools (browser_navigate, browser_read_page, browser_click, ' +
+  'browser_type, browser_press_key, browser_screenshot, browser_wait_for) — they drive the ' +
+  'actual visible browser so the user can watch. You can drive real websites, not just ' +
+  'localhost. Strongly prefer these tools over WebSearch and WebFetch. To run a web search, ' +
+  'navigate the browser to the search engine and type the query rather than calling WebSearch.'
 
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
   const id = randomUUID()
@@ -52,6 +63,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
     ]
     if (resume) args.unshift('--resume', resume)
     if (mcpConfig) args.push('--mcp-config', mcpConfig)
+    if (opts.browserProject) args.push('--append-system-prompt', BROWSER_SYSTEM_PROMPT)
 
     const proc = spawn(findClaude(), args, {
       cwd: opts.cwd || os.homedir(),
