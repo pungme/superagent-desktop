@@ -210,7 +210,7 @@ export function EasyChat({
   }, [cwd])
 
   // Restore the persisted transcript on mount, then save it (debounced) as it
-  // changes — so the conversation is still here after Cove is reopened.
+  // changes — so the conversation is still here after SuperAgent is reopened.
   const hydratedRef = useRef(false)
   useEffect(() => {
     let alive = true

@@ -4,7 +4,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 
 /**
- * Discovers Claude Code skills and slash commands so Cove can show them as
+ * Discovers Claude Code skills and slash commands so SuperAgent can show them as
  * one-click buttons. Running a skill just types `/name` into the session —
  * nothing is reimplemented.
  */
@@ -125,7 +125,7 @@ Use cove-browser tools to look at the current page. Evaluate how it would look o
 phone screen. Improve the responsive layout so it looks good on mobile, then verify.`
 }
 
-/** Install Cove's starter skills into the user's global skills dir if missing. */
+/** Install SuperAgent's starter skills into the user's global skills dir if missing. */
 export function installStarterSkills(): void {
   const base = join(homedir(), '.claude', 'skills')
   for (const [name, content] of Object.entries(STARTER_SKILLS)) {

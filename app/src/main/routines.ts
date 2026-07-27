@@ -13,13 +13,13 @@ import { broadcastToWindows, partitionFor, routinePaneId } from './util'
  * Routines — scheduled natural-language browser tasks.
  * "Check my site every hour" typed once, run on a local ticker.
  *
- * Design (from the servus-ai learnings, adapted to Cove + Claude):
+ * Design (from the servus-ai learnings, adapted to SuperAgent + Claude):
  *  - the NL prompt IS the stored artifact, re-planned fresh each run
  *  - a 60s main-process ticker (survives renderer reloads), one catch-up run max
  *  - each run = headless `claude -p` scoped to an offscreen browser pane that
  *    shares the workspace's cookies, so scheduled runs never steal the viewport
  *  - guardrails: wall-clock timeout + max turns
- *  - honest limit: only runs while Cove is open (session cookies are local)
+ *  - honest limit: only runs while SuperAgent is open (session cookies are local)
  */
 
 export const MIN_INTERVAL_MS = 60 * 60 * 1000 // 60 minutes — enforced floor
@@ -106,8 +106,8 @@ export function createRoutineForWorkspace(
   return {
     ok: true,
     message: floored
-      ? `Created a routine that runs every 60 minutes (the minimum). It only runs while Cove is open.`
-      : `Created a routine that runs every ${intervalMinutes} minutes. It only runs while Cove is open.`
+      ? `Created a routine that runs every 60 minutes (the minimum). It only runs while SuperAgent is open.`
+      : `Created a routine that runs every ${intervalMinutes} minutes. It only runs while SuperAgent is open.`
   }
 }
 
@@ -231,7 +231,7 @@ export async function runRoutine(routine: Routine): Promise<void> {
   }
 
   if (!result.ok) {
-    notify('Cove routine failed', result.summary.slice(0, 120))
+    notify('SuperAgent routine failed', result.summary.slice(0, 120))
   }
 }
 

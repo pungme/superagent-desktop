@@ -6,9 +6,9 @@ import { z } from 'zod'
 import * as auto from './automation'
 
 /**
- * Cove's browser-automation MCP server.
+ * SuperAgent's browser-automation MCP server.
  * HTTP transport on 127.0.0.1 with a per-launch secret in the path.
- * Each Cove-launched claude session gets a config whose URL carries ?ws=<id>,
+ * Each SuperAgent-launched claude session gets a config whose URL carries ?ws=<id>,
  * so tool calls are scoped to that session's own workspace browser pane.
  */
 
@@ -29,7 +29,7 @@ function buildServer(paneId: string): McpServer {
     'browser_navigate',
     {
       description:
-        "Open a URL in Cove's browser pane (visible to the user). Bare hosts get https://, localhost gets http://.",
+        "Open a URL in SuperAgent's browser pane (visible to the user). Bare hosts get https://, localhost gets http://.",
       inputSchema: { url: z.string() }
     },
     async ({ url }) => ({
@@ -139,7 +139,7 @@ function buildServer(paneId: string): McpServer {
     'create_routine',
     {
       description:
-        'Schedule a recurring task for this project (e.g. "check the homepage loads"). Store the user\'s own wording as the prompt, minus the recurrence phrase. Minimum interval is 60 minutes — if the user asks for less, tell them you are using 60 and continue. Routines only run while Cove is open.',
+        'Schedule a recurring task for this project (e.g. "check the homepage loads"). Store the user\'s own wording as the prompt, minus the recurrence phrase. Minimum interval is 60 minutes — if the user asks for less, tell them you are using 60 and continue. Routines only run while SuperAgent is open.',
       inputSchema: {
         prompt: z.string().describe("The task to run each time, in the user's own words"),
         intervalMinutes: z.number().describe('How often to run, in minutes (min 60)')
