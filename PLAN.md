@@ -1,6 +1,6 @@
-# Cove — a friendly terminal for Claude Code
+# Cove — a friendly home for Claude Code
 
-> **Build status (v1 complete):** All milestones M0–M5 built, tested, and committed on `main`. Every planned feature ships plus the user-requested **Easy Mode** chat. 21 unit tests + 5 Electron e2e tests green; `dist/Cove-1.0.0.dmg` packages and launches. Remaining before public release: real code-signing/notarization (needs Apple Developer account), and the v1.1 multi-agent adapters (M6). See §8 iteration log and the milestone checklists below (all checked).
+> **Build status (v1 shipped, then reshaped from real use — see §8 #19–#25):** All milestones M0–M5 built, tested, committed on `main`. Since v1 the Terminal/Easy split was replaced by **one persistent, resumable Chat mode**, plus **Browser projects** with real-website automation, an omnibar, and a file tree. 28 unit + 7 Electron e2e tests green; every feature verified end-to-end. Remaining before public release: real code-signing/notarization (needs Apple Developer account), and the v1.1 multi-agent adapters (M6). See §8 iteration log below.
 
 
 > Working title: **Cove** (placeholder — rename anytime).
@@ -349,6 +349,15 @@ Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, pro
 - #16 *Added:* Principle 6 — **Cove ships no AI.** All intelligence is the user's own agent subscription (interactive PTY + `claude -p` for Routines); Cove is plumbing only. No API keys, no backend, no billing.
 - #17 *Added:* §2.6 AgentAdapter layer — Codex CLI and Gemini CLI promoted from non-goal to v1.1 fast-follow (M6); adapter seam ships in v1 so nothing is Claude-hardcoded. Verified integration surfaces: Codex `.codex/config.toml` `[mcp_servers]` + hooks/`notify`; Gemini `.gemini/settings.json` `mcpServers` + custom commands.
 - #18 *Added:* §3.6 Skills library + M4c — surface Claude Code skills/commands in a visible panel, "Save as skill" flow, starter pack, cross-agent export. Marketplace explicitly a non-goal.
+
+**v6 → v7 (post-ship, from real use):**
+- #19 *Pivot:* dropped the Terminal/Easy two-mode split for **one persistent Chat mode** (user: "something in the middle that persists forever, saved locally"). The transcript is stored in SQLite and the claude session is resumed via `--resume` next launch. Removed the terminal path entirely (TerminalPane, `node-pty`, `@xterm/*`).
+- #20 *Added:* **project types** — a Code project (a folder) or a folder-less **Browser project** (browser-first, for automation), chosen at creation.
+- #21 *Reversed #3:* removed the localhost-only automation guardrail — driving **real websites** is the whole point of Browser projects/routines. Browser projects also get an appended system prompt steering Claude to the cove-browser tools over WebSearch/WebFetch.
+- #22 *Added:* a real **omnibar** (URL-or-search with history autocomplete), the **file tree** panel, and last-preview-URL restore across restarts.
+- #23 *Reliability:* fixed the `--resume` fallback (a missing session was masked by SessionStart *hook* stdout, stranding the chat on a silent "Starting…"); added an error banner + Retry; hide the native browser view under slide-overs/modals; routine try/finally so a failed run can't wedge; offscreen-pane cleanup.
+- #24 *Security/data:* atomic `~/.claude/settings.json` writes; a `will-navigate` guard so the shell can't be navigated away; explicit main-window webPreferences; symlink-cycle-safe file walk.
+- #25 *Quality:* end-to-end verified every feature over CDP; unit + e2e now **28 + 7** green; README refreshed; icon-only buttons labeled for a11y.
 
 ## 9. Success metrics (v1 beta)
 
