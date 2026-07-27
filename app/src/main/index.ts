@@ -40,6 +40,11 @@ function createWindow(): BrowserWindow {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
+      // Explicit (not just relying on Electron defaults) so the renderer can never
+      // reach Node — only the contextBridge `cove` API. sandbox:false is needed
+      // for the Node-using preload; the window only ever loads trusted app content.
+      contextIsolation: true,
+      nodeIntegration: false,
       sandbox: false
     }
   })
