@@ -64,4 +64,18 @@ describe('removeCoveHooks', () => {
     const restored = removeCoveHooks(merged)
     expect(restored.hooks).toEqual({})
   })
+
+  it('passes through an unexpected non-array hook value instead of dropping it', () => {
+    const settings = {
+      hooks: {
+        Stop: [{ hooks: [{ type: 'command', command: `sh '${SCRIPT}' Stop` }] }],
+        // A shape Cove doesn't produce — must survive an uninstall untouched.
+        Custom: { weird: true }
+      }
+    } as unknown as Parameters<typeof removeCoveHooks>[0]
+    const restored = removeCoveHooks(settings)
+    expect((restored.hooks as Record<string, unknown>).Custom).toEqual({ weird: true })
+    // The Cove-only Stop entry is still stripped (array becomes empty → dropped).
+    expect(restored.hooks!.Stop).toBeUndefined()
+  })
 })
