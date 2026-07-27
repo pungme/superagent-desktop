@@ -21,6 +21,8 @@
   --accent-fg: #ffffff;
   --hover: rgba(255, 255, 255, 0.07);
   --active: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
   --shadow: rgba(0, 0, 0, 0.4);
   --assistant-bubble: rgba(255, 255, 255, 0.06);
   --content-hairline: rgba(255, 255, 255, 0.06);
@@ -55,6 +57,8 @@
   --accent-fg: #ffffff;
   --hover: rgba(0, 0, 0, 0.05);
   --active: rgba(0, 0, 0, 0.08);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
   --shadow: rgba(0, 0, 0, 0.16);
   --assistant-bubble: rgba(0, 0, 0, 0.05);
   --content-hairline: rgba(0, 0, 0, 0.06);
@@ -98,6 +102,33 @@ body,
 button {
   font-family: inherit;
   cursor: default;
+}
+
+/* Thin, theme-aware scrollbars — subtle and inset, a premium touch over the
+   chunky default Chromium bars. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .app {
