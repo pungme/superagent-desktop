@@ -69,6 +69,14 @@ test('opening the workspace shows the chat composer and toolbar actions', async 
   await expect(window.locator('.toolbar-btn:has-text("Skills")')).toBeVisible()
 })
 
+test('the file tree lists project files', async () => {
+  await window.click('.toolbar-btn:has-text("Files")')
+  await window.waitForSelector('.file-tree', { timeout: 10_000 })
+  await expect(window.locator('.file-tree')).toContainText('README.md', { timeout: 10_000 })
+  // Toggle it back off so later tests see the default layout.
+  await window.click('.toolbar-btn:has-text("Files")')
+})
+
 test('the browser preview pane can be toggled on', async () => {
   await window.click('.toolbar-btn:has-text("Show preview")')
   await window.waitForSelector('.browser-pane', { timeout: 10_000 })
@@ -80,4 +88,14 @@ test('the Settings panel opens from the sidebar gear', async () => {
   await window.waitForSelector('.settings-panel', { timeout: 5_000 })
   await expect(window.locator('.settings-panel')).toContainText('Settings')
   await window.click('.skills-close')
+})
+
+test('the new-project dialog offers Code and Browser projects', async () => {
+  await window.hover('.sidebar-group-header')
+  await window.click('.group-add')
+  await window.waitForSelector('.new-project', { timeout: 5_000 })
+  await expect(window.locator('.new-project')).toContainText('Code project')
+  await expect(window.locator('.new-project')).toContainText('Browser project')
+  await window.click('.new-project-cancel')
+  await expect(window.locator('.new-project')).toHaveCount(0)
 })
