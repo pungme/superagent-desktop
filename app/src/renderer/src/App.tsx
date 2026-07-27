@@ -84,7 +84,7 @@ function App(): React.JSX.Element {
         {openedWorkspaces.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-inner">
-              <h1>Welcome to Cove</h1>
+              <h1>Welcome to SuperAgent</h1>
               <p>
                 Add a project from the sidebar — a code folder or a browser project — to get
                 started.

@@ -82,7 +82,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
         </div>
       </div>
       <div className="settings-footer">
-        <span>Cove · Claude Code {version ?? ''}</span>
+        <span>SuperAgent · Claude Code {version ?? ''}</span>
       </div>
     </SlideOverPanel>
   )

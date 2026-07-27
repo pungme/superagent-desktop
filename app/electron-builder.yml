@@ -1,5 +1,5 @@
-appId: dev.cove.app
-productName: Cove
+appId: dev.superagent.app
+productName: SuperAgent
 directories:
   buildResources: build
 files:
@@ -21,22 +21,22 @@ mac:
   category: public.app-category.developer-tools
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    - NSCameraUsageDescription: Cove does not use the camera.
+    - NSCameraUsageDescription: SuperAgent does not use the camera.
   notarize: false
   target:
     - dmg
 dmg:
-  artifactName: Cove-${version}.${ext}
-  title: Cove ${version}
+  artifactName: SuperAgent-${version}.${ext}
+  title: SuperAgent ${version}
 win:
-  executableName: Cove
+  executableName: SuperAgent
 nsis:
-  artifactName: Cove-${version}-setup.${ext}
-  shortcutName: Cove
+  artifactName: SuperAgent-${version}-setup.${ext}
+  shortcutName: SuperAgent
   createDesktopShortcut: always
 linux:
   target:
     - AppImage
-  maintainer: cove
+  maintainer: superagent
   category: Development
 npmRebuild: false

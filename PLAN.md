@@ -1,9 +1,9 @@
-# Cove — a friendly home for Claude Code
+# SuperAgent — a friendly home for Claude Code
 
 > **Build status (v1 shipped, then reshaped from real use — see §8 #19–#25):** All milestones M0–M5 built, tested, committed on `main`. Since v1 the Terminal/Easy split was replaced by **one persistent, resumable Chat mode**, plus **Browser projects** with real-website automation, an omnibar, and a file tree. 28 unit + 7 Electron e2e tests green; every feature verified end-to-end. Remaining before public release: real code-signing/notarization (needs Apple Developer account), and the v1.1 multi-agent adapters (M6). See §8 iteration log below.
 
 
-> Working title: **Cove** (placeholder — rename anytime).
+> Working title: **SuperAgent** (placeholder — rename anytime).
 > One-liner: *The Arc browser of terminals — a clean, tab-grouped workspace where Claude Code builds your projects and can drive a built-in browser to check its own work.*
 
 ---
@@ -13,7 +13,7 @@
 **Who it's for:** the semi-prosumer — someone who can install Claude Code, knows what a folder and a dev server are, but doesn't live in tmux. They want to run Claude Code on 1–5 projects, see what it's doing, and preview the website it's building — without configuring anything.
 
 **Reference points:**
-- **cmux** (manaflow-ai) — proves the concept: vertical tabs, notifications, embedded scriptable browser, agent-first terminal. But it's native Swift/AppKit, macOS-power-user-flavored, Ghostty-config-driven — "composable primitives, not solutions." Cove is the opposite philosophy: **solutions, not primitives.**
+- **cmux** (manaflow-ai) — proves the concept: vertical tabs, notifications, embedded scriptable browser, agent-first terminal. But it's native Swift/AppKit, macOS-power-user-flavored, Ghostty-config-driven — "composable primitives, not solutions." SuperAgent is the opposite philosophy: **solutions, not primitives.**
 - **OpenAI Codex desktop app** — the design north star: calm, spacious, chat-adjacent polish. Feels like a consumer app, not a terminal.
 - **Arc browser** — sidebar interaction model: groups/spaces, drag-to-organize, colorful but tidy.
 
@@ -22,8 +22,8 @@
 2. **The terminal is real.** Under the clean chrome is a genuine PTY running the genuine `claude` CLI — nothing re-implemented, nothing that breaks when Claude Code updates.
 3. **Show, don't log.** Agent status is a glanceable badge, not scrollback archaeology.
 4. **The agent can see the browser.** Claude Code checks its own work in the built-in browser — screenshots, clicks, console errors — visibly, in front of the user.
-5. **Never surprise the user.** Automation happens in Cove's browser pane only (never the user's personal browser), with a visible indicator and a stop button.
-6. **Cove ships no AI.** No API keys, no model calls, no AI backend, no per-user billing. All intelligence is the user's own agent (their Claude Code subscription; later their Codex/Gemini login) — interactively in the terminal, and headlessly (`claude -p`) for Routines. Cove is pure plumbing: terminal + browser + MCP tools + scheduler + UI. This keeps Cove's running costs ~zero, avoids the entire billing/abuse problem servus-ai has to manage with its own Gemini backend, and means Cove gets smarter for free every time the user's agent upgrades.
+5. **Never surprise the user.** Automation happens in SuperAgent's browser pane only (never the user's personal browser), with a visible indicator and a stop button.
+6. **SuperAgent ships no AI.** No API keys, no model calls, no AI backend, no per-user billing. All intelligence is the user's own agent (their Claude Code subscription; later their Codex/Gemini login) — interactively in the terminal, and headlessly (`claude -p`) for Routines. SuperAgent is pure plumbing: terminal + browser + MCP tools + scheduler + UI. This keeps SuperAgent's running costs ~zero, avoids the entire billing/abuse problem servus-ai has to manage with its own Gemini backend, and means SuperAgent gets smarter for free every time the user's agent upgrades.
 
 ---
 
@@ -67,13 +67,13 @@ What we accept: ~150–250 MB baseline memory vs cmux's tens of MB, and purists 
 
 ### 2.4 Claude Code integration: **PTY-first, hooks for status, MCP for the browser**
 
-- **Session launch:** Cove spawns `claude` with injected args (`--mcp-config` pointing at Cove's browser-automation MCP server config). The user can also type `claude` manually — that works too, just without the browser tools (documented; see Iteration log #1 for the mitigation).
-- **Status detection:** Cove installs (with one-time consent) Claude Code **hooks** — `Notification`, `Stop`, `SessionStart` — that POST to Cove's local HTTP endpoint. This drives sidebar badges: 🟢 working / 🟡 needs you / ⚪ idle. Fallback: OSC 9 terminal notification sequences parsed from the PTY stream.
-- **Resume:** Cove remembers `session_id` per tab (from hook payloads) and offers "Resume" (`claude --resume <id>`) after app restart.
+- **Session launch:** SuperAgent spawns `claude` with injected args (`--mcp-config` pointing at SuperAgent's browser-automation MCP server config). The user can also type `claude` manually — that works too, just without the browser tools (documented; see Iteration log #1 for the mitigation).
+- **Status detection:** SuperAgent installs (with one-time consent) Claude Code **hooks** — `Notification`, `Stop`, `SessionStart` — that POST to SuperAgent's local HTTP endpoint. This drives sidebar badges: 🟢 working / 🟡 needs you / ⚪ idle. Fallback: OSC 9 terminal notification sequences parsed from the PTY stream.
+- **Resume:** SuperAgent remembers `session_id` per tab (from hook payloads) and offers "Resume" (`claude --resume <id>`) after app restart.
 
-### 2.5 Browser automation bridge: **a local MCP server built into Cove**
+### 2.5 Browser automation bridge: **a local MCP server built into SuperAgent**
 
-The keystone feature. Cove's main process runs an MCP server (HTTP transport on localhost, random port + auth token per launch) exposing tools that operate on the workspace's `WebContentsView`:
+The keystone feature. SuperAgent's main process runs an MCP server (HTTP transport on localhost, random port + auth token per launch) exposing tools that operate on the workspace's `WebContentsView`:
 
 | Tool | Does |
 |---|---|
@@ -93,14 +93,14 @@ Design choices:
 
 ### 2.6 Agent adapter layer — Claude Code first, Codex CLI & Gemini CLI supported
 
-Because Cove is PTY-first, *any* CLI agent already runs in it. "Support" beyond that means four integration points, so we build one **AgentAdapter** interface from day one (M2) and never hardcode Claude:
+Because SuperAgent is PTY-first, *any* CLI agent already runs in it. "Support" beyond that means four integration points, so we build one **AgentAdapter** interface from day one (M2) and never hardcode Claude:
 
 ```ts
 interface AgentAdapter {
   id: 'claude' | 'codex' | 'gemini'
   detect(): InstallStatus                    // binary present? logged in? version?
   launch(workspace): { cmd, args, env }      // how to start a session
-  injectBrowserMcp(workspace): void          // wire Cove's browser MCP into this agent
+  injectBrowserMcp(workspace): void          // wire SuperAgent's browser MCP into this agent
   statusSource(): 'hooks' | 'notify' | 'osc' // how "working / needs-you / idle" is detected
   resume(sessionId): { cmd, args } | null
   skills: SkillsFormat                       // where its skills/commands live (see §3.6)
@@ -157,28 +157,28 @@ The sidebar shows which agent a session runs (small logo on the tab), and "New s
 What the semi-prosumer actually experiences:
 - They type "check that the signup form works" → Claude uses `browser_*` tools → they *watch the built-in browser* navigate and click, with the "Claude is browsing" indicator.
 - A "🔍 Check my site" quick-action button that pre-fills a prompt ("Open the preview, click through the main flows, report anything broken — with screenshots").
-- All automation confined to Cove's embedded browser. Never the system browser, never other apps.
+- All automation confined to SuperAgent's embedded browser. Never the system browser, never other apps.
 
 ---
 
 ### 3.5 Routines — scheduled natural-language browser automation
 
-*"Please visit this website every hour and check X"* — typed once, runs on a schedule. Design ported from the proven implementation in `launci/servus-ai` (Tauri app, `desktop/src-tauri/src/browser.rs` + `app/src/hooks/use-browser-schedules.tsx`), adapted to Cove's Electron + Claude stack.
+*"Please visit this website every hour and check X"* — typed once, runs on a schedule. Design ported from the proven implementation in `launci/servus-ai` (Tauri app, `desktop/src-tauri/src/browser.rs` + `app/src/hooks/use-browser-schedules.tsx`), adapted to SuperAgent's Electron + Claude stack.
 
-**What servus-ai got right (and Cove copies):**
+**What servus-ai got right (and SuperAgent copies):**
 
 1. **The NL prompt *is* the stored artifact.** A routine is just `{prompt, intervalMs, nextRunAt, enabled, lastRunStatus, lastRunSummary}` — the user's own wording, re-planned fresh by the agent on every fire. No brittle recorded step lists, no cron syntax (interval + simple daily/weekly kinds only, so both humans and LLMs can produce valid values). Created two ways: a form in the UI, or Claude calling a `create_routine` MCP tool mid-conversation ("…and check it every morning" → tool call).
 2. **Two webviews, one cookie jar.** A visible browser pane (user browses, logs in) + an offscreen *agent* webview sharing the same Electron `session` partition. The user logs into a site once by hand; scheduled runs reuse those cookies invisibly, without stealing the viewport. This sidesteps the entire headless-browser-auth nightmare.
-3. **Local ticker, not server cron.** Sessions live in the local cookie jar, so scheduling must be local: a 60s ticker — in Cove's *main process* (survives renderer reloads; `powerMonitor` skips ticks during sleep). App closed = nothing runs (shown honestly in the UI: "Runs while Cove is open").
+3. **Local ticker, not server cron.** Sessions live in the local cookie jar, so scheduling must be local: a 60s ticker — in SuperAgent's *main process* (survives renderer reloads; `powerMonitor` skips ticks during sleep). App closed = nothing runs (shown honestly in the UI: "Runs while SuperAgent is open").
 4. **One catch-up run max on reopen.** Missed slots are dropped, `nextRunAt` advances — never a burst of back-to-back runs that trips rate limits.
 5. **Guardrails from production pain:** max hops per run, 5-min wall-clock budget, repeated-identical-call detection (*including successful calls* — catches loops), consecutive-failure cap, and history compaction (keep only the latest page-read result; older ones truncated).
 6. **Indexed-element page reading.** `read_page` returns numbered visible interactive elements (`{index, tag, role, text, …}`, capped ~200) + a `click_text` fallback (more durable than indices, which shift when modals open) + a ~6s SPA-hydration poll so an empty React shell isn't mistaken for "logged out". This upgrades the `browser_snapshot` tool spec in §2.5.
 
-**Cove-specific execution model:** each routine tick spawns a headless `claude -p "<routine prompt>"` (print mode, user's existing subscription) with Cove's browser MCP config scoped to the *agent* webview, plus the guardrails above enforced app-side. Results land in a per-routine run log (status, one-line summary, final screenshot); failures raise a native notification.
+**SuperAgent-specific execution model:** each routine tick spawns a headless `claude -p "<routine prompt>"` (print mode, user's existing subscription) with SuperAgent's browser MCP config scoped to the *agent* webview, plus the guardrails above enforced app-side. Results land in a per-routine run log (status, one-line summary, final screenshot); failures raise a native notification.
 
 **Interval floor: 60 minutes**, enforced in UI and on write; the `create_routine` tool description instructs Claude to push back on sub-hour requests instead of silently accepting.
 
-**Honest limits (shown in UI, not buried):** many platforms (Instagram, X, LinkedIn…) prohibit automated actions like mass-following and actively detect bots — routines are built for *your own* sites and for checking/monitoring; third-party-site automation is at the user's own risk and may get accounts flagged. Cove does not ship anti-bot fingerprint evasion (servus-ai's stealth shims are deliberately **not** ported).
+**Honest limits (shown in UI, not buried):** many platforms (Instagram, X, LinkedIn…) prohibit automated actions like mass-following and actively detect bots — routines are built for *your own* sites and for checking/monitoring; third-party-site automation is at the user's own risk and may get accounts flagged. SuperAgent does not ship anti-bot fingerprint evasion (servus-ai's stealth shims are deliberately **not** ported).
 
 ### 3.5b Easy Mode — Claude Code as a clean chat, not a terminal (user request, BUILT)
 
@@ -186,18 +186,18 @@ Two ways to work in every workspace, toggled in the toolbar:
 - **Terminal** — the real `claude` TUI in xterm (power users, full fidelity).
 - **Easy** — a calm Codex-style chat: user bubbles, streamed assistant replies, friendly tool cards ("⌘ Running a command", "🌐 navigate", "✏️ Editing a file") instead of raw tool JSON, and a thinking indicator.
 
-**How, without shipping any AI (principle #6):** Easy Mode spawns the *same* `claude` binary in streaming mode — `claude -p --output-format stream-json --input-format stream-json --include-partial-messages --verbose` — kept alive to read one JSON user message per line from stdin. Cove parses the event stream (`stream_event` text deltas → live typing; `assistant` tool_use blocks → tool cards; `result` → turn end) and renders chat. Same binary, same subscription, same MCP browser tools (per-workspace config injected), same hooks. It's a *view* over Claude Code, not a reimplementation.
+**How, without shipping any AI (principle #6):** Easy Mode spawns the *same* `claude` binary in streaming mode — `claude -p --output-format stream-json --input-format stream-json --include-partial-messages --verbose` — kept alive to read one JSON user message per line from stdin. SuperAgent parses the event stream (`stream_event` text deltas → live typing; `assistant` tool_use blocks → tool cards; `result` → turn end) and renders chat. Same binary, same subscription, same MCP browser tools (per-workspace config injected), same hooks. It's a *view* over Claude Code, not a reimplementation.
 
 Gotcha learned in build: in stream-json input mode `claude` emits nothing until the first user message, so the composer must enable on process start, not on the `init` event (that deadlocks). `claude` is resolved to an absolute path via a login shell so `spawn` finds it outside the terminal's PATH.
 
 ### 3.6 Skills library — surface agent skills like first-class features
 
-Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, project `.claude/skills/`) and slash commands (`.claude/commands/*.md`) — but they're invisible unless you know the dotfiles. Cove makes them visible and prosumer-friendly:
+Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, project `.claude/skills/`) and slash commands (`.claude/commands/*.md`) — but they're invisible unless you know the dotfiles. SuperAgent makes them visible and prosumer-friendly:
 
 - **Skills panel** per workspace: lists installed skills/commands (parsed from the global + project dirs), each with name + description, one click → runs it in the session (types `/name` into the PTY — nothing re-implemented, principle #2).
 - **"Save as skill":** after a good session, one button asks Claude to distill what it just did into a proper `SKILL.md` in the project — turning a one-off prompt into a reusable button. This is how prosumers build up a toolbox without ever learning the format.
-- **Starter pack:** Cove ships 3–5 skills on first run ("Check my site" from §3.4 becomes a real Claude skill, "Fix what's broken on this page", "Make it look better on mobile") — so the panel is never empty and demonstrates the concept.
-- **Cross-agent:** each Cove starter skill is stored canonically and exported to each agent's native format (Claude `SKILL.md`, Codex `~/.codex/prompts/*.md`, Gemini `.gemini/commands/*.toml`) via the adapter's `skills` field. User-created skills export on demand ("Also make available to Codex/Gemini").
+- **Starter pack:** SuperAgent ships 3–5 skills on first run ("Check my site" from §3.4 becomes a real Claude skill, "Fix what's broken on this page", "Make it look better on mobile") — so the panel is never empty and demonstrates the concept.
+- **Cross-agent:** each SuperAgent starter skill is stored canonically and exported to each agent's native format (Claude `SKILL.md`, Codex `~/.codex/prompts/*.md`, Gemini `.gemini/commands/*.toml`) via the adapter's `skills` field. User-created skills export on demand ("Also make available to Codex/Gemini").
 - Non-goal: a skills marketplace/registry. v1 reads local dirs + ships starters; discovery of community skills is a later idea.
 
 ## 4. Milestones & full TODO list
@@ -223,9 +223,9 @@ Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, pro
 - [ ] Git branch display (cheap: read `.git/HEAD`, watch for changes)
 
 ### M2 — Claude Code integration
-- [ ] "New Claude session" primary action (spawns `claude` with Cove env + mcp-config)
+- [ ] "New Claude session" primary action (spawns `claude` with SuperAgent env + mcp-config)
 - [ ] Hook installer with consent screen (writes to `~/.claude/settings.json`, additive & reversible; detect and merge with existing hooks)
-- [ ] Local HTTP endpoint for hook events (auth token via env var passed only to Cove-spawned processes)
+- [ ] Local HTTP endpoint for hook events (auth token via env var passed only to SuperAgent-spawned processes)
 - [ ] Status badges from hook events; OSC-sequence fallback parser
 - [ ] Native notifications (needs-input / finished) + click-to-focus
 - [ ] Session tracking (session_id ↔ tab) + "Resume" on restart
@@ -245,8 +245,8 @@ Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, pro
 - [ ] MCP server in main process (HTTP transport, per-launch auth token, localhost only)
 - [ ] Tool: navigate, screenshot, snapshot (a11y tree w/ refs), click, type, press, evaluate, console, network, wait_for
 - [ ] Workspace scoping (session → its own browser pane only)
-- [ ] `--mcp-config` injection on Cove-spawned sessions; docs for manual sessions
-- [ ] Pre-approve Cove's browser tools in spawned session (settings `allowedTools`) so the user isn't spammed with permission prompts — behind a consent toggle
+- [ ] `--mcp-config` injection on SuperAgent-spawned sessions; docs for manual sessions
+- [ ] Pre-approve SuperAgent's browser tools in spawned session (settings `allowedTools`) so the user isn't spammed with permission prompts — behind a consent toggle
 - [ ] "Claude is browsing" indicator + Stop button (detaches debugger, fails pending tool calls cleanly)
 - [ ] Quick action: "🔍 Check my site" canned prompt
 - [ ] Guardrail: refuse navigation to non-localhost origins unless user enabled "allow external sites" (default: localhost + 127.0.0.1 only)
@@ -314,7 +314,7 @@ Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, pro
 
 ## 7. Open questions (decide during M0–M1)
 
-1. Real name + icon (Cove is a placeholder)
+1. Real name + icon (SuperAgent is a placeholder)
 2. ~~Distribution~~ **Decided (v6): open source, MIT.** Consequences: never port code from GPL cmux or from servus-ai (design patterns only); no secrets in repo ever (servus-ai's committed OAuth secret is the cautionary tale); public-repo hygiene from day one (LICENSE ✅, README, CONTRIBUTING later); unsigned builds are fine for source users while the Apple account is pending.
 3. Does "group" = Arc "Space" (one visible at a time) or all groups visible stacked? **Current call: stacked** (simpler mental model for prosumers).
 4. Browser: one pane per workspace (current call) vs multiple browser tabs — revisit after beta feedback.
@@ -323,7 +323,7 @@ Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, pro
 ## 8. Iteration log
 
 **v1 → v2 (self-review pass 1):**
-- #1 *Gap:* manually-typed `claude` sessions wouldn't get browser tools. *Change:* documented mitigation — Cove also writes a workspace-level `.mcp.json` **only with user consent per project** (checkbox at workspace creation: "Let Claude use the preview browser in this project"), so manual sessions get tools too; env auth token exported to all Cove shells.
+- #1 *Gap:* manually-typed `claude` sessions wouldn't get browser tools. *Change:* documented mitigation — SuperAgent also writes a workspace-level `.mcp.json` **only with user consent per project** (checkbox at workspace creation: "Let Claude use the preview browser in this project"), so manual sessions get tools too; env auth token exported to all SuperAgent shells.
 - #2 *Gap:* Arc-style "tabs inside groups" was conflated with "workspaces". *Change:* clarified hierarchy Group → Workspace → Panes; groups organize *projects*, not raw tabs. Matches the prosumer mental model ("my sites", "experiments").
 - #3 *Gap:* No safety story for automation on arbitrary sites. *Change:* default localhost-only navigation guardrail (M4).
 - #4 *Gap:* Status detection relied solely on hooks (user could decline install). *Change:* OSC fallback parser; badges degrade, app still works.
@@ -346,7 +346,7 @@ Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, pro
 - #15 *Added:* §3.5 Routines — scheduled natural-language browser automation (from servus-ai learnings; see that section).
 
 **v5 → v6 (user feedback pass 2):**
-- #16 *Added:* Principle 6 — **Cove ships no AI.** All intelligence is the user's own agent subscription (interactive PTY + `claude -p` for Routines); Cove is plumbing only. No API keys, no backend, no billing.
+- #16 *Added:* Principle 6 — **SuperAgent ships no AI.** All intelligence is the user's own agent subscription (interactive PTY + `claude -p` for Routines); SuperAgent is plumbing only. No API keys, no backend, no billing.
 - #17 *Added:* §2.6 AgentAdapter layer — Codex CLI and Gemini CLI promoted from non-goal to v1.1 fast-follow (M6); adapter seam ships in v1 so nothing is Claude-hardcoded. Verified integration surfaces: Codex `.codex/config.toml` `[mcp_servers]` + hooks/`notify`; Gemini `.gemini/settings.json` `mcpServers` + custom commands.
 - #18 *Added:* §3.6 Skills library + M4c — surface Claude Code skills/commands in a visible panel, "Save as skill" flow, starter pack, cross-agent export. Marketplace explicitly a non-goal.
 

@@ -46,8 +46,8 @@ test.afterAll(async () => {
   }
 })
 
-test('window opens with the Cove title', async () => {
-  expect(await window.title()).toBe('Cove')
+test('window opens with the SuperAgent title', async () => {
+  expect(await window.title()).toBe('SuperAgent')
 })
 
 test('onboarding renders, then the main app loads with the seeded workspace', async () => {

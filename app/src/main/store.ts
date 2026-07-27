@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 
 /**
- * Cove persistence: groups → workspaces → tabs.
+ * SuperAgent persistence: groups → workspaces → tabs.
  * A workspace = a project folder. A tab = a claude/shell/browser pane.
  */
 

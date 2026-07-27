@@ -1,7 +1,7 @@
-# Cove — app/
+# SuperAgent — app/
 
 The Electron app (main / preload / renderer). See the [root README](../README.md)
-for what Cove is and its features.
+for what SuperAgent is and its features.
 
 Common commands (run from this `app/` directory):
 

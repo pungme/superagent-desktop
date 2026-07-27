@@ -32,7 +32,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
     <div className="onboarding">
       <div className="onboarding-card">
         <div className="onboarding-logo">🌊</div>
-        <h1>Welcome to Cove</h1>
+        <h1>Welcome to SuperAgent</h1>
         <p className="onboarding-sub">A friendly home for Claude Code.</p>
 
         <div className="onboarding-steps">

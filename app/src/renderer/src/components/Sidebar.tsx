@@ -75,7 +75,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       )}
       <button
         className="sidebar-item-remove"
-        title="Remove from Cove"
+        title="Remove from SuperAgent"
         onClick={(e) => {
           e.stopPropagation()
           removeWorkspace(ws.id)

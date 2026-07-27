@@ -2,7 +2,7 @@ import { app, Menu, BrowserWindow, shell } from 'electron'
 
 /**
  * A proper native macOS menu bar — one of the biggest "feels native" signals.
- * Standard App/File/Edit/View/Window roles plus a few Cove actions that send
+ * Standard App/File/Edit/View/Window roles plus a few SuperAgent actions that send
  * to the focused renderer.
  */
 
@@ -96,7 +96,7 @@ export function buildMenu(): void {
       role: 'help',
       submenu: [
         {
-          label: 'Cove on GitHub',
+          label: 'SuperAgent on GitHub',
           click: () => shell.openExternal('https://github.com')
         }
       ]

@@ -113,7 +113,7 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
       </div>
 
       <div className="skills-footer">
-        <span className="routine-note">Routines run only while Cove is open.</span>
+        <span className="routine-note">Routines run only while SuperAgent is open.</span>
       </div>
     </SlideOverPanel>
   )
