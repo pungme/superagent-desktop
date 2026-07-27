@@ -107,6 +107,9 @@ function GroupSection({
           className="group-caret"
           onClick={() => toggleCollapse(group.id, !collapsed)}
           style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
+          aria-label={collapsed ? 'Expand group' : 'Collapse group'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand' : 'Collapse'}
         >
           ▾
         </button>
