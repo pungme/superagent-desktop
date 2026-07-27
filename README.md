@@ -1,29 +1,30 @@
 # Cove
 
-*A friendly terminal for Claude Code — and other coding agents.*
+*A friendly home for Claude Code — and other coding agents.*
 
 Cove is a clean, prosumer-friendly macOS app built around AI coding agents:
 
 - **Arc-style sidebar** — group your projects, see at a glance which agent is working, which needs you
-- **Two ways to work** — **Terminal** runs the real Claude Code TUI; **Easy Mode** is a calm chat that drives the same `claude` binary
-- **Built-in browser** — preview the site your agent is building, right next to the work
-- **Agent-driven browsing** — Claude Code can open, click, and test your site through Cove's browser (via MCP)
-- **Routines** — "check my site every hour" in plain language, run on your own Claude subscription
-- **Skills panel** — your Claude Code skills, visible and one click away
+- **Two kinds of project** — a **Code project** (point at a folder) or a folder-less **Browser project** built for web automation
+- **Persistent chat** — one calm conversation per project that drives the real `claude` binary; it's saved locally and resumes with full context across restarts
+- **Built-in browser** with a real omnibar (type a URL or search) — preview a local dev server, or open any real site
+- **Agent-driven browsing** — Claude can open, click, type, and read **real websites** through Cove's browser (via MCP), so it can watch and drive the page you see
+- **Routines** — "visit this site every hour and follow 5 people" in plain language, run headless on your own Claude subscription
+- **File tree & Skills panel** — browse project files and your Claude Code skills, one click away
 - **Light & dark themes** — a premium Light/Dark/Auto appearance that follows your system
 
-### Easy Mode (a Codex-style chat for Claude Code)
+### The chat
 
-Easy Mode renders Claude Code as a polished chat while still driving the real `claude` binary on your own subscription:
+Cove renders Claude Code as a polished, persistent chat while driving the real `claude` binary on your own subscription:
 
 - **Rich markdown** with syntax-highlighted code blocks and one-click copy
 - **Inline diff cards** when Claude edits a file (red/green, only the real change)
-- **@-file mentions** — type `@` to reference project files with autocomplete
+- **@-file mentions** and **/-commands** with autocomplete; click a file in the tree to reference it
 - **Live tool activity** — compact chips showing what Claude is doing, plus its thinking
-- **Stop** to interrupt a generation (keeps the session), **New chat** to start fresh
-- **Starter suggestions**, an auto-growing composer, a working timer, and smart auto-scroll
+- **Saved & resumable** — the transcript is stored locally and the session is resumed (`--resume`) next launch
+- **Stop** to interrupt a generation (keeps the session), **New chat** to start fresh, image paste, an auto-growing composer, and smart auto-scroll
 
-**Cove ships no AI of its own.** It's pure plumbing — terminal, browser, scheduler, chat UI. All intelligence comes from your own agent subscription (Claude Code first; Codex CLI and Gemini CLI planned).
+**Cove ships no AI of its own.** It's pure plumbing — chat UI, browser, scheduler. All intelligence comes from your own agent subscription (Claude Code first; Codex CLI and Gemini CLI planned).
 
 > Early but functional. See [PLAN.md](PLAN.md) for the full roadmap.
 
