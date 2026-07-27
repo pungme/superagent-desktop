@@ -4,3 +4,7 @@ out
 .DS_Store
 .eslintcache
 *.log*
+
+# Playwright e2e output (generated each run)
+test-results
+playwright-report
