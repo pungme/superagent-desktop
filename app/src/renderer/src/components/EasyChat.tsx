@@ -781,6 +781,8 @@ export function EasyChat({
             className="easy-send"
             onClick={send}
             disabled={!ready || (!input.trim() && pendingImages.length === 0)}
+            title="Send message"
+            aria-label="Send message"
           >
             ↑
           </button>

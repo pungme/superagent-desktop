@@ -135,7 +135,8 @@ function GroupSection({
         )}
         <button
           className="group-add"
-          title="Add a project folder"
+          title="New project"
+          aria-label="New project"
           onClick={() => addWorkspace(group.id)}
         >
           +
