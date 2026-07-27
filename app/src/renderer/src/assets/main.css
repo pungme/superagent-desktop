@@ -509,6 +509,35 @@ button {
   position: relative;
 }
 
+.easy-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: var(--text-primary);
+  font-size: 12.5px;
+}
+
+.easy-error span {
+  flex: 1;
+}
+
+.easy-error button {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
 .easy-newchat {
   position: absolute;
   top: 6px;

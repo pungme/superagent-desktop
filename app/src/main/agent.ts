@@ -49,12 +49,12 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
   const mcpConfig =
     opts.mcpConfigPath || (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId) : undefined)
 
-  // A valid resume emits a system/init line at once; a missing session makes
-  // claude exit immediately with nothing on stdout. So "produced output" tells a
-  // successful start from a failed resume — and we only fall back to a fresh
-  // session when a resume never produced anything (not on a later crash, which
-  // would silently discard a working conversation).
-  let sawOutput = false
+  // A valid resume emits a `system/init` event; a missing session makes claude
+  // exit having only emitted SessionStart *hook* events (which fire before the
+  // session is validated). So we track the init event specifically — not any
+  // stdout — to tell a successful start from a failed resume, and only fall back
+  // to a fresh session when a resume never reached init.
+  let sawInit = false
 
   const spawnProc = (resume: string | null): void => {
     const args = [
@@ -90,7 +90,6 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
     proc.stdin.on('error', () => {})
 
     proc.stdout.on('data', (chunk: Buffer) => {
-      sawOutput = true
       session.buffer += chunk.toString('utf8')
       let nl: number
       while ((nl = session.buffer.indexOf('\n')) >= 0) {
@@ -99,6 +98,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
         if (!line) continue
         try {
           const event = JSON.parse(line)
+          if (event?.type === 'system' && event?.subtype === 'init') sawInit = true
           if (!owner.isDestroyed()) owner.send(`agent:event:${id}`, event)
         } catch {
           // partial or non-JSON line; ignore
@@ -106,14 +106,30 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       }
     })
 
+    let stderr = ''
     proc.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8')
       if (!owner.isDestroyed()) owner.send(`agent:stderr:${id}`, chunk.toString('utf8'))
+    })
+
+    // spawn failures (e.g. ENOENT when the binary can't be found) emit 'error',
+    // not 'exit'; without this handler that's an unhandled error on the child.
+    proc.on('error', (err) => {
+      console.error('[agent] spawn error:', err.message)
+      sessions.delete(id)
+      if (session.killed) return
+      if (resume && !sawInit) {
+        spawnProc(null)
+        return
+      }
+      if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, 1)
     })
 
     proc.on('exit', (code) => {
       sessions.delete(id)
+      if (code && code !== 0 && stderr) console.error('[agent] exited', code, stderr.slice(0, 300))
       if (session.killed) return
-      if (resume && !sawOutput) {
+      if (resume && !sawInit) {
         // The resume target was unavailable (claude exited before emitting
         // anything) — retry once with a fresh session.
         spawnProc(null)
