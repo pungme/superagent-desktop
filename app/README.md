@@ -1,34 +1,20 @@
-# app
+# Cove — app/
 
-An Electron application with React and TypeScript
+The Electron app (main / preload / renderer). See the [root README](../README.md)
+for what Cove is and its features.
 
-## Recommended IDE Setup
-
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-
-## Project Setup
-
-### Install
+Common commands (run from this `app/` directory):
 
 ```bash
-$ npm install
+npm install
+npm run dev          # launch in development
+npm test             # unit tests (vitest)
+npm run test:e2e     # end-to-end smoke tests (Playwright + Electron)
+npm run build        # typecheck + compile main/preload/renderer
 ```
 
-### Development
+Layout:
 
-```bash
-$ npm run dev
-```
-
-### Build
-
-```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
-```
+- `src/main` — Electron main process (windows, the streaming `claude` agent, browser panes, MCP server, hooks, routines, SQLite store)
+- `src/preload` — the `window.cove` context-bridge API
+- `src/renderer` — the React UI (sidebar, chat, browser pane, file tree, panels)
