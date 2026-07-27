@@ -167,6 +167,7 @@ export function EasyChat({
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
+  const [agentFailed, setAgentFailed] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [resetKey, setResetKey] = useState(0)
@@ -184,6 +185,10 @@ export function EasyChat({
   const thinkingIdRef = useRef<string | null>(null)
   // Session to resume so context survives restarts; updated once claude reports it.
   const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
+  // True once a resume-based retry has already failed, so the next retry drops the
+  // resume and starts fresh (a crashed session can leave a stale lock that keeps
+  // failing to resume, which would otherwise loop the Retry button).
+  const resumeRetriedRef = useRef(false)
   const registerAgent = useStore((s) => s.registerAgent)
 
   // Elapsed "Working Ns" timer while a turn is running. (Reset happens in the
@@ -411,6 +416,9 @@ export function EasyChat({
       }
 
       if (type === 'result') {
+        // A completed turn means the session genuinely works — clear the guard so
+        // a future crash gets a resume-retry before falling back to fresh.
+        resumeRetriedRef.current = false
         setThinking(false)
         setGenerating(false)
         setElapsed(0)
@@ -438,7 +446,14 @@ export function EasyChat({
         // waits for the first user message before it emits anything.
         setReady(true)
         offEvent = window.cove.onAgentEvent(id, handleEvent)
-        offExit = window.cove.onAgentExit(id, () => setReady(false))
+        // main only emits agent:exit on a genuine unexpected exit (deliberate
+        // stops and the resume→fresh retry are suppressed), so surface it.
+        offExit = window.cove.onAgentExit(id, () => {
+          setReady(false)
+          setGenerating(false)
+          setThinking(false)
+          setAgentFailed(true)
+        })
       })
 
     return () => {
@@ -532,11 +547,27 @@ export function EasyChat({
     setGenerating(false)
     setElapsed(0)
     setReady(false)
+    setAgentFailed(false)
     window.cove.chatClear(workspaceId)
     // Forget the resumed session so the next agent starts a brand-new one.
     resumeIdRef.current = null
+    resumeRetriedRef.current = false
     window.cove.updateWorkspace(workspaceId, { lastSessionId: null })
     // Bumping resetKey tears down the current agent and starts a fresh session.
+    setResetKey((k) => k + 1)
+  }
+
+  // Restart the agent after an unexpected exit — keeps the conversation (unlike
+  // New chat). Resumes the session, but if a resume-retry already failed, start
+  // fresh so a stale session lock can't loop the Retry button.
+  const retry = (): void => {
+    setAgentFailed(false)
+    setReady(false)
+    if (resumeRetriedRef.current && resumeIdRef.current) {
+      resumeIdRef.current = null
+      window.cove.updateWorkspace(workspaceId, { lastSessionId: null })
+    }
+    resumeRetriedRef.current = true
     setResetKey((k) => k + 1)
   }
 
@@ -546,6 +577,12 @@ export function EasyChat({
         <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
           ✎ New chat
         </button>
+      )}
+      {agentFailed && (
+        <div className="easy-error">
+          <span>⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.</span>
+          <button onClick={retry}>Retry</button>
+        </div>
       )}
       <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length === 0 && ready && (
@@ -560,7 +597,9 @@ export function EasyChat({
             </div>
           </div>
         )}
-        {items.length === 0 && !ready && <div className="easy-empty">Starting Claude…</div>}
+        {items.length === 0 && !ready && !agentFailed && (
+          <div className="easy-empty">Starting Claude…</div>
+        )}
         {toRows(items).map((row, i) => {
           if (row.kind === 'msg') {
             const isAssistant = row.msg.role === 'assistant'
