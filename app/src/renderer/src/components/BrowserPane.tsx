@@ -127,6 +127,16 @@ export function BrowserPane({
     if (state.url) window.cove.historyRecord(state.url, state.title)
   }, [state.url, state.title])
 
+  // Remember the last page per workspace so the preview restores it on the next
+  // launch (paneId is the workspace id for the visible pane). Debounced.
+  useEffect(() => {
+    if (!/^https?:\/\//i.test(state.url)) return
+    const t = setTimeout(() => {
+      window.cove.updateWorkspace(paneId, { browserUrl: state.url })
+    }, 1000)
+    return () => clearTimeout(t)
+  }, [state.url, paneId])
+
   const go = (target: string): void => {
     // Show the destination immediately and hold it until the page actually loads
     // (the state.url effect clears pendingNav), so the bar doesn't blink backwards.
