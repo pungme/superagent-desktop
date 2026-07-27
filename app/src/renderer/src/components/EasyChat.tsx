@@ -169,6 +169,9 @@ export function EasyChat({
   const [ready, setReady] = useState(false)
   const [agentFailed, setAgentFailed] = useState(false)
   const [generating, setGenerating] = useState(false)
+  // Messages typed while a turn is streaming are queued here and sent in order
+  // as each turn finishes (stacking), rather than blocked.
+  const queueRef = useRef<{ text: string; images: PendingImage[] }[]>([])
   const [elapsed, setElapsed] = useState(0)
   const [resetKey, setResetKey] = useState(0)
   const [files, setFiles] = useState<string[]>([])
@@ -419,10 +422,22 @@ export function EasyChat({
         // A completed turn means the session genuinely works — clear the guard so
         // a future crash gets a resume-retry before falling back to fresh.
         resumeRetriedRef.current = false
-        setThinking(false)
-        setGenerating(false)
-        setElapsed(0)
         streamingIdRef.current = null
+        setElapsed(0)
+        // Send the next stacked message, if any; otherwise the turn is done.
+        const next = queueRef.current.shift()
+        const id = agentIdRef.current
+        if (next && id) {
+          window.cove.agentSend(
+            id,
+            next.text,
+            next.images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
+          )
+          setThinking(true) // stay generating for the next queued turn
+        } else {
+          setThinking(false)
+          setGenerating(false)
+        }
       }
     },
     [workspaceId]
@@ -501,36 +516,41 @@ export function EasyChat({
 
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
-    // While a turn is streaming the Send button is a Stop button; keep the Enter
-    // key consistent so a keystroke can't inject a message mid-turn.
-    if ((!text && images.length === 0) || !id || !ready || generating) return
+    if ((!text && images.length === 0) || !id || !ready) return
+    // Show the message and clear the composer right away.
     setItems((prev) => [
       ...prev,
       {
         kind: 'msg',
         msg: {
-          id: `u-${Date.now()}`,
+          id: `u-${Date.now()}-${Math.random()}`,
           role: 'user',
           text,
           images: images.length ? images.map((im) => im.url) : undefined
         }
       }
     ])
+    setInput('')
+    setPendingImages([])
+    if (inputRef.current) inputRef.current.style.height = 'auto'
+    // Mid-turn: stack it — it's sent when the current turn finishes.
+    if (generating) {
+      queueRef.current.push({ text, images })
+      return
+    }
     window.cove.agentSend(
       id,
       text,
       images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
     )
-    setInput('')
-    setPendingImages([])
     setThinking(true)
     setGenerating(true)
-    if (inputRef.current) inputRef.current.style.height = 'auto'
   }
 
   const send = (): void => submit(input.trim(), pendingImages)
 
   const stop = (): void => {
+    queueRef.current = [] // Stop means stop — drop anything stacked.
     const id = agentIdRef.current
     if (id) window.cove.agentInterrupt(id)
     setThinking(false)
@@ -548,6 +568,7 @@ export function EasyChat({
     setElapsed(0)
     setReady(false)
     setAgentFailed(false)
+    queueRef.current = []
     window.cove.chatClear(workspaceId)
     // Forget the resumed session so the next agent starts a brand-new one.
     resumeIdRef.current = null
