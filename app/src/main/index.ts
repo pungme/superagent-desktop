@@ -53,6 +53,20 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
+  // The app shell must never navigate away (a dragged URL/file or a stray link
+  // would otherwise white-screen the app). Allow same-origin (dev HMR reloads,
+  // SPA) and send any cross-origin navigation to the system browser instead.
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    try {
+      if (new URL(url).origin !== new URL(mainWindow.webContents.getURL()).origin) {
+        e.preventDefault()
+        shell.openExternal(url)
+      }
+    } catch {
+      e.preventDefault()
+    }
+  })
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
