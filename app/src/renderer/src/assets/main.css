@@ -412,13 +412,23 @@ button {
   color: var(--accent, var(--text-primary));
 }
 
-/* Routine run transcript viewer. */
-.routine-run {
+/* Routine run transcript viewer. (Container class is -view to avoid colliding
+   with .routine-run, the small ▶ run button in the Routines panel.) */
+.routine-run-view {
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 14px 16px;
   overflow-y: auto;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0; /* allow the flex child to scroll instead of overflowing the panel */
+  box-sizing: border-box;
+}
+
+.routine-run-steps,
+.routine-run-head {
+  min-width: 0; /* let long tool inputs ellipsize instead of forcing width */
 }
 
 .routine-run-head {
