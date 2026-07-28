@@ -64,6 +64,8 @@ export function RoutineRunView(): React.JSX.Element | null {
           <div className="routine-run-meta">
             <span>{cadence(routine.intervalMs)}</span>
             <span>·</span>
+            <span>{routine.runCount === 1 ? '1 run' : `${routine.runCount} runs`}</span>
+            <span>·</span>
             <span className={`routine-run-status routine-run-status-${routine.lastRunStatus ?? 'none'}`}>
               {whenLabel(routine)}
             </span>

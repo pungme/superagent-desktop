@@ -41,6 +41,7 @@ export interface Routine {
   lastRunStatus: 'ok' | 'error' | 'running' | null
   lastRunSummary: string | null
   lastRunTranscript: string | null
+  runCount: number
 }
 
 /** One step in a routine run's transcript (JSON-encoded in Routine.lastRunTranscript). */
