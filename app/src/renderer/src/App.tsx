@@ -52,6 +52,20 @@ function App(): React.JSX.Element {
     return () => window.removeEventListener('cove:open-settings', openSettings)
   }, [])
 
+  // A file dropped anywhere but the chat's drop zone would otherwise navigate the
+  // shell to that file. Swallow those drags so only the chat handles files.
+  useEffect(() => {
+    const prevent = (e: DragEvent): void => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault()
+    }
+    window.addEventListener('dragover', prevent)
+    window.addEventListener('drop', prevent)
+    return () => {
+      window.removeEventListener('dragover', prevent)
+      window.removeEventListener('drop', prevent)
+    }
+  }, [])
+
   useEffect(() => {
     return window.cove.onMenu((action) => {
       if (action === 'settings') setSettingsOpen(true)
