@@ -5,7 +5,10 @@ import { BrowserPane } from './BrowserPane'
 import { FileTree } from './FileTree'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
-import type { Workspace } from '../../../preload'
+import { RoutineRunView } from './RoutineRunView'
+import type { Workspace, Routine } from '../../../preload'
+
+const EMPTY_ROUTINES: Routine[] = []
 
 export function WorkspaceView({
   ws,
@@ -23,6 +26,10 @@ export function WorkspaceView({
   const ports = useStore((s) => s.ports[ws.id])
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [routinesOpen, setRoutinesOpen] = useState(false)
+  // A routine run opened for this workspace shows in the chat column (left).
+  const openRunId = useStore((s) => s.openRoutineRunId)
+  const wsRoutines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
+  const activeRun = openRunId ? wsRoutines.find((r) => r.id === openRunId) : undefined
 
   // Only the visible workspace responds to global menu actions (all opened
   // workspaces stay mounted for keep-alive).
@@ -130,13 +137,17 @@ export function WorkspaceView({
             <FileTree cwd={ws.path} workspaceId={ws.id} />
           </div>
         )}
-        <div className="split-side" style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}>
+        <div
+          className="split-side split-side-chat"
+          style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}
+        >
           <EasyChat
             cwd={ws.path}
             workspaceId={ws.id}
             initialSessionId={ws.lastSessionId}
             browserProject={ws.kind === 'browser'}
           />
+          {activeRun && visible && <RoutineRunView routine={activeRun} />}
         </div>
         {browserOpen && (
           <>

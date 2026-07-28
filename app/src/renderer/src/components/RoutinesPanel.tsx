@@ -95,7 +95,8 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
                 className="routine-run"
                 onClick={() => {
                   window.cove.routinesRunNow(r.id)
-                  openRoutineRun(r.id) // open the live viewer so the run is visible
+                  openRoutineRun(r.id) // show the live run in the chat column…
+                  onClose() // …and close this panel so it isn't hidden behind it
                 }}
                 title="Run now"
               >

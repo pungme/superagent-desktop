@@ -50,6 +50,9 @@ function createWindow(): BrowserWindow {
   })
 
   mainWindow.on('ready-to-show', () => {
+    // Open filling the screen (maximized, keeping the menu bar/traffic lights) so
+    // the app isn't a small window on every launch.
+    mainWindow.maximize()
     mainWindow.show()
   })
 

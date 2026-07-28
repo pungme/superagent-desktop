@@ -412,46 +412,53 @@ button {
   color: var(--accent, var(--text-primary));
 }
 
-/* Routine run transcript viewer. (Container class is -view to avoid colliding
-   with .routine-run, the small ▶ run button in the Routines panel.) */
-.routine-run-view {
+/* Routine run — docked over the chat column (left), styled like the chat so the
+   run is easy to watch. Streams in live as the offscreen agent works. */
+.routine-run-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px 16px;
-  overflow-y: auto;
-  width: 100%;
-  flex: 1 1 auto;
-  min-height: 0; /* allow the flex child to scroll instead of overflowing the panel */
-  box-sizing: border-box;
+  background: var(--bg);
 }
 
-.routine-run-steps,
-.routine-run-head {
-  min-width: 0; /* let long tool inputs ellipsize instead of forcing width */
-}
-
-.routine-run-head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.routine-run-prompt {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-}
-
-.routine-run-meta {
+.routine-run-bar {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.routine-run-back {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.routine-run-back:hover {
+  color: var(--text-primary);
+}
+
+.routine-run-bar-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.routine-run-bar-status {
   font-size: 11.5px;
   color: var(--text-tertiary);
+  margin-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .routine-run-status-ok {
@@ -464,29 +471,55 @@ button {
   color: #d29922;
 }
 
-.routine-run-now {
+.routine-run-bar-play {
   margin-left: auto;
   border: 1px solid var(--border);
   background: none;
   color: var(--text-secondary);
   font-size: 11px;
-  padding: 3px 8px;
+  padding: 3px 10px;
   border-radius: 6px;
   cursor: pointer;
 }
 
-.routine-run-now:hover {
-  color: var(--text-primary);
-  border-color: var(--text-tertiary);
+.routine-run-bar-play:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
-.routine-run-summary {
-  font-size: 12px;
+.routine-run-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.routine-run-promptcard {
+  font-size: 12.5px;
   line-height: 1.5;
   color: var(--text-secondary);
   background: var(--bg-hover, rgba(127, 127, 127, 0.08));
-  padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 10px;
+  padding: 9px 12px;
+  white-space: pre-wrap;
+}
+
+.routine-run-msg {
+  align-self: flex-start;
+  background: var(--bg-hover, rgba(127, 127, 127, 0.1));
+}
+
+.routine-run-thinking {
+  color: var(--text-tertiary);
+  font-style: italic;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
 }
 
 .routine-run-empty {
@@ -494,56 +527,6 @@ button {
   font-size: 12.5px;
   padding: 24px 8px;
   text-align: center;
-}
-
-.routine-run-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.routine-step {
-  font-size: 12.5px;
-  line-height: 1.55;
-}
-
-.routine-step-thinking {
-  color: var(--text-tertiary);
-  font-style: italic;
-  white-space: pre-wrap;
-  border-left: 2px solid var(--border);
-  padding-left: 10px;
-}
-
-.routine-step-text {
-  color: var(--text-primary);
-}
-
-.routine-step-tool {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  background: var(--bg-hover, rgba(127, 127, 127, 0.1));
-  border-radius: 6px;
-  padding: 4px 8px;
-  align-self: flex-start;
-  max-width: 100%;
-}
-
-.routine-step-tool-name {
-  color: var(--accent, var(--text-primary));
-  font-weight: 600;
-  flex: 0 0 auto;
-}
-
-.routine-step-tool-input {
-  color: var(--text-tertiary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .routine-run-live {
@@ -1577,6 +1560,11 @@ button {
   flex-direction: column;
   flex-grow: 0;
   flex-shrink: 1;
+}
+
+/* Anchor the docked routine-run panel to the chat column. */
+.split-side-chat {
+  position: relative;
 }
 
 .split-divider {
