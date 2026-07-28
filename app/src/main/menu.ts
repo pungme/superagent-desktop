@@ -97,7 +97,7 @@ export function buildMenu(): void {
       submenu: [
         {
           label: 'SuperAgent on GitHub',
-          click: () => shell.openExternal('https://github.com')
+          click: () => shell.openExternal('https://github.com/pungme/superagent-desktop')
         }
       ]
     }
