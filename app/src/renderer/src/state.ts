@@ -1,12 +1,16 @@
 import { create } from 'zustand'
 import { useEffect } from 'react'
-import type { TreeGroup } from '../../preload'
+import type { TreeGroup, Routine } from '../../preload'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 
 interface CoveState {
   tree: TreeGroup[]
   activeWorkspaceId: string | null
+  // Routines grouped by workspace id, shown nested under each project in the sidebar.
+  routines: Record<string, Routine[]>
+  refreshRoutines: () => Promise<void>
+  startRoutinesListener: () => void
   statuses: Record<string, WorkspaceStatus>
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
@@ -64,6 +68,7 @@ interface CoveState {
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
+  routines: {},
   statuses: {},
   ports: {},
   browserOpen: {},
@@ -87,6 +92,18 @@ export const useStore = create<CoveState>((set, get) => ({
     if (!active || !allIds.includes(active)) {
       set({ activeWorkspaceId: allIds[0] ?? null })
     }
+  },
+
+  refreshRoutines: async () => {
+    // One call returns every routine (no workspace filter); group them by workspace.
+    const all = await window.cove.routinesList()
+    const byWs: Record<string, Routine[]> = {}
+    for (const r of all) (byWs[r.workspaceId] ??= []).push(r)
+    set({ routines: byWs })
+  },
+  startRoutinesListener: () => {
+    get().refreshRoutines()
+    window.cove.onRoutinesChanged(() => get().refreshRoutines())
   },
 
   setActive: (id) => set({ activeWorkspaceId: id }),

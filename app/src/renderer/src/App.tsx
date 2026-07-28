@@ -13,6 +13,7 @@ function App(): React.JSX.Element {
   const activeId = useStore((s) => s.activeWorkspaceId)
   const startHookListener = useStore((s) => s.startHookListener)
   const startBrowsingListener = useStore((s) => s.startBrowsingListener)
+  const startRoutinesListener = useStore((s) => s.startRoutinesListener)
   const allWorkspaces = tree.flatMap((g) => g.workspaces)
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
 
@@ -36,13 +37,14 @@ function App(): React.JSX.Element {
   useEffect(() => {
     startHookListener()
     startBrowsingListener()
+    startRoutinesListener()
     applyTheme()
     // Re-apply when the OS light/dark preference changes (matters for "System").
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = (): void => applyTheme()
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
-  }, [startHookListener, startBrowsingListener, applyTheme])
+  }, [startHookListener, startBrowsingListener, startRoutinesListener, applyTheme])
 
   useEffect(() => {
     const openSettings = (): void => setSettingsOpen(true)
