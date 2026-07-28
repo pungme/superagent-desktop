@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 export interface BrowserState {
@@ -107,6 +107,8 @@ export interface CoveApi {
 
   historyRecord: (url: string, title: string) => void
   historySearch: (query: string) => Promise<{ url: string; title: string }[]>
+  /** Absolute path of a dropped/selected File (Electron webUtils). */
+  getPathForFile: (file: File) => string
 
   setTheme: (source: 'system' | 'light' | 'dark') => void
   onMenu: (cb: (action: string) => void) => () => void
@@ -203,6 +205,7 @@ const cove: CoveApi = {
   chatClear: (workspaceId) => ipcRenderer.send('chat:clear', workspaceId),
 
   historyRecord: (url, title) => ipcRenderer.send('history:record', url, title, Date.now()),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   historySearch: (query) => ipcRenderer.invoke('history:search', query),
 
   setTheme: (source) => ipcRenderer.send('theme:set', source),

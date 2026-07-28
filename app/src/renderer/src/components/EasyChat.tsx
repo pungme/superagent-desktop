@@ -182,6 +182,7 @@ export function EasyChat({
   const [mentionIndex, setMentionIndex] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  const [dragOver, setDragOver] = useState(false)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -245,20 +246,45 @@ export function EasyChat({
   }, [items, workspaceId])
 
   // Paste a screenshot/image into the composer.
+  const attachImage = (file: File): void => {
+    const reader = new FileReader()
+    reader.onload = (): void => {
+      const url = reader.result as string
+      const data = url.split(',')[1] ?? ''
+      setPendingImages((prev) => [...prev, { mediaType: file.type, data, url }])
+    }
+    reader.readAsDataURL(file)
+  }
+
   const onPaste = (e: React.ClipboardEvent): void => {
     const imgItems = [...e.clipboardData.items].filter((it) => it.type.startsWith('image/'))
     if (imgItems.length === 0) return
     e.preventDefault()
     for (const item of imgItems) {
       const file = item.getAsFile()
-      if (!file) continue
-      const reader = new FileReader()
-      reader.onload = (): void => {
-        const url = reader.result as string
-        const data = url.split(',')[1] ?? ''
-        setPendingImages((prev) => [...prev, { mediaType: file.type, data, url }])
+      if (file) attachImage(file)
+    }
+  }
+
+  // Drag a file onto the chat: images attach (like a paste); other files insert
+  // their absolute path so Claude can read them.
+  const onDrop = (e: React.DragEvent): void => {
+    const files = [...(e.dataTransfer?.files ?? [])]
+    if (files.length === 0) return
+    e.preventDefault()
+    setDragOver(false)
+    const paths: string[] = []
+    for (const file of files) {
+      if (file.type.startsWith('image/')) attachImage(file)
+      else {
+        const p = window.cove.getPathForFile?.(file)
+        if (p) paths.push(p)
       }
-      reader.readAsDataURL(file)
+    }
+    if (paths.length > 0) {
+      setInput((prev) => (prev ? prev.trimEnd() + ' ' : '') + paths.join(' ') + ' ')
+      requestAnimationFrame(autoResize)
+      inputRef.current?.focus()
     }
   }
 
@@ -602,7 +628,21 @@ export function EasyChat({
   }
 
   return (
-    <div className="easy-chat">
+    <div
+      className={`easy-chat ${dragOver ? 'drag-over' : ''}`}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault()
+          setDragOver(true)
+        }
+      }}
+      onDragLeave={(e) => {
+        // Only clear when the pointer actually leaves the chat (not on child enters).
+        if (e.currentTarget === e.target) setDragOver(false)
+      }}
+      onDrop={onDrop}
+    >
+      {dragOver && <div className="easy-drop-hint">Drop a file to add it</div>}
       {items.length > 0 && (
         <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
           ✎ New chat
