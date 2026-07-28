@@ -24,8 +24,18 @@ import { broadcastToWindows, partitionFor, routinePaneId } from './util'
  */
 
 export const MIN_INTERVAL_MS = 60 * 60 * 1000 // 60 minutes — enforced floor
-const RUN_TIMEOUT_MS = 5 * 60 * 1000
-const MAX_TURNS = 30
+const RUN_TIMEOUT_MS = 8 * 60 * 1000
+const MAX_TURNS = 50
+
+// Routine runs are headless with no user watching. Steer the agent to act
+// directly and stop re-verifying — obsessive re-checks used to burn the whole
+// turn budget before the task finished (so it ended with no summary → "error").
+const ROUTINE_SYSTEM_PROMPT =
+  'You are running as an automated background routine in SuperAgent — headless, with no user ' +
+  'watching. Work efficiently and finish within your turn budget: take the needed actions directly, ' +
+  'and verify results at most once. Do NOT repeatedly re-read the page or re-check state after each ' +
+  'step. When the task is done (or as done as it can be), stop and end with a one-line summary of ' +
+  'what you accomplished (e.g. "Followed 5 accounts").'
 
 /** Clamp a requested interval to the 60-minute floor. Pure — unit tested. */
 export function flooredInterval(ms: number): number {
@@ -228,6 +238,8 @@ export async function runRoutine(routine: Routine): Promise<void> {
           '--output-format',
           'stream-json',
           '--verbose',
+          '--append-system-prompt',
+          ROUTINE_SYSTEM_PROMPT,
           '--mcp-config',
           mcpConfig,
           // The full cove-browser tool set. Omissions bite: a routine that tried
