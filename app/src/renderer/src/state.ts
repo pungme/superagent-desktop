@@ -11,6 +11,10 @@ interface CoveState {
   routines: Record<string, Routine[]>
   refreshRoutines: () => Promise<void>
   startRoutinesListener: () => void
+  // The routine whose last-run transcript is open in the viewer (null = closed).
+  openRoutineRunId: string | null
+  openRoutineRun: (id: string) => void
+  closeRoutineRun: () => void
   statuses: Record<string, WorkspaceStatus>
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
@@ -69,6 +73,7 @@ export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
   routines: {},
+  openRoutineRunId: null,
   statuses: {},
   ports: {},
   browserOpen: {},
@@ -105,6 +110,8 @@ export const useStore = create<CoveState>((set, get) => ({
     get().refreshRoutines()
     window.cove.onRoutinesChanged(() => get().refreshRoutines())
   },
+  openRoutineRun: (id) => set({ openRoutineRunId: id }),
+  closeRoutineRun: () => set({ openRoutineRunId: null }),
 
   setActive: (id) => set({ activeWorkspaceId: id }),
   setStatus: (workspaceId, status) =>

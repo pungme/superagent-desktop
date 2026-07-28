@@ -41,18 +41,6 @@ export function WorkspaceView({
     }
   }, [ws.id, toggleBrowser, visible])
 
-  // Clicking a routine in the sidebar opens this project's Routines panel. Not
-  // gated on `visible` — the click also focuses the project, and this view may
-  // still be mounting when the event fires (the click defers it a tick).
-  useEffect(() => {
-    const onOpenRoutines = (e: Event): void => {
-      const detail = (e as CustomEvent<{ workspaceId: string }>).detail
-      if (detail?.workspaceId === ws.id) setRoutinesOpen(true)
-    }
-    window.addEventListener('cove:open-routines', onOpenRoutines)
-    return () => window.removeEventListener('cove:open-routines', onOpenRoutines)
-  }, [ws.id])
-
   const checkMySite = (): void => {
     // Prefer a detected dev-server port (Terminal mode); otherwise fall back to the
     // workspace's known browser URL so Easy mode (no PTY, no port detection) still

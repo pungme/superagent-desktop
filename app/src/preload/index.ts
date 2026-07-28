@@ -40,7 +40,14 @@ export interface Routine {
   lastRunAt: number | null
   lastRunStatus: 'ok' | 'error' | 'running' | null
   lastRunSummary: string | null
+  lastRunTranscript: string | null
 }
+
+/** One step in a routine run's transcript (JSON-encoded in Routine.lastRunTranscript). */
+export type RoutineStep =
+  | { kind: 'thinking'; text: string }
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; name: string; input?: string }
 
 export interface HookEvent {
   workspaceId: string

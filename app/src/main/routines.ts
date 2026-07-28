@@ -42,6 +42,7 @@ export interface Routine {
   lastRunAt: number | null
   lastRunStatus: 'ok' | 'error' | 'running' | null
   lastRunSummary: string | null
+  lastRunTranscript: string | null
 }
 
 let db: Database.Database
@@ -65,6 +66,45 @@ function initDb(): void {
       lastRunSummary TEXT
     );
   `)
+  // Added later: the last run's transcript (thinking + tool calls + text), stored
+  // as a JSON RoutineStep[] so the user can inspect what a routine actually did.
+  const cols = db.prepare('PRAGMA table_info(routines)').all() as { name: string }[]
+  if (!cols.some((c) => c.name === 'lastRunTranscript')) {
+    db.exec('ALTER TABLE routines ADD COLUMN lastRunTranscript TEXT')
+  }
+}
+
+/** One entry in a routine run's transcript. */
+export type RoutineStep =
+  | { kind: 'thinking'; text: string }
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; name: string; input?: string }
+
+/** Pull the readable steps out of one stream-json `assistant` event. */
+function stepsFromAssistant(event: {
+  message?: { content?: Array<Record<string, unknown>> }
+}): RoutineStep[] {
+  const content = event.message?.content
+  if (!Array.isArray(content)) return []
+  const steps: RoutineStep[] = []
+  for (const block of content) {
+    if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+      steps.push({ kind: 'text', text: block.text })
+    } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
+      steps.push({ kind: 'thinking', text: block.thinking })
+    } else if (block.type === 'tool_use' && typeof block.name === 'string') {
+      // Strip the mcp__cove-browser__ prefix so the tool reads as e.g. "browser_navigate".
+      const name = block.name.replace(/^mcp__[^_]+(?:-[^_]+)*__/, '')
+      let input: string | undefined
+      try {
+        input = block.input ? JSON.stringify(block.input).slice(0, 200) : undefined
+      } catch {
+        input = undefined
+      }
+      steps.push({ kind: 'tool', name, input })
+    }
+  }
+  return steps
 }
 
 export function listRoutines(workspaceId?: string): Routine[] {
@@ -144,9 +184,10 @@ export async function runRoutine(routine: Routine): Promise<void> {
 
   // Offscreen pane sharing the workspace's cookies, scoped MCP config for it.
   const paneId = routinePaneId(routine.workspaceId)
-  let result: { ok: boolean; summary: string } = {
+  let result: { ok: boolean; summary: string; steps: RoutineStep[] } = {
     ok: false,
-    summary: 'Run failed to start.'
+    summary: 'Run failed to start.',
+    steps: []
   }
 
   try {
@@ -154,14 +195,17 @@ export async function runRoutine(routine: Routine): Promise<void> {
     if (win) ensureOffscreenPane(win, paneId, partitionFor(routine.workspaceId))
     const mcpConfig = writeWorkspaceMcpConfig(paneId)
 
-    result = await new Promise<{ ok: boolean; summary: string }>((resolve) => {
+    result = await new Promise<{ ok: boolean; summary: string; steps: RoutineStep[] }>((resolve) => {
       const proc = spawn(
         findClaude(),
         [
           '-p',
           routine.prompt,
+          // stream-json (not plain json) so we capture the thinking + tool calls as
+          // they happen, for the run transcript the user can inspect.
           '--output-format',
-          'json',
+          'stream-json',
+          '--verbose',
           '--mcp-config',
           mcpConfig,
           '--allowedTools',
@@ -186,40 +230,60 @@ export async function runRoutine(routine: Routine): Promise<void> {
         }
       )
 
-      let out = ''
+      const steps: RoutineStep[] = []
+      let summary = '(no summary)'
+      let isError = false
+      let buffer = ''
+      const consume = (chunk: string): void => {
+        buffer += chunk
+        let nl: number
+        while ((nl = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, nl).trim()
+          buffer = buffer.slice(nl + 1)
+          if (!line) continue
+          try {
+            const event = JSON.parse(line)
+            if (event?.type === 'assistant') steps.push(...stepsFromAssistant(event))
+            else if (event?.type === 'result') {
+              if (typeof event.result === 'string' && event.result.trim()) {
+                summary = event.result.slice(0, 500)
+              }
+              isError = event.is_error === true
+            }
+          } catch {
+            // partial or non-JSON line; ignore
+          }
+        }
+      }
+
       const timer = setTimeout(() => {
         proc.kill()
-        resolve({ ok: false, summary: 'Timed out after 5 minutes.' })
+        resolve({ ok: false, summary: 'Timed out after 5 minutes.', steps })
       }, RUN_TIMEOUT_MS)
 
       proc.stdin.on('error', () => {})
-      proc.stdout.on('data', (c) => (out += c.toString()))
+      proc.stdout.on('data', (c) => consume(c.toString()))
       proc.on('error', (e) => {
         clearTimeout(timer)
-        resolve({ ok: false, summary: `Failed to launch: ${e.message}` })
+        resolve({ ok: false, summary: `Failed to launch: ${e.message}`, steps })
       })
       proc.on('exit', () => {
         clearTimeout(timer)
-        try {
-          const json = JSON.parse(out)
-          const summary = (json.result || '(no summary)').toString().slice(0, 500)
-          resolve({ ok: json.is_error !== true, summary })
-        } catch {
-          resolve({ ok: false, summary: 'Could not parse the run result.' })
-        }
+        resolve({ ok: !isError, summary, steps })
       })
     })
   } catch (e) {
-    result = { ok: false, summary: `Run failed to start: ${(e as Error).message}` }
+    result = { ok: false, summary: `Run failed to start: ${(e as Error).message}`, steps: [] }
   } finally {
     // Release the lock first so the routine can never wedge in "running" and stop
     // rescheduling, even if a later cleanup step throws.
     running.delete(routine.id)
     db.prepare(
-      'UPDATE routines SET lastRunStatus = ?, lastRunSummary = ?, lastRunAt = ?, nextRunAt = ? WHERE id = ?'
+      'UPDATE routines SET lastRunStatus = ?, lastRunSummary = ?, lastRunTranscript = ?, lastRunAt = ?, nextRunAt = ? WHERE id = ?'
     ).run(
       result.ok ? 'ok' : 'error',
       result.summary,
+      JSON.stringify(result.steps),
       nowMs(),
       nowMs() + routine.intervalMs,
       routine.id

@@ -37,7 +37,7 @@ function cadenceLabel(ms: number): string {
 
 /** A routine shown nested under its project in the sidebar tree. */
 function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
-  const setActive = useStore((s) => s.setActive)
+  const openRoutineRun = useStore((s) => s.openRoutineRun)
   const status = routine.lastRunStatus
   const dotTitle =
     status === 'running'
@@ -51,20 +51,8 @@ function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
     <div
       className={`routine-tree-row ${routine.enabled ? '' : 'disabled'}`}
       title={routine.prompt}
-      onClick={() => {
-        // Focus the project, then (next tick, so a just-mounted view has its
-        // listener) open its Routines panel to manage/inspect this routine.
-        setActive(routine.workspaceId)
-        setTimeout(
-          () =>
-            window.dispatchEvent(
-              new CustomEvent('cove:open-routines', {
-                detail: { workspaceId: routine.workspaceId }
-              })
-            ),
-          0
-        )
-      }}
+      // Open the run transcript — what the routine actually thought/did last run.
+      onClick={() => openRoutineRun(routine.id)}
     >
       <span className={`routine-tree-dot routine-dot-${status ?? 'none'}`} title={dotTitle} />
       <span className="routine-tree-cadence">{cadenceLabel(routine.intervalMs)}</span>
