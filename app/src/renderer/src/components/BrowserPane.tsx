@@ -38,6 +38,7 @@ export function BrowserPane({
     loading: false
   })
   const [crashed, setCrashed] = useState(false)
+  const [zoom, setZoom] = useState(1)
   const [addressInput, setAddressInput] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [suggestIndex, setSuggestIndex] = useState(-1)
@@ -88,6 +89,8 @@ export function BrowserPane({
       if (s.loading) setCrashed(false)
     })
     const offCrash = window.cove.onBrowserCrashed(paneId, () => setCrashed(true))
+    // Keep the zoom label in sync when the ⌘+/-/0 keys zoom the native pane.
+    const offZoom = window.cove.onBrowserZoom(paneId, setZoom)
 
     window.cove.browserCreate(paneId, partition).then(() => {
       if (!alive) return
@@ -106,6 +109,7 @@ export function BrowserPane({
       window.removeEventListener('resize', syncBounds)
       offState()
       offCrash()
+      offZoom()
       window.cove.browserHide(paneId)
     }
   }, [paneId, partition, initialUrl, syncBounds])
@@ -136,6 +140,10 @@ export function BrowserPane({
     }, 1000)
     return () => clearTimeout(t)
   }, [state.url, paneId])
+
+  const doZoom = async (action: 'in' | 'out' | 'reset'): Promise<void> => {
+    setZoom(await window.cove.browserZoom(paneId, action))
+  }
 
   const go = (target: string): void => {
     // Show the destination immediately and hold it until the page actually loads
@@ -270,6 +278,21 @@ export function BrowserPane({
               ))}
             </div>
           )}
+        </div>
+        <div className="browser-zoom">
+          <button className="browser-nav-btn" onClick={() => doZoom('out')} title="Zoom out (⌘−)">
+            −
+          </button>
+          <button
+            className="browser-zoom-level"
+            onClick={() => doZoom('reset')}
+            title="Reset zoom (⌘0)"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button className="browser-nav-btn" onClick={() => doZoom('in')} title="Zoom in (⌘+)">
+            +
+          </button>
         </div>
         <button
           className={`browser-nav-btn ${reloadOnIdle ? 'on' : ''}`}
