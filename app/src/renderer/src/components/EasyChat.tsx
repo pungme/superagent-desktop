@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useStore } from '../state'
+import { useStore, TodoItem } from '../state'
+import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
 
 interface ChatMessage {
@@ -395,6 +396,13 @@ export function EasyChat({
             setThinking(false)
             const name = block.name as string
             const id = block.id as string
+            // TodoWrite carries Claude's live task list — surface it in the Tasks panel.
+            if (name === 'TodoWrite') {
+              const list = (block.input as { todos?: unknown })?.todos
+              if (Array.isArray(list)) {
+                useStore.getState().setTodos(workspaceId, list as TodoItem[])
+              }
+            }
             const diff = toolDiff(name, id, block.input)
             setItems((prev) => [
               ...prev,
@@ -569,6 +577,7 @@ export function EasyChat({
     setReady(false)
     setAgentFailed(false)
     queueRef.current = []
+    useStore.getState().clearTodos(workspaceId)
     window.cove.chatClear(workspaceId)
     // Forget the resumed session so the next agent starts a brand-new one.
     resumeIdRef.current = null
@@ -718,6 +727,7 @@ export function EasyChat({
           ↓
         </button>
       )}
+      <TasksPanel workspaceId={workspaceId} />
       <div className="easy-input-row">
         {mentionMatches.length > 0 && (
           <div className="easy-mention-menu">
