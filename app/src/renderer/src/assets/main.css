@@ -546,6 +546,23 @@ button {
   white-space: nowrap;
 }
 
+.routine-run-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--accent);
+  padding: 4px 0 2px;
+}
+
+.routine-run-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: routine-pulse 1.2s ease-in-out infinite;
+}
+
 .group-empty,
 .sidebar-add-group {
   border: none;

@@ -63,6 +63,7 @@ function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
         onClick={(e) => {
           e.stopPropagation()
           window.cove.routinesRunNow(routine.id)
+          openRoutineRun(routine.id) // open the viewer so the run is visible live
         }}
       >
         ▶

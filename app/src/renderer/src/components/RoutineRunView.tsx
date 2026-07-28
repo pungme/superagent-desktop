@@ -81,7 +81,7 @@ export function RoutineRunView(): React.JSX.Element | null {
         {steps.length === 0 ? (
           <div className="routine-run-empty">
             {running
-              ? 'Running now — the transcript will appear when this run finishes.'
+              ? 'Running now — steps will appear here as it works…'
               : "No transcript yet. This routine hasn't completed a run, or it produced no steps."}
           </div>
         ) : (
@@ -108,6 +108,13 @@ export function RoutineRunView(): React.JSX.Element | null {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {running && steps.length > 0 && (
+          <div className="routine-run-live">
+            <span className="routine-run-live-dot" />
+            Running…
           </div>
         )}
       </div>

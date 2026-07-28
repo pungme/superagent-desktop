@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { Routine, Workspace } from '../../../preload'
+import { useStore } from '../state'
 import { SlideOverPanel } from './SlideOverPanel'
 
 interface RoutinesPanelProps {
@@ -26,6 +27,7 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
   const [routines, setRoutines] = useState<Routine[]>([])
   const [prompt, setPrompt] = useState('')
   const [hours, setHours] = useState(1)
+  const openRoutineRun = useStore((s) => s.openRoutineRun)
 
   const refresh = useCallback(async () => {
     setRoutines(await window.cove.routinesList(ws.id))
@@ -91,7 +93,10 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
               <span className="routine-cadence">{relativeInterval(r.intervalMs)}</span>
               <button
                 className="routine-run"
-                onClick={() => window.cove.routinesRunNow(r.id)}
+                onClick={() => {
+                  window.cove.routinesRunNow(r.id)
+                  openRoutineRun(r.id) // open the live viewer so the run is visible
+                }}
                 title="Run now"
               >
                 ▶
