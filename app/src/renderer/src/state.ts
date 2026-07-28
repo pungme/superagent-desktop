@@ -148,11 +148,32 @@ export const useStore = create<CoveState>((set, get) => ({
   },
   startBrowsingListener: () => {
     let timer: ReturnType<typeof setTimeout> | null = null
-    window.cove.onBrowserActivity((workspaceId) => {
+    window.cove.onBrowserActivity((paneId) => {
+      // Routine runs drive an offscreen pane ("<workspaceId>::routine") — ignore
+      // those; they must never steal the viewport or flip a panel open.
+      if (paneId.includes('::')) return
+      const workspaceId = paneId
       set({ browsingWorkspaceId: workspaceId })
+      // The agent is driving the in-app browser — reveal the preview pane if it's
+      // hidden (e.g. a code project) so the user can watch what it's doing.
+      const s = get()
+      const known = s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))
+      if (known && !s.browserOpen[workspaceId]) {
+        set({ browserOpen: { ...s.browserOpen, [workspaceId]: true } })
+      }
       if (timer) clearTimeout(timer)
       // Auto-clear the indicator a few seconds after the last tool call.
       timer = setTimeout(() => set({ browsingWorkspaceId: null }), 4000)
+    })
+    // Cold start: the agent navigated the browser before the preview was open.
+    // Reveal it (and focus the project) so the pane gets created and the page shows.
+    window.cove.onBrowserRequestOpen((workspaceId) => {
+      const s = get()
+      if (!s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))) return
+      set({
+        activeWorkspaceId: workspaceId,
+        browserOpen: { ...s.browserOpen, [workspaceId]: true }
+      })
     })
   },
 
