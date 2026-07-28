@@ -76,6 +76,8 @@ function initDb(): void {
   // Total times this routine has run (shown in the UI).
   if (!cols.some((c) => c.name === 'runCount')) {
     db.exec('ALTER TABLE routines ADD COLUMN runCount INTEGER NOT NULL DEFAULT 0')
+    // A routine that already has a last run has run at least once — don't show "0 runs".
+    db.exec('UPDATE routines SET runCount = 1 WHERE lastRunAt IS NOT NULL')
   }
 }
 
