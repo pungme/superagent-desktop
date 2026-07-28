@@ -53,6 +53,9 @@ const SCHEDULING_PROMPT =
   'on a timer while SuperAgent is open. Do NOT use CronCreate, the /loop skill, ScheduleWakeup, or ' +
   'any external/cloud scheduler for this: those run elsewhere and cannot see or drive SuperAgent, ' +
   "its browser, or the user's session, so the task would silently never touch this page. " +
+  'Before creating a routine, call list_routines to see what already exists — if one already covers ' +
+  'the task, update it by calling delete_routine on the old one and create_routine with the new ' +
+  'wording, rather than leaving two routines that both fire. ' +
   "create_routine's minimum interval is 60 minutes — if the user asks for less, tell them you are " +
   'using 60 and continue.'
 
