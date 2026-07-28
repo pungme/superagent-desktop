@@ -58,7 +58,7 @@ export function RoutineRunView(): React.JSX.Element | null {
 
   return (
     <SlideOverPanel title="Routine run" onClose={close}>
-      <div className="routine-run">
+      <div className="routine-run-view">
         <div className="routine-run-head">
           <div className="routine-run-prompt">{routine.prompt}</div>
           <div className="routine-run-meta">

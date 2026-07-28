@@ -90,7 +90,7 @@ function stepsFromAssistant(event: {
   for (const block of content) {
     if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
       steps.push({ kind: 'text', text: block.text })
-    } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
+    } else if (block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim()) {
       steps.push({ kind: 'thinking', text: block.thinking })
     } else if (block.type === 'tool_use' && typeof block.name === 'string') {
       // Strip the mcp__cove-browser__ prefix so the tool reads as e.g. "browser_navigate".
@@ -336,15 +336,20 @@ export function registerRoutinesIpc(): void {
   ipcMain.handle('routines:list', (_e, workspaceId?: string) => listRoutines(workspaceId))
   ipcMain.handle(
     'routines:create',
-    (_e, workspaceId: string, workspacePath: string, prompt: string, intervalMinutes: number) =>
-      createRoutine(workspaceId, workspacePath, prompt, intervalMinutes * 60 * 1000)
+    (_e, workspaceId: string, workspacePath: string, prompt: string, intervalMinutes: number) => {
+      const r = createRoutine(workspaceId, workspacePath, prompt, intervalMinutes * 60 * 1000)
+      broadcast() // keep the sidebar tree + any open panel in sync
+      return r
+    }
   )
   ipcMain.handle('routines:setEnabled', (_e, id: string, enabled: boolean) => {
     setRoutineEnabled(id, enabled)
+    broadcast()
     return listRoutines()
   })
   ipcMain.handle('routines:delete', (_e, id: string) => {
     deleteRoutine(id)
+    broadcast()
     return listRoutines()
   })
   ipcMain.on('routines:runNow', (_e, id: string) => {
