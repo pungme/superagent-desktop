@@ -999,7 +999,7 @@ button {
   padding: 10px 13px;
 }
 
-.easy-thinking span {
+.easy-thinking span:not(.easy-elapsed) {
   width: 7px;
   height: 7px;
   border-radius: 50%;
