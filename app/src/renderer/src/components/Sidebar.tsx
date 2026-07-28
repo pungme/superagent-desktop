@@ -10,7 +10,7 @@ import {
   useDroppable
 } from '@dnd-kit/core'
 import { useStore, WorkspaceStatus } from '../state'
-import type { Workspace } from '../../../preload'
+import type { Workspace, Routine } from '../../../preload'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -21,14 +21,73 @@ const STATUS_LABEL: Record<WorkspaceStatus, string> = {
 // Stable reference so the zustand selector doesn't return a fresh array each render.
 const EMPTY_PORTS: number[] = []
 
+// Stable empty routine list so the selector doesn't return a fresh array each render.
+const EMPTY_ROUTINES: Routine[] = []
+
 function StatusDot({ status }: { status: WorkspaceStatus }): React.JSX.Element {
   return <span className={`status-dot status-${status}`} title={STATUS_LABEL[status]} />
+}
+
+function cadenceLabel(ms: number): string {
+  const min = Math.round(ms / 60000)
+  if (min < 60) return `${min}m`
+  const h = Math.round(min / 60)
+  return h < 24 ? `${h}h` : `${Math.round(h / 24)}d`
+}
+
+/** A routine shown nested under its project in the sidebar tree. */
+function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
+  const setActive = useStore((s) => s.setActive)
+  const status = routine.lastRunStatus
+  const dotTitle =
+    status === 'running'
+      ? 'Running now…'
+      : status === 'error'
+        ? 'Last run failed'
+        : status === 'ok'
+          ? 'Last run ok'
+          : 'Not run yet'
+  return (
+    <div
+      className={`routine-tree-row ${routine.enabled ? '' : 'disabled'}`}
+      title={routine.prompt}
+      onClick={() => {
+        // Focus the project, then (next tick, so a just-mounted view has its
+        // listener) open its Routines panel to manage/inspect this routine.
+        setActive(routine.workspaceId)
+        setTimeout(
+          () =>
+            window.dispatchEvent(
+              new CustomEvent('cove:open-routines', {
+                detail: { workspaceId: routine.workspaceId }
+              })
+            ),
+          0
+        )
+      }}
+    >
+      <span className={`routine-tree-dot routine-dot-${status ?? 'none'}`} title={dotTitle} />
+      <span className="routine-tree-cadence">{cadenceLabel(routine.intervalMs)}</span>
+      <span className="routine-tree-prompt">{routine.prompt}</span>
+      <button
+        className="routine-tree-run"
+        title="Run now"
+        onClick={(e) => {
+          e.stopPropagation()
+          window.cove.routinesRunNow(routine.id)
+        }}
+      >
+        ▶
+      </button>
+    </div>
+  )
 }
 
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id)
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
   const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
+  const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const setActive = useStore((s) => s.setActive)
   const removeWorkspace = useStore((s) => s.removeWorkspace)
   const openPreview = useStore((s) => s.openPreview)
@@ -46,43 +105,52 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   }
 
   return (
-    <div
-      ref={setRefs}
-      className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver ? 'drop-before' : ''}`}
-      onClick={() => setActive(ws.id)}
-      {...attributes}
-      {...listeners}
-    >
-      <StatusDot status={status} />
-      <span
-        className="sidebar-item-kind"
-        title={ws.kind === 'browser' ? 'Browser project' : 'Code project'}
+    <div className="sidebar-item-wrap">
+      <div
+        ref={setRefs}
+        className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver ? 'drop-before' : ''}`}
+        onClick={() => setActive(ws.id)}
+        {...attributes}
+        {...listeners}
       >
-        {ws.kind === 'browser' ? '🌐' : '📁'}
-      </span>
-      <span className="sidebar-item-name">{ws.name}</span>
-      {ports.length > 0 && (
+        <StatusDot status={status} />
         <span
-          className="port-chip"
-          title={`Open localhost:${ports[ports.length - 1]} in the preview`}
+          className="sidebar-item-kind"
+          title={ws.kind === 'browser' ? 'Browser project' : 'Code project'}
+        >
+          {ws.kind === 'browser' ? '🌐' : '📁'}
+        </span>
+        <span className="sidebar-item-name">{ws.name}</span>
+        {ports.length > 0 && (
+          <span
+            className="port-chip"
+            title={`Open localhost:${ports[ports.length - 1]} in the preview`}
+            onClick={(e) => {
+              e.stopPropagation()
+              openPreview(ws.id, ports[ports.length - 1])
+            }}
+          >
+            :{ports[ports.length - 1]}
+          </span>
+        )}
+        <button
+          className="sidebar-item-remove"
+          title="Remove from SuperAgent"
           onClick={(e) => {
             e.stopPropagation()
-            openPreview(ws.id, ports[ports.length - 1])
+            removeWorkspace(ws.id)
           }}
         >
-          :{ports[ports.length - 1]}
-        </span>
+          ×
+        </button>
+      </div>
+      {routines.length > 0 && (
+        <div className="routine-tree">
+          {routines.map((r) => (
+            <RoutineRow key={r.id} routine={r} />
+          ))}
+        </div>
       )}
-      <button
-        className="sidebar-item-remove"
-        title="Remove from SuperAgent"
-        onClick={(e) => {
-          e.stopPropagation()
-          removeWorkspace(ws.id)
-        }}
-      >
-        ×
-      </button>
     </div>
   )
 }
