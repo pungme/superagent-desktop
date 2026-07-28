@@ -88,14 +88,19 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   })
 }
 
+// Track the intended zoom per pane. getZoomFactor() doesn't reflect a just-set
+// value within the same tick, so reading it back would drop rapid +/- clicks.
+const zoomFactors = new Map<string, number>()
+
 /** Step/reset the pane's zoom, clamp it, tell the renderer, and return the factor. */
 export function applyZoom(id: string, action: 'in' | 'out' | 'reset'): number {
   const pane = panes.get(id)
   const wc = pane?.view.webContents
   if (!pane || !wc) return 1
-  const cur = wc.getZoomFactor()
+  const cur = zoomFactors.get(id) ?? 1
   let next = action === 'reset' ? 1 : cur + (action === 'in' ? 0.1 : -0.1)
   next = Math.min(3, Math.max(0.3, Math.round(next * 10) / 10))
+  zoomFactors.set(id, next)
   wc.setZoomFactor(next)
   if (!pane.window.isDestroyed()) pane.window.webContents.send(`browser:zoom:${id}`, next)
   return next
@@ -120,6 +125,7 @@ export function destroyBrowserPane(id: string): void {
   const pane = panes.get(id)
   if (!pane) return
   panes.delete(id)
+  zoomFactors.delete(id)
   hidePane(pane)
   pane.view.webContents.close()
 }
