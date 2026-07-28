@@ -614,6 +614,7 @@ export function EasyChat({
           <button onClick={retry}>Retry</button>
         </div>
       )}
+      <TasksPanel workspaceId={workspaceId} />
       <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length === 0 && ready && (
           <div className="easy-empty">
@@ -727,7 +728,6 @@ export function EasyChat({
           ↓
         </button>
       )}
-      <TasksPanel workspaceId={workspaceId} />
       <div className="easy-input-row">
         {mentionMatches.length > 0 && (
           <div className="easy-mention-menu">
