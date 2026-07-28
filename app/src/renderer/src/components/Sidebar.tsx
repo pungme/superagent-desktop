@@ -35,10 +35,31 @@ function cadenceLabel(ms: number): string {
   return h < 24 ? `${h}h` : `${Math.round(h / 24)}d`
 }
 
+// While a routine runs, the current activity (its latest streamed step) so you
+// can see what it's doing live from the sidebar.
+function currentActivity(routine: Routine): string | null {
+  if (routine.lastRunStatus !== 'running') return null
+  try {
+    const steps = JSON.parse(routine.lastRunTranscript || '[]') as Array<{
+      kind: string
+      name?: string
+      text?: string
+    }>
+    const last = steps[steps.length - 1]
+    if (!last) return 'starting…'
+    if (last.kind === 'tool') return (last.name ?? 'working').replace(/^browser_/, '') + '…'
+    if (last.text) return last.text.slice(0, 40)
+    return 'working…'
+  } catch {
+    return 'running…'
+  }
+}
+
 /** A routine shown nested under its project in the sidebar tree. */
 function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
   const openRoutineRun = useStore((s) => s.openRoutineRun)
   const status = routine.lastRunStatus
+  const activity = currentActivity(routine)
   const dotTitle =
     status === 'running'
       ? 'Running now…'
@@ -56,7 +77,11 @@ function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
     >
       <span className={`routine-tree-dot routine-dot-${status ?? 'none'}`} title={dotTitle} />
       <span className="routine-tree-cadence">{cadenceLabel(routine.intervalMs)}</span>
-      <span className="routine-tree-prompt">{routine.prompt}</span>
+      {activity ? (
+        <span className="routine-tree-prompt routine-tree-activity">{activity}</span>
+      ) : (
+        <span className="routine-tree-prompt">{routine.prompt}</span>
+      )}
       <button
         className="routine-tree-run"
         title="Run now"
