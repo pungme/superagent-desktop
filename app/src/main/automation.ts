@@ -177,6 +177,20 @@ async function pollUntil(check: () => boolean, timeoutMs: number): Promise<void>
   }
 }
 
+/**
+ * Reject if `p` doesn't settle within `ms`. executeJavaScript against a page that
+ * never becomes idle (heavy SPAs, a stuck load) can hang forever — a hang inside a
+ * routine used to burn the whole 5-minute budget silently. This turns it into a
+ * normal tool error the agent can see and recover from.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+  })
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer)) as Promise<T>
+}
+
 export async function navigate(paneId: string, url: string): Promise<string> {
   // Cold start: the agent may drive the browser before the user has opened the
   // preview, so no pane exists yet. For an interactive pane (routine panes carry
@@ -204,7 +218,7 @@ export async function screenshot(paneId: string): Promise<string> {
 
 export async function readPage(paneId: string): Promise<unknown> {
   const contents = wc(paneId)
-  return contents.executeJavaScript(READ_PAGE_JS)
+  return withTimeout(contents.executeJavaScript(READ_PAGE_JS), 15000, 'read_page')
 }
 
 export async function click(
@@ -212,7 +226,11 @@ export async function click(
   target: { index?: number; text?: string }
 ): Promise<string> {
   const contents = ensureDebugger(paneId)
-  const pos = (await contents.executeJavaScript(elementCenterJs(target))) as {
+  const pos = (await withTimeout(
+    contents.executeJavaScript(elementCenterJs(target)),
+    8000,
+    'locate element'
+  )) as {
     x: number
     y: number
   } | null
@@ -289,8 +307,12 @@ export function consoleLogs(paneId: string): ConsoleEntry[] {
 
 export async function evaluate(paneId: string, expression: string): Promise<string> {
   const contents = wc(paneId)
-  const result = await contents.executeJavaScript(
-    `(() => { try { return JSON.stringify((function(){ return (${expression}); })()); } catch (e) { return 'ERROR: ' + e.message; } })()`
+  const result = await withTimeout(
+    contents.executeJavaScript(
+      `(() => { try { return JSON.stringify((function(){ return (${expression}); })()); } catch (e) { return 'ERROR: ' + e.message; } })()`
+    ),
+    10000,
+    'evaluate'
   )
   return typeof result === 'string' ? result : JSON.stringify(result)
 }
