@@ -215,12 +215,17 @@ export async function runRoutine(routine: Routine): Promise<void> {
           '--verbose',
           '--mcp-config',
           mcpConfig,
+          // The full cove-browser tool set. Omissions bite: a routine that tried
+          // browser_evaluate to verify its work got every call denied and looped
+          // until it timed out. Keep this in sync with the tools mcp.ts registers.
           '--allowedTools',
           'mcp__cove-browser__browser_navigate',
           'mcp__cove-browser__browser_read_page',
           'mcp__cove-browser__browser_click',
           'mcp__cove-browser__browser_type',
+          'mcp__cove-browser__browser_press_key',
           'mcp__cove-browser__browser_screenshot',
+          'mcp__cove-browser__browser_evaluate',
           'mcp__cove-browser__browser_console',
           'mcp__cove-browser__browser_network',
           'mcp__cove-browser__browser_wait_for',
