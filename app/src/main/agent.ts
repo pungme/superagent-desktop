@@ -44,6 +44,18 @@ const BROWSER_SYSTEM_PROMPT =
   'localhost. Strongly prefer these tools over WebSearch and WebFetch. To run a web search, ' +
   'navigate the browser to the search engine and type the query rather than calling WebSearch.'
 
+// Scheduling MUST go through SuperAgent's own routines — cloud/loop schedulers run
+// elsewhere and can't reach this browser or the user's logged-in session.
+const SCHEDULING_PROMPT =
+  'To run something on a schedule or repeatedly for this project (e.g. "every 30 minutes…", ' +
+  '"each morning…", "keep doing this"), use the create_routine tool. It re-runs the task inside ' +
+  "SuperAgent — for a browser project, against THIS browser with the user's logged-in session — " +
+  'on a timer while SuperAgent is open. Do NOT use CronCreate, the /loop skill, ScheduleWakeup, or ' +
+  'any external/cloud scheduler for this: those run elsewhere and cannot see or drive SuperAgent, ' +
+  "its browser, or the user's session, so the task would silently never touch this page. " +
+  "create_routine's minimum interval is 60 minutes — if the user asks for less, tell them you are " +
+  'using 60 and continue.'
+
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
   const id = randomUUID()
   const mcpConfig =
@@ -68,7 +80,13 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
     ]
     if (resume) args.unshift('--resume', resume)
     if (mcpConfig) args.push('--mcp-config', mcpConfig)
-    if (opts.browserProject) args.push('--append-system-prompt', BROWSER_SYSTEM_PROMPT)
+    const appended = [SCHEDULING_PROMPT, opts.browserProject ? BROWSER_SYSTEM_PROMPT : '']
+      .filter(Boolean)
+      .join(' ')
+    args.push('--append-system-prompt', appended)
+    // Hard stop: cloud/loop schedulers can't reach SuperAgent's browser, so scheduling
+    // must use create_routine. Unknown tool names here are harmless no-ops.
+    args.push('--disallowedTools', 'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup')
 
     const proc = spawn(findClaude(), args, {
       cwd: opts.cwd || os.homedir(),
