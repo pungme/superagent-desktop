@@ -185,6 +185,7 @@ export function EasyChat({
   const [dragOver, setDragOver] = useState(false)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
   const thinkingIdRef = useRef<string | null>(null)
@@ -287,6 +288,29 @@ export function EasyChat({
       inputRef.current?.focus()
     }
   }
+
+  // Track the drop-hint from the window so it can't get stuck: show it only while a
+  // file is dragged over THIS chat, and always clear it on drop/leave/end.
+  useEffect(() => {
+    const onOver = (e: DragEvent): void => {
+      const overChat = !!e.target && chatRef.current?.contains(e.target as Node)
+      setDragOver(!!overChat && !!e.dataTransfer?.types.includes('Files'))
+    }
+    const clear = (): void => setDragOver(false)
+    const onLeave = (e: DragEvent): void => {
+      if (e.relatedTarget === null) setDragOver(false) // pointer left the window
+    }
+    window.addEventListener('dragover', onOver)
+    window.addEventListener('drop', clear)
+    window.addEventListener('dragend', clear)
+    window.addEventListener('dragleave', onLeave)
+    return () => {
+      window.removeEventListener('dragover', onOver)
+      window.removeEventListener('drop', clear)
+      window.removeEventListener('dragend', clear)
+      window.removeEventListener('dragleave', onLeave)
+    }
+  }, [])
 
   // Grow the input with its content, up to the CSS max-height.
   const autoResize = (): void => {
@@ -629,16 +653,11 @@ export function EasyChat({
 
   return (
     <div
+      ref={chatRef}
       className={`easy-chat ${dragOver ? 'drag-over' : ''}`}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('Files')) {
-          e.preventDefault()
-          setDragOver(true)
-        }
-      }}
-      onDragLeave={(e) => {
-        // Only clear when the pointer actually leaves the chat (not on child enters).
-        if (e.currentTarget === e.target) setDragOver(false)
+        // Allow the drop (default would block it); the window effect shows the hint.
+        if (e.dataTransfer.types.includes('Files')) e.preventDefault()
       }}
       onDrop={onDrop}
     >
