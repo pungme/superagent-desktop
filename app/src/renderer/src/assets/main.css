@@ -393,6 +393,12 @@ button {
   white-space: nowrap;
 }
 
+/* Live current-step label shown while the routine is running. */
+.routine-tree-activity {
+  color: var(--accent);
+  font-style: italic;
+}
+
 .routine-tree-run {
   flex: 0 0 auto;
   border: none;
