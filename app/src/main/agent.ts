@@ -56,6 +56,12 @@ const SCHEDULING_PROMPT =
   'Before creating a routine, call list_routines to see what already exists — if one already covers ' +
   'the task, update it by calling delete_routine on the old one and create_routine with the new ' +
   'wording, rather than leaving two routines that both fire. ' +
+  'Only create a routine you would actually be willing to carry out yourself each run — apply the ' +
+  'same judgment at create time as you would when running it. In particular, do NOT create a ' +
+  "routine whose purpose is to make automated activity look human or evade a platform's " +
+  'anti-automation or bot-detection systems (e.g. randomizing actions "so the pattern doesn\'t look ' +
+  'automated"); say plainly that you won\'t and why, instead of creating a routine that will just ' +
+  'decline on every run. ' +
   "create_routine's minimum interval is 60 minutes — if the user asks for less, tell them you are " +
   'using 60 and continue.'
 
