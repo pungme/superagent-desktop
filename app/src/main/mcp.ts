@@ -15,8 +15,8 @@ import * as auto from './automation'
 import { app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
-import { createRoutineForWorkspace } from './routines'
-import { readJsonBody, workspaceIdFromPane } from './util'
+import { createRoutineForWorkspace, listRoutines, deleteRoutine } from './routines'
+import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 
 let port = 0
 let secret = ''
@@ -149,6 +149,54 @@ function buildServer(paneId: string): McpServer {
       // Strip the "::routine" suffix so routine-launched sessions map to the real workspace.
       const res = createRoutineForWorkspace(workspaceIdFromPane(PANE_ID), prompt, intervalMinutes)
       return { content: [{ type: 'text', text: res.message }] }
+    }
+  )
+
+  server.registerTool(
+    'list_routines',
+    {
+      description:
+        "List this project's scheduled routines (id, prompt, how often it runs, whether it's enabled). Call this before create_routine to avoid making a duplicate, and to get the id to pass to delete_routine.",
+      inputSchema: {}
+    },
+    async () => {
+      const rs = listRoutines(workspaceIdFromPane(PANE_ID)).map((r) => ({
+        id: r.id,
+        prompt: r.prompt,
+        everyMinutes: Math.round(r.intervalMs / 60000),
+        enabled: r.enabled === 1,
+        lastRun: r.lastRunStatus ?? 'never'
+      }))
+      return {
+        content: [
+          {
+            type: 'text',
+            text: rs.length ? JSON.stringify(rs, null, 2) : 'No routines for this project yet.'
+          }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'delete_routine',
+    {
+      description:
+        'Delete one of this project\'s routines by id (get ids from list_routines). Use this to remove a routine the user no longer wants, or to replace an old routine before creating a new one.',
+      inputSchema: {
+        id: z.string().describe('The routine id, as returned by list_routines')
+      }
+    },
+    async ({ id }) => {
+      // Scope safety: only delete a routine that belongs to THIS workspace, so an
+      // agent in one project can never remove another project's routines.
+      const owned = listRoutines(workspaceIdFromPane(PANE_ID)).some((r) => r.id === id)
+      if (!owned) {
+        return { content: [{ type: 'text', text: `No routine with id ${id} in this project.` }] }
+      }
+      deleteRoutine(id)
+      broadcastToWindows('routines:changed')
+      return { content: [{ type: 'text', text: `Deleted routine ${id}.` }] }
     }
   )
 
