@@ -55,6 +55,7 @@ export interface Routine {
   lastRunSummary: string | null
   lastRunTranscript: string | null
   runCount: number
+  lastRunTokens: number
 }
 
 let db: Database.Database
@@ -89,6 +90,10 @@ function initDb(): void {
     db.exec('ALTER TABLE routines ADD COLUMN runCount INTEGER NOT NULL DEFAULT 0')
     // A routine that already has a last run has run at least once — don't show "0 runs".
     db.exec('UPDATE routines SET runCount = 1 WHERE lastRunAt IS NOT NULL')
+  }
+  // Tokens the last run used (input + output + cache), shown in the run viewer.
+  if (!cols.some((c) => c.name === 'lastRunTokens')) {
+    db.exec('ALTER TABLE routines ADD COLUMN lastRunTokens INTEGER NOT NULL DEFAULT 0')
   }
 }
 
@@ -202,10 +207,11 @@ export async function runRoutine(routine: Routine): Promise<void> {
 
   // Offscreen pane sharing the workspace's cookies, scoped MCP config for it.
   const paneId = routinePaneId(routine.workspaceId)
-  let result: { ok: boolean; summary: string; steps: RoutineStep[] } = {
+  let result: { ok: boolean; summary: string; steps: RoutineStep[]; tokens: number } = {
     ok: false,
     summary: 'Run failed to start.',
-    steps: []
+    steps: [],
+    tokens: 0
   }
 
   try {
@@ -227,7 +233,12 @@ export async function runRoutine(routine: Routine): Promise<void> {
     }
     const mcpConfig = writeWorkspaceMcpConfig(paneId)
 
-    result = await new Promise<{ ok: boolean; summary: string; steps: RoutineStep[] }>((resolve) => {
+    result = await new Promise<{
+      ok: boolean
+      summary: string
+      steps: RoutineStep[]
+      tokens: number
+    }>((resolve) => {
       const proc = spawn(
         findClaude(),
         [
@@ -272,6 +283,7 @@ export async function runRoutine(routine: Routine): Promise<void> {
       const steps: RoutineStep[] = []
       let summary = '(no summary)'
       let isError = false
+      let tokens = 0
       let buffer = ''
       // Stream steps to the DB as they arrive so the run viewer updates live —
       // otherwise a headless run looks like nothing is happening for minutes.
@@ -306,6 +318,14 @@ export async function runRoutine(routine: Routine): Promise<void> {
                 summary = event.result.slice(0, 500)
               }
               isError = event.is_error === true
+              const u = event.usage
+              if (u && typeof u === 'object') {
+                tokens =
+                  (u.input_tokens ?? 0) +
+                  (u.output_tokens ?? 0) +
+                  (u.cache_creation_input_tokens ?? 0) +
+                  (u.cache_read_input_tokens ?? 0)
+              }
             }
           } catch {
             // partial or non-JSON line; ignore
@@ -318,7 +338,8 @@ export async function runRoutine(routine: Routine): Promise<void> {
         resolve({
           ok: false,
           summary: `Timed out after ${Math.round(RUN_TIMEOUT_MS / 60000)} minutes.`,
-          steps
+          steps,
+          tokens
         })
       }, RUN_TIMEOUT_MS)
 
@@ -326,27 +347,33 @@ export async function runRoutine(routine: Routine): Promise<void> {
       proc.stdout.on('data', (c) => consume(c.toString()))
       proc.on('error', (e) => {
         clearTimeout(timer)
-        resolve({ ok: false, summary: `Failed to launch: ${e.message}`, steps })
+        resolve({ ok: false, summary: `Failed to launch: ${e.message}`, steps, tokens })
       })
       proc.on('exit', () => {
         clearTimeout(timer)
-        resolve({ ok: !isError, summary, steps })
+        resolve({ ok: !isError, summary, steps, tokens })
       })
     })
   } catch (e) {
-    result = { ok: false, summary: `Run failed to start: ${(e as Error).message}`, steps: [] }
+    result = {
+      ok: false,
+      summary: `Run failed to start: ${(e as Error).message}`,
+      steps: [],
+      tokens: 0
+    }
   } finally {
     // Release the lock first so the routine can never wedge in "running" and stop
     // rescheduling, even if a later cleanup step throws.
     running.delete(routine.id)
     db.prepare(
-      'UPDATE routines SET lastRunStatus = ?, lastRunSummary = ?, lastRunTranscript = ?, lastRunAt = ?, nextRunAt = ?, runCount = runCount + 1 WHERE id = ?'
+      'UPDATE routines SET lastRunStatus = ?, lastRunSummary = ?, lastRunTranscript = ?, lastRunAt = ?, nextRunAt = ?, runCount = runCount + 1, lastRunTokens = ? WHERE id = ?'
     ).run(
       result.ok ? 'ok' : 'error',
       result.summary,
       JSON.stringify(result.steps),
       nowMs(),
       nowMs() + routine.intervalMs,
+      result.tokens,
       routine.id
     )
     // Free the offscreen WebContentsView (cookies live in the partition, not the

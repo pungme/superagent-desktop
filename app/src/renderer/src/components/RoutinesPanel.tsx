@@ -17,9 +17,10 @@ function relativeInterval(ms: number): string {
 
 function statusLabel(r: Routine): string {
   const runs = r.runCount === 1 ? '1 run' : `${r.runCount} runs`
+  const toks = r.lastRunTokens > 0 ? ` · ${Math.round(r.lastRunTokens / 1000)}k tokens` : ''
   if (r.lastRunStatus === 'running') return `Running now… · ${runs}`
-  if (r.lastRunStatus === 'ok') return `Last run: ok · ${runs}`
-  if (r.lastRunStatus === 'error') return `Last run: failed · ${runs}`
+  if (r.lastRunStatus === 'ok') return `Last run: ok · ${runs}${toks}`
+  if (r.lastRunStatus === 'error') return `Last run: failed · ${runs}${toks}`
   return 'Not run yet'
 }
 
