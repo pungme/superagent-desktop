@@ -13,6 +13,12 @@ function parseSteps(json: string | null): RoutineStep[] {
   }
 }
 
+function formatTokens(n: number): string {
+  if (n <= 0) return ''
+  if (n < 1000) return `${n} tokens`
+  return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}k tokens`
+}
+
 function whenLabel(r: Routine): string {
   if (r.lastRunStatus === 'running') return 'Running now…'
   if (!r.lastRunAt) return 'Not run yet'
@@ -34,6 +40,7 @@ export function RoutineRunView({ routine }: { routine: Routine }): React.JSX.Ele
   const steps = useMemo(() => parseSteps(routine.lastRunTranscript), [routine.lastRunTranscript])
   const running = routine.lastRunStatus === 'running'
   const runs = routine.runCount === 1 ? '1 run' : `${routine.runCount} runs`
+  const tokens = formatTokens(routine.lastRunTokens)
 
   return (
     <div className="routine-run-panel">
@@ -46,6 +53,7 @@ export function RoutineRunView({ routine }: { routine: Routine }): React.JSX.Ele
           className={`routine-run-bar-status routine-run-status-${routine.lastRunStatus ?? 'none'}`}
         >
           {whenLabel(routine)} · {runs}
+          {tokens && !running ? ` · ${tokens}` : ''}
         </span>
         <button
           className="routine-run-bar-play"
