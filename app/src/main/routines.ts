@@ -43,6 +43,7 @@ export interface Routine {
   lastRunStatus: 'ok' | 'error' | 'running' | null
   lastRunSummary: string | null
   lastRunTranscript: string | null
+  runCount: number
 }
 
 let db: Database.Database
@@ -71,6 +72,10 @@ function initDb(): void {
   const cols = db.prepare('PRAGMA table_info(routines)').all() as { name: string }[]
   if (!cols.some((c) => c.name === 'lastRunTranscript')) {
     db.exec('ALTER TABLE routines ADD COLUMN lastRunTranscript TEXT')
+  }
+  // Total times this routine has run (shown in the UI).
+  if (!cols.some((c) => c.name === 'runCount')) {
+    db.exec('ALTER TABLE routines ADD COLUMN runCount INTEGER NOT NULL DEFAULT 0')
   }
 }
 
@@ -279,7 +284,7 @@ export async function runRoutine(routine: Routine): Promise<void> {
     // rescheduling, even if a later cleanup step throws.
     running.delete(routine.id)
     db.prepare(
-      'UPDATE routines SET lastRunStatus = ?, lastRunSummary = ?, lastRunTranscript = ?, lastRunAt = ?, nextRunAt = ? WHERE id = ?'
+      'UPDATE routines SET lastRunStatus = ?, lastRunSummary = ?, lastRunTranscript = ?, lastRunAt = ?, nextRunAt = ?, runCount = runCount + 1 WHERE id = ?'
     ).run(
       result.ok ? 'ok' : 'error',
       result.summary,
