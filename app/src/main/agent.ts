@@ -44,6 +44,15 @@ const BROWSER_SYSTEM_PROMPT =
   'localhost. Strongly prefer these tools over WebSearch and WebFetch. To run a web search, ' +
   'navigate the browser to the search engine and type the query rather than calling WebSearch.'
 
+// SuperAgent surfaces the task list from TodoWrite (one call rewrites the whole
+// list) in its Tasks panel. Steer to that single surface so the panel is complete
+// and live — the Task* tools are also disallowed at spawn to enforce it.
+const TODO_PROMPT =
+  'When you plan or track a multi-step task, or keep a to-do list, use the TodoWrite tool — a ' +
+  'single call that rewrites the entire task list each time. SuperAgent shows that list to the ' +
+  'user live in its Tasks panel, so keep it current as you work. Do not use TaskCreate, TaskUpdate, ' +
+  'TaskList, or similar for user-facing task tracking.'
+
 // Scheduling MUST go through SuperAgent's own routines — cloud/loop schedulers run
 // elsewhere and can't reach this browser or the user's logged-in session.
 const SCHEDULING_PROMPT =
@@ -89,13 +98,26 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
     ]
     if (resume) args.unshift('--resume', resume)
     if (mcpConfig) args.push('--mcp-config', mcpConfig)
-    const appended = [SCHEDULING_PROMPT, opts.browserProject ? BROWSER_SYSTEM_PROMPT : '']
+    const appended = [TODO_PROMPT, SCHEDULING_PROMPT, opts.browserProject ? BROWSER_SYSTEM_PROMPT : '']
       .filter(Boolean)
       .join(' ')
     args.push('--append-system-prompt', appended)
-    // Hard stop: cloud/loop schedulers can't reach SuperAgent's browser, so scheduling
-    // must use create_routine. Unknown tool names here are harmless no-ops.
-    args.push('--disallowedTools', 'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup')
+    // Hard stops: cloud/loop schedulers can't reach SuperAgent's browser (scheduling
+    // must use create_routine), and Task* tools bypass the TodoWrite surface the Tasks
+    // panel reads. Unknown tool names here are harmless no-ops.
+    args.push(
+      '--disallowedTools',
+      'CronCreate',
+      'CronDelete',
+      'CronList',
+      'ScheduleWakeup',
+      'TaskCreate',
+      'TaskUpdate',
+      'TaskList',
+      'TaskGet',
+      'TaskOutput',
+      'TaskStop'
+    )
 
     const proc = spawn(findClaude(), args, {
       cwd: opts.cwd || os.homedir(),

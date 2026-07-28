@@ -4,6 +4,13 @@ import type { TreeGroup, Routine } from '../../preload'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 
+/** A task from Claude's TodoWrite tool, surfaced live in the chat. */
+export interface TodoItem {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+  activeForm?: string
+}
+
 interface CoveState {
   tree: TreeGroup[]
   activeWorkspaceId: string | null
@@ -16,6 +23,10 @@ interface CoveState {
   openRoutineRun: (id: string) => void
   closeRoutineRun: () => void
   statuses: Record<string, WorkspaceStatus>
+  // Claude's current task list per workspace, from TodoWrite (live in the chat).
+  todos: Record<string, TodoItem[]>
+  setTodos: (workspaceId: string, todos: TodoItem[]) => void
+  clearTodos: (workspaceId: string) => void
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
   filesOpen: Record<string, boolean>
@@ -75,6 +86,16 @@ export const useStore = create<CoveState>((set, get) => ({
   routines: {},
   openRoutineRunId: null,
   statuses: {},
+  todos: {},
+  setTodos: (workspaceId, todos) =>
+    set((s) => ({ todos: { ...s.todos, [workspaceId]: todos } })),
+  clearTodos: (workspaceId) =>
+    set((s) => {
+      if (!s.todos[workspaceId]) return s
+      const next = { ...s.todos }
+      delete next[workspaceId]
+      return { todos: next }
+    }),
   ports: {},
   browserOpen: {},
   filesOpen: {},
