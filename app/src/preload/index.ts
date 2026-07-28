@@ -64,6 +64,7 @@ export interface CoveApi {
   onBrowserCrashed: (id: string, cb: () => void) => () => void
   browserStopAutomation: (id: string) => void
   onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
+  onBrowserRequestOpen: (cb: (workspaceId: string) => void) => () => void
 
   storeTree: () => Promise<TreeGroup[]>
   createGroup: (name: string) => Promise<TreeGroup[]>
@@ -168,6 +169,7 @@ const cove: CoveApi = {
   onBrowserCrashed: (id, cb) => subscribe(`browser:crashed:${id}`, () => cb()),
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
+  onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
   createGroup: (name) => ipcRenderer.invoke('store:createGroup', name),

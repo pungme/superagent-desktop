@@ -169,7 +169,23 @@ function ensureDebugger(paneId: string): WebContents {
   return contents
 }
 
+/** Poll until `check` is true or the timeout elapses. Used to await a lazily-created pane. */
+async function pollUntil(check: () => boolean, timeoutMs: number): Promise<void> {
+  const start = Date.now()
+  while (!check() && Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 50))
+  }
+}
+
 export async function navigate(paneId: string, url: string): Promise<string> {
+  // Cold start: the agent may drive the browser before the user has opened the
+  // preview, so no pane exists yet. For an interactive pane (routine panes carry
+  // a "::" suffix and run offscreen), ask the renderer to open the preview, then
+  // wait briefly for it to create the pane — so the navigation is actually visible.
+  if (!getPaneWebContents(paneId) && !paneId.includes('::')) {
+    broadcastToWindows('browser:request-open', paneId)
+    await pollUntil(() => !!getPaneWebContents(paneId), 3000)
+  }
   const contents = wc(paneId)
   const target = normalizeUrl(url)
   // The agent drives the user's own browser on their own machine — real sites
