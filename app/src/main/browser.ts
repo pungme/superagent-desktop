@@ -70,6 +70,35 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   wc.on('render-process-gone', () => {
     if (!window.isDestroyed()) window.webContents.send(`browser:crashed:${id}`)
   })
+  // ⌘/Ctrl +/-/0 zoom while the native pane has focus (the renderer never sees
+  // these keys then). Mirrors the toolbar buttons and reports back the new level.
+  wc.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || !(input.meta || input.control)) return
+    const key = input.key
+    if (key === '=' || key === '+') {
+      applyZoom(id, 'in')
+      event.preventDefault()
+    } else if (key === '-' || key === '_') {
+      applyZoom(id, 'out')
+      event.preventDefault()
+    } else if (key === '0') {
+      applyZoom(id, 'reset')
+      event.preventDefault()
+    }
+  })
+}
+
+/** Step/reset the pane's zoom, clamp it, tell the renderer, and return the factor. */
+export function applyZoom(id: string, action: 'in' | 'out' | 'reset'): number {
+  const pane = panes.get(id)
+  const wc = pane?.view.webContents
+  if (!pane || !wc) return 1
+  const cur = wc.getZoomFactor()
+  let next = action === 'reset' ? 1 : cur + (action === 'in' ? 0.1 : -0.1)
+  next = Math.min(3, Math.max(0.3, Math.round(next * 10) / 10))
+  wc.setZoomFactor(next)
+  if (!pane.window.isDestroyed()) pane.window.webContents.send(`browser:zoom:${id}`, next)
+  return next
 }
 
 /**
@@ -139,6 +168,9 @@ export function registerBrowserIpc(): void {
   ipcMain.on('browser:reload', (_e, id: string) => {
     getPaneWebContents(id)?.reload()
   })
+  ipcMain.handle('browser:zoom', (_e, id: string, action: 'in' | 'out' | 'reset') =>
+    applyZoom(id, action)
+  )
   ipcMain.on('browser:open-external', (_e, id: string) => {
     const url = getPaneWebContents(id)?.getURL()
     if (url) shell.openExternal(url)

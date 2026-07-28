@@ -67,6 +67,8 @@ export interface CoveApi {
   browserReload: (id: string) => void
   browserOpenExternal: (id: string) => void
   browserDestroy: (id: string) => void
+  browserZoom: (id: string, action: 'in' | 'out' | 'reset') => Promise<number>
+  onBrowserZoom: (id: string, cb: (factor: number) => void) => () => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
   onBrowserCrashed: (id: string, cb: () => void) => () => void
   browserStopAutomation: (id: string) => void
@@ -171,6 +173,8 @@ const cove: CoveApi = {
   browserForward: (id) => ipcRenderer.send('browser:forward', id),
   browserReload: (id) => ipcRenderer.send('browser:reload', id),
   browserOpenExternal: (id) => ipcRenderer.send('browser:open-external', id),
+  browserZoom: (id, action) => ipcRenderer.invoke('browser:zoom', id, action),
+  onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
   browserDestroy: (id) => ipcRenderer.send('browser:destroy', id),
   onBrowserState: (id, cb) => subscribe(`browser:state:${id}`, (s) => cb(s as BrowserState)),
   onBrowserCrashed: (id, cb) => subscribe(`browser:crashed:${id}`, () => cb()),
