@@ -412,6 +412,130 @@ button {
   color: var(--accent, var(--text-primary));
 }
 
+/* Routine run transcript viewer. */
+.routine-run {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
+  overflow-y: auto;
+}
+
+.routine-run-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.routine-run-prompt {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.routine-run-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.routine-run-status-ok {
+  color: #3fb950;
+}
+.routine-run-status-error {
+  color: #f97583;
+}
+.routine-run-status-running {
+  color: #d29922;
+}
+
+.routine-run-now {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.routine-run-now:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.routine-run-summary {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--bg-hover, rgba(127, 127, 127, 0.08));
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.routine-run-empty {
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  padding: 24px 8px;
+  text-align: center;
+}
+
+.routine-run-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.routine-step {
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.routine-step-thinking {
+  color: var(--text-tertiary);
+  font-style: italic;
+  white-space: pre-wrap;
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+}
+
+.routine-step-text {
+  color: var(--text-primary);
+}
+
+.routine-step-tool {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: var(--bg-hover, rgba(127, 127, 127, 0.1));
+  border-radius: 6px;
+  padding: 4px 8px;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.routine-step-tool-name {
+  color: var(--accent, var(--text-primary));
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.routine-step-tool-input {
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .group-empty,
 .sidebar-add-group {
   border: none;
