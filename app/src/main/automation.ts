@@ -223,7 +223,15 @@ export async function click(
         : `No visible element matching text "${target.text}"`
     )
   }
-  const base = { x: pos.x, y: pos.y, button: 'left', clickCount: 1 }
+  // Hover first: some SPA buttons (React/pointer-event handlers) only react to a
+  // click after a pointer-enter, and it moves the cursor onto the target so the
+  // press/release land on the element the framework expects.
+  await contents.debugger.sendCommand('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: pos.x,
+    y: pos.y
+  })
+  const base = { x: pos.x, y: pos.y, button: 'left', buttons: 1, clickCount: 1 }
   await contents.debugger.sendCommand('Input.dispatchMouseEvent', {
     ...base,
     type: 'mousePressed'
