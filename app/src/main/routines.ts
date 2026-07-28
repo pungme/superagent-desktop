@@ -193,11 +193,11 @@ function broadcast(): void {
 export async function runRoutine(routine: Routine): Promise<void> {
   if (running.has(routine.id)) return
   running.add(routine.id)
-  db.prepare('UPDATE routines SET lastRunStatus = ?, lastRunAt = ? WHERE id = ?').run(
-    'running',
-    nowMs(),
-    routine.id
-  )
+  // Reset the transcript/summary so the live viewer starts fresh for this run
+  // (steps are streamed in below as they arrive, not just written at the end).
+  db.prepare(
+    'UPDATE routines SET lastRunStatus = ?, lastRunAt = ?, lastRunTranscript = ?, lastRunSummary = ? WHERE id = ?'
+  ).run('running', nowMs(), '[]', null, routine.id)
   broadcast()
 
   // Offscreen pane sharing the workspace's cookies, scoped MCP config for it.
@@ -273,6 +273,19 @@ export async function runRoutine(routine: Routine): Promise<void> {
       let summary = '(no summary)'
       let isError = false
       let buffer = ''
+      // Stream steps to the DB as they arrive so the run viewer updates live —
+      // otherwise a headless run looks like nothing is happening for minutes.
+      const persistSteps = (): void => {
+        try {
+          db.prepare('UPDATE routines SET lastRunTranscript = ? WHERE id = ?').run(
+            JSON.stringify(steps),
+            routine.id
+          )
+          broadcast()
+        } catch {
+          // a transient DB error mustn't kill the run
+        }
+      }
       const consume = (chunk: string): void => {
         buffer += chunk
         let nl: number
@@ -282,8 +295,13 @@ export async function runRoutine(routine: Routine): Promise<void> {
           if (!line) continue
           try {
             const event = JSON.parse(line)
-            if (event?.type === 'assistant') steps.push(...stepsFromAssistant(event))
-            else if (event?.type === 'result') {
+            if (event?.type === 'assistant') {
+              const added = stepsFromAssistant(event)
+              if (added.length) {
+                steps.push(...added)
+                persistSteps()
+              }
+            } else if (event?.type === 'result') {
               if (typeof event.result === 'string' && event.result.trim()) {
                 summary = event.result.slice(0, 500)
               }
@@ -297,7 +315,11 @@ export async function runRoutine(routine: Routine): Promise<void> {
 
       const timer = setTimeout(() => {
         proc.kill()
-        resolve({ ok: false, summary: 'Timed out after 5 minutes.', steps })
+        resolve({
+          ok: false,
+          summary: `Timed out after ${Math.round(RUN_TIMEOUT_MS / 60000)} minutes.`,
+          steps
+        })
       }, RUN_TIMEOUT_MS)
 
       proc.stdin.on('error', () => {})
@@ -351,6 +373,12 @@ function tick(): void {
 
 export function startRoutines(): void {
   initDb()
+  // No run can survive an app restart (the in-memory `running` set and the child
+  // process are both gone), so any routine still marked "running" is stale — clear
+  // it, or its Run button and status would look wedged forever.
+  db.prepare(
+    "UPDATE routines SET lastRunStatus = 'error', lastRunSummary = ? WHERE lastRunStatus = 'running'"
+  ).run('Interrupted — the app restarted mid-run.')
   // On launch, pull any overdue routine to exactly one catch-up run (drop the backlog).
   const now = nowMs()
   const overdue = db
