@@ -3,6 +3,7 @@ import { spawn } from 'child_process'
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import { ensureOffscreenPane, destroyBrowserPane } from './browser'
+import { navigate } from './automation'
 import { writeWorkspaceMcpConfig } from './mcp'
 import { getHookUrl } from './hooks'
 import { getDb } from './store'
@@ -200,6 +201,20 @@ export async function runRoutine(routine: Routine): Promise<void> {
   try {
     const win = BrowserWindow.getAllWindows()[0]
     if (win) ensureOffscreenPane(win, paneId, partitionFor(routine.workspaceId))
+    // Seed the offscreen pane with the project's last-viewed URL so the agent has a
+    // real page to act on. Without this it starts on about:blank, so a prompt like
+    // "refresh the Instagram page and follow 5 people" has no page — the agent reads
+    // blank and stalls. Best-effort: if it fails, the agent can still navigate itself.
+    const wsRow = db.prepare('SELECT browserUrl FROM workspaces WHERE id = ?').get(
+      routine.workspaceId
+    ) as { browserUrl?: string } | undefined
+    if (wsRow?.browserUrl) {
+      try {
+        await navigate(paneId, wsRow.browserUrl)
+      } catch {
+        // ignore — the routine prompt can still drive navigation
+      }
+    }
     const mcpConfig = writeWorkspaceMcpConfig(paneId)
 
     result = await new Promise<{ ok: boolean; summary: string; steps: RoutineStep[] }>((resolve) => {
