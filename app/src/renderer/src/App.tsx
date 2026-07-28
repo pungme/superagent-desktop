@@ -6,7 +6,6 @@ import { PreviewToast } from './components/PreviewToast'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { NewProjectDialog } from './components/NewProjectDialog'
-import { RoutineRunView } from './components/RoutineRunView'
 import { useStore } from './state'
 
 function App(): React.JSX.Element {
@@ -108,7 +107,6 @@ function App(): React.JSX.Element {
       </main>
       <PreviewToast />
       <NewProjectDialog />
-      <RoutineRunView />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )
