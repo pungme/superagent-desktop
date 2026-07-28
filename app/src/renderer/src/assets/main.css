@@ -417,10 +417,10 @@ button {
 .routine-run-panel {
   position: absolute;
   inset: 0;
-  z-index: 4;
+  z-index: 6; /* above the chat's floating "New chat" button (z-index 5) */
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--bg-content); /* opaque — must fully cover the chat behind it */
 }
 
 .routine-run-bar {
