@@ -2,6 +2,8 @@
 
 *A friendly home for Claude Code — and other coding agents.*
 
+![SuperAgent — a scheduled routine running against a live site in the in-app browser](docs/hero.png)
+
 SuperAgent is a clean, prosumer-friendly macOS app built around AI coding agents:
 
 - **Arc-style sidebar** — group your projects, see at a glance which agent is working, which needs you
