@@ -400,8 +400,48 @@ button {
 }
 
 /* Git sub-repos nested under a code project. */
+.repo-tree-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  padding: 3px 8px 3px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.repo-tree-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.repo-tree-caret {
+  font-size: 9px;
+  transition: transform 0.12s ease;
+  display: inline-block;
+}
+
 .repo-tree-row {
-  cursor: default;
+  cursor: pointer;
+}
+
+.repo-tree-row.selected {
+  background: var(--accent-soft);
+}
+
+.repo-tree-open {
+  flex: 0 0 auto;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .repo-tree-icon {
