@@ -702,6 +702,22 @@ button {
   text-overflow: ellipsis;
 }
 
+/* Current git branch chip (code projects). */
+.workspace-branch {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .workspace-toolbar-spacer {
   flex: 1;
 }

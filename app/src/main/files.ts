@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { readdirSync, lstatSync } from 'fs'
+import { readdirSync, lstatSync, readFileSync } from 'fs'
 import { join, relative } from 'path'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
@@ -53,6 +53,28 @@ export function listProjectFiles(root: string, max = 1000): string[] {
   return out.sort()
 }
 
+/**
+ * Current git branch of a project dir, or null if it isn't a git repo. Reads
+ * .git/HEAD directly (fast, no spawn); handles worktrees/submodules (.git is a
+ * file "gitdir: <path>") and detached HEAD (returns a short SHA).
+ */
+export function gitBranch(cwd: string): string | null {
+  try {
+    let gitDir = join(cwd, '.git')
+    if (lstatSync(gitDir).isFile()) {
+      const m = readFileSync(gitDir, 'utf8').match(/gitdir:\s*(.+)/)
+      if (!m) return null
+      gitDir = m[1].trim()
+    }
+    const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim()
+    const ref = head.match(/^ref:\s*refs\/heads\/(.+)$/)
+    return ref ? ref[1] : head.slice(0, 7)
+  } catch {
+    return null
+  }
+}
+
 export function registerFilesIpc(): void {
   ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
+  ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
 }
