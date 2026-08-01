@@ -83,13 +83,6 @@ function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
   return null
 }
 
-const SUGGESTIONS = [
-  'Explain what this project does',
-  'Find and fix a bug',
-  'Add a small feature',
-  'Check my site works'
-]
-
 // Short verb + icon for the noisy internal tool names.
 function toolLabel(name: string): { icon: string; verb: string } {
   if (name.startsWith('mcp__cove-browser__browser_')) {
@@ -764,13 +757,6 @@ export function EasyChat({
         {items.length === 0 && ready && (
           <div className="easy-empty">
             <p>Tell Claude what you&rsquo;d like to build or change.</p>
-            <div className="easy-suggestions">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} className="easy-suggestion" onClick={() => submit(s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
           </div>
         )}
         {items.length === 0 && !ready && !agentFailed && (
