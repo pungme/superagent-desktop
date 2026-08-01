@@ -28,6 +28,31 @@ function StatusDot({ status }: { status: WorkspaceStatus }): React.JSX.Element {
   return <span className={`status-dot status-${status}`} title={STATUS_LABEL[status]} />
 }
 
+// Crisp monochrome line icons (currentColor) — cleaner than emoji for project kind.
+function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.JSX.Element {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 16 16',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const
+  }
+  return kind === 'browser' ? (
+    <svg {...common}>
+      <circle cx="8" cy="8" r="6.2" />
+      <path d="M1.8 8h12.4" />
+      <ellipse cx="8" cy="8" rx="3" ry="6.2" />
+    </svg>
+  ) : (
+    <svg {...common}>
+      <path d="M2 4.6c0-.6.4-1 1-1h2.9l1.4 1.6H13c.6 0 1 .4 1 1v5.2c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1V4.6z" />
+    </svg>
+  )
+}
+
 function cadenceLabel(ms: number): string {
   const min = Math.round(ms / 60000)
   if (min < 60) return `${min}m`
@@ -162,7 +187,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           className="sidebar-item-kind"
           title={ws.kind === 'browser' ? 'Browser project' : 'Code project'}
         >
-          {ws.kind === 'browser' ? '🌐' : '📁'}
+          <KindIcon kind={ws.kind} />
         </span>
         {editing ? (
           <input
@@ -245,7 +270,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                 // Step 1: select. Step 2: the revealed "Start session" button opens it.
                 onClick={() => setSelectedRepo((cur) => (cur === r.path ? null : r.path))}
               >
-                <span className="repo-tree-icon">📁</span>
+                <span className="repo-tree-icon">
+                  <KindIcon kind="code" size={12} />
+                </span>
                 <span className="routine-tree-prompt">{r.name}</span>
                 {r.branch && selectedRepo !== r.path && (
                   <span className="repo-tree-branch">⎇ {r.branch}</span>
