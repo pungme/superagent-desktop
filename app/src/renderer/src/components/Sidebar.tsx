@@ -106,6 +106,30 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const removeWorkspace = useStore((s) => s.removeWorkspace)
   const openPreview = useStore((s) => s.openPreview)
 
+  // Git repos nested inside a code project's folder (a folder-of-repos), shown
+  // tree-style under it. Refreshed after Claude's turns (branches/repos change).
+  const [subrepos, setSubrepos] = useState<
+    { name: string; path: string; branch: string | null }[]
+  >([])
+  useEffect(() => {
+    if (ws.kind === 'browser') return
+    let alive = true
+    const refresh = (): void => {
+      window.cove.gitSubrepos(ws.path).then((s) => {
+        if (alive) setSubrepos(s)
+      })
+    }
+    refresh()
+    const onIdle = (e: Event): void => {
+      if ((e as CustomEvent<{ workspaceId: string }>).detail?.workspaceId === ws.id) refresh()
+    }
+    window.addEventListener('cove:workspace-idle', onIdle)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', onIdle)
+    }
+  }, [ws.kind, ws.path, ws.id])
+
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: ws.id,
     data: { index, groupId: ws.groupId }
@@ -158,6 +182,17 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           ×
         </button>
       </div>
+      {subrepos.length > 0 && (
+        <div className="routine-tree">
+          {subrepos.map((r) => (
+            <div key={r.path} className="routine-tree-row repo-tree-row" title={r.path}>
+              <span className="repo-tree-icon">📁</span>
+              <span className="routine-tree-prompt">{r.name}</span>
+              {r.branch && <span className="repo-tree-branch">⎇ {r.branch}</span>}
+            </div>
+          ))}
+        </div>
+      )}
       {routines.length > 0 && (
         <div className="routine-tree">
           {routines.map((r) => (

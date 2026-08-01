@@ -399,6 +399,27 @@ button {
   font-style: italic;
 }
 
+/* Git sub-repos nested under a code project. */
+.repo-tree-row {
+  cursor: default;
+}
+
+.repo-tree-icon {
+  flex: 0 0 auto;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.repo-tree-branch {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: var(--hover);
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
 .routine-tree-run {
   flex: 0 0 auto;
   border: none;

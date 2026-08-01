@@ -74,7 +74,39 @@ export function gitBranch(cwd: string): string | null {
   }
 }
 
+export interface SubRepo {
+  name: string
+  path: string
+  branch: string | null
+}
+
+/**
+ * Immediate child directories of `root` that are their own git repos — for a
+ * folder that holds several repos (a monorepo-of-repos / workspace). Depth 1
+ * only; skips heavy/hidden dirs and symlinks.
+ */
+export function gitSubrepos(root: string): SubRepo[] {
+  try {
+    const out: SubRepo[] = []
+    for (const e of readdirSync(root, { withFileTypes: true })) {
+      // isDirectory() is false for symlinks with withFileTypes, so symlinks are skipped.
+      if (!e.isDirectory() || e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue
+      const path = join(root, e.name)
+      try {
+        lstatSync(join(path, '.git')) // throws if not a repo
+      } catch {
+        continue
+      }
+      out.push({ name: e.name, path, branch: gitBranch(path) })
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name))
+  } catch {
+    return []
+  }
+}
+
 export function registerFilesIpc(): void {
   ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
   ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
+  ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))
 }
