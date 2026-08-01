@@ -491,6 +491,20 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* Branch chip on a project row whose own folder is a git repo. */
+.sidebar-item-branch {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: var(--hover);
+  border-radius: 999px;
+  padding: 1px 7px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .routine-tree-run {
   flex: 0 0 auto;
   border: none;
