@@ -15,6 +15,11 @@ import { registerEnvironmentIpc } from './environment'
 import { registerFilesIpc } from './files'
 import { buildMenu } from './menu'
 
+// Must run before `ready`: it names the About panel, the menu's first submenu and
+// the userData directory. Packaged builds also get this from electron-builder's
+// productName, but dev runs would otherwise fall back to the package.json name.
+app.setName('SuperAgent')
+
 if (is.dev) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
 }

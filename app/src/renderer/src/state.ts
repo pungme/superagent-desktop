@@ -51,6 +51,8 @@ interface CoveState {
   reloadOnIdle: Record<string, boolean>
   toast: { workspaceId: string; port: number } | null
   openPreview: (workspaceId: string, port: number) => void
+  /** Reveal the browser pane on an arbitrary URL (e.g. a file:// from the tree). */
+  openUrl: (workspaceId: string, url: string) => void
   dismissToast: () => void
   setReloadOnIdle: (workspaceId: string, v: boolean) => void
 
@@ -89,8 +91,7 @@ export const useStore = create<CoveState>((set, get) => ({
   openRoutineRunId: null,
   statuses: {},
   todos: {},
-  setTodos: (workspaceId, todos) =>
-    set((s) => ({ todos: { ...s.todos, [workspaceId]: todos } })),
+  setTodos: (workspaceId, todos) => set((s) => ({ todos: { ...s.todos, [workspaceId]: todos } })),
   clearTodos: (workspaceId) =>
     set((s) => {
       if (!s.todos[workspaceId]) return s
@@ -165,6 +166,13 @@ export const useStore = create<CoveState>((set, get) => ({
       activeWorkspaceId: workspaceId,
       browserOpen: { ...s.browserOpen, [workspaceId]: true },
       previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
+      toast: null
+    })),
+  openUrl: (workspaceId, url) =>
+    set((s) => ({
+      activeWorkspaceId: workspaceId,
+      browserOpen: { ...s.browserOpen, [workspaceId]: true },
+      previewUrls: { ...s.previewUrls, [workspaceId]: url },
       toast: null
     })),
   dismissToast: () => set({ toast: null }),

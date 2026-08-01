@@ -119,7 +119,12 @@ function friendlyToolNames(select: string): string {
   const names = select
     .replace(/^select:/, '')
     .split(',')
-    .map((n) => n.trim().replace(/^mcp__[a-z0-9-]+__/i, '').replace(/_/g, ' '))
+    .map((n) =>
+      n
+        .trim()
+        .replace(/^mcp__[a-z0-9-]+__/i, '')
+        .replace(/_/g, ' ')
+    )
     .filter(Boolean)
   const shown = names.slice(0, 3).join(', ')
   return names.length > 3 ? `${shown} +${names.length - 3}` : shown
@@ -137,6 +142,60 @@ function toolDetail(input: unknown): string {
   return ''
 }
 
+// Any run of 2+ collapses to one line. Runs only group *consecutive* tool calls, so
+// interleaved text/thinking splits them into short fragments — a higher threshold
+// left most of those expanded, which is the noise this is meant to hide.
+const TOOL_COLLAPSE_MIN = 2
+
+// "Running ×9 · Reading ×6" — distinct verbs in first-seen order, so the collapsed
+// row still says what the agent actually did.
+function summarizeTools(tools: ToolCall[]): string {
+  const counts = new Map<string, number>()
+  for (const t of tools) {
+    const { verb } = toolLabel(t.name)
+    counts.set(verb, (counts.get(verb) ?? 0) + 1)
+  }
+  const parts = [...counts].map(([verb, n]) => (n > 1 ? `${verb} ×${n}` : verb))
+  return parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ' · …' : '')
+}
+
+function ToolStrip({ tools }: { tools: ToolCall[] }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+
+  const render = (cls: string): React.JSX.Element[] =>
+    tools.map((t, j) => {
+      const { icon, verb } = toolLabel(t.name)
+      return (
+        <span key={t.id + j} className={cls} title={t.detail}>
+          <span className="easy-tool-icon">{icon}</span>
+          <span className="easy-tool-verb">{verb}</span>
+          {t.detail && <span className="easy-tool-detail">{t.detail}</span>}
+        </span>
+      )
+    })
+
+  // A lone call reads fine as a chip; a whole batch does not, so the expanded
+  // view is a plain list — one step per line, no pill chrome.
+  if (tools.length < TOOL_COLLAPSE_MIN)
+    return <div className="easy-tools">{render('easy-tool')}</div>
+
+  return (
+    <div className="easy-toolgroup">
+      <button
+        className="easy-tools-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        title={open ? 'Hide steps' : 'Show steps'}
+      >
+        <span className={'easy-tools-caret' + (open ? ' is-open' : '')}>›</span>
+        <span className="easy-tools-count">{tools.length} steps</span>
+        {!open && <span className="easy-tools-summary">{summarizeTools(tools)}</span>}
+      </button>
+      {open && <div className="easy-toollist">{render('easy-toolrow')}</div>}
+    </div>
+  )
+}
+
 // Group consecutive tool items so a run of tool calls renders as one compact strip.
 type Row =
   | { kind: 'msg'; msg: ChatMessage }
@@ -148,8 +207,13 @@ function toRows(items: Item[]): Row[] {
   const rows: Row[] = []
   for (const it of items) {
     if (it.kind === 'tool') {
-      const last = rows[rows.length - 1]
-      if (last && last.kind === 'tools') last.tools.push(it.tool)
+      // Thinking is ambient narration, not content, so it never ends a run —
+      // otherwise one batch of calls fragments into a stack of tiny strips.
+      // Only a real message or a diff starts a new group.
+      let i = rows.length - 1
+      while (i >= 0 && rows[i].kind === 'thinking') i--
+      const target = rows[i]
+      if (target && target.kind === 'tools') target.tools.push(it.tool)
       else rows.push({ kind: 'tools', tools: [it.tool] })
     } else {
       rows.push(it)
@@ -513,6 +577,14 @@ export function EasyChat({
     [workspaceId]
   )
 
+  // The agent's lifecycle must not be tied to this callback's identity: the effect
+  // below stops the claude process on teardown, so a re-created handleEvent (which
+  // is what Fast Refresh hands us on every edit) would kill a generation mid-turn.
+  const handleEventRef = useRef(handleEvent)
+  useEffect(() => {
+    handleEventRef.current = handleEvent
+  }, [handleEvent])
+
   useEffect(() => {
     let disposed = false
     let offEvent: (() => void) | undefined
@@ -530,7 +602,7 @@ export function EasyChat({
         // Ready as soon as the process is up — in stream-json input mode claude
         // waits for the first user message before it emits anything.
         setReady(true)
-        offEvent = window.cove.onAgentEvent(id, handleEvent)
+        offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
         // main only emits agent:exit on a genuine unexpected exit (deliberate
         // stops and the resume→fresh retry are suppressed), so surface it.
         offExit = window.cove.onAgentExit(id, () => {
@@ -547,7 +619,7 @@ export function EasyChat({
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
     }
-  }, [cwd, workspaceId, registerAgent, handleEvent, resetKey, browserProject])
+  }, [cwd, workspaceId, registerAgent, resetKey, browserProject])
 
   // Auto-scroll only when the user is already near the bottom, so scrolling up
   // to read scrollback isn't interrupted.
@@ -568,7 +640,7 @@ export function EasyChat({
     setAtBottom(true)
   }
 
-  // Messages injected from toolbar actions (Skills, "Check my site") in Easy mode.
+  // Messages injected from toolbar actions (e.g. the Skills panel) in Easy mode.
   useEffect(() => {
     const onInjected = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
@@ -681,7 +753,9 @@ export function EasyChat({
       )}
       {agentFailed && (
         <div className="easy-error">
-          <span>⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.</span>
+          <span>
+            ⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.
+          </span>
           <button onClick={retry}>Retry</button>
         </div>
       )}
@@ -770,20 +844,7 @@ export function EasyChat({
               </div>
             )
           }
-          return (
-            <div key={'tools-' + i} className="easy-tools">
-              {row.tools.map((t, j) => {
-                const { icon, verb } = toolLabel(t.name)
-                return (
-                  <span key={t.id + j} className="easy-tool" title={t.detail}>
-                    <span className="easy-tool-icon">{icon}</span>
-                    <span className="easy-tool-verb">{verb}</span>
-                    {t.detail && <span className="easy-tool-detail">{t.detail}</span>}
-                  </span>
-                )
-              })}
-            </div>
-          )
+          return <ToolStrip key={'tools-' + i} tools={row.tools} />
         })}
         {generating && (
           <div className="easy-thinking">

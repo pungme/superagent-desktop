@@ -94,11 +94,21 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       '--input-format',
       'stream-json',
       '--include-partial-messages',
-      '--verbose'
+      '--verbose',
+      // Under -p there is no interactive prompt, so anything needing approval is
+      // auto-denied — Edit/Write silently fail while reads succeed. bypassPermissions
+      // gives the agent the same reach it has in a terminal session where the user
+      // approves prompts themselves. The --disallowedTools list below still applies.
+      '--permission-mode',
+      'bypassPermissions'
     ]
     if (resume) args.unshift('--resume', resume)
     if (mcpConfig) args.push('--mcp-config', mcpConfig)
-    const appended = [TODO_PROMPT, SCHEDULING_PROMPT, opts.browserProject ? BROWSER_SYSTEM_PROMPT : '']
+    const appended = [
+      TODO_PROMPT,
+      SCHEDULING_PROMPT,
+      opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
+    ]
       .filter(Boolean)
       .join(' ')
     args.push('--append-system-prompt', appended)
