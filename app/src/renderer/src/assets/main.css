@@ -395,7 +395,7 @@ button {
 
 /* Live current-step label shown while the routine is running. */
 .routine-tree-activity {
-  color: var(--accent);
+  color: var(--text-secondary);
   font-style: italic;
 }
 
@@ -419,9 +419,10 @@ button {
 }
 
 .repo-tree-caret {
-  font-size: 9px;
+  font-size: 13px;
   transition: transform 0.12s ease;
   display: inline-block;
+  line-height: 1;
 }
 
 .repo-tree-row {
@@ -429,19 +430,37 @@ button {
 }
 
 .repo-tree-row.selected {
-  background: var(--accent-soft);
+  background: var(--active);
 }
 
 .repo-tree-open {
   flex: 0 0 auto;
-  border: none;
-  background: var(--accent);
-  color: var(--accent-fg);
+  border: 1px solid var(--border-strong);
+  background: var(--hover);
+  color: var(--text-primary);
   font-size: 10.5px;
   padding: 2px 8px;
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.repo-tree-open:hover {
+  background: var(--active);
+}
+
+/* Inline rename input for a project row. */
+.sidebar-item-rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg-content);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 2px 6px;
+  outline: none;
 }
 
 .repo-tree-icon {
