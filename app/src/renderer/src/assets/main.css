@@ -1081,30 +1081,6 @@ button {
   text-align: center;
 }
 
-.easy-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 16px;
-  max-width: 380px;
-}
-
-.easy-suggestion {
-  border: 1px solid var(--border);
-  background: var(--hover);
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  padding: 7px 13px;
-  border-radius: 999px;
-}
-
-.easy-suggestion:hover {
-  background: var(--active);
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
 /* Copy button on assistant messages (appears on hover). */
 .easy-assistant {
   position: relative;
@@ -1176,8 +1152,8 @@ button {
 .easy-tools {
   align-self: flex-start;
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  flex-direction: column;
+  gap: 0;
   max-width: 85%;
 }
 
@@ -1232,25 +1208,25 @@ button {
 
 .easy-tools-toggle {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   max-width: 100%;
   font-family: inherit;
   font-size: 11px;
+  line-height: 1.55;
   color: var(--text-secondary);
-  background: var(--hover);
-  border: 1px solid var(--border);
-  padding: 3px 10px 3px 8px;
-  border-radius: 999px;
+  background: none;
+  border: none;
+  padding: 1px 6px 1px 3px;
+  border-radius: 5px;
   cursor: pointer;
-  transition:
-    background 0.12s ease,
-    border-color 0.12s ease;
+  transition: background 0.12s ease;
 }
 
+/* Only the interactive one gets a tint, and only on hover — enough to read as
+   clickable without turning back into a chip. */
 .easy-tools-toggle:hover {
-  background: var(--active);
-  border-color: var(--border-strong);
+  background: var(--hover);
 }
 
 .easy-tools-caret {
@@ -1278,20 +1254,17 @@ button {
   text-overflow: ellipsis;
 }
 
+/* Not a message, so not a bubble: tool activity is quiet inline text. Dropping
+   the pill chrome also buys back the horizontal room it was eating. */
 .easy-tool {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  /* Cap the width so one long shell command can't stretch the strip full-bleed;
-     the detail ellipsizes and the full text stays in the title tooltip. */
-  max-width: 320px;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 1px 0 1px 3px;
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.55;
   color: var(--text-secondary);
-  background: var(--hover);
-  border: 1px solid var(--border);
-  padding: 1px 8px;
-  border-radius: 999px;
 }
 
 .easy-tool-icon {
@@ -1301,7 +1274,8 @@ button {
 
 .easy-tool-verb {
   flex-shrink: 0;
-  color: var(--text-primary);
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .easy-tool-detail {
