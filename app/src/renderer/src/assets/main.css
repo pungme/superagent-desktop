@@ -160,12 +160,16 @@ button {
   overflow-x: hidden;
 }
 
-/* Groups are separated by generous space (proximity signals grouping) and a
-   hairline; their projects nest under the section header via indentation. */
+/* Grouping comes from proximity: the header sits tight above its own projects,
+   with generous space before the next section. No dividers/rails (they read
+   cheap) — a muted uppercase header + spacing + a subtle indent do the work. */
 .sidebar-group {
-  margin-bottom: 22px;
   border-radius: 10px;
   transition: background 0.12s ease;
+}
+
+.sidebar-group + .sidebar-group {
+  margin-top: 20px;
 }
 
 .sidebar-group.drop-target {
@@ -176,27 +180,33 @@ button {
 .sidebar-group-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px 5px 2px;
-  margin-bottom: 2px;
-  border-bottom: 1px solid var(--border);
+  gap: 3px;
+  padding: 2px 6px 2px 3px;
+  margin-bottom: 3px;
 }
 
 .group-caret {
   border: none;
   background: none;
   color: var(--text-tertiary);
-  font-size: 11px;
-  width: 16px;
-  transition: transform 0.12s ease;
+  font-size: 10px;
+  width: 15px;
+  opacity: 0;
+  transition:
+    transform 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.sidebar-group-header:hover .group-caret {
+  opacity: 1;
 }
 
 .sidebar-group-title {
   flex: 1;
-  font-size: 10.5px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.7px;
+  letter-spacing: 0.6px;
   color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
@@ -239,11 +249,8 @@ button {
 .sidebar-group-items {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  /* Indent + a hairline rail so projects read as belonging to the section. */
-  margin-left: 8px;
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
+  gap: 2px;
+  padding-left: 4px; /* subtle indent under the section header, no rail */
 }
 
 .sidebar-item {
@@ -468,8 +475,9 @@ button {
 
 .repo-tree-icon {
   flex: 0 0 auto;
-  font-size: 10px;
-  opacity: 0.8;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-tertiary);
 }
 
 .repo-tree-branch {
@@ -682,8 +690,8 @@ button {
 /* ---------- Status dots + port chip ---------- */
 
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -1840,10 +1848,11 @@ button {
 }
 
 .sidebar-item-kind {
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
   flex-shrink: 0;
-  opacity: 0.85;
+  color: var(--text-tertiary);
 }
 
 /* ---------- New project dialog ---------- */
