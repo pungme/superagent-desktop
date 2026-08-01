@@ -157,6 +157,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const [subrepos, setSubrepos] = useState<
     { name: string; path: string; branch: string | null }[]
   >([])
+  const [selfBranch, setSelfBranch] = useState<string | null>(null) // branch if the project folder is itself a repo
   const [reposOpen, setReposOpen] = useState(false) // collapsed by default
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
   const openFolderAsProject = useStore((s) => s.openFolderAsProject)
@@ -166,6 +167,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     const refresh = (): void => {
       window.cove.gitSubrepos(ws.path).then((s) => {
         if (alive) setSubrepos(s)
+      })
+      window.cove.gitBranch(ws.path).then((b) => {
+        if (alive) setSelfBranch(b)
       })
     }
     refresh()
@@ -239,6 +243,11 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             title="Double-click to rename"
           >
             {ws.name}
+          </span>
+        )}
+        {selfBranch && !editing && (
+          <span className="sidebar-item-branch" title={`On git branch ${selfBranch}`}>
+            ⎇ {selfBranch}
           </span>
         )}
         {ports.length > 0 && (
