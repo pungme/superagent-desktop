@@ -111,6 +111,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const [subrepos, setSubrepos] = useState<
     { name: string; path: string; branch: string | null }[]
   >([])
+  const [reposOpen, setReposOpen] = useState(false) // collapsed by default
+  const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
+  const openFolderAsProject = useStore((s) => s.openFolderAsProject)
   useEffect(() => {
     if (ws.kind === 'browser') return
     let alive = true
@@ -184,13 +187,47 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       </div>
       {subrepos.length > 0 && (
         <div className="routine-tree">
-          {subrepos.map((r) => (
-            <div key={r.path} className="routine-tree-row repo-tree-row" title={r.path}>
-              <span className="repo-tree-icon">📁</span>
-              <span className="routine-tree-prompt">{r.name}</span>
-              {r.branch && <span className="repo-tree-branch">⎇ {r.branch}</span>}
-            </div>
-          ))}
+          <button
+            className="repo-tree-toggle"
+            onClick={() => setReposOpen((v) => !v)}
+            aria-expanded={reposOpen}
+          >
+            <span
+              className="repo-tree-caret"
+              style={{ transform: reposOpen ? 'none' : 'rotate(-90deg)' }}
+            >
+              ▾
+            </span>
+            {subrepos.length} repos
+          </button>
+          {reposOpen &&
+            subrepos.map((r) => (
+              <div
+                key={r.path}
+                className={`routine-tree-row repo-tree-row ${selectedRepo === r.path ? 'selected' : ''}`}
+                title={r.path}
+                // Step 1: select. Step 2: the revealed "Start session" button opens it.
+                onClick={() => setSelectedRepo((cur) => (cur === r.path ? null : r.path))}
+              >
+                <span className="repo-tree-icon">📁</span>
+                <span className="routine-tree-prompt">{r.name}</span>
+                {r.branch && selectedRepo !== r.path && (
+                  <span className="repo-tree-branch">⎇ {r.branch}</span>
+                )}
+                {selectedRepo === r.path && (
+                  <button
+                    className="repo-tree-open"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openFolderAsProject(ws.groupId, r.name, r.path)
+                      setSelectedRepo(null)
+                    }}
+                  >
+                    Start session →
+                  </button>
+                )}
+              </div>
+            ))}
         </div>
       )}
       {routines.length > 0 && (

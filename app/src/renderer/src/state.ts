@@ -78,6 +78,7 @@ interface CoveState {
   closeNewProject: () => void
   createCodeProject: (groupId: string) => Promise<void>
   createBrowserProject: (groupId: string) => Promise<void>
+  openFolderAsProject: (groupId: string, name: string, path: string) => Promise<void>
 }
 
 export const useStore = create<CoveState>((set, get) => ({
@@ -299,6 +300,18 @@ export const useStore = create<CoveState>((set, get) => ({
       'Browser project'
     )
     set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
+  },
+  // Open a known folder (e.g. a git sub-repo) as its own code project + session.
+  openFolderAsProject: async (groupId, name, path) => {
+    const existing = get()
+      .tree.flatMap((g) => g.workspaces)
+      .find((w) => w.path === path)
+    if (existing) {
+      set({ activeWorkspaceId: existing.id }) // already open — just focus it
+      return
+    }
+    const { tree, workspaceId } = await window.cove.createWorkspace(groupId, name, path)
+    set({ tree, activeWorkspaceId: workspaceId })
   },
   removeWorkspace: async (id) => {
     // Tear down the workspace's browser view. The PTY and Easy-mode agent are
