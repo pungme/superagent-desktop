@@ -21,6 +21,14 @@ export function WorkspaceView({
   const browserOpen = useStore((s) => s.browserOpen[ws.id] ?? ws.kind === 'browser')
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
+  // The project's conversations, and whichever one is on screen.
+  const chats = useStore((s) => s.chats[ws.id])
+  const activeChatId = useStore((s) => s.activeChatId[ws.id])
+  const loadChats = useStore((s) => s.loadChats)
+  const activeChat = chats?.find((c) => c.id === activeChatId)
+  useEffect(() => {
+    loadChats(ws.id)
+  }, [ws.id, loadChats])
   const toggleFiles = useStore((s) => s.toggleFiles)
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [routinesOpen, setRoutinesOpen] = useState(false)
@@ -181,12 +189,17 @@ export function WorkspaceView({
           className="split-side split-side-chat"
           style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}
         >
-          <EasyChat
-            cwd={ws.path}
-            workspaceId={ws.id}
-            initialSessionId={ws.lastSessionId}
-            browserProject={ws.kind === 'browser'}
-          />
+          {activeChat && (
+            <EasyChat
+              // Remount on switch so no state leaks between conversations.
+              key={activeChat.id}
+              cwd={ws.path}
+              workspaceId={ws.id}
+              chatId={activeChat.id}
+              initialSessionId={activeChat.claudeSessionId}
+              browserProject={ws.kind === 'browser'}
+            />
+          )}
           {activeRun && visible && <RoutineRunView routine={activeRun} />}
         </div>
       </div>

@@ -10,7 +10,7 @@ import {
   useDroppable
 } from '@dnd-kit/core'
 import { useStore, WorkspaceStatus } from '../state'
-import type { Workspace, Routine } from '../../../preload'
+import type { Workspace, Routine, Chat } from '../../../preload'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -23,6 +23,7 @@ const EMPTY_PORTS: number[] = []
 
 // Stable empty routine list so the selector doesn't return a fresh array each render.
 const EMPTY_ROUTINES: Routine[] = []
+const EMPTY_CHATS: Chat[] = []
 
 function StatusDot({ status }: { status: WorkspaceStatus }): React.JSX.Element {
   return <span className={`status-dot status-${status}`} title={STATUS_LABEL[status]} />
@@ -140,11 +141,79 @@ function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
   )
 }
 
+/** One conversation under a project. Double-click the title to rename it. */
+function ChatRow({
+  chat,
+  workspaceId,
+  active,
+  onOpen
+}: {
+  chat: Chat
+  workspaceId: string
+  active: boolean
+  onOpen: () => void
+}): React.JSX.Element {
+  const renameChat = useStore((s) => s.renameChat)
+  const removeChat = useStore((s) => s.removeChat)
+  const [editing, setEditing] = useState(false)
+  const label = chat.title ?? 'New chat'
+  const [draft, setDraft] = useState(label)
+
+  return (
+    <div
+      className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''}`}
+      title={label}
+      onClick={onOpen}
+      onDoubleClick={() => {
+        setDraft(label)
+        setEditing(true)
+      }}
+    >
+      {editing ? (
+        <input
+          className="sidebar-item-rename chat-tree-rename"
+          value={draft}
+          autoFocus
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            const n = draft.trim()
+            if (n && n !== label) renameChat(workspaceId, chat.id, n)
+            setEditing(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+            if (e.key === 'Escape') {
+              setDraft(label)
+              setEditing(false)
+            }
+          }}
+        />
+      ) : (
+        <span className="chat-tree-title">{label}</span>
+      )}
+      <button
+        className="routine-tree-run chat-tree-remove"
+        title="Delete this chat"
+        onClick={(e) => {
+          e.stopPropagation()
+          removeChat(workspaceId, chat.id)
+        }}
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id)
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
   const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
+  const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
+  const activeChatId = useStore((s) => s.activeChatId[ws.id])
+  const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
   const removeWorkspace = useStore((s) => s.removeWorkspace)
   const renameWorkspace = useStore((s) => s.renameWorkspace)
@@ -318,6 +387,24 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                 )}
               </div>
             ))}
+        </div>
+      )}
+      {/* A project holds many conversations; show them only once there's a
+          choice to make, so a single-chat project stays as quiet as before. */}
+      {chats.length > 1 && (
+        <div className="routine-tree">
+          {chats.map((c) => (
+            <ChatRow
+              key={c.id}
+              chat={c}
+              workspaceId={ws.id}
+              active={c.id === activeChatId}
+              onOpen={() => {
+                setActive(ws.id)
+                selectChat(ws.id, c.id)
+              }}
+            />
+          ))}
         </div>
       )}
       {routines.length > 0 && (
