@@ -6,7 +6,11 @@ A clean, prosumer macOS app that turns the `claude` CLI into a real desktop
 workspace: many conversations per project, a browser your agent can drive, and
 tasks that keep running on a timer.
 
-![SuperAgent — a scheduled routine running against a live site in the in-app browser](docs/hero.png)
+<!-- Hero: drop a fresh window screenshot over docs/hero.png (⌘⇧4, then Space to
+     grab the window) and uncomment the line below. The previous one was removed
+     because it showed a UI that no longer exists.
+![SuperAgent](docs/hero.png)
+-->
 
 > **SuperAgent ships no AI of its own.** It's pure plumbing — chat UI, browser,
 > scheduler. All intelligence comes from your own agent subscription

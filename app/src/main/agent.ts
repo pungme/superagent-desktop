@@ -33,6 +33,12 @@ export interface AgentStartOptions {
   resumeSessionId?: string | null
   /** Browser-first workspace: steer Claude to drive the visible browser. */
   browserProject?: boolean
+  /**
+   * How much the agent may do without asking. Only modes that need no prompt
+   * are offered: under -p there is nowhere to answer one, so anything that
+   * would ask is auto-denied and the tool silently fails.
+   */
+  permissionMode?: 'bypassPermissions' | 'acceptEdits'
 }
 
 const BROWSER_SYSTEM_PROMPT =
@@ -96,11 +102,11 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       '--include-partial-messages',
       '--verbose',
       // Under -p there is no interactive prompt, so anything needing approval is
-      // auto-denied — Edit/Write silently fail while reads succeed. bypassPermissions
-      // gives the agent the same reach it has in a terminal session where the user
-      // approves prompts themselves. The --disallowedTools list below still applies.
+      // auto-denied — Edit/Write silently fail while reads succeed. The default
+      // gives the agent the same reach it has in a terminal session where the
+      // user approves prompts themselves. --disallowedTools below still applies.
       '--permission-mode',
-      'bypassPermissions'
+      opts.permissionMode ?? 'bypassPermissions'
     ]
     if (resume) args.unshift('--resume', resume)
     if (mcpConfig) args.push('--mcp-config', mcpConfig)

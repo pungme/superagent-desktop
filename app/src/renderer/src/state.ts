@@ -4,6 +4,13 @@ import type { TreeGroup, Routine, Chat } from '../../preload'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 
+/**
+ * Only modes that need no prompt: SuperAgent drives `claude -p`, where there is
+ * nowhere to answer a permission request, so an asking mode would silently deny
+ * and the tool would just fail.
+ */
+export type PermissionMode = 'bypassPermissions' | 'acceptEdits'
+
 /** A task from Claude's TodoWrite tool, surfaced live in the chat. */
 export interface TodoItem {
   content: string
@@ -76,6 +83,10 @@ interface CoveState {
   registerAgent: (workspaceId: string, agentId: string) => void
   sendToClaude: (workspaceId: string, text: string) => void
 
+  /** How much the agent may do without asking. Applies to newly started chats. */
+  permissionMode: PermissionMode
+  setPermissionMode: (m: PermissionMode) => void
+
   theme: 'system' | 'light' | 'dark'
   setTheme: (t: 'system' | 'light' | 'dark') => void
   applyTheme: () => void
@@ -126,6 +137,12 @@ export const useStore = create<CoveState>((set, get) => ({
   activeChatId: {},
   agentIds: {},
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
+  permissionMode:
+    (localStorage.getItem('cove.permissionMode') as PermissionMode) || 'bypassPermissions',
+  setPermissionMode: (m) => {
+    localStorage.setItem('cove.permissionMode', m)
+    set({ permissionMode: m })
+  },
 
   refresh: async () => {
     const tree = await window.cove.storeTree()
