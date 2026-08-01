@@ -32,6 +32,19 @@ can take over at any point.
 
 <!-- docs/browser.png — the agent mid-navigation, "Claude is browsing…" showing -->
 
+## Everything in its place
+
+Projects group the way you think about them, with each conversation nested
+underneath. A spinner when the agent is working, a dot when it needs you, the
+git branch where you'd expect it.
+
+<p align="center"><img src="docs/sidebar.png" width="300" alt="The sidebar: grouped projects with nested chats, branch chips and a working spinner"></p>
+
+Settings stay short enough to read in one go — including how much the agent is
+allowed to do without asking.
+
+<p align="center"><img src="docs/settings.png" width="520" alt="Settings: appearance, agent permissions, status badges, developer mode"></p>
+
 ## The small things
 
 - **Many chats per project**, nested in the sidebar. They name themselves after
