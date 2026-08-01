@@ -1887,6 +1887,58 @@ button {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+.easy-dictation-error {
+  margin: 0 14px 6px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: var(--hover);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.easy-mic {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--hover);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.easy-mic:hover:not(:disabled) {
+  background: var(--active);
+  color: var(--text-primary);
+}
+
+.easy-mic:disabled {
+  color: var(--text-tertiary);
+}
+
+.easy-mic-pct {
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Recording is the one moment this app is capturing something, so it says so
+   loudly rather than with a subtle tint. */
+.easy-mic.recording {
+  background: #e5484d;
+  color: #fff;
+  animation: mic-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .easy-send {
   width: 34px;
   height: 34px;

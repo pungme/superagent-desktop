@@ -216,10 +216,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
   const removeWorkspace = useStore((s) => s.removeWorkspace)
-  const renameWorkspace = useStore((s) => s.renameWorkspace)
   const openPreview = useStore((s) => s.openPreview)
-  const [editing, setEditing] = useState(false)
-  const [draftName, setDraftName] = useState(ws.name)
 
   // Git repos nested inside a code project's folder (a folder-of-repos), shown
   // tree-style under it. Refreshed after Claude's turns (branches/repos change).
@@ -280,41 +277,12 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         >
           <KindIcon kind={ws.kind} />
         </span>
-        {editing ? (
-          <input
-            className="sidebar-item-rename"
-            value={draftName}
-            autoFocus
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => setDraftName(e.target.value)}
-            onBlur={() => {
-              const n = draftName.trim()
-              if (n && n !== ws.name) renameWorkspace(ws.id, n)
-              else setDraftName(ws.name)
-              setEditing(false)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur()
-              if (e.key === 'Escape') {
-                setDraftName(ws.name)
-                setEditing(false)
-              }
-            }}
-          />
-        ) : (
-          <span
-            className="sidebar-item-name"
-            onDoubleClick={(e) => {
-              e.stopPropagation()
-              setDraftName(ws.name)
-              setEditing(true)
-            }}
-            title="Double-click to rename"
-          >
-            {ws.name}
-          </span>
-        )}
-        {selfBranch && !editing && (
+        {/* Not editable: the name mirrors the folder, and renaming here changed
+            only the label — which read as if it would move or rename the folder. */}
+        <span className="sidebar-item-name" title={ws.path}>
+          {ws.name}
+        </span>
+        {selfBranch && (
           <span className="sidebar-item-branch" title={`On git branch ${selfBranch}`}>
             ⎇ {selfBranch}
           </span>
