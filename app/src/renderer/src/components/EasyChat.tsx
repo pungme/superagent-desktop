@@ -637,7 +637,13 @@ export function EasyChat({
     let offExit: (() => void) | undefined
 
     window.cove
-      .agentStart({ cwd, workspaceId, resumeSessionId: resumeIdRef.current, browserProject })
+      .agentStart({
+        cwd,
+        workspaceId,
+        resumeSessionId: resumeIdRef.current,
+        browserProject,
+        permissionMode: useStore.getState().permissionMode
+      })
       .then((id) => {
         if (disposed) {
           window.cove.agentStop(id)

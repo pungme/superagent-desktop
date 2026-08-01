@@ -11,6 +11,8 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const setTheme = useStore((s) => s.setTheme)
   const hooksEnabled = useStore((s) => s.hooksEnabled)
   const setHooksEnabled = useStore((s) => s.setHooksEnabled)
+  const permissionMode = useStore((s) => s.permissionMode)
+  const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
   const [version, setVersion] = useState<string | null>(null)
 
@@ -52,6 +54,31 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                 {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto'}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Agent permissions</strong>
+            <span>
+              {permissionMode === 'bypassPermissions'
+                ? 'Full access — runs commands and edits files without asking, like your terminal.'
+                : 'Edits only — file changes go through, but commands may be refused.'}
+            </span>
+          </div>
+          <div className="mode-switch">
+            <button
+              className={`mode-switch-btn ${permissionMode === 'bypassPermissions' ? 'active' : ''}`}
+              onClick={() => setPermissionMode('bypassPermissions')}
+            >
+              Full
+            </button>
+            <button
+              className={`mode-switch-btn ${permissionMode === 'acceptEdits' ? 'active' : ''}`}
+              onClick={() => setPermissionMode('acceptEdits')}
+            >
+              Edits
+            </button>
           </div>
         </div>
 
