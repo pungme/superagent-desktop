@@ -189,16 +189,17 @@ button {
   border: none;
   background: none;
   color: var(--text-tertiary);
-  font-size: 10px;
-  width: 15px;
-  opacity: 0;
-  transition:
-    transform 0.12s ease,
-    opacity 0.12s ease;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease;
 }
 
 .sidebar-group-header:hover .group-caret {
-  opacity: 1;
+  color: var(--text-secondary);
 }
 
 .sidebar-group-title {
@@ -429,10 +430,10 @@ button {
 }
 
 .repo-tree-caret {
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-tertiary);
   transition: transform 0.12s ease;
-  display: inline-block;
-  line-height: 1;
 }
 
 .repo-tree-row {

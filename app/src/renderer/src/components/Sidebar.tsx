@@ -53,6 +53,24 @@ function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.J
   )
 }
 
+// A properly-sized disclosure chevron (points down; rotate -90° when collapsed).
+function Chevron({ size = 13 }: { size?: number }): React.JSX.Element {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4.5 6.5 8 10l3.5-3.5" />
+    </svg>
+  )
+}
+
 function cadenceLabel(ms: number): string {
   const min = Math.round(ms / 60000)
   if (min < 60) return `${min}m`
@@ -257,7 +275,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               className="repo-tree-caret"
               style={{ transform: reposOpen ? 'none' : 'rotate(-90deg)' }}
             >
-              ▾
+              <Chevron size={12} />
             </span>
             {subrepos.length} repos
           </button>
@@ -328,7 +346,7 @@ function GroupSection({
           aria-expanded={!collapsed}
           title={collapsed ? 'Expand' : 'Collapse'}
         >
-          ▾
+          <Chevron size={13} />
         </button>
         {editing ? (
           <input
