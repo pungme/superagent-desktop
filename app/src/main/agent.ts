@@ -94,11 +94,21 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       '--input-format',
       'stream-json',
       '--include-partial-messages',
-      '--verbose'
+      '--verbose',
+      // Under -p there is no interactive prompt, so anything needing approval is
+      // auto-denied — Edit/Write silently fail while reads succeed. bypassPermissions
+      // gives the agent the same reach it has in a terminal session where the user
+      // approves prompts themselves. The --disallowedTools list below still applies.
+      '--permission-mode',
+      'bypassPermissions'
     ]
     if (resume) args.unshift('--resume', resume)
     if (mcpConfig) args.push('--mcp-config', mcpConfig)
-    const appended = [TODO_PROMPT, SCHEDULING_PROMPT, opts.browserProject ? BROWSER_SYSTEM_PROMPT : '']
+    const appended = [
+      TODO_PROMPT,
+      SCHEDULING_PROMPT,
+      opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
+    ]
       .filter(Boolean)
       .join(' ')
     args.push('--append-system-prompt', appended)
@@ -236,7 +246,67 @@ export function killAllAgents(): void {
   for (const id of [...sessions.keys()]) stopAgent(id)
 }
 
+/**
+ * Names a conversation the way its own agent would describe it, via a throwaway
+ * one-shot `claude -p`. Deliberately separate from the chat's session so the
+ * request never lands in the transcript. Tools are off — this is pure text in,
+ * text out — and a failure is silent: the caller keeps its fallback title.
+ */
+function suggestTitle(cwd: string, excerpt: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const proc = spawn(
+      findClaude(),
+      [
+        '-p',
+        '--output-format',
+        'text',
+        '--max-turns',
+        '1',
+        // Variadic, so it must come last — it would otherwise swallow whatever
+        // follows as tool names. The prompt goes in on stdin for the same reason.
+        '--disallowedTools',
+        ...['Bash', 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Task']
+      ],
+      { cwd: cwd || os.homedir(), env: process.env, shell: false }
+    )
+    proc.stdin.on('error', () => {})
+    proc.stdin.end(
+      'Summarize what this conversation is about as a title of at most 6 words. ' +
+        'Reply with the title only — no quotes, no trailing punctuation.\n\n' +
+        excerpt
+    )
+    let out = ''
+    const done = (value: string | null): void => {
+      clearTimeout(timer)
+      try {
+        proc.kill()
+      } catch {
+        // already gone
+      }
+      resolve(value)
+    }
+    // Never let naming outlive the user's interest in it.
+    const timer = setTimeout(() => done(null), 20_000)
+    proc.stdout.on('data', (c: Buffer) => {
+      out += c.toString('utf8')
+    })
+    proc.on('error', () => done(null))
+    proc.on('close', () => {
+      const title = out
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .pop()
+        ?.replace(/^["']|["']$/g, '')
+      done(title && title.length <= 80 ? title : null)
+    })
+  })
+}
+
 export function registerAgentIpc(): void {
+  ipcMain.handle('agent:suggestTitle', (_e, cwd: string, excerpt: string) =>
+    suggestTitle(cwd, excerpt)
+  )
   ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => startAgent(e.sender, opts))
   ipcMain.on('agent:send', (_e, id: string, text: string, images?: AgentImage[]) =>
     sendToAgent(id, text, images ?? [])

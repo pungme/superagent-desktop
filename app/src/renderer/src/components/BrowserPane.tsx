@@ -8,6 +8,8 @@ interface BrowserPaneProps {
   partition: string
   initialUrl?: string
   visible?: boolean
+  /** Code projects can dismiss the pane; a browser project *is* the pane. */
+  closable?: boolean
 }
 
 interface Suggestion {
@@ -21,8 +23,10 @@ export function BrowserPane({
   paneId,
   partition,
   initialUrl,
-  visible = true
+  visible = true,
+  closable = false
 }: BrowserPaneProps): React.JSX.Element {
+  const toggleBrowser = useStore((s) => s.toggleBrowser)
   const previewUrl = useStore((s) => s.previewUrls[paneId])
   const reloadOnIdle = useStore((s) => s.reloadOnIdle[paneId] ?? true)
   const setReloadOnIdle = useStore((s) => s.setReloadOnIdle)
@@ -167,9 +171,7 @@ export function BrowserPane({
           : { kind: 'url', target: primary.target, label: text.trim() }
       )
     }
-    const hist = text.trim()
-      ? await window.cove.historySearch(text.trim()).catch(() => [])
-      : []
+    const hist = text.trim() ? await window.cove.historySearch(text.trim()).catch(() => []) : []
     // Drop results from a superseded keystroke so suggestions can't flicker back.
     if (seq !== suggestSeqRef.current) return
     for (const h of hist) {
@@ -308,6 +310,15 @@ export function BrowserPane({
         >
           ↗
         </button>
+        {closable && (
+          <button
+            className="browser-nav-btn"
+            onClick={() => toggleBrowser(paneId)}
+            title="Close preview"
+          >
+            ✕
+          </button>
+        )}
       </div>
       <div ref={hostRef} className="browser-host">
         {browsing && (

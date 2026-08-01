@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { WorkspaceView } from './components/WorkspaceView'
 import { HookConsent } from './components/HookConsent'
@@ -8,6 +8,69 @@ import { Settings } from './components/Settings'
 import { NewProjectDialog } from './components/NewProjectDialog'
 import { useStore } from './state'
 
+const SIDEBAR_MIN = 200
+const SIDEBAR_MAX = 460
+// Drag inside this and the gesture reads as "put it away" rather than "make it
+// tiny" — a sidebar narrower than this can't show a project name anyway.
+const SIDEBAR_COLLAPSE_AT = 150
+
+/**
+ * Drag handle on the sidebar's trailing edge. Long project and branch names get
+ * truncated at the default width, so the width is user-set and persisted.
+ * Dragging far enough left collapses it; double-click resets to the default.
+ */
+function SidebarResizer({ onCollapse }: { onCollapse: () => void }): React.JSX.Element {
+  const apply = (px: number): void => {
+    const w = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, px))
+    document.documentElement.style.setProperty('--sidebar-width', `${w}px`)
+    localStorage.setItem('cove.sidebarWidth', String(w))
+  }
+
+  useEffect(() => {
+    const saved = Number(localStorage.getItem('cove.sidebarWidth'))
+    if (saved) apply(saved)
+  }, [])
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    const up = (): void => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.style.cursor = ''
+      document.documentElement.classList.remove('sidebar-resizing')
+    }
+    const move = (ev: PointerEvent): void => {
+      if (ev.clientX < SIDEBAR_COLLAPSE_AT) {
+        // End the drag first so the collapse animates instead of being pinned
+        // by `sidebar-resizing`, which disables the transition.
+        up()
+        onCollapse()
+        return
+      }
+      apply(ev.clientX)
+    }
+    document.body.style.cursor = 'col-resize'
+    // The collapse animation must not apply to a live drag, or it lags the pointer.
+    document.documentElement.classList.add('sidebar-resizing')
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  const reset = (): void => {
+    document.documentElement.style.removeProperty('--sidebar-width')
+    localStorage.removeItem('cove.sidebarWidth')
+  }
+
+  return (
+    <div
+      className="sidebar-resizer"
+      onPointerDown={onPointerDown}
+      onDoubleClick={reset}
+      title="Drag to resize · double-click to reset"
+    />
+  )
+}
+
 function App(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const activeId = useStore((s) => s.activeWorkspaceId)
@@ -16,6 +79,36 @@ function App(): React.JSX.Element {
   const startRoutinesListener = useStore((s) => s.startRoutinesListener)
   const allWorkspaces = tree.flatMap((g) => g.workspaces)
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('cove.sidebarCollapsed') === '1'
+  )
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((v) => {
+      localStorage.setItem('cove.sidebarCollapsed', v ? '0' : '1')
+      return !v
+    })
+  }, [])
+  const collapseSidebar = useCallback(() => {
+    localStorage.setItem('cove.sidebarCollapsed', '1')
+    setSidebarCollapsed(true)
+  }, [])
+
+  // ⌘\ from anywhere, plus the buttons in the sidebar footer and the titlebar.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+        e.preventDefault()
+        toggleSidebar()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('cove:toggle-sidebar', toggleSidebar)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('cove:toggle-sidebar', toggleSidebar)
+    }
+  }, [toggleSidebar])
 
   // Keep every opened workspace mounted so switching tabs never restarts its
   // session — only the active one is shown; the rest run hidden in the background.
@@ -92,10 +185,21 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <div className="app">
+    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      {/* Kept mounted while collapsed so the width can animate (and so the tree
+          doesn't rebuild its expansion state on every toggle). */}
       <Sidebar />
+      <SidebarResizer onCollapse={collapseSidebar} />
       <main className="content">
-        <div className="content-titlebar" />
+        {/* When the sidebar is hidden this strip grows to clear the traffic
+            lights, which would otherwise sit on top of the content. */}
+        <div className="content-titlebar">
+          {sidebarCollapsed && (
+            <button className="sidebar-show" onClick={toggleSidebar} title="Show sidebar (⌘\)">
+              ⇥
+            </button>
+          )}
+        </div>
         <HookConsent />
         {openedWorkspaces.length === 0 ? (
           <div className="empty-state">

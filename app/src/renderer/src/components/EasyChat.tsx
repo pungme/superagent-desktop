@@ -43,6 +43,8 @@ type Item =
 interface EasyChatProps {
   cwd: string
   workspaceId: string
+  /** Which of the project's conversations this is. Owns the transcript + session. */
+  chatId: string
   initialSessionId?: string | null
   browserProject?: boolean
 }
@@ -83,13 +85,6 @@ function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
   return null
 }
 
-const SUGGESTIONS = [
-  'Explain what this project does',
-  'Find and fix a bug',
-  'Add a small feature',
-  'Check my site works'
-]
-
 // Short verb + icon for the noisy internal tool names.
 function toolLabel(name: string): { icon: string; verb: string } {
   if (name.startsWith('mcp__cove-browser__browser_')) {
@@ -119,7 +114,12 @@ function friendlyToolNames(select: string): string {
   const names = select
     .replace(/^select:/, '')
     .split(',')
-    .map((n) => n.trim().replace(/^mcp__[a-z0-9-]+__/i, '').replace(/_/g, ' '))
+    .map((n) =>
+      n
+        .trim()
+        .replace(/^mcp__[a-z0-9-]+__/i, '')
+        .replace(/_/g, ' ')
+    )
     .filter(Boolean)
   const shown = names.slice(0, 3).join(', ')
   return names.length > 3 ? `${shown} +${names.length - 3}` : shown
@@ -137,6 +137,60 @@ function toolDetail(input: unknown): string {
   return ''
 }
 
+// Any run of 2+ collapses to one line. Runs only group *consecutive* tool calls, so
+// interleaved text/thinking splits them into short fragments — a higher threshold
+// left most of those expanded, which is the noise this is meant to hide.
+const TOOL_COLLAPSE_MIN = 2
+
+// "Running ×9 · Reading ×6" — distinct verbs in first-seen order, so the collapsed
+// row still says what the agent actually did.
+function summarizeTools(tools: ToolCall[]): string {
+  const counts = new Map<string, number>()
+  for (const t of tools) {
+    const { verb } = toolLabel(t.name)
+    counts.set(verb, (counts.get(verb) ?? 0) + 1)
+  }
+  const parts = [...counts].map(([verb, n]) => (n > 1 ? `${verb} ×${n}` : verb))
+  return parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ' · …' : '')
+}
+
+function ToolStrip({ tools }: { tools: ToolCall[] }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+
+  const render = (cls: string): React.JSX.Element[] =>
+    tools.map((t, j) => {
+      const { icon, verb } = toolLabel(t.name)
+      return (
+        <span key={t.id + j} className={cls} title={t.detail}>
+          <span className="easy-tool-icon">{icon}</span>
+          <span className="easy-tool-verb">{verb}</span>
+          {t.detail && <span className="easy-tool-detail">{t.detail}</span>}
+        </span>
+      )
+    })
+
+  // A lone call reads fine as a chip; a whole batch does not, so the expanded
+  // view is a plain list — one step per line, no pill chrome.
+  if (tools.length < TOOL_COLLAPSE_MIN)
+    return <div className="easy-tools">{render('easy-tool')}</div>
+
+  return (
+    <div className="easy-toolgroup">
+      <button
+        className="easy-tools-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        title={open ? 'Hide steps' : 'Show steps'}
+      >
+        <span className={'easy-tools-caret' + (open ? ' is-open' : '')}>›</span>
+        <span className="easy-tools-count">{tools.length} steps</span>
+        {!open && <span className="easy-tools-summary">{summarizeTools(tools)}</span>}
+      </button>
+      {open && <div className="easy-toollist">{render('easy-toolrow')}</div>}
+    </div>
+  )
+}
+
 // Group consecutive tool items so a run of tool calls renders as one compact strip.
 type Row =
   | { kind: 'msg'; msg: ChatMessage }
@@ -148,8 +202,13 @@ function toRows(items: Item[]): Row[] {
   const rows: Row[] = []
   for (const it of items) {
     if (it.kind === 'tool') {
-      const last = rows[rows.length - 1]
-      if (last && last.kind === 'tools') last.tools.push(it.tool)
+      // Thinking is ambient narration, not content, so it never ends a run —
+      // otherwise one batch of calls fragments into a stack of tiny strips.
+      // Only a real message or a diff starts a new group.
+      let i = rows.length - 1
+      while (i >= 0 && rows[i].kind === 'thinking') i--
+      const target = rows[i]
+      if (target && target.kind === 'tools') target.tools.push(it.tool)
       else rows.push({ kind: 'tools', tools: [it.tool] })
     } else {
       rows.push(it)
@@ -161,6 +220,7 @@ function toRows(items: Item[]): Row[] {
 export function EasyChat({
   cwd,
   workspaceId,
+  chatId,
   initialSessionId,
   browserProject
 }: EasyChatProps): React.JSX.Element {
@@ -195,6 +255,13 @@ export function EasyChat({
   // resume and starts fresh (a crashed session can leave a stale lock that keeps
   // failing to resume, which would otherwise loop the Retry button).
   const resumeRetriedRef = useRef(false)
+  // Naming happens once per chat, so a rename is never clobbered by a late
+  // suggestion; the placeholder is the only title we'll overwrite.
+  const aiTitledRef = useRef(false)
+  const placeholderTitleRef = useRef<string | null>(null)
+  // No per-chat reset needed here: WorkspaceView keys this component by chat id,
+  // so switching conversations mounts a fresh one with these refs re-initialised
+  // from the incoming chat's own session.
   const registerAgent = useStore((s) => s.registerAgent)
   const isActive = useStore((s) => s.activeWorkspaceId === workspaceId)
 
@@ -218,12 +285,15 @@ export function EasyChat({
   const hydratedRef = useRef(false)
   useEffect(() => {
     let alive = true
-    window.cove.chatLoad(workspaceId).then((json) => {
+    // Saving stays blocked until this chat's own transcript has landed, so an
+    // empty first render can never be written over real data.
+    hydratedRef.current = false
+    window.cove.chatLoad(chatId).then((json) => {
       if (!alive) return
       if (json) {
         try {
           const saved = JSON.parse(json) as Item[]
-          if (saved.length) setItems((prev) => (prev.length === 0 ? saved : prev))
+          if (saved.length) setItems(saved)
         } catch {
           // Ignore a corrupt blob — start fresh.
         }
@@ -233,19 +303,21 @@ export function EasyChat({
     return () => {
       alive = false
     }
-  }, [workspaceId])
+  }, [chatId])
 
   useEffect(() => {
-    if (!hydratedRef.current) return
+    // Never write without a chat to write to, and never before this chat's own
+    // transcript has loaded — either would persist an empty list over real data.
+    if (!chatId || !hydratedRef.current) return
     const t = setTimeout(() => {
       // Persist a clean copy — no mid-stream flags to reanimate on reload.
       const clean = items.map((it) =>
         it.kind === 'msg' && it.msg.streaming ? { ...it, msg: { ...it.msg, streaming: false } } : it
       )
-      window.cove.chatSave(workspaceId, JSON.stringify(clean))
+      window.cove.chatSave(chatId, JSON.stringify(clean))
     }, 400)
     return () => clearTimeout(t)
-  }, [items, workspaceId])
+  }, [items, chatId])
 
   // Paste a screenshot/image into the composer.
   const attachImage = (file: File): void => {
@@ -388,6 +460,37 @@ export function EasyChat({
     inputRef.current?.focus()
   }
 
+  // Latest transcript for callbacks that must not re-subscribe on every message.
+  const itemsRef = useRef<Item[]>(items)
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
+
+  const nameConversation = useCallback(async (): Promise<void> => {
+    const store = useStore.getState()
+    const chat = store.chats[workspaceId]?.find((c) => c.id === chatId)
+    // Only replace our own placeholder — anything else is the user's wording.
+    if (!chat || (chat.title && chat.title !== placeholderTitleRef.current)) return
+
+    const firstUser = itemsRef.current.find((it) => it.kind === 'msg' && it.msg.role === 'user')
+    const firstReply = itemsRef.current.find(
+      (it) => it.kind === 'msg' && it.msg.role === 'assistant' && it.msg.text.trim()
+    )
+    if (!firstUser || firstUser.kind !== 'msg') return
+    const excerpt =
+      `User: ${firstUser.msg.text.slice(0, 600)}` +
+      (firstReply && firstReply.kind === 'msg'
+        ? `\n\nAssistant: ${firstReply.msg.text.slice(0, 600)}`
+        : '')
+
+    const title = await window.cove.agentSuggestTitle(cwd, excerpt)
+    if (!title) return
+    const latest = useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)
+    if (latest && latest.title !== placeholderTitleRef.current) return // renamed while we waited
+    window.cove.chatUpdate(chatId, { title })
+    useStore.getState().touchChat(workspaceId, chatId, { title })
+  }, [cwd, workspaceId, chatId])
+
   const handleEvent = useCallback(
     (event: Record<string, unknown>) => {
       const type = event.type as string
@@ -398,7 +501,8 @@ export function EasyChat({
         const sid = event.session_id as string | undefined
         if (sid && sid !== resumeIdRef.current) {
           resumeIdRef.current = sid
-          window.cove.updateWorkspace(workspaceId, { lastSessionId: sid })
+          window.cove.chatUpdate(chatId, { claudeSessionId: sid })
+          useStore.getState().touchChat(workspaceId, chatId, { claudeSessionId: sid })
         }
         return
       }
@@ -494,6 +598,12 @@ export function EasyChat({
         resumeRetriedRef.current = false
         streamingIdRef.current = null
         setElapsed(0)
+        // First turn is done: let the agent name the conversation, replacing the
+        // opening-message placeholder. Skipped if the user already renamed it.
+        if (!aiTitledRef.current) {
+          aiTitledRef.current = true
+          void nameConversation()
+        }
         // Send the next stacked message, if any; otherwise the turn is done.
         const next = queueRef.current.shift()
         const id = agentIdRef.current
@@ -510,8 +620,16 @@ export function EasyChat({
         }
       }
     },
-    [workspaceId]
+    [workspaceId, chatId, nameConversation]
   )
+
+  // The agent's lifecycle must not be tied to this callback's identity: the effect
+  // below stops the claude process on teardown, so a re-created handleEvent (which
+  // is what Fast Refresh hands us on every edit) would kill a generation mid-turn.
+  const handleEventRef = useRef(handleEvent)
+  useEffect(() => {
+    handleEventRef.current = handleEvent
+  }, [handleEvent])
 
   useEffect(() => {
     let disposed = false
@@ -530,7 +648,7 @@ export function EasyChat({
         // Ready as soon as the process is up — in stream-json input mode claude
         // waits for the first user message before it emits anything.
         setReady(true)
-        offEvent = window.cove.onAgentEvent(id, handleEvent)
+        offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
         // main only emits agent:exit on a genuine unexpected exit (deliberate
         // stops and the resume→fresh retry are suppressed), so surface it.
         offExit = window.cove.onAgentExit(id, () => {
@@ -547,7 +665,7 @@ export function EasyChat({
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
     }
-  }, [cwd, workspaceId, registerAgent, handleEvent, resetKey, browserProject])
+  }, [cwd, workspaceId, chatId, registerAgent, resetKey, browserProject])
 
   // Auto-scroll only when the user is already near the bottom, so scrolling up
   // to read scrollback isn't interrupted.
@@ -568,7 +686,7 @@ export function EasyChat({
     setAtBottom(true)
   }
 
-  // Messages injected from toolbar actions (Skills, "Check my site") in Easy mode.
+  // Messages injected from toolbar actions (e.g. the Skills panel) in Easy mode.
   useEffect(() => {
     const onInjected = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
@@ -587,6 +705,17 @@ export function EasyChat({
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
     if ((!text && images.length === 0) || !id || !ready) return
+    // Name an untitled chat after its opening message, so the sidebar list is
+    // scannable without the user having to name anything.
+    if (text.trim() && items.length === 0) {
+      // Provisional, so the sidebar isn't blank while the turn runs; the agent
+      // replaces it with a real summary once it has something to summarize.
+      const title = text.trim().replace(/\s+/g, ' ').slice(0, 60)
+      placeholderTitleRef.current = title
+      aiTitledRef.current = false
+      window.cove.chatUpdate(chatId, { title })
+      useStore.getState().touchChat(workspaceId, chatId, { title })
+    }
     // Show the message and clear the composer right away.
     setItems((prev) => [
       ...prev,
@@ -628,36 +757,27 @@ export function EasyChat({
     setElapsed(0)
   }
 
+  // Adds a sibling conversation rather than wiping this one — the previous chat
+  // keeps its transcript and stays resumable from the sidebar.
   const newChat = (): void => {
-    setItems([])
     setInput('')
     setPendingImages([])
     setMentionQuery(null)
-    setThinking(false)
-    setGenerating(false)
     setElapsed(0)
-    setReady(false)
-    setAgentFailed(false)
     queueRef.current = []
     useStore.getState().clearTodos(workspaceId)
-    window.cove.chatClear(workspaceId)
-    // Forget the resumed session so the next agent starts a brand-new one.
-    resumeIdRef.current = null
-    resumeRetriedRef.current = false
-    window.cove.updateWorkspace(workspaceId, { lastSessionId: null })
-    // Bumping resetKey tears down the current agent and starts a fresh session.
-    setResetKey((k) => k + 1)
+    useStore.getState().newChat(workspaceId)
   }
 
-  // Restart the agent after an unexpected exit — keeps the conversation (unlike
-  // New chat). Resumes the session, but if a resume-retry already failed, start
-  // fresh so a stale session lock can't loop the Retry button.
+  // Restart the agent after an unexpected exit — keeps the conversation. Resumes
+  // the session, but if a resume-retry already failed, start fresh so a stale
+  // session lock can't loop the Retry button.
   const retry = (): void => {
     setAgentFailed(false)
     setReady(false)
     if (resumeRetriedRef.current && resumeIdRef.current) {
       resumeIdRef.current = null
-      window.cove.updateWorkspace(workspaceId, { lastSessionId: null })
+      window.cove.chatUpdate(chatId, { claudeSessionId: null })
     }
     resumeRetriedRef.current = true
     setResetKey((k) => k + 1)
@@ -681,7 +801,9 @@ export function EasyChat({
       )}
       {agentFailed && (
         <div className="easy-error">
-          <span>⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.</span>
+          <span>
+            ⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.
+          </span>
           <button onClick={retry}>Retry</button>
         </div>
       )}
@@ -690,13 +812,6 @@ export function EasyChat({
         {items.length === 0 && ready && (
           <div className="easy-empty">
             <p>Tell Claude what you&rsquo;d like to build or change.</p>
-            <div className="easy-suggestions">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} className="easy-suggestion" onClick={() => submit(s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
           </div>
         )}
         {items.length === 0 && !ready && !agentFailed && (
@@ -770,20 +885,7 @@ export function EasyChat({
               </div>
             )
           }
-          return (
-            <div key={'tools-' + i} className="easy-tools">
-              {row.tools.map((t, j) => {
-                const { icon, verb } = toolLabel(t.name)
-                return (
-                  <span key={t.id + j} className="easy-tool" title={t.detail}>
-                    <span className="easy-tool-icon">{icon}</span>
-                    <span className="easy-tool-verb">{verb}</span>
-                    {t.detail && <span className="easy-tool-detail">{t.detail}</span>}
-                  </span>
-                )
-              })}
-            </div>
-          )
+          return <ToolStrip key={'tools-' + i} tools={row.tools} />
         })}
         {generating && (
           <div className="easy-thinking">

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { useEffect } from 'react'
-import type { TreeGroup, Routine } from '../../preload'
+import type { TreeGroup, Routine, Chat } from '../../preload'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 
@@ -51,12 +51,26 @@ interface CoveState {
   reloadOnIdle: Record<string, boolean>
   toast: { workspaceId: string; port: number } | null
   openPreview: (workspaceId: string, port: number) => void
+  /** Reveal the browser pane on an arbitrary URL (e.g. a file:// from the tree). */
+  openUrl: (workspaceId: string, url: string) => void
   dismissToast: () => void
   setReloadOnIdle: (workspaceId: string, v: boolean) => void
 
   browsingWorkspaceId: string | null
   stopBrowsing: () => void
   startBrowsingListener: () => void
+
+  // Chats belonging to each project, and which one is on screen. A project can
+  // hold many conversations; only the active one keeps a live claude process.
+  chats: Record<string, Chat[]>
+  activeChatId: Record<string, string>
+  refreshChats: () => Promise<void>
+  loadChats: (workspaceId: string) => Promise<Chat[]>
+  newChat: (workspaceId: string) => Promise<void>
+  selectChat: (workspaceId: string, chatId: string) => void
+  removeChat: (workspaceId: string, chatId: string) => Promise<void>
+  renameChat: (workspaceId: string, chatId: string, title: string) => Promise<void>
+  touchChat: (workspaceId: string, chatId: string, patch: Partial<Chat>) => void
 
   agentIds: Record<string, string>
   registerAgent: (workspaceId: string, agentId: string) => void
@@ -89,8 +103,7 @@ export const useStore = create<CoveState>((set, get) => ({
   openRoutineRunId: null,
   statuses: {},
   todos: {},
-  setTodos: (workspaceId, todos) =>
-    set((s) => ({ todos: { ...s.todos, [workspaceId]: todos } })),
+  setTodos: (workspaceId, todos) => set((s) => ({ todos: { ...s.todos, [workspaceId]: todos } })),
   clearTodos: (workspaceId) =>
     set((s) => {
       if (!s.todos[workspaceId]) return s
@@ -109,6 +122,8 @@ export const useStore = create<CoveState>((set, get) => ({
   reloadOnIdle: {},
   toast: null,
   browsingWorkspaceId: null,
+  chats: {},
+  activeChatId: {},
   agentIds: {},
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
 
@@ -120,6 +135,21 @@ export const useStore = create<CoveState>((set, get) => ({
     if (!active || !allIds.includes(active)) {
       set({ activeWorkspaceId: allIds[0] ?? null })
     }
+    await get().refreshChats()
+  },
+
+  refreshChats: async () => {
+    const all = await window.cove.chatListAll()
+    const byWs: Record<string, Chat[]> = {}
+    for (const c of all) (byWs[c.workspaceId] ??= []).push(c)
+    set((s) => {
+      const active = { ...s.activeChatId }
+      for (const [wsId, list] of Object.entries(byWs)) {
+        // Keep the open conversation selected; otherwise fall to the newest.
+        if (!list.some((c) => c.id === active[wsId])) active[wsId] = list[list.length - 1].id
+      }
+      return { chats: byWs, activeChatId: active }
+    })
   },
 
   refreshRoutines: async () => {
@@ -165,6 +195,13 @@ export const useStore = create<CoveState>((set, get) => ({
       activeWorkspaceId: workspaceId,
       browserOpen: { ...s.browserOpen, [workspaceId]: true },
       previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
+      toast: null
+    })),
+  openUrl: (workspaceId, url) =>
+    set((s) => ({
+      activeWorkspaceId: workspaceId,
+      browserOpen: { ...s.browserOpen, [workspaceId]: true },
+      previewUrls: { ...s.previewUrls, [workspaceId]: url },
       toast: null
     })),
   dismissToast: () => set({ toast: null }),
@@ -223,6 +260,63 @@ export const useStore = create<CoveState>((set, get) => ({
     document.documentElement.setAttribute('data-theme', resolved)
     window.cove.setTheme?.(theme)
   },
+  loadChats: async (workspaceId) => {
+    let list = await window.cove.chatList(workspaceId)
+    // Every project has at least one chat, so the UI never has an empty state
+    // to special-case (pre-existing projects get theirs from the migration).
+    if (list.length === 0) {
+      await window.cove.chatCreate(workspaceId)
+      list = await window.cove.chatList(workspaceId)
+    }
+    set((s) => ({
+      chats: { ...s.chats, [workspaceId]: list },
+      activeChatId: {
+        ...s.activeChatId,
+        [workspaceId]: s.activeChatId[workspaceId] ?? list[list.length - 1].id
+      }
+    }))
+    return list
+  },
+  newChat: async (workspaceId) => {
+    const id = await window.cove.chatCreate(workspaceId)
+    const list = await window.cove.chatList(workspaceId)
+    set((s) => ({
+      chats: { ...s.chats, [workspaceId]: list },
+      activeChatId: { ...s.activeChatId, [workspaceId]: id }
+    }))
+  },
+  selectChat: (workspaceId, chatId) =>
+    set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } })),
+  removeChat: async (workspaceId, chatId) => {
+    await window.cove.chatDelete(chatId)
+    const list = await window.cove.chatList(workspaceId)
+    set((s) => {
+      const active = s.activeChatId[workspaceId]
+      return {
+        chats: { ...s.chats, [workspaceId]: list },
+        // Deleting the open chat falls back to the newest survivor.
+        activeChatId: {
+          ...s.activeChatId,
+          [workspaceId]: active === chatId ? (list[list.length - 1]?.id ?? '') : active
+        }
+      }
+    })
+    if (list.length === 0) await get().loadChats(workspaceId)
+  },
+  renameChat: async (workspaceId, chatId, title) => {
+    await window.cove.chatUpdate(chatId, { title })
+    get().touchChat(workspaceId, chatId, { title })
+  },
+  touchChat: (workspaceId, chatId, patch) =>
+    set((s) => ({
+      chats: {
+        ...s.chats,
+        [workspaceId]: (s.chats[workspaceId] ?? []).map((c) =>
+          c.id === chatId ? { ...c, ...patch } : c
+        )
+      }
+    })),
+
   registerAgent: (workspaceId, agentId) =>
     set((s) => ({ agentIds: { ...s.agentIds, [workspaceId]: agentId } })),
   sendToClaude: (workspaceId, text) => {
