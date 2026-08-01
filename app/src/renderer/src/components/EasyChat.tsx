@@ -196,6 +196,7 @@ export function EasyChat({
   // failing to resume, which would otherwise loop the Retry button).
   const resumeRetriedRef = useRef(false)
   const registerAgent = useStore((s) => s.registerAgent)
+  const isActive = useStore((s) => s.activeWorkspaceId === workspaceId)
 
   // Elapsed "Working Ns" timer while a turn is running. (Reset happens in the
   // event handlers that clear `generating`, so no synchronous setState here.)
@@ -257,15 +258,26 @@ export function EasyChat({
     reader.readAsDataURL(file)
   }
 
-  const onPaste = (e: React.ClipboardEvent): void => {
-    const imgItems = [...e.clipboardData.items].filter((it) => it.type.startsWith('image/'))
-    if (imgItems.length === 0) return
-    e.preventDefault()
-    for (const item of imgItems) {
-      const file = item.getAsFile()
-      if (file) attachImage(file)
+  // Cmd+V an image anywhere in the active chat (not only when the input is
+  // focused) — a document-level listener, scoped to the visible workspace.
+  useEffect(() => {
+    if (!isActive) return
+    const onDocPaste = (e: ClipboardEvent): void => {
+      const imgItems = [...(e.clipboardData?.items ?? [])].filter((it) =>
+        it.type.startsWith('image/')
+      )
+      if (imgItems.length === 0) return // let normal text paste happen
+      e.preventDefault()
+      for (const item of imgItems) {
+        const file = item.getAsFile()
+        if (file) attachImage(file)
+      }
     }
-  }
+    document.addEventListener('paste', onDocPaste)
+    return () => document.removeEventListener('paste', onDocPaste)
+    // attachImage only closes over stable setState, so re-subscribing per render is unnecessary.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive])
 
   // Drag a file onto the chat: images attach (like a paste); other files insert
   // their absolute path so Claude can read them.
@@ -827,7 +839,6 @@ export function EasyChat({
           }
           rows={1}
           disabled={!ready}
-          onPaste={onPaste}
           onChange={(e) => {
             setInput(e.target.value)
             autoResize()
