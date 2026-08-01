@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useStore, TodoItem } from '../state'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
+import { useDictation } from '../lib/dictation'
 
 interface ChatMessage {
   id: string
@@ -83,6 +84,26 @@ function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
     return { id, file, hunks }
   }
   return null
+}
+
+/** Monochrome line icon, matching the sidebar's — currentColor, no emoji. */
+function MicIcon(): React.JSX.Element {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="6" y="1.8" width="4" height="7.4" rx="2" />
+      <path d="M3.6 7.2v.8a4.4 4.4 0 0 0 8.8 0v-.8" />
+      <path d="M8 12.4v1.8" />
+    </svg>
+  )
 }
 
 // Short verb + icon for the noisy internal tool names.
@@ -460,6 +481,16 @@ export function EasyChat({
     inputRef.current?.focus()
   }
 
+  const dictation = useDictation()
+  const micTitle =
+    dictation.state === 'recording'
+      ? 'Listening — release to transcribe'
+      : dictation.state === 'loading-model'
+        ? 'Preparing the speech model (first time only)…'
+        : dictation.state === 'transcribing'
+          ? 'Transcribing…'
+          : 'Hold to dictate (⌥Space)'
+
   // Latest transcript for callbacks that must not re-subscribe on every message.
   const itemsRef = useRef<Item[]>(items)
   useEffect(() => {
@@ -763,6 +794,50 @@ export function EasyChat({
     setElapsed(0)
   }
 
+  const startDictation = useCallback((): void => {
+    if (dictation.state !== 'idle') return
+    void dictation.start()
+  }, [dictation])
+
+  // Insert at the caret rather than appending, so you can dictate into the
+  // middle of something you already typed.
+  const finishDictation = useCallback((): void => {
+    if (dictation.state !== 'recording') return
+    void dictation.stop().then((text) => {
+      if (!text) return
+      const el = inputRef.current
+      const at = el ? (el.selectionStart ?? el.value.length) : input.length
+      setInput((prev) => {
+        const before = prev.slice(0, at)
+        const after = prev.slice(at)
+        const spacer = before && !/\s$/.test(before) ? ' ' : ''
+        return before + spacer + text + after
+      })
+      el?.focus()
+    })
+  }, [dictation, input.length])
+
+  // Hold ⌥Space to dictate from anywhere in the window; release to transcribe.
+  useEffect(() => {
+    const down = (e: KeyboardEvent): void => {
+      if (e.altKey && e.code === 'Space' && !e.repeat) {
+        e.preventDefault()
+        startDictation()
+      }
+    }
+    const up = (e: KeyboardEvent): void => {
+      // Releasing either key ends the gesture — holding ⌥ and letting go of
+      // Space (or vice versa) should both stop, not leave the mic open.
+      if (e.code === 'Space' || e.key === 'Alt') finishDictation()
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [startDictation, finishDictation])
+
   // Adds a sibling conversation rather than wiping this one — the previous chat
   // keeps its transcript and stays resumable from the sidebar.
   const newChat = (): void => {
@@ -907,6 +982,11 @@ export function EasyChat({
           ↓
         </button>
       )}
+      {dictation.error && (
+        <div className="easy-dictation-error" role="status">
+          Dictation failed: {dictation.error}
+        </div>
+      )}
       <div className="easy-input-row">
         {mentionMatches.length > 0 && (
           <div className="easy-mention-menu">
@@ -981,6 +1061,22 @@ export function EasyChat({
             }
           }}
         />
+        <button
+          className={`easy-mic ${dictation.state === 'recording' ? 'recording' : ''}`}
+          // Pointer, not click: dictation runs for exactly as long as you hold.
+          onPointerDown={startDictation}
+          onPointerUp={finishDictation}
+          onPointerLeave={finishDictation}
+          disabled={dictation.state === 'transcribing' || dictation.state === 'loading-model'}
+          title={micTitle}
+          aria-label={micTitle}
+        >
+          {dictation.state === 'loading-model' && dictation.progress > 0 ? (
+            <span className="easy-mic-pct">{Math.round(dictation.progress)}</span>
+          ) : (
+            <MicIcon />
+          )}
+        </button>
         {generating ? (
           <button className="easy-stop" onClick={stop} title="Stop generating">
             <span className="easy-stop-square" />

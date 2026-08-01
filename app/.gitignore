@@ -8,3 +8,6 @@ out
 # Playwright e2e output (generated each run)
 test-results
 playwright-report
+
+# onnxruntime wasm, copied from node_modules by scripts/copy-ort.mjs
+src/renderer/public/ort/

@@ -27,6 +27,7 @@ tasks that keep running on a timer.
 | 📄 **Click a file, read it** | PDFs, images, HTML and text open in a pane right beside the file tree. Anything else hands off to your default app. |
 | 🌐 **A browser the agent drives** | A real browser with an omnibar, and MCP tools so Claude can open, click, type and read **live websites** while you watch. |
 | ⏱ **Routines** | "Visit this site every hour and follow 5 people," in plain language, on a timer, on your own subscription. |
+| 🎙 **Push-to-talk dictation** | Hold the mic button or <kbd>⌥</kbd><kbd>Space</kbd>, speak, release. Whisper runs **on your Mac** — the audio never leaves it, and after a one-time model download it works offline. |
 | ✦ **Skills & files, one click** | Browse the project tree and your Claude Code skills without leaving the app. |
 | 🌗 **Light & dark** | A monochrome, system-following appearance that stays out of the way. |
 

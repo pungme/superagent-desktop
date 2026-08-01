@@ -22,6 +22,7 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: SuperAgent does not use the camera.
+    - NSMicrophoneUsageDescription: SuperAgent records your voice only while you hold the dictation key, and transcribes it on this Mac.
   notarize: false
   target:
     - dmg

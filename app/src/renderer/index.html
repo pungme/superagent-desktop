@@ -3,10 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <title>SuperAgent</title>
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!--
+      https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
+      Stays deny-by-default. The additions are only what local dictation needs:
+      Hugging Face (and its LFS/Xet CDNs) to fetch the Whisper weights once,
+      wasm-unsafe-eval to run the ONNX runtime, and blob: workers/audio for
+      onnxruntime-web and MediaRecorder. Audio itself never leaves the machine.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' blob: data: https://huggingface.co https://*.huggingface.co https://*.hf.co; worker-src 'self' blob:; media-src 'self' blob:"
     />
   </head>
 

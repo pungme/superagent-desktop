@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, nativeTheme, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, nativeTheme, ipcMain, dialog, session } from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -91,6 +91,15 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('dev.cove.app')
+
+  // Electron denies permission requests by default, which would silently break
+  // push-to-talk dictation. Only the microphone is granted, and only to our own
+  // renderer — pages in the browser pane get nothing.
+  const ownUi = process.env['ELECTRON_RENDERER_URL'] ?? 'file://'
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
+    const isOwnUi = contents.getURL().startsWith(ownUi)
+    callback(isOwnUi && permission === 'media')
+  })
 
   // Theme (drives the sidebar vibrancy). The renderer sends the user's choice;
   // default to following the system until it does.
