@@ -26,6 +26,27 @@ export function WorkspaceView({
   const ports = useStore((s) => s.ports[ws.id])
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [routinesOpen, setRoutinesOpen] = useState(false)
+  // Current git branch, for code projects only (browser projects have no repo).
+  const [branch, setBranch] = useState<string | null>(null)
+  useEffect(() => {
+    if (ws.kind === 'browser') return
+    let alive = true
+    const refresh = (): void => {
+      window.cove.gitBranch(ws.path).then((b) => {
+        if (alive) setBranch(b)
+      })
+    }
+    refresh()
+    // Re-check after Claude finishes a turn — it may have switched branches.
+    const onIdle = (e: Event): void => {
+      if ((e as CustomEvent<{ workspaceId: string }>).detail?.workspaceId === ws.id) refresh()
+    }
+    window.addEventListener('cove:workspace-idle', onIdle)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', onIdle)
+    }
+  }, [ws.kind, ws.path, ws.id])
   // A routine run opened for this workspace shows in the chat column (left).
   const openRunId = useStore((s) => s.openRoutineRunId)
   const wsRoutines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
@@ -99,6 +120,11 @@ export function WorkspaceView({
       <div className="workspace-toolbar">
         <span className="workspace-title">{ws.name}</span>
         <span className="workspace-path">{ws.path}</span>
+        {branch && (
+          <span className="workspace-branch" title={`On git branch ${branch}`}>
+            ⎇ {branch}
+          </span>
+        )}
         <div className="workspace-toolbar-spacer" />
         <button
           className="toolbar-btn"
