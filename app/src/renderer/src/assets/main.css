@@ -290,6 +290,12 @@ button {
   padding: 7px 8px;
   border-radius: 8px;
   color: var(--text-primary);
+  transition: padding-right 0.12s ease;
+}
+
+/* Open a gap for the remove button so it never lands on the branch chip. */
+.sidebar-item:hover {
+  padding-right: 28px;
 }
 
 .sidebar-item:hover {
@@ -336,9 +342,8 @@ button {
   opacity: 0;
 }
 
-/* Backed so it stays legible when it lands on top of the branch chip. */
 .sidebar-item:hover .sidebar-item-remove {
-  background: var(--active);
+  opacity: 1;
 }
 
 .sidebar-item:hover .sidebar-item-remove {
@@ -356,6 +361,27 @@ button {
   margin: 1px 0 3px 0;
   padding-left: 20px; /* align under the project name, past status dot + icon */
   position: relative;
+}
+
+/* One of a project's conversations. */
+.chat-tree-row {
+  gap: 7px;
+}
+
+.chat-tree-row.selected {
+  background: var(--active);
+  color: var(--text-primary);
+}
+
+.chat-tree-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-tree-remove {
+  font-size: 14px;
 }
 
 .routine-tree-row {

@@ -51,6 +51,15 @@ export type RoutineStep =
   | { kind: 'text'; text: string }
   | { kind: 'tool'; name: string; input?: string }
 
+/** One conversation inside a project. A project can hold many. */
+export interface Chat {
+  id: string
+  workspaceId: string
+  title: string | null
+  claudeSessionId: string | null
+  updatedAt: number
+}
+
 export interface HookEvent {
   workspaceId: string
   event: string
@@ -101,9 +110,17 @@ export interface CoveApi {
   moveWorkspace: (workspaceId: string, toGroupId: string, toIndex: number) => Promise<TreeGroup[]>
   pickFolder: () => Promise<{ path: string; name: string } | null>
 
-  chatLoad: (workspaceId: string) => Promise<string | null>
-  chatSave: (workspaceId: string, data: string) => void
-  chatClear: (workspaceId: string) => void
+  chatList: (workspaceId: string) => Promise<Chat[]>
+  chatListAll: () => Promise<Chat[]>
+  chatCreate: (workspaceId: string) => Promise<string>
+  chatDelete: (id: string) => Promise<void>
+  chatUpdate: (
+    id: string,
+    patch: Partial<{ title: string | null; claudeSessionId: string | null }>
+  ) => Promise<void>
+  chatLoad: (chatId: string) => Promise<string | null>
+  chatSave: (chatId: string, data: string) => void
+  chatClear: (chatId: string) => void
 
   historyRecord: (url: string, title: string) => void
   historySearch: (query: string) => Promise<{ url: string; title: string }[]>
@@ -151,6 +168,7 @@ export interface CoveApi {
     resumeSessionId?: string | null
     browserProject?: boolean
   }) => Promise<string>
+  agentSuggestTitle: (cwd: string, excerpt: string) => Promise<string | null>
   agentSend: (id: string, text: string, images?: { mediaType: string; data: string }[]) => void
   agentInterrupt: (id: string) => void
   agentStop: (id: string) => void
@@ -203,9 +221,14 @@ const cove: CoveApi = {
     ipcRenderer.invoke('store:moveWorkspace', workspaceId, toGroupId, toIndex),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
 
-  chatLoad: (workspaceId) => ipcRenderer.invoke('chat:load', workspaceId),
-  chatSave: (workspaceId, data) => ipcRenderer.send('chat:save', workspaceId, data),
-  chatClear: (workspaceId) => ipcRenderer.send('chat:clear', workspaceId),
+  chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
+  chatListAll: () => ipcRenderer.invoke('chat:listAll'),
+  chatCreate: (workspaceId) => ipcRenderer.invoke('chat:create', workspaceId),
+  chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
+  chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
+  chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
+  chatSave: (chatId, data) => ipcRenderer.send('chat:save', chatId, data),
+  chatClear: (chatId) => ipcRenderer.send('chat:clear', chatId),
 
   historyRecord: (url, title) => ipcRenderer.send('history:record', url, title, Date.now()),
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -248,6 +271,7 @@ const cove: CoveApi = {
   skillsInstallStarters: () => ipcRenderer.invoke('skills:installStarters'),
 
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
+  agentSuggestTitle: (cwd, excerpt) => ipcRenderer.invoke('agent:suggestTitle', cwd, excerpt),
   agentSend: (id, text, images) => ipcRenderer.send('agent:send', id, text, images),
   agentInterrupt: (id) => ipcRenderer.send('agent:interrupt', id),
   agentStop: (id) => ipcRenderer.send('agent:stop', id),
