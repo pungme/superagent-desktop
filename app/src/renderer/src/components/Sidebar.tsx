@@ -26,6 +26,11 @@ const EMPTY_ROUTINES: Routine[] = []
 const EMPTY_CHATS: Chat[] = []
 
 function StatusDot({ status }: { status: WorkspaceStatus }): React.JSX.Element {
+  // A spinner while it works: a pulsing dot reads as a state, but the agent
+  // running is an activity, and spinning says "still going" at a glance.
+  if (status === 'working') {
+    return <span className="status-spinner" title={STATUS_LABEL[status]} />
+  }
   return <span className={`status-dot status-${status}`} title={STATUS_LABEL[status]} />
 }
 

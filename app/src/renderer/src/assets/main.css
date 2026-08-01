@@ -789,6 +789,25 @@ button {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
+/* Occupies the same 6px slot as the dot so rows don't shift when work starts.
+   The ring is faint with one bright quadrant, which reads as motion. */
+.status-spinner {
+  width: 10px;
+  height: 10px;
+  margin: -2px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text-primary);
+  animation: status-spin 0.7s linear infinite;
+}
+
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .status-needs-you {
   background: #fbbf24;
   box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.18);
