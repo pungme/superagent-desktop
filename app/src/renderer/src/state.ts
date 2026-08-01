@@ -68,6 +68,7 @@ interface CoveState {
 
   addGroup: () => Promise<void>
   renameGroup: (id: string, name: string) => Promise<void>
+  renameWorkspace: (id: string, name: string) => Promise<void>
   toggleCollapse: (id: string, collapsed: boolean) => Promise<void>
   addWorkspace: (groupId: string) => Promise<void>
   removeWorkspace: (id: string) => Promise<void>
@@ -272,6 +273,10 @@ export const useStore = create<CoveState>((set, get) => ({
   },
   renameGroup: async (id, name) => {
     const tree = await window.cove.updateGroup(id, { name })
+    set({ tree })
+  },
+  renameWorkspace: async (id, name) => {
+    const tree = await window.cove.updateWorkspace(id, { name })
     set({ tree })
   },
   toggleCollapse: async (id, collapsed) => {
