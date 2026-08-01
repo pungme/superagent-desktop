@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
 import { readdirSync, lstatSync, readFileSync } from 'fs'
 import { join, relative } from 'path'
 
@@ -107,6 +107,8 @@ export function gitSubrepos(root: string): SubRepo[] {
 
 export function registerFilesIpc(): void {
   ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
+  // Fallback for types the in-app browser can't render (.docx, .xlsx, …).
+  ipcMain.handle('files:openExternal', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
   ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))
 }

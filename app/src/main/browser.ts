@@ -19,6 +19,19 @@ const panes = new Map<string, BrowserPane>()
 
 const ALLOWED_INSECURE = new Set(['localhost', '127.0.0.1', '[::1]'])
 
+/**
+ * file:// is reachable only through `browser:navigate`, which our own UI calls
+ * (clicking a file in the tree). It stays out of isNavigable so a remote page
+ * can't reach local files via target=_blank.
+ */
+function isLocalFile(url: string): boolean {
+  try {
+    return new URL(url).protocol === 'file:'
+  } catch {
+    return false
+  }
+}
+
 function isNavigable(url: string): boolean {
   try {
     const u = new URL(url)
@@ -163,7 +176,7 @@ export function registerBrowserIpc(): void {
     const wc = getPaneWebContents(id)
     if (!wc) return
     const url = normalizeUrl(rawUrl)
-    if (isNavigable(url)) wc.loadURL(url)
+    if (isNavigable(url) || isLocalFile(url)) wc.loadURL(url)
   })
   ipcMain.on('browser:back', (_e, id: string) => {
     getPaneWebContents(id)?.navigationHistory.goBack()

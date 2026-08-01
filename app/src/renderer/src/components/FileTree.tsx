@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useStore } from '../state'
 
 interface FileTreeProps {
   cwd: string
@@ -39,14 +40,18 @@ function buildTree(paths: string[]): TreeNode[] {
 
 function fileIcon(name: string): string {
   const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase()
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico'].includes(ext)) return '🖼'
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif'].includes(ext)) return '🖼'
+  if (['pdf'].includes(ext)) return '📕'
   if (['md', 'mdx', 'txt'].includes(ext)) return '📄'
-  if (['json', 'yml', 'yaml', 'toml'].includes(ext)) return '⚙'
+  if (['json', 'yml', 'yaml', 'toml', 'ini', 'conf'].includes(ext)) return '⚙'
   if (['css', 'scss', 'less'].includes(ext)) return '🎨'
-  return '›'
+  if (['zip', 'tar', 'gz', 'dmg'].includes(ext)) return '🗜'
+  // Never '›' — a chevron here is indistinguishable from a collapsed-folder caret.
+  return '📄'
 }
 
 export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element {
+  const openUrl = useStore((s) => s.openUrl)
   const [paths, setPaths] = useState<string[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -71,7 +76,12 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
     return () => window.removeEventListener('cove:workspace-idle', onIdle)
   }, [load, workspaceId])
 
-  const tree = useMemo(() => buildTree(paths), [paths])
+  // The tree is for browsing, so dotfiles (.DS_Store, .claude, .gitignore) stay out
+  // of it. @-mention completion reads the unfiltered list, so they're still reachable.
+  const tree = useMemo(
+    () => buildTree(paths.filter((p) => !p.split('/').some((seg) => seg.startsWith('.')))),
+    [paths]
+  )
 
   const toggle = (path: string): void =>
     setExpanded((prev) => {
@@ -81,11 +91,57 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
       return next
     })
 
-  const reference = (relPath: string): void => {
-    // Insert an @-reference into the chat composer for this workspace.
-    window.dispatchEvent(
-      new CustomEvent('cove:insert-reference', { detail: { workspaceId, text: `@${relPath} ` } })
-    )
+  // Extensions Chromium renders inline from a file:// URL. Anything else (.docx,
+  // .xlsx, archives…) would just trigger a download, so it goes to the OS instead.
+  const VIEWABLE = new Set([
+    'pdf',
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'webp',
+    'svg',
+    'ico',
+    'bmp',
+    'avif',
+    'html',
+    'htm',
+    'txt',
+    'json',
+    'xml',
+    'csv',
+    'log',
+    // Chromium serves unregistered text types as text/plain, so source and
+    // markdown render inline rather than downloading.
+    'md',
+    'markdown',
+    'yml',
+    'yaml',
+    'toml',
+    'ini',
+    'js',
+    'mjs',
+    'jsx',
+    'ts',
+    'tsx',
+    'css',
+    'py',
+    'go',
+    'rs',
+    'java',
+    'sql',
+    'sh'
+  ])
+
+  const open = (relPath: string): void => {
+    const abs = `${cwd}/${relPath}`
+    const ext = relPath.slice(relPath.lastIndexOf('.') + 1).toLowerCase()
+    if (VIEWABLE.has(ext)) {
+      // encodeURI (not encodeURIComponent) so the path separators survive.
+      openUrl(workspaceId, `file://${encodeURI(abs)}`)
+    } else {
+      window.cove.filesOpenExternal(abs)
+    }
   }
 
   const rows: React.JSX.Element[] = []
@@ -113,8 +169,8 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
             key={node.path}
             className="file-tree-row file-tree-file"
             style={pad}
-            onClick={() => reference(node.path)}
-            title={`Reference ${node.path} in your message`}
+            onClick={() => open(node.path)}
+            title={`Open ${node.path}`}
           >
             <span className="file-tree-icon">{fileIcon(node.name)}</span>
             <span className="file-tree-name">{node.name}</span>

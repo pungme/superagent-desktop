@@ -16,9 +16,9 @@
   --text-primary: rgba(255, 255, 255, 0.86);
   --text-secondary: rgba(255, 255, 255, 0.5);
   --text-tertiary: rgba(255, 255, 255, 0.32);
-  --accent: #8b8ff8;
-  --accent-soft: rgba(139, 143, 248, 0.16);
-  --accent-fg: #ffffff;
+  --accent: #f0f0f2;
+  --accent-soft: rgba(255, 255, 255, 0.14);
+  --accent-fg: #17181d;
   --hover: rgba(255, 255, 255, 0.07);
   --active: rgba(255, 255, 255, 0.12);
   --scrollbar-thumb: rgba(255, 255, 255, 0.16);
@@ -52,8 +52,8 @@
   --text-primary: rgba(0, 0, 0, 0.85);
   --text-secondary: rgba(0, 0, 0, 0.5);
   --text-tertiary: rgba(0, 0, 0, 0.36);
-  --accent: #6366f1;
-  --accent-soft: rgba(99, 102, 241, 0.12);
+  --accent: #17181d;
+  --accent-soft: rgba(0, 0, 0, 0.07);
   --accent-fg: #ffffff;
   --hover: rgba(0, 0, 0, 0.05);
   --active: rgba(0, 0, 0, 0.08);
@@ -146,6 +146,34 @@ button {
   padding: 0 10px;
   background: transparent;
   user-select: none;
+  transition:
+    width 0.22s cubic-bezier(0.32, 0.72, 0, 1),
+    padding 0.22s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.16s ease;
+}
+
+/* Sits between the sidebar and the content; the hit area is wider than the
+   visible line so it's easy to grab. */
+.sidebar-resizer {
+  flex-shrink: 0;
+  width: 9px;
+  margin: 0 -4px;
+  z-index: 5;
+  cursor: col-resize;
+  position: relative;
+}
+
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 12px 4px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.sidebar-resizer:hover::after {
+  background: var(--border-strong);
 }
 
 .sidebar-drag-region {
@@ -255,12 +283,19 @@ button {
 }
 
 .sidebar-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 7px 8px;
   border-radius: 8px;
   color: var(--text-primary);
+  transition: padding-right 0.12s ease;
+}
+
+/* Open a gap for the remove button so it never lands on the branch chip. */
+.sidebar-item:hover {
+  padding-right: 28px;
 }
 
 .sidebar-item:hover {
@@ -289,14 +324,26 @@ button {
   text-overflow: ellipsis;
 }
 
+/* Out of flow: in the flex row it reserved 16px + the gap on every row even at
+   opacity 0, which read as a too-wide right margin. It now overlays on hover. */
 .sidebar-item-remove {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
   border: none;
   background: none;
   color: var(--text-tertiary);
   font-size: 15px;
   line-height: 1;
-  width: 16px;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
   opacity: 0;
+}
+
+.sidebar-item:hover .sidebar-item-remove {
+  opacity: 1;
 }
 
 .sidebar-item:hover .sidebar-item-remove {
@@ -314,6 +361,27 @@ button {
   margin: 1px 0 3px 0;
   padding-left: 20px; /* align under the project name, past status dot + icon */
   position: relative;
+}
+
+/* One of a project's conversations. */
+.chat-tree-row {
+  gap: 7px;
+}
+
+.chat-tree-row.selected {
+  background: var(--active);
+  color: var(--text-primary);
+}
+
+.chat-tree-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-tree-remove {
+  font-size: 14px;
 }
 
 .routine-tree-row {
@@ -747,7 +815,7 @@ button {
 }
 
 .port-chip:hover {
-  background: rgba(139, 143, 248, 0.28);
+  background: var(--accent-soft);
 }
 
 /* ---------- Content ---------- */
@@ -763,6 +831,7 @@ button {
   border-radius: 12px;
   overflow: hidden;
   margin: 8px 8px 8px 2px;
+  transition: margin-left 0.22s cubic-bezier(0.32, 0.72, 0, 1);
   box-shadow:
     0 0 0 0.5px var(--content-hairline),
     0 2px 8px var(--shadow),
@@ -773,6 +842,59 @@ button {
   height: 8px;
   flex-shrink: 0;
   -webkit-app-region: drag;
+  transition: height 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Sidebar hidden: reclaim its width, and grow the drag strip so the macOS
+   traffic lights (x18/y18) don't land on top of the content. */
+.app.sidebar-collapsed .sidebar {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.app.sidebar-collapsed .sidebar-resizer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+:root.sidebar-resizing .sidebar {
+  transition: none;
+}
+
+.app.sidebar-collapsed .content {
+  margin-left: 8px;
+}
+
+.app.sidebar-collapsed .content-titlebar {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  padding-left: 82px;
+}
+
+.sidebar-show {
+  -webkit-app-region: no-drag;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.sidebar-show:hover {
+  background: var(--hover);
+  color: var(--text-primary);
 }
 
 .workspace-host {
@@ -848,7 +970,7 @@ button {
 }
 
 .toolbar-btn.on {
-  background: rgba(139, 143, 248, 0.2);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
@@ -985,30 +1107,6 @@ button {
   text-align: center;
 }
 
-.easy-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 16px;
-  max-width: 380px;
-}
-
-.easy-suggestion {
-  border: 1px solid var(--border);
-  background: var(--hover);
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  padding: 7px 13px;
-  border-radius: 999px;
-}
-
-.easy-suggestion:hover {
-  background: var(--active);
-  color: var(--text-primary);
-  border-color: var(--border-strong);
-}
-
 /* Copy button on assistant messages (appears on hover). */
 .easy-assistant {
   position: relative;
@@ -1049,7 +1147,7 @@ button {
 .easy-user {
   align-self: flex-end;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   border-bottom-right-radius: 4px;
 }
 
@@ -1080,22 +1178,119 @@ button {
 .easy-tools {
   align-self: flex-start;
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  flex-direction: column;
+  gap: 0;
   max-width: 85%;
 }
 
+/* A long run collapses behind one disclosure row. */
+.easy-toolgroup {
+  align-self: flex-start;
+  max-width: 85%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* Expanded steps: a quiet list, not a field of pills. One row per call, aligned
+   on the verb so a long batch scans vertically. */
+.easy-toollist {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  padding-left: 3px;
+  animation: easy-tools-reveal 0.16s ease;
+}
+
+.easy-toolrow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 1px 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.easy-toolrow .easy-tool-verb {
+  flex-shrink: 0;
+  min-width: 62px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.easy-toolrow .easy-tool-detail {
+  color: var(--text-tertiary);
+}
+
+@keyframes easy-tools-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+.easy-tools-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  padding: 1px 6px 1px 3px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+/* Only the interactive one gets a tint, and only on hover — enough to read as
+   clickable without turning back into a chip. */
+.easy-tools-toggle:hover {
+  background: var(--hover);
+}
+
+.easy-tools-caret {
+  flex-shrink: 0;
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  transition: transform 0.14s ease;
+}
+
+.easy-tools-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.easy-tools-count {
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+.easy-tools-summary {
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Not a message, so not a bubble: tool activity is quiet inline text. Dropping
+   the pill chrome also buys back the horizontal room it was eating. */
 .easy-tool {
   display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  align-items: baseline;
+  gap: 6px;
   max-width: 100%;
-  font-size: 11.5px;
+  padding: 1px 0 1px 3px;
+  font-size: 11px;
+  line-height: 1.55;
   color: var(--text-secondary);
-  background: var(--hover);
-  border: 1px solid var(--border);
-  padding: 3px 9px;
-  border-radius: 999px;
 }
 
 .easy-tool-icon {
@@ -1105,7 +1300,8 @@ button {
 
 .easy-tool-verb {
   flex-shrink: 0;
-  color: var(--text-primary);
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .easy-tool-detail {
@@ -1122,6 +1318,10 @@ button {
 .md {
   font-size: 13px;
   line-height: 1.6;
+  /* The bubble sets pre-wrap for plain user text, but mdast-util-to-hast emits a
+     literal "\a" text node between every block and every <li>. Inheriting pre-wrap
+     turns each into a blank line, so parsed markdown opts back out. */
+  white-space: normal;
 }
 
 .md > *:first-child {
@@ -1162,6 +1362,16 @@ button {
 
 .md li {
   margin: 2px 0;
+}
+
+/* Blank lines between items make a "loose" list, which wraps each item's text in
+   a <p>. Drop that margin so loose and tight lists space identically. */
+.md li > p {
+  margin: 0;
+}
+
+.md li > p + p {
+  margin-top: 6px;
 }
 
 .md a {
@@ -1328,6 +1538,9 @@ button {
   border-radius: 9px;
   overflow: hidden;
   background: var(--bg-panel);
+  /* `overflow: hidden` sets this flex item's automatic minimum size to 0, so in
+     the chat's flex column it was being shrunk to a 2px hairline. */
+  flex-shrink: 0;
 }
 
 .easy-diff-head {
@@ -1681,7 +1894,7 @@ button {
   border: none;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   font-size: 16px;
 }
 
@@ -1827,12 +2040,21 @@ button {
 }
 
 .file-tree-caret {
-  display: inline-block;
-  width: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
   flex-shrink: 0;
-  font-size: 9px;
-  color: var(--text-tertiary);
-  transition: transform 0.12s ease;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-secondary);
+  transition:
+    transform 0.12s ease,
+    color 0.12s ease;
+}
+
+.file-tree-row:hover .file-tree-caret {
+  color: var(--text-primary);
 }
 
 .file-tree-caret.open {
@@ -2005,7 +2227,7 @@ button {
   padding: 6px 8px 6px 12px;
   border-radius: 999px;
   background: rgba(30, 31, 36, 0.92);
-  border: 1px solid rgba(139, 143, 248, 0.4);
+  border: 1px solid var(--border-strong);
   color: var(--text-primary);
   font-size: 12px;
   box-shadow: 0 6px 20px var(--shadow);
@@ -2174,7 +2396,7 @@ button {
 }
 
 .skills-action:hover {
-  background: rgba(139, 143, 248, 0.26);
+  background: var(--accent-soft);
 }
 
 /* ---------- Routines ---------- */
@@ -2350,7 +2572,7 @@ button {
 .preview-toast-open {
   border: none;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   padding: 5px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -2553,7 +2775,7 @@ button {
 .browser-crashed button {
   border: none;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   padding: 6px 14px;
   border-radius: 7px;
 }
@@ -2568,7 +2790,7 @@ button {
   padding: 12px 14px;
   border-radius: 10px;
   background: var(--accent-soft);
-  border: 1px solid rgba(139, 143, 248, 0.25);
+  border: 1px solid var(--border-strong);
 }
 
 .consent-text {
@@ -2604,7 +2826,7 @@ button {
 
 .consent-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
 }
 
 .consent-primary:disabled {
@@ -2839,7 +3061,7 @@ button {
 .onboarding-continue {
   border: none;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   padding: 10px 24px;
   border-radius: 9px;
   font-size: 13px;
