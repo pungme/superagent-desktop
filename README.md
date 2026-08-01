@@ -2,46 +2,61 @@
 
 **A friendly home for Claude Code — and other coding agents.**
 
-A clean, prosumer macOS app that turns the `claude` CLI into a real desktop
-workspace: many conversations per project, a browser your agent can drive, and
-tasks that keep running on a timer.
+Your coding agent already writes the code. SuperAgent gives it a place to work:
+many conversations per project, a browser it can actually drive, files you can
+read next to the chat, and tasks that keep running on a timer. Quiet,
+keyboard-driven, and built to look like it belongs on a Mac.
 
 ![SuperAgent — a scheduled routine running against a live site in the in-app browser](docs/hero.png)
 
 > **SuperAgent ships no AI of its own.** It's pure plumbing — chat UI, browser,
-> scheduler. All intelligence comes from your own agent subscription
-> (Claude Code first; Codex CLI and Gemini CLI planned).
+> scheduler, dictation. All the intelligence comes from an agent you already pay
+> for, running on your machine under your own subscription.
 
 ---
 
-## What it does
+## Build it and watch it, side by side
 
-|  | |
-|---|---|
-| 🗂 **Projects, grouped** | An Arc-style sidebar of projects you can group and reorder, each showing whether its agent is idle, working, or waiting on you. Drag the edge to resize, or hide it with <kbd>⌘</kbd><kbd>\\</kbd>. |
-| 💬 **Many chats per project** | Every project holds as many conversations as you want, nested under it in the sidebar. Starting a new one never discards the old — each keeps its own transcript and resumes with full context. They name themselves after what they turned out to be about; double-click to rename. |
-| 📄 **Click a file, read it** | PDFs, images, HTML and text open in a pane right beside the file tree. Anything else hands off to your default app. |
-| 🌐 **A browser the agent drives** | A real browser with an omnibar, and MCP tools so Claude can open, click, type and read **live websites** while you watch. |
-| ⏱ **Routines** | "Visit this site every hour and follow 5 people," in plain language, on a timer, on your own subscription. |
-| 🎙 **Push-to-talk dictation** | Hold the mic button or <kbd>⌥</kbd><kbd>Space</kbd>, speak, release. Whisper runs **on your Mac** — the audio never leaves it, and after a one-time model download it works offline. |
-| ✦ **Skills & files, one click** | Browse the project tree and your Claude Code skills without leaving the app. |
-| 🌗 **Light & dark** | A monochrome, system-following appearance that stays out of the way. |
+The chat sits next to a real Chromium pane. Ask for a change, and watch the page
+update in the same window — no alt-tabbing to a browser to find out whether it
+worked. Point it at a local dev server or any live site.
 
-## The chat
+<!-- docs/preview.png — chat on one side, the running site on the other -->
 
-SuperAgent renders Claude Code as a polished, persistent chat while driving the
-real `claude` binary on your own subscription:
+## An agent that can use the browser
 
-- **Rich markdown** — syntax-highlighted code, one-click copy
-- **Inline diff cards** when Claude edits a file — red/green, only the real change
-- **Quiet tool activity** — a batch of calls collapses to a single line
-  (`18 steps · Running ×11 · Reading ×7`); expand it for the full list
-- **@-file mentions** and **/-commands** with autocomplete
-- **Live task list** — Claude's own to-dos, pinned as it works through them
-- **Saved & resumable** — transcripts are stored locally and sessions resume
-  (`--resume`) next launch
-- **Stop** mid-generation without losing the session, paste images straight in,
-  and queue a message while a turn is still running
+Claude drives that same pane through MCP: open a page, click, type, read it
+back, screenshot it. Not a headless browser it describes to you second-hand —
+the one on your screen, with your logged-in session. You watch it work, and you
+can take over at any point.
+
+<!-- docs/browser.png — the agent mid-navigation, "Claude is browsing…" showing -->
+
+## The small things
+
+- **Many chats per project**, nested in the sidebar. They name themselves after
+  what the conversation turned out to be about; starting one never discards another.
+- **Click any file to read it** — PDFs, images, HTML, markdown, source — in the
+  pane beside the tree.
+- **Push-to-talk dictation.** Hold <kbd>⌥</kbd><kbd>Space</kbd>, speak, release.
+  Whisper runs on your Mac; the audio never leaves it.
+- **Quiet tool activity** — a batch of calls folds into one line you can expand,
+  instead of a wall of noise.
+- **Inline diff cards** the moment a file changes, showing only the real change.
+- **Routines** — "check this site every hour" in plain language, on a timer.
+- **Live task list**, straight from the agent's own to-dos.
+- **Light and dark**, following the system, in a monochrome palette that stays
+  out of the way.
+
+<!-- docs/chat.png — a chat mid-turn: collapsed steps, a diff card, the task list -->
+
+## Roadmap: any agent, not just one
+
+The architecture is deliberately thin — SuperAgent shells out to an agent CLI and
+renders its event stream — so it isn't tied to one vendor by design. **Today it
+drives Claude Code only.** Codex CLI and Gemini CLI are the next targets; each
+needs its own launcher and stream parser, since the flags and event formats
+differ. See [PLAN.md](PLAN.md).
 
 ## Requirements
 
@@ -86,11 +101,8 @@ app/src/renderer   React UI — sidebar, chat, browser, file tree
 ```
 
 Chats, projects and browsing history live in a local SQLite database
-(`~/Library/Application Support/superagent/cove.db`). Conversations themselves
-are Claude Code's own sessions, so anything you start here stays resumable from
-a terminal too.
-
-> Early but functional. See [PLAN.md](PLAN.md) for the full roadmap.
+(`~/Library/Application Support/superagent/cove.db`). Conversations are the
+agent's own sessions, so anything started here stays resumable from a terminal.
 
 ## License
 
