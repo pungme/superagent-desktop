@@ -22,8 +22,6 @@ export function WorkspaceView({
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
   const toggleFiles = useStore((s) => s.toggleFiles)
-  const sendToClaude = useStore((s) => s.sendToClaude)
-  const ports = useStore((s) => s.ports[ws.id])
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [routinesOpen, setRoutinesOpen] = useState(false)
   // Current git branch, for code projects only (browser projects have no repo).
@@ -69,20 +67,6 @@ export function WorkspaceView({
     }
   }, [ws.id, toggleBrowser, visible])
 
-  const checkMySite = (): void => {
-    // Prefer a detected dev-server port (Terminal mode); otherwise fall back to the
-    // workspace's known browser URL so Easy mode (no PTY, no port detection) still
-    // gives Claude a concrete address.
-    const port = ports?.[ports.length - 1]
-    const url = port ? `localhost:${port}` : (ws.browserUrl ?? '')
-    const where = url ? `the preview at ${url}` : 'my site in the browser pane'
-    if (!browserOpen) toggleBrowser(ws.id)
-    sendToClaude(
-      ws.id,
-      `Open ${where} using the cove-browser tools, click through the main flows, and report anything broken — include a screenshot of any problems.`
-    )
-  }
-
   const containerRef = useRef<HTMLDivElement>(null)
   const [ratio, setRatio] = useState(() => {
     const saved = localStorage.getItem(`split:${ws.id}`)
@@ -98,7 +82,15 @@ export function WorkspaceView({
       if (!container) return
       const move = (ev: PointerEvent): void => {
         const rect = container.getBoundingClientRect()
-        setRatio(Math.min(0.8, Math.max(0.2, (ev.clientX - rect.left) / rect.width)))
+        // The file tree shares this container, so measure from the end of it —
+        // otherwise its width skews the split. `ratio` stays the chat's share,
+        // and the chat is now the right-hand pane, hence the inversion.
+        const files = container.querySelector('.files-side')
+        const offset = files ? files.getBoundingClientRect().width : 0
+        const usable = rect.width - offset
+        if (usable <= 0) return
+        const browserFrac = (ev.clientX - rect.left - offset) / usable
+        setRatio(Math.min(0.8, Math.max(0.2, 1 - browserFrac)))
       }
       const up = (): void => {
         setDragging(false)
@@ -118,6 +110,16 @@ export function WorkspaceView({
   return (
     <div className="workspace-view">
       <div className="workspace-toolbar">
+        {/* Leads the toolbar because the pane it opens is the leftmost column. */}
+        {ws.kind !== 'browser' && (
+          <button
+            className={`toolbar-btn ${filesOpen ? 'on' : ''}`}
+            onClick={() => toggleFiles(ws.id)}
+            title="Project files"
+          >
+            📁 Files
+          </button>
+        )}
         <span className="workspace-title">{ws.name}</span>
         <span className="workspace-path">{ws.path}</span>
         {branch && (
@@ -136,24 +138,16 @@ export function WorkspaceView({
         <button className="toolbar-btn" onClick={() => setSkillsOpen(true)} title="Your skills">
           ✦ Skills
         </button>
-        <button className="toolbar-btn" onClick={checkMySite} title="Ask Claude to test your site">
-          🔍 Check my site
-        </button>
-        {ws.kind !== 'browser' && (
+        {/* No manual toggle for code projects: the pane reveals itself when the
+            agent navigates or you open a file, and closes from its own ✕. */}
+        {ws.kind === 'browser' && (
           <button
-            className={`toolbar-btn ${filesOpen ? 'on' : ''}`}
-            onClick={() => toggleFiles(ws.id)}
-            title="Project files"
+            className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
+            onClick={() => toggleBrowser(ws.id)}
           >
-            📁 Files
+            {browserOpen ? 'Hide preview' : 'Show preview'}
           </button>
         )}
-        <button
-          className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
-          onClick={() => toggleBrowser(ws.id)}
-        >
-          {browserOpen ? 'Hide preview' : 'Show preview'}
-        </button>
       </div>
       {/* The chat stays mounted (stable position) whether or not the browser is
           open, so toggling the preview never disturbs the conversation. */}
@@ -162,6 +156,26 @@ export function WorkspaceView({
           <div className="files-side">
             <FileTree cwd={ws.path} workspaceId={ws.id} />
           </div>
+        )}
+        {/* Sits between the tree and the chat: a file you click on the left opens
+            next to it, rather than across the window. Chat keeps the far side. */}
+        {browserOpen && (
+          <>
+            <div className="split-side" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
+              <BrowserPane
+                paneId={ws.id}
+                partition={`persist:ws-${ws.id}`}
+                initialUrl={ws.browserUrl ?? undefined}
+                visible={visible}
+                closable={ws.kind !== 'browser'}
+              />
+            </div>
+            <div
+              className={`split-divider ${dragging ? 'dragging' : ''}`}
+              onPointerDown={onDividerDown}
+              role="separator"
+            />
+          </>
         )}
         <div
           className="split-side split-side-chat"
@@ -175,23 +189,6 @@ export function WorkspaceView({
           />
           {activeRun && visible && <RoutineRunView routine={activeRun} />}
         </div>
-        {browserOpen && (
-          <>
-            <div
-              className={`split-divider ${dragging ? 'dragging' : ''}`}
-              onPointerDown={onDividerDown}
-              role="separator"
-            />
-            <div className="split-side" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
-              <BrowserPane
-                paneId={ws.id}
-                partition={`persist:ws-${ws.id}`}
-                initialUrl={ws.browserUrl ?? undefined}
-                visible={visible}
-              />
-            </div>
-          </>
-        )}
       </div>
       {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
           mounted, or its overlay lock would blank the active workspace's preview. */}
@@ -202,9 +199,7 @@ export function WorkspaceView({
           onClose={() => setSkillsOpen(false)}
         />
       )}
-      {routinesOpen && visible && (
-        <RoutinesPanel ws={ws} onClose={() => setRoutinesOpen(false)} />
-      )}
+      {routinesOpen && visible && <RoutinesPanel ws={ws} onClose={() => setRoutinesOpen(false)} />}
     </div>
   )
 }

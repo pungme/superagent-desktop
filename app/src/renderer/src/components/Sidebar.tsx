@@ -154,9 +154,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
 
   // Git repos nested inside a code project's folder (a folder-of-repos), shown
   // tree-style under it. Refreshed after Claude's turns (branches/repos change).
-  const [subrepos, setSubrepos] = useState<
-    { name: string; path: string; branch: string | null }[]
-  >([])
+  const [subrepos, setSubrepos] = useState<{ name: string; path: string; branch: string | null }[]>(
+    []
+  )
   const [selfBranch, setSelfBranch] = useState<string | null>(null) // branch if the project folder is itself a repo
   const [reposOpen, setReposOpen] = useState(false) // collapsed by default
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
@@ -467,6 +467,13 @@ export function Sidebar(): React.JSX.Element {
           onClick={() => window.dispatchEvent(new CustomEvent('cove:open-settings'))}
         >
           ⚙
+        </button>
+        <button
+          className="sidebar-settings"
+          title="Hide sidebar (⌘\)"
+          onClick={() => window.dispatchEvent(new CustomEvent('cove:toggle-sidebar'))}
+        >
+          ⇤
         </button>
       </div>
     </aside>
