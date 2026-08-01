@@ -303,7 +303,6 @@ function GroupSection({
         >
           ▾
         </button>
-        <span className="group-color" style={{ background: group.color }} />
         {editing ? (
           <input
             className="group-name-input"

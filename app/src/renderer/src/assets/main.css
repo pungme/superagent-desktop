@@ -160,47 +160,44 @@ button {
   overflow-x: hidden;
 }
 
+/* Groups are separated by generous space (proximity signals grouping) and a
+   hairline; their projects nest under the section header via indentation. */
 .sidebar-group {
-  margin-bottom: 10px;
+  margin-bottom: 22px;
   border-radius: 10px;
   transition: background 0.12s ease;
 }
 
 .sidebar-group.drop-target {
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px rgba(139, 143, 248, 0.4);
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 .sidebar-group-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
+  gap: 4px;
+  padding: 3px 6px 5px 2px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border);
 }
 
 .group-caret {
   border: none;
   background: none;
-  color: var(--text-secondary);
-  font-size: 9px;
-  width: 14px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  width: 16px;
   transition: transform 0.12s ease;
-}
-
-.group-color {
-  width: 8px;
-  height: 8px;
-  border-radius: 3px;
-  flex-shrink: 0;
 }
 
 .sidebar-group-title {
   flex: 1;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: var(--text-secondary);
+  letter-spacing: 0.7px;
+  color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -243,6 +240,10 @@ button {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  /* Indent + a hairline rail so projects read as belonging to the section. */
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
 }
 
 .sidebar-item {
@@ -273,6 +274,8 @@ button {
 
 .sidebar-item-name {
   flex: 1;
+  font-size: 13.5px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
