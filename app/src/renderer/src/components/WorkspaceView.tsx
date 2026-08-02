@@ -10,6 +10,15 @@ import type { Workspace, Routine } from '../../../preload'
 
 const EMPTY_ROUTINES: Routine[] = []
 
+/** Bare hostname (no www.) for a browser project's header title. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
 export function WorkspaceView({
   ws,
   visible = true
@@ -53,6 +62,17 @@ export function WorkspaceView({
       window.removeEventListener('cove:workspace-idle', onIdle)
     }
   }, [ws.kind, ws.path, ws.id])
+  // For a browser project, the header shows the site you're on, not the generic
+  // name + scratch path. Track the live page title/URL.
+  const [site, setSite] = useState<{ title: string; url: string }>({
+    title: '',
+    url: ws.browserUrl ?? ''
+  })
+  useEffect(() => {
+    if (ws.kind !== 'browser') return
+    return window.cove.onBrowserState(ws.id, (s) => setSite({ title: s.title, url: s.url }))
+  }, [ws.kind, ws.id])
+
   // A routine run opened for this workspace shows in the chat column (left).
   const openRunId = useStore((s) => s.openRoutineRunId)
   const wsRoutines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
@@ -128,12 +148,21 @@ export function WorkspaceView({
             📁 Files
           </button>
         )}
-        <span className="workspace-title">{ws.name}</span>
-        <span className="workspace-path">{ws.path}</span>
-        {branch && (
-          <span className="workspace-branch" title={`On git branch ${branch}`}>
-            ⎇ {branch}
-          </span>
+        {ws.kind === 'browser' ? (
+          <>
+            <span className="workspace-title">{site.title || hostOf(site.url) || 'New tab'}</span>
+            <span className="workspace-path">{site.url}</span>
+          </>
+        ) : (
+          <>
+            <span className="workspace-title">{ws.name}</span>
+            <span className="workspace-path">{ws.path}</span>
+            {branch && (
+              <span className="workspace-branch" title={`On git branch ${branch}`}>
+                ⎇ {branch}
+              </span>
+            )}
+          </>
         )}
         <div className="workspace-toolbar-spacer" />
         <button

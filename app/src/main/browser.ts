@@ -1,5 +1,14 @@
-import { BrowserWindow, WebContentsView, ipcMain, shell } from 'electron'
+import { BrowserWindow, WebContentsView, ipcMain, shell, app } from 'electron'
 import { normalizeUrl } from './util'
+
+// Present as plain Chrome. The default Electron UA carries "Electron/x" and the
+// app-name token, which bot-detection (Cloudflare et al.) flags as automated and
+// then challenges on every visit. Stripping those tokens leaves a normal Chrome UA.
+function chromeUserAgent(defaultUA: string): string {
+  return defaultUA
+    .replace(new RegExp(` ${app.getName()}/[^ ]+`, 'i'), '')
+    .replace(/ Electron\/[^ ]+/i, '')
+}
 
 export interface BrowserBounds {
   x: number
@@ -55,11 +64,16 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     }
   })
   view.setBackgroundColor('#ffffff')
+  // Round the native view to match the content card (a native view isn't clipped
+  // by the card's CSS border-radius, so its square corner would otherwise bleed
+  // past the rounded corner). Also gives the Arc-style rounded-page look.
+  view.setBorderRadius?.(10)
 
   const pane: BrowserPane = { id, view, window, visible: false }
   panes.set(id, pane)
 
   const wc = view.webContents
+  wc.setUserAgent(chromeUserAgent(wc.getUserAgent()))
   const sendState = (): void => {
     if (window.isDestroyed()) return
     window.webContents.send(`browser:state:${id}`, {
@@ -131,6 +145,7 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
   })
   view.setBackgroundColor('#ffffff')
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
+  view.webContents.setUserAgent(chromeUserAgent(view.webContents.getUserAgent()))
   panes.set(id, { id, view, window, visible: false })
 }
 
