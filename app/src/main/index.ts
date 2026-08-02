@@ -20,7 +20,10 @@ import { buildMenu } from './menu'
 // productName, but dev runs would otherwise fall back to the package.json name.
 app.setName('SuperAgent')
 
-if (is.dev) {
+// Opt-in only: an open remote-debugging port is a live DevTools-protocol endpoint
+// that bot-detection (Cloudflare et al.) flags as automation and challenges on, so
+// normal dev browsing must not expose it. Set COVE_REMOTE_DEBUG=1 for CDP/tests.
+if (is.dev && process.env.COVE_REMOTE_DEBUG) {
   app.commandLine.appendSwitch('remote-debugging-port', '9222')
 }
 

@@ -35,6 +35,15 @@ function StatusDot({ status }: { status: WorkspaceStatus }): React.JSX.Element {
 }
 
 // Crisp monochrome line icons (currentColor) — cleaner than emoji for project kind.
+/** Bare hostname (no www.) for labeling a browser project by the site it's on. */
+function hostOfUrl(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
 function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.JSX.Element {
   const common = {
     width: size,
@@ -232,6 +241,19 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const [reposOpen, setReposOpen] = useState(false) // collapsed by default
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
   const openFolderAsProject = useStore((s) => s.openFolderAsProject)
+
+  // For a default-named browser project, label the row with the site it's on.
+  const [siteUrl, setSiteUrl] = useState(ws.browserUrl ?? '')
+  useEffect(() => {
+    if (ws.kind !== 'browser') return
+    return window.cove.onBrowserState(ws.id, (s) => {
+      if (s.url) setSiteUrl(s.url)
+    })
+  }, [ws.kind, ws.id])
+  const displayName =
+    ws.kind === 'browser' && ws.name === 'Browser project'
+      ? hostOfUrl(siteUrl) || ws.name
+      : ws.name
   useEffect(() => {
     if (ws.kind === 'browser') return
     let alive = true
@@ -285,7 +307,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         {/* Not editable: the name mirrors the folder, and renaming here changed
             only the label — which read as if it would move or rename the folder. */}
         <span className="sidebar-item-name" title={ws.path}>
-          {ws.name}
+          {displayName}
         </span>
         {selfBranch && (
           <span className="sidebar-item-branch" title={`On git branch ${selfBranch}`}>
