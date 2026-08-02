@@ -107,6 +107,11 @@ interface CoveState {
   openFolderAsProject: (groupId: string, name: string, path: string) => Promise<void>
 }
 
+// Dedupe concurrent loadChats() calls per workspace. Without this, React
+// StrictMode's double-invoked mount effect fires two loads at once; both see an
+// empty project and each creates a default chat, so a new project gets two.
+const chatLoadInflight = new Map<string, Promise<Chat[]>>()
+
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
@@ -278,21 +283,32 @@ export const useStore = create<CoveState>((set, get) => ({
     window.cove.setTheme?.(theme)
   },
   loadChats: async (workspaceId) => {
-    let list = await window.cove.chatList(workspaceId)
-    // Every project has at least one chat, so the UI never has an empty state
-    // to special-case (pre-existing projects get theirs from the migration).
-    if (list.length === 0) {
-      await window.cove.chatCreate(workspaceId)
-      list = await window.cove.chatList(workspaceId)
-    }
-    set((s) => ({
-      chats: { ...s.chats, [workspaceId]: list },
-      activeChatId: {
-        ...s.activeChatId,
-        [workspaceId]: s.activeChatId[workspaceId] ?? list[list.length - 1].id
+    // Reuse an in-flight load so two concurrent callers can't each create a chat.
+    const pending = chatLoadInflight.get(workspaceId)
+    if (pending) return pending
+    const run = (async (): Promise<Chat[]> => {
+      let list = await window.cove.chatList(workspaceId)
+      // Every project has at least one chat, so the UI never has an empty state
+      // to special-case (pre-existing projects get theirs from the migration).
+      if (list.length === 0) {
+        await window.cove.chatCreate(workspaceId)
+        list = await window.cove.chatList(workspaceId)
       }
-    }))
-    return list
+      set((s) => ({
+        chats: { ...s.chats, [workspaceId]: list },
+        activeChatId: {
+          ...s.activeChatId,
+          [workspaceId]: s.activeChatId[workspaceId] ?? list[list.length - 1].id
+        }
+      }))
+      return list
+    })()
+    chatLoadInflight.set(workspaceId, run)
+    try {
+      return await run
+    } finally {
+      chatLoadInflight.delete(workspaceId)
+    }
   },
   newChat: async (workspaceId) => {
     const id = await window.cove.chatCreate(workspaceId)
