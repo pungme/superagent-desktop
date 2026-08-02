@@ -176,25 +176,40 @@ function summarizeTools(tools: ToolCall[]): string {
   return parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ' · …' : '')
 }
 
-function ToolStrip({ tools }: { tools: ToolCall[] }): React.JSX.Element {
+// One thing the agent did — a tool call or a file edit. A run of these (only
+// broken by a real message) collapses into a single ActivityStrip.
+type Activity = { kind: 'tool'; tool: ToolCall } | { kind: 'diff'; diff: FileDiff }
+
+function toolChip(t: ToolCall, cls: string, key: string): React.JSX.Element {
+  const { icon, verb } = toolLabel(t.name)
+  return (
+    <span key={key} className={cls} title={t.detail}>
+      <span className="easy-tool-icon">{icon}</span>
+      <span className="easy-tool-verb">{verb}</span>
+      {t.detail && <span className="easy-tool-detail">{t.detail}</span>}
+    </span>
+  )
+}
+
+function ActivityStrip({ entries }: { entries: Activity[] }): React.JSX.Element {
   const [open, setOpen] = useState(false)
 
-  const render = (cls: string): React.JSX.Element[] =>
-    tools.map((t, j) => {
-      const { icon, verb } = toolLabel(t.name)
-      return (
-        <span key={t.id + j} className={cls} title={t.detail}>
-          <span className="easy-tool-icon">{icon}</span>
-          <span className="easy-tool-verb">{verb}</span>
-          {t.detail && <span className="easy-tool-detail">{t.detail}</span>}
-        </span>
-      )
-    })
+  // A lone entry reads fine on its own — a chip for a tool, a card for an edit.
+  if (entries.length < TOOL_COLLAPSE_MIN) {
+    const e = entries[0]
+    if (!e) return <></>
+    return e.kind === 'diff' ? (
+      <DiffCard diff={e.diff} />
+    ) : (
+      <div className="easy-tools">{toolChip(e.tool, 'easy-tool', e.tool.id)}</div>
+    )
+  }
 
-  // A lone call reads fine as a chip; a whole batch does not, so the expanded
-  // view is a plain list — one step per line, no pill chrome.
-  if (tools.length < TOOL_COLLAPSE_MIN)
-    return <div className="easy-tools">{render('easy-tool')}</div>
+  const tools = entries.flatMap((e) => (e.kind === 'tool' ? [e.tool] : []))
+  const edits = entries.filter((e) => e.kind === 'diff').length
+  const parts: string[] = []
+  if (tools.length) parts.push(`${tools.length} step${tools.length > 1 ? 's' : ''}`)
+  if (edits) parts.push(`${edits} edit${edits > 1 ? 's' : ''}`)
 
   return (
     <div className="easy-toolgroup">
@@ -205,10 +220,22 @@ function ToolStrip({ tools }: { tools: ToolCall[] }): React.JSX.Element {
         title={open ? 'Hide steps' : 'Show steps'}
       >
         <span className={'easy-tools-caret' + (open ? ' is-open' : '')}>›</span>
-        <span className="easy-tools-count">{tools.length} steps</span>
-        {!open && <span className="easy-tools-summary">{summarizeTools(tools)}</span>}
+        <span className="easy-tools-count">{parts.join(' · ')}</span>
+        {!open && tools.length > 0 && (
+          <span className="easy-tools-summary">{summarizeTools(tools)}</span>
+        )}
       </button>
-      {open && <div className="easy-toollist">{render('easy-toolrow')}</div>}
+      {open && (
+        <div className="easy-toollist">
+          {entries.map((e, i) =>
+            e.kind === 'diff' ? (
+              <DiffCard key={'d' + i} diff={e.diff} />
+            ) : (
+              toolChip(e.tool, 'easy-toolrow', e.tool.id + i)
+            )
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -253,64 +280,27 @@ function DiffCard({ diff }: { diff: FileDiff }): React.JSX.Element {
   )
 }
 
-// Group consecutive tool items so a run of tool calls renders as one compact strip.
-// A run of file edits, collapsed to one "N edits" line so a big rewrite doesn't
-// fill the chat; expand to the individual (also-collapsible) diffs.
-function DiffGroup({ diffs }: { diffs: FileDiff[] }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  if (diffs.length === 1) return <DiffCard diff={diffs[0]} />
-  const added = diffs.reduce((n, d) => n + d.hunks.reduce((m, h) => m + h.added.length, 0), 0)
-  const removed = diffs.reduce((n, d) => n + d.hunks.reduce((m, h) => m + h.removed.length, 0), 0)
-  const files = [...new Set(diffs.map((d) => d.file))]
-  const label =
-    files.length === 1
-      ? `${diffs.length} edits to ${files[0]}`
-      : `${diffs.length} edits · ${files.length} files`
-  return (
-    <div className="easy-diffgroup">
-      <button className="easy-diff-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className={'easy-diff-caret' + (open ? ' is-open' : '')}>›</span>
-        <span className="easy-diff-file">✏️ {label}</span>
-        <span className="easy-diff-stat">
-          {added > 0 && <span className="easy-diff-plus">+{added}</span>}
-          {removed > 0 && <span className="easy-diff-minus">−{removed}</span>}
-        </span>
-      </button>
-      {open && (
-        <div className="easy-diffgroup-list">
-          {diffs.map((d, i) => (
-            <DiffCard key={d.id + i} diff={d} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 type Row =
   | { kind: 'msg'; msg: ChatMessage }
   | { kind: 'thinking'; id: string; text: string }
-  | { kind: 'diffs'; diffs: FileDiff[] }
-  | { kind: 'tools'; tools: ToolCall[] }
+  | { kind: 'activity'; entries: Activity[] }
 
+// A whole working segment — tool calls AND file edits, in order — collapses into
+// one strip. Only a real message breaks the run; thinking is ambient narration,
+// so it never ends the run (otherwise one batch fragments into tiny strips).
 function toRows(items: Item[]): Row[] {
   const rows: Row[] = []
-  // Thinking is ambient narration, not content, so it never ends a run of tools
-  // or edits — otherwise one batch fragments into a stack of tiny strips.
   const runTarget = (): Row | undefined => {
     let i = rows.length - 1
     while (i >= 0 && rows[i].kind === 'thinking') i--
     return rows[i]
   }
   for (const it of items) {
-    if (it.kind === 'tool') {
+    if (it.kind === 'tool' || it.kind === 'diff') {
+      const entry: Activity = it.kind === 'tool' ? { kind: 'tool', tool: it.tool } : { kind: 'diff', diff: it.diff }
       const target = runTarget()
-      if (target && target.kind === 'tools') target.tools.push(it.tool)
-      else rows.push({ kind: 'tools', tools: [it.tool] })
-    } else if (it.kind === 'diff') {
-      const target = runTarget()
-      if (target && target.kind === 'diffs') target.diffs.push(it.diff)
-      else rows.push({ kind: 'diffs', diffs: [it.diff] })
+      if (target && target.kind === 'activity') target.entries.push(entry)
+      else rows.push({ kind: 'activity', entries: [entry] })
     } else {
       rows.push(it)
     }
@@ -1113,10 +1103,7 @@ export function EasyChat({
               </div>
             )
           }
-          if (row.kind === 'diffs') {
-            return <DiffGroup key={row.diffs[0].id} diffs={row.diffs} />
-          }
-          return <ToolStrip key={'tools-' + i} tools={row.tools} />
+          return <ActivityStrip key={'act-' + i} entries={row.entries} />
         })}
         {generating && (
           <div className="easy-thinking">
