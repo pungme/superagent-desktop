@@ -1737,6 +1737,32 @@ button {
   border-top: 1px solid var(--border);
 }
 
+/* A grouped run of edits, collapsed to one line by default. */
+.easy-diffgroup {
+  align-self: flex-start;
+  max-width: 85%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+
+.easy-diffgroup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-content);
+}
+
+/* Nested diff cards inside a group stretch to fill it. */
+.easy-diffgroup-list .easy-diff {
+  max-width: none;
+  align-self: stretch;
+}
+
 .easy-diff-file {
   font-family: 'SF Mono', ui-monospace, monospace;
   color: var(--text-primary);

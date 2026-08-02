@@ -254,24 +254,63 @@ function DiffCard({ diff }: { diff: FileDiff }): React.JSX.Element {
 }
 
 // Group consecutive tool items so a run of tool calls renders as one compact strip.
+// A run of file edits, collapsed to one "N edits" line so a big rewrite doesn't
+// fill the chat; expand to the individual (also-collapsible) diffs.
+function DiffGroup({ diffs }: { diffs: FileDiff[] }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  if (diffs.length === 1) return <DiffCard diff={diffs[0]} />
+  const added = diffs.reduce((n, d) => n + d.hunks.reduce((m, h) => m + h.added.length, 0), 0)
+  const removed = diffs.reduce((n, d) => n + d.hunks.reduce((m, h) => m + h.removed.length, 0), 0)
+  const files = [...new Set(diffs.map((d) => d.file))]
+  const label =
+    files.length === 1
+      ? `${diffs.length} edits to ${files[0]}`
+      : `${diffs.length} edits · ${files.length} files`
+  return (
+    <div className="easy-diffgroup">
+      <button className="easy-diff-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className={'easy-diff-caret' + (open ? ' is-open' : '')}>›</span>
+        <span className="easy-diff-file">✏️ {label}</span>
+        <span className="easy-diff-stat">
+          {added > 0 && <span className="easy-diff-plus">+{added}</span>}
+          {removed > 0 && <span className="easy-diff-minus">−{removed}</span>}
+        </span>
+      </button>
+      {open && (
+        <div className="easy-diffgroup-list">
+          {diffs.map((d, i) => (
+            <DiffCard key={d.id + i} diff={d} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Row =
   | { kind: 'msg'; msg: ChatMessage }
   | { kind: 'thinking'; id: string; text: string }
-  | { kind: 'diff'; diff: FileDiff }
+  | { kind: 'diffs'; diffs: FileDiff[] }
   | { kind: 'tools'; tools: ToolCall[] }
 
 function toRows(items: Item[]): Row[] {
   const rows: Row[] = []
+  // Thinking is ambient narration, not content, so it never ends a run of tools
+  // or edits — otherwise one batch fragments into a stack of tiny strips.
+  const runTarget = (): Row | undefined => {
+    let i = rows.length - 1
+    while (i >= 0 && rows[i].kind === 'thinking') i--
+    return rows[i]
+  }
   for (const it of items) {
     if (it.kind === 'tool') {
-      // Thinking is ambient narration, not content, so it never ends a run —
-      // otherwise one batch of calls fragments into a stack of tiny strips.
-      // Only a real message or a diff starts a new group.
-      let i = rows.length - 1
-      while (i >= 0 && rows[i].kind === 'thinking') i--
-      const target = rows[i]
+      const target = runTarget()
       if (target && target.kind === 'tools') target.tools.push(it.tool)
       else rows.push({ kind: 'tools', tools: [it.tool] })
+    } else if (it.kind === 'diff') {
+      const target = runTarget()
+      if (target && target.kind === 'diffs') target.diffs.push(it.diff)
+      else rows.push({ kind: 'diffs', diffs: [it.diff] })
     } else {
       rows.push(it)
     }
@@ -1074,8 +1113,8 @@ export function EasyChat({
               </div>
             )
           }
-          if (row.kind === 'diff') {
-            return <DiffCard key={row.diff.id} diff={row.diff} />
+          if (row.kind === 'diffs') {
+            return <DiffGroup key={row.diffs[0].id} diffs={row.diffs} />
           }
           return <ToolStrip key={'tools-' + i} tools={row.tools} />
         })}
