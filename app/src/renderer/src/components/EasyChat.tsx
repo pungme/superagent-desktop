@@ -10,6 +10,7 @@ interface ChatMessage {
   text: string
   streaming?: boolean
   images?: string[] // data URLs, for user messages
+  replyTo?: { role: 'user' | 'assistant'; text: string } // WhatsApp-style quoted message
 }
 
 interface PendingImage {
@@ -212,6 +213,46 @@ function ToolStrip({ tools }: { tools: ToolCall[] }): React.JSX.Element {
   )
 }
 
+// A file edit — collapsed to one line by default so the chat isn't flooded with
+// diffs; click to see the actual change.
+function DiffCard({ diff }: { diff: FileDiff }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const added = diff.hunks.reduce((n, h) => n + h.added.length, 0)
+  const removed = diff.hunks.reduce((n, h) => n + h.removed.length, 0)
+  return (
+    <div className="easy-diff">
+      <button className="easy-diff-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className={'easy-diff-caret' + (open ? ' is-open' : '')}>›</span>
+        <span className="easy-diff-file">✏️ {diff.file}</span>
+        <span className="easy-diff-stat">
+          {added > 0 && <span className="easy-diff-plus">+{added}</span>}
+          {removed > 0 && <span className="easy-diff-minus">−{removed}</span>}
+        </span>
+      </button>
+      {open && (
+        <pre className="easy-diff-body">
+          {diff.hunks.map((h, hi) => (
+            <span key={hi}>
+              {h.removed.map((l, li) => (
+                <span key={'r' + li} className="easy-diff-del">
+                  - {l}
+                  {'\n'}
+                </span>
+              ))}
+              {h.added.map((l, li) => (
+                <span key={'a' + li} className="easy-diff-add">
+                  + {l}
+                  {'\n'}
+                </span>
+              ))}
+            </span>
+          ))}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 // Group consecutive tool items so a run of tool calls renders as one compact strip.
 type Row =
   | { kind: 'msg'; msg: ChatMessage }
@@ -264,6 +305,11 @@ export function EasyChat({
   const [atBottom, setAtBottom] = useState(true)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const [dragOver, setDragOver] = useState(false)
+  // WhatsApp-style quote-reply: the message the next send will reply to.
+  const [replyTarget, setReplyTarget] = useState<{ role: 'user' | 'assistant'; text: string } | null>(
+    null
+  )
+  const swipeRef = useRef<{ x: number; y: number; el: HTMLElement } | null>(null)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
@@ -742,6 +788,8 @@ export function EasyChat({
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
     if ((!text && images.length === 0) || !id || !ready) return
+    const reply = replyTarget
+    setReplyTarget(null)
     // Name an untitled chat after its opening message, so the sidebar list is
     // scannable without the user having to name anything.
     if (text.trim() && items.length === 0) {
@@ -762,21 +810,26 @@ export function EasyChat({
           id: `u-${Date.now()}-${Math.random()}`,
           role: 'user',
           text,
-          images: images.length ? images.map((im) => im.url) : undefined
+          images: images.length ? images.map((im) => im.url) : undefined,
+          replyTo: reply ?? undefined
         }
       }
     ])
     setInput('')
     setPendingImages([])
     if (inputRef.current) inputRef.current.style.height = 'auto'
+    // Quote the replied-to message so the agent knows what you're responding to.
+    const agentText = reply
+      ? `> Replying to ${reply.role === 'user' ? 'my' : 'your'} earlier message:\n> "${reply.text.replace(/\s+/g, ' ').trim().slice(0, 400)}"\n\n${text}`
+      : text
     // Mid-turn: stack it — it's sent when the current turn finishes.
     if (generating) {
-      queueRef.current.push({ text, images })
+      queueRef.current.push({ text: agentText, images })
       return
     }
     window.cove.agentSend(
       id,
-      text,
+      agentText,
       images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
     )
     setThinking(true)
@@ -784,6 +837,36 @@ export function EasyChat({
   }
 
   const send = (): void => submit(input.trim(), pendingImages)
+
+  const beginReply = (msg: ChatMessage): void => {
+    setReplyTarget({ role: msg.role, text: msg.text })
+    inputRef.current?.focus()
+  }
+  // Swipe a message to the right to reply to it (like WhatsApp).
+  const onMsgPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
+    if (e.button !== 0) return
+    swipeRef.current = { x: e.clientX, y: e.clientY, el: e.currentTarget }
+  }
+  const onMsgPointerMove = (e: React.PointerEvent<HTMLDivElement>): void => {
+    const s = swipeRef.current
+    if (!s) return
+    const dx = e.clientX - s.x
+    // Only engage on a clear rightward drag, so text selection/scroll still work.
+    if (dx > 8 && Math.abs(dx) > Math.abs(e.clientY - s.y)) {
+      s.el.setPointerCapture?.(e.pointerId)
+      s.el.style.transition = 'none'
+      s.el.style.transform = `translateX(${Math.min(dx, 72)}px)`
+    }
+  }
+  const onMsgPointerUp = (e: React.PointerEvent<HTMLDivElement>, msg: ChatMessage): void => {
+    const s = swipeRef.current
+    if (!s) return
+    const dx = e.clientX - s.x
+    s.el.style.transition = ''
+    s.el.style.transform = ''
+    swipeRef.current = null
+    if (dx > 48) beginReply(msg)
+  }
 
   const stop = (): void => {
     queueRef.current = [] // Stop means stop — drop anything stacked.
@@ -902,7 +985,23 @@ export function EasyChat({
           if (row.kind === 'msg') {
             const isAssistant = row.msg.role === 'assistant'
             return (
-              <div key={row.msg.id + i} className={`easy-msg easy-${row.msg.role}`}>
+              <div
+                key={row.msg.id + i}
+                className={`easy-msg easy-${row.msg.role}`}
+                onPointerDown={onMsgPointerDown}
+                onPointerMove={onMsgPointerMove}
+                onPointerUp={(e) => onMsgPointerUp(e, row.msg)}
+              >
+                {row.msg.replyTo && (
+                  <div className="easy-reply-quote">
+                    <span className="easy-reply-quote-who">
+                      {row.msg.replyTo.role === 'user' ? 'You' : 'Claude'}
+                    </span>
+                    <span className="easy-reply-quote-text">
+                      {row.msg.replyTo.text.replace(/\s+/g, ' ').trim().slice(0, 120)}
+                    </span>
+                  </div>
+                )}
                 {row.msg.images && row.msg.images.length > 0 && (
                   <div className="easy-msg-images">
                     {row.msg.images.map((src, ii) => (
@@ -912,6 +1011,15 @@ export function EasyChat({
                 )}
                 {isAssistant ? <Markdown text={row.msg.text} /> : row.msg.text}
                 {row.msg.streaming && <span className="easy-caret" />}
+                {!row.msg.streaming && row.msg.text && (
+                  <button
+                    className="easy-msg-reply"
+                    title="Reply to this message"
+                    onClick={() => beginReply(row.msg)}
+                  >
+                    ↩
+                  </button>
+                )}
                 {isAssistant && !row.msg.streaming && row.msg.text && (
                   <button
                     className="easy-msg-copy"
@@ -933,38 +1041,7 @@ export function EasyChat({
             )
           }
           if (row.kind === 'diff') {
-            const d = row.diff
-            const added = d.hunks.reduce((n, h) => n + h.added.length, 0)
-            const removed = d.hunks.reduce((n, h) => n + h.removed.length, 0)
-            return (
-              <div key={d.id} className="easy-diff">
-                <div className="easy-diff-head">
-                  <span className="easy-diff-file">✏️ {d.file}</span>
-                  <span className="easy-diff-stat">
-                    {added > 0 && <span className="easy-diff-plus">+{added}</span>}
-                    {removed > 0 && <span className="easy-diff-minus">−{removed}</span>}
-                  </span>
-                </div>
-                <pre className="easy-diff-body">
-                  {d.hunks.map((h, hi) => (
-                    <span key={hi}>
-                      {h.removed.map((l, li) => (
-                        <span key={'r' + li} className="easy-diff-del">
-                          - {l}
-                          {'\n'}
-                        </span>
-                      ))}
-                      {h.added.map((l, li) => (
-                        <span key={'a' + li} className="easy-diff-add">
-                          + {l}
-                          {'\n'}
-                        </span>
-                      ))}
-                    </span>
-                  ))}
-                </pre>
-              </div>
-            )
+            return <DiffCard key={row.diff.id} diff={row.diff} />
           }
           return <ToolStrip key={'tools-' + i} tools={row.tools} />
         })}
@@ -988,6 +1065,26 @@ export function EasyChat({
         </div>
       )}
       <div className="easy-input-row">
+        {replyTarget && (
+          <div className="easy-reply-bar">
+            <span className="easy-reply-bar-line" />
+            <div className="easy-reply-bar-body">
+              <span className="easy-reply-bar-who">
+                Replying to {replyTarget.role === 'user' ? 'yourself' : 'Claude'}
+              </span>
+              <span className="easy-reply-bar-text">
+                {replyTarget.text.replace(/\s+/g, ' ').trim().slice(0, 140)}
+              </span>
+            </div>
+            <button
+              className="easy-reply-bar-cancel"
+              title="Cancel reply"
+              onClick={() => setReplyTarget(null)}
+            >
+              ×
+            </button>
+          </div>
+        )}
         {mentionMatches.length > 0 && (
           <div className="easy-mention-menu">
             {mentionMatches.map((f, idx) => (
