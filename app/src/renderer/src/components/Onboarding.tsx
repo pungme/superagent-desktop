@@ -31,7 +31,32 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
   return (
     <div className="onboarding">
       <div className="onboarding-card">
-        <div className="onboarding-logo">🌊</div>
+        <div className="onboarding-logo">
+          {/* The app icon, drawn rather than shipped as a PNG so it stays sharp
+              at any size and the dot can animate independently of the tile. */}
+          <svg viewBox="0 0 96 96" width="76" height="76" aria-hidden="true">
+            <defs>
+              <linearGradient id="sa-tile" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#2a2b31" />
+                <stop offset="1" stopColor="#121317" />
+              </linearGradient>
+              <linearGradient id="sa-dot" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#ffffff" />
+                <stop offset="1" stopColor="#e6e6ea" />
+              </linearGradient>
+            </defs>
+            <rect width="96" height="96" rx="21.5" fill="url(#sa-tile)" />
+            <rect
+              className="onboarding-logo-dot"
+              x="34"
+              y="34"
+              width="28"
+              height="28"
+              rx="7.7"
+              fill="url(#sa-dot)"
+            />
+          </svg>
+        </div>
         <h1>Welcome to SuperAgent</h1>
         <p className="onboarding-sub">A friendly home for Claude Code.</p>
 
