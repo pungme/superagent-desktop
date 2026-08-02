@@ -1155,12 +1155,14 @@ button {
 }
 
 .easy-msg {
+  position: relative;
   max-width: 80%;
   padding: 10px 13px;
   border-radius: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
+  touch-action: pan-y; /* let a horizontal swipe engage reply, vertical still scrolls */
 }
 
 .easy-user {
@@ -1175,6 +1177,127 @@ button {
   background: var(--assistant-bubble);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
+}
+
+/* ---- Quote-reply (WhatsApp-style) ---- */
+
+/* Circular reply button beside a bubble, on hover. */
+.easy-msg-reply {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  box-shadow: 0 1px 3px var(--shadow);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease;
+}
+.easy-user .easy-msg-reply {
+  left: -34px;
+}
+.easy-assistant .easy-msg-reply {
+  right: -34px;
+}
+.easy-msg:hover .easy-msg-reply {
+  opacity: 1;
+}
+.easy-msg-reply:hover {
+  color: var(--text-primary);
+}
+
+/* The quoted message shown inside a reply bubble. */
+.easy-reply-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-left: 2px solid currentColor;
+  padding: 4px 8px;
+  margin-bottom: 7px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.14);
+  font-size: 11.5px;
+  line-height: 1.4;
+  overflow: hidden;
+}
+.easy-user .easy-reply-quote {
+  background: rgba(255, 255, 255, 0.16);
+}
+.easy-reply-quote-who {
+  font-weight: 600;
+  opacity: 0.9;
+}
+.easy-reply-quote-text {
+  opacity: 0.7;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Reply preview above the composer. */
+.easy-reply-bar {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px 7px 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.easy-reply-bar-line {
+  align-self: stretch;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--text-tertiary);
+  flex: 0 0 auto;
+}
+.easy-reply-bar-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.easy-reply-bar-who {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.easy-reply-bar-text {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.easy-reply-bar-cancel {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.easy-reply-bar-cancel:hover {
+  color: var(--text-primary);
 }
 
 .easy-caret {
@@ -1565,10 +1688,43 @@ button {
 .easy-diff-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 5px 10px;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 10px;
   font-size: 12px;
-  border-bottom: 1px solid var(--border);
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.easy-diff-head:hover {
+  background: var(--hover);
+}
+
+.easy-diff-caret {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  transition: transform 0.12s ease;
+  flex: 0 0 auto;
+}
+
+.easy-diff-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.easy-diff-head .easy-diff-file {
+  flex: 1;
+}
+
+/* Stat pushes to the right now that the caret leads. */
+.easy-diff-head .easy-diff-stat {
+  margin-left: auto;
+}
+
+.easy-diff-body {
+  border-top: 1px solid var(--border);
 }
 
 .easy-diff-file {
