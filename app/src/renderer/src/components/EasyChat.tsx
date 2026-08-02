@@ -842,6 +842,30 @@ export function EasyChat({
     setReplyTarget({ role: msg.role, text: msg.text })
     inputRef.current?.focus()
   }
+
+  // Edit your last message (e.g. after Stop): put it back in the composer and drop
+  // it — and anything after it — from the transcript, so you can fix it and resend.
+  const editMessage = (msg: ChatMessage): void => {
+    setInput(msg.text)
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.kind === 'msg' && it.msg.id === msg.id)
+      return idx >= 0 ? prev.slice(0, idx) : prev
+    })
+    requestAnimationFrame(() => {
+      autoResize()
+      inputRef.current?.focus()
+    })
+  }
+
+  // The most recent user message — it gets an Edit affordance when idle.
+  let lastUserId: string | null = null
+  for (let k = items.length - 1; k >= 0; k--) {
+    const it = items[k]
+    if (it.kind === 'msg' && it.msg.role === 'user') {
+      lastUserId = it.msg.id
+      break
+    }
+  }
   // Swipe a message to the right to reply to it (like WhatsApp).
   const onMsgPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
     if (e.button !== 0) return
@@ -984,6 +1008,7 @@ export function EasyChat({
         {toRows(items).map((row, i) => {
           if (row.kind === 'msg') {
             const isAssistant = row.msg.role === 'assistant'
+            const isLastUser = !isAssistant && row.msg.id === lastUserId
             return (
               <div
                 key={row.msg.id + i}
@@ -1029,6 +1054,15 @@ export function EasyChat({
                     Copy
                   </button>
                 )}
+                {isLastUser && !generating && row.msg.text && (
+                  <button
+                    className="easy-msg-edit"
+                    title="Edit & resend"
+                    onClick={() => editMessage(row.msg)}
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
             )
           }
@@ -1067,15 +1101,10 @@ export function EasyChat({
       <div className="easy-input-row">
         {replyTarget && (
           <div className="easy-reply-bar">
-            <span className="easy-reply-bar-line" />
-            <div className="easy-reply-bar-body">
-              <span className="easy-reply-bar-who">
-                Replying to {replyTarget.role === 'user' ? 'yourself' : 'Claude'}
-              </span>
-              <span className="easy-reply-bar-text">
-                {replyTarget.text.replace(/\s+/g, ' ').trim().slice(0, 140)}
-              </span>
-            </div>
+            <span className="easy-reply-bar-icon">↩</span>
+            <span className="easy-reply-bar-text">
+              {replyTarget.text.replace(/\s+/g, ' ').trim().slice(0, 160)}
+            </span>
             <button
               className="easy-reply-bar-cancel"
               title="Cancel reply"

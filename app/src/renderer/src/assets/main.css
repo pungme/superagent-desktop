@@ -1216,6 +1216,28 @@ button {
   color: var(--text-primary);
 }
 
+/* "Edit" under the last user message (e.g. after Stop). */
+.easy-msg-edit {
+  position: absolute;
+  bottom: -18px;
+  right: 4px;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  padding: 0 3px;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+.easy-msg:hover .easy-msg-edit {
+  opacity: 1;
+}
+.easy-msg-edit:hover {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
 /* The quoted message shown inside a reply bubble. */
 .easy-reply-quote {
   display: flex;
@@ -1260,28 +1282,16 @@ button {
   border-radius: 10px;
   box-shadow: 0 2px 8px var(--shadow);
 }
-.easy-reply-bar-line {
-  align-self: stretch;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--text-tertiary);
+.easy-reply-bar-icon {
   flex: 0 0 auto;
-}
-.easy-reply-bar-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.easy-reply-bar-who {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
+  font-size: 13px;
 }
 .easy-reply-bar-text {
-  font-size: 12px;
-  color: var(--text-tertiary);
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
