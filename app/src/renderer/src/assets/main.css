@@ -3028,9 +3028,39 @@ button {
   -webkit-app-region: no-drag;
 }
 
+/* The tile settles first, then the dot lands — two beats rather than one, so it
+   reads as the mark assembling instead of a panel fading in. */
 .onboarding-logo {
-  font-size: 48px;
-  margin-bottom: 8px;
+  margin-bottom: 14px;
+  line-height: 0;
+  animation: logo-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.onboarding-logo-dot {
+  transform-origin: 48px 48px;
+  animation: logo-dot-in 0.44s cubic-bezier(0.34, 1.4, 0.5, 1) 0.16s both;
+}
+
+@keyframes logo-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+}
+
+@keyframes logo-dot-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+/* Respect the system setting: show the finished mark, skip the motion. */
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-logo,
+  .onboarding-logo-dot {
+    animation: none;
+  }
 }
 
 .onboarding-card h1 {
