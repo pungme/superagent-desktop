@@ -1,6 +1,6 @@
 {
   "name": "superagent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SuperAgent — a friendly home for Claude Code: a persistent chat, an in-app browser your agent can drive, and scheduled routines, all on your own agent subscription.",
   "main": "./out/main/index.js",
   "scripts": {
