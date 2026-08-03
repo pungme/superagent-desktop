@@ -89,6 +89,22 @@ function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
   return null
 }
 
+/**
+ * The "Working Ns" counter, isolated so its 1s tick re-renders only this label —
+ * not the whole chat. (Ticking `elapsed` on the parent re-rendered the entire
+ * transcript twice a second, pinning the renderer on long turns.)
+ */
+function WorkingTimer(): React.JSX.Element | null {
+  const [secs, setSecs] = useState(0)
+  useEffect(() => {
+    const start = Date.now()
+    const t = setInterval(() => setSecs(Math.floor((Date.now() - start) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [])
+  if (secs < 1) return null
+  return <span className="easy-elapsed">Working {secs}s</span>
+}
+
 /** Monochrome line icon, matching the sidebar's — currentColor, no emoji. */
 function MicIcon(): React.JSX.Element {
   return (
@@ -378,7 +394,6 @@ export function EasyChat({
   const [ready, setReady] = useState(false)
   const [agentFailed, setAgentFailed] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
   const [resetKey, setResetKey] = useState(0)
   const [files, setFiles] = useState<string[]>([])
   const [commands, setCommands] = useState<string[]>([])
@@ -434,15 +449,6 @@ export function EasyChat({
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [controlMenu, setControlMenu] = useState<'model' | 'mode' | null>(null)
-
-  // Elapsed "Working Ns" timer while a turn is running. (Reset happens in the
-  // event handlers that clear `generating`, so no synchronous setState here.)
-  useEffect(() => {
-    if (!generating) return
-    const start = Date.now()
-    const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500)
-    return () => clearInterval(t)
-  }, [generating])
 
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
@@ -853,7 +859,6 @@ export function EasyChat({
         // a future crash gets a resume-retry before falling back to fresh.
         resumeRetriedRef.current = false
         streamingIdRef.current = null
-        setElapsed(0)
         // First turn is done: let the agent name the conversation, replacing the
         // opening-message placeholder. Skipped if the user already renamed it.
         if (!aiTitledRef.current) {
@@ -1124,7 +1129,6 @@ export function EasyChat({
     if (id) window.cove.agentInterrupt(id)
     setThinking(false)
     setGenerating(false)
-    setElapsed(0)
   }
 
   const startDictation = useCallback((): void => {
@@ -1177,7 +1181,6 @@ export function EasyChat({
     setInput('')
     setPendingImages([])
     setMentionQuery(null)
-    setElapsed(0)
     tasks.current.clear()
     useStore.getState().clearTodos(workspaceId)
     useStore.getState().newChat(workspaceId)
@@ -1339,7 +1342,7 @@ export function EasyChat({
             <span />
             <span />
             <span />
-            {elapsed > 0 && <span className="easy-elapsed">Working {elapsed}s</span>}
+            <WorkingTimer />
           </div>
         )}
       </div>
