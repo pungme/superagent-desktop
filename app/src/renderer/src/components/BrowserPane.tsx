@@ -117,9 +117,22 @@ export function BrowserPane({
     const y0 = Math.round(r.y)
     const W = Math.round(r.width)
     const H = Math.round(r.height)
+    // Compute the base bounds for the current viewport mode, then push the pane's
+    // TOP below the omnibox suggestion dropdown when it's open — the native view
+    // draws over HTML, so without this the dropdown is covered and unclickable.
+    // Clipping (vs hiding the whole pane) keeps the rest of the page visible.
+    const emit = (b: { x: number; y: number; width: number; height: number }): void => {
+      if (suggestOpenRef.current && suggestRef.current) {
+        const bottom = Math.round(suggestRef.current.getBoundingClientRect().bottom)
+        if (bottom > b.y) {
+          b = { x: b.x, y: bottom, width: b.width, height: Math.max(0, b.height - (bottom - b.y)) }
+        }
+      }
+      window.cove.browserSetBounds(paneId, b)
+    }
     // WebContentsView bounds are window-relative CSS pixels.
     if (viewportRef.current === 'none') {
-      window.cove.browserSetBounds(paneId, { x: x0, y: y0, width: W, height: H })
+      emit({ x: x0, y: y0, width: W, height: H })
       return
     }
     // Zooming out widens the page's layout viewport (window.innerWidth = px / zoom).
@@ -128,8 +141,8 @@ export function BrowserPane({
     if (viewportRef.current === 'desktop') {
       // Full-bleed: fill the pane and lay out at 1280 wide via zoom — no letterbox.
       // Height just fills (the page scrolls for more), so no top/bottom padding.
-      window.cove.browserSetBounds(paneId, { x: x0, y: y0, width: W, height: H })
       window.cove.browserSetZoom?.(paneId, W / 1280)
+      emit({ x: x0, y: y0, width: W, height: H })
       return
     }
     // Mobile: a phone has a fixed tall aspect ratio, so it stays a centered device
@@ -138,24 +151,30 @@ export function BrowserPane({
     const scale = Math.min(W / lw, H / lh)
     const dw = Math.round(lw * scale)
     const dh = Math.round(lh * scale)
-    window.cove.browserSetBounds(paneId, {
+    window.cove.browserSetZoom?.(paneId, scale)
+    emit({
       x: x0 + Math.round((W - dw) / 2),
       y: y0 + Math.round((H - dh) / 2),
       width: dw,
       height: dh
     })
-    window.cove.browserSetZoom?.(paneId, scale)
   }, [paneId])
 
-  // The omnibox suggestion dropdown is HTML; the native browser view draws on top
-  // of HTML, so while suggestions are open the native pane must step aside — else
-  // the dropdown is both hidden behind it and unclickable (clicks hit the page).
+  // The omnibox dropdown is HTML and the native view draws over HTML, so while it's
+  // open the pane's top is clipped below it (in syncBounds) — read through a ref so
+  // syncBounds can stay stable. suggestRef measures the dropdown's bottom edge.
   const suggestOpen = showSuggest && suggestions.length > 0
-
-  // Show/hide the native view as this workspace becomes active/inactive, as an HTML
-  // overlay opens/closes over it, or while the omnibox suggestions are showing.
+  const suggestOpenRef = useRef(suggestOpen)
+  const suggestRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (visible && !overlayOpen && !suggestOpen) syncBounds()
+    suggestOpenRef.current = suggestOpen
+  }, [suggestOpen])
+
+  // Show/hide the native view as this workspace becomes active/inactive or as an
+  // HTML overlay opens/closes over it; re-sync when the dropdown opens/closes so
+  // its top-clip is applied or removed.
+  useEffect(() => {
+    if (visible && !overlayOpen) syncBounds()
     else window.cove.browserHide(paneId)
   }, [visible, overlayOpen, suggestOpen, paneId, syncBounds])
 
@@ -346,7 +365,7 @@ export function BrowserPane({
             onKeyDown={onAddressKeyDown}
           />
           {showSuggest && suggestions.length > 0 && (
-            <div className="omnibox-suggest">
+            <div className="omnibox-suggest" ref={suggestRef}>
               {suggestions.map((s, idx) => (
                 <button
                   key={s.target}
