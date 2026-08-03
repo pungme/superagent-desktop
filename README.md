@@ -11,7 +11,7 @@ many conversations per project, a browser it can actually drive, files you can
 read next to the chat, and tasks that keep running on a timer. Quiet,
 keyboard-driven, and built to look like it belongs on a Mac.
 
-![SuperAgent — a scheduled routine running against a live site in the in-app browser](docs/hero.png)
+![SuperAgent — the agent driving a real web page in the in-app browser, side by side with the chat](docs/hero.png)
 
 ---
 
@@ -21,7 +21,7 @@ The chat sits next to a real browser. Ask for a change and watch the page update
 in the same window — no alt-tabbing to find out whether it worked. Point it at a
 local dev server or any live site.
 
-<!-- docs/preview.png — chat on one side, the running site on the other -->
+![The chat next to the code it's editing — task list, grouped steps and edits, model and mode pickers](docs/chat.png)
 
 ## An agent that can use the browser
 
