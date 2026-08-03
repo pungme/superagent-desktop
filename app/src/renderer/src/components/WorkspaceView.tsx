@@ -3,6 +3,7 @@ import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
 import { FileTree } from './FileTree'
+import { FileViewer } from './FileViewer'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
 import { RoutineRunView } from './RoutineRunView'
@@ -30,6 +31,10 @@ export function WorkspaceView({
   const browserOpen = useStore((s) => s.browserOpen[ws.id] ?? ws.kind === 'browser')
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
+  // A text file open in the in-app viewer takes the content pane over the browser.
+  const openFilePath = useStore((s) => s.openFile[ws.id])
+  const closeFile = useStore((s) => s.closeFile)
+  const paneOpen = browserOpen || !!openFilePath
   // The project's conversations, and whichever one is on screen.
   const chats = useStore((s) => s.chats[ws.id])
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
@@ -196,16 +201,20 @@ export function WorkspaceView({
         )}
         {/* Sits between the tree and the chat: a file you click on the left opens
             next to it, rather than across the window. Chat keeps the far side. */}
-        {browserOpen && (
+        {paneOpen && (
           <>
             <div className="split-side" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
-              <BrowserPane
-                paneId={ws.id}
-                partition={`persist:ws-${ws.id}`}
-                initialUrl={ws.browserUrl ?? undefined}
-                visible={visible}
-                closable={ws.kind !== 'browser'}
-              />
+              {openFilePath ? (
+                <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
+              ) : (
+                <BrowserPane
+                  paneId={ws.id}
+                  partition={`persist:ws-${ws.id}`}
+                  initialUrl={ws.browserUrl ?? undefined}
+                  visible={visible}
+                  closable={ws.kind !== 'browser'}
+                />
+              )}
             </div>
             <div
               className={`split-divider ${dragging ? 'dragging' : ''}`}
@@ -216,7 +225,7 @@ export function WorkspaceView({
         )}
         <div
           className="split-side split-side-chat"
-          style={{ flexBasis: browserOpen ? `${ratio * 100}%` : '100%' }}
+          style={{ flexBasis: paneOpen ? `${ratio * 100}%` : '100%' }}
         >
           {activeChat && (
             <EasyChat

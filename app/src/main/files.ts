@@ -1,5 +1,5 @@
 import { ipcMain, shell } from 'electron'
-import { readdirSync, lstatSync, readFileSync } from 'fs'
+import { readdirSync, lstatSync, readFileSync, writeFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
@@ -105,10 +105,36 @@ export function gitSubrepos(root: string): SubRepo[] {
   }
 }
 
+// Cap the in-app text viewer so a stray huge/binary file can't lock up the
+// renderer. Bigger files fall back to opening in the OS.
+const MAX_TEXT_BYTES = 2 * 1024 * 1024
+
 export function registerFilesIpc(): void {
   ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
   // Fallback for types the in-app browser can't render (.docx, .xlsx, …).
   ipcMain.handle('files:openExternal', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
   ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))
+  // Read a text file for the in-app viewer/editor. Returns null if it's missing,
+  // too large, or not decodable as UTF-8 text (so the caller can fall back to the OS).
+  ipcMain.handle('files:read', (_e, path: string): string | null => {
+    try {
+      if (statSync(path).size > MAX_TEXT_BYTES) return null
+      const buf = readFileSync(path)
+      // A NUL byte in the first chunk is a reliable "this is binary" signal.
+      if (buf.subarray(0, 8000).includes(0)) return null
+      return buf.toString('utf8')
+    } catch {
+      return null
+    }
+  })
+  // Save edits from the in-app editor. Returns true on success.
+  ipcMain.handle('files:write', (_e, path: string, content: string): boolean => {
+    try {
+      writeFileSync(path, content, 'utf8')
+      return true
+    } catch {
+      return false
+    }
+  })
 }

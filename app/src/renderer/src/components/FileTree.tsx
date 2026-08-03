@@ -52,6 +52,7 @@ function fileIcon(name: string): string {
 
 export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element {
   const openUrl = useStore((s) => s.openUrl)
+  const openFileInViewer = useStore((s) => s.openFileInViewer)
   const [paths, setPaths] = useState<string[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -91,55 +92,60 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
       return next
     })
 
-  // Extensions Chromium renders inline from a file:// URL. Anything else (.docx,
-  // .xlsx, archives…) would just trigger a download, so it goes to the OS instead.
-  const VIEWABLE = new Set([
-    'pdf',
-    'png',
-    'jpg',
-    'jpeg',
-    'gif',
-    'webp',
-    'svg',
-    'ico',
-    'bmp',
-    'avif',
-    'html',
-    'htm',
+  // Text/code/markdown open in the in-app viewer (real markdown rendering + an
+  // edit mode), rather than as Chromium's raw text/plain from a file:// URL.
+  const TEXT = new Set([
     'txt',
+    'md',
+    'markdown',
     'json',
     'xml',
     'csv',
     'log',
-    // Chromium serves unregistered text types as text/plain, so source and
-    // markdown render inline rather than downloading.
-    'md',
-    'markdown',
     'yml',
     'yaml',
     'toml',
     'ini',
+    'env',
     'js',
     'mjs',
+    'cjs',
     'jsx',
     'ts',
     'tsx',
     'css',
+    'scss',
+    'html',
+    'htm',
     'py',
     'go',
     'rs',
     'java',
+    'c',
+    'h',
+    'cpp',
+    'rb',
+    'php',
+    'swift',
+    'kt',
     'sql',
-    'sh'
+    'sh',
+    'bash',
+    'zsh'
   ])
+  // Binary previews Chromium renders inline from a file:// URL (the native pane).
+  const PREVIEW = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif'])
 
   const open = (relPath: string): void => {
     const abs = `${cwd}/${relPath}`
     const ext = relPath.slice(relPath.lastIndexOf('.') + 1).toLowerCase()
-    if (VIEWABLE.has(ext)) {
+    if (TEXT.has(ext)) {
+      openFileInViewer(workspaceId, abs)
+    } else if (PREVIEW.has(ext)) {
       // encodeURI (not encodeURIComponent) so the path separators survive.
       openUrl(workspaceId, `file://${encodeURI(abs)}`)
     } else {
+      // .docx, .xlsx, archives, unknown types → hand off to the OS.
       window.cove.filesOpenExternal(abs)
     }
   }

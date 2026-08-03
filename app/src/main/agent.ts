@@ -50,14 +50,14 @@ const BROWSER_SYSTEM_PROMPT =
   'localhost. Strongly prefer these tools over WebSearch and WebFetch. To run a web search, ' +
   'navigate the browser to the search engine and type the query rather than calling WebSearch.'
 
-// SuperAgent surfaces the task list from TodoWrite (one call rewrites the whole
-// list) in its Tasks panel. Steer to that single surface so the panel is complete
-// and live — the Task* tools are also disallowed at spawn to enforce it.
+// SuperAgent surfaces Claude's task list in its Tasks panel by watching the
+// TaskCreate/TaskUpdate tools (this build has no TodoWrite). Nudge Claude to keep
+// that list current so the panel reflects real progress.
 const TODO_PROMPT =
-  'When you plan or track a multi-step task, or keep a to-do list, use the TodoWrite tool — a ' +
-  'single call that rewrites the entire task list each time. SuperAgent shows that list to the ' +
-  'user live in its Tasks panel, so keep it current as you work. Do not use TaskCreate, TaskUpdate, ' +
-  'TaskList, or similar for user-facing task tracking.'
+  'When you plan or track a multi-step task, use your task-tracking tools: TaskCreate to add each ' +
+  'step and TaskUpdate to move it through in_progress → completed. SuperAgent shows that list to ' +
+  'the user live in its Tasks panel, so create the tasks up front and keep their status current as ' +
+  'you work.'
 
 // Scheduling MUST go through SuperAgent's own routines — cloud/loop schedulers run
 // elsewhere and can't reach this browser or the user's logged-in session.
@@ -79,6 +79,21 @@ const SCHEDULING_PROMPT =
   'decline on every run. ' +
   "create_routine's minimum interval is 60 minutes — if the user asks for less, tell them you are " +
   'using 60 and continue.'
+
+// Headless `claude -p` has no AskUserQuestion tool, so SuperAgent gives Claude a
+// plain-text convention instead: a ```ask fenced block renders as clickable
+// options in the chat, and the user's pick returns as their next message.
+const CHOICES_PROMPT =
+  'When you want the user to choose between a few concrete options — a decision point, a ' +
+  'preference, a this-or-that — you MAY offer clickable choices by ending your message with a ' +
+  'fenced code block tagged `ask` containing a single JSON object: ' +
+  '{"question": string, "multiple": boolean, "options": [{"label": string, "hint"?: string}]}. ' +
+  'Set "multiple": true when several options can be picked together. Keep labels short; put any ' +
+  "extra explanation in \"hint\". SuperAgent renders these as buttons and sends the user's " +
+  'selection back as their next message. Use this only for genuine small multiple-choice decisions ' +
+  '(2–4 options); for anything open-ended, just ask in prose as normal. Example:\n' +
+  '```ask\n{"question": "Which theme?", "multiple": false, "options": [{"label": "Dark"}, ' +
+  '{"label": "Light"}, {"label": "Match system", "hint": "Follow macOS appearance"}]}\n```'
 
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
   const id = randomUUID()
@@ -113,26 +128,21 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
     const appended = [
       TODO_PROMPT,
       SCHEDULING_PROMPT,
+      CHOICES_PROMPT,
       opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
     ]
       .filter(Boolean)
       .join(' ')
     args.push('--append-system-prompt', appended)
     // Hard stops: cloud/loop schedulers can't reach SuperAgent's browser (scheduling
-    // must use create_routine), and Task* tools bypass the TodoWrite surface the Tasks
-    // panel reads. Unknown tool names here are harmless no-ops.
+    // must use create_routine). The Task* tools are Claude's task-tracking surface
+    // that the Tasks panel now reads, so they're allowed. Unknown names are no-ops.
     args.push(
       '--disallowedTools',
       'CronCreate',
       'CronDelete',
       'CronList',
-      'ScheduleWakeup',
-      'TaskCreate',
-      'TaskUpdate',
-      'TaskList',
-      'TaskGet',
-      'TaskOutput',
-      'TaskStop'
+      'ScheduleWakeup'
     )
 
     const proc = spawn(findClaude(), args, {

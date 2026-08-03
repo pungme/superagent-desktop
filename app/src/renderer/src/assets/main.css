@@ -10,6 +10,7 @@
 
   /* Dark theme (default) */
   --bg-content: #1e1f24;
+  --sim-bg: #141518;
   --bg-panel: #26272e;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
@@ -46,6 +47,7 @@
 /* Light theme — premium, airy, Apple-flavored */
 :root[data-theme='light'] {
   --bg-content: #ffffff;
+  --sim-bg: #e6e6ec;
   --bg-panel: #f6f6f8;
   --border: rgba(0, 0, 0, 0.08);
   --border-strong: rgba(0, 0, 0, 0.13);
@@ -2012,14 +2014,40 @@ button {
 .easy-msg-images {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 6px;
 }
 
+/* Uniform square thumbnails so a batch of stills/posters tiles into a tidy
+   gallery instead of stacking full-width — the bubble is often narrow (browser
+   pane open), where tall images would otherwise become one giant column. The
+   full-resolution image still goes to Claude; this is just the preview. */
 .easy-msg-images img {
-  max-width: 220px;
-  max-height: 180px;
+  width: 68px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: zoom-in;
+}
+
+/* Click a thumbnail → full-size preview over a dimmed backdrop; click to close. */
+.easy-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: rgba(0, 0, 0, 0.7);
+  cursor: zoom-out;
+}
+
+.easy-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
   border-radius: 8px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
 }
 
 .easy-mention-menu {
@@ -2040,6 +2068,9 @@ button {
 }
 
 .easy-mention-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   text-align: left;
   border: none;
   background: none;
@@ -2056,6 +2087,24 @@ button {
 .easy-mention-item.active {
   background: var(--accent-soft);
   color: var(--text-primary);
+}
+
+/* Command rows: "/name" on the left, its explanation muted on the right — the
+   name never shrinks, the description takes the rest and truncates. */
+.easy-mention-name {
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+.easy-mention-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 .easy-input {
@@ -2848,6 +2897,244 @@ button {
 
 /* ---------- Browser pane ---------- */
 
+/* Clickable options Claude offered via an ```ask block. */
+.easy-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 2px;
+}
+
+.easy-choices-q {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.easy-choices-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.easy-choice {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-align: left;
+  padding: 8px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--bg-content);
+  color: var(--text-primary);
+  font-size: 12px;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+
+.easy-choice:hover {
+  border-color: var(--text-tertiary);
+  background: var(--hover);
+}
+
+.easy-choice.on {
+  border-color: var(--text-secondary);
+}
+
+.easy-choice-box {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.easy-choice-label {
+  font-weight: 500;
+}
+
+.easy-choice-hint {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.easy-choices-send {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 6px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--text-primary);
+  color: var(--bg-content);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.easy-choices-send:disabled {
+  background: var(--border-strong);
+  color: var(--text-tertiary);
+}
+
+.easy-choices.answered {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.easy-choices-check {
+  color: var(--text-secondary);
+}
+
+/* In-app text/markdown viewer + editor — sits in the content pane. */
+.file-viewer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 6px;
+  box-shadow: 0 8px 28px var(--shadow);
+}
+
+.file-viewer-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.file-viewer-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-viewer-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.file-viewer-spacer {
+  flex: 1;
+}
+
+.file-viewer-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-content);
+  border-radius: 7px;
+}
+
+.file-viewer-tab {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 5px;
+}
+
+.file-viewer-tab.on {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+.file-viewer-save {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-content);
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 3px 12px;
+  border-radius: 6px;
+}
+
+.file-viewer-save:disabled {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+.file-viewer-close {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.file-viewer-close:hover {
+  color: var(--text-primary);
+}
+
+.file-viewer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.file-viewer-md {
+  padding: 16px 20px;
+}
+
+.file-viewer-code {
+  margin: 0;
+  padding: 16px 20px;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre;
+}
+
+.file-viewer-edit {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 16px 20px;
+}
+
+.file-viewer-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.file-viewer-msg button {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-content);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 7px;
+}
+
 .browser-pane {
   flex: 1;
   min-width: 0;
@@ -2893,6 +3180,43 @@ button {
   display: flex;
   align-items: center;
   gap: 1px;
+}
+
+/* Viewport (device) switcher — segmented, monochrome. */
+.browser-viewport {
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  margin: 0 2px;
+  background: var(--bg-content);
+  border-radius: 7px;
+}
+
+.browser-vp-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-tertiary);
+}
+
+.browser-vp-btn:hover {
+  color: var(--text-secondary);
+}
+
+.browser-vp-btn.on {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+/* Backdrop behind a simulated device screen (the letterbox area). */
+.browser-host.sim {
+  background: var(--sim-bg);
 }
 
 .browser-zoom-level {

@@ -79,6 +79,7 @@ export interface CoveApi {
   browserOpenExternal: (id: string) => void
   browserDestroy: (id: string) => void
   browserZoom: (id: string, action: 'in' | 'out' | 'reset') => Promise<number>
+  browserSetZoom: (id: string, factor: number) => void
   onBrowserZoom: (id: string, cb: (factor: number) => void) => () => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
   onBrowserCrashed: (id: string, cb: () => void) => () => void
@@ -138,6 +139,8 @@ export interface CoveApi {
   envVersion: () => Promise<{ claudeInstalled: boolean; claudeVersion: string | null }>
   filesList: (root: string) => Promise<string[]>
   filesOpenExternal: (path: string) => Promise<string>
+  fileRead: (path: string) => Promise<string | null>
+  fileWrite: (path: string, content: string) => Promise<boolean>
   gitBranch: (cwd: string) => Promise<string | null>
   gitSubrepos: (root: string) => Promise<{ name: string; path: string; branch: string | null }[]>
 
@@ -200,6 +203,7 @@ const cove: CoveApi = {
   browserReload: (id) => ipcRenderer.send('browser:reload', id),
   browserOpenExternal: (id) => ipcRenderer.send('browser:open-external', id),
   browserZoom: (id, action) => ipcRenderer.invoke('browser:zoom', id, action),
+  browserSetZoom: (id, factor) => ipcRenderer.send('browser:set-zoom-factor', id, factor),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
   browserDestroy: (id) => ipcRenderer.send('browser:destroy', id),
   onBrowserState: (id, cb) => subscribe(`browser:state:${id}`, (s) => cb(s as BrowserState)),
@@ -257,6 +261,8 @@ const cove: CoveApi = {
   envVersion: () => ipcRenderer.invoke('env:version'),
   filesList: (root) => ipcRenderer.invoke('files:list', root),
   filesOpenExternal: (path) => ipcRenderer.invoke('files:openExternal', path),
+  fileRead: (path) => ipcRenderer.invoke('files:read', path),
+  fileWrite: (path, content) => ipcRenderer.invoke('files:write', path, content),
   gitBranch: (cwd) => ipcRenderer.invoke('git:branch', cwd),
   gitSubrepos: (root) => ipcRenderer.invoke('git:subrepos', root),
 
