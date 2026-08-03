@@ -242,14 +242,24 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
   const openFolderAsProject = useStore((s) => s.openFolderAsProject)
 
-  // For a default-named browser project, label the row with the site it's on.
+  // For a default-named browser project, label the row with the site it's on, and
+  // show its favicon instead of the generic globe. The favicon (a data: URI) is
+  // cached in localStorage so it's already there on the next launch, before the
+  // pane reloads and re-emits it.
   const [siteUrl, setSiteUrl] = useState(ws.browserUrl ?? '')
+  const [favicon, setFavicon] = useState<string>(
+    () => localStorage.getItem(`favicon:${ws.id}`) ?? ''
+  )
   useEffect(() => {
     if (ws.kind !== 'browser') return
     return window.cove.onBrowserState(ws.id, (s) => {
       if (s.url) setSiteUrl(s.url)
+      if (s.favicon && s.favicon !== favicon) {
+        setFavicon(s.favicon)
+        localStorage.setItem(`favicon:${ws.id}`, s.favicon)
+      }
     })
-  }, [ws.kind, ws.id])
+  }, [ws.kind, ws.id, favicon])
   const displayName =
     ws.kind === 'browser' && ws.name === 'Browser project'
       ? hostOfUrl(siteUrl) || ws.name
@@ -302,7 +312,17 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           className="sidebar-item-kind"
           title={ws.kind === 'browser' ? 'Browser' : 'Folder'}
         >
-          <KindIcon kind={ws.kind} />
+          {ws.kind === 'browser' && favicon ? (
+            <img
+              className="sidebar-favicon"
+              src={favicon}
+              alt=""
+              // A favicon that fails to render falls back to the globe icon.
+              onError={() => setFavicon('')}
+            />
+          ) : (
+            <KindIcon kind={ws.kind} />
+          )}
         </span>
         {/* Not editable: the name mirrors the folder, and renaming here changed
             only the label — which read as if it would move or rename the folder. */}

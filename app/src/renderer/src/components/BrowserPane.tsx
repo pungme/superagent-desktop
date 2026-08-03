@@ -122,10 +122,19 @@ export function BrowserPane({
       window.cove.browserSetBounds(paneId, { x: x0, y: y0, width: W, height: H })
       return
     }
-    // Lay the page out at a device width, then scale to fit the pane. A zoom factor
-    // < 1 widens the page's layout viewport (window.innerWidth = px / zoom), so a
-    // desktop site reflows at 1280 and a phone at 390 — and shrinks to fit.
-    const [lw, lh] = viewportRef.current === 'mobile' ? [390, 844] : [1280, 800]
+    // Zooming out widens the page's layout viewport (window.innerWidth = px / zoom).
+    // Optional-chained: during a preload/renderer hot-reload desync browserSetZoom
+    // may be missing, and a throw here (inside an effect) would unmount the app.
+    if (viewportRef.current === 'desktop') {
+      // Full-bleed: fill the pane and lay out at 1280 wide via zoom — no letterbox.
+      // Height just fills (the page scrolls for more), so no top/bottom padding.
+      window.cove.browserSetBounds(paneId, { x: x0, y: y0, width: W, height: H })
+      window.cove.browserSetZoom?.(paneId, W / 1280)
+      return
+    }
+    // Mobile: a phone has a fixed tall aspect ratio, so it stays a centered device
+    // scaled to fit — the side gap is the phone's shape, not wasted padding.
+    const [lw, lh] = [390, 844]
     const scale = Math.min(W / lw, H / lh)
     const dw = Math.round(lw * scale)
     const dh = Math.round(lh * scale)
@@ -135,8 +144,6 @@ export function BrowserPane({
       width: dw,
       height: dh
     })
-    // Optional-chained: during a preload/renderer hot-reload desync this may be
-    // missing, and a throw here (inside an effect) would unmount the whole app.
     window.cove.browserSetZoom?.(paneId, scale)
   }, [paneId])
 
