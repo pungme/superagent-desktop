@@ -7,6 +7,7 @@ export interface BrowserState {
   canGoBack: boolean
   canGoForward: boolean
   loading: boolean
+  favicon?: string // data: URI of the current page's favicon, if loaded
 }
 
 export interface Workspace {

@@ -1,5 +1,24 @@
-import { BrowserWindow, WebContentsView, ipcMain, shell, app } from 'electron'
+import { BrowserWindow, WebContentsView, ipcMain, shell, app, net } from 'electron'
 import { normalizeUrl } from './util'
+
+// Latest favicon per pane, inlined as a data: URI (the app CSP allows data: but
+// not remote https: images, so we fetch the bytes here rather than in the renderer).
+const faviconByPane = new Map<string, string>()
+
+async function fetchFavicon(id: string, url: string, onReady: () => void): Promise<void> {
+  if (!/^https?:\/\//i.test(url)) return
+  try {
+    const res = await net.fetch(url)
+    if (!res.ok) return
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (buf.length === 0 || buf.length > 200_000) return // skip empty/absurd
+    const type = res.headers.get('content-type') || 'image/png'
+    faviconByPane.set(id, `data:${type};base64,${buf.toString('base64')}`)
+    onReady()
+  } catch {
+    // A favicon that won't load just leaves the fallback icon — never a problem.
+  }
+}
 
 // Present as plain Chrome. The default Electron UA carries "Electron/x" and the
 // app-name token, which bot-detection (Cloudflare et al.) flags as automated and
@@ -81,7 +100,8 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
       title: wc.getTitle(),
       canGoBack: wc.navigationHistory.canGoBack(),
       canGoForward: wc.navigationHistory.canGoForward(),
-      loading: wc.isLoading()
+      loading: wc.isLoading(),
+      favicon: faviconByPane.get(id)
     })
   }
   wc.on('did-navigate', sendState)
@@ -89,6 +109,15 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   wc.on('page-title-updated', sendState)
   wc.on('did-start-loading', sendState)
   wc.on('did-stop-loading', sendState)
+  // A page can drop its old favicon before the new one loads; clear on navigation
+  // so a stale icon doesn't linger, then inline the new one when it arrives.
+  wc.on('did-start-navigation', (_e, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) faviconByPane.delete(id)
+  })
+  wc.on('page-favicon-updated', (_e, favicons) => {
+    const url = favicons?.[0]
+    if (url) fetchFavicon(id, url, sendState)
+  })
   wc.setWindowOpenHandler(({ url }) => {
     // target=_blank etc. navigate the same pane — one browser per workspace (v1)
     if (isNavigable(url)) wc.loadURL(url)
@@ -154,6 +183,7 @@ export function destroyBrowserPane(id: string): void {
   if (!pane) return
   panes.delete(id)
   zoomFactors.delete(id)
+  faviconByPane.delete(id)
   hidePane(pane)
   pane.view.webContents.close()
 }

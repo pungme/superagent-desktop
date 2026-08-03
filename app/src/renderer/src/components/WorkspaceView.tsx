@@ -103,7 +103,10 @@ export function WorkspaceView({
   const containerRef = useRef<HTMLDivElement>(null)
   const [ratio, setRatio] = useState(() => {
     const saved = localStorage.getItem(`split:${ws.id}`)
-    return saved ? Math.min(0.8, Math.max(0.2, Number(saved))) : 0.55
+    // A browser project is mostly the browser — the chat is a slim "tell Claude
+    // what to do" column. Code projects split more evenly.
+    const fallback = ws.kind === 'browser' ? 0.22 : 0.55
+    return saved ? Math.min(0.8, Math.max(0.2, Number(saved))) : fallback
   })
   const [dragging, setDragging] = useState(false)
 

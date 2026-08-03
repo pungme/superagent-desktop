@@ -2389,6 +2389,14 @@ button {
   color: var(--text-tertiary);
 }
 
+/* A site's own favicon, standing in for the globe on browser projects. */
+.sidebar-favicon {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
 /* ---------- New project dialog ---------- */
 .dialog-backdrop {
   position: fixed;
