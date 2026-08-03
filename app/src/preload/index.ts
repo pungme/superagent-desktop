@@ -171,7 +171,8 @@ export interface CoveApi {
     workspaceId?: string
     resumeSessionId?: string | null
     browserProject?: boolean
-    permissionMode?: 'bypassPermissions' | 'acceptEdits'
+    permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'
+    model?: string
   }) => Promise<string>
   agentSuggestTitle: (cwd: string, excerpt: string) => Promise<string | null>
   agentSend: (id: string, text: string, images?: { mediaType: string; data: string }[]) => void

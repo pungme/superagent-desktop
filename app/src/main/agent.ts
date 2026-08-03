@@ -38,7 +38,9 @@ export interface AgentStartOptions {
    * are offered: under -p there is nowhere to answer one, so anything that
    * would ask is auto-denied and the tool silently fails.
    */
-  permissionMode?: 'bypassPermissions' | 'acceptEdits'
+  permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'
+  /** Model to run on (e.g. 'opus', 'sonnet'); '' / undefined = Claude's default. */
+  model?: string
 }
 
 const BROWSER_SYSTEM_PROMPT =
@@ -123,6 +125,8 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       '--permission-mode',
       opts.permissionMode ?? 'bypassPermissions'
     ]
+    // Pin the model when the user picked one; otherwise Claude's default applies.
+    if (opts.model) args.push('--model', opts.model)
     if (resume) args.unshift('--resume', resume)
     if (mcpConfig) args.push('--mcp-config', mcpConfig)
     const appended = [
