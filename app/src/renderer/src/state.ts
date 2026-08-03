@@ -37,6 +37,10 @@ interface CoveState {
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
   filesOpen: Record<string, boolean>
+  // Absolute path of the text file open in the in-app viewer/editor, per workspace.
+  openFile: Record<string, string | null>
+  openFileInViewer: (workspaceId: string, path: string) => void
+  closeFile: (workspaceId: string) => void
 
   // Count of open HTML overlays (slide-overs, modals). While > 0 the native
   // browser view is hidden so it can't cover them.
@@ -130,6 +134,16 @@ export const useStore = create<CoveState>((set, get) => ({
   ports: {},
   browserOpen: {},
   filesOpen: {},
+  openFile: {},
+  // A text file replaces the browser pane's slot; hide the native view so it can't
+  // cover the viewer, and remember which file is showing.
+  openFileInViewer: (workspaceId, path) =>
+    set((s) => ({
+      activeWorkspaceId: workspaceId,
+      openFile: { ...s.openFile, [workspaceId]: path }
+    })),
+  closeFile: (workspaceId) =>
+    set((s) => ({ openFile: { ...s.openFile, [workspaceId]: null } })),
   overlayCount: 0,
   enterOverlay: () => set((s) => ({ overlayCount: s.overlayCount + 1 })),
   exitOverlay: () => set((s) => ({ overlayCount: Math.max(0, s.overlayCount - 1) })),

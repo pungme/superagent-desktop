@@ -205,6 +205,17 @@ export function registerBrowserIpc(): void {
   ipcMain.handle('browser:zoom', (_e, id: string, action: 'in' | 'out' | 'reset') =>
     applyZoom(id, action)
   )
+  // Absolute zoom for device simulation (the renderer computes a fit-to-pane
+  // factor). Deliberately does NOT broadcast a zoom event — the manual zoom label
+  // must keep reflecting the user's own ⌘+/- level, not the simulator's.
+  ipcMain.on('browser:set-zoom-factor', (_e, id: string, factor: number) => {
+    const pane = panes.get(id)
+    const wc = pane?.view.webContents
+    if (!pane || !wc) return
+    const f = Math.min(3, Math.max(0.2, factor))
+    zoomFactors.set(id, f)
+    wc.setZoomFactor(f)
+  })
   ipcMain.on('browser:open-external', (_e, id: string) => {
     const url = getPaneWebContents(id)?.getURL()
     if (url) shell.openExternal(url)

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useStore, TodoItem } from '../state'
+import { useStore, useOverlayLock, TodoItem } from '../state'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
+import { Choices, splitAssistant } from './Choices'
 import { useDictation } from '../lib/dictation'
 
 interface ChatMessage {
@@ -164,6 +165,43 @@ function toolDetail(input: unknown): string {
 // left most of those expanded, which is the noise this is meant to hide.
 const TOOL_COLLAPSE_MIN = 2
 
+// One-liners for Claude's built-in slash commands, so the "/" menu explains each
+// like the terminal does. The session's init event only reports command *names*;
+// the user's own skills carry their own descriptions (from SKILL.md), so these
+// only fill in the built-ins. /loop's blurb tells the SuperAgent truth: it becomes
+// a Routine here (the cloud/session schedulers can't reach this app's browser).
+const BUILTIN_COMMAND_DESCRIPTIONS: Record<string, string> = {
+  clear: 'Reset the conversation context, keeping project memory',
+  compact: 'Summarize the conversation to free up the context window',
+  'code-review': 'Review the current diff for bugs and improvements',
+  'security-review': 'Check the current diff for security vulnerabilities',
+  review: 'Review the current diff for bugs and improvements',
+  simplify: 'Clean up changed code — reuse, simplify, efficiency',
+  batch: 'Orchestrate large-scale changes across the codebase',
+  loop: 'Repeat a prompt on a schedule — SuperAgent runs this as a Routine',
+  goal: 'Set a goal condition for the session to work toward',
+  btw: 'Ask a quick side question without adding it to history',
+  model: 'Switch the AI model for this and future sessions',
+  effort: 'Set reasoning effort (low / medium / high / xhigh / max)',
+  fast: 'Toggle fast mode for quicker responses',
+  advisor: 'Enable a second model for guidance',
+  cd: 'Move the session to a new working directory',
+  'add-dir': 'Add directory access without moving the session',
+  branch: 'Branch the conversation to try a different direction',
+  fork: 'Copy the conversation into a new background session',
+  init: 'Scan the project and write a CLAUDE.md guide',
+  mcp: 'Manage MCP server connections',
+  config: 'Adjust settings (theme, model, output style)',
+  permissions: 'Set approval rules and access controls',
+  export: 'Export the conversation as plain text',
+  copy: 'Copy the last response to the clipboard',
+  doctor: 'Run a setup checkup to diagnose issues',
+  debug: 'Enable debug logging and troubleshoot issues',
+  rewind: 'Roll code and conversation back to a checkpoint',
+  'design-sync': 'Upload your React design system to Claude Design',
+  help: 'Show all available commands'
+}
+
 // "Running ×9 · Reading ×6" — distinct verbs in first-seen order, so the collapsed
 // row still says what the agent actually did.
 function summarizeTools(tools: ToolCall[]): string {
@@ -321,24 +359,30 @@ export function EasyChat({
   const [ready, setReady] = useState(false)
   const [agentFailed, setAgentFailed] = useState(false)
   const [generating, setGenerating] = useState(false)
-  // Messages typed while a turn is streaming are queued here and sent in order
-  // as each turn finishes (stacking), rather than blocked.
-  const queueRef = useRef<{ text: string; images: PendingImage[] }[]>([])
   const [elapsed, setElapsed] = useState(0)
   const [resetKey, setResetKey] = useState(0)
   const [files, setFiles] = useState<string[]>([])
   const [commands, setCommands] = useState<string[]>([])
+  // name → one-line description, shown beside each "/" command in the menu.
+  const [commandDescs, setCommandDescs] = useState<Record<string, string>>({})
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const [dragOver, setDragOver] = useState(false)
+  // A thumbnail was clicked — show it full-size in a dismissible overlay. The lock
+  // hides the native browser view while it's open (a WebContentsView isn't part of
+  // the DOM, so it would otherwise draw straight over the HTML lightbox).
+  const [lightbox, setLightbox] = useState<string | null>(null)
+  useOverlayLock(lightbox !== null)
   // WhatsApp-style quote-reply: the message the next send will reply to.
   const [replyTarget, setReplyTarget] = useState<{ role: 'user' | 'assistant'; text: string } | null>(
     null
   )
-  const swipeRef = useRef<{ x: number; y: number; el: HTMLElement } | null>(null)
+  // Accumulated horizontal wheel delta for the in-progress swipe-to-reply gesture.
+  const swipeRef = useRef<{ dx: number; fired: boolean; el: HTMLElement } | null>(null)
+  const swipeTimer = useRef<number | null>(null)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
@@ -373,7 +417,14 @@ export function EasyChat({
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
     window.cove.filesList(cwd).then(setFiles)
-    window.cove.skillsList(cwd).then((list) => setCommands(list.map((s) => s.name)))
+    window.cove.skillsList(cwd).then((list) => {
+      setCommands(list.map((s) => s.name))
+      setCommandDescs((prev) => {
+        const next = { ...prev }
+        for (const s of list) if (s.description) next[s.name] = s.description
+        return next
+      })
+    })
   }, [cwd])
 
   // Restore the persisted transcript on mount, then save it (debounced) as it
@@ -597,12 +648,38 @@ export function EasyChat({
     useStore.getState().touchChat(workspaceId, chatId, { title })
   }, [cwd, workspaceId, chatId])
 
+  // Claude's tasks, accumulated across the turn from TaskCreate/TaskUpdate and
+  // mirrored (in insertion order) into the store the Tasks panel reads.
+  const tasks = useRef<Map<string, TodoItem>>(new Map())
+  const syncTasks = useCallback((): void => {
+    useStore.getState().setTodos(
+      workspaceId,
+      [...tasks.current.values()].map((t) => ({ ...t }))
+    )
+  }, [workspaceId])
+
   const handleEvent = useCallback(
     (event: Record<string, unknown>) => {
       const type = event.type as string
 
       if (type === 'system' && (event.subtype as string) === 'init') {
         setReady(true)
+        // Claude reports every slash command this session can actually run (built-ins
+        // like /compact, /review plus the user's own skills; interactive TUI-only ones
+        // are already excluded). Fold them into the "/" autocomplete pool so the menu
+        // covers all of Claude's commands, not just the skill folders we scanned.
+        const slash = event.slash_commands as string[] | undefined
+        if (Array.isArray(slash) && slash.length) {
+          setCommands((prev) => Array.from(new Set([...prev, ...slash])).sort())
+          // Fill in descriptions for the built-ins (skills already brought their own).
+          setCommandDescs((prev) => {
+            const next = { ...prev }
+            for (const name of slash)
+              if (!next[name] && BUILTIN_COMMAND_DESCRIPTIONS[name])
+                next[name] = BUILTIN_COMMAND_DESCRIPTIONS[name]
+            return next
+          })
+        }
         // Remember the session id so we can resume this conversation next launch.
         const sid = event.session_id as string | undefined
         if (sid && sid !== resumeIdRef.current) {
@@ -668,11 +745,24 @@ export function EasyChat({
             setThinking(false)
             const name = block.name as string
             const id = block.id as string
-            // TodoWrite carries Claude's live task list — surface it in the Tasks panel.
-            if (name === 'TodoWrite') {
-              const list = (block.input as { todos?: unknown })?.todos
-              if (Array.isArray(list)) {
-                useStore.getState().setTodos(workspaceId, list as TodoItem[])
+            // Claude's task tools drive the Tasks panel. TaskCreate adds a task
+            // (id assigned in creation order, matching Claude's #N), TaskUpdate
+            // moves its status. We accumulate them and mirror into the store.
+            if (name === 'TaskCreate') {
+              const inp = block.input as { subject?: string; activeForm?: string }
+              const taskId = String(tasks.current.size + 1)
+              tasks.current.set(taskId, {
+                content: inp.subject ?? '(task)',
+                status: 'pending',
+                activeForm: inp.activeForm
+              })
+              syncTasks()
+            } else if (name === 'TaskUpdate') {
+              const inp = block.input as { taskId?: string; status?: TodoItem['status'] }
+              const t = inp.taskId ? tasks.current.get(inp.taskId) : undefined
+              if (t && inp.status) {
+                t.status = inp.status
+                syncTasks()
               }
             }
             const diff = toolDiff(name, id, block.input)
@@ -710,23 +800,14 @@ export function EasyChat({
           aiTitledRef.current = true
           void nameConversation()
         }
-        // Send the next stacked message, if any; otherwise the turn is done.
-        const next = queueRef.current.shift()
-        const id = agentIdRef.current
-        if (next && id) {
-          window.cove.agentSend(
-            id,
-            next.text,
-            next.images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
-          )
-          setThinking(true) // stay generating for the next queued turn
-        } else {
-          setThinking(false)
-          setGenerating(false)
-        }
+        // A `result` marks the end of the turn (mid-turn messages steer the same
+        // turn, so there's exactly one). Any message sent after this just starts a
+        // fresh turn on its own.
+        setThinking(false)
+        setGenerating(false)
       }
     },
-    [workspaceId, chatId, nameConversation]
+    [workspaceId, chatId, nameConversation, syncTasks]
   )
 
   // The agent's lifecycle must not be tied to this callback's identity: the effect
@@ -851,11 +932,12 @@ export function EasyChat({
     const agentText = reply
       ? `> Replying to ${reply.role === 'user' ? 'my' : 'your'} earlier message:\n> "${reply.text.replace(/\s+/g, ' ').trim().slice(0, 400)}"\n\n${text}`
       : text
-    // Mid-turn: stack it — it's sent when the current turn finishes.
-    if (generating) {
-      queueRef.current.push({ text: agentText, images })
-      return
-    }
+    // Forward every message to Claude the instant you send it — even mid-turn.
+    // Claude reads a message that arrives while it's working and steers the running
+    // turn with it (verified: it drops what it was told before and follows the new
+    // instruction, merging both into one turn that ends in a single `result`), just
+    // like typing into the terminal. No app-side queue — that would only make you
+    // wait for the turn to finish first.
     window.cove.agentSend(
       id,
       agentText,
@@ -895,34 +977,38 @@ export function EasyChat({
       break
     }
   }
-  // Swipe a message to the right to reply to it (like WhatsApp).
-  const onMsgPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
-    if (e.button !== 0) return
-    swipeRef.current = { x: e.clientX, y: e.clientY, el: e.currentTarget }
-  }
-  const onMsgPointerMove = (e: React.PointerEvent<HTMLDivElement>): void => {
-    const s = swipeRef.current
-    if (!s) return
-    const dx = e.clientX - s.x
-    // Only engage on a clear rightward drag, so text selection/scroll still work.
-    if (dx > 8 && Math.abs(dx) > Math.abs(e.clientY - s.y)) {
-      s.el.setPointerCapture?.(e.pointerId)
-      s.el.style.transition = 'none'
-      s.el.style.transform = `translateX(${Math.min(dx, 72)}px)`
+  // Two-finger trackpad swipe-right on a message to reply to it (like WhatsApp).
+  // A wheel gesture — not a click-drag — so it never fights text selection. The
+  // gesture has no "end" event, so a short quiet timer snaps the bubble back.
+  const onMsgWheel = (e: React.WheelEvent<HTMLDivElement>, msg: ChatMessage): void => {
+    // Ignore vertical scroll; only act on clearly horizontal swipes.
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
+    const el = e.currentTarget
+    let s = swipeRef.current
+    if (!s || s.el !== el) {
+      s = { dx: 0, fired: false, el }
+      swipeRef.current = s
     }
-  }
-  const onMsgPointerUp = (e: React.PointerEvent<HTMLDivElement>, msg: ChatMessage): void => {
-    const s = swipeRef.current
-    if (!s) return
-    const dx = e.clientX - s.x
-    s.el.style.transition = ''
-    s.el.style.transform = ''
-    swipeRef.current = null
-    if (dx > 48) beginReply(msg)
+    // Natural scrolling reports fingers-moving-right as negative deltaX; mirror
+    // that as the bubble sliding right.
+    s.dx += -e.deltaX
+    const slide = Math.max(0, Math.min(s.dx, 72))
+    el.style.transition = 'none'
+    el.style.transform = `translateX(${slide}px)`
+    if (!s.fired && s.dx > 44) {
+      s.fired = true
+      beginReply(msg)
+    }
+    if (swipeTimer.current) clearTimeout(swipeTimer.current)
+    swipeTimer.current = window.setTimeout(() => {
+      el.style.transition = ''
+      el.style.transform = ''
+      swipeRef.current = null
+      swipeTimer.current = null
+    }, 140)
   }
 
   const stop = (): void => {
-    queueRef.current = [] // Stop means stop — drop anything stacked.
     const id = agentIdRef.current
     if (id) window.cove.agentInterrupt(id)
     setThinking(false)
@@ -981,7 +1067,7 @@ export function EasyChat({
     setPendingImages([])
     setMentionQuery(null)
     setElapsed(0)
-    queueRef.current = []
+    tasks.current.clear()
     useStore.getState().clearTodos(workspaceId)
     useStore.getState().newChat(workspaceId)
   }
@@ -1042,9 +1128,7 @@ export function EasyChat({
               <div
                 key={row.msg.id + i}
                 className={`easy-msg easy-${row.msg.role}`}
-                onPointerDown={onMsgPointerDown}
-                onPointerMove={onMsgPointerMove}
-                onPointerUp={(e) => onMsgPointerUp(e, row.msg)}
+                onWheel={(e) => onMsgWheel(e, row.msg)}
               >
                 {row.msg.replyTo && (
                   <div className="easy-reply-quote">
@@ -1059,11 +1143,24 @@ export function EasyChat({
                 {row.msg.images && row.msg.images.length > 0 && (
                   <div className="easy-msg-images">
                     {row.msg.images.map((src, ii) => (
-                      <img key={ii} src={src} alt="attachment" />
+                      <img
+                        key={ii}
+                        src={src}
+                        alt="attachment"
+                        onClick={() => setLightbox(src)}
+                      />
                     ))}
                   </div>
                 )}
-                {isAssistant ? <Markdown text={row.msg.text} /> : row.msg.text}
+                {isAssistant
+                  ? splitAssistant(row.msg.text).map((seg, si) =>
+                      'md' in seg ? (
+                        <Markdown key={si} text={seg.md} />
+                      ) : (
+                        <Choices key={si} spec={seg.ask} onAnswer={(a) => submit(a)} />
+                      )
+                    )
+                  : row.msg.text}
                 {row.msg.streaming && <span className="easy-caret" />}
                 {!row.msg.streaming && row.msg.text && (
                   <button
@@ -1149,7 +1246,16 @@ export function EasyChat({
                 onMouseEnter={() => setMentionIndex(idx)}
                 onClick={() => pickMention(f)}
               >
-                {mentionKind === 'cmd' ? `/${f}` : f}
+                {mentionKind === 'cmd' ? (
+                  <>
+                    <span className="easy-mention-name">/{f}</span>
+                    {commandDescs[f] && (
+                      <span className="easy-mention-desc">{commandDescs[f]}</span>
+                    )}
+                  </>
+                ) : (
+                  f
+                )}
               </button>
             ))}
           </div>
@@ -1245,6 +1351,11 @@ export function EasyChat({
           </button>
         )}
       </div>
+      {lightbox && (
+        <div className="easy-lightbox" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="attachment" />
+        </div>
+      )}
     </div>
   )
 }

@@ -300,7 +300,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         <StatusDot status={status} />
         <span
           className="sidebar-item-kind"
-          title={ws.kind === 'browser' ? 'Browser project' : 'Code project'}
+          title={ws.kind === 'browser' ? 'Browser' : 'Folder'}
         >
           <KindIcon kind={ws.kind} />
         </span>

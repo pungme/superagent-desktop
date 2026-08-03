@@ -28,15 +28,15 @@ export function NewProjectDialog(): React.JSX.Element | null {
         <div className="new-project-options">
           <button className="new-project-card" onClick={() => createCode(groupId)}>
             <span className="new-project-icon">📁</span>
-            <span className="new-project-card-title">Code project</span>
+            <span className="new-project-card-title">Folder</span>
             <span className="new-project-card-desc">
-              Pick a folder. Get the file tree, terminal, and live preview for building an app or
-              site.
+              Open any folder — code, docs, anything. Claude gets the file tree, terminal, and live
+              preview to work on what's inside.
             </span>
           </button>
           <button className="new-project-card" onClick={() => createBrowser(groupId)}>
             <span className="new-project-icon">🌐</span>
-            <span className="new-project-card-title">Browser project</span>
+            <span className="new-project-card-title">Browser</span>
             <span className="new-project-card-desc">
               No folder needed. Open the browser and have Claude automate it — e.g. “visit this site
               every hour and follow 5 people”.

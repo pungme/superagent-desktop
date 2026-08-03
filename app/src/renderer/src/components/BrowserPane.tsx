@@ -19,6 +19,35 @@ interface Suggestion {
   sub?: string // secondary line (e.g. the URL under a title)
 }
 
+// Monochrome line icons for the viewport switcher (kept black/white/gray).
+function DesktopIcon(): React.JSX.Element {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <rect x="1.5" y="2.5" width="13" height="9" rx="1" />
+      <path d="M6 14h4M8 11.5V14" strokeLinecap="round" />
+    </svg>
+  )
+}
+function MobileIcon(): React.JSX.Element {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <rect x="4.5" y="1.5" width="7" height="13" rx="1.4" />
+      <path d="M7 12.5h2" strokeLinecap="round" />
+    </svg>
+  )
+}
+function FitIcon(): React.JSX.Element {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <path
+        d="M2 5.5V2.5h3M11 2.5h3v3M14 10.5v3h-3M5 13.5H2v-3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 export function BrowserPane({
   paneId,
   partition,
@@ -43,6 +72,21 @@ export function BrowserPane({
   })
   const [crashed, setCrashed] = useState(false)
   const [zoom, setZoom] = useState(1)
+  // Device simulation: 'none' fills the pane (raw); 'desktop'/'mobile' render the
+  // page as a correctly-proportioned screen centered in the pane and zoomed to
+  // fit — so a desktop site isn't squeezed into the narrow pane. Persisted per pane.
+  const [viewport, setViewport] = useState<'none' | 'desktop' | 'mobile'>(
+    () => (localStorage.getItem(`viewport:${paneId}`) as 'none' | 'desktop' | 'mobile') || 'desktop'
+  )
+  // syncBounds reads the mode through this ref so it can stay stable (deps: paneId
+  // only) — otherwise recreating it on every mode change would re-run the pane's
+  // setup effect and re-navigate to the initial URL.
+  const viewportRef = useRef(viewport)
+  const pickViewport = (v: 'none' | 'desktop' | 'mobile'): void => {
+    localStorage.setItem(`viewport:${paneId}`, v)
+    viewportRef.current = v
+    setViewport(v)
+  }
   const [addressInput, setAddressInput] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [suggestIndex, setSuggestIndex] = useState(-1)
@@ -69,13 +113,31 @@ export function BrowserPane({
     const host = hostRef.current
     if (!host) return
     const r = host.getBoundingClientRect()
-    // WebContentsView bounds are window-relative CSS pixels
+    const x0 = Math.round(r.x)
+    const y0 = Math.round(r.y)
+    const W = Math.round(r.width)
+    const H = Math.round(r.height)
+    // WebContentsView bounds are window-relative CSS pixels.
+    if (viewportRef.current === 'none') {
+      window.cove.browserSetBounds(paneId, { x: x0, y: y0, width: W, height: H })
+      return
+    }
+    // Lay the page out at a device width, then scale to fit the pane. A zoom factor
+    // < 1 widens the page's layout viewport (window.innerWidth = px / zoom), so a
+    // desktop site reflows at 1280 and a phone at 390 — and shrinks to fit.
+    const [lw, lh] = viewportRef.current === 'mobile' ? [390, 844] : [1280, 800]
+    const scale = Math.min(W / lw, H / lh)
+    const dw = Math.round(lw * scale)
+    const dh = Math.round(lh * scale)
     window.cove.browserSetBounds(paneId, {
-      x: Math.round(r.x),
-      y: Math.round(r.y),
-      width: Math.round(r.width),
-      height: Math.round(r.height)
+      x: x0 + Math.round((W - dw) / 2),
+      y: y0 + Math.round((H - dh) / 2),
+      width: dw,
+      height: dh
     })
+    // Optional-chained: during a preload/renderer hot-reload desync this may be
+    // missing, and a throw here (inside an effect) would unmount the whole app.
+    window.cove.browserSetZoom?.(paneId, scale)
   }, [paneId])
 
   // Show/hide the native view as this workspace becomes active/inactive, or as
@@ -85,12 +147,22 @@ export function BrowserPane({
     else window.cove.browserHide(paneId)
   }, [visible, overlayOpen, paneId, syncBounds])
 
+  // Re-apply on mode change. Leaving simulation restores 100% first (the sim left
+  // a fit-to-pane zoom applied); then reposition/zoom for the newly selected mode.
+  useEffect(() => {
+    if (viewport === 'none') window.cove.browserZoom(paneId, 'reset')
+    syncBounds()
+  }, [viewport, paneId, syncBounds])
+
   useEffect(() => {
     let alive = true
     const offState = window.cove.onBrowserState(paneId, (s) => {
       setState(s)
       // A fresh load means the page recovered — drop any stale crash overlay.
       if (s.loading) setCrashed(false)
+      // Re-assert the simulated size/zoom once a navigation settles (a page load
+      // can reset the native view's zoom factor).
+      else syncBounds()
     })
     const offCrash = window.cove.onBrowserCrashed(paneId, () => setCrashed(true))
     // Keep the zoom label in sync when the ⌘+/-/0 keys zoom the native pane.
@@ -281,21 +353,47 @@ export function BrowserPane({
             </div>
           )}
         </div>
-        <div className="browser-zoom">
-          <button className="browser-nav-btn" onClick={() => doZoom('out')} title="Zoom out (⌘−)">
-            −
+        <div className="browser-viewport" role="group" title="Simulated screen size">
+          <button
+            className={`browser-vp-btn ${viewport === 'desktop' ? 'on' : ''}`}
+            onClick={() => pickViewport('desktop')}
+            title="Desktop — simulate a 1280-wide screen"
+          >
+            <DesktopIcon />
           </button>
           <button
-            className="browser-zoom-level"
-            onClick={() => doZoom('reset')}
-            title="Reset zoom (⌘0)"
+            className={`browser-vp-btn ${viewport === 'mobile' ? 'on' : ''}`}
+            onClick={() => pickViewport('mobile')}
+            title="Mobile — simulate a 390-wide phone"
           >
-            {Math.round(zoom * 100)}%
+            <MobileIcon />
           </button>
-          <button className="browser-nav-btn" onClick={() => doZoom('in')} title="Zoom in (⌘+)">
-            +
+          <button
+            className={`browser-vp-btn ${viewport === 'none' ? 'on' : ''}`}
+            onClick={() => pickViewport('none')}
+            title="None — fill the pane"
+          >
+            <FitIcon />
           </button>
         </div>
+        {/* Manual zoom only applies when not simulating a device (the sim owns zoom). */}
+        {viewport === 'none' && (
+          <div className="browser-zoom">
+            <button className="browser-nav-btn" onClick={() => doZoom('out')} title="Zoom out (⌘−)">
+              −
+            </button>
+            <button
+              className="browser-zoom-level"
+              onClick={() => doZoom('reset')}
+              title="Reset zoom (⌘0)"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button className="browser-nav-btn" onClick={() => doZoom('in')} title="Zoom in (⌘+)">
+              +
+            </button>
+          </div>
+        )}
         <button
           className={`browser-nav-btn ${reloadOnIdle ? 'on' : ''}`}
           onClick={() => setReloadOnIdle(paneId, !reloadOnIdle)}
@@ -320,7 +418,7 @@ export function BrowserPane({
           </button>
         )}
       </div>
-      <div ref={hostRef} className="browser-host">
+      <div ref={hostRef} className={`browser-host ${viewport !== 'none' ? 'sim' : ''}`}>
         {browsing && (
           <div className="browsing-indicator">
             <span className="browsing-pulse" />
