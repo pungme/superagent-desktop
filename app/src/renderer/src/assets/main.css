@@ -1133,6 +1133,16 @@ button {
   position: relative;
 }
 
+/* App-generated notice (failed/empty turn) — muted, bordered, not a chat bubble. */
+.easy-msg.easy-system {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: 12px;
+  border-radius: 8px;
+  align-self: stretch;
+}
+
 .easy-msg-copy {
   position: absolute;
   top: 6px;
