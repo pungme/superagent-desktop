@@ -898,6 +898,8 @@ export function EasyChat({
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
     if ((!text && images.length === 0) || !id || !ready) return
+    // Sent while a turn is already running — this is a mid-task interjection.
+    const interjecting = generating
     const reply = replyTarget
     setReplyTarget(null)
     // Name an untitled chat after its opening message, so the sidebar list is
@@ -929,15 +931,23 @@ export function EasyChat({
     setPendingImages([])
     if (inputRef.current) inputRef.current.style.height = 'auto'
     // Quote the replied-to message so the agent knows what you're responding to.
-    const agentText = reply
+    let agentText = reply
       ? `> Replying to ${reply.role === 'user' ? 'my' : 'your'} earlier message:\n> "${reply.text.replace(/\s+/g, ' ').trim().slice(0, 400)}"\n\n${text}`
       : text
-    // Forward every message to Claude the instant you send it — even mid-turn.
-    // Claude reads a message that arrives while it's working and steers the running
-    // turn with it (verified: it drops what it was told before and follows the new
-    // instruction, merging both into one turn that ends in a single `result`), just
-    // like typing into the terminal. No app-side queue — that would only make you
-    // wait for the turn to finish first.
+    // Forward every message to Claude the instant you send it — even mid-turn. It
+    // reaches Claude's stdin while it's working (verified), but Claude can still
+    // deprioritize a bare interjection when it's mid-task. Flag it explicitly so it
+    // stops at the next step, takes the new instruction into account, and doesn't
+    // just barrel on to finish what it was doing. Only the wrapper is sent — the
+    // chat still shows your clean message.
+    if (interjecting && text.trim()) {
+      agentText =
+        '[The user sent this WHILE you are still working on the previous request. ' +
+        'Treat it as a course-correction: pause at the next safe point, re-read it, and ' +
+        'act on it now rather than finishing the earlier plan unchanged. If it changes ' +
+        'what you should do, adjust; if it reorders priorities, follow the new order.]\n\n' +
+        agentText
+    }
     window.cove.agentSend(
       id,
       agentText,
