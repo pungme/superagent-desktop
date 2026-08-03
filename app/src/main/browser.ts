@@ -1,5 +1,34 @@
-import { BrowserWindow, WebContentsView, ipcMain, shell, app, net } from 'electron'
+import { BrowserWindow, WebContentsView, ipcMain, shell, app, net, session } from 'electron'
 import { normalizeUrl } from './util'
+
+// Electron's setUserAgent rewrites the UA *string* to look like Chrome, but not the
+// User-Agent Client Hints: the Sec-CH-UA header still advertises bare "Chromium",
+// never "Google Chrome". Bot-detection (Cloudflare) cross-checks the two, and that
+// UA-says-Chrome / hints-say-Chromium mismatch is a reliable automation tell — it's
+// why real, human clicks still get challenged. Add the "Google Chrome" brand (kept
+// in sync with the actual Chromium major) so the hints agree with the UA string.
+const partitionsHardened = new Set<string>()
+
+function addChromeBrand(value: string): string {
+  if (!value || /Google Chrome/i.test(value)) return value
+  // Mirror the "Chromium";v="…" entry as a "Google Chrome" entry (same version),
+  // leaving the GREASE brand ("Not_A Brand";v="99") untouched — real Chrome has all three.
+  return value.replace(/"Chromium";v="([^"]+)"/i, '"Google Chrome";v="$1", "Chromium";v="$1"')
+}
+
+function hardenClientHints(partition: string): void {
+  if (partitionsHardened.has(partition)) return
+  partitionsHardened.add(partition)
+  const ses = session.fromPartition(partition)
+  ses.webRequest.onBeforeSendHeaders((details, cb) => {
+    const h = details.requestHeaders
+    for (const k of Object.keys(h)) {
+      const lk = k.toLowerCase()
+      if (lk === 'sec-ch-ua' || lk === 'sec-ch-ua-full-version-list') h[k] = addChromeBrand(h[k])
+    }
+    cb({ requestHeaders: h })
+  })
+}
 
 // Latest favicon per pane, inlined as a data: URI (the app CSP allows data: but
 // not remote https: images, so we fetch the bytes here rather than in the renderer).
@@ -73,6 +102,7 @@ function isNavigable(url: string): boolean {
 
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
+  hardenClientHints(partition)
 
   const view = new WebContentsView({
     webPreferences: {
@@ -169,6 +199,7 @@ export function applyZoom(id: string, action: 'in' | 'out' | 'reset'): number {
  */
 export function ensureOffscreenPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
+  hardenClientHints(partition)
   const view = new WebContentsView({
     webPreferences: { partition, contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
