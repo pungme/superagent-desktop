@@ -16,7 +16,10 @@ import { app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { createRoutineForWorkspace, listRoutines, deleteRoutine } from './routines'
+import { getWorkspacePath } from './store'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
+import { isAbsolute, resolve } from 'path'
+import { homedir } from 'os'
 
 let port = 0
 let secret = ''
@@ -35,6 +38,25 @@ function buildServer(paneId: string): McpServer {
     async ({ url }) => ({
       content: [{ type: 'text', text: `Now at ${await auto.navigate(PANE_ID, url)}` }]
     })
+  )
+
+  server.registerTool(
+    'open_file',
+    {
+      description:
+        "Show a file to the user inside SuperAgent — text/markdown/code open in the in-app viewer, PDFs and images preview in the pane. ALWAYS prefer this over the shell `open`/`xdg-open` command for any file the user should see; it keeps them in the app instead of a separate OS window.",
+      inputSchema: { path: z.string().describe('Absolute or workspace-relative path to the file') }
+    },
+    async ({ path }) => {
+      const ws = workspaceIdFromPane(PANE_ID)
+      let abs = path.startsWith('~') ? join(homedir(), path.slice(1)) : path
+      if (!isAbsolute(abs)) {
+        const root = getWorkspacePath(ws)
+        abs = root ? resolve(root, abs) : resolve(abs)
+      }
+      broadcastToWindows('app:open-file', { workspaceId: ws, path: abs })
+      return { content: [{ type: 'text', text: `Opened ${abs} in SuperAgent.` }] }
+    }
   )
 
   server.registerTool(

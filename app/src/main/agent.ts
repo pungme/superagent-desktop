@@ -97,6 +97,15 @@ const CHOICES_PROMPT =
   '```ask\n{"question": "Which theme?", "multiple": false, "options": [{"label": "Dark"}, ' +
   '{"label": "Light"}, {"label": "Match system", "hint": "Follow macOS appearance"}]}\n```'
 
+// Files the user should see belong INSIDE SuperAgent, not a separate OS window.
+const FILE_OPEN_PROMPT =
+  'When the user asks you to open or show them a file (a PDF, an image, a document, ' +
+  'a markdown/text/code file), use the open_file tool — it displays the file inside ' +
+  'SuperAgent (the in-app viewer for text/markdown/code, the preview pane for PDFs and ' +
+  'images), right next to this chat. Do NOT use the shell `open` (macOS) or `xdg-open` ' +
+  'command to launch a file in an external app when open_file can show it in-app; only ' +
+  'fall back to the shell for file types SuperAgent cannot display (e.g. .docx, .xlsx, archives).'
+
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
   const id = randomUUID()
   const mcpConfig =
@@ -133,6 +142,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       TODO_PROMPT,
       SCHEDULING_PROMPT,
       CHOICES_PROMPT,
+      FILE_OPEN_PROMPT,
       opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
     ]
       .filter(Boolean)

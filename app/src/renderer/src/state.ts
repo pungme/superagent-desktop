@@ -4,6 +4,18 @@ import type { TreeGroup, Routine, Chat } from '../../preload'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 
+// How the app opens a file by extension. Text/code/markdown render in the in-app
+// viewer/editor; these binary types preview inline in the browser pane; anything
+// else goes to the OS. Shared by the file tree and the agent's open_file tool.
+export const FILE_TEXT_EXTS = new Set([
+  'txt', 'md', 'markdown', 'json', 'xml', 'csv', 'log', 'yml', 'yaml', 'toml', 'ini',
+  'env', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'css', 'scss', 'html', 'htm', 'py',
+  'go', 'rs', 'java', 'c', 'h', 'cpp', 'rb', 'php', 'swift', 'kt', 'sql', 'sh', 'bash', 'zsh'
+])
+export const FILE_PREVIEW_EXTS = new Set([
+  'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif'
+])
+
 /**
  * Only modes that need no prompt: SuperAgent drives `claude -p`, where there is
  * nowhere to answer a permission request, so an asking mode would silently deny
@@ -41,6 +53,10 @@ interface CoveState {
   openFile: Record<string, string | null>
   openFileInViewer: (workspaceId: string, path: string) => void
   closeFile: (workspaceId: string) => void
+  // Open an absolute file path the right way: text/code/markdown in the in-app
+  // viewer, PDFs/images in the preview pane, everything else in the OS default.
+  // Shared by the file tree and the agent's open_file tool.
+  openPath: (workspaceId: string, absPath: string) => void
 
   // Count of open HTML overlays (slide-overs, modals). While > 0 the native
   // browser view is hidden so it can't cover them.
@@ -147,6 +163,18 @@ export const useStore = create<CoveState>((set, get) => ({
     })),
   closeFile: (workspaceId) =>
     set((s) => ({ openFile: { ...s.openFile, [workspaceId]: null } })),
+  openPath: (workspaceId, absPath) => {
+    const ext = absPath.slice(absPath.lastIndexOf('.') + 1).toLowerCase()
+    if (FILE_TEXT_EXTS.has(ext)) {
+      get().openFileInViewer(workspaceId, absPath)
+    } else if (FILE_PREVIEW_EXTS.has(ext)) {
+      // encodeURI (not encodeURIComponent) so path separators survive.
+      get().openUrl(workspaceId, `file://${encodeURI(absPath)}`)
+    } else {
+      // .docx, .xlsx, archives, unknown types → hand off to the OS.
+      window.cove.filesOpenExternal(absPath)
+    }
+  },
   overlayCount: 0,
   enterOverlay: () => set((s) => ({ overlayCount: s.overlayCount + 1 })),
   exitOverlay: () => set((s) => ({ overlayCount: Math.max(0, s.overlayCount - 1) })),
