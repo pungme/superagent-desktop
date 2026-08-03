@@ -2919,7 +2919,7 @@ button {
 .easy-controls {
   display: flex;
   gap: 6px;
-  padding: 6px 14px 2px;
+  padding: 8px 16px 10px;
 }
 
 .easy-control {
@@ -2929,24 +2929,39 @@ button {
 .easy-control-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border: 1px solid var(--border-strong);
+  gap: 6px;
+  border: 1px solid var(--border);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 11px;
-  padding: 3px 9px;
-  border-radius: 7px;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: 8px;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
 }
 
 .easy-control-btn:hover,
 .easy-control-btn.open {
-  color: var(--text-primary);
+  border-color: var(--border-strong);
   background: var(--hover);
 }
 
+/* "Model" / "Mode" — the muted category label before the current value. */
+.easy-control-key {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.easy-control-val {
+  font-weight: 500;
+}
+
 .easy-control-caret {
-  font-size: 8px;
-  opacity: 0.7;
+  color: var(--text-tertiary);
+  margin-left: 1px;
 }
 
 .easy-control-menu {

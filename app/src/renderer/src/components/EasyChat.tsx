@@ -1490,8 +1490,11 @@ export function EasyChat({
             onClick={() => setControlMenu((m) => (m === 'model' ? null : 'model'))}
             title="Model"
           >
-            <span className="easy-control-caret">▾</span>
-            {modelLabel}
+            <span className="easy-control-key">Model</span>
+            <span className="easy-control-val">{modelLabel}</span>
+            <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           {controlMenu === 'model' && (
             <div className="easy-control-menu">
@@ -1514,8 +1517,11 @@ export function EasyChat({
             onClick={() => setControlMenu((m) => (m === 'mode' ? null : 'mode'))}
             title="Agent permissions"
           >
-            <span className="easy-control-caret">▾</span>
-            {modeLabel}
+            <span className="easy-control-key">Mode</span>
+            <span className="easy-control-val">{modeLabel}</span>
+            <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           {controlMenu === 'mode' && (
             <div className="easy-control-menu">
