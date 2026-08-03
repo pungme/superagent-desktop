@@ -2915,6 +2915,85 @@ button {
 
 /* ---------- Browser pane ---------- */
 
+/* Model + agent-mode pickers under the composer. */
+.easy-controls {
+  display: flex;
+  gap: 6px;
+  padding: 6px 14px 2px;
+}
+
+.easy-control {
+  position: relative;
+}
+
+.easy-control-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 7px;
+}
+
+.easy-control-btn:hover,
+.easy-control-btn.open {
+  color: var(--text-primary);
+  background: var(--hover);
+}
+
+.easy-control-caret {
+  font-size: 8px;
+  opacity: 0.7;
+}
+
+.easy-control-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  min-width: 190px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  box-shadow: 0 8px 28px var(--shadow);
+  padding: 4px;
+  z-index: 20;
+}
+
+.easy-control-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  padding: 6px 9px;
+  border-radius: 6px;
+}
+
+.easy-control-item:hover {
+  background: var(--hover);
+}
+
+.easy-control-item.on {
+  background: var(--accent-soft);
+}
+
+.easy-control-item-label {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.easy-control-item-hint {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
 /* Clickable options Claude offered via an ```ask block. */
 .easy-choices {
   display: flex;

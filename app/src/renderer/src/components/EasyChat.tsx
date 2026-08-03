@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useStore, useOverlayLock, TodoItem } from '../state'
+import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
 import { Choices, splitAssistant } from './Choices'
@@ -202,6 +202,24 @@ const BUILTIN_COMMAND_DESCRIPTIONS: Record<string, string> = {
   'design-sync': 'Upload your React design system to Claude Design',
   help: 'Show all available commands'
 }
+
+// Model choices for the composer picker. '' = Claude's own default (whatever the
+// CLI is configured to use); the rest are passed as --model at spawn.
+const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
+  { value: '', label: 'Default', hint: "Claude Code's configured model" },
+  { value: 'opus', label: 'Opus', hint: 'Most capable' },
+  { value: 'sonnet', label: 'Sonnet', hint: 'Balanced' },
+  { value: 'haiku', label: 'Haiku', hint: 'Fastest, lightest' },
+  { value: 'fable', label: 'Fable', hint: 'Fast, for quick edits' }
+]
+
+// Agent modes (permission-mode). Plan = read-only planning, no changes made.
+const MODE_OPTIONS: { value: 'bypassPermissions' | 'acceptEdits' | 'plan'; label: string; hint: string }[] =
+  [
+    { value: 'bypassPermissions', label: 'Full', hint: 'Runs commands and edits, like your terminal' },
+    { value: 'acceptEdits', label: 'Edits', hint: 'Applies file edits; some commands may be refused' },
+    { value: 'plan', label: 'Plan', hint: 'Read-only — plans without changing anything' }
+  ]
 
 // "Running ×9 · Reading ×6" — distinct verbs in first-seen order, so the collapsed
 // row still says what the agent actually did.
@@ -408,6 +426,14 @@ export function EasyChat({
   // from the incoming chat's own session.
   const registerAgent = useStore((s) => s.registerAgent)
   const isActive = useStore((s) => s.activeWorkspaceId === workspaceId)
+  // Model + agent-mode pickers under the composer. Changing either respawns the
+  // agent (resuming the conversation) so the new --model / --permission-mode take
+  // effect immediately without losing context.
+  const model = useStore((s) => s.model)
+  const setModel = useStore((s) => s.setModel)
+  const permissionMode = useStore((s) => s.permissionMode)
+  const setPermissionMode = useStore((s) => s.setPermissionMode)
+  const [controlMenu, setControlMenu] = useState<'model' | 'mode' | null>(null)
 
   // Elapsed "Working Ns" timer while a turn is running. (Reset happens in the
   // event handlers that clear `generating`, so no synchronous setState here.)
@@ -900,7 +926,8 @@ export function EasyChat({
         workspaceId,
         resumeSessionId: resumeIdRef.current,
         browserProject,
-        permissionMode: useStore.getState().permissionMode
+        permissionMode: useStore.getState().permissionMode,
+        model: useStore.getState().model
       })
       .then((id) => {
         if (disposed) {
@@ -1170,6 +1197,27 @@ export function EasyChat({
     setResetKey((k) => k + 1)
   }
 
+  // Apply a new model or mode: persist it, then respawn the agent (resuming this
+  // conversation) so the flag takes effect now. Stops any in-flight turn first.
+  const applyRespawn = (): void => {
+    setControlMenu(null)
+    if (agentIdRef.current) window.cove.agentInterrupt(agentIdRef.current)
+    setReady(false)
+    setGenerating(false)
+    setThinking(false)
+    setResetKey((k) => k + 1)
+  }
+  const pickModel = (value: string): void => {
+    if (value !== model) setModel(value)
+    applyRespawn()
+  }
+  const pickMode = (value: PermissionMode): void => {
+    if (value !== permissionMode) setPermissionMode(value)
+    applyRespawn()
+  }
+  const modelLabel = MODEL_OPTIONS.find((m) => m.value === model)?.label ?? 'Default'
+  const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
+
   return (
     <div
       ref={chatRef}
@@ -1434,6 +1482,56 @@ export function EasyChat({
             ↑
           </button>
         )}
+      </div>
+      <div className="easy-controls">
+        <div className="easy-control">
+          <button
+            className={`easy-control-btn ${controlMenu === 'model' ? 'open' : ''}`}
+            onClick={() => setControlMenu((m) => (m === 'model' ? null : 'model'))}
+            title="Model"
+          >
+            <span className="easy-control-caret">▾</span>
+            {modelLabel}
+          </button>
+          {controlMenu === 'model' && (
+            <div className="easy-control-menu">
+              {MODEL_OPTIONS.map((o) => (
+                <button
+                  key={o.value || 'default'}
+                  className={`easy-control-item ${o.value === model ? 'on' : ''}`}
+                  onClick={() => pickModel(o.value)}
+                >
+                  <span className="easy-control-item-label">{o.label}</span>
+                  <span className="easy-control-item-hint">{o.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="easy-control">
+          <button
+            className={`easy-control-btn ${controlMenu === 'mode' ? 'open' : ''}`}
+            onClick={() => setControlMenu((m) => (m === 'mode' ? null : 'mode'))}
+            title="Agent permissions"
+          >
+            <span className="easy-control-caret">▾</span>
+            {modeLabel}
+          </button>
+          {controlMenu === 'mode' && (
+            <div className="easy-control-menu">
+              {MODE_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  className={`easy-control-item ${o.value === permissionMode ? 'on' : ''}`}
+                  onClick={() => pickMode(o.value)}
+                >
+                  <span className="easy-control-item-label">{o.label}</span>
+                  <span className="easy-control-item-hint">{o.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       {lightbox && (
         <div className="easy-lightbox" onClick={() => setLightbox(null)}>

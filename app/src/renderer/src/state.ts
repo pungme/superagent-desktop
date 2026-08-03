@@ -9,7 +9,7 @@ export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
  * nowhere to answer a permission request, so an asking mode would silently deny
  * and the tool would just fail.
  */
-export type PermissionMode = 'bypassPermissions' | 'acceptEdits'
+export type PermissionMode = 'bypassPermissions' | 'acceptEdits' | 'plan'
 
 /** A task from Claude's TodoWrite tool, surfaced live in the chat. */
 export interface TodoItem {
@@ -90,6 +90,9 @@ interface CoveState {
   /** How much the agent may do without asking. Applies to newly started chats. */
   permissionMode: PermissionMode
   setPermissionMode: (m: PermissionMode) => void
+  // Model to run agents on ('' = Claude's default). Passed as --model at spawn.
+  model: string
+  setModel: (m: string) => void
 
   theme: 'system' | 'light' | 'dark'
   setTheme: (t: 'system' | 'light' | 'dark') => void
@@ -161,6 +164,11 @@ export const useStore = create<CoveState>((set, get) => ({
   setPermissionMode: (m) => {
     localStorage.setItem('cove.permissionMode', m)
     set({ permissionMode: m })
+  },
+  model: localStorage.getItem('cove.model') || '',
+  setModel: (m) => {
+    localStorage.setItem('cove.model', m)
+    set({ model: m })
   },
 
   refresh: async () => {
