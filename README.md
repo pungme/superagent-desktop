@@ -4,12 +4,21 @@
 
 <h1 align="center">SuperAgent</h1>
 
-<p align="center"><b>A friendly home for Claude Code.</b></p>
+<p align="center"><b>The desktop home for Claude Code — one chat, your real browser, and tasks that run themselves.</b></p>
+
+<p align="center">
+  <a href="https://github.com/pungme/superagent-desktop/releases/latest"><b>⬇ Download for Mac</b></a> ·
+  <a href="https://pungme.github.io/superagent-desktop/">Website</a> ·
+  Apple Silicon · free &amp; open source
+</p>
 
 Your coding agent already writes the code. SuperAgent gives it a place to work:
-many conversations per project, a browser it can actually drive, files you can
-read next to the chat, and tasks that keep running on a timer. Quiet,
-keyboard-driven, and built to look like it belongs on a Mac.
+a persistent chat per project, a real browser it can **drive on the sites you're
+already logged into**, files you read next to the chat, and routines that keep
+running on a timer. Everything runs locally on your Mac, on your own Claude
+subscription — no middleman server, and the whole app is open source, so you can
+read exactly how it touches your browser. Quiet, keyboard-driven, and built to
+look like it belongs on a Mac.
 
 ![SuperAgent — the agent driving a real web page in the in-app browser, side by side with the chat](docs/hero.png)
 
