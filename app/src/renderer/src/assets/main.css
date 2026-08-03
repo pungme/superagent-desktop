@@ -1890,7 +1890,7 @@ button {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 10px 14px 8px;
+  padding: 10px 14px 10px;
   border-top: 1px solid var(--border);
   position: relative;
 }
@@ -2919,9 +2919,9 @@ button {
 .easy-controls {
   display: flex;
   gap: 6px;
-  /* No top padding: the input row's 8px bottom is the gap. Left aligns with the
-     input box; a roomier bottom so the row isn't crammed against the edge. */
-  padding: 0 14px 12px;
+  /* No top padding: the input row's 10px bottom is the gap above the pills; the
+     10px bottom here matches it, so the row sits evenly between input and edge. */
+  padding: 0 14px 10px;
 }
 
 .easy-control {
