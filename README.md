@@ -1,6 +1,10 @@
-# SuperAgent
+<p align="center">
+  <img src="docs/logo.png" width="112" alt="SuperAgent logo" />
+</p>
 
-**A friendly home for Claude Code.**
+<h1 align="center">SuperAgent</h1>
+
+<p align="center"><b>A friendly home for Claude Code.</b></p>
 
 Your coding agent already writes the code. SuperAgent gives it a place to work:
 many conversations per project, a browser it can actually drive, files you can
