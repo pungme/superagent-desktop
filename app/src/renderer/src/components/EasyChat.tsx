@@ -12,6 +12,7 @@ interface ChatMessage {
   streaming?: boolean
   images?: string[] // data URLs, for user messages
   replyTo?: { role: 'user' | 'assistant'; text: string } // WhatsApp-style quoted message
+  system?: boolean // app-generated notice (e.g. a failed/empty turn), not from Claude
 }
 
 interface PendingImage {
@@ -388,6 +389,9 @@ export function EasyChat({
   const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
+  // Whether this turn produced any assistant text/tool activity, so a `result`
+  // that yielded nothing visible can be flagged instead of vanishing.
+  const streamedThisTurnRef = useRef(false)
   const thinkingIdRef = useRef<string | null>(null)
   // Session to resume so context survives restarts; updated once claude reports it.
   const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
@@ -699,6 +703,7 @@ export function EasyChat({
             // Begin a new streaming assistant message.
             const id = `a-${Date.now()}-${Math.random()}`
             streamingIdRef.current = id
+            streamedThisTurnRef.current = true
             setThinking(false)
             setItems((prev) => [
               ...prev,
@@ -740,9 +745,38 @@ export function EasyChat({
       if (type === 'assistant') {
         const msg = event.message as Record<string, unknown>
         const content = (msg?.content as Record<string, unknown>[]) || []
+        // Some assistant messages arrive whole rather than streamed — most notably
+        // API-error notices like "You've reached your Fable 5 limit… switch models
+        // with /model" (rate_limit). Text normally streams via stream_event, so if
+        // a text block shows up here that we never streamed, surface it — otherwise
+        // the turn looks empty and the user never sees why it stopped.
+        if (!streamingIdRef.current) {
+          const wholeText = content
+            .filter((b) => b.type === 'text')
+            .map((b) => (b.text as string) || '')
+            .join('')
+            .trim()
+          if (wholeText) {
+            streamedThisTurnRef.current = true
+            const isApiError = msg?.isApiErrorMessage === true
+            setItems((prev) => [
+              ...prev,
+              {
+                kind: 'msg',
+                msg: {
+                  id: `a-${Date.now()}-${Math.random()}`,
+                  role: 'assistant',
+                  text: isApiError ? `⚠ ${wholeText}` : wholeText,
+                  system: isApiError
+                }
+              }
+            ])
+          }
+        }
         for (const block of content) {
           if (block.type === 'tool_use') {
             setThinking(false)
+            streamedThisTurnRef.current = true
             const name = block.name as string
             const id = block.id as string
             // Claude's task tools drive the Tasks panel. TaskCreate adds a task
@@ -805,6 +839,43 @@ export function EasyChat({
         // fresh turn on its own.
         setThinking(false)
         setGenerating(false)
+        // Surface a failed or empty turn. Without this the app silently swallows an
+        // error result (usage limit, max turns, an execution/auth error) — so a
+        // message like "continue" looks like it did nothing at all.
+        const isError =
+          (event.is_error as boolean) ||
+          (typeof event.subtype === 'string' && event.subtype !== 'success')
+        if (isError || !streamedThisTurnRef.current) {
+          const sub = event.subtype as string | undefined
+          let note = 'Claude ended the turn without a response. Try sending your message again.'
+          if (sub === 'error_max_turns')
+            note = 'Claude reached its step limit for this turn. Send “continue” to let it keep going.'
+          else if (sub === 'error_during_execution')
+            note = 'Claude hit an error partway through this turn. Send “continue” to retry.'
+          const errs = event.errors as unknown[] | undefined
+          const detail =
+            Array.isArray(errs) && errs.length
+              ? ' (' +
+                errs
+                  .map((e) => (typeof e === 'string' ? e : JSON.stringify(e)))
+                  .join('; ')
+                  .slice(0, 200) +
+                ')'
+              : ''
+          setItems((prev) => [
+            ...prev,
+            {
+              kind: 'msg',
+              msg: {
+                id: `sys-${Date.now()}`,
+                role: 'assistant',
+                text: `⚠ ${note}${detail}`,
+                system: true
+              }
+            }
+          ])
+        }
+        streamedThisTurnRef.current = false
       }
     },
     [workspaceId, chatId, nameConversation, syncTasks]
@@ -948,6 +1019,9 @@ export function EasyChat({
         'what you should do, adjust; if it reorders priorities, follow the new order.]\n\n' +
         agentText
     }
+    // Only reset the "did this turn produce anything" flag when starting a fresh
+    // turn — a mid-turn interjection is part of the turn already in progress.
+    if (!interjecting) streamedThisTurnRef.current = false
     window.cove.agentSend(
       id,
       agentText,
@@ -1137,7 +1211,7 @@ export function EasyChat({
             return (
               <div
                 key={row.msg.id + i}
-                className={`easy-msg easy-${row.msg.role}`}
+                className={`easy-msg easy-${row.msg.role} ${row.msg.system ? 'easy-system' : ''}`}
                 onWheel={(e) => onMsgWheel(e, row.msg)}
               >
                 {row.msg.replyTo && (
