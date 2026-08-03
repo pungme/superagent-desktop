@@ -1890,7 +1890,7 @@ button {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 10px 14px 14px;
+  padding: 10px 14px 8px;
   border-top: 1px solid var(--border);
   position: relative;
 }
@@ -2919,7 +2919,9 @@ button {
 .easy-controls {
   display: flex;
   gap: 6px;
-  padding: 8px 16px 10px;
+  /* No top padding: the input row's 8px bottom is the gap. Left aligns with the
+     input box; a roomier bottom so the row isn't crammed against the edge. */
+  padding: 0 14px 12px;
 }
 
 .easy-control {

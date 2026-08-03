@@ -147,12 +147,17 @@ export function BrowserPane({
     window.cove.browserSetZoom?.(paneId, scale)
   }, [paneId])
 
-  // Show/hide the native view as this workspace becomes active/inactive, or as
-  // an HTML overlay opens/closes over it.
+  // The omnibox suggestion dropdown is HTML; the native browser view draws on top
+  // of HTML, so while suggestions are open the native pane must step aside — else
+  // the dropdown is both hidden behind it and unclickable (clicks hit the page).
+  const suggestOpen = showSuggest && suggestions.length > 0
+
+  // Show/hide the native view as this workspace becomes active/inactive, as an HTML
+  // overlay opens/closes over it, or while the omnibox suggestions are showing.
   useEffect(() => {
-    if (visible && !overlayOpen) syncBounds()
+    if (visible && !overlayOpen && !suggestOpen) syncBounds()
     else window.cove.browserHide(paneId)
-  }, [visible, overlayOpen, paneId, syncBounds])
+  }, [visible, overlayOpen, suggestOpen, paneId, syncBounds])
 
   // Re-apply on mode change. Leaving simulation restores 100% first (the sim left
   // a fit-to-pane zoom applied); then reposition/zoom for the newly selected mode.

@@ -6,7 +6,7 @@ import { ensureOffscreenPane, destroyBrowserPane } from './browser'
 import { navigate } from './automation'
 import { writeWorkspaceMcpConfig } from './mcp'
 import { getHookUrl } from './hooks'
-import { getDb } from './store'
+import { getDb, getWorkspaceKind } from './store'
 import { findClaude } from './claude-cli'
 import { broadcastToWindows, partitionFor, routinePaneId } from './util'
 
@@ -216,7 +216,14 @@ export async function runRoutine(routine: Routine): Promise<void> {
 
   try {
     const win = BrowserWindow.getAllWindows()[0]
-    if (win) ensureOffscreenPane(win, paneId, partitionFor(routine.workspaceId))
+    // Match the visible pane's partition (shared for browser projects) so the
+    // routine runs against the same logged-in session the user set up by hand.
+    if (win)
+      ensureOffscreenPane(
+        win,
+        paneId,
+        partitionFor(routine.workspaceId, getWorkspaceKind(routine.workspaceId))
+      )
     // Seed the offscreen pane with the project's last-viewed URL so the agent has a
     // real page to act on. Without this it starts on about:blank, so a prompt like
     // "refresh the Instagram page and follow 5 people" has no page — the agent reads
