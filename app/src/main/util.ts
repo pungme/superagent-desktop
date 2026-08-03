@@ -54,9 +54,16 @@ export function normalizeUrl(raw: string): string {
     : `https://${url}`
 }
 
-/** The Electron session partition for a workspace's browser panes (visible + offscreen share it). */
-export function partitionFor(workspaceId: string): string {
-  return `persist:ws-${workspaceId}`
+/**
+ * The Electron session partition for a workspace's browser panes (visible +
+ * offscreen share it). Browser projects all share ONE partition so a login the
+ * user does by hand (Instagram, etc.) carries across every browser project and
+ * its routines — you don't re-authenticate per project. Code projects keep an
+ * isolated partition per workspace (their panes are just localhost previews).
+ */
+export const SHARED_BROWSER_PARTITION = 'persist:browser'
+export function partitionFor(workspaceId: string, kind?: string): string {
+  return kind === 'browser' ? SHARED_BROWSER_PARTITION : `persist:ws-${workspaceId}`
 }
 
 /** Encode / decode the offscreen routine pane id (packs workspaceId + "routine"). */

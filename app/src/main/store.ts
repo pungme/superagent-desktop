@@ -171,6 +171,14 @@ export function getTree(): TreeGroup[] {
   }))
 }
 
+/** A workspace's kind ('browser' | 'app'), for picking its session partition. */
+export function getWorkspaceKind(id: string): WorkspaceKind | undefined {
+  const row = db.prepare('SELECT kind FROM workspaces WHERE id = ?').get(id) as
+    | { kind: WorkspaceKind }
+    | undefined
+  return row?.kind
+}
+
 export function registerStoreIpc(): void {
   initStore()
 

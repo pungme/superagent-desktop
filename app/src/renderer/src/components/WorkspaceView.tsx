@@ -212,7 +212,9 @@ export function WorkspaceView({
               ) : (
                 <BrowserPane
                   paneId={ws.id}
-                  partition={`persist:ws-${ws.id}`}
+                  // Browser projects share one session so a manual login carries
+                  // across all of them; code previews stay isolated per workspace.
+                  partition={ws.kind === 'browser' ? 'persist:browser' : `persist:ws-${ws.id}`}
                   initialUrl={ws.browserUrl ?? undefined}
                   visible={visible}
                   closable={ws.kind !== 'browser'}
