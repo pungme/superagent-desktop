@@ -179,6 +179,14 @@ export function getWorkspaceKind(id: string): WorkspaceKind | undefined {
   return row?.kind
 }
 
+/** A workspace's project path, for resolving a relative file path the agent passes. */
+export function getWorkspacePath(id: string): string | undefined {
+  const row = db.prepare('SELECT path FROM workspaces WHERE id = ?').get(id) as
+    | { path: string }
+    | undefined
+  return row?.path
+}
+
 export function registerStoreIpc(): void {
   initStore()
 

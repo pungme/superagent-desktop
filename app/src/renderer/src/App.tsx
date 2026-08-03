@@ -110,6 +110,14 @@ function App(): React.JSX.Element {
     }
   }, [toggleSidebar])
 
+  // The agent's open_file tool asks the app to display a file in-app (viewer for
+  // text/markdown, pane for PDFs/images) instead of the OS default.
+  useEffect(() => {
+    return window.cove.onOpenFile(({ workspaceId, path }) => {
+      useStore.getState().openPath(workspaceId, path)
+    })
+  }, [])
+
   // Keep every opened workspace mounted so switching tabs never restarts its
   // session — only the active one is shown; the rest run hidden in the background.
   const [opened, setOpened] = useState<string[]>([])

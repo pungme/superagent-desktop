@@ -51,8 +51,7 @@ function fileIcon(name: string): string {
 }
 
 export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element {
-  const openUrl = useStore((s) => s.openUrl)
-  const openFileInViewer = useStore((s) => s.openFileInViewer)
+  const openPath = useStore((s) => s.openPath)
   const [paths, setPaths] = useState<string[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -92,63 +91,9 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
       return next
     })
 
-  // Text/code/markdown open in the in-app viewer (real markdown rendering + an
-  // edit mode), rather than as Chromium's raw text/plain from a file:// URL.
-  const TEXT = new Set([
-    'txt',
-    'md',
-    'markdown',
-    'json',
-    'xml',
-    'csv',
-    'log',
-    'yml',
-    'yaml',
-    'toml',
-    'ini',
-    'env',
-    'js',
-    'mjs',
-    'cjs',
-    'jsx',
-    'ts',
-    'tsx',
-    'css',
-    'scss',
-    'html',
-    'htm',
-    'py',
-    'go',
-    'rs',
-    'java',
-    'c',
-    'h',
-    'cpp',
-    'rb',
-    'php',
-    'swift',
-    'kt',
-    'sql',
-    'sh',
-    'bash',
-    'zsh'
-  ])
-  // Binary previews Chromium renders inline from a file:// URL (the native pane).
-  const PREVIEW = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif'])
-
-  const open = (relPath: string): void => {
-    const abs = `${cwd}/${relPath}`
-    const ext = relPath.slice(relPath.lastIndexOf('.') + 1).toLowerCase()
-    if (TEXT.has(ext)) {
-      openFileInViewer(workspaceId, abs)
-    } else if (PREVIEW.has(ext)) {
-      // encodeURI (not encodeURIComponent) so the path separators survive.
-      openUrl(workspaceId, `file://${encodeURI(abs)}`)
-    } else {
-      // .docx, .xlsx, archives, unknown types → hand off to the OS.
-      window.cove.filesOpenExternal(abs)
-    }
-  }
+  // Routing (text → in-app viewer, PDF/image → pane, else → OS) lives in the store
+  // so the agent's open_file tool opens files exactly the same way.
+  const open = (relPath: string): void => openPath(workspaceId, `${cwd}/${relPath}`)
 
   const rows: React.JSX.Element[] = []
   const render = (nodes: TreeNode[], depth: number): void => {

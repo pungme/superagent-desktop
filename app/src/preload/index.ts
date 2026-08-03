@@ -83,6 +83,7 @@ export interface CoveApi {
   browserSetZoom: (id: string, factor: number) => void
   onBrowserZoom: (id: string, cb: (factor: number) => void) => () => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
+  onOpenFile: (cb: (p: { workspaceId: string; path: string }) => void) => () => void
   onBrowserCrashed: (id: string, cb: () => void) => () => void
   browserStopAutomation: (id: string) => void
   onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
@@ -213,6 +214,9 @@ const cove: CoveApi = {
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
   onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
+  // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
+  onOpenFile: (cb) =>
+    subscribe('app:open-file', (p) => cb(p as { workspaceId: string; path: string })),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
   createGroup: (name) => ipcRenderer.invoke('store:createGroup', name),
