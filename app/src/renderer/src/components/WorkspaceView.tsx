@@ -10,6 +10,7 @@ import { RoutineRunView } from './RoutineRunView'
 import type { Workspace, Routine } from '../../../preload'
 
 const EMPTY_ROUTINES: Routine[] = []
+const EMPTY_PORTS: number[] = []
 
 /** Bare hostname (no www.) for a browser project's header title. */
 function hostOf(url: string): string {
@@ -44,6 +45,10 @@ export function WorkspaceView({
     loadChats(ws.id)
   }, [ws.id, loadChats])
   const toggleFiles = useStore((s) => s.toggleFiles)
+  // Dev servers the agent started (from tool output). Shown as a chip in the
+  // toolbar — there's room here, unlike the cramped sidebar row.
+  const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
+  const openPreview = useStore((s) => s.openPreview)
   const [skillsOpen, setSkillsOpen] = useState(false)
   const [routinesOpen, setRoutinesOpen] = useState(false)
   // Current git branch, for code projects only (browser projects have no repo).
@@ -171,6 +176,17 @@ export function WorkspaceView({
               </span>
             )}
           </>
+        )}
+        {ws.kind !== 'browser' && ports.length > 0 && (
+          <button
+            className="workspace-server"
+            title={`Open localhost:${ports[ports.length - 1]} in the preview`}
+            onClick={() => openPreview(ws.id, ports[ports.length - 1])}
+          >
+            <span className="workspace-server-dot" />
+            localhost:{ports[ports.length - 1]}
+            <span className="workspace-server-open">Open preview</span>
+          </button>
         )}
         <div className="workspace-toolbar-spacer" />
         <button

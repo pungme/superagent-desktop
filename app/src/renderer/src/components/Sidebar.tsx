@@ -18,9 +18,6 @@ const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   'needs-you': 'Needs you'
 }
 
-// Stable reference so the zustand selector doesn't return a fresh array each render.
-const EMPTY_PORTS: number[] = []
-
 // Stable empty routine list so the selector doesn't return a fresh array each render.
 const EMPTY_ROUTINES: Routine[] = []
 const EMPTY_CHATS: Chat[] = []
@@ -223,14 +220,12 @@ function ChatRow({
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id)
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
-  const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
   const removeWorkspace = useStore((s) => s.removeWorkspace)
-  const openPreview = useStore((s) => s.openPreview)
 
   // Git repos nested inside a code project's folder (a folder-of-repos), shown
   // tree-style under it. Refreshed after Claude's turns (branches/repos change).
@@ -334,18 +329,8 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             ⎇ {selfBranch}
           </span>
         )}
-        {ports.length > 0 && (
-          <span
-            className="port-chip"
-            title={`Open localhost:${ports[ports.length - 1]} in the preview`}
-            onClick={(e) => {
-              e.stopPropagation()
-              openPreview(ws.id, ports[ports.length - 1])
-            }}
-          >
-            :{ports[ports.length - 1]}
-          </span>
-        )}
+        {/* The running-server chip lives in the workspace toolbar now (more room);
+            the sidebar row was too cramped next to the branch + close button. */}
         <button
           className="sidebar-item-remove"
           title="Remove from SuperAgent"
