@@ -238,9 +238,11 @@ export function BrowserPane({
     window.cove.browserCreate(paneId, partition).then(() => {
       if (!alive) return
       syncBounds()
-      // A URL to load, or the themed "new tab" empty state for a blank pane.
+      // A URL to load, or the themed "new tab" empty state — but only for browser
+      // projects. A code preview with no URL stays blank (as before) so it never
+      // renders an out-of-place "type a URL" page floating over the chat.
       if (initialUrl) window.cove.browserNavigate(paneId, initialUrl)
-      else window.cove.browserShowEmpty(paneId)
+      else if (!closable) window.cove.browserShowEmpty(paneId)
     })
 
     const host = hostRef.current
@@ -257,7 +259,7 @@ export function BrowserPane({
       offZoom()
       window.cove.browserHide(paneId)
     }
-  }, [paneId, partition, initialUrl, syncBounds])
+  }, [paneId, partition, initialUrl, closable, syncBounds])
 
   // Navigate when a preview URL is requested (e.g. clicking a port chip).
   useEffect(() => {
