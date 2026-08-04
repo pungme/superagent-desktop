@@ -13,7 +13,7 @@ import { useStore, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
-  idle: 'Idle',
+  idle: 'Session dormant — resumes on your next message',
   working: 'Working…',
   'needs-you': 'Needs you'
 }
