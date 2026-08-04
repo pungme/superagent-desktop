@@ -425,14 +425,36 @@ function GroupSection({
 }): React.JSX.Element {
   const toggleCollapse = useStore((s) => s.toggleCollapse)
   const renameGroup = useStore((s) => s.renameGroup)
+  const deleteGroup = useStore((s) => s.deleteGroup)
   const addWorkspace = useStore((s) => s.addWorkspace)
+  const groupCount = useStore((s) => s.tree.length)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(group.name)
   const { setNodeRef, isOver } = useDroppable({ id: `group:${group.id}` })
+  // Drag the group header to reorder groups (id prefixed so onDragEnd can tell a
+  // group drag from a project drag).
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    isDragging
+  } = useDraggable({ id: `gdrag:${group.id}` })
   const collapsed = group.collapsed === 1
 
+  const onDelete = (): void => {
+    const n = group.workspaces.length
+    const msg =
+      n > 0
+        ? `Delete the group "${group.name}"? Its ${n} project${n > 1 ? 's' : ''} will move to another group (not deleted).`
+        : `Delete the empty group "${group.name}"?`
+    if (window.confirm(msg)) deleteGroup(group.id)
+  }
+
   return (
-    <div className={`sidebar-group ${isOver ? 'drop-target' : ''}`} ref={setNodeRef}>
+    <div
+      className={`sidebar-group ${isOver ? 'drop-target' : ''} ${isDragging ? 'dragging' : ''}`}
+      ref={setNodeRef}
+    >
       <div className="sidebar-group-header">
         <button
           className="group-caret"
@@ -462,9 +484,26 @@ function GroupSection({
             }}
           />
         ) : (
-          <span className="sidebar-group-title" onDoubleClick={() => setEditing(true)}>
+          <span
+            className="sidebar-group-title"
+            ref={setDragRef}
+            {...attributes}
+            {...listeners}
+            onDoubleClick={() => setEditing(true)}
+            title="Drag to reorder · double-click to rename"
+          >
             {group.name}
           </span>
+        )}
+        {groupCount > 1 && (
+          <button
+            className="group-delete"
+            title="Delete group"
+            aria-label="Delete group"
+            onClick={onDelete}
+          >
+            ×
+          </button>
         )}
         <button
           className="group-add"
@@ -496,6 +535,7 @@ export function Sidebar(): React.JSX.Element {
   const refresh = useStore((s) => s.refresh)
   const addGroup = useStore((s) => s.addGroup)
   const moveWorkspace = useStore((s) => s.moveWorkspace)
+  const moveGroup = useStore((s) => s.moveGroup)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
@@ -514,6 +554,20 @@ export function Sidebar(): React.JSX.Element {
       }
       return null
     }
+
+    // Reordering a whole group (dragged the group header).
+    if (activeId.startsWith('gdrag:')) {
+      const gid = activeId.slice('gdrag:'.length)
+      const targetGroupId = overId.startsWith('group:')
+        ? overId.slice('group:'.length)
+        : (locate(overId)?.groupId ?? null)
+      if (!targetGroupId || targetGroupId === gid) return
+      const srcIndex = tree.findIndex((g) => g.id === gid)
+      const dstIndex = tree.findIndex((g) => g.id === targetGroupId)
+      moveGroup(gid, srcIndex < dstIndex ? dstIndex - 1 : dstIndex)
+      return
+    }
+
     const src = locate(activeId)
     if (!src) return
 

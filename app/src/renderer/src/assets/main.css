@@ -277,6 +277,35 @@ button {
   color: var(--text-primary);
 }
 
+/* Delete-group button — hover-revealed, quiet until you mean it. */
+.group-delete {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 15px;
+  width: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease;
+}
+.sidebar-group-header:hover .group-delete {
+  opacity: 0.55;
+}
+.group-delete:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+/* Group headers are draggable to reorder. */
+.sidebar-group-title {
+  cursor: grab;
+}
+.sidebar-group.dragging {
+  opacity: 0.5;
+}
+
 .sidebar-group-items {
   display: flex;
   flex-direction: column;

@@ -97,6 +97,7 @@ export interface CoveApi {
     patch: Partial<{ name: string; color: string; collapsed: number }>
   ) => Promise<TreeGroup[]>
   deleteGroup: (id: string) => Promise<TreeGroup[]>
+  moveGroup: (groupId: string, toIndex: number) => Promise<TreeGroup[]>
   createWorkspace: (
     groupId: string,
     name: string,
@@ -224,6 +225,7 @@ const cove: CoveApi = {
   createGroup: (name) => ipcRenderer.invoke('store:createGroup', name),
   updateGroup: (id, patch) => ipcRenderer.invoke('store:updateGroup', id, patch),
   deleteGroup: (id) => ipcRenderer.invoke('store:deleteGroup', id),
+  moveGroup: (groupId, toIndex) => ipcRenderer.invoke('store:moveGroup', groupId, toIndex),
   createWorkspace: (groupId, name, path) =>
     ipcRenderer.invoke('store:createWorkspace', groupId, name, path),
   createBrowserWorkspace: (groupId, name) =>
