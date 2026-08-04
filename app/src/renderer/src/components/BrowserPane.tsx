@@ -48,6 +48,10 @@ function FitIcon(): React.JSX.Element {
   )
 }
 
+// Height of the omnibar when it's docked onto the desktop floating card (so the
+// card reads as a self-contained browser window). Native view is pushed down by it.
+const CARD_OMNIBAR_H = 40
+
 export function BrowserPane({
   paneId,
   partition,
@@ -173,13 +177,16 @@ export function BrowserPane({
       const top = Math.round((H - sh) / 2)
       window.cove.browserSetZoom?.(paneId, scale)
       setSimFrame({ left, top, width: sw, height: sh })
-      emit({ x: x0 + left, y: y0 + top, width: sw, height: sh })
+      // The omnibar is docked onto the card's top strip, so the page starts below it.
+      emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: sw, height: sh - CARD_OMNIBAR_H })
       return
     }
     // Mobile: a phone has a fixed tall aspect ratio, so it stays a centered device
-    // scaled to fit — the side gap is the phone's shape, not wasted padding.
+    // scaled to fit inside a margin — so it floats with breathing room top/bottom
+    // like the desktop card, not flush to the pane edges.
+    const PAD = 22
     const [lw, lh] = [390, 844]
-    const scale = Math.min(W / lw, H / lh)
+    const scale = Math.min((W - PAD * 2) / lw, (H - PAD * 2) / lh)
     const dw = Math.round(lw * scale)
     const dh = Math.round(lh * scale)
     const left = Math.round((W - dw) / 2)
@@ -341,9 +348,30 @@ export function BrowserPane({
     }
   }
 
+  // Desktop viewport docks the omnibar onto the floating card's top strip, so the
+  // card reads as a self-contained browser window (the letterbox space sits above).
+  // Absolute for the whole desktop mode (not just once simFrame is known) so the
+  // host stays full-height when syncBounds measures it — otherwise the omnibar
+  // flipping out of flow would resize the host and misplace the card by one frame.
+  const onCard = viewport === 'desktop'
+  const toolbarStyle: React.CSSProperties | undefined = onCard
+    ? simFrame
+      ? {
+          position: 'absolute',
+          left: simFrame.left,
+          top: simFrame.top,
+          width: simFrame.width,
+          height: CARD_OMNIBAR_H
+        }
+      : { position: 'absolute', left: 0, top: 0, width: '100%', height: CARD_OMNIBAR_H }
+    : undefined
+
   return (
     <div className="browser-pane">
-      <div className="browser-toolbar">
+      <div
+        className={`browser-toolbar ${onCard ? 'on-card' : ''}`}
+        style={toolbarStyle}
+      >
         <button
           className="browser-nav-btn"
           disabled={!state.canGoBack}
