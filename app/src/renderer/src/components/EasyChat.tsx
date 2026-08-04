@@ -219,6 +219,21 @@ const BUILTIN_COMMAND_DESCRIPTIONS: Record<string, string> = {
   help: 'Show all available commands'
 }
 
+// Pull dev-server ports out of a tool's output — "Local: http://localhost:3000",
+// "listening on port 5173", "Serving HTTP on 0.0.0.0 port 8000", etc. Used to offer
+// a one-click "Open preview" when the agent starts a server. Skips :80/:443.
+function extractPorts(text: string): number[] {
+  const found = new Set<number>()
+  const re =
+    /(?:https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5}))|(?:\blocalhost:(\d{2,5}))|(?:\bport\s+(\d{2,5}))/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text))) {
+    const p = Number(m[1] || m[2] || m[3])
+    if (p >= 1024 && p <= 65535) found.add(p)
+  }
+  return [...found]
+}
+
 // Model choices for the composer picker. '' = Claude's own default (whatever the
 // CLI is configured to use); the rest are passed as --model at spawn.
 const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
@@ -850,6 +865,30 @@ export function EasyChat({
                 : it
             )
           )
+        }
+        return
+      }
+
+      // Tool results (Bash output etc.) arrive as `user` events. Scan them for a
+      // dev server the agent just started and offer a one-click preview.
+      if (type === 'user') {
+        const content = (event.message as { content?: unknown })?.content
+        if (Array.isArray(content)) {
+          for (const block of content as Record<string, unknown>[]) {
+            if (block.type !== 'tool_result') continue
+            const c = block.content
+            const text =
+              typeof c === 'string'
+                ? c
+                : Array.isArray(c)
+                  ? (c as Record<string, unknown>[])
+                      .map((p) => (typeof p.text === 'string' ? p.text : ''))
+                      .join('\n')
+                  : ''
+            for (const port of extractPorts(text)) {
+              useStore.getState().addPort(workspaceId, port)
+            }
+          }
         }
         return
       }
