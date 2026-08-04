@@ -126,6 +126,12 @@ function wc(paneId: string): WebContents {
   return contents
 }
 
+// Attaching the CDP debugger flips navigator.webdriver → true, which hostile
+// sites (X, Google) read as a bot and block. This masks it back to false on the
+// user's own browser/logins. Runs before any page script on every document.
+const WEBDRIVER_MASK =
+  "Object.defineProperty(navigator,'webdriver',{get:()=>false,configurable:true});"
+
 function ensureDebugger(paneId: string): WebContents {
   const contents = wc(paneId)
   if (!attached.has(paneId)) {
@@ -165,6 +171,16 @@ function ensureDebugger(paneId: string): WebContents {
     })
     contents.debugger.sendCommand('Runtime.enable').catch(() => {})
     contents.debugger.sendCommand('Network.enable').catch(() => {})
+    // Hide the automation tell for future navigations + the current page.
+    contents.debugger
+      .sendCommand('Page.enable')
+      .then(() =>
+        contents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', {
+          source: WEBDRIVER_MASK
+        })
+      )
+      .catch(() => {})
+    contents.executeJavaScript(WEBDRIVER_MASK).catch(() => {})
   }
   return contents
 }
