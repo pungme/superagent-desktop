@@ -361,9 +361,13 @@ export const useStore = create<CoveState>((set, get) => ({
     window.cove.onBrowserRequestOpen((workspaceId) => {
       const s = get()
       if (!s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))) return
+      // Always reveal the pane so the page is ready when the user looks. Only pull
+      // the user to this workspace when the app is actually frontmost — a
+      // background agent must never yank the view while they're in another app.
+      const focused = document.hasFocus()
       set({
-        activeWorkspaceId: workspaceId,
-        browserOpen: { ...s.browserOpen, [workspaceId]: true }
+        browserOpen: { ...s.browserOpen, [workspaceId]: true },
+        ...(focused ? { activeWorkspaceId: workspaceId, coldStart: false } : {})
       })
     })
   },

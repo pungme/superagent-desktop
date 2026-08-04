@@ -1450,21 +1450,22 @@ export function EasyChat({
             ))}
           </div>
         )}
-        <textarea
-          ref={inputRef}
-          className="easy-input"
-          value={input}
-          placeholder={
-            ready ? 'Message Claude…  (/ commands · @ files · paste an image)' : 'Starting…'
-          }
-          rows={1}
-          disabled={!ready}
-          onChange={(e) => {
-            setInput(e.target.value)
-            autoResize()
-            updateMention(e.target.value)
-          }}
-          onKeyDown={(e) => {
+        <div className="easy-input-box">
+          <textarea
+            ref={inputRef}
+            className="easy-input"
+            value={input}
+            placeholder={
+              ready ? 'Message Claude…  (/ commands · @ files · paste an image)' : 'Starting…'
+            }
+            rows={1}
+            disabled={!ready}
+            onChange={(e) => {
+              setInput(e.target.value)
+              autoResize()
+              updateMention(e.target.value)
+            }}
+            onKeyDown={(e) => {
             if (mentionMatches.length > 0) {
               if (e.key === 'ArrowDown') {
                 e.preventDefault()
@@ -1503,12 +1504,13 @@ export function EasyChat({
           title={micTitle}
           aria-label={micTitle}
         >
-          {dictation.state === 'loading-model' && dictation.progress > 0 ? (
-            <span className="easy-mic-pct">{Math.round(dictation.progress)}</span>
-          ) : (
-            <MicIcon />
-          )}
-        </button>
+            {dictation.state === 'loading-model' && dictation.progress > 0 ? (
+              <span className="easy-mic-pct">{Math.round(dictation.progress)}</span>
+            ) : (
+              <MicIcon />
+            )}
+          </button>
+        </div>
         {generating ? (
           <button className="easy-stop" onClick={stop} title="Stop generating">
             <span className="easy-stop-square" />
