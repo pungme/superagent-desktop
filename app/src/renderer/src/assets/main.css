@@ -3734,7 +3734,24 @@ button {
 .onboarding-sub {
   color: var(--text-secondary);
   margin-top: 6px;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
+}
+
+.onboarding-intro {
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-width: 42ch;
+  margin: 0 auto 26px;
+}
+.onboarding-intro a {
+  color: var(--text-primary);
+  white-space: nowrap;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-strong);
+}
+.onboarding-intro a:hover {
+  border-bottom-color: var(--text-primary);
 }
 
 .onboarding-steps {
