@@ -34,24 +34,10 @@ function savePorts(p: Record<string, number[]>): void {
   }
 }
 
-// Whether the browser pane is open per workspace — persisted so a code project's
-// open preview (e.g. a dev server) comes back after an app restart, navigating to
-// the last URL (workspace.browserUrl).
-const BROWSER_OPEN_KEY = 'cove.browserOpen'
-function loadBrowserOpen(): Record<string, boolean> {
-  try {
-    return JSON.parse(localStorage.getItem(BROWSER_OPEN_KEY) || '{}')
-  } catch {
-    return {}
-  }
-}
-function saveBrowserOpen(o: Record<string, boolean>): void {
-  try {
-    localStorage.setItem(BROWSER_OPEN_KEY, JSON.stringify(o))
-  } catch {
-    /* ignore */
-  }
-}
+// Whether the browser pane is open per workspace. Kept only in memory: a cold
+// app start always lands on the chat with the pane closed, so we never reopen a
+// logged-out site as a floating login card. Within a session the map persists as
+// normal zustand state.
 
 /**
  * Only modes that need no prompt: SuperAgent drives `claude -p`, where there is
@@ -85,6 +71,7 @@ interface CoveState {
   clearTodos: (workspaceId: string) => void
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
+  coldStart: boolean
   filesOpen: Record<string, boolean>
   // Absolute path of the text file open in the in-app viewer/editor, per workspace.
   openFile: Record<string, string | null>
@@ -191,7 +178,11 @@ export const useStore = create<CoveState>((set, get) => ({
       return { todos: next }
     }),
   ports: loadPorts(),
-  browserOpen: loadBrowserOpen(),
+  browserOpen: {},
+  // True until the user first selects a workspace this session. While true, a
+  // browser-kind project shows its chat (not the auto-opened pane) so a fresh
+  // launch never lands on a reloaded live page.
+  coldStart: true,
   filesOpen: {},
   openFile: {},
   // A text file replaces the browser pane's slot; hide the native view so it can't
@@ -278,7 +269,7 @@ export const useStore = create<CoveState>((set, get) => ({
   openRoutineRun: (id) => set({ openRoutineRunId: id }),
   closeRoutineRun: () => set({ openRoutineRunId: null }),
 
-  setActive: (id) => set({ activeWorkspaceId: id }),
+  setActive: (id) => set({ activeWorkspaceId: id, coldStart: false }),
   setStatus: (workspaceId, status) =>
     set((s) => ({ statuses: { ...s.statuses, [workspaceId]: status } })),
   addPort: (workspaceId, port) =>
@@ -311,18 +302,17 @@ export const useStore = create<CoveState>((set, get) => ({
   toggleBrowser: (workspaceId) =>
     set((s) => {
       const browserOpen = { ...s.browserOpen, [workspaceId]: !s.browserOpen[workspaceId] }
-      saveBrowserOpen(browserOpen)
-      return { browserOpen }
+      return { browserOpen, coldStart: false }
     }),
   setHooksEnabled: (v) => set({ hooksEnabled: v }),
 
   openPreview: (workspaceId, port) =>
     set((s) => {
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
-      saveBrowserOpen(browserOpen)
       return {
         activeWorkspaceId: workspaceId,
         browserOpen,
+        coldStart: false,
         previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
         toast: null
       }
@@ -330,10 +320,10 @@ export const useStore = create<CoveState>((set, get) => ({
   openUrl: (workspaceId, url) =>
     set((s) => {
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
-      saveBrowserOpen(browserOpen)
       return {
         activeWorkspaceId: workspaceId,
         browserOpen,
+        coldStart: false,
         previewUrls: { ...s.previewUrls, [workspaceId]: url },
         toast: null
       }

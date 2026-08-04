@@ -29,7 +29,11 @@ export function WorkspaceView({
   visible?: boolean
 }): React.JSX.Element {
   // Browser projects open with the preview showing by default.
-  const browserOpen = useStore((s) => s.browserOpen[ws.id] ?? ws.kind === 'browser')
+  // A browser project auto-opens its pane — but not on a cold launch, so a fresh
+  // start lands on the chat instead of a reloaded (often logged-out) live page.
+  const browserOpen = useStore(
+    (s) => s.browserOpen[ws.id] ?? (!s.coldStart && ws.kind === 'browser')
+  )
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
   // A text file open in the in-app viewer takes the content pane over the browser.
