@@ -219,7 +219,16 @@ export function registerStoreIpc(): void {
   ipcMain.handle('store:deleteGroup', (_e, id: string) => {
     const n = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
     if (n <= 1) return getTree() // keep at least one group
-    db.prepare('DELETE FROM groups WHERE id = ?').run(id)
+    // Reassign this group's projects to the next group (by position) so they're
+    // never orphaned — deleting a group must not lose projects.
+    const other = db
+      .prepare('SELECT id FROM groups WHERE id != ? ORDER BY position LIMIT 1')
+      .get(id) as { id: string } | undefined
+    const tx = db.transaction(() => {
+      if (other) db.prepare('UPDATE workspaces SET groupId = ? WHERE groupId = ?').run(other.id, id)
+      db.prepare('DELETE FROM groups WHERE id = ?').run(id)
+    })
+    tx()
     return getTree()
   })
 
@@ -381,4 +390,18 @@ export function registerStoreIpc(): void {
       return getTree()
     }
   )
+
+  ipcMain.handle('store:moveGroup', (_e, groupId: string, toIndex: number) => {
+    const order = (
+      db.prepare('SELECT id FROM groups WHERE id != ? ORDER BY position').all(groupId) as {
+        id: string
+      }[]
+    ).map((g) => g.id)
+    order.splice(Math.max(0, Math.min(toIndex, order.length)), 0, groupId)
+    const tx = db.transaction(() => {
+      order.forEach((id, i) => db.prepare('UPDATE groups SET position = ? WHERE id = ?').run(i, id))
+    })
+    tx()
+    return getTree()
+  })
 }
