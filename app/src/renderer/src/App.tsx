@@ -3,6 +3,8 @@ import { Sidebar } from './components/Sidebar'
 import { WorkspaceView } from './components/WorkspaceView'
 import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
+import { UpdateBanner } from './components/UpdateBanner'
+import { IntroSplash } from './components/IntroSplash'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { NewProjectDialog } from './components/NewProjectDialog'
@@ -185,12 +187,15 @@ function App(): React.JSX.Element {
 
   if (!onboarded) {
     return (
-      <Onboarding
-        onDone={() => {
-          localStorage.setItem('cove.onboarded', '1')
-          setOnboarded(true)
-        }}
-      />
+      <>
+        <IntroSplash />
+        <Onboarding
+          onDone={() => {
+            localStorage.setItem('cove.onboarded', '1')
+            setOnboarded(true)
+          }}
+        />
+      </>
     )
   }
 
@@ -234,6 +239,8 @@ function App(): React.JSX.Element {
         )}
       </main>
       <PreviewToast />
+      <UpdateBanner />
+      <IntroSplash />
       <NewProjectDialog />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
