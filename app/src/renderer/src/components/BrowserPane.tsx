@@ -93,9 +93,15 @@ export function BrowserPane({
   // only) — otherwise recreating it on every mode change would re-run the pane's
   // setup effect and re-navigate to the initial URL.
   const viewportRef = useRef(viewport)
+  // In "Fit" (none) mode the page defaults to zoomed-out-to-width so a desktop site
+  // isn't cramped in a narrow pane; a manual zoom (⌘±/buttons) turns this off until
+  // the user re-picks Fit. Desktop/Mobile own their own zoom, so this only matters
+  // for Fit.
+  const autoFitRef = useRef(true)
   const pickViewport = (v: 'none' | 'desktop' | 'mobile'): void => {
     localStorage.setItem(`viewport:${paneId}`, v)
     viewportRef.current = v
+    autoFitRef.current = true // re-fit whenever a mode is (re)selected
     setViewport(v)
   }
   const [addressInput, setAddressInput] = useState('')
@@ -144,6 +150,10 @@ export function BrowserPane({
     // WebContentsView bounds are window-relative CSS pixels.
     if (viewportRef.current === 'none') {
       setSimFrame(null)
+      // "Fit": fill the pane, but default to zooming out so a 1280-wide desktop
+      // layout fits the pane width (not a cramped 1:1 render). A manual zoom
+      // (autoFit off) is respected instead.
+      if (autoFitRef.current && W > 0) window.cove.browserSetZoom?.(paneId, W / 1280)
       emit({ x: x0, y: y0, width: W, height: H })
       return
     }
@@ -268,6 +278,7 @@ export function BrowserPane({
   }, [state.url, paneId])
 
   const doZoom = async (action: 'in' | 'out' | 'reset'): Promise<void> => {
+    autoFitRef.current = false // manual zoom wins over Fit's auto zoom-to-width
     setZoom(await window.cove.browserZoom(paneId, action))
   }
 

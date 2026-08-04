@@ -1,4 +1,5 @@
 import { BrowserWindow, WebContentsView, ipcMain, shell, app, net, session } from 'electron'
+import { connect as tcpConnect } from 'net'
 import { normalizeUrl } from './util'
 
 // Electron's setUserAgent rewrites the UA *string* to look like Chrome, but not the
@@ -139,6 +140,13 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   wc.on('page-title-updated', sendState)
   wc.on('did-start-loading', sendState)
   wc.on('did-stop-loading', sendState)
+  // Hide the page's scrollbars for a clean preview — scrolling still works with the
+  // wheel/trackpad; only the bar is gone. Re-applied per navigation (dom-ready).
+  wc.on('dom-ready', () => {
+    wc.insertCSS(
+      '::-webkit-scrollbar{width:0!important;height:0!important;background:transparent!important}'
+    ).catch(() => {})
+  })
   // A page can drop its old favicon before the new one loads; clear on navigation
   // so a stale icon doesn't linger, then inline the new one when it arrives.
   wc.on('did-start-navigation', (_e, _url, isInPlace, isMainFrame) => {
@@ -282,4 +290,19 @@ export function registerBrowserIpc(): void {
     if (url) shell.openExternal(url)
   })
   ipcMain.on('browser:destroy', (_e, id: string) => destroyBrowserPane(id))
+  // Is a dev server still listening on this local port? Used after a restart to
+  // drop persisted server chips whose process didn't survive.
+  ipcMain.handle('net:checkPort', (_e, port: number): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const socket = tcpConnect({ port, host: '127.0.0.1' })
+      const finish = (ok: boolean): void => {
+        socket.destroy()
+        resolve(ok)
+      }
+      socket.setTimeout(1000)
+      socket.once('connect', () => finish(true))
+      socket.once('timeout', () => finish(false))
+      socket.once('error', () => finish(false))
+    })
+  })
 }

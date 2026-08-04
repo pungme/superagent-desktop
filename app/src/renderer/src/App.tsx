@@ -139,6 +139,8 @@ function App(): React.JSX.Element {
     startHookListener()
     startBrowsingListener()
     startRoutinesListener()
+    // Persisted dev-server chips: keep the ones still listening, drop the rest.
+    useStore.getState().verifyPorts()
     applyTheme()
     // Re-apply when the OS light/dark preference changes (matters for "System").
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
