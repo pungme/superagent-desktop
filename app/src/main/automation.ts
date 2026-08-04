@@ -196,9 +196,15 @@ export async function navigate(paneId: string, url: string): Promise<string> {
   // preview, so no pane exists yet. For an interactive pane (routine panes carry
   // a "::" suffix and run offscreen), ask the renderer to open the preview, then
   // wait briefly for it to create the pane — so the navigation is actually visible.
-  if (!getPaneWebContents(paneId) && !paneId.includes('::')) {
+  if (!paneId.includes('::')) {
+    // Always ask the UI to reveal the pane. A pane whose WebContents already
+    // exists but is *hidden* (the user closed the preview) would otherwise be
+    // navigated invisibly — the "sometimes it doesn't open" bug. If no pane
+    // exists yet, wait briefly for the renderer to create it.
     broadcastToWindows('browser:request-open', paneId)
-    await pollUntil(() => !!getPaneWebContents(paneId), 3000)
+    if (!getPaneWebContents(paneId)) {
+      await pollUntil(() => !!getPaneWebContents(paneId), 3000)
+    }
   }
   const contents = wc(paneId)
   const target = normalizeUrl(url)
