@@ -16,6 +16,24 @@ export const FILE_PREVIEW_EXTS = new Set([
   'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif'
 ])
 
+// Detected dev-server ports persist across restarts so the "Open preview" chip
+// survives; verifyPorts() prunes any that are no longer listening on startup.
+const PORTS_KEY = 'cove.ports'
+function loadPorts(): Record<string, number[]> {
+  try {
+    return JSON.parse(localStorage.getItem(PORTS_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+function savePorts(p: Record<string, number[]>): void {
+  try {
+    localStorage.setItem(PORTS_KEY, JSON.stringify(p))
+  } catch {
+    /* ignore quota/serialization errors */
+  }
+}
+
 /**
  * Only modes that need no prompt: SuperAgent drives `claude -p`, where there is
  * nowhere to answer a permission request, so an asking mode would silently deny
@@ -68,6 +86,7 @@ interface CoveState {
   setActive: (id: string) => void
   setStatus: (workspaceId: string, status: WorkspaceStatus) => void
   addPort: (workspaceId: string, port: number) => void
+  verifyPorts: () => Promise<void>
   toggleBrowser: (workspaceId: string) => void
   toggleFiles: (workspaceId: string) => void
   hooksEnabled: boolean
@@ -150,7 +169,7 @@ export const useStore = create<CoveState>((set, get) => ({
       delete next[workspaceId]
       return { todos: next }
     }),
-  ports: {},
+  ports: loadPorts(),
   browserOpen: {},
   filesOpen: {},
   openFile: {},
@@ -246,11 +265,23 @@ export const useStore = create<CoveState>((set, get) => ({
       const cur = s.ports[workspaceId] ?? []
       if (cur.includes(port)) return s
       // First time we see this port → surface a toast offering to open the preview.
-      return {
-        ports: { ...s.ports, [workspaceId]: [...cur, port].slice(-5) },
-        toast: { workspaceId, port }
-      }
+      const ports = { ...s.ports, [workspaceId]: [...cur, port].slice(-5) }
+      savePorts(ports) // persist so the chip survives an app restart
+      return { ports, toast: { workspaceId, port } }
     }),
+  // After a restart, drop any persisted server that isn't actually listening
+  // anymore (its process may not have survived) — keep the ones that did.
+  verifyPorts: async () => {
+    const current = get().ports
+    const alive: Record<string, number[]> = {}
+    for (const [ws, list] of Object.entries(current)) {
+      const kept: number[] = []
+      for (const p of list) if (await window.cove.checkPort(p)) kept.push(p)
+      if (kept.length) alive[ws] = kept
+    }
+    savePorts(alive)
+    set({ ports: alive })
+  },
   toggleFiles: (workspaceId) =>
     set((s) => ({
       filesOpen: { ...s.filesOpen, [workspaceId]: !s.filesOpen[workspaceId] }
