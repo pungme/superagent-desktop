@@ -14,6 +14,7 @@ import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerFilesIpc } from './files'
 import { buildMenu } from './menu'
+import { startAutoUpdate } from './updater'
 
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
@@ -143,6 +144,9 @@ app.whenReady().then(() => {
   startMcpServer()
 
   createWindow()
+
+  // Check GitHub Releases for a newer version and update quietly (packaged only).
+  startAutoUpdate()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

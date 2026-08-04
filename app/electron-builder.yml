@@ -1,5 +1,11 @@
 appId: dev.superagent.app
 productName: SuperAgent
+# Auto-update feed: electron-updater reads this (via app-update.yml) and each build
+# emits latest-mac.yml alongside the DMG. Public repo, so no token needed to check.
+publish:
+  provider: github
+  owner: pungme
+  repo: superagent-desktop
 directories:
   buildResources: build
 files:

@@ -58,7 +58,15 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
           </svg>
         </div>
         <h1>Welcome to SuperAgent</h1>
-        <p className="onboarding-sub">A friendly home for Claude Code.</p>
+        <p className="onboarding-sub">The desktop home for Claude Code.</p>
+
+        <p className="onboarding-intro">
+          SuperAgent runs on <b>Claude Code</b> — Anthropic&rsquo;s AI coding agent that works on
+          your own Claude subscription. New to it? These two steps get you set up.{' '}
+          <a href="https://claude.com/claude-code" target="_blank" rel="noopener noreferrer">
+            What&rsquo;s Claude Code? →
+          </a>
+        </p>
 
         <div className="onboarding-steps">
           <div
@@ -92,7 +100,8 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
                 <span>You&rsquo;re signed in and ready.</span>
               ) : env?.claudeInstalled ? (
                 <span>
-                  Open a terminal and run <code>claude</code> once to sign in, then re-check.
+                  Open your terminal, run <code>claude</code> once, and follow the sign-in — it
+                  needs a Claude Pro/Max plan or API credits. Then re-check.
                 </span>
               ) : (
                 <span>Install Claude Code first.</span>
