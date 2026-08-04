@@ -1362,6 +1362,72 @@ button {
 }
 
 /* Reply preview above the composer. */
+/* Work the agent left running in the background. It sits above the composer
+   rather than in the transcript because the whole point is that it outlives the
+   turn that started it — a message about it would just scroll away. */
+.easy-bg-bar {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px var(--shadow);
+  font-size: 12px;
+}
+.easy-bg-pulse {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3fb950;
+  animation: easy-bg-breathe 1.8s ease-in-out infinite;
+}
+@keyframes easy-bg-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.easy-bg-label {
+  flex: none;
+  color: var(--text-primary);
+  font-weight: 550;
+}
+.easy-bg-cmd {
+  /* Must be allowed to shrink below its content, or a long command pushes the
+     dismiss button out of the bar instead of ellipsising. */
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+}
+.easy-bg-dismiss {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 5px;
+}
+.easy-bg-dismiss:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
 .easy-reply-bar {
   position: absolute;
   bottom: calc(100% + 2px);

@@ -51,6 +51,10 @@ interface EasyChatProps {
   chatId: string
   initialSessionId?: string | null
   browserProject?: boolean
+  /** Whether this chat's workspace is the one on screen. Background chats stay
+      mounted (so switching back is instant) but get their claude process reaped
+      once they've been idle a while — see IDLE_REAP_MS. */
+  visible?: boolean
 }
 
 // Drop lines shared by the start/end of both sides so only the real change shows.
@@ -165,6 +169,22 @@ function friendlyToolNames(select: string): string {
   return names.length > 3 ? `${shown} +${names.length - 3}` : shown
 }
 
+/** A command the agent backgrounded, tracked until its shell reports it's done. */
+interface BackgroundTask {
+  /** The tool_use id of the Bash call, used to pick the shell id out of its result. */
+  toolUseId: string
+  /** Claude's shell handle, once its result tells us. */
+  shellId?: string
+  command: string
+}
+
+// The Bash tool answers a backgrounded run with the shell's handle; BashOutput
+// reports where that shell got to. Both are plain text, so read them loosely — a
+// missed match leaves the pill up a little longer, which beats retiring a task
+// that's still going.
+const BG_SHELL_ID_RE = /(?:ID|bash_id|shell)[:\s]+([A-Za-z0-9_-]+)/i
+const BG_DONE_RE = /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b/i
+
 function toolDetail(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
   const o = input as Record<string, unknown>
@@ -181,6 +201,11 @@ function toolDetail(input: unknown): string {
 // interleaved text/thinking splits them into short fragments — a higher threshold
 // left most of those expanded, which is the noise this is meant to hide.
 const TOOL_COLLAPSE_MIN = 2
+
+// How long a backgrounded chat may sit idle before its claude process is reaped.
+// Long enough that flipping between two projects never restarts anything, short
+// enough that a day of clicking around doesn't leave a dozen idle agents resident.
+const IDLE_REAP_MS = 5 * 60 * 1000
 
 // One-liners for Claude's built-in slash commands, so the "/" menu explains each
 // like the terminal does. The session's init event only reports command *names*;
@@ -401,7 +426,8 @@ export function EasyChat({
   workspaceId,
   chatId,
   initialSessionId,
-  browserProject
+  browserProject,
+  visible = true
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
   const [input, setInput] = useState('')
@@ -410,6 +436,11 @@ export function EasyChat({
   const [agentFailed, setAgentFailed] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [resetKey, setResetKey] = useState(0)
+  // The claude process was reaped after sitting idle in the background; the
+  // transcript is untouched and the next wake resumes the same session. Mirrored
+  // in a ref so an event handler can wake it without a stale closure.
+  const [suspended, setSuspended] = useState(false)
+  const suspendedRef = useRef(false)
   const [files, setFiles] = useState<string[]>([])
   const [commands, setCommands] = useState<string[]>([])
   // name → one-line description, shown beside each "/" command in the menu.
@@ -419,6 +450,13 @@ export function EasyChat({
   const [mentionIndex, setMentionIndex] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  // Commands the agent left running in the background. Claude mentions them in
+  // prose and then moves on, so without this the only sign a deploy/build/server
+  // is still going is a sentence that scrolls away.
+  const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
+  // tool_use id of a BashOutput poll → the shell it's asking about, so its result
+  // can retire the right task.
+  const pollTargets = useRef(new Map<string, string>())
   const [dragOver, setDragOver] = useState(false)
   // A thumbnail was clicked — show it full-size in a dismissible overlay. The lock
   // hides the native browser view while it's open (a WebContentsView isn't part of
@@ -443,6 +481,9 @@ export function EasyChat({
   const thinkingIdRef = useRef<string | null>(null)
   // Session to resume so context survives restarts; updated once claude reports it.
   const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
+  // Injected messages (toolbar/Skills) that arrived while the process was reaped;
+  // flushed the moment the resumed session is up.
+  const pendingSendsRef = useRef<string[]>([])
   // True once a resume-based retry has already failed, so the next retry drops the
   // resume and starts fresh (a crashed session can leave a stale lock that keeps
   // failing to resume, which would otherwise loop the Retry button).
@@ -846,6 +887,18 @@ export function EasyChat({
                 syncTasks()
               }
             }
+            // Backgrounded shells outlive the turn that started them, so track them
+            // until something says they're finished.
+            const inp = (block.input ?? {}) as Record<string, unknown>
+            if (name === 'Bash' && inp.run_in_background) {
+              const command = typeof inp.command === 'string' ? inp.command : ''
+              setBgTasks((prev) => [...prev, { toolUseId: id, command }])
+            } else if (name === 'BashOutput' && typeof inp.bash_id === 'string') {
+              pollTargets.current.set(id, inp.bash_id)
+            } else if (name === 'KillShell' && typeof inp.shell_id === 'string') {
+              const killed = inp.shell_id
+              setBgTasks((prev) => prev.filter((t) => t.shellId !== killed))
+            }
             const diff = toolDiff(name, id, block.input)
             setItems((prev) => [
               ...prev,
@@ -887,6 +940,26 @@ export function EasyChat({
                   : ''
             for (const port of extractPorts(text)) {
               useStore.getState().addPort(workspaceId, port)
+            }
+            // Same results carry the background-shell bookkeeping: the starting
+            // Bash call answers with the shell's id, and a later BashOutput poll
+            // says whether it has finished.
+            const resultFor = typeof block.tool_use_id === 'string' ? block.tool_use_id : null
+            if (resultFor) {
+              const polled = pollTargets.current.get(resultFor)
+              if (polled) {
+                pollTargets.current.delete(resultFor)
+                if (BG_DONE_RE.test(text)) {
+                  setBgTasks((prev) => prev.filter((t) => t.shellId !== polled))
+                }
+              }
+              setBgTasks((prev) =>
+                prev.map((t) => {
+                  if (t.toolUseId !== resultFor || t.shellId) return t
+                  const m = text.match(BG_SHELL_ID_RE)
+                  return m ? { ...t, shellId: m[1] } : t
+                })
+              )
             }
           }
         }
@@ -983,6 +1056,8 @@ export function EasyChat({
         // Ready as soon as the process is up — in stream-json input mode claude
         // waits for the first user message before it emits anything.
         setReady(true)
+        // Anything injected while the process was reaped goes out now.
+        for (const queued of pendingSendsRef.current.splice(0)) window.cove.agentSend(id, queued)
         offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
         // main only emits agent:exit on a genuine unexpected exit (deliberate
         // stops and the resume→fresh retry are suppressed), so surface it.
@@ -1001,6 +1076,40 @@ export function EasyChat({
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
     }
   }, [cwd, workspaceId, chatId, registerAgent, resetKey, browserProject])
+
+  const wake = useCallback((): void => {
+    if (!suspendedRef.current) return
+    suspendedRef.current = false
+    setSuspended(false)
+    setResetKey((k) => k + 1)
+  }, [])
+
+  // Every workspace you visit stays mounted for the life of the app, and each
+  // mounted chat holds a `claude -p` that idles on stdin forever — nothing ever
+  // reclaims it. Left alone that's one resident process (and its ~150MB) per
+  // project you so much as clicked on, which is how a long-running app ends up
+  // with a dozen idle agents and a full swap file. So reap the process once a
+  // backgrounded chat has sat idle: the transcript is React state and the session
+  // id is persisted, so coming back is a --resume away.
+  useEffect(() => {
+    if (visible || suspended || generating || thinking) return
+    const timer = window.setTimeout(() => {
+      const id = agentIdRef.current
+      if (!id) return
+      window.cove.agentStop(id)
+      agentIdRef.current = null
+      setReady(false)
+      suspendedRef.current = true
+      setSuspended(true)
+    }, IDLE_REAP_MS)
+    return () => window.clearTimeout(timer)
+  }, [visible, suspended, generating, thinking])
+
+  // Back on screen — restart the session. The lifecycle effect above re-runs on
+  // resetKey and resumes where we left off, so the only tell is a brief "Starting…".
+  useEffect(() => {
+    if (visible) wake()
+  }, [visible, suspended, wake])
 
   // Auto-scroll only when the user is already near the bottom, so scrolling up
   // to read scrollback isn't interrupted.
@@ -1026,6 +1135,13 @@ export function EasyChat({
     const onInjected = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
       if (detail.workspaceId !== workspaceId) return
+      // The chat owns its agent process — and may have reaped it while it sat in
+      // the background — so delivery happens here rather than through a cached id.
+      if (agentIdRef.current) window.cove.agentSend(agentIdRef.current, detail.text)
+      else {
+        pendingSendsRef.current.push(detail.text)
+        wake()
+      }
       setItems((prev) => [
         ...prev,
         { kind: 'msg', msg: { id: `u-${Date.now()}`, role: 'user', text: detail.text } }
@@ -1035,7 +1151,7 @@ export function EasyChat({
     }
     window.addEventListener('cove:easy-user-message', onInjected)
     return () => window.removeEventListener('cove:easy-user-message', onInjected)
-  }, [workspaceId])
+  }, [workspaceId, wake])
 
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
@@ -1396,6 +1512,22 @@ export function EasyChat({
         </div>
       )}
       <div className="easy-input-row">
+        {bgTasks.length > 0 && (
+          <div className="easy-bg-bar" role="status">
+            <span className="easy-bg-pulse" />
+            <span className="easy-bg-label">
+              {bgTasks.length === 1 ? 'Running in the background' : `${bgTasks.length} running in the background`}
+            </span>
+            <span className="easy-bg-cmd">{bgTasks.map((t) => t.command).join(' · ')}</span>
+            <button
+              className="easy-bg-dismiss"
+              onClick={() => setBgTasks([])}
+              title="Hide — this doesn't stop anything"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {replyTarget && (
           <div className="easy-reply-bar">
             <span className="easy-reply-bar-icon">↩</span>
