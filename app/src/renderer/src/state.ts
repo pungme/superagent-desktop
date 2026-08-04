@@ -459,14 +459,13 @@ export const useStore = create<CoveState>((set, get) => ({
   registerAgent: (workspaceId, agentId) =>
     set((s) => ({ agentIds: { ...s.agentIds, [workspaceId]: agentId } })),
   sendToClaude: (workspaceId, text) => {
-    // Send as a chat message to the streaming agent (the single Chat mode).
-    const agentId = get().agentIds[workspaceId]
-    if (agentId) {
-      window.cove.agentSend(agentId, text)
-      window.dispatchEvent(
-        new CustomEvent('cove:easy-user-message', { detail: { workspaceId, text } })
-      )
-    }
+    // Send as a chat message to the streaming agent (the single Chat mode). The
+    // chat itself does the delivering: it knows which of the project's
+    // conversations is on screen, and whether its process was reaped while the
+    // project sat in the background (in which case it queues and wakes it).
+    window.dispatchEvent(
+      new CustomEvent('cove:easy-user-message', { detail: { workspaceId, text } })
+    )
   },
 
   startHookListener: () => {

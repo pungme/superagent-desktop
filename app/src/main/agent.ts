@@ -106,7 +106,36 @@ const FILE_OPEN_PROMPT =
   'command to launch a file in an external app when open_file can show it in-app; only ' +
   'fall back to the shell for file types SuperAgent cannot display (e.g. .docx, .xlsx, archives).'
 
+/**
+ * Kill every session a renderer owns. A reload tears the page down without running
+ * React's effect cleanups, so the chats never get to call agent:stop and their
+ * `claude` processes are orphaned — alive, idle on stdin, and unreachable, since
+ * the new page has no idea they exist. Left alone each reload (or renderer crash)
+ * strands one process per open chat for the life of the app.
+ */
+function killSessionsOwnedBy(owner: WebContents): void {
+  for (const [id, session] of [...sessions]) {
+    if (session.owner === owner) stopAgent(id)
+  }
+}
+
+/** Renderers we've already wired the teardown handlers onto. */
+const watchedOwners = new WeakSet<WebContents>()
+
+function watchOwner(owner: WebContents): void {
+  if (watchedOwners.has(owner)) return
+  watchedOwners.add(owner)
+  // A reload or a navigation away replaces the page that owned these sessions.
+  // Same-document navigations (hash changes) keep the page, so they're excluded.
+  owner.on('did-start-navigation', (_e, _url, _isInPlace, isMainFrame) => {
+    if (isMainFrame) killSessionsOwnedBy(owner)
+  })
+  owner.on('render-process-gone', () => killSessionsOwnedBy(owner))
+  owner.on('destroyed', () => killSessionsOwnedBy(owner))
+}
+
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
+  watchOwner(owner)
   const id = randomUUID()
   const mcpConfig =
     opts.mcpConfigPath || (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId) : undefined)

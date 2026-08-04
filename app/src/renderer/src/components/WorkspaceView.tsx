@@ -40,6 +40,13 @@ export function WorkspaceView({
   const openFilePath = useStore((s) => s.openFile[ws.id])
   const closeFile = useStore((s) => s.closeFile)
   const paneOpen = browserOpen || !!openFilePath
+  // Belt-and-suspenders: when neither the browser preview nor a file viewer is
+  // open, make sure the pane's native WebContentsView is detached from the window.
+  // Otherwise a pane opened transiently (e.g. the agent browsing) can linger,
+  // floating over the chat instead of sitting closed.
+  useEffect(() => {
+    if (!paneOpen) window.cove.browserHide(ws.id)
+  }, [paneOpen, ws.id])
   // The project's conversations, and whichever one is on screen.
   const chats = useStore((s) => s.chats[ws.id])
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
@@ -261,6 +268,7 @@ export function WorkspaceView({
               chatId={activeChat.id}
               initialSessionId={activeChat.claudeSessionId}
               browserProject={ws.kind === 'browser'}
+              visible={visible}
             />
           )}
           {activeRun && visible && <RoutineRunView routine={activeRun} />}

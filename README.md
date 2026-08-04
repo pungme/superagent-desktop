@@ -30,7 +30,7 @@ The chat sits next to a real browser. Ask for a change and watch the page update
 in the same window — no alt-tabbing to find out whether it worked. Point it at a
 local dev server or any live site.
 
-![The chat next to the code it's editing — task list, grouped steps and edits, model and mode pickers](docs/chat.png)
+![The chat next to the code it's editing — the file tree, grouped steps and edits, model and mode pickers](docs/chat.png)
 
 ## An agent that can use the browser
 
@@ -46,12 +46,12 @@ Projects group the way you think about them, with each conversation nested
 underneath. A spinner while the agent works, a dot when it needs you, the git
 branch where you'd expect it.
 
-<p align="center"><img src="docs/sidebar.png" width="300" alt="The sidebar: grouped projects with nested chats, branch chips and a working spinner"></p>
+<p align="center"><img src="docs/sidebar.png" width="300" alt="The sidebar: grouped projects with nested chats and branch chips"></p>
 
 Settings stay short enough to read in one go — including how much the agent is
 allowed to do without asking.
 
-<p align="center"><img src="docs/settings.png" width="520" alt="Settings: appearance, agent permissions, status badges, developer mode"></p>
+<p align="center"><img src="docs/settings.png" width="520" alt="Settings: appearance, agent permissions, developer mode"></p>
 
 ## The small things
 
