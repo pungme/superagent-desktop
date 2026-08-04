@@ -128,6 +128,15 @@ interface CoveState {
   registerAgent: (workspaceId: string, agentId: string) => void
   sendToClaude: (workspaceId: string, text: string) => void
 
+  /**
+   * What each chat currently has in flight, keyed by chat id. Only the chats know
+   * this, but quitting is app-wide — installing an update kills every agent — so
+   * the banner needs to be able to ask before it throws work away.
+   */
+  busy: Record<string, { generating: boolean; background: number }>
+  setBusy: (chatId: string, state: { generating: boolean; background: number }) => void
+  clearBusy: (chatId: string) => void
+
   /** How much the agent may do without asking. Applies to newly started chats. */
   permissionMode: PermissionMode
   setPermissionMode: (m: PermissionMode) => void
@@ -217,6 +226,7 @@ export const useStore = create<CoveState>((set, get) => ({
   chats: {},
   activeChatId: {},
   agentIds: {},
+  busy: {},
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
   permissionMode:
     (localStorage.getItem('cove.permissionMode') as PermissionMode) || 'bypassPermissions',
@@ -458,6 +468,24 @@ export const useStore = create<CoveState>((set, get) => ({
 
   registerAgent: (workspaceId, agentId) =>
     set((s) => ({ agentIds: { ...s.agentIds, [workspaceId]: agentId } })),
+
+  setBusy: (chatId, state) =>
+    set((s) => {
+      const prev = s.busy[chatId]
+      // Reported from an effect on every turn tick; bail when nothing moved so
+      // subscribers don't re-render on identical state.
+      if (prev && prev.generating === state.generating && prev.background === state.background) {
+        return s
+      }
+      return { busy: { ...s.busy, [chatId]: state } }
+    }),
+  clearBusy: (chatId) =>
+    set((s) => {
+      if (!(chatId in s.busy)) return s
+      const next = { ...s.busy }
+      delete next[chatId]
+      return { busy: next }
+    }),
   sendToClaude: (workspaceId, text) => {
     // Send as a chat message to the streaming agent (the single Chat mode). The
     // chat itself does the delivering: it knows which of the project's
