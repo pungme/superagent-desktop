@@ -72,6 +72,17 @@ export function BrowserPane({
   })
   const [crashed, setCrashed] = useState(false)
   const [zoom, setZoom] = useState(1)
+  // Host-relative rect of the simulated device screen, so an HTML card can sit
+  // behind the native view and give it a floating, separated feel (shadow +
+  // rounded corners on a distinct backdrop). null when not simulating (viewport
+  // 'none' fills the pane). The native view draws on top; only the card's shadow
+  // shows around it, which is the whole point.
+  const [simFrame, setSimFrame] = useState<{
+    left: number
+    top: number
+    width: number
+    height: number
+  } | null>(null)
   // Device simulation: 'none' fills the pane (raw); 'desktop'/'mobile' render the
   // page as a correctly-proportioned screen centered in the pane and zoomed to
   // fit — so a desktop site isn't squeezed into the narrow pane. Persisted per pane.
@@ -132,6 +143,7 @@ export function BrowserPane({
     }
     // WebContentsView bounds are window-relative CSS pixels.
     if (viewportRef.current === 'none') {
+      setSimFrame(null)
       emit({ x: x0, y: y0, width: W, height: H })
       return
     }
@@ -146,8 +158,10 @@ export function BrowserPane({
       const scale = Math.min(W / dw, H / dh)
       const sw = Math.round(dw * scale)
       const sh = Math.round(dh * scale)
+      const left = Math.round((W - sw) / 2)
       window.cove.browserSetZoom?.(paneId, scale)
-      emit({ x: x0 + Math.round((W - sw) / 2), y: y0, width: sw, height: sh })
+      setSimFrame({ left, top: 0, width: sw, height: sh })
+      emit({ x: x0 + left, y: y0, width: sw, height: sh })
       return
     }
     // Mobile: a phone has a fixed tall aspect ratio, so it stays a centered device
@@ -156,13 +170,11 @@ export function BrowserPane({
     const scale = Math.min(W / lw, H / lh)
     const dw = Math.round(lw * scale)
     const dh = Math.round(lh * scale)
+    const left = Math.round((W - dw) / 2)
+    const top = Math.round((H - dh) / 2)
     window.cove.browserSetZoom?.(paneId, scale)
-    emit({
-      x: x0 + Math.round((W - dw) / 2),
-      y: y0 + Math.round((H - dh) / 2),
-      width: dw,
-      height: dh
-    })
+    setSimFrame({ left, top, width: dw, height: dh })
+    emit({ x: x0 + left, y: y0 + top, width: dw, height: dh })
   }, [paneId])
 
   // The omnibox dropdown is HTML and the native view draws over HTML, so while it's
@@ -455,6 +467,17 @@ export function BrowserPane({
         )}
       </div>
       <div ref={hostRef} className={`browser-host ${viewport !== 'none' ? 'sim' : ''}`}>
+        {simFrame && visible && (
+          <div
+            className="browser-sim-frame"
+            style={{
+              left: simFrame.left,
+              top: simFrame.top,
+              width: simFrame.width,
+              height: simFrame.height
+            }}
+          />
+        )}
         {browsing && (
           <div className="browsing-indicator">
             <span className="browsing-pulse" />

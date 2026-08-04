@@ -972,6 +972,44 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* Running dev-server chip in the toolbar — the agent started a server; click to
+   open it in the preview. Roomier than the old sidebar chip. */
+.workspace-server {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 3px 5px 3px 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+.workspace-server:hover {
+  border-color: var(--text-tertiary);
+  background: var(--bg-content);
+}
+.workspace-server-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #28c840;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #28c840 22%, transparent);
+}
+.workspace-server-open {
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-content);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
 .workspace-toolbar-spacer {
   flex: 1;
 }
@@ -3331,6 +3369,20 @@ button {
 /* Backdrop behind a simulated device screen (the letterbox area). */
 .browser-host.sim {
   background: var(--sim-bg);
+}
+
+/* Sits behind the native device view so the simulated screen reads as a separate,
+   floating surface — the native view draws on top, so only this card's shadow and
+   rounded edge show around it. Non-interactive; purely the "floating" feel. */
+.browser-sim-frame {
+  position: absolute;
+  border-radius: 12px;
+  background: var(--bg-content);
+  box-shadow:
+    0 24px 60px -18px rgba(0, 0, 0, 0.35),
+    0 4px 14px -6px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .browser-zoom-level {
