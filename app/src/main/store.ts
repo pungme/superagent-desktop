@@ -187,6 +187,13 @@ export function getWorkspacePath(id: string): string | undefined {
   return row?.path
 }
 
+export function getWorkspaceName(id: string): string | undefined {
+  const row = db.prepare('SELECT name FROM workspaces WHERE id = ?').get(id) as
+    | { name: string }
+    | undefined
+  return row?.name
+}
+
 export function registerStoreIpc(): void {
   initStore()
 

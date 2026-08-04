@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, chmodSy
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
+import { getWorkspaceName } from './store'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -55,6 +56,29 @@ export function startHookServer(): Promise<string> {
       if (!focused && Notification.isSupported()) {
         const message = typeof body.message === 'string' ? body.message : 'Claude needs your input'
         const n = new Notification({ title: 'SuperAgent — Claude needs you', body: message })
+        n.on('click', () => {
+          const win = BrowserWindow.getAllWindows()[0]
+          if (win) {
+            if (win.isMinimized()) win.restore()
+            win.focus()
+            win.webContents.send('hook:focus-workspace', workspaceId)
+          }
+        })
+        n.show()
+      }
+    }
+
+    // Agent finished a turn: if the user has switched to another app, ping them
+    // with a notification instead of pulling the window forward. Click focuses
+    // the project. (When the app is already frontmost, stay quiet.)
+    if (event === 'Stop') {
+      const focused = BrowserWindow.getFocusedWindow()
+      if (!focused && Notification.isSupported()) {
+        const name = getWorkspaceName(workspaceId)
+        const n = new Notification({
+          title: 'SuperAgent — Claude is done',
+          body: name ? `Finished in ${name}.` : 'Your agent finished its work.'
+        })
         n.on('click', () => {
           const win = BrowserWindow.getAllWindows()[0]
           if (win) {
