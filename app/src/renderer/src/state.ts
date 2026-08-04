@@ -34,6 +34,25 @@ function savePorts(p: Record<string, number[]>): void {
   }
 }
 
+// Whether the browser pane is open per workspace — persisted so a code project's
+// open preview (e.g. a dev server) comes back after an app restart, navigating to
+// the last URL (workspace.browserUrl).
+const BROWSER_OPEN_KEY = 'cove.browserOpen'
+function loadBrowserOpen(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(BROWSER_OPEN_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+function saveBrowserOpen(o: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(BROWSER_OPEN_KEY, JSON.stringify(o))
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Only modes that need no prompt: SuperAgent drives `claude -p`, where there is
  * nowhere to answer a permission request, so an asking mode would silently deny
@@ -170,7 +189,7 @@ export const useStore = create<CoveState>((set, get) => ({
       return { todos: next }
     }),
   ports: loadPorts(),
-  browserOpen: {},
+  browserOpen: loadBrowserOpen(),
   filesOpen: {},
   openFile: {},
   // A text file replaces the browser pane's slot; hide the native view so it can't
@@ -288,25 +307,35 @@ export const useStore = create<CoveState>((set, get) => ({
     })),
 
   toggleBrowser: (workspaceId) =>
-    set((s) => ({
-      browserOpen: { ...s.browserOpen, [workspaceId]: !s.browserOpen[workspaceId] }
-    })),
+    set((s) => {
+      const browserOpen = { ...s.browserOpen, [workspaceId]: !s.browserOpen[workspaceId] }
+      saveBrowserOpen(browserOpen)
+      return { browserOpen }
+    }),
   setHooksEnabled: (v) => set({ hooksEnabled: v }),
 
   openPreview: (workspaceId, port) =>
-    set((s) => ({
-      activeWorkspaceId: workspaceId,
-      browserOpen: { ...s.browserOpen, [workspaceId]: true },
-      previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
-      toast: null
-    })),
+    set((s) => {
+      const browserOpen = { ...s.browserOpen, [workspaceId]: true }
+      saveBrowserOpen(browserOpen)
+      return {
+        activeWorkspaceId: workspaceId,
+        browserOpen,
+        previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
+        toast: null
+      }
+    }),
   openUrl: (workspaceId, url) =>
-    set((s) => ({
-      activeWorkspaceId: workspaceId,
-      browserOpen: { ...s.browserOpen, [workspaceId]: true },
-      previewUrls: { ...s.previewUrls, [workspaceId]: url },
-      toast: null
-    })),
+    set((s) => {
+      const browserOpen = { ...s.browserOpen, [workspaceId]: true }
+      saveBrowserOpen(browserOpen)
+      return {
+        activeWorkspaceId: workspaceId,
+        browserOpen,
+        previewUrls: { ...s.previewUrls, [workspaceId]: url },
+        toast: null
+      }
+    }),
   dismissToast: () => set({ toast: null }),
   setReloadOnIdle: (workspaceId, v) =>
     set((s) => ({ reloadOnIdle: { ...s.reloadOnIdle, [workspaceId]: v } })),
