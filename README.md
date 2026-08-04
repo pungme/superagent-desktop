@@ -83,6 +83,51 @@ npm install
 npm run dev
 ```
 
+## Releasing
+
+Mac builds are signed with the Developer ID cert in the login keychain and
+notarized by Apple. Notarization credentials live in `app/.env` (gitignored —
+copy `app/.env.example`); a non-interactive shell doesn't inherit them, so source
+them explicitly:
+
+```bash
+cd app
+# bump "version" in package.json first
+set -a && source .env && set +a
+npm run build:mac
+```
+
+Two things to watch, because neither announces itself:
+
+1. **A missing credential doesn't fail the build.** electron-builder logs
+   `skipped macOS notarization` and exits 0 with a signed-but-un-notarized DMG.
+   That build is fine on the machine that made it and blocked by Gatekeeper
+   everywhere else. Always verify before publishing — the app needs a stapled
+   ticket, and `spctl` must say `Notarized Developer ID`, not plain
+   `Developer ID`:
+
+   ```bash
+   xcrun stapler validate dist/mac-arm64/SuperAgent.app
+   spctl -a -vvv -t exec dist/mac-arm64/SuperAgent.app
+   ```
+
+2. **The DMG needs its own trip.** `notarize: true` covers the app inside, not
+   the DMG around it, so submit and staple the DMG too — then regenerate the
+   hash in `latest-mac.yml`, since stapling changes the file:
+
+   ```bash
+   xcrun notarytool submit dist/SuperAgent-<version>.dmg \
+     --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+     --team-id "$APPLE_TEAM_ID" --wait
+   xcrun stapler staple dist/SuperAgent-<version>.dmg
+   ```
+
+   A stale `latest-mac.yml` fails the auto-updater's integrity check, so its
+   `sha512` and `size` must match the stapled DMG.
+
+Publishing is not just a file upload — the app auto-updates, so a release rolls
+out to everyone already running it.
+
 ## License
 
 [MIT](LICENSE)
