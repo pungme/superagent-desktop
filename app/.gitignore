@@ -11,3 +11,6 @@ playwright-report
 
 # onnxruntime wasm, copied from node_modules by scripts/copy-ort.mjs
 src/renderer/public/ort/
+
+# Apple notarization credentials for release builds — never commit
+.env
