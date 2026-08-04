@@ -3162,6 +3162,30 @@ button {
   color: #fff;
 }
 
+/* Confirming a restart that would kill in-flight work. Amber rather than red —
+   this is a "you'd lose something" pause, not an error. */
+.update-banner-warn {
+  padding-right: 12px;
+}
+.update-banner-dot-warn {
+  background: #fbbf24;
+  box-shadow: none;
+  animation: none;
+}
+.update-banner-secondary {
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.update-banner-secondary:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
 /* ---- launch intro / splash ---- */
 .intro {
   position: fixed;

@@ -1111,6 +1111,15 @@ export function EasyChat({
     if (visible) wake()
   }, [visible, suspended, wake])
 
+  // Publish what this chat has in flight, so an app-wide action (installing an
+  // update quits the app, which kills every agent) can warn before discarding it.
+  const setBusy = useStore((s) => s.setBusy)
+  const clearBusy = useStore((s) => s.clearBusy)
+  useEffect(() => {
+    setBusy(chatId, { generating: generating || thinking, background: bgTasks.length })
+  }, [chatId, generating, thinking, bgTasks.length, setBusy])
+  useEffect(() => () => clearBusy(chatId), [chatId, clearBusy])
+
   // Auto-scroll only when the user is already near the bottom, so scrolling up
   // to read scrollback isn't interrupted.
   useEffect(() => {
