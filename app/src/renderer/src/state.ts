@@ -470,7 +470,12 @@ export const useStore = create<CoveState>((set, get) => ({
   },
 
   startHookListener: () => {
-    window.cove.hooksStatus().then((v) => set({ hooksEnabled: v }))
+    // Hooks power the status badges + agent notifications; there's no user toggle
+    // anymore, so keep them always on — install on first run if not present.
+    window.cove.hooksStatus().then((v) => {
+      if (v) set({ hooksEnabled: true })
+      else window.cove.hooksInstall().then((res) => set({ hooksEnabled: res.ok }))
+    })
     window.cove.onHookEvent((e) => {
       if (!e.workspaceId) return
       if (e.status) {

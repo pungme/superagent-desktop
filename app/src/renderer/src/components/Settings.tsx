@@ -9,8 +9,6 @@ interface SettingsProps {
 export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const theme = useStore((s) => s.theme)
   const setTheme = useStore((s) => s.setTheme)
-  const hooksEnabled = useStore((s) => s.hooksEnabled)
-  const setHooksEnabled = useStore((s) => s.setHooksEnabled)
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
@@ -20,16 +18,6 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
     // Version-only detection — avoids the slow `claude -p` login probe.
     window.cove.envVersion().then((e) => setVersion(e.claudeVersion))
   }, [])
-
-  const toggleHooks = async (): Promise<void> => {
-    if (hooksEnabled) {
-      await window.cove.hooksUninstall()
-      setHooksEnabled(false)
-    } else {
-      const res = await window.cove.hooksInstall()
-      if (res.ok) setHooksEnabled(true)
-    }
-  }
 
   const toggleDev = (v: boolean): void => {
     localStorage.setItem('cove.devMode', v ? '1' : '0')
@@ -80,17 +68,6 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
               Edits
             </button>
           </div>
-        </div>
-
-        <div className="settings-row">
-          <div className="settings-label">
-            <strong>Status badges</strong>
-            <span>Show when Claude is working or needs you.</span>
-          </div>
-          <label className="switch">
-            <input type="checkbox" checked={hooksEnabled} onChange={toggleHooks} />
-            <span className="switch-slider" />
-          </label>
         </div>
 
         <div className="settings-row">
