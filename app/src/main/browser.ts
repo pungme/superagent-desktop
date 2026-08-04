@@ -101,6 +101,28 @@ function isNavigable(url: string): boolean {
   }
 }
 
+// A themed "new tab" page loaded into a blank browser project — rendered inside
+// the native view (no HTML overlay needed) and theme-aware via prefers-color-scheme.
+// Panes showing it are tracked so the URL bar/title report empty, not the data URL.
+const EMPTY_STATE_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--bg:#fff;--fg:rgba(0,0,0,.85);--muted:#8a8a8e;--card:#f4f4f6;--line:#e6e6e9}
+@media(prefers-color-scheme:dark){:root{--bg:#1e1f24;--fg:rgba(255,255,255,.86);--muted:#83848a;--card:#26272e;--line:rgba(255,255,255,.09)}}
+*{margin:0;box-sizing:border-box}html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;-webkit-font-smoothing:antialiased}
+.wrap{text-align:center;transform:translateY(-6%)}
+.mark{width:66px;height:66px;border-radius:18px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
+.mark svg{width:30px;height:30px;stroke:var(--muted);fill:none;stroke-width:1.5;stroke-linecap:round}
+h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
+p{margin-top:7px;font-size:13px;color:var(--muted);line-height:1.5;max-width:32ch}
+</style></head><body><div class="wrap">
+<div class="mark"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg></div>
+<h1>New tab</h1><p>Type a URL in the bar above — or ask the agent to open a page for you.</p>
+</div></body></html>`
+const EMPTY_STATE_URL = 'data:text/html;charset=utf-8,' + encodeURIComponent(EMPTY_STATE_HTML)
+// Panes currently showing the empty state — reported as blank so the URL bar reads
+// "Search or enter a URL" and the title reads "New tab", not the data: URL.
+const emptyPanes = new Set<string>()
+
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
   hardenClientHints(partition)
@@ -126,13 +148,14 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   wc.setUserAgent(chromeUserAgent(wc.getUserAgent()))
   const sendState = (): void => {
     if (window.isDestroyed()) return
+    const empty = emptyPanes.has(id)
     window.webContents.send(`browser:state:${id}`, {
-      url: wc.getURL(),
-      title: wc.getTitle(),
-      canGoBack: wc.navigationHistory.canGoBack(),
-      canGoForward: wc.navigationHistory.canGoForward(),
-      loading: wc.isLoading(),
-      favicon: faviconByPane.get(id)
+      url: empty ? '' : wc.getURL(),
+      title: empty ? 'New tab' : wc.getTitle(),
+      canGoBack: !empty && wc.navigationHistory.canGoBack(),
+      canGoForward: !empty && wc.navigationHistory.canGoForward(),
+      loading: !empty && wc.isLoading(),
+      favicon: empty ? undefined : faviconByPane.get(id)
     })
   }
   wc.on('did-navigate', sendState)
@@ -149,8 +172,10 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   })
   // A page can drop its old favicon before the new one loads; clear on navigation
   // so a stale icon doesn't linger, then inline the new one when it arrives.
-  wc.on('did-start-navigation', (_e, _url, isInPlace, isMainFrame) => {
+  wc.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) faviconByPane.delete(id)
+    // Any real navigation leaves the empty state behind.
+    if (isMainFrame && url !== EMPTY_STATE_URL) emptyPanes.delete(id)
   })
   wc.on('page-favicon-updated', (_e, favicons) => {
     const url = favicons?.[0]
@@ -242,6 +267,14 @@ export function registerBrowserIpc(): void {
   ipcMain.handle('browser:create', (e, id: string, partition: string) => {
     const window = BrowserWindow.fromWebContents(e.sender)
     if (window) createBrowserPane(window, id, partition)
+  })
+  // Show the themed "new tab" page — the renderer calls this for a blank project
+  // (no URL yet) so the pane isn't an empty white card.
+  ipcMain.on('browser:show-empty', (_e, id: string) => {
+    const wc = getPaneWebContents(id)
+    if (!wc) return
+    emptyPanes.add(id)
+    wc.loadURL(EMPTY_STATE_URL)
   })
   ipcMain.on('browser:set-bounds', (_e, id: string, bounds: BrowserBounds) => {
     const pane = panes.get(id)

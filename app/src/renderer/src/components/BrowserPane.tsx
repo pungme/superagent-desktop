@@ -231,7 +231,9 @@ export function BrowserPane({
     window.cove.browserCreate(paneId, partition).then(() => {
       if (!alive) return
       syncBounds()
+      // A URL to load, or the themed "new tab" empty state for a blank pane.
       if (initialUrl) window.cove.browserNavigate(paneId, initialUrl)
+      else window.cove.browserShowEmpty(paneId)
     })
 
     const host = hostRef.current
