@@ -3579,6 +3579,20 @@ button {
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--border);
+  position: relative;
+}
+
+/* Desktop viewport: the omnibar is docked onto the floating card's top strip so
+   the card reads as a self-contained browser window. */
+.browser-toolbar.on-card {
+  z-index: 1;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  overflow: hidden;
 }
 
 .browser-toolbar {
