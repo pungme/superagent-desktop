@@ -3596,7 +3596,9 @@ button {
   border-bottom: 1px solid var(--border);
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
-  overflow: hidden;
+  /* No overflow:hidden — it would clip the omnibox suggestions dropdown, which is
+     absolutely positioned below the bar. The button/input children are inset, so
+     the rounded top corners don't need clipping. */
 }
 
 .browser-toolbar {
