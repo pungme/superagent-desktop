@@ -187,6 +187,12 @@ export function getWorkspacePath(id: string): string | undefined {
   return row?.path
 }
 
+export function getRecentHistory(limit = 6): { url: string; title: string }[] {
+  return db
+    .prepare('SELECT url, title FROM history ORDER BY visitCount DESC, lastVisit DESC LIMIT ?')
+    .all(limit) as { url: string; title: string }[]
+}
+
 export function getWorkspaceName(id: string): string | undefined {
   const row = db.prepare('SELECT name FROM workspaces WHERE id = ?').get(id) as
     | { name: string }

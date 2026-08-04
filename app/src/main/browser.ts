@@ -1,6 +1,7 @@
 import { BrowserWindow, WebContentsView, ipcMain, shell, app, net, session } from 'electron'
 import { connect as tcpConnect } from 'net'
 import { normalizeUrl } from './util'
+import { getRecentHistory } from './store'
 
 // Electron's setUserAgent rewrites the UA *string* to look like Chrome, but not the
 // User-Agent Client Hints: the Sec-CH-UA header still advertises bare "Chromium",
@@ -103,24 +104,52 @@ function isNavigable(url: string): boolean {
 
 // A themed "new tab" page loaded into a blank browser project — rendered inside
 // the native view (no HTML overlay needed) and theme-aware via prefers-color-scheme.
-// Panes showing it are tracked so the URL bar/title report empty, not the data URL.
-const EMPTY_STATE_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
-:root{--bg:#fff;--fg:rgba(0,0,0,.85);--muted:#8a8a8e;--card:#f4f4f6;--line:#e6e6e9}
-@media(prefers-color-scheme:dark){:root{--bg:#1e1f24;--fg:rgba(255,255,255,.86);--muted:#83848a;--card:#26272e;--line:rgba(255,255,255,.09)}}
+// Recently-visited sites are shown as plain <a> links: clicking one navigates the
+// native view (no IPC), which clears the empty state. Panes showing it are tracked
+// so the URL bar/title report blank, not the data: URL.
+const esc = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+const hostOf = (u: string): string => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, '')
+  } catch {
+    return u
+  }
+}
+function emptyStateUrl(recent: { url: string; title: string }[]): string {
+  const items = recent
+    .map((h) => {
+      const host = hostOf(h.url)
+      return `<a class="site" href="${esc(h.url)}"><span class="fav"></span><span class="t">${esc(h.title || host)}</span><span class="h">${esc(host)}</span></a>`
+    })
+    .join('')
+  const recentBlock = items
+    ? `<div class="recent"><div class="lbl">Recently visited</div>${items}</div>`
+    : ''
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--bg:#fff;--fg:rgba(0,0,0,.85);--muted:#8a8a8e;--card:#f4f4f6;--line:#e6e6e9;--hover:#f2f2f4}
+@media(prefers-color-scheme:dark){:root{--bg:#1e1f24;--fg:rgba(255,255,255,.86);--muted:#83848a;--card:#26272e;--line:rgba(255,255,255,.09);--hover:rgba(255,255,255,.05)}}
 *{margin:0;box-sizing:border-box}html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;-webkit-font-smoothing:antialiased}
-.wrap{text-align:center;transform:translateY(-6%)}
-.mark{width:66px;height:66px;border-radius:18px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
-.mark svg{width:30px;height:30px;stroke:var(--muted);fill:none;stroke-width:1.5;stroke-linecap:round}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-font-smoothing:antialiased}
+.wrap{text-align:center;width:min(420px,80%)}
+.mark{width:64px;height:64px;border-radius:18px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.mark svg{width:29px;height:29px;stroke:var(--muted);fill:none;stroke-width:1.5;stroke-linecap:round}
 h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
-p{margin-top:7px;font-size:13px;color:var(--muted);line-height:1.5;max-width:32ch}
+.sub{margin-top:6px;font-size:13px;color:var(--muted);line-height:1.5}
+.recent{margin-top:26px;text-align:left}
+.lbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px 8px}
+.site{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;text-decoration:none;color:var(--fg)}
+.site:hover{background:var(--hover)}
+.fav{width:16px;height:16px;border-radius:5px;background:var(--card);border:1px solid var(--line);flex-shrink:0}
+.t{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0}
+.h{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;flex-shrink:0;padding-left:10px}
 </style></head><body><div class="wrap">
 <div class="mark"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg></div>
-<h1>New tab</h1><p>Type a URL in the bar above — or ask the agent to open a page for you.</p>
+<h1>New tab</h1><div class="sub">Type a URL in the bar above — or ask the agent to open a page for you.</div>
+${recentBlock}
 </div></body></html>`
-const EMPTY_STATE_URL = 'data:text/html;charset=utf-8,' + encodeURIComponent(EMPTY_STATE_HTML)
-// Panes currently showing the empty state — reported as blank so the URL bar reads
-// "Search or enter a URL" and the title reads "New tab", not the data: URL.
+  return 'data:text/html;charset=utf-8,' + encodeURIComponent(html)
+}
 const emptyPanes = new Set<string>()
 
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
@@ -174,8 +203,8 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // so a stale icon doesn't linger, then inline the new one when it arrives.
   wc.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) faviconByPane.delete(id)
-    // Any real navigation leaves the empty state behind.
-    if (isMainFrame && url !== EMPTY_STATE_URL) emptyPanes.delete(id)
+    // Any real navigation (not the empty-state data: page) leaves it behind.
+    if (isMainFrame && !url.startsWith('data:text/html')) emptyPanes.delete(id)
   })
   wc.on('page-favicon-updated', (_e, favicons) => {
     const url = favicons?.[0]
@@ -274,7 +303,7 @@ export function registerBrowserIpc(): void {
     const wc = getPaneWebContents(id)
     if (!wc) return
     emptyPanes.add(id)
-    wc.loadURL(EMPTY_STATE_URL)
+    wc.loadURL(emptyStateUrl(getRecentHistory(6)))
   })
   ipcMain.on('browser:set-bounds', (_e, id: string, bounds: BrowserBounds) => {
     const pane = panes.get(id)
