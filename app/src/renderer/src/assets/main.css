@@ -3376,11 +3376,11 @@ button {
    rounded edge show around it. Non-interactive; purely the "floating" feel. */
 .browser-sim-frame {
   position: absolute;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-content);
   box-shadow:
-    0 24px 60px -18px rgba(0, 0, 0, 0.35),
-    0 4px 14px -6px rgba(0, 0, 0, 0.2);
+    0 22px 55px -16px rgba(0, 0, 0, 0.38),
+    0 4px 14px -6px rgba(0, 0, 0, 0.22);
   pointer-events: none;
   z-index: 0;
 }

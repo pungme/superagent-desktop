@@ -151,17 +151,19 @@ export function BrowserPane({
     // Optional-chained: during a preload/renderer hot-reload desync browserSetZoom
     // may be missing, and a throw here (inside an effect) would unmount the app.
     if (viewportRef.current === 'desktop') {
-      // Simulate a real 16:10 desktop screen (1440×900) at the correct aspect ratio,
-      // scaled to fit. Fills the pane width and sits at the top, so the leftover
-      // space lands at the bottom of the pane (not a stretched full-bleed page).
+      // Simulate a real 16:10 desktop screen (1440×900), scaled to fit INSIDE a
+      // margin so the backdrop + shadow wrap it on every side — it reads as a
+      // separate, floating screen rather than a page flush to the pane edges.
+      const PAD = 22
       const [dw, dh] = [1440, 900]
-      const scale = Math.min(W / dw, H / dh)
+      const scale = Math.min((W - PAD * 2) / dw, (H - PAD * 2) / dh)
       const sw = Math.round(dw * scale)
       const sh = Math.round(dh * scale)
       const left = Math.round((W - sw) / 2)
+      const top = Math.round((H - sh) / 2)
       window.cove.browserSetZoom?.(paneId, scale)
-      setSimFrame({ left, top: 0, width: sw, height: sh })
-      emit({ x: x0 + left, y: y0, width: sw, height: sh })
+      setSimFrame({ left, top, width: sw, height: sh })
+      emit({ x: x0 + left, y: y0 + top, width: sw, height: sh })
       return
     }
     // Mobile: a phone has a fixed tall aspect ratio, so it stays a centered device
