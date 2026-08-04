@@ -975,6 +975,14 @@ button {
 
 .workspace-title {
   font-weight: 600;
+  /* A long page title (browser projects use the <title>) must stay one line and
+     ellipsis, not wrap and shove the URL onto a second row. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 46ch;
+  flex-shrink: 1;
 }
 
 .workspace-path {
@@ -983,6 +991,9 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Shrinks before the title does when the toolbar gets tight. */
+  min-width: 0;
+  flex-shrink: 2;
 }
 
 /* Current git branch chip (code projects). */
@@ -1540,6 +1551,9 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Flex child must be allowed to shrink below its content, or a long one-line
+     command (e.g. a curl pipeline) refuses to ellipsis and overflows the row. */
+  min-width: 0;
   font-family: 'SF Mono', ui-monospace, monospace;
   font-size: 10.5px;
 }
@@ -2464,6 +2478,23 @@ button {
   line-height: 1;
   flex-shrink: 0;
   color: var(--text-tertiary);
+  position: relative;
+}
+
+/* Live dev server for this project — a green dot badged on its icon. Ringed in
+   the panel color so it stays legible on both the icon and a selected row. */
+.sidebar-server-dot {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #35c15e;
+  box-shadow: 0 0 0 2px var(--bg-panel);
+}
+.sidebar-item.active .sidebar-server-dot {
+  box-shadow: 0 0 0 2px var(--bg-content);
 }
 
 /* A site's own favicon, standing in for the globe on browser projects. */
@@ -2967,6 +2998,218 @@ button {
 
 .preview-toast-close:hover {
   color: var(--text-primary);
+}
+
+/* ---- update-ready banner (top center) ---- */
+.update-banner {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 999px;
+  background: rgba(30, 31, 36, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 34px var(--shadow);
+  font-size: 13px;
+  color: #fff;
+  animation: update-drop 0.34s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+@keyframes update-drop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -14px);
+  }
+}
+
+.update-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6ee7b7;
+  box-shadow: 0 0 0 0 rgba(110, 231, 183, 0.6);
+  animation: update-pulse 1.8s ease-out infinite;
+}
+
+@keyframes update-pulse {
+  70% {
+    box-shadow: 0 0 0 6px rgba(110, 231, 183, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(110, 231, 183, 0);
+  }
+}
+
+.update-banner-text b {
+  font-weight: 650;
+}
+
+.update-banner-action {
+  border: none;
+  background: #fff;
+  color: #17181d;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-banner-action:hover {
+  background: #e9eaee;
+}
+
+.update-banner-close {
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 17px;
+  line-height: 1;
+  width: 20px;
+  cursor: pointer;
+}
+
+.update-banner-close:hover {
+  color: #fff;
+}
+
+/* ---- launch intro / splash ---- */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--bg-content);
+  animation: intro-veil 1.95s ease forwards;
+}
+
+@keyframes intro-veil {
+  0%,
+  76% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+.intro-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.intro-mark {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  border-radius: 24px;
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 18px 50px -14px var(--shadow);
+  animation: intro-mark-in 0.72s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Expanding ring pulse — not clipped, so it can bloom past the mark. */
+.intro-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  border: 2px solid var(--accent);
+  animation: intro-ring 1s ease-out 0.42s both;
+}
+
+.intro-inner {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--accent-fg);
+  animation: intro-inner-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.32s both;
+}
+
+.intro-word {
+  margin-top: 22px;
+  font-size: 22px;
+  font-weight: 640;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  animation: intro-word-in 0.6s ease 0.68s both;
+}
+
+@keyframes intro-mark-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-10deg);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes intro-inner-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-40deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes intro-ring {
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.65);
+  }
+}
+
+@keyframes intro-word-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    letter-spacing: 0.14em;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    letter-spacing: -0.02em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro {
+    animation: intro-veil-quick 0.45s ease forwards;
+  }
+  .intro-mark,
+  .intro-mark::after,
+  .intro-inner,
+  .intro-word {
+    animation: none;
+  }
+  @keyframes intro-veil-quick {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
 }
 
 .terminal-pane {

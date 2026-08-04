@@ -89,6 +89,9 @@ export interface CoveApi {
   browserStopAutomation: (id: string) => void
   onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
   onBrowserRequestOpen: (cb: (workspaceId: string) => void) => () => void
+  // A newer release finished downloading in the background → offer to restart.
+  onUpdateReady: (cb: (version: string) => void) => () => void
+  installUpdate: () => void
 
   storeTree: () => Promise<TreeGroup[]>
   createGroup: (name: string) => Promise<TreeGroup[]>
@@ -217,6 +220,8 @@ const cove: CoveApi = {
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
   onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
+  onUpdateReady: (cb) => subscribe('update:ready', (v) => cb(v as string)),
+  installUpdate: () => ipcRenderer.send('update:install'),
   // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
   onOpenFile: (cb) =>
     subscribe('app:open-file', (p) => cb(p as { workspaceId: string; path: string })),

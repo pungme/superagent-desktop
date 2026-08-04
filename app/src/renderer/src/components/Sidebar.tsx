@@ -21,6 +21,7 @@ const STATUS_LABEL: Record<WorkspaceStatus, string> = {
 // Stable empty routine list so the selector doesn't return a fresh array each render.
 const EMPTY_ROUTINES: Routine[] = []
 const EMPTY_CHATS: Chat[] = []
+const EMPTY_PORTS: number[] = []
 
 function StatusDot({ status }: { status: WorkspaceStatus }): React.JSX.Element {
   // A spinner while it works: a pulsing dot reads as a state, but the agent
@@ -220,6 +221,9 @@ function ChatRow({
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id)
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
+  // A live dev server on this project → green dot on its icon (mirrors the
+  // toolbar's "● localhost:PORT" chip).
+  const serverPorts = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
@@ -317,6 +321,12 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             />
           ) : (
             <KindIcon kind={ws.kind} />
+          )}
+          {serverPorts.length > 0 && (
+            <span
+              className="sidebar-server-dot"
+              title={`Dev server on :${serverPorts.join(', :')}`}
+            />
           )}
         </span>
         {/* Not editable: the name mirrors the folder, and renaming here changed
