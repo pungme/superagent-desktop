@@ -25,11 +25,14 @@ asarUnpack:
   - '**/node_modules/node-pty/**'
 mac:
   category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: SuperAgent does not use the camera.
     - NSMicrophoneUsageDescription: SuperAgent records your voice only while you hold the dictation key, and transcribes it on this Mac.
-  notarize: false
+  notarize: true
   target:
     - dmg
 dmg:
