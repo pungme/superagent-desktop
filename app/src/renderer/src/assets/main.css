@@ -2389,6 +2389,10 @@ button {
   width: 34px;
   height: 34px;
   flex-shrink: 0;
+  /* Row is bottom-anchored so the button hugs the composer as it grows; a
+     single-line input is 38px to this button's 34, so split the difference to
+     optically center against the common case. */
+  margin-bottom: 2px;
   border: none;
   border-radius: 50%;
   background: var(--accent);
@@ -2404,6 +2408,7 @@ button {
   width: 34px;
   height: 34px;
   flex-shrink: 0;
+  margin-bottom: 2px;
   border: none;
   border-radius: 50%;
   background: var(--text-primary);
@@ -4065,10 +4070,35 @@ button {
 }
 
 .settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 12px 16px;
   border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--text-tertiary);
+}
+
+.settings-update-check {
+  flex: none;
+  border: 1px solid var(--border-strong);
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.settings-update-check:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.settings-update-check:disabled {
+  opacity: 0.6;
+}
+
+.settings-update-msg {
+  color: var(--text-secondary);
 }
 
 .switch {

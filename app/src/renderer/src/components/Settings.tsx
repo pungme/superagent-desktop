@@ -14,6 +14,19 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
   const [version, setVersion] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [updateMsg, setUpdateMsg] = useState<string | null>(null)
+
+  const checkUpdates = async (): Promise<void> => {
+    setChecking(true)
+    setUpdateMsg(null)
+    const r = await window.cove.updateCheck()
+    setChecking(false)
+    if (r.error) setUpdateMsg(`Couldn't check: ${r.error}`)
+    else if (r.latest && r.latest !== r.current)
+      setUpdateMsg(`${r.latest} is downloading — you'll get a restart prompt when it's ready.`)
+    else setUpdateMsg(`You're on the latest version.`)
+  }
 
   useEffect(() => {
     // Version-only detection — avoids the slow `claude -p` login probe.
@@ -90,7 +103,11 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
       <div className="settings-footer">
         <span>
           SuperAgent {appVersion ?? ''} · Claude Code {version ?? ''}
+          {updateMsg && <span className="settings-update-msg"> · {updateMsg}</span>}
         </span>
+        <button className="settings-update-check" onClick={checkUpdates} disabled={checking}>
+          {checking ? 'Checking…' : 'Check for updates'}
+        </button>
       </div>
     </SlideOverPanel>
   )

@@ -1,5 +1,5 @@
 import { autoUpdater } from 'electron-updater'
-import { BrowserWindow, Notification, ipcMain } from 'electron'
+import { BrowserWindow, Notification, app, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
 
 /**
@@ -13,6 +13,24 @@ import { is } from '@electron-toolkit/utils'
  * download but fail to swap itself in) — see the notarization notes.
  */
 export function startAutoUpdate(): void {
+  // Manual "check now" from Settings. Registered before the dev bail-out so the
+  // invoke never dangles in dev — it just reports the current version. If a
+  // newer release exists, autoDownload takes over and the usual restart banner
+  // appears when it's ready.
+  ipcMain.handle('update:check', async () => {
+    if (is.dev) return { current: app.getVersion(), latest: null }
+    try {
+      const r = await autoUpdater.checkForUpdates()
+      return { current: app.getVersion(), latest: r?.updateInfo?.version ?? null }
+    } catch (err) {
+      return {
+        current: app.getVersion(),
+        latest: null,
+        error: String((err as Error)?.message ?? err)
+      }
+    }
+  })
+
   if (is.dev) return
 
   autoUpdater.autoDownload = true
