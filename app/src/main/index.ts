@@ -129,6 +129,11 @@ app.whenReady().then(() => {
   startHookServer()
   startRoutines()
 
+  // Which SuperAgent this is. Worth surfacing now that builds auto-update in the
+  // background — otherwise there's no way to tell what you're running, or to say
+  // so in a bug report.
+  ipcMain.handle('app:version', () => app.getVersion())
+
   ipcMain.handle('dialog:pickFolder', async () => {
     const win = BrowserWindow.getFocusedWindow()
     const result = await dialog.showOpenDialog(win!, {

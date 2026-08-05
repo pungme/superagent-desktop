@@ -13,21 +13,35 @@ import { useStore, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
-  idle: 'Session dormant — resumes on your next message',
+  idle: 'Idle',
   working: 'Working…',
   'needs-you': 'Needs you'
 }
+
+// Shown when a project has no claude process — never opened this session, or
+// reaped after sitting idle. The next message starts/resumes it.
+const DORMANT_LABEL = 'No live session — your next message starts one'
 
 // Stable empty routine list so the selector doesn't return a fresh array each render.
 const EMPTY_ROUTINES: Routine[] = []
 const EMPTY_CHATS: Chat[] = []
 const EMPTY_PORTS: number[] = []
 
-function StatusDot({ status }: { status: WorkspaceStatus }): React.JSX.Element {
+function StatusDot({
+  status,
+  live
+}: {
+  status: WorkspaceStatus
+  live?: boolean
+}): React.JSX.Element {
   // A spinner while it works: a pulsing dot reads as a state, but the agent
   // running is an activity, and spinning says "still going" at a glance.
   if (status === 'working') {
     return <span className="status-spinner" title={STATUS_LABEL[status]} />
+  }
+  // Full dot while the agent is up; half a dot for half a session.
+  if (status === 'idle' && !live) {
+    return <span className="status-dot status-dormant" title={DORMANT_LABEL} />
   }
   return <span className={`status-dot status-${status}`} title={STATUS_LABEL[status]} />
 }
@@ -221,6 +235,7 @@ function ChatRow({
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id)
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
+  const agentLive = useStore((s) => Boolean(s.agentLive[ws.id]))
   // A live dev server on this project → green dot on its icon (mirrors the
   // toolbar's "● localhost:PORT" chip).
   const serverPorts = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
@@ -306,7 +321,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         {...attributes}
         {...listeners}
       >
-        <StatusDot status={status} />
+        <StatusDot status={status} live={agentLive} />
         <span
           className="sidebar-item-kind"
           title={ws.kind === 'browser' ? 'Browser' : 'Folder'}

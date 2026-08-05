@@ -13,10 +13,12 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
   const [version, setVersion] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
 
   useEffect(() => {
     // Version-only detection — avoids the slow `claude -p` login probe.
     window.cove.envVersion().then((e) => setVersion(e.claudeVersion))
+    window.cove.appVersion().then(setAppVersion)
   }, [])
 
   const toggleDev = (v: boolean): void => {
@@ -86,7 +88,9 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
         </div>
       </div>
       <div className="settings-footer">
-        <span>SuperAgent · Claude Code {version ?? ''}</span>
+        <span>
+          SuperAgent {appVersion ?? ''} · Claude Code {version ?? ''}
+        </span>
       </div>
     </SlideOverPanel>
   )

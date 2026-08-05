@@ -13,6 +13,7 @@ interface ChatMessage {
   images?: string[] // data URLs, for user messages
   replyTo?: { role: 'user' | 'assistant'; text: string } // WhatsApp-style quoted message
   system?: boolean // app-generated notice (e.g. a failed/empty turn), not from Claude
+  at?: number // when it arrived, for the hover timestamp (absent on older saved chats)
 }
 
 interface PendingImage {
@@ -184,6 +185,23 @@ interface BackgroundTask {
 // that's still going.
 const BG_SHELL_ID_RE = /(?:ID|bash_id|shell)[:\s]+([A-Za-z0-9_-]+)/i
 const BG_DONE_RE = /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b/i
+
+/**
+ * When a message arrived. Transcripts saved before this field existed have no
+ * `at`, but their ids were minted as `u-<epoch>` / `a-<epoch>` / `sys-<epoch>`,
+ * so the time is recoverable — and null when it genuinely isn't, so the stamp is
+ * simply omitted rather than rendering "Invalid Date" over old conversations.
+ */
+function msgAt(msg: { id: string; at?: number }): number | null {
+  if (typeof msg.at === 'number' && Number.isFinite(msg.at)) return msg.at
+  const legacy = /^(?:u|a|sys)-(\d{10,})/.exec(msg.id)
+  return legacy ? Number(legacy[1]) : null
+}
+
+/** Clock time for a message's hover stamp; the title carries the full date. */
+function msgTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 function toolDetail(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
@@ -795,7 +813,7 @@ export function EasyChat({
             setThinking(false)
             setItems((prev) => [
               ...prev,
-              { kind: 'msg', msg: { id, role: 'assistant', text: '', streaming: true } }
+              { kind: 'msg', msg: { id, role: 'assistant', text: '', streaming: true, at: Date.now() } }
             ])
           } else if (block?.type === 'thinking') {
             const id = `t-${Date.now()}-${Math.random()}`
@@ -853,6 +871,7 @@ export function EasyChat({
                 kind: 'msg',
                 msg: {
                   id: `a-${Date.now()}-${Math.random()}`,
+                  at: Date.now(),
                   role: 'assistant',
                   text: isApiError ? `⚠ ${wholeText}` : wholeText,
                   system: isApiError
@@ -1011,6 +1030,7 @@ export function EasyChat({
               kind: 'msg',
               msg: {
                 id: `sys-${Date.now()}`,
+                at: Date.now(),
                 role: 'assistant',
                 text: `⚠ ${note}${detail}`,
                 system: true
@@ -1120,6 +1140,14 @@ export function EasyChat({
   }, [chatId, generating, thinking, bgTasks.length, setBusy])
   useEffect(() => () => clearBusy(chatId), [chatId, clearBusy])
 
+  // Drives the sidebar dot: full while this project has a live claude process,
+  // half once it doesn't (reaped while idle, or torn down when the chat closes).
+  const setAgentLive = useStore((s) => s.setAgentLive)
+  useEffect(() => {
+    setAgentLive(workspaceId, ready && !suspended)
+  }, [workspaceId, ready, suspended, setAgentLive])
+  useEffect(() => () => setAgentLive(workspaceId, false), [workspaceId, setAgentLive])
+
   // Auto-scroll only when the user is already near the bottom, so scrolling up
   // to read scrollback isn't interrupted.
   useEffect(() => {
@@ -1153,7 +1181,7 @@ export function EasyChat({
       }
       setItems((prev) => [
         ...prev,
-        { kind: 'msg', msg: { id: `u-${Date.now()}`, role: 'user', text: detail.text } }
+        { kind: 'msg', msg: { id: `u-${Date.now()}`, at: Date.now(), role: 'user', text: detail.text } }
       ])
       setThinking(true)
       setGenerating(true)
@@ -1187,6 +1215,7 @@ export function EasyChat({
         kind: 'msg',
         msg: {
           id: `u-${Date.now()}-${Math.random()}`,
+          at: Date.now(),
           role: 'user',
           text,
           images: images.length ? images.map((im) => im.url) : undefined,
@@ -1488,6 +1517,15 @@ export function EasyChat({
                     Edit
                   </button>
                 )}
+                {!row.msg.streaming &&
+                  (() => {
+                    const at = msgAt(row.msg)
+                    return at === null ? null : (
+                      <span className="easy-msg-time" title={new Date(at).toLocaleString()}>
+                        {msgTime(at)}
+                      </span>
+                    )
+                  })()}
               </div>
             )
           }

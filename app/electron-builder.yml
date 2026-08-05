@@ -36,7 +36,10 @@ mac:
   target:
     - dmg
 dmg:
-  artifactName: SuperAgent-${version}.${ext}
+  # Version-less on purpose: GitHub's /releases/latest/download/<name> needs an
+  # exact filename, so a stable one is what lets the site link straight to the
+  # current build instead of the releases page.
+  artifactName: SuperAgent.${ext}
   title: SuperAgent ${version}
 win:
   executableName: SuperAgent

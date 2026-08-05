@@ -810,10 +810,15 @@ button {
   flex-shrink: 0;
 }
 
-/* Half-filled dot: the session is dormant (the claude -p process exited after its
-   turn) but resumable on the next message — distinct from the full green pulse of
-   an actively working session. */
+/* Full dot: this project has a live claude process, just not mid-turn. */
 .status-idle {
+  background: var(--text-tertiary);
+}
+
+/* Half-filled dot: no live session — either never opened this run, or reaped
+   after sitting idle. The next message starts one. Half a dot for half a
+   session. */
+.status-dormant {
   background: linear-gradient(90deg, var(--text-tertiary) 50%, transparent 50%);
   box-shadow: inset 0 0 0 1px var(--text-tertiary);
 }
@@ -1276,6 +1281,32 @@ button {
 /* ---- Quote-reply (WhatsApp-style) ---- */
 
 /* Circular reply button beside a bubble, on hover. */
+/* Time a message arrived. Sits in the gap below its bubble and only on hover —
+   the same quiet-until-asked-for treatment as the copy/reply affordances, so a
+   long conversation doesn't turn into a wall of clock faces. Absolute, so
+   revealing it never reflows the transcript; kept inside the bubble's own width
+   so it can't widen the scroller. */
+.easy-msg-time {
+  position: absolute;
+  bottom: -13px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.easy-user .easy-msg-time {
+  right: 6px;
+}
+.easy-assistant .easy-msg-time {
+  left: 6px;
+}
+.easy-msg:hover .easy-msg-time {
+  opacity: 1;
+}
+
 .easy-msg-reply {
   position: absolute;
   top: 50%;

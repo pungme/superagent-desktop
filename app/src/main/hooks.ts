@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, chmodSy
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
-import { getWorkspaceName } from './store'
+import { getWorkspaceName, getChatTitleBySession } from './store'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -55,7 +55,15 @@ export function startHookServer(): Promise<string> {
       const focused = BrowserWindow.getFocusedWindow()
       if (!focused && Notification.isSupported()) {
         const message = typeof body.message === 'string' ? body.message : 'Claude needs your input'
-        const n = new Notification({ title: 'SuperAgent — Claude needs you', body: message })
+        const name = getWorkspaceName(workspaceId)
+        const about = sessionId ? getChatTitleBySession(sessionId) : undefined
+        // Which project, and which conversation within it — with several agents
+        // running, "Claude needs you" alone doesn't say where to look.
+        const n = new Notification({
+          title: name ? `Claude needs you — ${name}` : 'SuperAgent — Claude needs you',
+          subtitle: about,
+          body: message
+        })
         n.on('click', () => {
           const win = BrowserWindow.getAllWindows()[0]
           if (win) {
@@ -75,9 +83,13 @@ export function startHookServer(): Promise<string> {
       const focused = BrowserWindow.getFocusedWindow()
       if (!focused && Notification.isSupported()) {
         const name = getWorkspaceName(workspaceId)
+        // Chats name themselves after what they turned out to be about, so the
+        // title is the closest thing we have to "what was it about".
+        const about = sessionId ? getChatTitleBySession(sessionId) : undefined
         const n = new Notification({
-          title: 'SuperAgent — Claude is done',
-          body: name ? `Finished in ${name}.` : 'Your agent finished its work.'
+          title: name ? `Claude is done — ${name}` : 'SuperAgent — Claude is done',
+          subtitle: about,
+          body: about ? 'Finished its turn.' : 'Your agent finished its work.'
         })
         n.on('click', () => {
           const win = BrowserWindow.getAllWindows()[0]

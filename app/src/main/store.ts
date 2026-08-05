@@ -200,6 +200,19 @@ export function getWorkspaceName(id: string): string | undefined {
   return row?.name
 }
 
+/**
+ * The conversation a hook event came from, matched on Claude's own session id.
+ * Chats name themselves after what they turned out to be about, so this is the
+ * one line that says what a notification is *for* — "Finished" on its own tells
+ * you nothing when four projects are running.
+ */
+export function getChatTitleBySession(sessionId: string): string | undefined {
+  const row = db.prepare('SELECT title FROM chats WHERE claudeSessionId = ?').get(sessionId) as
+    | { title: string | null }
+    | undefined
+  return row?.title ?? undefined
+}
+
 export function registerStoreIpc(): void {
   initStore()
 
