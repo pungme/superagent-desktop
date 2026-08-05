@@ -3801,6 +3801,16 @@ button {
 /* Sits behind the native device view so the simulated screen reads as a separate,
    floating surface — the native view draws on top, so only this card's shadow and
    rounded edge show around it. Non-interactive; purely the "floating" feel. */
+/* Freeze-frame of the page, shown while an HTML overlay is open. A native view
+   is always composited above the DOM, so it can't be dimmed or covered — the
+   live view is swapped for this still, which dims with everything else. */
+.browser-frozen {
+  position: absolute;
+  object-fit: fill;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .browser-sim-frame {
   position: absolute;
   border-radius: 10px;

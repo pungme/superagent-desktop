@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+import { execSync, exec } from 'child_process'
 
 /**
  * Resolves the `claude` binary via a login shell (so the user's real PATH —
@@ -18,6 +18,23 @@ export function loginShellExec(cmd: string, timeoutMs = 8000): string {
     encoding: 'utf8',
     timeout: timeoutMs
   }).trim()
+}
+
+/**
+ * Async twin of loginShellExec. The sync version BLOCKS THE MAIN PROCESS for the
+ * whole login-shell + command run (seconds when the command is a Node CLI) —
+ * while it runs, every queued IPC stalls and the window can't hide native views,
+ * so a modal opened at the wrong moment sits invisible under the browser pane.
+ * Anything called from an ipcMain handler must use this instead.
+ */
+export function loginShellExecAsync(cmd: string, timeoutMs = 8000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    exec(
+      `${loginShell()} -lic ${JSON.stringify(cmd)} 2>/dev/null`,
+      { encoding: 'utf8', timeout: timeoutMs },
+      (err, stdout) => (err ? reject(err) : resolve(stdout.trim()))
+    )
+  })
 }
 
 /** Absolute path to `claude`, resolved once via a login shell. Falls back to bare `claude`. */
