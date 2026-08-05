@@ -220,6 +220,10 @@ function toolDetail(input: unknown): string {
 // left most of those expanded, which is the noise this is meant to hide.
 const TOOL_COLLAPSE_MIN = 2
 
+// Task maps per chat — see the `tasks` ref. Module-level so a remounted chat
+// picks its map back up.
+const taskStores = new Map<string, Map<string, TodoItem>>()
+
 // How long a backgrounded chat may sit idle before its claude process is reaped.
 // Long enough that flipping between two projects never restarts anything, short
 // enough that a day of clicking around doesn't leave a dozen idle agents resident.
@@ -758,9 +762,18 @@ export function EasyChat({
     useStore.getState().touchChat(workspaceId, chatId, { title })
   }, [cwd, workspaceId, chatId])
 
-  // Claude's tasks, accumulated across the turn from TaskCreate/TaskUpdate and
-  // mirrored (in insertion order) into the store the Tasks panel reads.
-  const tasks = useRef<Map<string, TodoItem>>(new Map())
+  // Claude's tasks, accumulated from TaskCreate/TaskUpdate and mirrored (in
+  // insertion order) into the store the Tasks panel reads. Kept per chat at
+  // module level: a remount (switching chats and back) must not reset the map,
+  // because the CLI session resumes with its task ids intact and updates against
+  // an empty map would be orphaned.
+  const tasks = useRef<Map<string, TodoItem>>(
+    taskStores.get(chatId) ?? taskStores.set(chatId, new Map()).get(chatId)!
+  )
+  // tool_use id of an in-flight TaskCreate → our provisional key, so the tool's
+  // RESULT ("Task #7 created") can re-key the entry to the id Claude will
+  // actually use in later TaskUpdates.
+  const taskCreates = useRef(new Map<string, string>())
   const syncTasks = useCallback((): void => {
     useStore.getState().setTodos(
       workspaceId,
@@ -891,18 +904,38 @@ export function EasyChat({
             // moves its status. We accumulate them and mirror into the store.
             if (name === 'TaskCreate') {
               const inp = block.input as { subject?: string; activeForm?: string }
-              const taskId = String(tasks.current.size + 1)
-              tasks.current.set(taskId, {
+              // Provisional until the tool result reports the real id. Guessing
+              // "creation order" here and hoping it matched Claude's numbering is
+              // what used to strand the panel at pending: one drifted id and every
+              // later TaskUpdate was silently dropped.
+              const provisional = `tmp-${id}`
+              taskCreates.current.set(id, provisional)
+              tasks.current.set(provisional, {
                 content: inp.subject ?? '(task)',
                 status: 'pending',
                 activeForm: inp.activeForm
               })
               syncTasks()
             } else if (name === 'TaskUpdate') {
-              const inp = block.input as { taskId?: string; status?: TodoItem['status'] }
-              const t = inp.taskId ? tasks.current.get(inp.taskId) : undefined
-              if (t && inp.status) {
-                t.status = inp.status
+              const inp = block.input as {
+                taskId?: string
+                status?: TodoItem['status'] | 'deleted'
+                subject?: string
+                activeForm?: string
+              }
+              if (inp.taskId) {
+                let t = tasks.current.get(inp.taskId)
+                if (!t) {
+                  // Unknown id — a task from before this panel was watching. A
+                  // placeholder keeps the counts honest; dropping the update is
+                  // how the panel gets stuck showing work as pending forever.
+                  t = { content: inp.subject ?? `Task #${inp.taskId}`, status: 'pending' }
+                  tasks.current.set(inp.taskId, t)
+                }
+                if (inp.subject) t.content = inp.subject
+                if (inp.activeForm) t.activeForm = inp.activeForm
+                if (inp.status === 'deleted') tasks.current.delete(inp.taskId)
+                else if (inp.status) t.status = inp.status
                 syncTasks()
               }
             }
@@ -965,6 +998,20 @@ export function EasyChat({
             // says whether it has finished.
             const resultFor = typeof block.tool_use_id === 'string' ? block.tool_use_id : null
             if (resultFor) {
+              // TaskCreate's result carries the assigned id ("Task #7 created…").
+              // Re-key our provisional entry to it so later TaskUpdates land.
+              const provisional = taskCreates.current.get(resultFor)
+              if (provisional) {
+                taskCreates.current.delete(resultFor)
+                const m = text.match(/Task #?(\d+)/i)
+                if (m) {
+                  const next = new Map<string, TodoItem>()
+                  for (const [k, v] of tasks.current) next.set(k === provisional ? m[1] : k, v)
+                  tasks.current = next
+                  taskStores.set(chatId, next) // keep the remount-survival copy current
+                  syncTasks()
+                }
+              }
               const polled = pollTargets.current.get(resultFor)
               if (polled) {
                 pollTargets.current.delete(resultFor)
