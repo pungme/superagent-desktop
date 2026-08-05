@@ -197,6 +197,8 @@ export interface CoveApi {
   onFocusWorkspace: (cb: (workspaceId: string) => void) => () => void
   /** SuperAgent's own version (package.json / bundle), not Claude Code's. */
   appVersion: () => Promise<string>
+  /** Ask the updater to check now. latest=null means up to date (or dev build). */
+  updateCheck: () => Promise<{ current: string; latest: string | null; error?: string }>
   hooksStatus: () => Promise<boolean>
   hooksInstall: () => Promise<{ ok: boolean; error?: string }>
   hooksUninstall: () => Promise<boolean>
@@ -315,6 +317,7 @@ const cove: CoveApi = {
   onHookEvent: (cb) => subscribe('hook:event', (ev) => cb(ev as HookEvent)),
   onFocusWorkspace: (cb) => subscribe('hook:focus-workspace', (id) => cb(id as string)),
   appVersion: () => ipcRenderer.invoke('app:version'),
+  updateCheck: () => ipcRenderer.invoke('update:check'),
   hooksStatus: () => ipcRenderer.invoke('hooks:status'),
   hooksInstall: () => ipcRenderer.invoke('hooks:install'),
   hooksUninstall: () => ipcRenderer.invoke('hooks:uninstall')

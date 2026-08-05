@@ -26,7 +26,8 @@ export async function detectVersionAsync(): Promise<{
   try {
     const version = await loginShellExecAsync('claude --version')
     if (version) {
-      versionCache = { claudeInstalled: true, claudeVersion: version.split(/\s+/)[0] || version }
+      const m = version.match(/\d+\.\d+\.\d+\S*/)
+      versionCache = { claudeInstalled: true, claudeVersion: m ? m[0] : version }
       return versionCache
     }
   } catch {
@@ -41,8 +42,10 @@ export function detectVersion(): { claudeInstalled: boolean; claudeVersion: stri
   try {
     const version = loginShellExec('claude --version')
     if (version) {
-      // e.g. "2.1.220 (Claude Code)" → "2.1.220"
-      versionCache = { claudeInstalled: true, claudeVersion: version.split(/\s+/)[0] || version }
+      // e.g. "2.1.220 (Claude Code)" → "2.1.220"; regex rather than first-word,
+      // since an interactive shell may print rc noise before the real output.
+      const m = version.match(/\d+\.\d+\.\d+\S*/)
+      versionCache = { claudeInstalled: true, claudeVersion: m ? m[0] : version }
       return versionCache
     }
   } catch {
