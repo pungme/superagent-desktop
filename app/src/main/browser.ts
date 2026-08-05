@@ -165,10 +165,13 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     }
   })
   view.setBackgroundColor('#ffffff')
-  // Round the native view to match the content card (a native view isn't clipped
-  // by the card's CSS border-radius, so its square corner would otherwise bleed
-  // past the rounded corner). Also gives the Arc-style rounded-page look.
-  view.setBorderRadius?.(10)
+  // A native view isn't clipped by the card's CSS radius, so its corners are its
+  // own problem. Electron's radius is uniform — all four or none — which is why
+  // the renderer picks it per viewport mode: a phone stays rounded, while the
+  // desktop card sits flush under the docked omnibar (square) and gets its
+  // rounded bottom from the card showing beneath it. Default square; the
+  // renderer sets the real value on the first bounds sync.
+  view.setBorderRadius?.(0)
 
   const pane: BrowserPane = { id, view, window, visible: false }
   panes.set(id, pane)
@@ -314,6 +317,38 @@ export function registerBrowserIpc(): void {
     }
     pane.view.setBounds(bounds)
   })
+
+  /**
+   * Freeze the pane for an HTML overlay: photograph the page, then detach the
+   * native view — both here in main, one IPC. The view composites above ALL
+   * renderer HTML, so every frame it stays attached is a frame the modal is
+   * invisible; detaching must not wait for a renderer round-trip. The still goes
+   * back to the renderer to stand in for the page (dimmed like everything else).
+   */
+  ipcMain.handle('browser:freeze', async (_e, id: string) => {
+    const pane = panes.get(id)
+    if (!pane || pane.window.isDestroyed() || !pane.visible) return null
+    try {
+      const t0 = Date.now()
+      const img = await pane.view.webContents.capturePage()
+      if (img.isEmpty()) return null
+      // Half-size JPEG, not a full-resolution PNG data URL. toDataURL() encodes
+      // PNG synchronously on the main thread and then hands back multiple MB of
+      // base64 — enough to stall the UI for a second or more on a big pane. This
+      // is a dimmed backdrop still, so quality barely matters; a Buffer also
+      // crosses IPC without the base64 tax.
+      const { width } = img.getSize()
+      const small = width > 2 ? img.resize({ width: Math.round(width / 2) }) : img
+      const buf = small.toJPEG(70)
+      pane.window.contentView.removeChildView(pane.view)
+      pane.visible = false
+      console.log(`[freeze] total=${Date.now() - t0}ms bytes=${buf.length}`)
+      return buf
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.on('browser:hide', (_e, id: string) => {
     const pane = panes.get(id)
     if (pane) hidePane(pane)
@@ -339,6 +374,12 @@ export function registerBrowserIpc(): void {
   // Absolute zoom for device simulation (the renderer computes a fit-to-pane
   // factor). Deliberately does NOT broadcast a zoom event — the manual zoom label
   // must keep reflecting the user's own ⌘+/- level, not the simulator's.
+  ipcMain.on('browser:set-radius', (_e, id: string, radius: number) => {
+    const pane = panes.get(id)
+    if (!pane) return
+    pane.view.setBorderRadius?.(Math.max(0, Math.round(radius)))
+  })
+
   ipcMain.on('browser:set-zoom-factor', (_e, id: string, factor: number) => {
     const pane = panes.get(id)
     const wc = pane?.view.webContents

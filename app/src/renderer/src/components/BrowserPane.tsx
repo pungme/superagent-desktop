@@ -51,6 +51,14 @@ function FitIcon(): React.JSX.Element {
 // Height of the omnibar when it's docked onto the desktop floating card (so the
 // card reads as a self-contained browser window). Native view is pushed down by it.
 const CARD_OMNIBAR_H = 40
+// The native view's radius is uniform (no per-corner API), and NOTHING paints
+// over web contents — not HTML, and not sibling native Views (verified on screen
+// in both z-orders). A flush top therefore forces a square view, and a square
+// view fills the card to its bottom edge — any rounded lip under it reads as a
+// gap. So desktop mode is a rounded-top sheet: omnibar corners round, page
+// square, card bottom squared to match. Mobile keeps a real radius all round —
+// nothing is butted against a floating phone.
+const PANE_RADIUS = 10
 
 export function BrowserPane({
   paneId,
@@ -108,6 +116,15 @@ export function BrowserPane({
     autoFitRef.current = true // re-fit whenever a mode is (re)selected
     setViewport(v)
   }
+  // Where the native view currently sits inside the host, and a still of it held
+  // while an HTML overlay is up.
+  const [viewRect, setViewRect] = useState<{
+    left: number
+    top: number
+    width: number
+    height: number
+  } | null>(null)
+  const [frozen, setFrozen] = useState<string | null>(null)
   const [addressInput, setAddressInput] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [suggestIndex, setSuggestIndex] = useState(-1)
@@ -143,6 +160,8 @@ export function BrowserPane({
     // draws over HTML, so without this the dropdown is covered and unclickable.
     // Clipping (vs hiding the whole pane) keeps the rest of the page visible.
     const emit = (b: { x: number; y: number; width: number; height: number }): void => {
+      // Host-relative copy for the freeze-frame still (see the overlay effect).
+      setViewRect({ left: b.x - x0, top: b.y - y0, width: b.width, height: b.height })
       if (suggestOpenRef.current && suggestRef.current) {
         const bottom = Math.round(suggestRef.current.getBoundingClientRect().bottom)
         if (bottom > b.y) {
@@ -158,6 +177,7 @@ export function BrowserPane({
       // layout fits the pane width (not a cramped 1:1 render). A manual zoom
       // (autoFit off) is respected instead.
       if (autoFitRef.current && W > 0) window.cove.browserSetZoom?.(paneId, W / 1280)
+      window.cove.browserSetRadius?.(paneId, 0)
       emit({ x: x0, y: y0, width: W, height: H })
       return
     }
@@ -178,6 +198,7 @@ export function BrowserPane({
       window.cove.browserSetZoom?.(paneId, scale)
       setSimFrame({ left, top, width: sw, height: sh })
       // The omnibar is docked onto the card's top strip, so the page starts below it.
+      window.cove.browserSetRadius?.(paneId, 0)
       emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: sw, height: sh - CARD_OMNIBAR_H })
       return
     }
@@ -193,6 +214,8 @@ export function BrowserPane({
     const top = Math.round((H - dh) / 2)
     window.cove.browserSetZoom?.(paneId, scale)
     setSimFrame({ left, top, width: dw, height: dh })
+    // A phone is rounded on every corner, and has no omnibar butted against it.
+    window.cove.browserSetRadius?.(paneId, PANE_RADIUS)
     emit({ x: x0 + left, y: y0 + top, width: dw, height: dh })
   }, [paneId])
 
@@ -211,8 +234,44 @@ export function BrowserPane({
   // its top-clip is applied or removed.
   useEffect(() => {
     if (visible && !overlayOpen) syncBounds()
-    else window.cove.browserHide(paneId)
+    else if (!visible) window.cove.browserHide(paneId)
+    // The overlay case is handled below, so the page can be frozen before it goes.
   }, [visible, overlayOpen, suggestOpen, paneId, syncBounds])
+
+  // Overlay opening: one IPC — main photographs the page and detaches the view
+  // in the same handler, then the still stands in (~20 ms later). Detaching must
+  // never wait on a renderer round-trip: the native view composites above ALL
+  // HTML, so every frame it lingers is a frame the modal sits invisible under it.
+  useEffect(() => {
+    if (!visible) return
+    let cancelled = false
+    if (overlayOpen) {
+      window.cove
+        .browserFreeze?.(paneId)
+        .then((shot) => {
+          if (cancelled || !shot || !shot.length) return
+          setFrozen((prev) => {
+            if (prev) URL.revokeObjectURL(prev)
+            return URL.createObjectURL(new Blob([new Uint8Array(shot)], { type: 'image/jpeg' }))
+          })
+        })
+        .catch(() => window.cove.browserHide(paneId))
+    } else if (frozen) {
+      // Drop the still a frame after the live view is back, never before.
+      requestAnimationFrame(() => {
+        if (cancelled) return
+        setFrozen((prev) => {
+          if (prev) URL.revokeObjectURL(prev)
+          return null
+        })
+      })
+    }
+    return () => {
+      cancelled = true
+    }
+    // `frozen` is deliberately out of the deps: it's an output of this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlayOpen, visible, paneId])
 
   // Re-apply on mode change. Leaving simulation restores 100% first (the sim left
   // a fit-to-pane zoom applied); then reposition/zoom for the newly selected mode.
@@ -519,7 +578,28 @@ export function BrowserPane({
               left: simFrame.left,
               top: simFrame.top,
               width: simFrame.width,
-              height: simFrame.height
+              height: simFrame.height,
+              // Desktop: the square page fills the card to its bottom edge, so the
+              // card squares off with it — rounded bottom corners would poke out
+              // from behind the page as two nicks.
+              borderRadius: viewport === 'desktop' ? '10px 10px 0 0' : undefined
+            }}
+          />
+        )}
+        {frozen && viewRect && (
+          // Stand-in for the native view while an overlay is up. Corners match
+          // what the compositor draws: square under the docked omnibar, rounded
+          // at the bottom; a simulated phone is rounded all round.
+          <img
+            className="browser-frozen"
+            src={frozen}
+            alt=""
+            style={{
+              left: viewRect.left,
+              top: viewRect.top,
+              width: viewRect.width,
+              height: viewRect.height,
+              borderRadius: viewport === 'mobile' ? '10px' : '0'
             }}
           />
         )}

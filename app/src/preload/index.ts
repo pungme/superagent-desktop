@@ -81,6 +81,10 @@ export interface CoveApi {
   browserDestroy: (id: string) => void
   browserZoom: (id: string, action: 'in' | 'out' | 'reset') => Promise<number>
   browserSetZoom: (id: string, factor: number) => void
+  /** Corner radius of the native view; uniform, so it's chosen per viewport mode. */
+  browserSetRadius: (id: string, radius: number) => void
+  /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
+  browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
   onBrowserZoom: (id: string, cb: (factor: number) => void) => () => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
@@ -216,6 +220,8 @@ const cove: CoveApi = {
   browserOpenExternal: (id) => ipcRenderer.send('browser:open-external', id),
   browserZoom: (id, action) => ipcRenderer.invoke('browser:zoom', id, action),
   browserSetZoom: (id, factor) => ipcRenderer.send('browser:set-zoom-factor', id, factor),
+  browserSetRadius: (id, radius) => ipcRenderer.send('browser:set-radius', id, radius),
+  browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
   browserDestroy: (id) => ipcRenderer.send('browser:destroy', id),
