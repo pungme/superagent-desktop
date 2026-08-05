@@ -106,15 +106,22 @@ export function WorkspaceView({
     const onSkills = (): void => setSkillsOpen(true)
     const onRoutines = (): void => setRoutinesOpen(true)
     const onToggle = (): void => toggleBrowser(ws.id)
+    // Cmd+R: reload the page when the browser pane is on screen; otherwise a
+    // no-op rather than surprising the user with an app reload.
+    const onReload = (): void => {
+      if (browserOpen) window.cove.browserReload(ws.id)
+    }
     window.addEventListener('cove:menu-skills', onSkills)
     window.addEventListener('cove:menu-routines', onRoutines)
     window.addEventListener('cove:menu-toggle-preview', onToggle)
+    window.addEventListener('cove:menu-reload-page', onReload)
     return () => {
       window.removeEventListener('cove:menu-skills', onSkills)
       window.removeEventListener('cove:menu-routines', onRoutines)
       window.removeEventListener('cove:menu-toggle-preview', onToggle)
+      window.removeEventListener('cove:menu-reload-page', onReload)
     }
-  }, [ws.id, toggleBrowser, visible])
+  }, [ws.id, toggleBrowser, visible, browserOpen])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [ratio, setRatio] = useState(() => {

@@ -155,19 +155,9 @@ export function BrowserPane({
     const y0 = Math.round(r.y)
     const W = Math.round(r.width)
     const H = Math.round(r.height)
-    // Compute the base bounds for the current viewport mode, then push the pane's
-    // TOP below the omnibox suggestion dropdown when it's open — the native view
-    // draws over HTML, so without this the dropdown is covered and unclickable.
-    // Clipping (vs hiding the whole pane) keeps the rest of the page visible.
     const emit = (b: { x: number; y: number; width: number; height: number }): void => {
       // Host-relative copy for the freeze-frame still (see the overlay effect).
       setViewRect({ left: b.x - x0, top: b.y - y0, width: b.width, height: b.height })
-      if (suggestOpenRef.current && suggestRef.current) {
-        const bottom = Math.round(suggestRef.current.getBoundingClientRect().bottom)
-        if (bottom > b.y) {
-          b = { x: b.x, y: bottom, width: b.width, height: Math.max(0, b.height - (bottom - b.y)) }
-        }
-      }
       window.cove.browserSetBounds(paneId, b)
     }
     // WebContentsView bounds are window-relative CSS pixels.
@@ -219,24 +209,21 @@ export function BrowserPane({
     emit({ x: x0 + left, y: y0 + top, width: dw, height: dh })
   }, [paneId])
 
-  // The omnibox dropdown is HTML and the native view draws over HTML, so while it's
-  // open the pane's top is clipped below it (in syncBounds) — read through a ref so
-  // syncBounds can stay stable. suggestRef measures the dropdown's bottom edge.
+  // The omnibox dropdown is HTML and nothing renders above the native view, so
+  // while it's open the pane freezes (same trick as modals): the dropdown floats
+  // over a still of the page instead of shoving the live page down.
   const suggestOpen = showSuggest && suggestions.length > 0
-  const suggestOpenRef = useRef(suggestOpen)
   const suggestRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    suggestOpenRef.current = suggestOpen
-  }, [suggestOpen])
+  const paneCovered = overlayOpen || suggestOpen
 
   // Show/hide the native view as this workspace becomes active/inactive or as an
   // HTML overlay opens/closes over it; re-sync when the dropdown opens/closes so
   // its top-clip is applied or removed.
   useEffect(() => {
-    if (visible && !overlayOpen) syncBounds()
+    if (visible && !paneCovered) syncBounds()
     else if (!visible) window.cove.browserHide(paneId)
-    // The overlay case is handled below, so the page can be frozen before it goes.
-  }, [visible, overlayOpen, suggestOpen, paneId, syncBounds])
+    // The covered case is handled below, so the page can be frozen before it goes.
+  }, [visible, paneCovered, paneId, syncBounds])
 
   // Overlay opening: one IPC — main photographs the page and detaches the view
   // in the same handler, then the still stands in (~20 ms later). Detaching must
@@ -245,7 +232,7 @@ export function BrowserPane({
   useEffect(() => {
     if (!visible) return
     let cancelled = false
-    if (overlayOpen) {
+    if (paneCovered) {
       window.cove
         .browserFreeze?.(paneId)
         .then((shot) => {
@@ -271,7 +258,7 @@ export function BrowserPane({
     }
     // `frozen` is deliberately out of the deps: it's an output of this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlayOpen, visible, paneId])
+  }, [paneCovered, visible, paneId])
 
   // Re-apply on mode change. Leaving simulation restores 100% first (the sim left
   // a fit-to-pane zoom applied); then reposition/zoom for the newly selected mode.

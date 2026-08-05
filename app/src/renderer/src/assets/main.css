@@ -3813,7 +3813,12 @@ button {
   position: absolute;
   object-fit: fill;
   pointer-events: none;
-  z-index: 1;
+  /* Above the card backdrop (z0, earlier sibling) but BELOW the toolbar (z1):
+     the omnibox dropdown lives in the toolbar's stacking context, and at equal
+     z the still — later in the DOM — was painting over it. pointer-events:none
+     made that invisible to hit-testing, so the dropdown was clickable yet
+     hidden. */
+  z-index: 0;
 }
 
 .browser-sim-frame {
