@@ -423,7 +423,10 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               key={c.id}
               chat={c}
               workspaceId={ws.id}
-              active={c.id === activeChatId}
+              // Selected only when this PROJECT is the active one too — every
+              // workspace remembers its own last chat, so without the guard each
+              // project keeps a stuck-looking highlight after you move elsewhere.
+              active={active && c.id === activeChatId}
               onOpen={() => {
                 setActive(ws.id)
                 selectChat(ws.id, c.id)

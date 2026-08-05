@@ -69,7 +69,14 @@ export function buildMenu(): void {
       label: 'View',
       submenu: [
         { label: 'Skills', accelerator: 'CmdOrCtrl+K', click: () => send('menu:skills') },
-        { label: 'Routines', accelerator: 'CmdOrCtrl+R', click: () => send('menu:routines') },
+        { label: 'Routines', click: () => send('menu:routines') },
+        {
+          // Cmd+R means "reload the page" in every browser; it must not be
+          // spent on opening a panel.
+          label: 'Reload Page',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => send('menu:reload-page')
+        },
         {
           label: 'Toggle Preview',
           accelerator: 'CmdOrCtrl+B',

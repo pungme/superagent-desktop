@@ -471,6 +471,9 @@ export function EasyChat({
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
+  // The full placeholder lists the affordances, which wraps and clips in a
+  // narrow chat column; below this width only the short form fits on one line.
+  const [narrowComposer, setNarrowComposer] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   // Commands the agent left running in the background. Claude mentions them in
   // prose and then moves on, so without this the only sign a deploy/build/server
@@ -1201,6 +1204,20 @@ export function EasyChat({
     if (atBottom) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [items, thinking, atBottom])
 
+  // Track the composer's width so the placeholder can shed its hints before
+  // they wrap. Observing the textarea itself keeps this correct under both
+  // window resizes and the draggable chat/browser split.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0
+      setNarrowComposer(w > 0 && w < 400)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const onScroll = (): void => {
     const el = scrollRef.current
     if (!el) return
@@ -1682,7 +1699,11 @@ export function EasyChat({
             className="easy-input"
             value={input}
             placeholder={
-              ready ? 'Message Claude…  (/ commands · @ files · paste an image)' : 'Starting…'
+              ready
+                ? narrowComposer
+                  ? 'Message Claude…'
+                  : 'Message Claude…  (/ commands · @ files · paste an image)'
+                : 'Starting…'
             }
             rows={1}
             disabled={!ready}

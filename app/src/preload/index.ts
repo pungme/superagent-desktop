@@ -275,6 +275,7 @@ const cove: CoveApi = {
       'menu:new-group',
       'menu:skills',
       'menu:routines',
+      'menu:reload-page',
       'menu:toggle-preview'
     ]
     const listeners = actions.map((action) => {
