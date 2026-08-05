@@ -137,6 +137,15 @@ interface CoveState {
   setBusy: (chatId: string, state: { generating: boolean; background: number }) => void
   clearBusy: (chatId: string) => void
 
+  /**
+   * Workspaces with a live claude process right now. Absent/false covers both
+   * "never opened this session" and "reaped after sitting idle" — in each case
+   * there is no session, which is what the half-dot means. A workspace only lands
+   * here once its chat's agent is actually up.
+   */
+  agentLive: Record<string, boolean>
+  setAgentLive: (workspaceId: string, value: boolean) => void
+
   /** How much the agent may do without asking. Applies to newly started chats. */
   permissionMode: PermissionMode
   setPermissionMode: (m: PermissionMode) => void
@@ -227,6 +236,7 @@ export const useStore = create<CoveState>((set, get) => ({
   activeChatId: {},
   agentIds: {},
   busy: {},
+  agentLive: {},
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
   permissionMode:
     (localStorage.getItem('cove.permissionMode') as PermissionMode) || 'bypassPermissions',
@@ -486,6 +496,13 @@ export const useStore = create<CoveState>((set, get) => ({
       delete next[chatId]
       return { busy: next }
     }),
+
+  setAgentLive: (workspaceId, value) =>
+    set((s) =>
+      Boolean(s.agentLive[workspaceId]) === value
+        ? s
+        : { agentLive: { ...s.agentLive, [workspaceId]: value } }
+    ),
   sendToClaude: (workspaceId, text) => {
     // Send as a chat message to the streaming agent (the single Chat mode). The
     // chat itself does the delivering: it knows which of the project's
