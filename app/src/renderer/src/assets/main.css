@@ -4028,6 +4028,14 @@ button {
   font-size: 9px;
   color: var(--text-tertiary);
 }
+.dash-spark-val {
+  text-align: center;
+  font-size: 8.5px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-height: 11px;
+}
 .dash-hours {
   display: flex;
   align-items: flex-end;
