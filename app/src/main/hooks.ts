@@ -26,6 +26,10 @@ export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 // so "Claude is done" must be optional; "needs you" defaults on but can go too.
 export const notifyPrefs = { done: true, needsYou: true }
 
+// The tail of each chat's last assistant reply, per workspace — pushed by the
+// renderer so the "done" banner can say WHAT finished, not just where.
+const lastReplies = new Map<string, string>()
+
 const EVENT_STATUS: Record<string, WorkspaceStatus> = {
   UserPromptSubmit: 'working',
   Notification: 'needs-you',
@@ -91,10 +95,12 @@ export function startHookServer(): Promise<string> {
         // Chats name themselves after what they turned out to be about, so the
         // title is the closest thing we have to "what was it about".
         const about = sessionId ? getChatTitleBySession(sessionId) : undefined
+        const reply = lastReplies.get(workspaceId)
         const n = new Notification({
           title: name ? `Claude is done — ${name}` : 'SuperAgent — Claude is done',
           subtitle: about,
-          body: about ? 'Finished its turn.' : 'Your agent finished its work.'
+          // The reply's opening line is the closest thing to "what happened".
+          body: reply || (about ? 'Finished its turn.' : 'Your agent finished its work.')
         })
         n.on('click', () => {
           const win = BrowserWindow.getAllWindows()[0]
@@ -136,6 +142,12 @@ exit 0
 `
 
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Notification', 'Stop', 'SubagentStop']
+
+ipcMain.on('chat:last-reply', (_e, workspaceId: string, excerpt: string) => {
+  if (typeof workspaceId === 'string' && typeof excerpt === 'string') {
+    lastReplies.set(workspaceId, excerpt.slice(0, 180))
+  }
+})
 
 ipcMain.on('notify:prefs', (_e, prefs: { done?: boolean; needsYou?: boolean }) => {
   if (typeof prefs.done === 'boolean') notifyPrefs.done = prefs.done
