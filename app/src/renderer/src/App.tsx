@@ -137,8 +137,14 @@ function App(): React.JSX.Element {
   const [dashOpen, setDashOpen] = useState(false)
   useEffect(() => {
     const open = (): void => setDashOpen(true)
+    const close = (): void => setDashOpen(false)
     window.addEventListener('cove:open-dashboard', open)
-    return () => window.removeEventListener('cove:open-dashboard', open)
+    // Picking anything in the sidebar leaves the dashboard.
+    window.addEventListener('cove:close-dashboard', close)
+    return () => {
+      window.removeEventListener('cove:open-dashboard', open)
+      window.removeEventListener('cove:close-dashboard', close)
+    }
   }, [])
 
   // Chat row context-menu actions, confirmed in main where the native menu lives.
@@ -249,7 +255,7 @@ function App(): React.JSX.Element {
           )}
         </div>
         <HookConsent />
-        {openedWorkspaces.length === 0 ? (
+        {openedWorkspaces.length === 0 && !dashOpen ? (
           <div className="empty-state">
             <div className="empty-state-inner">
               <h1>Welcome to SuperAgent</h1>
@@ -264,19 +270,21 @@ function App(): React.JSX.Element {
             <div
               key={ws.id}
               className="workspace-host"
-              style={{ display: ws.id === activeId ? 'flex' : 'none' }}
+              style={{ display: ws.id === activeId && !dashOpen ? 'flex' : 'none' }}
             >
-              <WorkspaceView ws={ws} visible={ws.id === activeId} />
+              {/* visible also detaches the native browser view — it would
+                  composite above the dashboard otherwise. */}
+              <WorkspaceView ws={ws} visible={ws.id === activeId && !dashOpen} />
             </div>
           ))
         )}
+        {dashOpen && <DashboardPanel onClose={() => setDashOpen(false)} />}
       </main>
       <PreviewToast />
       <UpdateBanner />
       <IntroSplash />
       <NewProjectDialog />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
-      {dashOpen && <DashboardPanel onClose={() => setDashOpen(false)} />}
     </div>
   )
 }

@@ -112,8 +112,24 @@ export interface CoveApi {
     turnsToday: number
     tasksToday: number
     streak: number
+    longestStreak: number
+    spark: { day: string; turns: number }[]
     attention: { name: string; turns: number }[]
-    spark: number[]
+    attentionAll: { name: string; turns: number }[]
+    hours: number[]
+    busiestDay: { date: string; turns: number } | null
+    topSites: { host: string; title: string; visits: number }[]
+    avgTurns30: number
+    firstTs: number | null
+    totals: {
+      turns: number
+      tasks: number
+      chats: number
+      projects: number
+      messages: number
+      sites: number
+      visits: number
+    }
   }>
   /** New git worktree under <project>/.worktrees; null if git refused. */
   worktreeCreate: (projectPath: string) => Promise<{ path: string; branch: string } | null>

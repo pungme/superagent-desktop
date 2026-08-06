@@ -239,56 +239,203 @@ export function recordEvent(kind: string, workspaceId?: string | null): void {
   }
 }
 
-/** Everything the dashboard shows, computed in SQL. */
+/**
+ * Everything the dashboard shows. The events table only started filling in
+ * v1.1, but chat transcripts carry per-message timestamps going back much
+ * further — so turns are reconstructed from both sources. Where a day has
+ * entries from both (recent sessions log each turn twice: once as an event,
+ * once as a saved assistant message), the richer source wins for that day
+ * rather than double-counting.
+ */
 export function getDashboard(): unknown {
   const dayMs = 86_400_000
+  const now = Date.now()
   const startOfToday = new Date().setHours(0, 0, 0, 0)
-  const turnsToday = (
-    db.prepare("SELECT COUNT(*) n FROM events WHERE kind='turn' AND ts >= ?").get(startOfToday) as {
-      n: number
+  const tzOffMs = new Date().getTimezoneOffset() * 60_000
+  const dayOf = (ts: number): number => Math.floor((ts - tzOffMs) / dayMs)
+
+  type Entry = { ts: number; ws: string | null }
+  const evEntries: Entry[] = (
+    db.prepare("SELECT ts, workspaceId ws FROM events WHERE kind='turn'").all() as {
+      ts: number
+      ws: string | null
+    }[]
+  ).map((r) => ({ ts: r.ts, ws: r.ws }))
+
+  // Backfill from transcripts: every saved assistant message is one turn.
+  const msgEntries: Entry[] = []
+  let totalMessages = 0
+  const chatRows = db.prepare('SELECT workspaceId, data FROM chats').all() as {
+    workspaceId: string
+    data: string
+  }[]
+  for (const row of chatRows) {
+    try {
+      const items = JSON.parse(row.data) as {
+        kind?: string
+        msg?: { role?: string; at?: number; system?: boolean }
+      }[]
+      if (!Array.isArray(items)) continue
+      for (const it of items) {
+        if (it?.kind !== 'msg' || !it.msg || it.msg.system) continue
+        totalMessages += 1
+        if (it.msg.role === 'assistant' && typeof it.msg.at === 'number')
+          msgEntries.push({ ts: it.msg.at, ws: row.workspaceId })
+      }
+    } catch {
+      // one corrupt transcript shouldn't blank the dashboard
     }
-  ).n
+  }
+
+  // Per-day, keep whichever source saw more turns that day.
+  const byDay = (list: Entry[]): Map<number, Entry[]> => {
+    const m = new Map<number, Entry[]>()
+    for (const e of list) {
+      const d = dayOf(e.ts)
+      const arr = m.get(d)
+      if (arr) arr.push(e)
+      else m.set(d, [e])
+    }
+    return m
+  }
+  const evByDay = byDay(evEntries)
+  const msgByDay = byDay(msgEntries)
+  const turns: Entry[] = []
+  for (const d of new Set([...evByDay.keys(), ...msgByDay.keys()])) {
+    const ev = evByDay.get(d) ?? []
+    const msg = msgByDay.get(d) ?? []
+    turns.push(...(msg.length >= ev.length ? msg : ev))
+  }
+
+  const today = dayOf(now)
+  const turnsToday = turns.filter((e) => dayOf(e.ts) === today).length
   const tasksToday = (
     db
       .prepare("SELECT COUNT(*) n FROM events WHERE kind='task-done' AND ts >= ?")
       .get(startOfToday) as { n: number }
   ).n
-  // Streak: consecutive days (ending today or yesterday) with at least one turn.
-  const days = new Set(
-    (
-      db.prepare("SELECT DISTINCT ts/86400000 AS d FROM events WHERE kind='turn'").all() as {
-        d: number
-      }[]
-    ).map((r) => Math.floor(r.d))
-  )
+  const tasksTotal = (
+    db.prepare("SELECT COUNT(*) n FROM events WHERE kind='task-done'").get() as { n: number }
+  ).n
+
+  // Streaks over the merged turn days: current (ending today/yesterday) + longest ever.
+  const days = new Set(turns.map((e) => dayOf(e.ts)))
   let streak = 0
-  let cursor = Math.floor(Date.now() / dayMs)
-  if (!days.has(cursor)) cursor -= 1 // today hasn't started yet — count from yesterday
+  let cursor = today
+  if (!days.has(cursor)) cursor -= 1
   while (days.has(cursor)) {
     streak += 1
     cursor -= 1
   }
-  // Attention: turns per project, last 7 days, named.
-  const attention = db
-    .prepare(
-      `SELECT w.name AS name, COUNT(*) AS turns
-       FROM events e JOIN workspaces w ON w.id = e.workspaceId
-       WHERE e.kind='turn' AND e.ts >= ?
-       GROUP BY e.workspaceId ORDER BY turns DESC LIMIT 8`
-    )
-    .all(Date.now() - 7 * dayMs)
-  // 14-day activity sparkline (turns per day).
-  const spark: number[] = []
-  for (let i = 13; i >= 0; i--) {
-    const d0 = startOfToday - i * dayMs
-    const n = (
-      db
-        .prepare("SELECT COUNT(*) n FROM events WHERE kind='turn' AND ts >= ? AND ts < ?")
-        .get(d0, d0 + dayMs) as { n: number }
-    ).n
-    spark.push(n)
+  let longestStreak = 0
+  const sortedDays = [...days].sort((a, b) => a - b)
+  let run = 0
+  for (let i = 0; i < sortedDays.length; i++) {
+    run = i > 0 && sortedDays[i] === sortedDays[i - 1] + 1 ? run + 1 : 1
+    if (run > longestStreak) longestStreak = run
   }
-  return { turnsToday, tasksToday, streak, attention, spark }
+
+  // 14-day sparkline with weekday labels.
+  const spark: { day: string; turns: number }[] = []
+  for (let i = 13; i >= 0; i--) {
+    const d = today - i
+    spark.push({
+      day: new Date((d + 1) * dayMs + tzOffMs - 1).toLocaleDateString(undefined, {
+        weekday: 'narrow'
+      }),
+      turns: turns.filter((e) => dayOf(e.ts) === d).length
+    })
+  }
+
+  // Attention per project — 7 days and all-time.
+  const wsNames = new Map(
+    (db.prepare('SELECT id, name FROM workspaces').all() as { id: string; name: string }[]).map(
+      (w) => [w.id, w.name]
+    )
+  )
+  const tally = (list: Entry[]): { name: string; turns: number }[] => {
+    const m = new Map<string, number>()
+    for (const e of list) {
+      const name = (e.ws && wsNames.get(e.ws)) || null
+      if (name) m.set(name, (m.get(name) ?? 0) + 1)
+    }
+    return [...m.entries()]
+      .map(([name, n]) => ({ name, turns: n }))
+      .sort((a, b) => b.turns - a.turns)
+  }
+  const attention = tally(turns.filter((e) => now - e.ts <= 7 * dayMs)).slice(0, 8)
+  const attentionAll = tally(turns).slice(0, 5)
+
+  // Busiest hours (turns by hour-of-day, last 30 days).
+  const hours = new Array<number>(24).fill(0)
+  for (const e of turns) {
+    if (now - e.ts <= 30 * dayMs) hours[new Date(e.ts).getHours()] += 1
+  }
+
+  // Busiest single day ever.
+  let busiestDay: { date: string; turns: number } | null = null
+  for (const d of days) {
+    const n = turns.filter((e) => dayOf(e.ts) === d).length
+    if (!busiestDay || n > busiestDay.turns)
+      busiestDay = {
+        date: new Date((d + 1) * dayMs + tzOffMs - 1).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric'
+        }),
+        turns: n
+      }
+  }
+
+  // Browsing: top sites + totals from omnibar history.
+  const topSites = (
+    db
+      .prepare('SELECT url, title, visitCount FROM history ORDER BY visitCount DESC LIMIT 6')
+      .all() as { url: string; title: string | null; visitCount: number }[]
+  ).map((h) => {
+    let host = h.url
+    try {
+      host = new URL(h.url).hostname.replace(/^www\./, '')
+    } catch {
+      /* keep raw */
+    }
+    return { host, title: h.title ?? host, visits: h.visitCount }
+  })
+  const siteTotals = db
+    .prepare('SELECT COUNT(*) sites, COALESCE(SUM(visitCount),0) visits FROM history')
+    .get() as { sites: number; visits: number }
+  const chatCount = (db.prepare('SELECT COUNT(*) n FROM chats').get() as { n: number }).n
+  const projectCount = (db.prepare('SELECT COUNT(*) n FROM workspaces').get() as { n: number }).n
+
+  // Average turns per active day over the last 30.
+  const recentDays = sortedDays.filter((d) => d > today - 30)
+  const recentTurns = turns.filter((e) => now - e.ts <= 30 * dayMs).length
+  const avgTurns30 = recentDays.length ? Math.round((recentTurns / recentDays.length) * 10) / 10 : 0
+
+  const firstTs = turns.length ? Math.min(...turns.map((e) => e.ts)) : null
+
+  return {
+    turnsToday,
+    tasksToday,
+    streak,
+    longestStreak,
+    spark,
+    attention,
+    attentionAll,
+    hours,
+    busiestDay,
+    topSites,
+    avgTurns30,
+    firstTs,
+    totals: {
+      turns: turns.length,
+      tasks: tasksTotal,
+      chats: chatCount,
+      projects: projectCount,
+      messages: totalMessages,
+      sites: siteTotals.sites,
+      visits: siteTotals.visits
+    }
+  }
 }
 
 export function registerStoreIpc(): void {
