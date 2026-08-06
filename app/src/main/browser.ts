@@ -399,6 +399,20 @@ export function registerBrowserIpc(): void {
     }
   })
 
+  /** Full-resolution PNG of the pane as composited (screenshot tooling). Unlike
+      a debugger screenshot of the zoomed page, capturePage returns the view at
+      native display scale. */
+  ipcMain.handle('browser:shoot', async (_e, id: string) => {
+    const pane = panes.get(id)
+    if (!pane || !pane.visible || pane.window.isDestroyed()) return null
+    try {
+      const img = await pane.view.webContents.capturePage()
+      return img.isEmpty() ? null : img.toPNG()
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.on('browser:hide', (_e, id: string) => {
     const pane = panes.get(id)
     if (pane) hidePane(pane)

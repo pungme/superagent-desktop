@@ -18,6 +18,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
   // Store-backed, so reopening Settings mid-download still shows the truth.
   const progress = useStore((s) => s.updateProgress)
+  const updateError = useStore((s) => s.updateError)
 
   const checkUpdates = async (): Promise<void> => {
     setChecking(true)
@@ -110,12 +111,20 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
               {' '}
               · Downloading {progress.version ?? 'update'} — {Math.round(progress.percent)}%
             </span>
+          ) : updateError ? (
+            <span className="settings-update-msg"> · Update failed: {updateError}</span>
           ) : (
             updateMsg && <span className="settings-update-msg"> · {updateMsg}</span>
           )}
         </span>
-        <button className="settings-update-check" onClick={checkUpdates} disabled={checking}>
-          {checking ? 'Checking…' : 'Check for updates'}
+        <button
+          className="settings-update-check"
+          onClick={checkUpdates}
+          // Locked while a download runs — pressing it again mid-download can only
+          // confuse the updater. A failure clears the lock: the button IS the retry.
+          disabled={checking || !!progress}
+        >
+          {progress ? 'Downloading…' : checking ? 'Checking…' : 'Check for updates'}
         </button>
       </div>
     </SlideOverPanel>

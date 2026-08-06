@@ -583,7 +583,11 @@ export function BrowserPane({
           </button>
         )}
       </div>
-      <div ref={hostRef} className={`browser-host ${viewport !== 'none' ? 'sim' : ''}`}>
+      <div
+        ref={hostRef}
+        className={`browser-host ${viewport !== 'none' ? 'sim' : ''}`}
+        data-pane-id={paneId}
+      >
         {simFrame && visible && (
           <div
             className="browser-sim-frame"

@@ -29,11 +29,15 @@ export function UpdateBanner(): React.JSX.Element | null {
       useStore.setState({ updateProgress: null }) // downloading is over
     })
     const offProgress = window.cove.onUpdateProgress((p) => {
-      useStore.setState({ updateProgress: p })
+      useStore.setState({ updateProgress: p, updateError: null })
+    })
+    const offError = window.cove.onUpdateError((m) => {
+      useStore.setState({ updateProgress: null, updateError: m })
     })
     return () => {
       offReady()
       offProgress()
+      offError()
     }
   }, [])
 

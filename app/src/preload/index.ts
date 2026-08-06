@@ -85,6 +85,8 @@ export interface CoveApi {
   browserSetRadius: (id: string, radius: number) => void
   /** Sampled colours of the page's top corners, for the DOM backfills. */
   browserSampleCorners: (id: string) => Promise<{ left: string; right: string } | null>
+  /** Full-res PNG bytes of the pane (screenshot tooling). */
+  browserShoot: (id: string) => Promise<Uint8Array | null>
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
@@ -101,6 +103,8 @@ export interface CoveApi {
   onUpdateReady: (cb: (version: string) => void) => () => void
   /** Download progress for an update found in the background (percent 0-100). */
   onUpdateProgress: (cb: (p: { version: string | null; percent: number }) => void) => () => void
+  /** The updater failed (download/verify) — surfaced so the UI can say so. */
+  onUpdateError: (cb: (message: string) => void) => () => void
   installUpdate: () => void
 
   storeTree: () => Promise<TreeGroup[]>
@@ -228,6 +232,7 @@ const cove: CoveApi = {
   browserSetZoom: (id, factor) => ipcRenderer.send('browser:set-zoom-factor', id, factor),
   browserSetRadius: (id, radius) => ipcRenderer.send('browser:set-radius', id, radius),
   browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
+  browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
@@ -241,6 +246,7 @@ const cove: CoveApi = {
   onUpdateReady: (cb) => subscribe('update:ready', (v) => cb(v as string)),
   onUpdateProgress: (cb) =>
     subscribe('update:progress', (p) => cb(p as { version: string | null; percent: number })),
+  onUpdateError: (cb) => subscribe('update:error', (m) => cb(m as string)),
   installUpdate: () => ipcRenderer.send('update:install'),
   // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
   onOpenFile: (cb) =>
