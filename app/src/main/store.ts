@@ -127,6 +127,13 @@ export function initStore(): void {
     }
   }
 
+  // Migration: a chat may run in its own git worktree; cwd overrides the project
+  // path. Runs AFTER the rekey migration above, which recreates the table.
+  const chatCols2 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  if (chatCols2.length > 0 && !chatCols2.some((c) => c.name === 'cwd')) {
+    db.exec('ALTER TABLE chats ADD COLUMN cwd TEXT')
+  }
+
   // Seed a default group on first run so the sidebar is never empty.
   const count = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
   if (count === 0) {
@@ -289,7 +296,7 @@ export function registerStoreIpc(): void {
   ipcMain.handle('chat:list', (_e, workspaceId: string) =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, updatedAt
+        `SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd
          FROM chats WHERE workspaceId = ? ORDER BY position ASC, updatedAt ASC`
       )
       .all(workspaceId)
@@ -299,12 +306,12 @@ export function registerStoreIpc(): void {
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, updatedAt
+        `SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd
          FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC`
       )
       .all()
   )
-  ipcMain.handle('chat:create', (_e, workspaceId: string) => {
+  ipcMain.handle('chat:create', (_e, workspaceId: string, cwd?: string) => {
     const id = randomUUID()
     const next =
       ((
@@ -313,8 +320,8 @@ export function registerStoreIpc(): void {
           .get(workspaceId) as { p: number | null } | undefined
       )?.p ?? -1) + 1
     db.prepare(
-      'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data) VALUES (?, ?, NULL, NULL, ?, ?, ?)'
-    ).run(id, workspaceId, next, Date.now(), '[]')
+      'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data, cwd) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?)'
+    ).run(id, workspaceId, next, Date.now(), '[]', cwd ?? null)
     return id
   })
   ipcMain.handle('chat:delete', (_e, id: string) => {

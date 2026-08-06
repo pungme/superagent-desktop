@@ -1,4 +1,5 @@
 import { ipcMain, shell } from 'electron'
+import { execFile } from 'child_process'
 import { readdirSync, lstatSync, readFileSync, writeFileSync, statSync, existsSync, cpSync } from 'fs'
 import { join, relative, basename, extname } from 'path'
 
@@ -113,6 +114,42 @@ export function registerFilesIpc(): void {
   ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
   // Finder drops onto the file tree: copy into the project (folders included),
   // renaming on collision rather than overwriting someone's work.
+  // A chat's private git worktree under <project>/.worktrees/<slug>, on its own
+  // branch — parallel chats stop fighting over one working tree.
+  ipcMain.handle('worktree:create', (_e, projectPath: string) => {
+    return new Promise((resolve) => {
+      const slug = `wt-${Date.now().toString(36)}`
+      const branch = `superagent/${slug}`
+      const dir = join(projectPath, '.worktrees', slug)
+      // Keep .worktrees out of git status without touching the project's .gitignore.
+      try {
+        const exclude = join(projectPath, '.git', 'info', 'exclude')
+        if (existsSync(join(projectPath, '.git')) && existsSync(exclude)) {
+          const cur = readFileSync(exclude, 'utf8')
+          if (!cur.includes('.worktrees/')) writeFileSync(exclude, cur + '\n.worktrees/\n')
+        }
+      } catch {
+        // exclusion is best-effort
+      }
+      execFile(
+        'git',
+        ['worktree', 'add', dir, '-b', branch],
+        { cwd: projectPath },
+        (err) => resolve(err ? null : { path: dir, branch })
+      )
+    })
+  })
+  ipcMain.handle('worktree:remove', (_e, projectPath: string, wtPath: string) => {
+    return new Promise((resolve) => {
+      execFile(
+        'git',
+        ['worktree', 'remove', '--force', wtPath],
+        { cwd: projectPath },
+        (err) => resolve(!err)
+      )
+    })
+  })
+
   ipcMain.handle('files:import', (_e, destDir: string, sources: string[]) => {
     const imported: string[] = []
     for (const src of sources) {

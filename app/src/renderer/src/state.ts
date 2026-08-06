@@ -119,6 +119,8 @@ interface CoveState {
   refreshChats: () => Promise<void>
   loadChats: (workspaceId: string) => Promise<Chat[]>
   newChat: (workspaceId: string) => Promise<void>
+  /** New chat running in a fresh git worktree of the project. */
+  newChatInWorktree: (workspaceId: string, projectPath: string) => Promise<boolean>
   selectChat: (workspaceId: string, chatId: string) => void
   removeChat: (workspaceId: string, chatId: string) => Promise<void>
   renameChat: (workspaceId: string, chatId: string, title: string) => Promise<void>
@@ -481,11 +483,27 @@ export const useStore = create<CoveState>((set, get) => ({
       activeChatId: { ...s.activeChatId, [workspaceId]: id }
     }))
   },
+  newChatInWorktree: async (workspaceId, projectPath) => {
+    const wt = await window.cove.worktreeCreate(projectPath)
+    if (!wt) return false // not a git repo, or git refused — caller says so
+    const id = await window.cove.chatCreate(workspaceId, wt.path)
+    const list = await window.cove.chatList(workspaceId)
+    set((s) => ({
+      chats: { ...s.chats, [workspaceId]: list },
+      activeChatId: { ...s.activeChatId, [workspaceId]: id }
+    }))
+    return true
+  },
   selectChat: (workspaceId, chatId) => {
     localStorage.setItem(`activeChat:${workspaceId}`, chatId)
     set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } }))
   },
   removeChat: async (workspaceId, chatId) => {
+    const dying = get().chats[workspaceId]?.find((c) => c.id === chatId)
+    if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
+      const projectPath = dying.cwd.split('/.worktrees/')[0]
+      void window.cove.worktreeRemove(projectPath, dying.cwd)
+    }
     await window.cove.chatDelete(chatId)
     const list = await window.cove.chatList(workspaceId)
     set((s) => {

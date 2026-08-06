@@ -59,6 +59,8 @@ export interface Chat {
   title: string | null
   claudeSessionId: string | null
   updatedAt: number
+  /** Worktree override — the chat's agent runs here instead of the project path. */
+  cwd: string | null
 }
 
 export interface HookEvent {
@@ -95,6 +97,9 @@ export interface CoveApi {
   filesImport: (destDir: string, sources: string[]) => Promise<string[]>
   /** Tail of the latest assistant reply, for the done-notification body. */
   chatLastReply: (workspaceId: string, excerpt: string) => void
+  /** New git worktree under <project>/.worktrees; null if git refused. */
+  worktreeCreate: (projectPath: string) => Promise<{ path: string; branch: string } | null>
+  worktreeRemove: (projectPath: string, wtPath: string) => Promise<boolean>
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
@@ -142,7 +147,7 @@ export interface CoveApi {
 
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
-  chatCreate: (workspaceId: string) => Promise<string>
+  chatCreate: (workspaceId: string, cwd?: string) => Promise<string>
   chatDelete: (id: string) => Promise<void>
   chatUpdate: (
     id: string,
@@ -245,6 +250,8 @@ const cove: CoveApi = {
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),
+  worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
+  worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
@@ -281,7 +288,7 @@ const cove: CoveApi = {
 
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
-  chatCreate: (workspaceId) => ipcRenderer.invoke('chat:create', workspaceId),
+  chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
