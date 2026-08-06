@@ -93,7 +93,14 @@ export function UpdateBanner(): React.JSX.Element | null {
         <button className="update-banner-action" onClick={install}>
           Restart anyway
         </button>
-        <button className="update-banner-secondary" onClick={() => setConfirming(false)}>
+        <button
+          className="update-banner-secondary"
+          onClick={() => {
+            setConfirming(false)
+            setDismissed(true)
+          }}
+          title="Hide — the update installs on your next quit"
+        >
           Keep working
         </button>
       </div>
