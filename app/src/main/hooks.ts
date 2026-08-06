@@ -144,16 +144,6 @@ exit 0
 
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Notification', 'Stop', 'SubagentStop']
 
-ipcMain.on('chat:last-reply', (_e, workspaceId: string, excerpt: string) => {
-  if (typeof workspaceId === 'string' && typeof excerpt === 'string') {
-    lastReplies.set(workspaceId, excerpt.slice(0, 180))
-  }
-})
-
-ipcMain.on('notify:prefs', (_e, prefs: { done?: boolean; needsYou?: boolean }) => {
-  if (typeof prefs.done === 'boolean') notifyPrefs.done = prefs.done
-  if (typeof prefs.needsYou === 'boolean') notifyPrefs.needsYou = prefs.needsYou
-})
 
 type HookSettings = { hooks?: Record<string, unknown[]> } & Record<string, unknown>
 
@@ -247,6 +237,17 @@ export function uninstallHooks(): void {
 }
 
 export function registerHookIpc(): void {
+  // Module scope must stay Electron-free (tests import this file): IPC wiring
+  // belongs here, at registration time.
+  ipcMain.on('chat:last-reply', (_e, workspaceId: string, excerpt: string) => {
+    if (typeof workspaceId === 'string' && typeof excerpt === 'string') {
+      lastReplies.set(workspaceId, excerpt.slice(0, 180))
+    }
+  })
+  ipcMain.on('notify:prefs', (_e, prefs: { done?: boolean; needsYou?: boolean }) => {
+    if (typeof prefs.done === 'boolean') notifyPrefs.done = prefs.done
+    if (typeof prefs.needsYou === 'boolean') notifyPrefs.needsYou = prefs.needsYou
+  })
   ipcMain.handle('hooks:status', () => hooksInstalled())
   ipcMain.handle('hooks:install', () => installHooks())
   ipcMain.handle('hooks:uninstall', () => {
