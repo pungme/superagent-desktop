@@ -558,10 +558,30 @@ function GroupSection({
   )
 }
 
+// The reserved group holding quick browser tabs — rendered as its own section
+// at the top, never as a normal (renamable/deletable) group.
+const TABS_GROUP = '__tabs'
+
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const refresh = useStore((s) => s.refresh)
   const addGroup = useStore((s) => s.addGroup)
+  const setActive = useStore((s) => s.setActive)
+  const tabsGroup = tree.find((g) => g.name === TABS_GROUP)
+
+  const newTab = async (): Promise<void> => {
+    // Opening a tab shouldn't require choosing a project type first — that's
+    // the whole point of the section.
+    let gid = tabsGroup?.id
+    if (!gid) {
+      const next = await window.cove.createGroup(TABS_GROUP)
+      gid = next.find((g) => g.name === TABS_GROUP)?.id
+    }
+    if (!gid) return
+    const created = await window.cove.createBrowserWorkspace(gid, 'New Tab')
+    await refresh()
+    setActive(created.workspaceId)
+  }
   const moveWorkspace = useStore((s) => s.moveWorkspace)
   const moveGroup = useStore((s) => s.moveGroup)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -621,9 +641,25 @@ export function Sidebar(): React.JSX.Element {
       <div className="sidebar-drag-region" />
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="sidebar-scroll">
-          {tree.map((group) => (
-            <GroupSection key={group.id} group={group} />
-          ))}
+          <div className="sidebar-group">
+            <div className="sidebar-group-head tabs-head">
+              <span className="sidebar-group-title">Tabs</span>
+              <button className="group-add" title="New tab" onClick={() => void newTab()}>
+                +
+              </button>
+            </div>
+            {(tabsGroup?.workspaces ?? []).map((ws, i) => (
+              <WorkspaceRow key={ws.id} ws={ws} index={i} />
+            ))}
+            {(tabsGroup?.workspaces ?? []).length === 0 && (
+              <div className="tabs-empty">Click + to browse</div>
+            )}
+          </div>
+          {tree
+            .filter((g) => g.name !== TABS_GROUP)
+            .map((group) => (
+              <GroupSection key={group.id} group={group} />
+            ))}
         </div>
       </DndContext>
       <div className="sidebar-footer">
