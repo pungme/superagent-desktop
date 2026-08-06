@@ -42,9 +42,10 @@ your logged-in session. You watch it work, and you can take over any time.
 
 ## Everything in its place
 
-Projects group the way you think about them, with each conversation nested
-underneath. A spinner while the agent works, a dot when it needs you, the git
-branch where you'd expect it.
+Plain browser tabs sit at the top of the sidebar — browse first, summon the
+agent when you need it. Below them, projects group the way you think about
+them, with each conversation nested underneath. A spinner while the agent
+works, a dot when it needs you, the git branch where you'd expect it.
 
 <p align="center"><img src="docs/sidebar.png" width="300" alt="The sidebar: grouped projects with nested chats and branch chips"></p>
 
@@ -53,8 +54,33 @@ allowed to do without asking.
 
 <p align="center"><img src="docs/settings.png" width="520" alt="Settings: appearance, agent permissions, developer mode"></p>
 
+## The bigger things
+
+- **Desktop & phone at once.** One click shows the same page in a desktop card
+  and an iPhone frame — same session, both live.
+- **Worktree chats.** Start a chat on its own git worktree; the agent works on
+  an isolated branch while your checkout stays clean.
+- **Dashboard.** Turns per day, tasks done, a streak — and which projects
+  actually got your time. Computed locally.
+- **Files, PDFs & simulators.** Drag files into the chat, annotate PDFs in
+  place, boot an iOS Simulator with a sentence.
+- **Context gauge.** Every conversation shows how much of the context window
+  it has used.
+- **Dev server strip.** The agent starts your dev server and iterates while
+  you watch the page change, with the server one click away.
+
 ## The small things
 
+- **Everything survives a restart** — panes, open files, active chat — even
+  through updates.
+- **Never steals your focus.** Agents finish quietly in the background; the
+  window comes forward only when you ask.
+- **Light on memory.** Sessions start on your first message and wind down when
+  idle — agents only run while conversations do.
+- **Interject mid-turn.** Type while the agent works and it sees your message
+  before it finishes — like the terminal.
+- **Notifications that say something** — done or has a question, with a summary
+  of the agent's actual last reply.
 - **Many chats per project.** They name themselves after what the conversation
   turned out to be about. Starting a new one never loses the old.
 - **Click any file to read it** — PDFs, images, markdown, source — right beside
@@ -65,6 +91,8 @@ allowed to do without asking.
   instead of a wall of noise.
 - **See every edit** the moment it happens, with just the change highlighted.
 - **Routines.** "Check this site every hour," in plain language, on a timer.
+- **Updates itself.** Signed, notarized, delivered in the background — restart
+  when it suits you.
 - **Light and dark**, following your system.
 
 ## What you need
