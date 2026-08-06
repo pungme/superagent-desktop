@@ -4154,8 +4154,11 @@ button {
   color: var(--text-primary);
 }
 .sidebar-dash-icon {
-  font-size: 13px;
   color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.sidebar-dash-row:hover .sidebar-dash-icon {
+  color: var(--text-primary);
 }
 .tabs-empty {
   padding: 4px 10px 8px;

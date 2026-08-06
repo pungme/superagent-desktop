@@ -663,7 +663,19 @@ export function Sidebar(): React.JSX.Element {
             className="sidebar-dash-row"
             onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
           >
-            <span className="sidebar-dash-icon">▤</span> Dashboard
+            <svg
+              className="sidebar-dash-icon"
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            >
+              <path d="M2.5 13.5v-4M6.5 13.5v-7M10.5 13.5v-2.5M14.5 13.5v-9" />
+            </svg>
+            Dashboard
           </button>
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">

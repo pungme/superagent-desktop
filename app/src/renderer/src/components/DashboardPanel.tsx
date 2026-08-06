@@ -31,9 +31,43 @@ interface Dash {
  */
 export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
   const [dash, setDash] = useState<Dash | null>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    window.cove.eventsDashboard().then(setDash)
+    window.cove
+      .eventsDashboard()
+      .then((d) => {
+        // Never let a malformed payload (e.g. a stale main process during dev)
+        // throw mid-render and take the whole app down — normalize it here.
+        setDash({
+          turnsToday: d?.turnsToday ?? 0,
+          tasksToday: d?.tasksToday ?? 0,
+          streak: d?.streak ?? 0,
+          longestStreak: d?.longestStreak ?? 0,
+          spark: Array.isArray(d?.spark)
+            ? d.spark.map((s) =>
+                typeof s === 'number' ? { day: '', turns: s } : { day: s?.day ?? '', turns: s?.turns ?? 0 }
+              )
+            : [],
+          attention: d?.attention ?? [],
+          attentionAll: d?.attentionAll ?? [],
+          hours: Array.isArray(d?.hours) ? d.hours : new Array(24).fill(0),
+          busiestDay: d?.busiestDay ?? null,
+          topSites: d?.topSites ?? [],
+          avgTurns30: d?.avgTurns30 ?? 0,
+          firstTs: d?.firstTs ?? null,
+          totals: {
+            turns: d?.totals?.turns ?? 0,
+            tasks: d?.totals?.tasks ?? 0,
+            chats: d?.totals?.chats ?? 0,
+            projects: d?.totals?.projects ?? 0,
+            messages: d?.totals?.messages ?? 0,
+            sites: d?.totals?.sites ?? 0,
+            visits: d?.totals?.visits ?? 0
+          }
+        })
+      })
+      .catch(() => setFailed(true))
   }, [])
 
   const maxTurns = Math.max(1, ...(dash?.attention.map((a) => a.turns) ?? [1]))
@@ -51,7 +85,9 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
         </button>
       </div>
       <div className="dash">
-        {!dash ? (
+        {failed ? (
+          <div className="dash-empty">Couldn&rsquo;t load activity data — try reopening.</div>
+        ) : !dash ? (
           <div className="dash-empty">Loading…</div>
         ) : (
           <>

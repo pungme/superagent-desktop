@@ -411,7 +411,9 @@ export function getDashboard(): unknown {
   const recentTurns = turns.filter((e) => now - e.ts <= 30 * dayMs).length
   const avgTurns30 = recentDays.length ? Math.round((recentTurns / recentDays.length) * 10) / 10 : 0
 
-  const firstTs = turns.length ? Math.min(...turns.map((e) => e.ts)) : null
+  // reduce, not Math.min(...spread) — a years-deep transcript history can
+  // exceed the engine's argument limit and throw.
+  const firstTs = turns.length ? turns.reduce((m, e) => (e.ts < m ? e.ts : m), Infinity) : null
 
   return {
     turnsToday,
