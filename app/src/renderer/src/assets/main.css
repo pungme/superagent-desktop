@@ -2488,6 +2488,9 @@ button {
   flex-direction: column;
   height: 100%;
   background: var(--bg-content);
+  /* Rows are click targets, not prose — without this a drag paints stuck text
+     selection across the labels. */
+  user-select: none;
 }
 
 .file-tree-header {
