@@ -85,6 +85,12 @@ export interface CoveApi {
   browserSetZoom: (id: string, factor: number) => void
   /** Corner radius of the native view; uniform, so it's chosen per viewport mode. */
   browserSetRadius: (id: string, radius: number) => void
+  /** Side-by-side mode: position the mobile twin (null = tear it down). */
+  browserTwinBounds: (
+    id: string,
+    bounds: { x: number; y: number; width: number; height: number } | null,
+    zoom: number
+  ) => void
   /** Sampled colours of the page's top corners, for the DOM backfills. */
   browserSampleCorners: (id: string) => Promise<{ left: string; right: string } | null>
   /** Full-res PNG bytes of the pane (screenshot tooling). */
@@ -244,6 +250,7 @@ const cove: CoveApi = {
   browserZoom: (id, action) => ipcRenderer.invoke('browser:zoom', id, action),
   browserSetZoom: (id, factor) => ipcRenderer.send('browser:set-zoom-factor', id, factor),
   browserSetRadius: (id, radius) => ipcRenderer.send('browser:set-radius', id, radius),
+  browserTwinBounds: (id, bounds, zoom) => ipcRenderer.send('browser:twin-bounds', id, bounds, zoom),
   browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),

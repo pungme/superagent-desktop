@@ -74,9 +74,24 @@ interface BrowserPane {
   view: WebContentsView
   window: BrowserWindow
   visible: boolean
+  /** Session partition, kept so the mobile twin can share logins. */
+  partition: string
 }
 
 const panes = new Map<string, BrowserPane>()
+
+// The "both" viewport's second engine: one shared mobile twin (only one pane is
+// on screen at a time), same partition as its primary so logins carry over,
+// URL-synced one way — the desktop side drives.
+let twin: { view: WebContentsView; forPane: string; offNav: () => void } | null = null
+
+function destroyTwin(window: BrowserWindow): void {
+  if (!twin) return
+  twin.offNav()
+  if (!window.isDestroyed()) window.contentView.removeChildView(twin.view)
+  twin.view.webContents.close()
+  twin = null
+}
 
 // Sessions that already route PDF saves back to the source file.
 const pdfSaveWired = new WeakSet<Electron.Session>()
@@ -210,7 +225,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // renderer sets the real value on the first bounds sync.
   view.setBorderRadius?.(0)
 
-  const pane: BrowserPane = { id, view, window, visible: false }
+  const pane: BrowserPane = { id, view, window, visible: false, partition }
   panes.set(id, pane)
 
   const wc = view.webContents
@@ -309,7 +324,7 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
   view.setBackgroundColor('#ffffff')
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
   view.webContents.setUserAgent(chromeUserAgent(view.webContents.getUserAgent()))
-  panes.set(id, { id, view, window, visible: false })
+  panes.set(id, { id, view, window, visible: false, partition })
 }
 
 export function destroyBrowserPane(id: string): void {
@@ -325,6 +340,7 @@ export function destroyBrowserPane(id: string): void {
 function hidePane(pane: BrowserPane): void {
   if (pane.visible && !pane.window.isDestroyed()) {
     pane.window.contentView.removeChildView(pane.view)
+    if (twin?.forPane === pane.id) destroyTwin(pane.window)
   }
   pane.visible = false
 }
@@ -379,6 +395,7 @@ export function registerBrowserIpc(): void {
       const small = width > 2 ? img.resize({ width: Math.round(width / 2) }) : img
       const buf = small.toJPEG(70)
       pane.window.contentView.removeChildView(pane.view)
+      if (twin?.forPane === id) destroyTwin(pane.window)
       pane.visible = false
       console.log(`[freeze] total=${Date.now() - t0}ms bytes=${buf.length}`)
       return buf
@@ -450,6 +467,45 @@ export function registerBrowserIpc(): void {
       return null
     }
   })
+
+  // Attach/position/detach the mobile twin for the side-by-side viewport.
+  ipcMain.on(
+    'browser:twin-bounds',
+    (_e, id: string, bounds: BrowserBounds | null, zoom: number) => {
+      const pane = panes.get(id)
+      if (!pane || pane.window.isDestroyed()) return
+      if (!bounds) {
+        if (twin?.forPane === id) destroyTwin(pane.window)
+        return
+      }
+      if (twin && twin.forPane !== id) destroyTwin(pane.window)
+      if (!twin) {
+        const view = new WebContentsView({
+          webPreferences: {
+            partition: pane.partition,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+          }
+        })
+        view.setBackgroundColor('#ffffff')
+        view.setBorderRadius?.(10)
+        const wc = pane.view.webContents
+        const sync = (): void => {
+          const url = wc.getURL()
+          if (url && twin && twin.view.webContents.getURL() !== url) {
+            twin.view.webContents.loadURL(url).catch(() => {})
+          }
+        }
+        wc.on('did-navigate', sync)
+        twin = { view, forPane: id, offNav: () => wc.removeListener('did-navigate', sync) }
+        sync()
+      }
+      pane.window.contentView.addChildView(twin.view)
+      twin.view.setBounds(bounds)
+      twin.view.webContents.setZoomFactor(Math.max(0.2, zoom))
+    }
+  )
 
   ipcMain.on('browser:hide', (_e, id: string) => {
     const pane = panes.get(id)
