@@ -132,6 +132,32 @@ export function WorkspaceView({
     return saved ? Math.min(0.8, Math.max(0.2, Number(saved))) : fallback
   })
   const [dragging, setDragging] = useState(false)
+  // Width of the file tree, draggable at its right edge and remembered per project.
+  const [filesWidth, setFilesWidth] = useState(() => {
+    const saved = Number(localStorage.getItem(`filesWidth:${ws.id}`))
+    return saved >= 160 && saved <= 560 ? saved : 220
+  })
+  const onFilesDividerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startW = filesWidth
+      const move = (ev: PointerEvent): void => {
+        setFilesWidth(Math.min(560, Math.max(160, startW + (ev.clientX - startX))))
+      }
+      const up = (): void => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+        setFilesWidth((w) => {
+          localStorage.setItem(`filesWidth:${ws.id}`, String(w))
+          return w
+        })
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+    },
+    [ws.id, filesWidth]
+  )
 
   const onDividerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -232,8 +258,9 @@ export function WorkspaceView({
           open, so toggling the preview never disturbs the conversation. */}
       <div ref={containerRef} className="content-split">
         {filesOpen && ws.kind !== 'browser' && (
-          <div className="files-side">
+          <div className="files-side" style={{ flexBasis: filesWidth }}>
             <FileTree cwd={ws.path} workspaceId={ws.id} />
+            <div className="files-divider" onPointerDown={onFilesDividerDown} />
           </div>
         )}
         {/* Sits between the tree and the chat: a file you click on the left opens
