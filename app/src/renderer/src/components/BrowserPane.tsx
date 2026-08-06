@@ -273,7 +273,7 @@ export function BrowserPane({
   // Follow the page's corner colour: once immediately, then a lazy tick — catches
   // navigations, theme flips and repaints without chasing every frame.
   useEffect(() => {
-    if (!visible || paneCovered || (viewport !== 'desktop' && viewport !== 'both')) return
+    if (!visible || paneCovered || viewport === 'none') return
     let alive = true
     const tick = async (): Promise<void> => {
       const c = await window.cove.browserSampleCorners?.(paneId)
@@ -485,7 +485,7 @@ export function BrowserPane({
   // Absolute for the whole desktop mode (not just once simFrame is known) so the
   // host stays full-height when syncBounds measures it — otherwise the omnibar
   // flipping out of flow would resize the host and misplace the card by one frame.
-  const onCard = viewport === 'desktop'
+  const onCard = viewport === 'desktop' || viewport === 'both' || viewport === 'mobile'
   const toolbarStyle: React.CSSProperties | undefined = onCard
     ? simFrame
       ? {
@@ -675,7 +675,7 @@ export function BrowserPane({
             }}
           />
         )}
-        {simFrame && visible && (viewport === 'desktop' || viewport === 'both') && cornerFill && (
+        {simFrame && visible && viewport !== 'none' && cornerFill && (
           <>
             {/* Under the native page by nature (DOM); the rounded top arcs of the
                 page reveal these, matching the page so the top reads square. */}
