@@ -562,7 +562,7 @@ export function EasyChat({
   const setModel = useStore((s) => s.setModel)
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
-  const [controlMenu, setControlMenu] = useState<'model' | 'mode' | null>(null)
+  const [controlMenu, setControlMenu] = useState<'model' | 'mode' | 'where' | null>(null)
 
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
@@ -1578,22 +1578,7 @@ export function EasyChat({
     >
       {dragOver && <div className="easy-drop-hint">Drop a file to add it</div>}
       {items.length > 0 && (
-        <button
-          className="easy-newchat"
-          onClick={newChat}
-          onContextMenu={(e) => {
-            // Right-click: same button, isolated variant — the chat gets its own
-            // git worktree so parallel agents stop fighting over one tree.
-            e.preventDefault()
-            void useStore
-              .getState()
-              .newChatInWorktree(workspaceId, cwd)
-              .then((ok) => {
-                if (!ok) window.alert('Could not create a worktree here (is this a git repo?)')
-              })
-          }}
-          title="Start a new conversation (right-click: in a git worktree)"
-        >
+        <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
           ✎ New chat
         </button>
       )}
@@ -1923,6 +1908,66 @@ export function EasyChat({
             </div>
           )}
         </div>
+        {!browserProject &&
+          (cwd.includes('/.worktrees/') ? (
+            // Already branched off — show where this chat lives.
+            <span
+              className="easy-control-btn easy-where-chip"
+              title={`This chat works in its own git worktree: ${cwd}`}
+            >
+              <span className="easy-control-key">Where</span>
+              <span className="easy-control-val">⎇ {cwd.split('/').pop()}</span>
+            </span>
+          ) : (
+            suspended &&
+            items.length === 0 && (
+              // The choice only exists before the first message: after that the
+              // agent has already worked in the project checkout.
+              <div className="easy-control">
+                <button
+                  className={`easy-control-btn ${controlMenu === 'where' ? 'open' : ''}`}
+                  onClick={() => setControlMenu((m) => (m === 'where' ? null : 'where'))}
+                  title="Where the agent works"
+                >
+                  <span className="easy-control-key">Where</span>
+                  <span className="easy-control-val">this project</span>
+                  <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+                    <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                {controlMenu === 'where' && (
+                  <div className="easy-control-menu">
+                    <button className="easy-control-item on" onClick={() => setControlMenu(null)}>
+                      <span className="easy-control-item-label">This project</span>
+                      <span className="easy-control-item-hint">
+                        work directly in your checkout
+                      </span>
+                    </button>
+                    <button
+                      className="easy-control-item"
+                      onClick={() => {
+                        setControlMenu(null)
+                        void useStore
+                          .getState()
+                          .branchOffChat(workspaceId, chatId, cwd)
+                          .then((branch) => {
+                            if (!branch)
+                              window.alert(
+                                'Could not create a worktree here (is this a git repo?)'
+                              )
+                          })
+                      }}
+                    >
+                      <span className="easy-control-item-label">⎇ Own branch (worktree)</span>
+                      <span className="easy-control-item-hint">
+                        isolated copy — run agents in parallel, checkout stays clean
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          ))}
         {ctxTokens !== null && (
           <span
             className={`easy-ctx ${ctxTokens > 150_000 ? 'warm' : ''}`}

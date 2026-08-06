@@ -4160,6 +4160,15 @@ button {
   color: var(--text-primary);
   box-shadow: 0 1px 3px var(--shadow);
 }
+
+/* Static "Where" chip once a chat lives in a worktree — informative, not a menu. */
+.easy-where-chip {
+  cursor: default;
+  opacity: 0.85;
+}
+.easy-where-chip .easy-control-val {
+  color: var(--text-secondary);
+}
 .dash-hours-axis {
   display: flex;
   justify-content: space-between;

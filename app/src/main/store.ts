@@ -638,10 +638,14 @@ export function registerStoreIpc(): void {
   })
   ipcMain.handle(
     'chat:update',
-    (_e, id: string, patch: { title?: string | null; claudeSessionId?: string | null }) => {
+    (
+      _e,
+      id: string,
+      patch: { title?: string | null; claudeSessionId?: string | null; cwd?: string | null }
+    ) => {
       const sets: string[] = []
       const vals: (string | number | null)[] = []
-      for (const key of ['title', 'claudeSessionId'] as const) {
+      for (const key of ['title', 'claudeSessionId', 'cwd'] as const) {
         if (key in patch) {
           sets.push(`${key} = ?`)
           vals.push(patch[key] ?? null)

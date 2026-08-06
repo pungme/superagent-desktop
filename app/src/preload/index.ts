@@ -193,7 +193,7 @@ export interface CoveApi {
   chatDelete: (id: string) => Promise<void>
   chatUpdate: (
     id: string,
-    patch: Partial<{ title: string | null; claudeSessionId: string | null }>
+    patch: Partial<{ title: string | null; claudeSessionId: string | null; cwd: string | null }>
   ) => Promise<void>
   chatLoad: (chatId: string) => Promise<string | null>
   chatSave: (chatId: string, data: string) => void
