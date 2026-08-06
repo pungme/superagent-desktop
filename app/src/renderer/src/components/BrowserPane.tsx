@@ -98,8 +98,10 @@ export function BrowserPane({
   // Device simulation: 'none' fills the pane (raw); 'desktop'/'mobile' render the
   // page as a correctly-proportioned screen centered in the pane and zoomed to
   // fit — so a desktop site isn't squeezed into the narrow pane. Persisted per pane.
-  const [viewport, setViewport] = useState<'none' | 'desktop' | 'mobile'>(
-    () => (localStorage.getItem(`viewport:${paneId}`) as 'none' | 'desktop' | 'mobile') || 'desktop'
+  const [viewport, setViewport] = useState<'none' | 'desktop' | 'mobile' | 'both'>(
+    () =>
+      (localStorage.getItem(`viewport:${paneId}`) as 'none' | 'desktop' | 'mobile' | 'both') ||
+      'desktop'
   )
   // syncBounds reads the mode through this ref so it can stay stable (deps: paneId
   // only) — otherwise recreating it on every mode change would re-run the pane's
@@ -114,7 +116,7 @@ export function BrowserPane({
   // the user re-picks Fit. Desktop/Mobile own their own zoom, so this only matters
   // for Fit.
   const autoFitRef = useRef(true)
-  const pickViewport = (v: 'none' | 'desktop' | 'mobile'): void => {
+  const pickViewport = (v: 'none' | 'desktop' | 'mobile' | 'both'): void => {
     docModeRef.current = false // explicit choice wins over the document default
     localStorage.setItem(`viewport:${paneId}`, v)
     viewportRef.current = v
@@ -133,6 +135,13 @@ export function BrowserPane({
   // Page-coloured DOM backfills for the top corners (desktop mode): the rounded
   // top arcs reveal these instead of the grey card, so the top reads square.
   const [cornerFill, setCornerFill] = useState<{ left: string; right: string } | null>(null)
+  // Phone card of the side-by-side mode.
+  const [twinFrame, setTwinFrame] = useState<{
+    left: number
+    top: number
+    width: number
+    height: number
+  } | null>(null)
   const [addressInput, setAddressInput] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [suggestIndex, setSuggestIndex] = useState(-1)
@@ -170,6 +179,10 @@ export function BrowserPane({
     }
     // WebContentsView bounds are window-relative CSS pixels.
     const mode = docModeRef.current ? 'none' : viewportRef.current
+    if (mode !== 'both') {
+      setTwinFrame(null)
+      window.cove.browserTwinBounds?.(paneId, null, 1)
+    }
     if (mode === 'none') {
       setSimFrame(null)
       // "Fit": fill the pane, but default to zooming out so a 1280-wide desktop
@@ -201,6 +214,38 @@ export function BrowserPane({
       emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: sw, height: sh - CARD_OMNIBAR_H })
       return
     }
+    if (mode === 'both') {
+      // Desktop card on the left (with its docked omnibar), phone on the right —
+      // one page, two engines, URL-synced from the desktop side.
+      const PAD = 18
+      const GAP = 16
+      const [dw, dh] = [1440, 900]
+      const [lw, lh] = [390, 844]
+      // Phone gets its natural share of the width at equal height scale.
+      const usableH = H - PAD * 2
+      const phoneScale = Math.min(usableH / lh, ((W - PAD * 2 - GAP) * 0.24) / lw)
+      const pw = Math.round(lw * phoneScale)
+      const ph = Math.round(lh * phoneScale)
+      const deskW = W - PAD * 2 - GAP - pw
+      const scale = Math.min(deskW / dw, usableH / dh)
+      const sw = Math.round(dw * scale)
+      const sh = Math.round(dh * scale)
+      const left = PAD
+      const top = Math.round((H - sh) / 2)
+      const ptop = Math.round((H - ph) / 2)
+      const pleft = left + sw + GAP
+      window.cove.browserSetZoom?.(paneId, scale)
+      window.cove.browserSetRadius?.(paneId, PANE_RADIUS)
+      setSimFrame({ left, top, width: sw, height: sh })
+      setTwinFrame({ left: pleft, top: ptop, width: pw, height: ph })
+      emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: sw, height: sh - CARD_OMNIBAR_H })
+      window.cove.browserTwinBounds?.(
+        paneId,
+        { x: x0 + pleft, y: y0 + ptop, width: pw, height: ph },
+        phoneScale
+      )
+      return
+    }
     // Mobile: a phone has a fixed tall aspect ratio, so it stays a centered device
     // scaled to fit inside a margin — so it floats with breathing room top/bottom
     // like the desktop card, not flush to the pane edges.
@@ -228,7 +273,7 @@ export function BrowserPane({
   // Follow the page's corner colour: once immediately, then a lazy tick — catches
   // navigations, theme flips and repaints without chasing every frame.
   useEffect(() => {
-    if (!visible || paneCovered || viewport !== 'desktop') return
+    if (!visible || paneCovered || (viewport !== 'desktop' && viewport !== 'both')) return
     let alive = true
     const tick = async (): Promise<void> => {
       const c = await window.cove.browserSampleCorners?.(paneId)
@@ -540,6 +585,13 @@ export function BrowserPane({
             <DesktopIcon />
           </button>
           <button
+            className={`browser-vp-btn ${viewport === 'both' ? 'on' : ''}`}
+            onClick={() => pickViewport('both')}
+            title="Both — desktop and phone side by side"
+          >
+            <span className="vp-both-icon">⿻</span>
+          </button>
+          <button
             className={`browser-vp-btn ${viewport === 'mobile' ? 'on' : ''}`}
             onClick={() => pickViewport('mobile')}
             title="Mobile — simulate a 390-wide phone"
@@ -612,7 +664,18 @@ export function BrowserPane({
             }}
           />
         )}
-        {simFrame && visible && viewport === 'desktop' && cornerFill && (
+        {twinFrame && visible && (
+          <div
+            className="browser-sim-frame"
+            style={{
+              left: twinFrame.left,
+              top: twinFrame.top,
+              width: twinFrame.width,
+              height: twinFrame.height
+            }}
+          />
+        )}
+        {simFrame && visible && (viewport === 'desktop' || viewport === 'both') && cornerFill && (
           <>
             {/* Under the native page by nature (DOM); the rounded top arcs of the
                 page reveal these, matching the page so the top reads square. */}
