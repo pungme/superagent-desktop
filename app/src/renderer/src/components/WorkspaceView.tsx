@@ -43,9 +43,18 @@ export function WorkspaceView({
           localStorage.getItem(`paneOpen:${ws.id}`) === '1')
   )
   const toggleBrowser = useStore((s) => s.toggleBrowser)
-  const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
+  const filesOpen = useStore(
+    (s) => s.filesOpen[ws.id] ?? localStorage.getItem(`filesOpen:${ws.id}`) === '1'
+  )
   // A text file open in the in-app viewer takes the content pane over the browser.
-  const openFilePath = useStore((s) => s.openFile[ws.id])
+  // undefined = untouched this run (fall back to what was open last run);
+  // null = explicitly closed.
+  const openFilePath = useStore(
+    (s) =>
+      s.openFile[ws.id] === undefined
+        ? localStorage.getItem(`openFile:${ws.id}`)
+        : s.openFile[ws.id]
+  )
   const closeFile = useStore((s) => s.closeFile)
   const paneOpen = browserOpen || !!openFilePath
   // Belt-and-suspenders: when neither the browser preview nor a file viewer is
@@ -140,6 +149,28 @@ export function WorkspaceView({
     return saved ? Math.min(0.8, Math.max(0.2, Number(saved))) : fallback
   })
   const [dragging, setDragging] = useState(false)
+  // Where the chat sits relative to the pane: beside it (default) or below it,
+  // for when a wide page matters more than a tall transcript. Per project.
+  const [layout, setLayout] = useState<'side' | 'bottom'>(
+    () => (localStorage.getItem(`layout:${ws.id}`) as 'side' | 'bottom') || 'side'
+  )
+  const toggleLayout = (): void => {
+    const next = layout === 'side' ? 'bottom' : 'side'
+    localStorage.setItem(`layout:${ws.id}`, next)
+    setLayout(next)
+    // Each orientation keeps its own split — a good side-by-side ratio makes a
+    // terrible chat height and vice versa.
+    const saved = localStorage.getItem(next === 'bottom' ? `splitv:${ws.id}` : `split:${ws.id}`)
+    setRatio(
+      saved
+        ? Math.min(0.8, Math.max(0.2, Number(saved)))
+        : next === 'bottom'
+          ? 0.3
+          : ws.kind === 'browser'
+            ? 0.22
+            : 0.55
+    )
+  }
   // Width of the file tree, draggable at its right edge and remembered per project.
   const [filesWidth, setFilesWidth] = useState(() => {
     const saved = Number(localStorage.getItem(`filesWidth:${ws.id}`))
@@ -174,30 +205,32 @@ export function WorkspaceView({
       const container = containerRef.current
       if (!container) return
       const move = (ev: PointerEvent): void => {
-        const rect = container.getBoundingClientRect()
-        // The file tree shares this container, so measure from the end of it —
-        // otherwise its width skews the split. `ratio` stays the chat's share,
-        // and the chat is now the right-hand pane, hence the inversion.
-        const files = container.querySelector('.files-side')
-        const offset = files ? files.getBoundingClientRect().width : 0
-        const usable = rect.width - offset
-        if (usable <= 0) return
-        const browserFrac = (ev.clientX - rect.left - offset) / usable
-        setRatio(Math.min(0.8, Math.max(0.2, 1 - browserFrac)))
+        // Measure the pane+chat wrapper (the file tree lives outside it), on
+        // whichever axis the layout splits. `ratio` is the chat's share; the
+        // chat is the second pane, hence the inversion.
+        const wrap = container.querySelector('.split-main')
+        if (!wrap) return
+        const rect = wrap.getBoundingClientRect()
+        const frac =
+          layout === 'bottom'
+            ? (ev.clientY - rect.top) / rect.height
+            : (ev.clientX - rect.left) / rect.width
+        if (!Number.isFinite(frac)) return
+        setRatio(Math.min(0.8, Math.max(0.2, 1 - frac)))
       }
       const up = (): void => {
         setDragging(false)
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
         setRatio((r) => {
-          localStorage.setItem(`split:${ws.id}`, String(r))
+          localStorage.setItem(layout === 'bottom' ? `splitv:${ws.id}` : `split:${ws.id}`, String(r))
           return r
         })
       }
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
     },
-    [ws.id]
+    [ws.id, layout]
   )
 
   return (
@@ -253,6 +286,19 @@ export function WorkspaceView({
         </button>
         {/* No manual toggle for code projects: the pane reveals itself when the
             agent navigates or you open a file, and closes from its own ✕. */}
+        {paneOpen && (
+          <button
+            className="toolbar-btn"
+            onClick={toggleLayout}
+            title={
+              layout === 'side'
+                ? 'Move the chat below the page (full-width preview)'
+                : 'Move the chat beside the page'
+            }
+          >
+            {layout === 'side' ? '⬓ Chat below' : '◨ Chat right'}
+          </button>
+        )}
         {ws.kind === 'browser' && (
           <button
             className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
@@ -273,6 +319,7 @@ export function WorkspaceView({
         )}
         {/* Sits between the tree and the chat: a file you click on the left opens
             next to it, rather than across the window. Chat keeps the far side. */}
+        <div className={`split-main ${layout === 'bottom' ? 'vert' : ''}`}>
         {paneOpen && (
           <>
             <div className="split-side" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
@@ -296,7 +343,7 @@ export function WorkspaceView({
               )}
             </div>
             <div
-              className={`split-divider ${dragging ? 'dragging' : ''}`}
+              className={`split-divider ${layout === 'bottom' ? 'horiz' : ''} ${dragging ? 'dragging' : ''}`}
               onPointerDown={onDividerDown}
               role="separator"
             />
@@ -319,6 +366,7 @@ export function WorkspaceView({
             />
           )}
           {activeRun && visible && <RoutineRunView routine={activeRun} />}
+        </div>
         </div>
       </div>
       {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
