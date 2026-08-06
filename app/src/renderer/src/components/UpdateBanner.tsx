@@ -19,13 +19,41 @@ export function UpdateBanner(): React.JSX.Element | null {
   const [confirming, setConfirming] = useState(false)
   const busy = useStore((s) => s.busy)
 
+  const progress = useStore((s) => s.updateProgress)
+
   useEffect(() => {
-    return window.cove.onUpdateReady((v) => {
+    const offReady = window.cove.onUpdateReady((v) => {
       setVersion(v)
       setDismissed(false)
       setConfirming(false)
+      useStore.setState({ updateProgress: null }) // downloading is over
     })
+    const offProgress = window.cove.onUpdateProgress((p) => {
+      useStore.setState({ updateProgress: p })
+    })
+    return () => {
+      offReady()
+      offProgress()
+    }
   }, [])
+
+
+  // Downloading: a quiet progress pill so the minute-plus between "found" and
+  // "ready" isn't silent. Dismissable; the ready pill re-asserts itself.
+  if (!version && progress && !dismissed) {
+    return (
+      <div className="update-banner" role="status">
+        <span className="update-banner-dot" />
+        <span className="update-banner-text">
+          Downloading SuperAgent{progress.version ? ' ' : ''}
+          <b>{progress.version ?? ''}</b> — {Math.round(progress.percent)}%
+        </span>
+        <button className="update-banner-close" onClick={() => setDismissed(true)} title="Hide">
+          ×
+        </button>
+      </div>
+    )
+  }
 
   if (!version || dismissed) return null
 

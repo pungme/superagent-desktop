@@ -97,6 +97,8 @@ export interface CoveApi {
   browserShowEmpty: (id: string) => void
   // A newer release finished downloading in the background → offer to restart.
   onUpdateReady: (cb: (version: string) => void) => () => void
+  /** Download progress for an update found in the background (percent 0-100). */
+  onUpdateProgress: (cb: (p: { version: string | null; percent: number }) => void) => () => void
   installUpdate: () => void
 
   storeTree: () => Promise<TreeGroup[]>
@@ -234,6 +236,8 @@ const cove: CoveApi = {
   onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
   browserShowEmpty: (id) => ipcRenderer.send('browser:show-empty', id),
   onUpdateReady: (cb) => subscribe('update:ready', (v) => cb(v as string)),
+  onUpdateProgress: (cb) =>
+    subscribe('update:progress', (p) => cb(p as { version: string | null; percent: number })),
   installUpdate: () => ipcRenderer.send('update:install'),
   // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
   onOpenFile: (cb) =>

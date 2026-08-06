@@ -16,6 +16,8 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
+  // Store-backed, so reopening Settings mid-download still shows the truth.
+  const progress = useStore((s) => s.updateProgress)
 
   const checkUpdates = async (): Promise<void> => {
     setChecking(true)
@@ -103,7 +105,14 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
       <div className="settings-footer">
         <span>
           SuperAgent {appVersion ?? ''} · Claude Code {version ?? ''}
-          {updateMsg && <span className="settings-update-msg"> · {updateMsg}</span>}
+          {progress ? (
+            <span className="settings-update-msg">
+              {' '}
+              · Downloading {progress.version ?? 'update'} — {Math.round(progress.percent)}%
+            </span>
+          ) : (
+            updateMsg && <span className="settings-update-msg"> · {updateMsg}</span>
+          )}
         </span>
         <button className="settings-update-check" onClick={checkUpdates} disabled={checking}>
           {checking ? 'Checking…' : 'Check for updates'}
