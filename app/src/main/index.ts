@@ -14,7 +14,7 @@ import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerFilesIpc } from './files'
 import { buildMenu } from './menu'
-import { startAutoUpdate } from './updater'
+import { startAutoUpdate, isUpdateDownloaded } from './updater'
 
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
@@ -183,7 +183,12 @@ app.on('before-quit', () => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  // A pending update installs on quit — and with no windows open there is
+  // nothing to lose, so take the moment. Otherwise closing the last window
+  // leaves the OLD version running headless (macOS convention), and reopening
+  // from the Dock resurrects the same stale process with the same "restart to
+  // update" pill: the infinite-update-loop report.
+  if (process.platform !== 'darwin' || isUpdateDownloaded()) {
     app.quit()
   }
 })
