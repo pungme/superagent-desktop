@@ -37,6 +37,23 @@ export function startAutoUpdate(): void {
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.logger = null
 
+  // Progress for the UI: version first (percent 0), then percent as it moves.
+  // Without this the stretch between "downloading" and the restart pill is a
+  // silent minute-plus for a ~220MB DMG.
+  let pendingVersion: string | null = null
+  const broadcast = (channel: string, payload: unknown): void => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload)
+    }
+  }
+  autoUpdater.on('update-available', (info) => {
+    pendingVersion = info.version
+    broadcast('update:progress', { version: info.version, percent: 0 })
+  })
+  autoUpdater.on('download-progress', (p) => {
+    broadcast('update:progress', { version: pendingVersion, percent: p.percent })
+  })
+
   autoUpdater.on('update-downloaded', (info) => {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) win.webContents.send('update:ready', info.version)

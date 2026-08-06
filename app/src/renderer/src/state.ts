@@ -146,6 +146,10 @@ interface CoveState {
   agentLive: Record<string, boolean>
   setAgentLive: (workspaceId: string, value: boolean) => void
 
+  /** An update downloading in the background: version + percent. Store-backed so
+      Settings shows it even when reopened mid-download. */
+  updateProgress: { version: string | null; percent: number } | null
+
   /** How much the agent may do without asking. Applies to newly started chats. */
   permissionMode: PermissionMode
   setPermissionMode: (m: PermissionMode) => void
@@ -237,6 +241,7 @@ export const useStore = create<CoveState>((set, get) => ({
   agentIds: {},
   busy: {},
   agentLive: {},
+  updateProgress: null,
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
   permissionMode:
     (localStorage.getItem('cove.permissionMode') as PermissionMode) || 'bypassPermissions',
