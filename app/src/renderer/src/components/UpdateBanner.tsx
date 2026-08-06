@@ -93,7 +93,16 @@ export function UpdateBanner(): React.JSX.Element | null {
         <button className="update-banner-action" onClick={install}>
           Restart anyway
         </button>
-        <button className="update-banner-secondary" onClick={() => setConfirming(false)}>
+        <button
+          className="update-banner-secondary"
+          // "Keep working" means "leave me alone", not "show me the other pill
+          // again" — dismiss entirely; the update still installs on next quit.
+          onClick={() => {
+            setConfirming(false)
+            setDismissed(true)
+          }}
+          title="Hide — the update installs on your next quit"
+        >
           Keep working
         </button>
       </div>
