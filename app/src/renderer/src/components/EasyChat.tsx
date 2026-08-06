@@ -882,6 +882,12 @@ export function EasyChat({
           if (wholeText) {
             streamedThisTurnRef.current = true
             const isApiError = msg?.isApiErrorMessage === true
+            if (!isApiError && wholeText.trim()) {
+              // First non-empty line of the reply — the "what finished" for the
+              // done notification.
+              const line = wholeText.trim().split('\n').find((l) => l.trim()) ?? ''
+              window.cove.chatLastReply(workspaceId, line.replace(/[#*_`>]/g, '').trim())
+            }
             setItems((prev) => [
               ...prev,
               {
