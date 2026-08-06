@@ -1,6 +1,6 @@
 import { ipcMain, shell } from 'electron'
-import { readdirSync, lstatSync, readFileSync, writeFileSync, statSync } from 'fs'
-import { join, relative } from 'path'
+import { readdirSync, lstatSync, readFileSync, writeFileSync, statSync, existsSync, cpSync } from 'fs'
+import { join, relative, basename, extname } from 'path'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
 
@@ -111,6 +111,24 @@ const MAX_TEXT_BYTES = 2 * 1024 * 1024
 
 export function registerFilesIpc(): void {
   ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
+  // Finder drops onto the file tree: copy into the project (folders included),
+  // renaming on collision rather than overwriting someone's work.
+  ipcMain.handle('files:import', (_e, destDir: string, sources: string[]) => {
+    const imported: string[] = []
+    for (const src of sources) {
+      try {
+        const ext = extname(src)
+        const stem = basename(src, ext)
+        let target = join(destDir, basename(src))
+        for (let n = 2; existsSync(target); n++) target = join(destDir, `${stem} ${n}${ext}`)
+        cpSync(src, target, { recursive: true })
+        imported.push(target)
+      } catch (err) {
+        console.error('[files] import failed:', src, err)
+      }
+    }
+    return imported
+  })
   // Fallback for types the in-app browser can't render (.docx, .xlsx, …).
   ipcMain.handle('files:openExternal', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
