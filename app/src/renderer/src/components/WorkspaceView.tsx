@@ -32,7 +32,15 @@ export function WorkspaceView({
   // A browser project auto-opens its pane — but not on a cold launch, so a fresh
   // start lands on the chat instead of a reloaded (often logged-out) live page.
   const browserOpen = useStore(
-    (s) => s.browserOpen[ws.id] ?? (!s.coldStart && ws.kind === 'browser')
+    (s) =>
+      s.browserOpen[ws.id] ??
+      (ws.kind === 'browser'
+        ? // Browser projects: open once you've interacted this run — never on a
+          // cold start (a reloaded live page is often a logged-out login screen).
+          !s.coldStart
+        : // Code projects: an open preview survives the restart. It's a dev
+          // server or a file — nothing that can log you out.
+          localStorage.getItem(`paneOpen:${ws.id}`) === '1')
   )
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore((s) => s.filesOpen[ws.id] ?? false)
@@ -276,7 +284,12 @@ export function WorkspaceView({
                   // Browser projects share one session so a manual login carries
                   // across all of them; code previews stay isolated per workspace.
                   partition={ws.kind === 'browser' ? 'persist:browser' : `persist:ws-${ws.id}`}
-                  initialUrl={ws.browserUrl ?? undefined}
+                  initialUrl={
+                    ws.browserUrl ??
+                    (ws.kind !== 'browser'
+                      ? (localStorage.getItem(`paneUrl:${ws.id}`) ?? undefined)
+                      : undefined)
+                  }
                   visible={visible}
                   closable={ws.kind !== 'browser'}
                 />

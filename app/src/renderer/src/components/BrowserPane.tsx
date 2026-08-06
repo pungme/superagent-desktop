@@ -303,6 +303,9 @@ export function BrowserPane({
     let alive = true
     const offState = window.cove.onBrowserState(paneId, (s) => {
       setState(s)
+      // Remember where this pane is, so a code project's preview can come back
+      // after an app restart (browser projects use workspace.browserUrl instead).
+      if (/^(https?|file):/.test(s.url)) localStorage.setItem(`paneUrl:${paneId}`, s.url)
       const isDoc =
         s.url.startsWith('file://') &&
         /\.(pdf|png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(s.url.split('?')[0])
