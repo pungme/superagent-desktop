@@ -476,6 +476,8 @@ export function EasyChat({
   // narrow chat column; below this width only the short form fits on one line.
   const [narrowComposer, setNarrowComposer] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  // Non-image files dropped on the chat — shown as chips, sent as paths.
+  const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
   // Commands the agent left running in the background. Claude mentions them in
   // prose and then moves on, so without this the only sign a deploy/build/server
   // is still going is a sentence that scrolls away.
@@ -1260,7 +1262,8 @@ export function EasyChat({
 
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
-    if (!text && images.length === 0) return
+    const files = pendingFiles
+    if (!text && images.length === 0 && files.length === 0) return
     // A process exists but isn't accepting (crash) — the Retry UI owns that.
     if (id && !ready) return
     if (!id && !suspendedRef.current) return // already spawning; drop rather than double-send
@@ -1288,7 +1291,7 @@ export function EasyChat({
           id: `u-${Date.now()}-${Math.random()}`,
           at: Date.now(),
           role: 'user',
-          text,
+          text: files.length ? `${text}${text ? '\n' : ''}📎 ${files.map((f) => f.name).join(' · ')}` : text,
           images: images.length ? images.map((im) => im.url) : undefined,
           replyTo: reply ?? undefined
         }
@@ -1296,11 +1299,18 @@ export function EasyChat({
     ])
     setInput('')
     setPendingImages([])
+    setPendingFiles([])
     if (inputRef.current) inputRef.current.style.height = 'auto'
     // Quote the replied-to message so the agent knows what you're responding to.
     let agentText = reply
       ? `> Replying to ${reply.role === 'user' ? 'my' : 'your'} earlier message:\n> "${reply.text.replace(/\s+/g, ' ').trim().slice(0, 400)}"\n\n${text}`
       : text
+    if (files.length > 0) {
+      // Chips travel as explicit file references the agent can read.
+      agentText = `${agentText}${agentText ? '\n\n' : ''}Attached files:\n${files
+        .map((f) => f.path)
+        .join('\n')}`
+    }
     // Forward every message to Claude the instant you send it — even mid-turn. It
     // reaches Claude's stdin while it's working (verified), but Claude can still
     // deprioritize a bare interjection when it's mid-task. Flag it explicitly so it
@@ -1687,6 +1697,23 @@ export function EasyChat({
             ))}
           </div>
         )}
+        {pendingFiles.length > 0 && (
+          <div className="easy-attachments">
+            {pendingFiles.map((f, idx) => (
+              <div key={f.path} className="easy-file-chip" title={f.path}>
+                <span className="easy-file-chip-icon">📄</span>
+                <span className="easy-file-chip-name">{f.name}</span>
+                <button
+                  className="easy-attachment-remove"
+                  onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {pendingImages.length > 0 && (
           <div className="easy-attachments">
             {pendingImages.map((img, idx) => (
@@ -1776,7 +1803,7 @@ export function EasyChat({
           <button
             className="easy-send"
             onClick={send}
-            disabled={(!ready && !suspended) || (!input.trim() && pendingImages.length === 0)}
+            disabled={(!ready && !suspended) || (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)}
             title="Send message"
             aria-label="Send message"
           >
