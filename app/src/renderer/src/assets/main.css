@@ -2449,6 +2449,24 @@ button {
   position: relative;
 }
 
+/* Pane + divider + chat, split horizontally or (chat-below mode) vertically.
+   The file tree lives outside this wrapper, always on the left. */
+.split-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.split-main.vert {
+  flex-direction: column;
+}
+
+.split-divider.horiz {
+  width: auto;
+  height: 6px;
+  cursor: row-resize;
+}
+
 .split-divider::after {
   content: '';
   position: absolute;

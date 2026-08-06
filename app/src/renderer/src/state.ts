@@ -211,13 +211,17 @@ export const useStore = create<CoveState>((set, get) => ({
   openFile: {},
   // A text file replaces the browser pane's slot; hide the native view so it can't
   // cover the viewer, and remember which file is showing.
-  openFileInViewer: (workspaceId, path) =>
+  openFileInViewer: (workspaceId, path) => {
+    localStorage.setItem(`openFile:${workspaceId}`, path)
     set((s) => ({
       activeWorkspaceId: workspaceId,
       openFile: { ...s.openFile, [workspaceId]: path }
-    })),
-  closeFile: (workspaceId) =>
-    set((s) => ({ openFile: { ...s.openFile, [workspaceId]: null } })),
+    }))
+  },
+  closeFile: (workspaceId) => {
+    localStorage.removeItem(`openFile:${workspaceId}`)
+    set((s) => ({ openFile: { ...s.openFile, [workspaceId]: null } }))
+  },
   openPath: (workspaceId, absPath) => {
     const ext = absPath.slice(absPath.lastIndexOf('.') + 1).toLowerCase()
     if (FILE_TEXT_EXTS.has(ext)) {
@@ -264,7 +268,9 @@ export const useStore = create<CoveState>((set, get) => ({
     const active = get().activeWorkspaceId
     const allIds = tree.flatMap((g) => g.workspaces.map((w) => w.id))
     if (!active || !allIds.includes(active)) {
-      set({ activeWorkspaceId: allIds[0] ?? null })
+      // Land where you left off, falling back to the first project.
+      const saved = localStorage.getItem('activeWorkspace')
+      set({ activeWorkspaceId: saved && allIds.includes(saved) ? saved : (allIds[0] ?? null) })
     }
     await get().refreshChats()
   },
@@ -297,7 +303,10 @@ export const useStore = create<CoveState>((set, get) => ({
   openRoutineRun: (id) => set({ openRoutineRunId: id }),
   closeRoutineRun: () => set({ openRoutineRunId: null }),
 
-  setActive: (id) => set({ activeWorkspaceId: id, coldStart: false }),
+  setActive: (id) => {
+    localStorage.setItem('activeWorkspace', id)
+    set({ activeWorkspaceId: id, coldStart: false })
+  },
   setStatus: (workspaceId, status) =>
     set((s) => ({ statuses: { ...s.statuses, [workspaceId]: status } })),
   addPort: (workspaceId, port) =>
@@ -323,9 +332,11 @@ export const useStore = create<CoveState>((set, get) => ({
     set({ ports: alive })
   },
   toggleFiles: (workspaceId) =>
-    set((s) => ({
-      filesOpen: { ...s.filesOpen, [workspaceId]: !s.filesOpen[workspaceId] }
-    })),
+    set((s) => {
+      const next = !s.filesOpen[workspaceId]
+      localStorage.setItem(`filesOpen:${workspaceId}`, next ? '1' : '0')
+      return { filesOpen: { ...s.filesOpen, [workspaceId]: next } }
+    }),
 
   toggleBrowser: (workspaceId) =>
     set((s) => {
@@ -439,7 +450,15 @@ export const useStore = create<CoveState>((set, get) => ({
         chats: { ...s.chats, [workspaceId]: list },
         activeChatId: {
           ...s.activeChatId,
-          [workspaceId]: s.activeChatId[workspaceId] ?? list[list.length - 1].id
+          [workspaceId]:
+            s.activeChatId[workspaceId] ??
+            // Prefer the chat that was on screen last run, if it still exists.
+            (() => {
+              const saved = localStorage.getItem(`activeChat:${workspaceId}`)
+              return saved && list.some((c) => c.id === saved)
+                ? saved
+                : list[list.length - 1].id
+            })()
         }
       }))
       return list
@@ -459,8 +478,10 @@ export const useStore = create<CoveState>((set, get) => ({
       activeChatId: { ...s.activeChatId, [workspaceId]: id }
     }))
   },
-  selectChat: (workspaceId, chatId) =>
-    set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } })),
+  selectChat: (workspaceId, chatId) => {
+    localStorage.setItem(`activeChat:${workspaceId}`, chatId)
+    set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } }))
+  },
   removeChat: async (workspaceId, chatId) => {
     await window.cove.chatDelete(chatId)
     const list = await window.cove.chatList(workspaceId)
