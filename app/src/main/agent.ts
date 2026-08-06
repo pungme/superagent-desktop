@@ -350,13 +350,19 @@ function suggestTitle(cwd: string, excerpt: string): Promise<string | null> {
       out += c.toString('utf8')
     })
     proc.on('error', () => done(null))
-    proc.on('close', () => {
+    proc.on('close', (code) => {
+      // A non-zero exit means the CLI printed diagnostics, not a title.
+      if (code !== 0) return done(null)
       const title = out
         .trim()
         .split('\n')
         .filter(Boolean)
         .pop()
         ?.replace(/^["']|["']$/g, '')
+      // The CLI reports its own failures on stdout ("Error: Reached max turns"),
+      // and one of those once became a chat's actual title. Anything that reads
+      // as an error keeps the placeholder instead.
+      if (title && /^(error|⚠|warning)\b|max turns|rate limit/i.test(title)) return done(null)
       done(title && title.length <= 80 ? title : null)
     })
   })
