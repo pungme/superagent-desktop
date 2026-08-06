@@ -5,9 +5,9 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
+import { DashboardPanel } from './components/DashboardPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
-import { NewProjectDialog } from './components/NewProjectDialog'
 import { useStore } from './state'
 
 const SIDEBAR_MIN = 200
@@ -133,6 +133,37 @@ function App(): React.JSX.Element {
     .map((id) => allWorkspaces.find((w) => w.id === id))
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [dashOpen, setDashOpen] = useState(false)
+  useEffect(() => {
+    const open = (): void => setDashOpen(true)
+    const close = (): void => setDashOpen(false)
+    window.addEventListener('cove:open-dashboard', open)
+    // Picking anything in the sidebar leaves the dashboard.
+    window.addEventListener('cove:close-dashboard', close)
+    return () => {
+      window.removeEventListener('cove:open-dashboard', open)
+      window.removeEventListener('cove:close-dashboard', close)
+    }
+  }, [])
+
+  // Chat row context-menu actions, confirmed in main where the native menu lives.
+  useEffect(() => {
+    const offClear = window.cove.onChatCleared(({ chatId, workspaceId }) => {
+      // Wipe transcript + session; the open chat resets itself via this event.
+      window.cove.chatSave(chatId, '[]')
+      window.cove.chatUpdate(chatId, { claudeSessionId: null })
+      window.dispatchEvent(
+        new CustomEvent('cove:chat-cleared', { detail: { chatId, workspaceId } })
+      )
+    })
+    const offDelete = window.cove.onChatDeleteRequest(({ chatId, workspaceId }) => {
+      void useStore.getState().removeChat(workspaceId, chatId)
+    })
+    return () => {
+      offClear()
+      offDelete()
+    }
+  }, [])
   const addGroup = useStore((s) => s.addGroup)
   const addWorkspace = useStore((s) => s.addWorkspace)
 
@@ -223,7 +254,7 @@ function App(): React.JSX.Element {
           )}
         </div>
         <HookConsent />
-        {openedWorkspaces.length === 0 ? (
+        {openedWorkspaces.length === 0 && !dashOpen ? (
           <div className="empty-state">
             <div className="empty-state-inner">
               <h1>Welcome to SuperAgent</h1>
@@ -238,17 +269,19 @@ function App(): React.JSX.Element {
             <div
               key={ws.id}
               className="workspace-host"
-              style={{ display: ws.id === activeId ? 'flex' : 'none' }}
+              style={{ display: ws.id === activeId && !dashOpen ? 'flex' : 'none' }}
             >
-              <WorkspaceView ws={ws} visible={ws.id === activeId} />
+              {/* visible also detaches the native browser view — it would
+                  composite above the dashboard otherwise. */}
+              <WorkspaceView ws={ws} visible={ws.id === activeId && !dashOpen} />
             </div>
           ))
         )}
+        {dashOpen && <DashboardPanel onClose={() => setDashOpen(false)} />}
       </main>
       <PreviewToast />
       <UpdateBanner />
       <IntroSplash />
-      <NewProjectDialog />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )

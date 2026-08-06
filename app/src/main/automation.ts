@@ -1,5 +1,5 @@
 import { WebContents, ipcMain } from 'electron'
-import { getPaneWebContents } from './browser'
+import { getPaneWebContents, paneLog } from './browser'
 import { broadcastToWindows, pushBounded, normalizeUrl } from './util'
 
 /**
@@ -217,16 +217,47 @@ export async function navigate(paneId: string, url: string): Promise<string> {
     // exists but is *hidden* (the user closed the preview) would otherwise be
     // navigated invisibly — the "sometimes it doesn't open" bug. If no pane
     // exists yet, wait briefly for the renderer to create it.
+    const existed = !!getPaneWebContents(paneId)
     broadcastToWindows('browser:request-open', paneId)
-    if (!getPaneWebContents(paneId)) {
+    if (!existed) {
       await pollUntil(() => !!getPaneWebContents(paneId), 3000)
+      paneLog(
+        'agent-navigate-coldstart',
+        paneId,
+        getPaneWebContents(paneId) ? 'pane-appeared' : 'PANE-NEVER-APPEARED'
+      )
+      // The renderer's pane mount fires its own initial load (saved URL or the
+      // empty state) right after creation — navigating in the same tick got our
+      // load ERR_ABORTED and left the pane blank (seen live: levantto-shop).
+      // Let the mount settle before we drive it.
+      await new Promise((r) => setTimeout(r, 350))
     }
   }
   const contents = wc(paneId)
   const target = normalizeUrl(url)
   // The agent drives the user's own browser on their own machine — real sites
   // included (that's the whole point of browser automation / routines).
-  await contents.loadURL(target)
+  try {
+    await contents.loadURL(target)
+  } catch (err) {
+    if (/ERR_ABORTED/.test(String(err))) {
+      // Superseded by a competing navigation (pane init, a redirect) — ours
+      // still matters, so try once more after the dust settles.
+      paneLog('agent-navigate-aborted-retry', paneId, target.slice(0, 120))
+      await new Promise((r) => setTimeout(r, 600))
+      await wc(paneId).loadURL(target)
+    } else {
+      // A rejected loadURL leaves the pane blank — the empty-pane report.
+      // Record it here too (did-fail-load in browser.ts has the event view).
+      paneLog(
+        'agent-navigate-failed',
+        paneId,
+        `${target.slice(0, 120)} ${String(err).slice(0, 160)}`
+      )
+      throw err
+    }
+  }
+  paneLog('agent-navigate', paneId, contents.getURL().slice(0, 120))
   return contents.getURL()
 }
 

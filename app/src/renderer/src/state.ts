@@ -119,6 +119,8 @@ interface CoveState {
   refreshChats: () => Promise<void>
   loadChats: (workspaceId: string) => Promise<Chat[]>
   newChat: (workspaceId: string) => Promise<void>
+  /** New chat running in a fresh git worktree of the project. */
+  newChatInWorktree: (workspaceId: string, projectPath: string) => Promise<boolean>
   selectChat: (workspaceId: string, chatId: string) => void
   removeChat: (workspaceId: string, chatId: string) => Promise<void>
   renameChat: (workspaceId: string, chatId: string, title: string) => Promise<void>
@@ -400,7 +402,7 @@ export const useStore = create<CoveState>((set, get) => ({
       const known = s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))
       if (known && !s.browserOpen[workspaceId]) {
         // Persist too — an agent-opened pane must survive restarts exactly like
-        // a user-opened one.
+        // a user-opened one (this was the hole: agent panes vanished on update).
         localStorage.setItem(`paneOpen:${workspaceId}`, '1')
         set({ browserOpen: { ...s.browserOpen, [workspaceId]: true } })
       }
@@ -417,6 +419,11 @@ export const useStore = create<CoveState>((set, get) => ({
       // the user to this workspace when the app is actually frontmost — a
       // background agent must never yank the view while they're in another app.
       const focused = document.hasFocus()
+      // Persist here too. This handler runs BEFORE any browser:activity event
+      // and marks the pane open in memory — which made the activity listener's
+      // "not open yet" persist guard skip, so agent-opened panes still vanished
+      // on restart (seen live: levantto-shop).
+      localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       set({
         browserOpen: { ...s.browserOpen, [workspaceId]: true },
         ...(focused ? { activeWorkspaceId: workspaceId, coldStart: false } : {})
@@ -484,11 +491,27 @@ export const useStore = create<CoveState>((set, get) => ({
       activeChatId: { ...s.activeChatId, [workspaceId]: id }
     }))
   },
+  newChatInWorktree: async (workspaceId, projectPath) => {
+    const wt = await window.cove.worktreeCreate(projectPath)
+    if (!wt) return false // not a git repo, or git refused — caller says so
+    const id = await window.cove.chatCreate(workspaceId, wt.path)
+    const list = await window.cove.chatList(workspaceId)
+    set((s) => ({
+      chats: { ...s.chats, [workspaceId]: list },
+      activeChatId: { ...s.activeChatId, [workspaceId]: id }
+    }))
+    return true
+  },
   selectChat: (workspaceId, chatId) => {
     localStorage.setItem(`activeChat:${workspaceId}`, chatId)
     set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } }))
   },
   removeChat: async (workspaceId, chatId) => {
+    const dying = get().chats[workspaceId]?.find((c) => c.id === chatId)
+    if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
+      const projectPath = dying.cwd.split('/.worktrees/')[0]
+      void window.cove.worktreeRemove(projectPath, dying.cwd)
+    }
     await window.cove.chatDelete(chatId)
     const list = await window.cove.chatList(workspaceId)
     set((s) => {
@@ -615,9 +638,11 @@ export const useStore = create<CoveState>((set, get) => ({
     const tree = await window.cove.updateGroup(id, { collapsed: collapsed ? 1 : 0 })
     set({ tree })
   },
-  // Opens the Code-vs-Browser chooser rather than immediately picking a folder.
+  // Straight to the folder picker — browser projects have their own entry
+  // point (the Browse section's +), so the Code-vs-Browser chooser was a
+  // pointless extra click.
   addWorkspace: async (groupId) => {
-    set({ newProjectGroupId: groupId })
+    await get().createCodeProject(groupId)
   },
   newProjectGroupId: null,
   closeNewProject: () => set({ newProjectGroupId: null }),

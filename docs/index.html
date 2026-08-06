@@ -1,613 +1,227 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SuperAgent — the desktop app that lets Claude Code use the web</title>
-    <meta
-      name="description"
-      content="Claude Code writes the code. SuperAgent gives it a home: a persistent chat, a real browser it drives on the sites you're logged into, files beside the chat, and routines that run on a schedule — on your own Claude subscription."
-    />
-    <style>
-      :root {
-        --ground: #fbfbfc;
-        --raised: #ffffff;
-        --sunk: #f3f3f5;
-        --ink: #14161a;
-        --ink-soft: #3a3e46;
-        --muted: #6c717a;
-        --faint: #9aa0a9;
-        --line: rgba(20, 22, 26, 0.1);
-        --line-strong: rgba(20, 22, 26, 0.16);
-        --shadow: rgba(20, 22, 26, 0.09);
-        --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --ground: #0c0d10;
-          --raised: #16181d;
-          --sunk: #101215;
-          --ink: #f3f4f6;
-          --ink-soft: #c3c7ce;
-          --muted: #8b909a;
-          --faint: #595e68;
-          --line: rgba(255, 255, 255, 0.1);
-          --line-strong: rgba(255, 255, 255, 0.17);
-          --shadow: rgba(0, 0, 0, 0.55);
-        }
-      }
-      :root[data-theme="dark"] {
-        --ground: #0c0d10;
-        --raised: #16181d;
-        --sunk: #101215;
-        --ink: #f3f4f6;
-        --ink-soft: #c3c7ce;
-        --muted: #8b909a;
-        --faint: #595e68;
-        --line: rgba(255, 255, 255, 0.1);
-        --line-strong: rgba(255, 255, 255, 0.17);
-        --shadow: rgba(0, 0, 0, 0.55);
-      }
-      :root[data-theme="light"] {
-        --ground: #fbfbfc;
-        --raised: #ffffff;
-        --sunk: #f3f3f5;
-        --ink: #14161a;
-        --ink-soft: #3a3e46;
-        --muted: #6c717a;
-        --faint: #9aa0a9;
-        --line: rgba(20, 22, 26, 0.1);
-        --line-strong: rgba(20, 22, 26, 0.16);
-        --shadow: rgba(20, 22, 26, 0.09);
-      }
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SuperAgent — a home for your agent</title>
+  <meta
+    name="description"
+    content="SuperAgent is a Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work."
+  />
+  <link rel="canonical" href="https://superagent.computer/" />
+  <link rel="icon" href="logo.png" />
+  <meta property="og:title" content="SuperAgent — a home for your agent" />
+  <meta property="og:description" content="A Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work." />
+  <meta property="og:image" content="https://superagent.computer/hero.png" />
+  <meta property="og:url" content="https://superagent.computer/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    :root {
+      --paper: #fcfcfa;
+      --ink: #1a1b1e;
+      --muted: #6e727a;
+      --faint: #9a9ea6;
+      --line: rgba(26, 27, 30, 0.1);
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    img { max-width: 100%; display: block; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
 
-      * {
-        box-sizing: border-box;
-      }
-      html {
-        scroll-behavior: smooth;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto;
-        }
-        * {
-          animation: none !important;
-          transition: none !important;
-        }
-      }
-      body {
-        margin: 0;
-        background: var(--ground);
-        color: var(--ink);
-        font-family: var(--sans);
-        line-height: 1.6;
-        -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
-      }
-      .wrap {
-        width: 100%;
-        max-width: 1080px;
-        margin: 0 auto;
-        padding: 0 28px;
-      }
-      a {
-        color: inherit;
-      }
-      img {
-        max-width: 100%;
-      }
+    /* nav */
+    .nav { border-bottom: 1px solid var(--line); }
+    .nav-inner {
+      display: flex; align-items: baseline; gap: 24px;
+      max-width: 960px; margin: 0 auto; padding: 20px 24px;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -0.01em; text-decoration: none; }
+    .nav-logo img { width: 20px; height: 20px; border-radius: 5px; align-self: center; }
+    .nav-links { margin-left: auto; display: flex; gap: 22px; }
+    .nav-links a { text-decoration: none; font-size: 0.88rem; color: var(--muted); }
+    .nav-links a:hover { color: var(--ink); }
 
-      /* ---- top bar ---- */
-      header {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        backdrop-filter: saturate(1.4) blur(14px);
-        background: color-mix(in srgb, var(--ground) 82%, transparent);
-        border-bottom: 1px solid var(--line);
-      }
-      .bar {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        height: 62px;
-      }
-      .mark {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-weight: 640;
-        letter-spacing: -0.01em;
-        font-size: 15px;
-      }
-      .mark img {
-        width: 24px;
-        height: 24px;
-        border-radius: 6px;
-      }
-      .bar-spacer {
-        flex: 1;
-      }
-      .bar a.nav {
-        color: var(--muted);
-        text-decoration: none;
-        font-size: 13.5px;
-        transition: color 0.15s;
-      }
-      .bar a.nav:hover {
-        color: var(--ink);
-      }
-      @media (max-width: 620px) {
-        .bar a.nav {
-          display: none;
-        }
-      }
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-family: var(--sans);
-        font-size: 13.5px;
-        font-weight: 560;
-        text-decoration: none;
-        padding: 8px 15px;
-        border-radius: 9px;
-        border: 1px solid var(--line-strong);
-        color: var(--ink);
-        background: transparent;
-        transition:
-          background 0.15s,
-          border-color 0.15s,
-          transform 0.06s;
-      }
-      .btn:hover {
-        background: color-mix(in srgb, var(--ink) 6%, transparent);
-      }
-      .btn:active {
-        transform: translateY(1px);
-      }
-      .btn-primary {
-        background: var(--ink);
-        color: var(--ground);
-        border-color: var(--ink);
-      }
-      .btn-primary:hover {
-        background: color-mix(in srgb, var(--ink) 88%, var(--ground));
-      }
-      .btn:focus-visible {
-        outline: 2px solid var(--ink);
-        outline-offset: 2px;
-      }
+    /* hero */
+    .hero { padding: 88px 0 72px; }
+    .hero-mark {
+      width: 56px; height: 56px; border-radius: 14px; margin-bottom: 28px;
+      box-shadow: 0 1px 3px rgba(26,27,30,0.12), 0 8px 20px -8px rgba(26,27,30,0.2);
+    }
+    .hero h1 {
+      max-width: 640px;
+      font-size: clamp(2.1rem, 4.6vw, 3.3rem);
+      line-height: 1.1; letter-spacing: -0.03em; font-weight: 700;
+    }
+    .hero-sub { margin-top: 20px; max-width: 540px; font-size: 1.08rem; color: var(--muted); }
+    .hero-ctas { display: flex; align-items: center; gap: 22px; margin-top: 32px; flex-wrap: wrap; }
+    .btn {
+      display: inline-block; background: var(--ink); color: #fff;
+      padding: 11px 22px; border-radius: 8px;
+      text-decoration: none; font-weight: 600; font-size: 0.94rem;
+    }
+    .btn:hover { background: #000; }
+    .link { font-size: 0.94rem; color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 1px; }
+    .link:hover { color: var(--ink); border-color: var(--ink); }
+    .hero-note { margin-top: 18px; font-size: 0.8rem; color: var(--faint); }
 
-      /* ---- hero ---- */
-      .hero {
-        padding: 74px 0 30px;
-        text-align: center;
-      }
-      .hero-logo {
-        width: 76px;
-        height: 76px;
-        border-radius: 18px;
-        box-shadow: 0 14px 40px -12px var(--shadow);
-      }
-      .eyebrow {
-        font-family: var(--mono);
-        font-size: 12px;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--muted);
-        margin-top: 22px;
-      }
-      h1 {
-        font-size: clamp(2.5rem, 6.2vw, 4.2rem);
-        line-height: 1.02;
-        letter-spacing: -0.038em;
-        font-weight: 690;
-        margin: 14px auto 0;
-        max-width: 16ch;
-        text-wrap: balance;
-      }
-      .lede {
-        font-size: clamp(1.08rem, 2.1vw, 1.3rem);
-        color: var(--ink-soft);
-        max-width: 58ch;
-        margin: 22px auto 0;
-        text-wrap: pretty;
-      }
-      .cta-row {
-        display: flex;
-        gap: 12px;
-        justify-content: center;
-        flex-wrap: wrap;
-        margin-top: 32px;
-      }
-      .cta-note {
-        font-family: var(--mono);
-        font-size: 12px;
-        color: var(--faint);
-        margin-top: 15px;
-      }
+    .shot { margin: 64px 0 0; }
+    .shot img { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 1px 3px rgba(26,27,30,0.06), 0 16px 40px -16px rgba(26,27,30,0.14); }
+    .shot figcaption { margin-top: 12px; font-size: 0.8rem; color: var(--faint); }
 
-      /* ---- product shot ---- */
-      .shot {
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: 0 40px 90px -34px var(--shadow);
-        background: var(--sunk);
-        border: 1px solid var(--line);
-      }
-      .hero .shot {
-        margin: 50px auto 0;
-        max-width: 1000px;
-      }
-      .shot img {
-        display: block;
-        width: 100%;
-        height: auto;
-      }
+    /* sections */
+    section { padding: 72px 0; border-top: 1px solid var(--line); }
+    h2 { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; }
+    .kicker { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); display: block; margin-bottom: 8px; }
 
-      /* ---- section scaffold ---- */
-      section {
-        padding: 72px 0;
-      }
-      .kicker {
-        font-family: var(--mono);
-        font-size: 12px;
-        letter-spacing: 0.07em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-      h2 {
-        font-size: clamp(1.8rem, 3.8vw, 2.5rem);
-        line-height: 1.08;
-        letter-spacing: -0.028em;
-        font-weight: 660;
-        margin: 12px 0 0;
-        max-width: 18ch;
-        text-wrap: balance;
-      }
-      .section-lede {
-        color: var(--ink-soft);
-        max-width: 56ch;
-        margin: 16px 0 0;
-        font-size: 1.08rem;
-      }
+    .feat-list { margin-top: 36px; }
+    .feat {
+      display: grid; grid-template-columns: 220px 1fr; gap: 8px 40px;
+      padding: 18px 0; border-bottom: 1px solid var(--line);
+    }
+    .feat:last-child { border-bottom: none; }
+    .feat b { font-size: 0.95rem; font-weight: 650; letter-spacing: -0.01em; }
+    .feat span { font-size: 0.95rem; color: var(--muted); }
 
-      /* ---- the "why" band ---- */
-      .why {
-        background: var(--sunk);
-        border-top: 1px solid var(--line);
-        border-bottom: 1px solid var(--line);
-      }
-      .why-inner {
-        text-align: center;
-      }
-      .why h2 {
-        margin: 0 auto;
-      }
-      .why p {
-        color: var(--ink-soft);
-        max-width: 62ch;
-        margin: 18px auto 0;
-        font-size: 1.12rem;
-      }
+    .midshot { margin: 48px 0 0; }
 
-      /* ---- split feature ---- */
-      .split {
-        display: grid;
-        grid-template-columns: 1fr 1.15fr;
-        gap: 52px;
-        align-items: center;
-      }
-      .split.flip {
-        grid-template-columns: 1.15fr 1fr;
-      }
-      .split.flip .copy {
-        order: 2;
-      }
-      @media (max-width: 860px) {
-        .split,
-        .split.flip {
-          grid-template-columns: 1fr;
-          gap: 30px;
-        }
-        .split.flip .copy {
-          order: 0;
-        }
-      }
-      ul.checks {
-        list-style: none;
-        padding: 0;
-        margin: 22px 0 0;
-        display: flex;
-        flex-direction: column;
-        gap: 13px;
-      }
-      ul.checks li {
-        display: flex;
-        gap: 11px;
-        align-items: flex-start;
-        color: var(--ink-soft);
-        font-size: 1rem;
-      }
-      ul.checks .tick {
-        margin-top: 3px;
-        width: 16px;
-        height: 16px;
-        flex-shrink: 0;
-        color: var(--ink);
-      }
-      ul.checks b {
-        color: var(--ink);
-        font-weight: 600;
-      }
+    /* how */
+    .how-list { margin-top: 32px; max-width: 620px; }
+    .how-item { display: flex; gap: 20px; padding: 14px 0; }
+    .how-item .n { font-family: var(--mono); font-size: 0.8rem; color: var(--faint); padding-top: 3px; }
+    .how-item p { font-size: 0.97rem; color: var(--muted); }
+    .how-item p b { color: var(--ink); font-weight: 650; }
 
-      /* ---- pillars ---- */
-      .pillars {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1px;
-        margin-top: 44px;
-        background: var(--line);
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        overflow: hidden;
-      }
-      .pillar {
-        background: var(--raised);
-        padding: 30px 26px 34px;
-      }
-      .pillar .ico {
-        width: 28px;
-        height: 28px;
-        color: var(--ink);
-      }
-      .pillar h3 {
-        font-size: 1.16rem;
-        letter-spacing: -0.01em;
-        margin: 18px 0 0;
-        font-weight: 620;
-      }
-      .pillar p {
-        color: var(--muted);
-        font-size: 0.97rem;
-        margin: 9px 0 0;
-      }
-      @media (max-width: 760px) {
-        .pillars {
-          grid-template-columns: 1fr;
-        }
-      }
+    /* cta */
+    .cta { text-align: left; }
+    .cta h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -0.025em; }
+    .cta .hero-ctas { margin-top: 24px; }
 
-      /* ---- trust ---- */
-      .trust-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 40px;
-      }
-      .trust-grid h3 {
-        font-size: 1.04rem;
-        margin: 0;
-        font-weight: 620;
-        display: flex;
-        align-items: center;
-        gap: 9px;
-      }
-      .trust-grid p {
-        color: var(--muted);
-        font-size: 0.95rem;
-        margin: 10px 0 0;
-      }
-      .trust-grid .ico {
-        width: 18px;
-        height: 18px;
-        color: var(--ink);
-        flex-shrink: 0;
-      }
-      @media (max-width: 760px) {
-        .trust-grid {
-          grid-template-columns: 1fr;
-          gap: 28px;
-        }
-      }
+    footer { border-top: 1px solid var(--line); }
+    .foot {
+      max-width: 960px; margin: 0 auto; padding: 28px 24px;
+      display: flex; gap: 20px; align-items: baseline; flex-wrap: wrap;
+      font-size: 0.84rem; color: var(--muted);
+    }
+    .foot-links { margin-left: auto; display: flex; gap: 18px; }
+    .foot-links a { text-decoration: none; }
+    .foot-links a:hover { color: var(--ink); }
 
-      /* ---- final cta ---- */
-      .final {
-        text-align: center;
-        padding: 92px 0;
-      }
-      .final h2 {
-        margin: 0 auto;
-        font-size: clamp(2rem, 4.4vw, 2.9rem);
-      }
-
-      footer {
-        border-top: 1px solid var(--line);
-        padding: 30px 0 48px;
-        color: var(--muted);
-        font-size: 13px;
-      }
-      .foot {
-        display: flex;
-        align-items: center;
-        gap: 18px;
-        flex-wrap: wrap;
-      }
-      footer a {
-        color: var(--muted);
-        text-decoration: none;
-      }
-      footer a:hover {
-        color: var(--ink);
-      }
-      .foot-spacer {
-        flex: 1;
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <div class="wrap bar">
-        <span class="mark">
-          <img src="logo.png" alt="" />
-          SuperAgent
-        </span>
-        <span class="bar-spacer"></span>
-        <a class="nav" href="#browser">The browser</a>
-        <a class="nav" href="#build">Build</a>
-        <a class="nav" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
-        <a class="btn btn-primary" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg" target="_blank" rel="noopener">Download</a>
+    @media (max-width: 640px) {
+      .feat { grid-template-columns: 1fr; gap: 2px; }
+      .hero { padding: 56px 0 48px; }
+      section { padding: 56px 0; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#"><img src="logo.png" alt="" /><span>SuperAgent</span></a>
+      <div class="nav-links">
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download</a>
       </div>
-    </header>
+    </div>
+  </nav>
 
-    <main>
-      <section class="hero wrap">
-        <img class="hero-logo" src="logo.png" alt="SuperAgent logo" />
-        <p class="eyebrow">macOS · local · open source · your own Claude subscription</p>
-        <h1>The home for Claude&nbsp;Code.</h1>
-        <p class="lede">
-          Your agent already writes the code. SuperAgent gives it a place to live: one
-          persistent chat, a real browser it <em>drives</em> on the sites you're logged
-          into, and routines that run themselves — all in a Mac app that runs on your own
-          machine, so you can read exactly what it does.
-        </p>
-        <div class="cta-row">
-          <a class="btn btn-primary" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg" target="_blank" rel="noopener">Download for Mac</a>
-          <a class="btn" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub</a>
-        </div>
-        <p class="cta-note">Apple Silicon · .dmg · free &amp; open source</p>
-
-        <div class="shot">
-          <img src="hero.png" alt="SuperAgent: the agent reading a live web page in the built-in browser on the left, with the chat and its steps on the right." />
-        </div>
-      </section>
-
-      <section class="why">
-        <div class="wrap why-inner">
-          <span class="kicker">Why it exists</span>
-          <h2>A terminal forgets. This doesn't.</h2>
-          <p>
-            The command line is a great place to run an agent and a terrible place to
-            <em>live</em> with one. Close it and the context is gone; it can't see a page,
-            can't keep a schedule, can't sit beside your work. SuperAgent keeps the agent
-            you already pay for — and gives it hands, memory, and a screen.
-          </p>
-        </div>
-      </section>
-
-      <section id="browser" class="wrap">
-        <div class="split">
-          <div class="copy">
-            <span class="kicker">The part nothing else does</span>
-            <h2>A browser your agent can drive.</h2>
-            <p class="section-lede">
-              Not a headless browser it describes to you second-hand — the real one on your
-              screen, using your logins. Ask, and watch it navigate, click, type, and read
-              the page back. Step in and take the wheel whenever you want.
-            </p>
-            <ul class="checks">
-              <li><svg class="tick" viewBox="0 0 20 20" fill="none"><path d="M4 10.5l3.5 3.5L16 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><span><b>Your sessions</b> — it works inside the sites you're already signed into.</span></li>
-              <li><svg class="tick" viewBox="0 0 20 20" fill="none"><path d="M4 10.5l3.5 3.5L16 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><span><b>Desktop &amp; mobile</b> preview — see any site the way real users do.</span></li>
-              <li><svg class="tick" viewBox="0 0 20 20" fill="none"><path d="M4 10.5l3.5 3.5L16 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><span><b>You're never locked out</b> — click in and browse yourself any time.</span></li>
-            </ul>
-          </div>
-          <div class="shot">
-            <img src="browser-view.png" alt="The agent navigating a live web page in SuperAgent's browser pane, with the browsing steps in the chat." />
-          </div>
-        </div>
-      </section>
-
-      <section id="build" class="wrap">
-        <div class="split flip">
-          <div class="copy">
-            <span class="kicker">Build &amp; watch, side by side</span>
-            <h2>Build a page and watch it render — in one window.</h2>
-            <p class="section-lede">
-              Ask for a webpage and it appears beside the chat as the agent writes it. No
-              alt-tabbing between an editor, a terminal, and a browser to find out whether
-              it worked — the code, the steps, and the live page share one screen.
-            </p>
-            <ul class="checks">
-              <li><svg class="tick" viewBox="0 0 20 20" fill="none"><path d="M4 10.5l3.5 3.5L16 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><span><b>Live preview</b> of your dev server or any local file, right in the pane.</span></li>
-              <li><svg class="tick" viewBox="0 0 20 20" fill="none"><path d="M4 10.5l3.5 3.5L16 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><span><b>Steps and edits grouped</b> so the conversation stays readable, with a live task list up top.</span></li>
-              <li><svg class="tick" viewBox="0 0 20 20" fill="none"><path d="M4 10.5l3.5 3.5L16 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><span><b>Message it mid-task</b> — it reads you and adjusts, like the terminal can't.</span></li>
-            </ul>
-          </div>
-          <div class="shot">
-            <img src="build.png" alt="SuperAgent building a landing page: the code chat on the right, the page it just wrote rendering live in the pane on the left." />
-          </div>
-        </div>
-      </section>
-
-      <section class="wrap">
-        <span class="kicker">And when you're not watching</span>
-        <h2>Turn any task into a routine.</h2>
-        <p class="section-lede">"Every morning, check this and follow up." It re-runs against your browser and your logins, on a timer, while the app is open — so the repetitive things just happen.</p>
-        <div class="pillars">
-          <div class="pillar">
-            <svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M4 5.5A2.5 2.5 0 016.5 3h11A2.5 2.5 0 0120 5.5v8A2.5 2.5 0 0117.5 16H9l-4 4V5.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
-            <h3>One chat that stays</h3>
-            <p>A persistent conversation per project. Quit, reopen, and the whole thread — context and all — is still there.</p>
-          </div>
-          <div class="pillar">
-            <svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" /><path d="M3 12h18M12 3c2.5 2.4 3.8 5.6 3.8 9s-1.3 6.6-3.8 9c-2.5-2.4-3.8-5.6-3.8-9S9.5 5.4 12 3z" stroke="currentColor" stroke-width="1.5" /></svg>
-            <h3>Real browser, real logins</h3>
-            <p>The agent drives the same browser you use, with the sessions you set up by hand. You watch, and you can take over.</p>
-          </div>
-          <div class="pillar">
-            <svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" /><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            <h3>Routines on a timer</h3>
-            <p>Schedule the repetitive work once and let it run itself, against your session, in the background.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="why">
-        <div class="wrap trust-grid">
-          <div>
-            <h3><svg class="ico" viewBox="0 0 24 24" fill="none"><rect x="4.5" y="10" width="15" height="10" rx="2" stroke="currentColor" stroke-width="1.5" /><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.5" /></svg>Your machine, your keys</h3>
-            <p>Everything runs locally on your Mac against your own Claude subscription. No middleman server, no second account, no per-seat SaaS.</p>
-          </div>
-          <div>
-            <h3><svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M7 8l-4 4 4 4M17 8l4 4-4 4M14 5l-4 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>Open source</h3>
-            <p>The whole app is on GitHub. Read exactly how it drives your browser, build it yourself, or fork it. Nothing hidden.</p>
-          </div>
-          <div>
-            <h3><svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.4-2.9 7.9-7 9-4.1-1.1-7-4.6-7-9V6l7-3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>You set the limits</h3>
-            <p>Per chat: choose the model and how far the agent can reach — full access, edits only, or a read-only plan.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="final wrap">
-        <h2>Give your agent somewhere to live.</h2>
-        <div class="cta-row">
-          <a class="btn btn-primary" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg" target="_blank" rel="noopener">Download for Mac</a>
-          <a class="btn" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">Read the code</a>
-        </div>
-        <p class="cta-note">Requires Claude Code &amp; an active Claude subscription</p>
-      </section>
-    </main>
-
-    <footer>
-      <div class="wrap foot">
-        <span class="mark"><img src="logo.png" alt="" style="width:22px;height:22px;border-radius:6px" /> SuperAgent</span>
-        <span class="foot-spacer"></span>
-        <a href="https://github.com/pungme/superagent-desktop">GitHub</a>
-        <a href="https://github.com/pungme/superagent-desktop/releases/latest">Download</a>
-        <a href="#browser">The browser</a>
+  <header class="hero">
+    <div class="wrap">
+      <img class="hero-mark" src="logo.png" alt="SuperAgent logo" width="56" height="56" />
+      <h1>A home for your agent.</h1>
+      <p class="hero-sub">
+        SuperAgent is a Mac app that gives Claude Code a place to live — with a real
+        browser it drives, so it opens pages, tests what it builds, and shows you,
+        right next to the chat.
+      </p>
+      <div class="hero-ctas">
+        <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+        <a class="link" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub</a>
       </div>
-    </footer>
+      <p class="hero-note">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription</p>
+      <figure class="shot">
+        <img src="hero.png" alt="SuperAgent: a chat with Claude Code beside a live browser showing Wikipedia" width="2560" height="1600" />
+      </figure>
+    </div>
+  </header>
 
-    <script>
-      (function () {
-        try {
-          var t = localStorage.getItem("theme");
-          if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
-        } catch (e) {}
-      })();
-    </script>
-  </body>
+  <section id="features">
+    <div class="wrap">
+      <span class="kicker">Features</span>
+      <h2>An agent that can see what it's doing.</h2>
+      <div class="feat-list">
+        <div class="feat"><b>A real browser</b><span>Ask for a page and it opens beside the conversation. The agent reads it, clicks around, screenshots it.</span></div>
+        <div class="feat"><b>Browser tabs</b><span>Plain tabs at the top of the sidebar. Browse first, summon the agent when you need it.</span></div>
+        <div class="feat"><b>Desktop &amp; phone at once</b><span>One click shows the same page in a desktop card and an iPhone frame — same session, both live.</span></div>
+        <div class="feat"><b>Worktree chats</b><span>Start a chat on its own git worktree. The agent works on an isolated branch; your checkout stays clean.</span></div>
+        <div class="feat"><b>Dashboard</b><span>Turns per day, tasks done, a streak — and which projects actually got your time. Computed locally.</span></div>
+        <div class="feat"><b>Files, PDFs &amp; simulators</b><span>Drag files into the chat, annotate PDFs in place, boot an iOS Simulator with a sentence.</span></div>
+        <div class="feat"><b>Context gauge</b><span>Every conversation shows how much of the context window it has used.</span></div>
+        <div class="feat"><b>Dev server strip</b><span>The agent starts your dev server and iterates while you watch the page change.</span></div>
+      </div>
+      <figure class="shot midshot">
+        <img src="build.png" alt="The agent building a site while previewing it live in its own pane" loading="lazy" />
+        <figcaption>Building a landing page and previewing it live, in the same window.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="details">
+    <div class="wrap">
+      <span class="kicker">Details</span>
+      <h2>The small things, done properly.</h2>
+      <div class="feat-list">
+        <div class="feat"><b>Survives restarts</b><span>Panes, open files, active chat — exactly where you left them, even through updates.</span></div>
+        <div class="feat"><b>Never steals focus</b><span>Agents finish quietly in the background. The window comes forward only when you ask.</span></div>
+        <div class="feat"><b>Light on memory</b><span>Sessions start on your first message and wind down when idle.</span></div>
+        <div class="feat"><b>Interject mid-turn</b><span>Type while the agent works and it sees your message before it finishes — like the terminal.</span></div>
+        <div class="feat"><b>Useful notifications</b><span>Done or has a question — with a summary of the agent's actual last reply.</span></div>
+        <div class="feat"><b>Updates itself</b><span>Signed, notarized, delivered in the background. Restart when it suits you.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <span class="kicker">How it works</span>
+      <h2>Your subscription, your machine.</h2>
+      <div class="how-list">
+        <div class="how-item"><span class="n">01</span><p><b>Install.</b> Download the DMG, drop it in Applications. If you use Claude Code in the terminal, you're already set up.</p></div>
+        <div class="how-item"><span class="n">02</span><p><b>Point it at something.</b> A project folder, a URL, or a fresh browser tab.</p></div>
+        <div class="how-item"><span class="n">03</span><p><b>Talk.</b> Ask it to build, browse, test, or explain — and watch it work in the pane next door.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="wrap">
+      <h2>Give your agent a screen.</h2>
+      <div class="hero-ctas">
+        <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+        <a class="link" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">All releases</a>
+      </div>
+      <p class="hero-note">Apple Silicon · .dmg · notarized · auto-updates</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot">
+      <a class="nav-logo" href="#" style="font-size:0.9rem"><img src="logo.png" alt="" /><span>SuperAgent</span></a>
+      <span>MIT licensed</span>
+      <div class="foot-links">
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+    </div>
+  </footer>
+</body>
 </html>

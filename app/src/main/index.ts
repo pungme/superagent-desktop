@@ -141,6 +141,33 @@ app.whenReady().then(() => {
   // so in a bug report.
   ipcMain.handle('app:version', () => app.getVersion())
 
+  // Right-click a chat row: clear (wipe transcript + session, keep the row) or delete.
+  ipcMain.on('chat:menu', (e, chatId: string, workspaceId: string) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win) return
+    const menu = Menu.buildFromTemplate([
+      {
+        label: 'Clear chat…',
+        click: async () => {
+          const { response } = await dialog.showMessageBox(win, {
+            type: 'warning',
+            buttons: ['Clear', 'Cancel'],
+            defaultId: 1,
+            message: 'Clear this chat?',
+            detail: 'The transcript and its session context are wiped. The chat itself stays.'
+          })
+          if (response === 0) win.webContents.send('chat:cleared', { chatId, workspaceId })
+        }
+      },
+      { type: 'separator' },
+      {
+        label: 'Delete chat',
+        click: () => win.webContents.send('chat:delete', { chatId, workspaceId })
+      }
+    ])
+    menu.popup({ window: win })
+  })
+
   // Right-click on a file-tree row: the little things a real file browser owes you.
   ipcMain.on('files:menu', (e, absPath: string) => {
     const menu = Menu.buildFromTemplate([

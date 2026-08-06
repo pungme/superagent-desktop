@@ -59,6 +59,8 @@ export interface Chat {
   title: string | null
   claudeSessionId: string | null
   updatedAt: number
+  /** Worktree override — the chat's agent runs here instead of the project path. */
+  cwd: string | null
 }
 
 export interface HookEvent {
@@ -83,16 +85,63 @@ export interface CoveApi {
   browserSetZoom: (id: string, factor: number) => void
   /** Corner radius of the native view; uniform, so it's chosen per viewport mode. */
   browserSetRadius: (id: string, radius: number) => void
+  /** Side-by-side mode: position the mobile twin (null = tear it down). */
+  browserTwinBounds: (
+    id: string,
+    bounds: { x: number; y: number; width: number; height: number } | null,
+    zoom: number
+  ) => void
   /** Sampled colours of the page's top corners, for the DOM backfills. */
   browserSampleCorners: (id: string) => Promise<{ left: string; right: string } | null>
   /** Full-res PNG bytes of the pane (screenshot tooling). */
   browserShoot: (id: string) => Promise<Uint8Array | null>
   /** Native context menu for a file-tree row (Reveal in Finder, Copy Path…). */
   filesMenu: (absPath: string) => void
+  chatMenu: (chatId: string, workspaceId: string) => void
+  onChatCleared: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
+  onChatDeleteRequest: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
   /** Which agent events raise a native banner. */
   setNotifyPrefs: (prefs: { done?: boolean; needsYou?: boolean }) => void
   /** Copy dropped files/folders into a project directory; returns created paths. */
   filesImport: (destDir: string, sources: string[]) => Promise<string[]>
+  /** Tail of the latest assistant reply, for the done-notification body. */
+  chatLastReply: (workspaceId: string, excerpt: string) => void
+  /** Append to the activity log (dashboard). */
+  eventsRecord: (kind: string, workspaceId?: string, n?: number) => void
+  /** Durable localStorage mirror (SQLite) — see kv handlers in store.ts. */
+  kvAll: () => Promise<Record<string, string>>
+  kvSet: (key: string, value: string) => void
+  kvDel: (key: string) => void
+  eventsDashboard: (rangeDays?: number) => Promise<{
+    turnsToday: number
+    tasksToday: number
+    streak: number
+    longestStreak: number
+    spark: { day: string; turns: number; tokens: number }[]
+    attention: { name: string; turns: number }[]
+    attentionAll: { name: string; turns: number }[]
+    hours: number[]
+    busiestDay: { date: string; turns: number } | null
+    avgTurns30: number
+    activeDays30: number
+    firstTs: number | null
+    tokens: { today: number; week: number; month: number }
+    trends: { turnsWeek: number; turnsPrevWeek: number; tokensWeek: number; tokensPrevWeek: number }
+    weekdayAvg: number[]
+    tokensByProject: { name: string; tokens: number }[]
+    avgMsgsPerChat: number
+    totals: {
+      turns: number
+      tasks: number
+      chats: number
+      projects: number
+      messages: number
+      tokens: number
+    }
+  }>
+  /** New git worktree under <project>/.worktrees; null if git refused. */
+  worktreeCreate: (projectPath: string) => Promise<{ path: string; branch: string } | null>
+  worktreeRemove: (projectPath: string, wtPath: string) => Promise<boolean>
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
@@ -140,11 +189,11 @@ export interface CoveApi {
 
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
-  chatCreate: (workspaceId: string) => Promise<string>
+  chatCreate: (workspaceId: string, cwd?: string) => Promise<string>
   chatDelete: (id: string) => Promise<void>
   chatUpdate: (
     id: string,
-    patch: Partial<{ title: string | null; claudeSessionId: string | null }>
+    patch: Partial<{ title: string | null; claudeSessionId: string | null; cwd: string | null }>
   ) => Promise<void>
   chatLoad: (chatId: string) => Promise<string | null>
   chatSave: (chatId: string, data: string) => void
@@ -237,11 +286,25 @@ const cove: CoveApi = {
   browserZoom: (id, action) => ipcRenderer.invoke('browser:zoom', id, action),
   browserSetZoom: (id, factor) => ipcRenderer.send('browser:set-zoom-factor', id, factor),
   browserSetRadius: (id, radius) => ipcRenderer.send('browser:set-radius', id, radius),
+  browserTwinBounds: (id, bounds, zoom) => ipcRenderer.send('browser:twin-bounds', id, bounds, zoom),
   browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
+  chatMenu: (chatId, workspaceId) => ipcRenderer.send('chat:menu', chatId, workspaceId),
+  onChatCleared: (cb) =>
+    subscribe('chat:cleared', (p) => cb(p as { chatId: string; workspaceId: string })),
+  onChatDeleteRequest: (cb) =>
+    subscribe('chat:delete', (p) => cb(p as { chatId: string; workspaceId: string })),
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
+  chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),
+  eventsRecord: (kind, workspaceId, n) => ipcRenderer.send('events:record', kind, workspaceId, n),
+  kvAll: () => ipcRenderer.invoke('kv:all'),
+  kvSet: (key, value) => ipcRenderer.send('kv:set', key, value),
+  kvDel: (key) => ipcRenderer.send('kv:del', key),
+  eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
+  worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
+  worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
@@ -278,7 +341,7 @@ const cove: CoveApi = {
 
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
-  chatCreate: (workspaceId) => ipcRenderer.invoke('chat:create', workspaceId),
+  chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),

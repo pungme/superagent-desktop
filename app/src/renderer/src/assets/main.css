@@ -1286,25 +1286,43 @@ button {
    long conversation doesn't turn into a wall of clock faces. Absolute, so
    revealing it never reflows the transcript; kept inside the bubble's own width
    so it can't widen the scroller. */
+.easy-file-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 5px 24px 5px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  font-size: 12px;
+}
+.easy-file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Timestamp hangs just below the bubble; the bubble's bottom margin reserves
+   the room so it never crams against the next message. */
 .easy-msg-time {
   position: absolute;
-  bottom: -13px;
+  bottom: -17px;
   font-size: 10px;
   line-height: 1;
   color: var(--text-tertiary);
   white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.12s ease;
   pointer-events: none;
+}
+.easy-msg:not(.easy-system) {
+  margin-bottom: 10px;
 }
 .easy-user .easy-msg-time {
   right: 6px;
 }
 .easy-assistant .easy-msg-time {
   left: 6px;
-}
-.easy-msg:hover .easy-msg-time {
-  opacity: 1;
 }
 
 .easy-msg-reply {
@@ -1762,7 +1780,9 @@ button {
   background: var(--hover);
   padding: 1px 5px;
   border-radius: 5px;
-  /* 'anywhere', not 'break-word': only 'anywhere' shrinks min-content. */
+  /* 'anywhere', not 'break-word': only 'anywhere' shrinks min-content, and a
+     long unbroken token (scope lists, hashes) otherwise widens the line box
+     right out of the bubble instead of wrapping. */
   overflow-wrap: anywhere;
 }
 
@@ -3854,6 +3874,432 @@ button {
 /* Freeze-frame of the page, shown while an HTML overlay is open. A native view
    is always composited above the DOM, so it can't be dimmed or covered — the
    live view is swapped for this still, which dims with everything else. */
+.easy-devserver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 14px 0;
+  padding: 7px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.easy-devserver-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3fb950;
+  flex: none;
+}
+.easy-devserver-label {
+  flex: 1;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.easy-devserver-open {
+  border: 1px solid var(--border-strong);
+  background: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  color: var(--text-primary);
+}
+.easy-devserver-open:hover {
+  background: var(--hover);
+}
+.easy-devserver-x {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+/* Dashboard — a full content-pane view, not an overlay. */
+.dash-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dash-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 24px 12px;
+}
+.dash-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.dash-close {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.dash-close:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.dash {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 24px 28px;
+  overflow-y: auto;
+  max-width: 860px;
+  width: 100%;
+  align-self: center;
+}
+.dash-empty {
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  padding: 8px 0;
+}
+.dash-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.dash-stat {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dash-stat-n {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dash-stat-l {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.dash-section {
+  margin-bottom: 24px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.dash-section h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 10px;
+}
+.dash-spark {
+  display: flex;
+  gap: 4px;
+  height: 76px;
+}
+.dash-spark.many {
+  gap: 1px;
+}
+.dash-spark.many .dash-spark-day {
+  font-size: 8px;
+}
+.dash-spark-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dash-spark-track {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+.dash-spark-bar {
+  width: 100%;
+  background: var(--accent);
+  opacity: 0.75;
+  border-radius: 3px 3px 1px 1px;
+  min-height: 3px;
+}
+.dash-spark-day {
+  text-align: center;
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+.dash-spark-val {
+  text-align: center;
+  font-size: 8.5px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-height: 11px;
+}
+.dash-hours {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 56px;
+}
+.dash-hour-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+.dash-hour-bar {
+  width: 100%;
+  background: var(--accent);
+  opacity: 0.6;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+.dash-weekdays {
+  gap: 6px;
+}
+
+/* Instant custom tooltip — the native title delay made hover feel dead. */
+.dash-tip {
+  position: relative;
+}
+.dash-tip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 4px 14px var(--shadow);
+}
+
+.dash-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.dash-cols .dash-section {
+  margin-bottom: 24px;
+}
+.dash-tok-row {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.dash-tok-row b {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dash-trend {
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-left: 7px;
+  vertical-align: 3px;
+}
+.dash-trend.up {
+  color: #34a885;
+}
+.dash-trend.down {
+  color: #d4766a;
+}
+.dash-trend.flat {
+  color: var(--text-tertiary);
+}
+.dash-stat-sub {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+.dash-note {
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+.dash-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dash-section-head h3 {
+  margin: 0;
+}
+.dash-range {
+  display: flex;
+  gap: 2px;
+  background: var(--hover);
+  border-radius: 7px;
+  padding: 2px;
+}
+.dash-range-btn {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 5px;
+}
+.dash-range-btn.active {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+/* New chat + New worktree sit together, same pill look. */
+.easy-newchat-group {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+.easy-newchat-group .easy-newchat {
+  position: static;
+  top: auto;
+  right: auto;
+}
+.dash-hours-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.dash-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+}
+.dash-row-name {
+  width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-row-track {
+  flex: 1;
+  height: 8px;
+  background: var(--hover);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.dash-row-bar {
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.8;
+}
+.dash-bar-alt {
+  opacity: 0.5;
+}
+.dash-bar-site {
+  background: #34a885;
+  opacity: 0.7;
+}
+.dash-row-n {
+  width: 44px;
+  text-align: right;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.dash-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px 16px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.dash-totals b {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dash-since {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.easy-ctx {
+  align-self: center;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  padding: 0 4px;
+}
+.easy-ctx.warm {
+  color: #d97706; /* the window is filling up */
+}
+
+.chat-tree-wt {
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: 'SF Mono', ui-monospace, monospace;
+}
+
+.tabs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+/* The Browse header's + is the only way to make a tab — always visible
+   (the hover-reveal rule targets .sidebar-group-header, which this isn't). */
+.tabs-head .group-add {
+  opacity: 1;
+}
+
+/* Dashboard entry pinned above everything in the sidebar. */
+.sidebar-dash-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 12px);
+  margin: 2px 6px 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+}
+.sidebar-dash-row:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.sidebar-dash-icon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.sidebar-dash-row:hover .sidebar-dash-icon {
+  color: var(--text-primary);
+}
+.tabs-empty {
+  padding: 4px 10px 8px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
 .browser-corner-fill {
   position: absolute;
   width: 10px;

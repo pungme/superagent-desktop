@@ -7,7 +7,7 @@ import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
 export default defineConfig(
   // public/ort is vendored onnxruntime, copied in by scripts/copy-ort.mjs.
-  { ignores: ['**/node_modules', '**/dist', '**/out', 'src/renderer/public/ort'] },
+  { ignores: ['**/node_modules', '**/dist', '**/out', 'src/renderer/public/ort', 'scripts/_*.mjs'] },
   tseslint.configs.recommended,
   eslintPluginReact.configs.flat.recommended,
   eslintPluginReact.configs.flat['jsx-runtime'],
