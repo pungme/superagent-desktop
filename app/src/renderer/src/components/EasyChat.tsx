@@ -458,11 +458,12 @@ export function EasyChat({
   const [agentFailed, setAgentFailed] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [resetKey, setResetKey] = useState(0)
-  // The claude process was reaped after sitting idle in the background; the
-  // transcript is untouched and the next wake resumes the same session. Mirrored
-  // in a ref so an event handler can wake it without a stale closure.
-  const [suspended, setSuspended] = useState(false)
-  const suspendedRef = useRef(false)
+  // No live claude process. Chats START here — opening a project must not cost
+  // a process; the first message does (spawning then, resuming any persisted
+  // session). The reaper also returns idle background chats to this state.
+  // Mirrored in a ref so event handlers can wake without a stale closure.
+  const [suspended, setSuspended] = useState(true)
+  const suspendedRef = useRef(true)
   const [files, setFiles] = useState<string[]>([])
   const [commands, setCommands] = useState<string[]>([])
   // name → one-line description, shown beside each "/" command in the menu.
@@ -506,9 +507,9 @@ export function EasyChat({
   const thinkingIdRef = useRef<string | null>(null)
   // Session to resume so context survives restarts; updated once claude reports it.
   const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
-  // Injected messages (toolbar/Skills) that arrived while the process was reaped;
-  // flushed the moment the resumed session is up.
-  const pendingSendsRef = useRef<string[]>([])
+  // Messages sent while no process exists (a chat's first message, or anything
+  // arriving while reaped); flushed the moment the session is up.
+  const pendingSendsRef = useRef<{ text: string; images: { mediaType: string; data: string }[] }[]>([])
   // True once a resume-based retry has already failed, so the next retry drops the
   // resume and starts fresh (a crashed session can leave a stale lock that keeps
   // failing to resume, which would otherwise loop the Retry button).
@@ -1103,6 +1104,9 @@ export function EasyChat({
   }, [handleEvent])
 
   useEffect(() => {
+    // Dormant: nothing to start. wake() clears the flag and bumps resetKey, which
+    // re-runs this effect to do the actual spawn.
+    if (suspendedRef.current) return
     let disposed = false
     let offEvent: (() => void) | undefined
     let offExit: (() => void) | undefined
@@ -1126,8 +1130,8 @@ export function EasyChat({
         // Ready as soon as the process is up — in stream-json input mode claude
         // waits for the first user message before it emits anything.
         setReady(true)
-        // Anything injected while the process was reaped goes out now.
-        for (const queued of pendingSendsRef.current.splice(0)) window.cove.agentSend(id, queued)
+        // Anything sent while there was no process goes out now.
+        for (const q of pendingSendsRef.current.splice(0)) window.cove.agentSend(id, q.text, q.images)
         offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
         // main only emits agent:exit on a genuine unexpected exit (deliberate
         // stops and the resume→fresh retry are suppressed), so surface it.
@@ -1174,12 +1178,6 @@ export function EasyChat({
     }, IDLE_REAP_MS)
     return () => window.clearTimeout(timer)
   }, [visible, suspended, generating, thinking])
-
-  // Back on screen — restart the session. The lifecycle effect above re-runs on
-  // resetKey and resumes where we left off, so the only tell is a brief "Starting…".
-  useEffect(() => {
-    if (visible) wake()
-  }, [visible, suspended, wake])
 
   // Publish what this chat has in flight, so an app-wide action (installing an
   // update quits the app, which kills every agent) can warn before discarding it.
@@ -1240,7 +1238,7 @@ export function EasyChat({
       // the background — so delivery happens here rather than through a cached id.
       if (agentIdRef.current) window.cove.agentSend(agentIdRef.current, detail.text)
       else {
-        pendingSendsRef.current.push(detail.text)
+        pendingSendsRef.current.push({ text: detail.text, images: [] })
         wake()
       }
       setItems((prev) => [
@@ -1256,7 +1254,10 @@ export function EasyChat({
 
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
-    if ((!text && images.length === 0) || !id || !ready) return
+    if (!text && images.length === 0) return
+    // A process exists but isn't accepting (crash) — the Retry UI owns that.
+    if (id && !ready) return
+    if (!id && !suspendedRef.current) return // already spawning; drop rather than double-send
     // Sent while a turn is already running — this is a mid-task interjection.
     const interjecting = generating
     const reply = replyTarget
@@ -1311,11 +1312,14 @@ export function EasyChat({
     // Only reset the "did this turn produce anything" flag when starting a fresh
     // turn — a mid-turn interjection is part of the turn already in progress.
     if (!interjecting) streamedThisTurnRef.current = false
-    window.cove.agentSend(
-      id,
-      agentText,
-      images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
-    )
+    const payload = images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
+    if (id) {
+      window.cove.agentSend(id, agentText, payload)
+    } else {
+      // First message of a dormant chat: this is the moment the session starts.
+      pendingSendsRef.current.push({ text: agentText, images: payload })
+      wake()
+    }
     setThinking(true)
     setGenerating(true)
   }
@@ -1504,12 +1508,12 @@ export function EasyChat({
       )}
       <TasksPanel workspaceId={workspaceId} />
       <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
-        {items.length === 0 && ready && (
+        {items.length === 0 && (ready || suspended) && (
           <div className="easy-empty">
             <p>Tell Claude what you&rsquo;d like to build or change.</p>
           </div>
         )}
-        {items.length === 0 && !ready && !agentFailed && (
+        {items.length === 0 && !ready && !suspended && !agentFailed && (
           <div className="easy-empty">Starting Claude…</div>
         )}
         {toRows(items).map((row, i) => {
@@ -1699,14 +1703,14 @@ export function EasyChat({
             className="easy-input"
             value={input}
             placeholder={
-              ready
+              ready || suspended
                 ? narrowComposer
                   ? 'Message Claude…'
                   : 'Message Claude…  (/ commands · @ files · paste an image)'
                 : 'Starting…'
             }
             rows={1}
-            disabled={!ready}
+            disabled={!ready && !suspended}
             onChange={(e) => {
               setInput(e.target.value)
               autoResize()
@@ -1766,7 +1770,7 @@ export function EasyChat({
           <button
             className="easy-send"
             onClick={send}
-            disabled={!ready || (!input.trim() && pendingImages.length === 0)}
+            disabled={(!ready && !suspended) || (!input.trim() && pendingImages.length === 0)}
             title="Send message"
             aria-label="Send message"
           >
