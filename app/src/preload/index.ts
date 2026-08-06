@@ -83,6 +83,8 @@ export interface CoveApi {
   browserSetZoom: (id: string, factor: number) => void
   /** Corner radius of the native view; uniform, so it's chosen per viewport mode. */
   browserSetRadius: (id: string, radius: number) => void
+  /** Sampled colours of the page's top corners, for the DOM backfills. */
+  browserSampleCorners: (id: string) => Promise<{ left: string; right: string } | null>
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
@@ -225,6 +227,7 @@ const cove: CoveApi = {
   browserZoom: (id, action) => ipcRenderer.invoke('browser:zoom', id, action),
   browserSetZoom: (id, factor) => ipcRenderer.send('browser:set-zoom-factor', id, factor),
   browserSetRadius: (id, radius) => ipcRenderer.send('browser:set-radius', id, radius),
+  browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),

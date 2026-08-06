@@ -3809,6 +3809,16 @@ button {
 /* Freeze-frame of the page, shown while an HTML overlay is open. A native view
    is always composited above the DOM, so it can't be dimmed or covered — the
    live view is swapped for this still, which dims with everything else. */
+.browser-corner-fill {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  z-index: 0;
+  pointer-events: none;
+  /* Cross-fade colour changes so a navigation doesn't pop the corners. */
+  transition: background-color 0.18s ease;
+}
+
 .browser-frozen {
   position: absolute;
   object-fit: fill;

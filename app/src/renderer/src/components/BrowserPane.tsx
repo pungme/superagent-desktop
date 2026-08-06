@@ -51,13 +51,13 @@ function FitIcon(): React.JSX.Element {
 // Height of the omnibar when it's docked onto the desktop floating card (so the
 // card reads as a self-contained browser window). Native view is pushed down by it.
 const CARD_OMNIBAR_H = 40
-// The native view's radius is uniform (no per-corner API), and NOTHING paints
-// over web contents — not HTML, and not sibling native Views (verified on screen
-// in both z-orders). A flush top therefore forces a square view, and a square
-// view fills the card to its bottom edge — any rounded lip under it reads as a
-// gap. So desktop mode is a rounded-top sheet: omnibar corners round, page
-// square, card bottom squared to match. Mobile keeps a real radius all round —
-// nothing is butted against a floating phone.
+// The native view's radius is uniform (no per-corner API), HTML never paints
+// over web contents, and plain native Views don't either — but sibling
+// WebContentsViews DO (verified on screen: the red-box probe). So desktop mode
+// rounds the page on all four corners for a real rounded bottom, and two tiny
+// web-view masks painted the omnibar's colour square off the top pair — flush
+// under the docked omnibar. Mobile keeps a plain radius; nothing is butted
+// against a floating phone.
 const PANE_RADIUS = 10
 
 export function BrowserPane({
@@ -125,6 +125,9 @@ export function BrowserPane({
     height: number
   } | null>(null)
   const [frozen, setFrozen] = useState<string | null>(null)
+  // Page-coloured DOM backfills for the top corners (desktop mode): the rounded
+  // top arcs reveal these instead of the grey card, so the top reads square.
+  const [cornerFill, setCornerFill] = useState<{ left: string; right: string } | null>(null)
   const [addressInput, setAddressInput] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [suggestIndex, setSuggestIndex] = useState(-1)
@@ -188,7 +191,7 @@ export function BrowserPane({
       window.cove.browserSetZoom?.(paneId, scale)
       setSimFrame({ left, top, width: sw, height: sh })
       // The omnibar is docked onto the card's top strip, so the page starts below it.
-      window.cove.browserSetRadius?.(paneId, 0)
+      window.cove.browserSetRadius?.(paneId, PANE_RADIUS)
       emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: sw, height: sh - CARD_OMNIBAR_H })
       return
     }
@@ -215,6 +218,29 @@ export function BrowserPane({
   const suggestOpen = showSuggest && suggestions.length > 0
   const suggestRef = useRef<HTMLDivElement>(null)
   const paneCovered = overlayOpen || suggestOpen
+
+  // Follow the page's corner colour: once immediately, then a lazy tick — catches
+  // navigations, theme flips and repaints without chasing every frame.
+  useEffect(() => {
+    if (!visible || paneCovered || viewport !== 'desktop') return
+    let alive = true
+    const tick = async (): Promise<void> => {
+      const c = await window.cove.browserSampleCorners?.(paneId)
+      if (alive && c) setCornerFill(c)
+    }
+    void tick()
+    const t = window.setInterval(() => void tick(), 1200)
+    // Navigations shouldn't wait for the next lazy tick — burst a few quick
+    // samples so the corners match the new page almost immediately.
+    const offState = window.cove.onBrowserState?.(paneId, () => {
+      for (const ms of [120, 450, 1000]) window.setTimeout(() => void tick(), ms)
+    })
+    return () => {
+      alive = false
+      window.clearInterval(t)
+      offState?.()
+    }
+  }, [visible, paneCovered, viewport, paneId])
 
   // Show/hide the native view as this workspace becomes active/inactive or as an
   // HTML overlay opens/closes over it; re-sync when the dropdown opens/closes so
@@ -565,13 +591,31 @@ export function BrowserPane({
               left: simFrame.left,
               top: simFrame.top,
               width: simFrame.width,
-              height: simFrame.height,
-              // Desktop: the square page fills the card to its bottom edge, so the
-              // card squares off with it — rounded bottom corners would poke out
-              // from behind the page as two nicks.
-              borderRadius: viewport === 'desktop' ? '10px 10px 0 0' : undefined
+              height: simFrame.height
             }}
           />
+        )}
+        {simFrame && visible && viewport === 'desktop' && cornerFill && (
+          <>
+            {/* Under the native page by nature (DOM); the rounded top arcs of the
+                page reveal these, matching the page so the top reads square. */}
+            <div
+              className="browser-corner-fill"
+              style={{
+                left: simFrame.left,
+                top: simFrame.top + CARD_OMNIBAR_H,
+                background: cornerFill.left
+              }}
+            />
+            <div
+              className="browser-corner-fill"
+              style={{
+                left: simFrame.left + simFrame.width - 10,
+                top: simFrame.top + CARD_OMNIBAR_H,
+                background: cornerFill.right
+              }}
+            />
+          </>
         )}
         {frozen && viewRect && (
           // Stand-in for the native view while an overlay is up. Corners match
@@ -586,7 +630,8 @@ export function BrowserPane({
               top: viewRect.top,
               width: viewRect.width,
               height: viewRect.height,
-              borderRadius: viewport === 'mobile' ? '10px' : '0'
+              borderRadius:
+                viewport === 'desktop' ? '0 0 10px 10px' : viewport === 'mobile' ? '10px' : '0'
             }}
           />
         )}

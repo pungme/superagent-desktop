@@ -349,6 +349,56 @@ export function registerBrowserIpc(): void {
     }
   })
 
+  /**
+   * Average colour of the page's two top-corner pixel patches. The renderer
+   * paints matching DOM backfills UNDER the native view: the page is rounded on
+   * all four corners (Electron's radius is uniform), the bottom arcs show the
+   * card and stay round, and the top arcs reveal these page-coloured fills — so
+   * the top reads as square under the docked omnibar on any site. DOM is the
+   * right layer: everything composites below the native view anyway, so this
+   * needs no native masks, no extra processes, and eats no clicks.
+   */
+  ipcMain.handle('browser:sample-corners', async (_e, id: string) => {
+    const pane = panes.get(id)
+    if (!pane || !pane.visible || pane.window.isDestroyed()) return null
+    try {
+      // Full capture + tiny thumbnail. The rect variant of capturePage returns
+      // stale/blank frames for zoomed child views, so crop after the fact: a
+      // 64px-wide resize is native-fast, and the corner arc (~1% of the width)
+      // dissolves to under a pixel — sampling columns 2-4 lands safely on the
+      // page's real top-edge colour.
+      const img = await pane.view.webContents.capturePage()
+      if (img.isEmpty()) return null
+      const thumb = img.resize({ width: 64 })
+      const { width: tw, height: th } = thumb.getSize()
+      const buf = thumb.toBitmap() // BGRA
+      if (!buf.length || tw < 8 || th < 3) return null
+      const win = (x0: number): string => {
+        let r = 0
+        let g = 0
+        let bl = 0
+        let n = 0
+        for (let y = 0; y < 3; y++) {
+          for (let x = x0; x < x0 + 3; x++) {
+            const i = (y * tw + x) * 4
+            bl += buf[i]
+            g += buf[i + 1]
+            r += buf[i + 2]
+            n++
+          }
+        }
+        const h = (v: number): string =>
+          Math.round(v / n)
+            .toString(16)
+            .padStart(2, '0')
+        return `#${h(r)}${h(g)}${h(bl)}`
+      }
+      return { left: win(2), right: win(tw - 5) }
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.on('browser:hide', (_e, id: string) => {
     const pane = panes.get(id)
     if (pane) hidePane(pane)
