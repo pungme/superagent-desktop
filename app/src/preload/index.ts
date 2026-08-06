@@ -97,6 +97,9 @@ export interface CoveApi {
   browserShoot: (id: string) => Promise<Uint8Array | null>
   /** Native context menu for a file-tree row (Reveal in Finder, Copy Path…). */
   filesMenu: (absPath: string) => void
+  chatMenu: (chatId: string, workspaceId: string) => void
+  onChatCleared: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
+  onChatDeleteRequest: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
   /** Which agent events raise a native banner. */
   setNotifyPrefs: (prefs: { done?: boolean; needsYou?: boolean }) => void
   /** Copy dropped files/folders into a project directory; returns created paths. */
@@ -263,6 +266,11 @@ const cove: CoveApi = {
   browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
+  chatMenu: (chatId, workspaceId) => ipcRenderer.send('chat:menu', chatId, workspaceId),
+  onChatCleared: (cb) =>
+    subscribe('chat:cleared', (p) => cb(p as { chatId: string; workspaceId: string })),
+  onChatDeleteRequest: (cb) =>
+    subscribe('chat:delete', (p) => cb(p as { chatId: string; workspaceId: string })),
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),

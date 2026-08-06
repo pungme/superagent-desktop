@@ -3928,6 +3928,49 @@ button {
 /* Freeze-frame of the page, shown while an HTML overlay is open. A native view
    is always composited above the DOM, so it can't be dimmed or covered — the
    live view is swapped for this still, which dims with everything else. */
+.easy-devserver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 14px 0;
+  padding: 7px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.easy-devserver-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3fb950;
+  flex: none;
+}
+.easy-devserver-label {
+  flex: 1;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.easy-devserver-open {
+  border: 1px solid var(--border-strong);
+  background: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  color: var(--text-primary);
+}
+.easy-devserver-open:hover {
+  background: var(--hover);
+}
+.easy-devserver-x {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
 .dash {
   padding: 14px 16px;
   overflow-y: auto;

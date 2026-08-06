@@ -190,6 +190,10 @@ function ChatRow({
       className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''}`}
       title={label}
       onClick={onOpen}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        window.cove.chatMenu(chat.id, workspaceId)
+      }}
       onDoubleClick={() => {
         setDraft(label)
         setEditing(true)

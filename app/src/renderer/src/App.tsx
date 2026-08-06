@@ -140,6 +140,25 @@ function App(): React.JSX.Element {
     window.addEventListener('cove:open-dashboard', open)
     return () => window.removeEventListener('cove:open-dashboard', open)
   }, [])
+
+  // Chat row context-menu actions, confirmed in main where the native menu lives.
+  useEffect(() => {
+    const offClear = window.cove.onChatCleared(({ chatId, workspaceId }) => {
+      // Wipe transcript + session; the open chat resets itself via this event.
+      window.cove.chatSave(chatId, '[]')
+      window.cove.chatUpdate(chatId, { claudeSessionId: null })
+      window.dispatchEvent(
+        new CustomEvent('cove:chat-cleared', { detail: { chatId, workspaceId } })
+      )
+    })
+    const offDelete = window.cove.onChatDeleteRequest(({ chatId, workspaceId }) => {
+      void useStore.getState().removeChat(workspaceId, chatId)
+    })
+    return () => {
+      offClear()
+      offDelete()
+    }
+  }, [])
   const addGroup = useStore((s) => s.addGroup)
   const addWorkspace = useStore((s) => s.addWorkspace)
 
