@@ -116,7 +116,8 @@ function App(): React.JSX.Element {
   // text/markdown, pane for PDFs/images) instead of the OS default.
   useEffect(() => {
     return window.cove.onOpenFile(({ workspaceId, path }) => {
-      useStore.getState().openPath(workspaceId, path)
+      // Agent-originated: open in that project WITHOUT switching the user to it.
+      useStore.getState().openPath(workspaceId, path, false)
     })
   }, [])
 
