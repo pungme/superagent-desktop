@@ -8,7 +8,6 @@ import { IntroSplash } from './components/IntroSplash'
 import { DashboardPanel } from './components/DashboardPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
-import { NewProjectDialog } from './components/NewProjectDialog'
 import { useStore } from './state'
 
 const SIDEBAR_MIN = 200
@@ -283,7 +282,6 @@ function App(): React.JSX.Element {
       <PreviewToast />
       <UpdateBanner />
       <IntroSplash />
-      <NewProjectDialog />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )
