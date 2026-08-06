@@ -112,7 +112,7 @@ export interface CoveApi {
   kvAll: () => Promise<Record<string, string>>
   kvSet: (key: string, value: string) => void
   kvDel: (key: string) => void
-  eventsDashboard: () => Promise<{
+  eventsDashboard: (rangeDays?: number) => Promise<{
     turnsToday: number
     tasksToday: number
     streak: number
@@ -302,7 +302,7 @@ const cove: CoveApi = {
   kvAll: () => ipcRenderer.invoke('kv:all'),
   kvSet: (key, value) => ipcRenderer.send('kv:set', key, value),
   kvDel: (key) => ipcRenderer.send('kv:del', key),
-  eventsDashboard: () => ipcRenderer.invoke('events:dashboard'),
+  eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
   worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
   worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),

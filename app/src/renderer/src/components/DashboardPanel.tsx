@@ -52,10 +52,11 @@ function Trend({ cur, prev }: { cur: number; prev: number }): React.JSX.Element 
 export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
   const [dash, setDash] = useState<Dash | null>(null)
   const [failed, setFailed] = useState(false)
+  const [range, setRange] = useState(14)
 
   useEffect(() => {
     window.cove
-      .eventsDashboard()
+      .eventsDashboard(range)
       .then((d) => {
         // Never let a malformed payload (e.g. a stale main process during dev)
         // throw mid-render and take the whole app down — normalize it here.
@@ -106,16 +107,12 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
         })
       })
       .catch(() => setFailed(true))
-  }, [])
+  }, [range])
 
   const maxTurns = Math.max(1, ...(dash?.attention.map((a) => a.turns) ?? [1]))
   const maxAll = Math.max(1, ...(dash?.attentionAll.map((a) => a.turns) ?? [1]))
-  // Tokens are the interesting series; fall back to turns until any exist
-  // (token recording only starts with this build).
   const hasTokens = (dash?.spark ?? []).some((s) => s.tokens > 0)
-  const sparkVal = (s: { turns: number; tokens: number }): number =>
-    hasTokens ? s.tokens : s.turns
-  const maxSpark = Math.max(1, ...(dash?.spark.map(sparkVal) ?? [1]))
+  const maxSpark = Math.max(1, ...(dash?.spark.map((s) => s.tokens) ?? [1]))
   const maxHour = Math.max(1, ...(dash?.hours ?? [1]))
 
   return (
@@ -172,7 +169,23 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
             </div>
 
             <div className="dash-section">
-              <h3>{hasTokens ? 'Tokens (14 days)' : 'Turns (14 days)'}</h3>
+              <div className="dash-section-head">
+                <h3>
+                  Tokens
+                  {!hasTokens && <span className="dash-note"> — counting from today</span>}
+                </h3>
+                <div className="dash-range">
+                  {[7, 14, 30, 90].map((r) => (
+                    <button
+                      key={r}
+                      className={`dash-range-btn ${range === r ? 'active' : ''}`}
+                      onClick={() => setRange(r)}
+                    >
+                      {r}d
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="dash-tok-row">
                 <div>
                   <b>{fmtTokens(dash.tokens.today)}</b> today
@@ -188,7 +201,7 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
                   <b>{fmtTokens(dash.totals.tokens)}</b> all time
                 </div>
               </div>
-              <div className="dash-spark">
+              <div className={`dash-spark ${range > 14 ? 'many' : ''}`}>
                 {dash.spark.map((s, i) => (
                   <div
                     key={i}
@@ -196,12 +209,12 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
                     data-tip={`${fmtTokens(s.tokens)} tokens · ${s.turns} turns`}
                   >
                     <span className="dash-spark-val">
-                      {sparkVal(s) > 0 ? (hasTokens ? fmtTokens(s.tokens) : s.turns) : ''}
+                      {s.tokens > 0 && range <= 14 ? fmtTokens(s.tokens) : ''}
                     </span>
                     <div className="dash-spark-track">
                       <div
                         className="dash-spark-bar"
-                        style={{ height: `${Math.max(3, (sparkVal(s) / maxSpark) * 100)}%` }}
+                        style={{ height: `${Math.max(3, (s.tokens / maxSpark) * 100)}%` }}
                       />
                     </div>
                     <span className="dash-spark-day">{s.day}</span>

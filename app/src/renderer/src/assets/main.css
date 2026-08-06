@@ -4004,6 +4004,12 @@ button {
   gap: 4px;
   height: 76px;
 }
+.dash-spark.many {
+  gap: 1px;
+}
+.dash-spark.many .dash-spark-day {
+  font-size: 8px;
+}
 .dash-spark-col {
   flex: 1;
   display: flex;
@@ -4119,6 +4125,40 @@ button {
   font-size: 13px;
   color: var(--text-tertiary);
   font-weight: 600;
+}
+.dash-note {
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+.dash-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dash-section-head h3 {
+  margin: 0;
+}
+.dash-range {
+  display: flex;
+  gap: 2px;
+  background: var(--hover);
+  border-radius: 7px;
+  padding: 2px;
+}
+.dash-range-btn {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 5px;
+}
+.dash-range-btn.active {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px var(--shadow);
 }
 .dash-hours-axis {
   display: flex;

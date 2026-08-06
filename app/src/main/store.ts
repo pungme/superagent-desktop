@@ -258,7 +258,8 @@ export function recordEvent(kind: string, workspaceId?: string | null, n = 0): v
  * once as a saved assistant message), the richer source wins for that day
  * rather than double-counting.
  */
-export function getDashboard(): unknown {
+export function getDashboard(rangeDays = 14): unknown {
+  const range = Math.min(365, Math.max(7, Math.floor(rangeDays) || 14))
   const dayMs = 86_400_000
   const now = Date.now()
   const startOfToday = new Date().setHours(0, 0, 0, 0)
@@ -346,18 +347,24 @@ export function getDashboard(): unknown {
     if (run > longestStreak) longestStreak = run
   }
 
-  // 14-day sparkline with weekday labels — turns plus tokens processed
-  // (kind='tokens' events carry the per-turn context+output total in n).
+  // Token chart over the selected range — kind='tokens' events carry the
+  // per-turn context+output total in n. Short ranges label weekdays; longer
+  // ones label the first bar of each week with the date.
   const tokRows = db
     .prepare("SELECT ts, n FROM events WHERE kind='tokens' AND ts >= ?")
-    .all(startOfToday - 14 * dayMs) as { ts: number; n: number }[]
+    .all(startOfToday - range * dayMs) as { ts: number; n: number }[]
   const spark: { day: string; turns: number; tokens: number }[] = []
-  for (let i = 13; i >= 0; i--) {
+  for (let i = range - 1; i >= 0; i--) {
     const d = today - i
+    const date = new Date((d + 1) * dayMs + tzOffMs - 1)
+    const label =
+      range <= 14
+        ? date.toLocaleDateString(undefined, { weekday: 'narrow' })
+        : date.getDay() === 1
+          ? date.toLocaleDateString(undefined, { day: 'numeric', month: 'numeric' })
+          : ''
     spark.push({
-      day: new Date((d + 1) * dayMs + tzOffMs - 1).toLocaleDateString(undefined, {
-        weekday: 'narrow'
-      }),
+      day: label,
       turns: turns.filter((e) => dayOf(e.ts) === d).length,
       tokens: tokRows.filter((r) => dayOf(r.ts) === d).reduce((s, r) => s + r.n, 0)
     })
@@ -611,7 +618,7 @@ export function registerStoreIpc(): void {
       /* ditto */
     }
   })
-  ipcMain.handle('events:dashboard', () => getDashboard())
+  ipcMain.handle('events:dashboard', (_e, rangeDays?: number) => getDashboard(rangeDays))
 
   ipcMain.handle('chat:create', (_e, workspaceId: string, cwd?: string) => {
     const id = randomUUID()
