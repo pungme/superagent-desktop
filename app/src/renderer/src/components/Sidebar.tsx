@@ -678,6 +678,13 @@ export function Sidebar(): React.JSX.Element {
         </button>
         <button
           className="sidebar-settings"
+          title="Dashboard — where your attention went"
+          onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
+        >
+          ▤
+        </button>
+        <button
+          className="sidebar-settings"
           title="Settings"
           onClick={() => window.dispatchEvent(new CustomEvent('cove:open-settings'))}
         >

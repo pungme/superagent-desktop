@@ -103,6 +103,15 @@ export interface CoveApi {
   filesImport: (destDir: string, sources: string[]) => Promise<string[]>
   /** Tail of the latest assistant reply, for the done-notification body. */
   chatLastReply: (workspaceId: string, excerpt: string) => void
+  /** Append to the activity log (dashboard). */
+  eventsRecord: (kind: string, workspaceId?: string) => void
+  eventsDashboard: () => Promise<{
+    turnsToday: number
+    tasksToday: number
+    streak: number
+    attention: { name: string; turns: number }[]
+    spark: number[]
+  }>
   /** New git worktree under <project>/.worktrees; null if git refused. */
   worktreeCreate: (projectPath: string) => Promise<{ path: string; branch: string } | null>
   worktreeRemove: (projectPath: string, wtPath: string) => Promise<boolean>
@@ -257,6 +266,8 @@ const cove: CoveApi = {
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),
+  eventsRecord: (kind, workspaceId) => ipcRenderer.send('events:record', kind, workspaceId),
+  eventsDashboard: () => ipcRenderer.invoke('events:dashboard'),
   worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
   worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
