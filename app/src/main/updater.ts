@@ -12,6 +12,15 @@ import { is } from '@electron-toolkit/utils'
  * Developer ID for the update to actually apply (an unsigned/dev-cert build will
  * download but fail to swap itself in) — see the notarization notes.
  */
+// Whether a downloaded update is waiting to install. The window-all-closed
+// handler quits (and thus installs) when this is set — on macOS, closing the
+// last window otherwise leaves the OLD version running headless, and the user
+// meets the same "restart to update" pill forever.
+let updateDownloaded = false
+export function isUpdateDownloaded(): boolean {
+  return updateDownloaded
+}
+
 export function startAutoUpdate(): void {
   // Manual "check now" from Settings. Registered before the dev bail-out so the
   // invoke never dangles in dev — it just reports the current version. If a
@@ -55,6 +64,7 @@ export function startAutoUpdate(): void {
   })
 
   autoUpdater.on('update-downloaded', (info) => {
+    updateDownloaded = true
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) win.webContents.send('update:ready', info.version)
     }
@@ -75,7 +85,20 @@ export function startAutoUpdate(): void {
   })
 
   // Renderer can trigger the install immediately (quit + relaunch into the update).
-  ipcMain.on('update:install', () => autoUpdater.quitAndInstall())
+  ipcMain.on('update:install', () => {
+    // quitAndInstall on macOS silently no-ops if anything interferes with the
+    // quit sequence (observed in the wild: the pill's click did nothing). The
+    // canonical robust shape: defer out of the IPC dispatch, force non-silent
+    // install + relaunch, and if it throws, say so instead of doing nothing.
+    setImmediate(() => {
+      try {
+        autoUpdater.quitAndInstall(false, true)
+      } catch (err) {
+        console.error('[updater] quitAndInstall failed:', err)
+        broadcast('update:error', `Restart failed: ${String((err as Error)?.message ?? err)}`)
+      }
+    })
+  })
 
   // A small delay so it doesn't compete with app startup work.
   setTimeout(() => {
