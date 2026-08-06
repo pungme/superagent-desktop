@@ -5,12 +5,11 @@ interface Dash {
   tasksToday: number
   streak: number
   longestStreak: number
-  spark: { day: string; turns: number }[]
+  spark: { day: string; turns: number; tokens: number }[]
   attention: { name: string; turns: number }[]
   attentionAll: { name: string; turns: number }[]
   hours: number[]
   busiestDay: { date: string; turns: number } | null
-  topSites: { host: string; title: string; visits: number }[]
   avgTurns30: number
   firstTs: number | null
   totals: {
@@ -19,10 +18,12 @@ interface Dash {
     chats: number
     projects: number
     messages: number
-    sites: number
-    visits: number
+    tokens: number
   }
 }
+
+const fmtTokens = (n: number): string =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1000)}k` : `${n}`
 
 /**
  * Where your attention went — all local. Turns are reconstructed from both the
@@ -46,14 +47,15 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
           longestStreak: d?.longestStreak ?? 0,
           spark: Array.isArray(d?.spark)
             ? d.spark.map((s) =>
-                typeof s === 'number' ? { day: '', turns: s } : { day: s?.day ?? '', turns: s?.turns ?? 0 }
+                typeof s === 'number'
+                  ? { day: '', turns: s, tokens: 0 }
+                  : { day: s?.day ?? '', turns: s?.turns ?? 0, tokens: s?.tokens ?? 0 }
               )
             : [],
           attention: d?.attention ?? [],
           attentionAll: d?.attentionAll ?? [],
           hours: Array.isArray(d?.hours) ? d.hours : new Array(24).fill(0),
           busiestDay: d?.busiestDay ?? null,
-          topSites: d?.topSites ?? [],
           avgTurns30: d?.avgTurns30 ?? 0,
           firstTs: d?.firstTs ?? null,
           totals: {
@@ -62,8 +64,7 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
             chats: d?.totals?.chats ?? 0,
             projects: d?.totals?.projects ?? 0,
             messages: d?.totals?.messages ?? 0,
-            sites: d?.totals?.sites ?? 0,
-            visits: d?.totals?.visits ?? 0
+            tokens: d?.totals?.tokens ?? 0
           }
         })
       })
@@ -72,9 +73,13 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
 
   const maxTurns = Math.max(1, ...(dash?.attention.map((a) => a.turns) ?? [1]))
   const maxAll = Math.max(1, ...(dash?.attentionAll.map((a) => a.turns) ?? [1]))
-  const maxSpark = Math.max(1, ...(dash?.spark.map((s) => s.turns) ?? [1]))
+  // Tokens are the interesting series; fall back to turns until any exist
+  // (token recording only starts with this build).
+  const hasTokens = (dash?.spark ?? []).some((s) => s.tokens > 0)
+  const sparkVal = (s: { turns: number; tokens: number }): number =>
+    hasTokens ? s.tokens : s.turns
+  const maxSpark = Math.max(1, ...(dash?.spark.map(sparkVal) ?? [1]))
   const maxHour = Math.max(1, ...(dash?.hours ?? [1]))
-  const maxSite = Math.max(1, ...(dash?.topSites.map((s) => s.visits) ?? [1]))
 
   return (
     <div className="dash-view">
@@ -124,14 +129,21 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
             </div>
 
             <div className="dash-section">
-              <h3>Last 14 days</h3>
+              <h3>{hasTokens ? 'Tokens (14 days)' : 'Turns (14 days)'}</h3>
               <div className="dash-spark">
                 {dash.spark.map((s, i) => (
-                  <div key={i} className="dash-spark-col" title={`${s.turns} turns`}>
+                  <div
+                    key={i}
+                    className="dash-spark-col"
+                    title={`${fmtTokens(s.tokens)} tokens · ${s.turns} turns`}
+                  >
+                    <span className="dash-spark-val">
+                      {sparkVal(s) > 0 ? (hasTokens ? fmtTokens(s.tokens) : s.turns) : ''}
+                    </span>
                     <div className="dash-spark-track">
                       <div
                         className="dash-spark-bar"
-                        style={{ height: `${Math.max(3, (s.turns / maxSpark) * 100)}%` }}
+                        style={{ height: `${Math.max(3, (sparkVal(s) / maxSpark) * 100)}%` }}
                       />
                     </div>
                     <span className="dash-spark-day">{s.day}</span>
@@ -202,26 +214,6 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
             </div>
 
             <div className="dash-section">
-              <h3>Top sites</h3>
-              {dash.topSites.length === 0 ? (
-                <div className="dash-empty">No pages visited yet.</div>
-              ) : (
-                dash.topSites.map((s) => (
-                  <div key={s.host} className="dash-row" title={s.title}>
-                    <span className="dash-row-name">{s.host}</span>
-                    <div className="dash-row-track">
-                      <div
-                        className="dash-row-bar dash-bar-site"
-                        style={{ width: `${(s.visits / maxSite) * 100}%` }}
-                      />
-                    </div>
-                    <span className="dash-row-n">{s.visits}</span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="dash-section">
               <h3>All time</h3>
               <div className="dash-totals">
                 <div>
@@ -240,10 +232,7 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
                   <b>{dash.totals.projects.toLocaleString()}</b> projects
                 </div>
                 <div>
-                  <b>{dash.totals.visits.toLocaleString()}</b> page visits
-                </div>
-                <div>
-                  <b>{dash.totals.sites.toLocaleString()}</b> sites
+                  <b>{fmtTokens(dash.totals.tokens)}</b> tokens
                 </div>
               </div>
               {dash.firstTs && (

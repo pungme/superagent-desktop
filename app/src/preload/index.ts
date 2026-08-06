@@ -107,18 +107,17 @@ export interface CoveApi {
   /** Tail of the latest assistant reply, for the done-notification body. */
   chatLastReply: (workspaceId: string, excerpt: string) => void
   /** Append to the activity log (dashboard). */
-  eventsRecord: (kind: string, workspaceId?: string) => void
+  eventsRecord: (kind: string, workspaceId?: string, n?: number) => void
   eventsDashboard: () => Promise<{
     turnsToday: number
     tasksToday: number
     streak: number
     longestStreak: number
-    spark: { day: string; turns: number }[]
+    spark: { day: string; turns: number; tokens: number }[]
     attention: { name: string; turns: number }[]
     attentionAll: { name: string; turns: number }[]
     hours: number[]
     busiestDay: { date: string; turns: number } | null
-    topSites: { host: string; title: string; visits: number }[]
     avgTurns30: number
     firstTs: number | null
     totals: {
@@ -127,8 +126,7 @@ export interface CoveApi {
       chats: number
       projects: number
       messages: number
-      sites: number
-      visits: number
+      tokens: number
     }
   }>
   /** New git worktree under <project>/.worktrees; null if git refused. */
@@ -290,7 +288,7 @@ const cove: CoveApi = {
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),
-  eventsRecord: (kind, workspaceId) => ipcRenderer.send('events:record', kind, workspaceId),
+  eventsRecord: (kind, workspaceId, n) => ipcRenderer.send('events:record', kind, workspaceId, n),
   eventsDashboard: () => ipcRenderer.invoke('events:dashboard'),
   worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
   worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),

@@ -1087,6 +1087,9 @@ export function EasyChat({
             (u.cache_read_input_tokens ?? 0) +
             (u.cache_creation_input_tokens ?? 0)
           if (ctx > 0) setCtxTokens(ctx)
+          // Feed the dashboard's token chart: everything this turn processed.
+          const total = ctx + (u.output_tokens ?? 0)
+          if (total > 0) window.cove.eventsRecord?.('tokens', workspaceId, total)
         }
         // A completed turn means the session genuinely works — clear the guard so
         // a future crash gets a resume-retry before falling back to fresh.

@@ -89,6 +89,12 @@ export function initStore(): void {
     db.exec("ALTER TABLE workspaces ADD COLUMN kind TEXT NOT NULL DEFAULT 'app'")
   }
 
+  // Migration: a numeric payload on events — token counts ride on kind='tokens'.
+  const evCols = db.prepare('PRAGMA table_info(events)').all() as { name: string }[]
+  if (!evCols.some((c) => c.name === 'n')) {
+    db.exec('ALTER TABLE events ADD COLUMN n INTEGER NOT NULL DEFAULT 0')
+  }
+
   // Migration: chats used to be one-per-workspace (workspaceId was the primary
   // key), which is why "New chat" had to delete the old one — there was nowhere
   // to put a second. Re-key by chat id and carry each existing transcript over
@@ -227,12 +233,13 @@ export function getChatTitleBySession(sessionId: string): string | undefined {
 }
 
 /** Append to the activity log the dashboard reads. Cheap, fire-and-forget. */
-export function recordEvent(kind: string, workspaceId?: string | null): void {
+export function recordEvent(kind: string, workspaceId?: string | null, n = 0): void {
   try {
-    db.prepare('INSERT INTO events (ts, workspaceId, kind) VALUES (?, ?, ?)').run(
+    db.prepare('INSERT INTO events (ts, workspaceId, kind, n) VALUES (?, ?, ?, ?)').run(
       Date.now(),
       workspaceId ?? null,
-      kind
+      kind,
+      Math.max(0, Math.floor(n) || 0)
     )
   } catch {
     // never let bookkeeping break the app
@@ -335,15 +342,20 @@ export function getDashboard(): unknown {
     if (run > longestStreak) longestStreak = run
   }
 
-  // 14-day sparkline with weekday labels.
-  const spark: { day: string; turns: number }[] = []
+  // 14-day sparkline with weekday labels — turns plus tokens processed
+  // (kind='tokens' events carry the per-turn context+output total in n).
+  const tokRows = db
+    .prepare("SELECT ts, n FROM events WHERE kind='tokens' AND ts >= ?")
+    .all(startOfToday - 14 * dayMs) as { ts: number; n: number }[]
+  const spark: { day: string; turns: number; tokens: number }[] = []
   for (let i = 13; i >= 0; i--) {
     const d = today - i
     spark.push({
       day: new Date((d + 1) * dayMs + tzOffMs - 1).toLocaleDateString(undefined, {
         weekday: 'narrow'
       }),
-      turns: turns.filter((e) => dayOf(e.ts) === d).length
+      turns: turns.filter((e) => dayOf(e.ts) === d).length,
+      tokens: tokRows.filter((r) => dayOf(r.ts) === d).reduce((s, r) => s + r.n, 0)
     })
   }
 
@@ -386,23 +398,11 @@ export function getDashboard(): unknown {
       }
   }
 
-  // Browsing: top sites + totals from omnibar history.
-  const topSites = (
-    db
-      .prepare('SELECT url, title, visitCount FROM history ORDER BY visitCount DESC LIMIT 6')
-      .all() as { url: string; title: string | null; visitCount: number }[]
-  ).map((h) => {
-    let host = h.url
-    try {
-      host = new URL(h.url).hostname.replace(/^www\./, '')
-    } catch {
-      /* keep raw */
+  const tokensTotal = (
+    db.prepare("SELECT COALESCE(SUM(n),0) t FROM events WHERE kind='tokens'").get() as {
+      t: number
     }
-    return { host, title: h.title ?? host, visits: h.visitCount }
-  })
-  const siteTotals = db
-    .prepare('SELECT COUNT(*) sites, COALESCE(SUM(visitCount),0) visits FROM history')
-    .get() as { sites: number; visits: number }
+  ).t
   const chatCount = (db.prepare('SELECT COUNT(*) n FROM chats').get() as { n: number }).n
   const projectCount = (db.prepare('SELECT COUNT(*) n FROM workspaces').get() as { n: number }).n
 
@@ -425,7 +425,6 @@ export function getDashboard(): unknown {
     attentionAll,
     hours,
     busiestDay,
-    topSites,
     avgTurns30,
     firstTs,
     totals: {
@@ -434,8 +433,7 @@ export function getDashboard(): unknown {
       chats: chatCount,
       projects: projectCount,
       messages: totalMessages,
-      sites: siteTotals.sites,
-      visits: siteTotals.visits
+      tokens: tokensTotal
     }
   }
 }
@@ -531,8 +529,8 @@ export function registerStoreIpc(): void {
       )
       .all()
   )
-  ipcMain.on('events:record', (_e, kind: string, workspaceId?: string) =>
-    recordEvent(kind, workspaceId)
+  ipcMain.on('events:record', (_e, kind: string, workspaceId?: string, n?: number) =>
+    recordEvent(kind, workspaceId, n)
   )
   ipcMain.handle('events:dashboard', () => getDashboard())
 
