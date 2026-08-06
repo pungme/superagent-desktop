@@ -329,13 +329,19 @@ export const useStore = create<CoveState>((set, get) => ({
 
   toggleBrowser: (workspaceId) =>
     set((s) => {
-      const browserOpen = { ...s.browserOpen, [workspaceId]: !s.browserOpen[workspaceId] }
+      const next = !s.browserOpen[workspaceId]
+      // Remembered so a code project's preview survives an app restart. Browser
+      // projects deliberately don't restore (a cold start must not land on a
+      // reloaded, often logged-out live page) — see the coldStart flag.
+      localStorage.setItem(`paneOpen:${workspaceId}`, next ? '1' : '0')
+      const browserOpen = { ...s.browserOpen, [workspaceId]: next }
       return { browserOpen, coldStart: false }
     }),
   setHooksEnabled: (v) => set({ hooksEnabled: v }),
 
   openPreview: (workspaceId, port) =>
     set((s) => {
+      localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
       return {
         activeWorkspaceId: workspaceId,
@@ -347,6 +353,7 @@ export const useStore = create<CoveState>((set, get) => ({
     }),
   openUrl: (workspaceId, url) =>
     set((s) => {
+      localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
       return {
         activeWorkspaceId: workspaceId,
