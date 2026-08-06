@@ -328,7 +328,10 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       <div
         ref={setRefs}
         className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver ? 'drop-before' : ''}`}
-        onClick={() => setActive(ws.id)}
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+          setActive(ws.id)
+        }}
         {...attributes}
         {...listeners}
       >
@@ -439,6 +442,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               // project keeps a stuck-looking highlight after you move elsewhere.
               active={active && c.id === activeChatId}
               onOpen={() => {
+                window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
                 setActive(ws.id)
                 selectChat(ws.id, c.id)
               }}
@@ -655,9 +659,15 @@ export function Sidebar(): React.JSX.Element {
       <div className="sidebar-drag-region" />
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="sidebar-scroll">
+          <button
+            className="sidebar-dash-row"
+            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
+          >
+            <span className="sidebar-dash-icon">▤</span> Dashboard
+          </button>
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">
-              <span className="sidebar-group-title">Tabs</span>
+              <span className="sidebar-group-title">Browse</span>
               <button className="group-add" title="New tab" onClick={() => void newTab()}>
                 +
               </button>
@@ -679,13 +689,6 @@ export function Sidebar(): React.JSX.Element {
       <div className="sidebar-footer">
         <button className="sidebar-add-group" onClick={() => addGroup()}>
           + New group
-        </button>
-        <button
-          className="sidebar-settings"
-          title="Dashboard — where your attention went"
-          onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
-        >
-          ▤
         </button>
         <button
           className="sidebar-settings"

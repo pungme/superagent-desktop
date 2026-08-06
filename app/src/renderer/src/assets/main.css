@@ -3917,9 +3917,45 @@ button {
   font-size: 13px;
 }
 
+/* Dashboard — a full content-pane view, not an overlay. */
+.dash-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dash-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 24px 12px;
+}
+.dash-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.dash-close {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.dash-close:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
 .dash {
-  padding: 14px 16px;
+  flex: 1;
+  min-height: 0;
+  padding: 4px 24px 28px;
   overflow-y: auto;
+  max-width: 860px;
+  width: 100%;
+  align-self: center;
 }
 .dash-empty {
   color: var(--text-tertiary);
@@ -3927,49 +3963,91 @@ button {
   padding: 8px 0;
 }
 .dash-stats {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 .dash-stat {
-  flex: 1;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 .dash-stat-n {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .dash-stat-l {
   font-size: 11px;
   color: var(--text-secondary);
 }
 .dash-section {
-  margin-bottom: 18px;
+  margin-bottom: 24px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
 }
 .dash-section h3 {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 .dash-spark {
   display: flex;
+  gap: 4px;
+  height: 76px;
+}
+.dash-spark-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dash-spark-track {
+  flex: 1;
+  display: flex;
   align-items: flex-end;
-  gap: 3px;
-  height: 48px;
 }
 .dash-spark-bar {
-  flex: 1;
+  width: 100%;
   background: var(--accent);
   opacity: 0.75;
-  border-radius: 2px 2px 0 0;
+  border-radius: 3px 3px 1px 1px;
   min-height: 3px;
+}
+.dash-spark-day {
+  text-align: center;
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+.dash-hours {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 56px;
+}
+.dash-hour-bar {
+  flex: 1;
+  background: var(--accent);
+  opacity: 0.6;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+.dash-hours-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
 }
 .dash-row {
   display: flex;
@@ -3979,7 +4057,7 @@ button {
   font-size: 12.5px;
 }
 .dash-row-name {
-  width: 110px;
+  width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3996,11 +4074,34 @@ button {
   background: var(--accent);
   opacity: 0.8;
 }
+.dash-bar-alt {
+  opacity: 0.5;
+}
+.dash-bar-site {
+  background: #34a885;
+  opacity: 0.7;
+}
 .dash-row-n {
-  width: 28px;
+  width: 44px;
   text-align: right;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
+}
+.dash-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px 16px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.dash-totals b {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dash-since {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 .easy-ctx {
@@ -4025,6 +4126,36 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+/* The Browse header's + is the only way to make a tab — always visible
+   (the hover-reveal rule targets .sidebar-group-header, which this isn't). */
+.tabs-head .group-add {
+  opacity: 1;
+}
+
+/* Dashboard entry pinned above everything in the sidebar. */
+.sidebar-dash-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 12px);
+  margin: 2px 6px 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+}
+.sidebar-dash-row:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.sidebar-dash-icon {
+  font-size: 13px;
+  color: var(--text-tertiary);
 }
 .tabs-empty {
   padding: 4px 10px 8px;
