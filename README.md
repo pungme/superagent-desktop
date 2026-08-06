@@ -95,6 +95,14 @@ allowed to do without asking.
   when it suits you.
 - **Light and dark**, following your system.
 
+## Roadmap
+
+- **Embedded iOS Simulator** — the live simulator streaming inside the app,
+  not just driven by it.
+- **Other agents.** SuperAgent wraps Claude Code today, but in the end it's an
+  LLM driving a home — the plan is an agent layer that other CLIs and local
+  models can plug into.
+
 ## What you need
 
 - A Mac
