@@ -33,8 +33,13 @@ mac:
     - NSCameraUsageDescription: SuperAgent does not use the camera.
     - NSMicrophoneUsageDescription: SuperAgent records your voice only while you hold the dictation key, and transcribes it on this Mac.
   notarize: true
+  # BOTH targets, deliberately: the DMG is what people download; the ZIP is what
+  # electron-updater's MacUpdater actually installs from — with no zip in
+  # latest-mac.yml it throws ERR_UPDATER_ZIP_FILE_NOT_FOUND before downloading
+  # anything, which is why auto-update never completed on macOS.
   target:
     - dmg
+    - zip
 dmg:
   # Version-less on purpose: GitHub's /releases/latest/download/<name> needs an
   # exact filename, so a stable one is what lets the site link straight to the
