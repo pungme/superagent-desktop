@@ -69,11 +69,21 @@ export function initStore(): void {
       updatedAt INTEGER NOT NULL DEFAULT 0,
       data TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS events (
+      ts INTEGER NOT NULL,
+      workspaceId TEXT,
+      kind TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
     CREATE TABLE IF NOT EXISTS history (
       url TEXT PRIMARY KEY,
       title TEXT,
       visitCount INTEGER NOT NULL DEFAULT 1,
       lastVisit INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS kv (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     );
   `)
 
@@ -81,6 +91,12 @@ export function initStore(): void {
   const cols = db.prepare('PRAGMA table_info(workspaces)').all() as { name: string }[]
   if (!cols.some((c) => c.name === 'kind')) {
     db.exec("ALTER TABLE workspaces ADD COLUMN kind TEXT NOT NULL DEFAULT 'app'")
+  }
+
+  // Migration: a numeric payload on events — token counts ride on kind='tokens'.
+  const evCols = db.prepare('PRAGMA table_info(events)').all() as { name: string }[]
+  if (!evCols.some((c) => c.name === 'n')) {
+    db.exec('ALTER TABLE events ADD COLUMN n INTEGER NOT NULL DEFAULT 0')
   }
 
   // Migration: chats used to be one-per-workspace (workspaceId was the primary
@@ -125,6 +141,13 @@ export function initStore(): void {
         row.data
       )
     }
+  }
+
+  // Migration: a chat may run in its own git worktree; cwd overrides the project
+  // path. Runs AFTER the rekey migration above, which recreates the table.
+  const chatCols2 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  if (chatCols2.length > 0 && !chatCols2.some((c) => c.name === 'cwd')) {
+    db.exec('ALTER TABLE chats ADD COLUMN cwd TEXT')
   }
 
   // Seed a default group on first run so the sidebar is never empty.
@@ -213,6 +236,265 @@ export function getChatTitleBySession(sessionId: string): string | undefined {
   return row?.title ?? undefined
 }
 
+/** Append to the activity log the dashboard reads. Cheap, fire-and-forget. */
+export function recordEvent(kind: string, workspaceId?: string | null, n = 0): void {
+  try {
+    db.prepare('INSERT INTO events (ts, workspaceId, kind, n) VALUES (?, ?, ?, ?)').run(
+      Date.now(),
+      workspaceId ?? null,
+      kind,
+      Math.max(0, Math.floor(n) || 0)
+    )
+  } catch {
+    // never let bookkeeping break the app
+  }
+}
+
+/**
+ * Everything the dashboard shows. The events table only started filling in
+ * v1.1, but chat transcripts carry per-message timestamps going back much
+ * further — so turns are reconstructed from both sources. Where a day has
+ * entries from both (recent sessions log each turn twice: once as an event,
+ * once as a saved assistant message), the richer source wins for that day
+ * rather than double-counting.
+ */
+export function getDashboard(rangeDays = 14): unknown {
+  const range = Math.min(365, Math.max(7, Math.floor(rangeDays) || 14))
+  const dayMs = 86_400_000
+  const now = Date.now()
+  const startOfToday = new Date().setHours(0, 0, 0, 0)
+  const tzOffMs = new Date().getTimezoneOffset() * 60_000
+  const dayOf = (ts: number): number => Math.floor((ts - tzOffMs) / dayMs)
+
+  type Entry = { ts: number; ws: string | null }
+  const evEntries: Entry[] = (
+    db.prepare("SELECT ts, workspaceId ws FROM events WHERE kind='turn'").all() as {
+      ts: number
+      ws: string | null
+    }[]
+  ).map((r) => ({ ts: r.ts, ws: r.ws }))
+
+  // Backfill from transcripts: every saved assistant message is one turn.
+  const msgEntries: Entry[] = []
+  let totalMessages = 0
+  const chatRows = db.prepare('SELECT workspaceId, data FROM chats').all() as {
+    workspaceId: string
+    data: string
+  }[]
+  for (const row of chatRows) {
+    try {
+      const items = JSON.parse(row.data) as {
+        kind?: string
+        msg?: { role?: string; at?: number; system?: boolean }
+      }[]
+      if (!Array.isArray(items)) continue
+      for (const it of items) {
+        if (it?.kind !== 'msg' || !it.msg || it.msg.system) continue
+        totalMessages += 1
+        if (it.msg.role === 'assistant' && typeof it.msg.at === 'number')
+          msgEntries.push({ ts: it.msg.at, ws: row.workspaceId })
+      }
+    } catch {
+      // one corrupt transcript shouldn't blank the dashboard
+    }
+  }
+
+  // Per-day, keep whichever source saw more turns that day.
+  const byDay = (list: Entry[]): Map<number, Entry[]> => {
+    const m = new Map<number, Entry[]>()
+    for (const e of list) {
+      const d = dayOf(e.ts)
+      const arr = m.get(d)
+      if (arr) arr.push(e)
+      else m.set(d, [e])
+    }
+    return m
+  }
+  const evByDay = byDay(evEntries)
+  const msgByDay = byDay(msgEntries)
+  const turns: Entry[] = []
+  for (const d of new Set([...evByDay.keys(), ...msgByDay.keys()])) {
+    const ev = evByDay.get(d) ?? []
+    const msg = msgByDay.get(d) ?? []
+    turns.push(...(msg.length >= ev.length ? msg : ev))
+  }
+
+  const today = dayOf(now)
+  const turnsToday = turns.filter((e) => dayOf(e.ts) === today).length
+  const tasksToday = (
+    db
+      .prepare("SELECT COUNT(*) n FROM events WHERE kind='task-done' AND ts >= ?")
+      .get(startOfToday) as { n: number }
+  ).n
+  const tasksTotal = (
+    db.prepare("SELECT COUNT(*) n FROM events WHERE kind='task-done'").get() as { n: number }
+  ).n
+
+  // Streaks over the merged turn days: current (ending today/yesterday) + longest ever.
+  const days = new Set(turns.map((e) => dayOf(e.ts)))
+  let streak = 0
+  let cursor = today
+  if (!days.has(cursor)) cursor -= 1
+  while (days.has(cursor)) {
+    streak += 1
+    cursor -= 1
+  }
+  let longestStreak = 0
+  const sortedDays = [...days].sort((a, b) => a - b)
+  let run = 0
+  for (let i = 0; i < sortedDays.length; i++) {
+    run = i > 0 && sortedDays[i] === sortedDays[i - 1] + 1 ? run + 1 : 1
+    if (run > longestStreak) longestStreak = run
+  }
+
+  // Token chart over the selected range — kind='tokens' events carry the
+  // per-turn context+output total in n. Short ranges label weekdays; longer
+  // ones label the first bar of each week with the date.
+  const tokRows = db
+    .prepare("SELECT ts, n FROM events WHERE kind='tokens' AND ts >= ?")
+    .all(startOfToday - range * dayMs) as { ts: number; n: number }[]
+  const spark: { day: string; turns: number; tokens: number }[] = []
+  for (let i = range - 1; i >= 0; i--) {
+    const d = today - i
+    const date = new Date((d + 1) * dayMs + tzOffMs - 1)
+    const label =
+      range <= 14
+        ? date.toLocaleDateString(undefined, { weekday: 'narrow' })
+        : date.getDay() === 1
+          ? date.toLocaleDateString(undefined, { day: 'numeric', month: 'numeric' })
+          : ''
+    spark.push({
+      day: label,
+      turns: turns.filter((e) => dayOf(e.ts) === d).length,
+      tokens: tokRows.filter((r) => dayOf(r.ts) === d).reduce((s, r) => s + r.n, 0)
+    })
+  }
+
+  // Attention per project — 7 days and all-time.
+  const wsNames = new Map(
+    (db.prepare('SELECT id, name FROM workspaces').all() as { id: string; name: string }[]).map(
+      (w) => [w.id, w.name]
+    )
+  )
+  const tally = (list: Entry[]): { name: string; turns: number }[] => {
+    const m = new Map<string, number>()
+    for (const e of list) {
+      const name = (e.ws && wsNames.get(e.ws)) || null
+      if (name) m.set(name, (m.get(name) ?? 0) + 1)
+    }
+    return [...m.entries()]
+      .map(([name, n]) => ({ name, turns: n }))
+      .sort((a, b) => b.turns - a.turns)
+  }
+  const attention = tally(turns.filter((e) => now - e.ts <= 7 * dayMs)).slice(0, 8)
+  const attentionAll = tally(turns).slice(0, 5)
+
+  // Busiest hours (turns by hour-of-day, last 30 days).
+  const hours = new Array<number>(24).fill(0)
+  for (const e of turns) {
+    if (now - e.ts <= 30 * dayMs) hours[new Date(e.ts).getHours()] += 1
+  }
+
+  // Busiest single day ever.
+  let busiestDay: { date: string; turns: number } | null = null
+  for (const d of days) {
+    const n = turns.filter((e) => dayOf(e.ts) === d).length
+    if (!busiestDay || n > busiestDay.turns)
+      busiestDay = {
+        date: new Date((d + 1) * dayMs + tzOffMs - 1).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric'
+        }),
+        turns: n
+      }
+  }
+
+  const tokSince = (a: number, b = Infinity): number =>
+    (
+      db
+        .prepare(
+          "SELECT COALESCE(SUM(n),0) t FROM events WHERE kind='tokens' AND ts >= ? AND ts < ?"
+        )
+        .get(a, b === Infinity ? Number.MAX_SAFE_INTEGER : b) as { t: number }
+    ).t
+  const tokensTotal = tokSince(0)
+  const tokens = {
+    today: tokSince(startOfToday),
+    week: tokSince(now - 7 * dayMs),
+    month: tokSince(now - 30 * dayMs)
+  }
+
+  // Week-over-week momentum: this 7 days vs the 7 before.
+  const turnsWeek = turns.filter((e) => now - e.ts <= 7 * dayMs).length
+  const turnsPrevWeek = turns.filter(
+    (e) => now - e.ts > 7 * dayMs && now - e.ts <= 14 * dayMs
+  ).length
+  const trends = {
+    turnsWeek,
+    turnsPrevWeek,
+    tokensWeek: tokens.week,
+    tokensPrevWeek: tokSince(now - 14 * dayMs, now - 7 * dayMs)
+  }
+
+  // Weekly rhythm: average turns per weekday over the last 8 weeks (Mon-first).
+  const weekday = new Array<number>(7).fill(0)
+  for (const e of turns) {
+    if (now - e.ts <= 56 * dayMs) weekday[(new Date(e.ts).getDay() + 6) % 7] += 1
+  }
+  const weekdayAvg = weekday.map((n) => Math.round((n / 8) * 10) / 10)
+
+  // Where the tokens went: per project, last 30 days.
+  const tokensByProject = (
+    db
+      .prepare(
+        `SELECT w.name AS name, SUM(e.n) AS tokens
+         FROM events e JOIN workspaces w ON w.id = e.workspaceId
+         WHERE e.kind='tokens' AND e.ts >= ?
+         GROUP BY e.workspaceId ORDER BY tokens DESC LIMIT 6`
+      )
+      .all(now - 30 * dayMs) as { name: string; tokens: number }[]
+  ).filter((r) => r.tokens > 0)
+  const chatCount = (db.prepare('SELECT COUNT(*) n FROM chats').get() as { n: number }).n
+  const projectCount = (db.prepare('SELECT COUNT(*) n FROM workspaces').get() as { n: number }).n
+
+  // Average turns per active day over the last 30.
+  const recentDays = sortedDays.filter((d) => d > today - 30)
+  const recentTurns = turns.filter((e) => now - e.ts <= 30 * dayMs).length
+  const avgTurns30 = recentDays.length ? Math.round((recentTurns / recentDays.length) * 10) / 10 : 0
+
+  // reduce, not Math.min(...spread) — a years-deep transcript history can
+  // exceed the engine's argument limit and throw.
+  const firstTs = turns.length ? turns.reduce((m, e) => (e.ts < m ? e.ts : m), Infinity) : null
+
+  return {
+    turnsToday,
+    tasksToday,
+    streak,
+    longestStreak,
+    spark,
+    attention,
+    attentionAll,
+    hours,
+    busiestDay,
+    avgTurns30,
+    activeDays30: recentDays.length,
+    firstTs,
+    tokens,
+    trends,
+    weekdayAvg,
+    tokensByProject,
+    avgMsgsPerChat: chatCount ? Math.round(totalMessages / chatCount) : 0,
+    totals: {
+      turns: turns.length,
+      tasks: tasksTotal,
+      chats: chatCount,
+      projects: projectCount,
+      messages: totalMessages,
+      tokens: tokensTotal
+    }
+  }
+}
+
 export function registerStoreIpc(): void {
   initStore()
 
@@ -289,7 +571,7 @@ export function registerStoreIpc(): void {
   ipcMain.handle('chat:list', (_e, workspaceId: string) =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, updatedAt
+        `SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd
          FROM chats WHERE workspaceId = ? ORDER BY position ASC, updatedAt ASC`
       )
       .all(workspaceId)
@@ -299,12 +581,46 @@ export function registerStoreIpc(): void {
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, updatedAt
+        `SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd
          FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC`
       )
       .all()
   )
-  ipcMain.handle('chat:create', (_e, workspaceId: string) => {
+  ipcMain.on('events:record', (_e, kind: string, workspaceId?: string, n?: number) =>
+    recordEvent(kind, workspaceId, n)
+  )
+
+  // Durable mirror of the renderer's localStorage (UI state: paneOpen, theme,
+  // onboarded…). localStorage lives in a Chromium leveldb that an unclean
+  // shutdown can corrupt — which then resets it wholesale (happened 2026-08-06:
+  // onboarding reappeared, pane state lost). SQLite in WAL mode survives kills;
+  // the renderer restores any missing keys from here at startup.
+  ipcMain.handle('kv:all', () => {
+    const rows = db.prepare('SELECT key, value FROM kv').all() as {
+      key: string
+      value: string
+    }[]
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]))
+  })
+  ipcMain.on('kv:set', (_e, key: string, value: string) => {
+    try {
+      db.prepare(
+        'INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value'
+      ).run(String(key), String(value))
+    } catch {
+      // mirroring must never break the app
+    }
+  })
+  ipcMain.on('kv:del', (_e, key: string) => {
+    try {
+      db.prepare('DELETE FROM kv WHERE key = ?').run(String(key))
+    } catch {
+      /* ditto */
+    }
+  })
+  ipcMain.handle('events:dashboard', (_e, rangeDays?: number) => getDashboard(rangeDays))
+
+  ipcMain.handle('chat:create', (_e, workspaceId: string, cwd?: string) => {
     const id = randomUUID()
     const next =
       ((
@@ -313,8 +629,8 @@ export function registerStoreIpc(): void {
           .get(workspaceId) as { p: number | null } | undefined
       )?.p ?? -1) + 1
     db.prepare(
-      'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data) VALUES (?, ?, NULL, NULL, ?, ?, ?)'
-    ).run(id, workspaceId, next, Date.now(), '[]')
+      'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data, cwd) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?)'
+    ).run(id, workspaceId, next, Date.now(), '[]', cwd ?? null)
     return id
   })
   ipcMain.handle('chat:delete', (_e, id: string) => {
@@ -322,10 +638,14 @@ export function registerStoreIpc(): void {
   })
   ipcMain.handle(
     'chat:update',
-    (_e, id: string, patch: { title?: string | null; claudeSessionId?: string | null }) => {
+    (
+      _e,
+      id: string,
+      patch: { title?: string | null; claudeSessionId?: string | null; cwd?: string | null }
+    ) => {
       const sets: string[] = []
       const vals: (string | number | null)[] = []
-      for (const key of ['title', 'claudeSessionId'] as const) {
+      for (const key of ['title', 'claudeSessionId', 'cwd'] as const) {
         if (key in patch) {
           sets.push(`${key} = ?`)
           vals.push(patch[key] ?? null)

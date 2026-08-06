@@ -190,6 +190,10 @@ function ChatRow({
       className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''}`}
       title={label}
       onClick={onOpen}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        window.cove.chatMenu(chat.id, workspaceId)
+      }}
       onDoubleClick={() => {
         setDraft(label)
         setEditing(true)
@@ -216,7 +220,14 @@ function ChatRow({
           }}
         />
       ) : (
-        <span className="chat-tree-title">{label}</span>
+        <span className="chat-tree-title">
+          {label}
+          {chat.cwd && (
+            <span className="chat-tree-wt" title={`Worktree: ${chat.cwd}`}>
+              ⎇ {chat.cwd.split('/').pop()}
+            </span>
+          )}
+        </span>
       )}
       <button
         className="routine-tree-run chat-tree-remove"
@@ -317,7 +328,10 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       <div
         ref={setRefs}
         className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver ? 'drop-before' : ''}`}
-        onClick={() => setActive(ws.id)}
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+          setActive(ws.id)
+        }}
         {...attributes}
         {...listeners}
       >
@@ -428,6 +442,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               // project keeps a stuck-looking highlight after you move elsewhere.
               active={active && c.id === activeChatId}
               onOpen={() => {
+                window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
                 setActive(ws.id)
                 selectChat(ws.id, c.id)
               }}
@@ -558,10 +573,33 @@ function GroupSection({
   )
 }
 
+// The reserved group holding quick browser tabs — rendered as its own section
+// at the top, never as a normal (renamable/deletable) group.
+const TABS_GROUP = '__tabs'
+
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const refresh = useStore((s) => s.refresh)
   const addGroup = useStore((s) => s.addGroup)
+  const setActive = useStore((s) => s.setActive)
+  const tabsGroup = tree.find((g) => g.name === TABS_GROUP)
+
+  const newTab = async (): Promise<void> => {
+    // Opening a tab shouldn't require choosing a project type first — that's
+    // the whole point of the section.
+    let gid = tabsGroup?.id
+    if (!gid) {
+      const next = await window.cove.createGroup(TABS_GROUP)
+      gid = next.find((g) => g.name === TABS_GROUP)?.id
+    }
+    if (!gid) return
+    const created = await window.cove.createBrowserWorkspace(gid, 'New Tab')
+    // A tab is a browser first — open it filling the pane, not in the simulated
+    // desktop card (that's for previewing sites at devices, not for browsing).
+    localStorage.setItem(`viewport:${created.workspaceId}`, 'none')
+    await refresh()
+    setActive(created.workspaceId)
+  }
   const moveWorkspace = useStore((s) => s.moveWorkspace)
   const moveGroup = useStore((s) => s.moveGroup)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -621,9 +659,43 @@ export function Sidebar(): React.JSX.Element {
       <div className="sidebar-drag-region" />
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="sidebar-scroll">
-          {tree.map((group) => (
-            <GroupSection key={group.id} group={group} />
-          ))}
+          <button
+            className="sidebar-dash-row"
+            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
+          >
+            <svg
+              className="sidebar-dash-icon"
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            >
+              <path d="M2.5 13.5v-4M6.5 13.5v-7M10.5 13.5v-2.5M14.5 13.5v-9" />
+            </svg>
+            Dashboard
+          </button>
+          <div className="sidebar-group">
+            <div className="sidebar-group-head tabs-head">
+              <span className="sidebar-group-title">Browse</span>
+              <button className="group-add" title="New tab" onClick={() => void newTab()}>
+                +
+              </button>
+            </div>
+            {(tabsGroup?.workspaces ?? []).map((ws, i) => (
+              <WorkspaceRow key={ws.id} ws={ws} index={i} />
+            ))}
+            {(tabsGroup?.workspaces ?? []).length === 0 && (
+              <div className="tabs-empty">Click + to browse</div>
+            )}
+          </div>
+          {tree
+            .filter((g) => g.name !== TABS_GROUP)
+            .map((group) => (
+              <GroupSection key={group.id} group={group} />
+            ))}
         </div>
       </DndContext>
       <div className="sidebar-footer">

@@ -37,6 +37,8 @@ export function WorkspaceView({
     // kind: what you (or the agent) had on screen comes back after a restart.
     const saved = localStorage.getItem(`paneOpen:${ws.id}`)
     if (saved !== null) return saved === '1'
+    // No record: browser projects still default open only after first
+    // interaction this run, so a cold start lands on the chat.
     return ws.kind === 'browser' ? !s.coldStart : false
   })
   const toggleBrowser = useStore((s) => s.toggleBrowser)
@@ -354,11 +356,12 @@ export function WorkspaceView({
             <EasyChat
               // Remount on switch so no state leaks between conversations.
               key={activeChat.id}
-              cwd={ws.path}
+              cwd={activeChat.cwd ?? ws.path}
               workspaceId={ws.id}
               chatId={activeChat.id}
               initialSessionId={activeChat.claudeSessionId}
               browserProject={ws.kind === 'browser'}
+              isRepo={branch !== null}
               visible={visible}
             />
           )}

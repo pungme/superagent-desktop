@@ -45,6 +45,33 @@ type Item =
   | { kind: 'diff'; diff: FileDiff }
   | { kind: 'thinking'; id: string; text: string }
 
+/**
+ * Sticky one-liner when a dev server is running for this project and the
+ * preview isn't showing it — one click to open, without hunting the toolbar.
+ */
+function DevServerStrip({ workspaceId }: { workspaceId: string }): React.JSX.Element | null {
+  const ports = useStore((s) => s.ports[workspaceId])
+  const paneOpen = useStore((s) => s.browserOpen[workspaceId] === true)
+  const openPreview = useStore((s) => s.openPreview)
+  const [dismissed, setDismissed] = useState(false)
+  const port = ports?.[0]
+  if (!port || paneOpen || dismissed) return null
+  return (
+    <div className="easy-devserver" role="status">
+      <span className="easy-devserver-dot" />
+      <span className="easy-devserver-label">
+        Dev server running at <b>localhost:{port}</b>
+      </span>
+      <button className="easy-devserver-open" onClick={() => openPreview(workspaceId, port)}>
+        Open preview
+      </button>
+      <button className="easy-devserver-x" onClick={() => setDismissed(true)} title="Hide">
+        ×
+      </button>
+    </div>
+  )
+}
+
 interface EasyChatProps {
   cwd: string
   workspaceId: string
@@ -52,6 +79,8 @@ interface EasyChatProps {
   chatId: string
   initialSessionId?: string | null
   browserProject?: boolean
+  /** The project is a git repo — enables the "New worktree" chat button. */
+  isRepo?: boolean
   /** Whether this chat's workspace is the one on screen. Background chats stay
       mounted (so switching back is instant) but get their claude process reaped
       once they've been idle a while — see IDLE_REAP_MS. */
@@ -449,6 +478,7 @@ export function EasyChat({
   chatId,
   initialSessionId,
   browserProject,
+  isRepo = false,
   visible = true
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
@@ -476,10 +506,15 @@ export function EasyChat({
   // narrow chat column; below this width only the short form fits on one line.
   const [narrowComposer, setNarrowComposer] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  // Non-image files dropped on the chat — shown as chips, sent as paths.
+  const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
   // Commands the agent left running in the background. Claude mentions them in
   // prose and then moves on, so without this the only sign a deploy/build/server
   // is still going is a sentence that scrolls away.
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
+  // Context consumed by the last turn (input + cache tokens) — a quiet running
+  // gauge of how full the conversation is.
+  const [ctxTokens, setCtxTokens] = useState<number | null>(null)
   // tool_use id of a BashOutput poll → the shell it's asking about, so its result
   // can retire the right task.
   const pollTargets = useRef(new Map<string, string>())
@@ -882,6 +917,12 @@ export function EasyChat({
           if (wholeText) {
             streamedThisTurnRef.current = true
             const isApiError = msg?.isApiErrorMessage === true
+            if (!isApiError && wholeText.trim()) {
+              // First non-empty line of the reply — the "what finished" for the
+              // done notification.
+              const line = wholeText.trim().split('\n').find((l) => l.trim()) ?? ''
+              window.cove.chatLastReply(workspaceId, line.replace(/[#*_`>]/g, '').trim())
+            }
             setItems((prev) => [
               ...prev,
               {
@@ -939,7 +980,12 @@ export function EasyChat({
                 if (inp.subject) t.content = inp.subject
                 if (inp.activeForm) t.activeForm = inp.activeForm
                 if (inp.status === 'deleted') tasks.current.delete(inp.taskId)
-                else if (inp.status) t.status = inp.status
+                else if (inp.status) {
+                  if (inp.status === 'completed' && t.status !== 'completed') {
+                    window.cove.eventsRecord?.('task-done', workspaceId)
+                  }
+                  t.status = inp.status
+                }
                 syncTasks()
               }
             }
@@ -1037,6 +1083,17 @@ export function EasyChat({
       }
 
       if (type === 'result') {
+        const u = (event as { usage?: Record<string, number> }).usage
+        if (u) {
+          const ctx =
+            (u.input_tokens ?? 0) +
+            (u.cache_read_input_tokens ?? 0) +
+            (u.cache_creation_input_tokens ?? 0)
+          if (ctx > 0) setCtxTokens(ctx)
+          // Feed the dashboard's token chart: everything this turn processed.
+          const total = ctx + (u.output_tokens ?? 0)
+          if (total > 0) window.cove.eventsRecord?.('tokens', workspaceId, total)
+        }
         // A completed turn means the session genuinely works — clear the guard so
         // a future crash gets a resume-retry before falling back to fresh.
         resumeRetriedRef.current = false
@@ -1177,7 +1234,7 @@ export function EasyChat({
       setSuspended(true)
     }, IDLE_REAP_MS)
     return () => window.clearTimeout(timer)
-  }, [visible, suspended, generating, thinking])
+  }, [visible, suspended, generating, thinking, bgTasks.length])
 
   // Publish what this chat has in flight, so an app-wide action (installing an
   // update quits the app, which kills every agent) can warn before discarding it.
@@ -1229,6 +1286,28 @@ export function EasyChat({
     setAtBottom(true)
   }
 
+  // Cleared from the sidebar menu: drop everything and go dormant — the next
+  // message starts a fresh session with no carried context.
+  useEffect(() => {
+    const onCleared = (e: Event): void => {
+      const detail = (e as CustomEvent).detail as { chatId: string }
+      if (detail.chatId !== chatId) return
+      if (agentIdRef.current) {
+        window.cove.agentStop(agentIdRef.current)
+        agentIdRef.current = null
+      }
+      setItems([])
+      tasks.current.clear()
+      useStore.getState().clearTodos(workspaceId)
+      resumeIdRef.current = null
+      setReady(false)
+      suspendedRef.current = true
+      setSuspended(true)
+    }
+    window.addEventListener('cove:chat-cleared', onCleared)
+    return () => window.removeEventListener('cove:chat-cleared', onCleared)
+  }, [chatId, workspaceId])
+
   // Messages injected from toolbar actions (e.g. the Skills panel) in Easy mode.
   useEffect(() => {
     const onInjected = (e: Event): void => {
@@ -1254,7 +1333,8 @@ export function EasyChat({
 
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
-    if (!text && images.length === 0) return
+    const files = pendingFiles
+    if (!text && images.length === 0 && files.length === 0) return
     // A process exists but isn't accepting (crash) — the Retry UI owns that.
     if (id && !ready) return
     if (!id && !suspendedRef.current) return // already spawning; drop rather than double-send
@@ -1282,7 +1362,7 @@ export function EasyChat({
           id: `u-${Date.now()}-${Math.random()}`,
           at: Date.now(),
           role: 'user',
-          text,
+          text: files.length ? `${text}${text ? '\n' : ''}📎 ${files.map((f) => f.name).join(' · ')}` : text,
           images: images.length ? images.map((im) => im.url) : undefined,
           replyTo: reply ?? undefined
         }
@@ -1290,11 +1370,18 @@ export function EasyChat({
     ])
     setInput('')
     setPendingImages([])
+    setPendingFiles([])
     if (inputRef.current) inputRef.current.style.height = 'auto'
     // Quote the replied-to message so the agent knows what you're responding to.
     let agentText = reply
       ? `> Replying to ${reply.role === 'user' ? 'my' : 'your'} earlier message:\n> "${reply.text.replace(/\s+/g, ' ').trim().slice(0, 400)}"\n\n${text}`
       : text
+    if (files.length > 0) {
+      // Chips travel as explicit file references the agent can read.
+      agentText = `${agentText}${agentText ? '\n\n' : ''}Attached files:\n${files
+        .map((f) => f.path)
+        .join('\n')}`
+    }
     // Forward every message to Claude the instant you send it — even mid-turn. It
     // reaches Claude's stdin while it's working (verified), but Claude can still
     // deprioritize a bare interjection when it's mid-task. Flag it explicitly so it
@@ -1494,9 +1581,29 @@ export function EasyChat({
     >
       {dragOver && <div className="easy-drop-hint">Drop a file to add it</div>}
       {items.length > 0 && (
-        <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
-          ✎ New chat
-        </button>
+        <div className="easy-newchat-group">
+          <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
+            ✎ New chat
+          </button>
+          {isRepo && (
+            <button
+              className="easy-newchat"
+              onClick={() => {
+                // The chat gets an isolated git worktree on its own branch, so
+                // parallel agents stop fighting over one checkout.
+                void useStore
+                  .getState()
+                  .newChatInWorktree(workspaceId, cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd)
+                  .then((ok) => {
+                    if (!ok) window.alert('Could not create a worktree here — git refused.')
+                  })
+              }}
+              title="New chat on its own git branch — isolated worktree, your checkout stays clean"
+            >
+              ⎇ New worktree
+            </button>
+          )}
+        </div>
       )}
       {agentFailed && (
         <div className="easy-error">
@@ -1507,6 +1614,7 @@ export function EasyChat({
         </div>
       )}
       <TasksPanel workspaceId={workspaceId} />
+      <DevServerStrip workspaceId={workspaceId} />
       <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length === 0 && (ready || suspended) && (
           <div className="easy-empty">
@@ -1681,6 +1789,23 @@ export function EasyChat({
             ))}
           </div>
         )}
+        {pendingFiles.length > 0 && (
+          <div className="easy-attachments">
+            {pendingFiles.map((f, idx) => (
+              <div key={f.path} className="easy-file-chip" title={f.path}>
+                <span className="easy-file-chip-icon">📄</span>
+                <span className="easy-file-chip-name">{f.name}</span>
+                <button
+                  className="easy-attachment-remove"
+                  onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {pendingImages.length > 0 && (
           <div className="easy-attachments">
             {pendingImages.map((img, idx) => (
@@ -1770,7 +1895,7 @@ export function EasyChat({
           <button
             className="easy-send"
             onClick={send}
-            disabled={(!ready && !suspended) || (!input.trim() && pendingImages.length === 0)}
+            disabled={(!ready && !suspended) || (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)}
             title="Send message"
             aria-label="Send message"
           >
@@ -1806,6 +1931,14 @@ export function EasyChat({
             </div>
           )}
         </div>
+        {ctxTokens !== null && (
+          <span
+            className={`easy-ctx ${ctxTokens > 150_000 ? 'warm' : ''}`}
+            title={`~${ctxTokens.toLocaleString()} tokens of context in use`}
+          >
+            {Math.round(ctxTokens / 1000)}k ctx
+          </span>
+        )}
         <div className="easy-control">
           <button
             className={`easy-control-btn ${controlMenu === 'mode' ? 'open' : ''}`}

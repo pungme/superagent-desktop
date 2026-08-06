@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, chmodSy
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
-import { getWorkspaceName, getChatTitleBySession } from './store'
+import { getWorkspaceName, getChatTitleBySession, recordEvent } from './store'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -25,6 +25,10 @@ export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 // here on startup and on change — banners pop over whatever the user is doing,
 // so "Claude is done" must be optional; "needs you" defaults on but can go too.
 export const notifyPrefs = { done: true, needsYou: true }
+
+// The tail of each chat's last assistant reply, per workspace — pushed by the
+// renderer so the "done" banner can say WHAT finished, not just where.
+const lastReplies = new Map<string, string>()
 
 const EVENT_STATUS: Record<string, WorkspaceStatus> = {
   UserPromptSubmit: 'working',
@@ -85,16 +89,19 @@ export function startHookServer(): Promise<string> {
     // with a notification instead of pulling the window forward. Click focuses
     // the project. (When the app is already frontmost, stay quiet.)
     if (event === 'Stop') {
+      recordEvent('turn', workspaceId)
       const focused = BrowserWindow.getFocusedWindow()
       if (!focused && Notification.isSupported() && notifyPrefs.done) {
         const name = getWorkspaceName(workspaceId)
         // Chats name themselves after what they turned out to be about, so the
         // title is the closest thing we have to "what was it about".
         const about = sessionId ? getChatTitleBySession(sessionId) : undefined
+        const reply = lastReplies.get(workspaceId)
         const n = new Notification({
           title: name ? `Claude is done — ${name}` : 'SuperAgent — Claude is done',
           subtitle: about,
-          body: about ? 'Finished its turn.' : 'Your agent finished its work.'
+          // The reply's opening line is the closest thing to "what happened".
+          body: reply || (about ? 'Finished its turn.' : 'Your agent finished its work.')
         })
         n.on('click', () => {
           const win = BrowserWindow.getAllWindows()[0]
@@ -137,10 +144,6 @@ exit 0
 
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Notification', 'Stop', 'SubagentStop']
 
-ipcMain.on('notify:prefs', (_e, prefs: { done?: boolean; needsYou?: boolean }) => {
-  if (typeof prefs.done === 'boolean') notifyPrefs.done = prefs.done
-  if (typeof prefs.needsYou === 'boolean') notifyPrefs.needsYou = prefs.needsYou
-})
 
 type HookSettings = { hooks?: Record<string, unknown[]> } & Record<string, unknown>
 
@@ -234,6 +237,17 @@ export function uninstallHooks(): void {
 }
 
 export function registerHookIpc(): void {
+  // Module scope must stay Electron-free (tests import this file): IPC wiring
+  // belongs here, at registration time.
+  ipcMain.on('chat:last-reply', (_e, workspaceId: string, excerpt: string) => {
+    if (typeof workspaceId === 'string' && typeof excerpt === 'string') {
+      lastReplies.set(workspaceId, excerpt.slice(0, 180))
+    }
+  })
+  ipcMain.on('notify:prefs', (_e, prefs: { done?: boolean; needsYou?: boolean }) => {
+    if (typeof prefs.done === 'boolean') notifyPrefs.done = prefs.done
+    if (typeof prefs.needsYou === 'boolean') notifyPrefs.needsYou = prefs.needsYou
+  })
   ipcMain.handle('hooks:status', () => hooksInstalled())
   ipcMain.handle('hooks:install', () => installHooks())
   ipcMain.handle('hooks:uninstall', () => {

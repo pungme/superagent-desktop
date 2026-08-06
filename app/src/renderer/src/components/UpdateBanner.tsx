@@ -95,6 +95,8 @@ export function UpdateBanner(): React.JSX.Element | null {
         </button>
         <button
           className="update-banner-secondary"
+          // "Keep working" means "leave me alone", not "show me the other pill
+          // again" — dismiss entirely; the update still installs on next quit.
           onClick={() => {
             setConfirming(false)
             setDismissed(true)

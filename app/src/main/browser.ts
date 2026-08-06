@@ -1,9 +1,31 @@
 import { BrowserWindow, WebContentsView, Notification, ipcMain, shell, app, net, session } from 'electron'
 import { connect as tcpConnect } from 'net'
 import { fileURLToPath } from 'url'
-import { basename } from 'path'
+import { basename, join } from 'path'
+import { appendFileSync, renameSync, statSync } from 'fs'
 import { normalizeUrl } from './util'
 import { getRecentHistory } from './store'
+
+// Lightweight pane-lifecycle trail for the "agent-opened pane is blank" reports —
+// the bug has never reproduced on demand, so leave breadcrumbs where it happens.
+// One line per event in userData/pane-debug.log, rotated once at ~512 KB.
+let paneLogRotated = false
+export function paneLog(event: string, id: string, detail = ''): void {
+  try {
+    const file = join(app.getPath('userData'), 'pane-debug.log')
+    if (!paneLogRotated) {
+      paneLogRotated = true
+      try {
+        if (statSync(file).size > 512 * 1024) renameSync(file, file + '.old')
+      } catch {
+        /* first run — no log yet */
+      }
+    }
+    appendFileSync(file, `${new Date().toISOString()} ${event} ${id} ${detail}\n`)
+  } catch {
+    /* logging must never break browsing */
+  }
+}
 
 // Electron's setUserAgent rewrites the UA *string* to look like Chrome, but not the
 // User-Agent Client Hints: the Sec-CH-UA header still advertises bare "Chromium",
@@ -74,9 +96,24 @@ interface BrowserPane {
   view: WebContentsView
   window: BrowserWindow
   visible: boolean
+  /** Session partition, kept so the mobile twin can share logins. */
+  partition: string
 }
 
 const panes = new Map<string, BrowserPane>()
+
+// The "both" viewport's second engine: one shared mobile twin (only one pane is
+// on screen at a time), same partition as its primary so logins carry over,
+// URL-synced one way — the desktop side drives.
+let twin: { view: WebContentsView; forPane: string; offNav: () => void } | null = null
+
+function destroyTwin(window: BrowserWindow): void {
+  if (!twin) return
+  twin.offNav()
+  if (!window.isDestroyed()) window.contentView.removeChildView(twin.view)
+  twin.view.webContents.close()
+  twin = null
+}
 
 // Sessions that already route PDF saves back to the source file.
 const pdfSaveWired = new WeakSet<Electron.Session>()
@@ -188,8 +225,38 @@ ${recentBlock}
 }
 const emptyPanes = new Set<string>()
 
+// A failed main-frame load used to leave the pane silently blank (the
+// empty-pane reports). Show a themed error page instead; the pane keeps
+// reporting the *intended* URL so the omnibox never goes blank, and the page
+// links back to it for a one-click retry.
+const errorUrlByPane = new Map<string, string>()
+function errorStateUrl(target: string, desc: string): string {
+  const host = hostOf(target)
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+:root{--bg:#fff;--fg:rgba(0,0,0,.85);--muted:#8a8a8e;--card:#f4f4f6;--line:#e6e6e9}
+@media(prefers-color-scheme:dark){:root{--bg:#1e1f24;--fg:rgba(255,255,255,.86);--muted:#83848a;--card:#26272e;--line:rgba(255,255,255,.09)}}
+*{margin:0;box-sizing:border-box}html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;-webkit-font-smoothing:antialiased}
+.wrap{text-align:center;width:min(420px,80%)}
+.mark{width:64px;height:64px;border-radius:18px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.mark svg{width:29px;height:29px;stroke:var(--muted);fill:none;stroke-width:1.5;stroke-linecap:round}
+h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.sub{margin-top:6px;font-size:13px;color:var(--muted);line-height:1.5;word-break:break-all}
+.err{margin-top:4px;font-size:11px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+.retry{display:inline-block;margin-top:18px;padding:8px 18px;border-radius:8px;background:var(--card);border:1px solid var(--line);color:var(--fg);text-decoration:none;font-size:13px;font-weight:600}
+</style></head><body><div class="wrap">
+<div class="mark"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 8l8 8M16 8l-8 8"/></svg></div>
+<h1>Couldn&rsquo;t load ${esc(host)}</h1>
+<div class="sub">${esc(target)}</div>
+<div class="err">${esc(desc)}</div>
+<a class="retry" href="${esc(target)}">Try again</a>
+</div></body></html>`
+  return 'data:text/html;charset=utf-8,' + encodeURIComponent(html)
+}
+
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
+  paneLog('create', id, partition)
   hardenClientHints(partition)
 
   const view = new WebContentsView({
@@ -210,7 +277,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // renderer sets the real value on the first bounds sync.
   view.setBorderRadius?.(0)
 
-  const pane: BrowserPane = { id, view, window, visible: false }
+  const pane: BrowserPane = { id, view, window, visible: false, partition }
   panes.set(id, pane)
 
   const wc = view.webContents
@@ -218,9 +285,10 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   const sendState = (): void => {
     if (window.isDestroyed()) return
     const empty = emptyPanes.has(id)
+    const errUrl = errorUrlByPane.get(id)
     window.webContents.send(`browser:state:${id}`, {
-      url: empty ? '' : wc.getURL(),
-      title: empty ? 'New tab' : wc.getTitle(),
+      url: empty ? '' : (errUrl ?? wc.getURL()),
+      title: empty ? 'New tab' : errUrl ? `Couldn't load ${hostOf(errUrl)}` : wc.getTitle(),
       canGoBack: !empty && wc.navigationHistory.canGoBack(),
       canGoForward: !empty && wc.navigationHistory.canGoForward(),
       loading: !empty && wc.isLoading(),
@@ -243,8 +311,11 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // so a stale icon doesn't linger, then inline the new one when it arrives.
   wc.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) faviconByPane.delete(id)
-    // Any real navigation (not the empty-state data: page) leaves it behind.
-    if (isMainFrame && !url.startsWith('data:text/html')) emptyPanes.delete(id)
+    // Any real navigation (not the empty/error data: pages) leaves them behind.
+    if (isMainFrame && !url.startsWith('data:text/html')) {
+      emptyPanes.delete(id)
+      errorUrlByPane.delete(id)
+    }
   })
   wc.on('page-favicon-updated', (_e, favicons) => {
     const url = favicons?.[0]
@@ -255,8 +326,19 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     if (isNavigable(url)) wc.loadURL(url)
     return { action: 'deny' }
   })
-  wc.on('render-process-gone', () => {
+  wc.on('render-process-gone', (_e, details) => {
+    paneLog('render-process-gone', id, details.reason)
     if (!window.isDestroyed()) window.webContents.send(`browser:crashed:${id}`)
+  })
+  // A failed main-frame load used to leave the pane blank with no other trace —
+  // the prime suspect for "agent opened a page and it's empty". Log it, then
+  // show the error page in its place (keeping the intended URL in the omnibox).
+  wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3 /* ERR_ABORTED: superseded navigation, normal */) return
+    paneLog('did-fail-load', id, `${code} ${desc} ${url}`)
+    errorUrlByPane.set(id, url)
+    wc.loadURL(errorStateUrl(url, desc || `error ${code}`)).catch(() => {})
+    sendState()
   })
   // ⌘/Ctrl +/-/0 zoom while the native pane has focus (the renderer never sees
   // these keys then). Mirrors the toolbar buttons and reports back the new level.
@@ -309,7 +391,7 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
   view.setBackgroundColor('#ffffff')
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
   view.webContents.setUserAgent(chromeUserAgent(view.webContents.getUserAgent()))
-  panes.set(id, { id, view, window, visible: false })
+  panes.set(id, { id, view, window, visible: false, partition })
 }
 
 export function destroyBrowserPane(id: string): void {
@@ -318,6 +400,7 @@ export function destroyBrowserPane(id: string): void {
   panes.delete(id)
   zoomFactors.delete(id)
   faviconByPane.delete(id)
+  errorUrlByPane.delete(id)
   hidePane(pane)
   pane.view.webContents.close()
 }
@@ -325,6 +408,7 @@ export function destroyBrowserPane(id: string): void {
 function hidePane(pane: BrowserPane): void {
   if (pane.visible && !pane.window.isDestroyed()) {
     pane.window.contentView.removeChildView(pane.view)
+    if (twin?.forPane === pane.id) destroyTwin(pane.window)
   }
   pane.visible = false
 }
@@ -342,6 +426,7 @@ export function registerBrowserIpc(): void {
   // (no URL yet) so the pane isn't an empty white card.
   ipcMain.on('browser:show-empty', (_e, id: string) => {
     const wc = getPaneWebContents(id)
+    paneLog('show-empty', id, wc ? `over=${wc.getURL().slice(0, 80)}` : 'NO-PANE')
     if (!wc) return
     emptyPanes.add(id)
     wc.loadURL(emptyStateUrl(getRecentHistory(6)))
@@ -379,6 +464,7 @@ export function registerBrowserIpc(): void {
       const small = width > 2 ? img.resize({ width: Math.round(width / 2) }) : img
       const buf = small.toJPEG(70)
       pane.window.contentView.removeChildView(pane.view)
+      if (twin?.forPane === id) destroyTwin(pane.window)
       pane.visible = false
       console.log(`[freeze] total=${Date.now() - t0}ms bytes=${buf.length}`)
       return buf
@@ -451,15 +537,56 @@ export function registerBrowserIpc(): void {
     }
   })
 
+  // Attach/position/detach the mobile twin for the side-by-side viewport.
+  ipcMain.on(
+    'browser:twin-bounds',
+    (_e, id: string, bounds: BrowserBounds | null, zoom: number) => {
+      const pane = panes.get(id)
+      if (!pane || pane.window.isDestroyed()) return
+      if (!bounds) {
+        if (twin?.forPane === id) destroyTwin(pane.window)
+        return
+      }
+      if (twin && twin.forPane !== id) destroyTwin(pane.window)
+      if (!twin) {
+        const view = new WebContentsView({
+          webPreferences: {
+            partition: pane.partition,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+          }
+        })
+        view.setBackgroundColor('#ffffff')
+        view.setBorderRadius?.(10)
+        const wc = pane.view.webContents
+        const sync = (): void => {
+          const url = wc.getURL()
+          if (url && twin && twin.view.webContents.getURL() !== url) {
+            twin.view.webContents.loadURL(url).catch(() => {})
+          }
+        }
+        wc.on('did-navigate', sync)
+        twin = { view, forPane: id, offNav: () => wc.removeListener('did-navigate', sync) }
+        sync()
+      }
+      pane.window.contentView.addChildView(twin.view)
+      twin.view.setBounds(bounds)
+      twin.view.webContents.setZoomFactor(Math.max(0.2, zoom))
+    }
+  )
+
   ipcMain.on('browser:hide', (_e, id: string) => {
     const pane = panes.get(id)
     if (pane) hidePane(pane)
   })
   ipcMain.on('browser:navigate', (_e, id: string, rawUrl: string) => {
     const wc = getPaneWebContents(id)
-    if (!wc) return
     const url = normalizeUrl(rawUrl)
-    if (isNavigable(url) || isLocalFile(url)) wc.loadURL(url)
+    const ok = isNavigable(url) || isLocalFile(url)
+    if (!wc || !ok) paneLog('navigate-dropped', id, `${wc ? '' : 'NO-PANE '}${url.slice(0, 120)}`)
+    if (!wc) return
+    if (ok) wc.loadURL(url)
   })
   ipcMain.on('browser:back', (_e, id: string) => {
     getPaneWebContents(id)?.navigationHistory.goBack()
