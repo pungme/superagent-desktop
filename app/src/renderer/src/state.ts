@@ -399,6 +399,9 @@ export const useStore = create<CoveState>((set, get) => ({
       const s = get()
       const known = s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))
       if (known && !s.browserOpen[workspaceId]) {
+        // Persist too — an agent-opened pane must survive restarts exactly like
+        // a user-opened one.
+        localStorage.setItem(`paneOpen:${workspaceId}`, '1')
         set({ browserOpen: { ...s.browserOpen, [workspaceId]: true } })
       }
       if (timer) clearTimeout(timer)

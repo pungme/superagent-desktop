@@ -1762,6 +1762,8 @@ button {
   background: var(--hover);
   padding: 1px 5px;
   border-radius: 5px;
+  /* 'anywhere', not 'break-word': only 'anywhere' shrinks min-content. */
+  overflow-wrap: anywhere;
 }
 
 .md-code {
