@@ -586,6 +586,9 @@ export function Sidebar(): React.JSX.Element {
     }
     if (!gid) return
     const created = await window.cove.createBrowserWorkspace(gid, 'New Tab')
+    // A tab is a browser first — open it filling the pane, not in the simulated
+    // desktop card (that's for previewing sites at devices, not for browsing).
+    localStorage.setItem(`viewport:${created.workspaceId}`, 'none')
     await refresh()
     setActive(created.workspaceId)
   }
