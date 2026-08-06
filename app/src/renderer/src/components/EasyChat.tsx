@@ -1196,7 +1196,7 @@ export function EasyChat({
       setSuspended(true)
     }, IDLE_REAP_MS)
     return () => window.clearTimeout(timer)
-  }, [visible, suspended, generating, thinking])
+  }, [visible, suspended, generating, thinking, bgTasks.length])
 
   // Publish what this chat has in flight, so an app-wide action (installing an
   // update quits the app, which kills every agent) can warn before discarding it.
