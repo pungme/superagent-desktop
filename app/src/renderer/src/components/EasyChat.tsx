@@ -79,6 +79,8 @@ interface EasyChatProps {
   chatId: string
   initialSessionId?: string | null
   browserProject?: boolean
+  /** The project is a git repo — enables the "New worktree" chat button. */
+  isRepo?: boolean
   /** Whether this chat's workspace is the one on screen. Background chats stay
       mounted (so switching back is instant) but get their claude process reaped
       once they've been idle a while — see IDLE_REAP_MS. */
@@ -476,6 +478,7 @@ export function EasyChat({
   chatId,
   initialSessionId,
   browserProject,
+  isRepo = false,
   visible = true
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
@@ -562,7 +565,7 @@ export function EasyChat({
   const setModel = useStore((s) => s.setModel)
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
-  const [controlMenu, setControlMenu] = useState<'model' | 'mode' | 'where' | null>(null)
+  const [controlMenu, setControlMenu] = useState<'model' | 'mode' | null>(null)
 
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
@@ -1578,9 +1581,29 @@ export function EasyChat({
     >
       {dragOver && <div className="easy-drop-hint">Drop a file to add it</div>}
       {items.length > 0 && (
-        <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
-          ✎ New chat
-        </button>
+        <div className="easy-newchat-group">
+          <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
+            ✎ New chat
+          </button>
+          {isRepo && (
+            <button
+              className="easy-newchat"
+              onClick={() => {
+                // The chat gets an isolated git worktree on its own branch, so
+                // parallel agents stop fighting over one checkout.
+                void useStore
+                  .getState()
+                  .newChatInWorktree(workspaceId, cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd)
+                  .then((ok) => {
+                    if (!ok) window.alert('Could not create a worktree here — git refused.')
+                  })
+              }}
+              title="New chat on its own git branch — isolated worktree, your checkout stays clean"
+            >
+              ⎇ New worktree
+            </button>
+          )}
+        </div>
       )}
       {agentFailed && (
         <div className="easy-error">
@@ -1908,66 +1931,6 @@ export function EasyChat({
             </div>
           )}
         </div>
-        {!browserProject &&
-          (cwd.includes('/.worktrees/') ? (
-            // Already branched off — show where this chat lives.
-            <span
-              className="easy-control-btn easy-where-chip"
-              title={`This chat works in its own git worktree: ${cwd}`}
-            >
-              <span className="easy-control-key">Where</span>
-              <span className="easy-control-val">⎇ {cwd.split('/').pop()}</span>
-            </span>
-          ) : (
-            suspended &&
-            items.length === 0 && (
-              // The choice only exists before the first message: after that the
-              // agent has already worked in the project checkout.
-              <div className="easy-control">
-                <button
-                  className={`easy-control-btn ${controlMenu === 'where' ? 'open' : ''}`}
-                  onClick={() => setControlMenu((m) => (m === 'where' ? null : 'where'))}
-                  title="Where the agent works"
-                >
-                  <span className="easy-control-key">Where</span>
-                  <span className="easy-control-val">this project</span>
-                  <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
-                    <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                {controlMenu === 'where' && (
-                  <div className="easy-control-menu">
-                    <button className="easy-control-item on" onClick={() => setControlMenu(null)}>
-                      <span className="easy-control-item-label">This project</span>
-                      <span className="easy-control-item-hint">
-                        work directly in your checkout
-                      </span>
-                    </button>
-                    <button
-                      className="easy-control-item"
-                      onClick={() => {
-                        setControlMenu(null)
-                        void useStore
-                          .getState()
-                          .branchOffChat(workspaceId, chatId, cwd)
-                          .then((branch) => {
-                            if (!branch)
-                              window.alert(
-                                'Could not create a worktree here (is this a git repo?)'
-                              )
-                          })
-                      }}
-                    >
-                      <span className="easy-control-item-label">⎇ Own branch (worktree)</span>
-                      <span className="easy-control-item-hint">
-                        isolated copy — run agents in parallel, checkout stays clean
-                      </span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )
-          ))}
         {ctxTokens !== null && (
           <span
             className={`easy-ctx ${ctxTokens > 150_000 ? 'warm' : ''}`}
