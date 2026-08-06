@@ -482,6 +482,9 @@ export function EasyChat({
   // prose and then moves on, so without this the only sign a deploy/build/server
   // is still going is a sentence that scrolls away.
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
+  // Context consumed by the last turn (input + cache tokens) — a quiet running
+  // gauge of how full the conversation is.
+  const [ctxTokens, setCtxTokens] = useState<number | null>(null)
   // tool_use id of a BashOutput poll → the shell it's asking about, so its result
   // can retire the right task.
   const pollTargets = useRef(new Map<string, string>())
@@ -1045,6 +1048,14 @@ export function EasyChat({
       }
 
       if (type === 'result') {
+        const u = (event as { usage?: Record<string, number> }).usage
+        if (u) {
+          const ctx =
+            (u.input_tokens ?? 0) +
+            (u.cache_read_input_tokens ?? 0) +
+            (u.cache_creation_input_tokens ?? 0)
+          if (ctx > 0) setCtxTokens(ctx)
+        }
         // A completed turn means the session genuinely works — clear the guard so
         // a future crash gets a resume-retry before falling back to fresh.
         resumeRetriedRef.current = false
@@ -1854,6 +1865,14 @@ export function EasyChat({
             </div>
           )}
         </div>
+        {ctxTokens !== null && (
+          <span
+            className={`easy-ctx ${ctxTokens > 150_000 ? 'warm' : ''}`}
+            title={`~${ctxTokens.toLocaleString()} tokens of context in use`}
+          >
+            {Math.round(ctxTokens / 1000)}k ctx
+          </span>
+        )}
         <div className="easy-control">
           <button
             className={`easy-control-btn ${controlMenu === 'mode' ? 'open' : ''}`}
