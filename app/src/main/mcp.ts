@@ -4,6 +4,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 import * as auto from './automation'
+import { execFile } from 'child_process'
+import { tmpdir } from 'os'
 
 /**
  * SuperAgent's browser-automation MCP server.
@@ -27,6 +29,90 @@ let secret = ''
 function buildServer(paneId: string): McpServer {
   const PANE_ID = paneId
   const server = new McpServer({ name: 'cove-browser', version: '0.1.0' })
+
+  // --- iOS Simulator (phase 1: simctl, public APIs only) -------------------
+  const simctl = (args: string[]): Promise<string> =>
+    new Promise((resolve, reject) => {
+      execFile('xcrun', ['simctl', ...args], { timeout: 60_000 }, (err, stdout, stderr) =>
+        err ? reject(new Error(stderr || err.message)) : resolve(stdout)
+      )
+    })
+
+  server.registerTool(
+    'sim_list_devices',
+    {
+      description:
+        'List iOS Simulator devices (name, UDID, state). Use before booting or targeting a device.',
+      inputSchema: {}
+    },
+    async () => {
+      const out = await simctl(['list', 'devices', 'available', '--json'])
+      const data = JSON.parse(out) as { devices: Record<string, { name: string; udid: string; state: string }[]> }
+      const lines: string[] = []
+      for (const [runtime, devs] of Object.entries(data.devices)) {
+        for (const d of devs) lines.push(`${d.name} — ${d.state} — ${d.udid} (${runtime.split('.').pop()})`)
+      }
+      return { content: [{ type: 'text', text: lines.join('\n') || 'No simulators available.' }] }
+    }
+  )
+
+  server.registerTool(
+    'sim_boot',
+    {
+      description:
+        'Boot an iOS Simulator by UDID (from sim_list_devices) and open the Simulator app so the user can see it.',
+      inputSchema: { udid: z.string() }
+    },
+    async ({ udid }) => {
+      await simctl(['boot', udid]).catch((e) => {
+        if (!String(e).includes('current state: Booted')) throw e
+      })
+      execFile('open', ['-a', 'Simulator', '--background'], () => {})
+      return { content: [{ type: 'text', text: `Booted ${udid}.` }] }
+    }
+  )
+
+  server.registerTool(
+    'sim_screenshot',
+    {
+      description:
+        "Screenshot the booted iOS Simulator and show it to the user in SuperAgent's viewer. Returns the PNG path.",
+      inputSchema: {}
+    },
+    async () => {
+      const file = `${tmpdir()}/sim-${Date.now()}.png`
+      await simctl(['io', 'booted', 'screenshot', file])
+      const ws = workspaceIdFromPane(PANE_ID)
+      broadcastToWindows('app:open-file', { workspaceId: ws, path: file })
+      return { content: [{ type: 'text', text: `Simulator screenshot saved to ${file} and opened in SuperAgent.` }] }
+    }
+  )
+
+  server.registerTool(
+    'sim_open_url',
+    {
+      description: 'Open a URL in the booted iOS Simulator (deep links and web URLs).',
+      inputSchema: { url: z.string() }
+    },
+    async ({ url }) => {
+      await simctl(['openurl', 'booted', url])
+      return { content: [{ type: 'text', text: `Opened ${url} in the simulator.` }] }
+    }
+  )
+
+  server.registerTool(
+    'sim_install_and_launch',
+    {
+      description:
+        'Install a .app bundle onto the booted simulator and launch it by bundle id.',
+      inputSchema: { appPath: z.string(), bundleId: z.string() }
+    },
+    async ({ appPath, bundleId }) => {
+      await simctl(['install', 'booted', appPath])
+      const out = await simctl(['launch', 'booted', bundleId])
+      return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
+    }
+  )
 
   server.registerTool(
     'browser_navigate',
