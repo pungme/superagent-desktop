@@ -5,6 +5,7 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
+import { DashboardPanel } from './components/DashboardPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { NewProjectDialog } from './components/NewProjectDialog'
@@ -133,6 +134,12 @@ function App(): React.JSX.Element {
     .map((id) => allWorkspaces.find((w) => w.id === id))
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [dashOpen, setDashOpen] = useState(false)
+  useEffect(() => {
+    const open = (): void => setDashOpen(true)
+    window.addEventListener('cove:open-dashboard', open)
+    return () => window.removeEventListener('cove:open-dashboard', open)
+  }, [])
   const addGroup = useStore((s) => s.addGroup)
   const addWorkspace = useStore((s) => s.addWorkspace)
 
@@ -250,6 +257,7 @@ function App(): React.JSX.Element {
       <IntroSplash />
       <NewProjectDialog />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+      {dashOpen && <DashboardPanel onClose={() => setDashOpen(false)} />}
     </div>
   )
 }

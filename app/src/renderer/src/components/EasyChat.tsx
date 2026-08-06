@@ -950,7 +950,12 @@ export function EasyChat({
                 if (inp.subject) t.content = inp.subject
                 if (inp.activeForm) t.activeForm = inp.activeForm
                 if (inp.status === 'deleted') tasks.current.delete(inp.taskId)
-                else if (inp.status) t.status = inp.status
+                else if (inp.status) {
+                  if (inp.status === 'completed' && t.status !== 'completed') {
+                    window.cove.eventsRecord?.('task-done', workspaceId)
+                  }
+                  t.status = inp.status
+                }
                 syncTasks()
               }
             }

@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, chmodSy
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
-import { getWorkspaceName, getChatTitleBySession } from './store'
+import { getWorkspaceName, getChatTitleBySession, recordEvent } from './store'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -89,6 +89,7 @@ export function startHookServer(): Promise<string> {
     // with a notification instead of pulling the window forward. Click focuses
     // the project. (When the app is already frontmost, stay quiet.)
     if (event === 'Stop') {
+      recordEvent('turn', workspaceId)
       const focused = BrowserWindow.getFocusedWindow()
       if (!focused && Notification.isSupported() && notifyPrefs.done) {
         const name = getWorkspaceName(workspaceId)

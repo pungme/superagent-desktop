@@ -3928,6 +3928,92 @@ button {
 /* Freeze-frame of the page, shown while an HTML overlay is open. A native view
    is always composited above the DOM, so it can't be dimmed or covered — the
    live view is swapped for this still, which dims with everything else. */
+.dash {
+  padding: 14px 16px;
+  overflow-y: auto;
+}
+.dash-empty {
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  padding: 8px 0;
+}
+.dash-stats {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.dash-stat {
+  flex: 1;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dash-stat-n {
+  font-size: 22px;
+  font-weight: 700;
+}
+.dash-stat-l {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.dash-section {
+  margin-bottom: 18px;
+}
+.dash-section h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+}
+.dash-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 48px;
+}
+.dash-spark-bar {
+  flex: 1;
+  background: var(--accent);
+  opacity: 0.75;
+  border-radius: 2px 2px 0 0;
+  min-height: 3px;
+}
+.dash-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+}
+.dash-row-name {
+  width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-row-track {
+  flex: 1;
+  height: 8px;
+  background: var(--hover);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.dash-row-bar {
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.8;
+}
+.dash-row-n {
+  width: 28px;
+  text-align: right;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .easy-ctx {
   align-self: center;
   font-size: 10.5px;

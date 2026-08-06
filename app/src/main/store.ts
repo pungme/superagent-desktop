@@ -69,6 +69,12 @@ export function initStore(): void {
       updatedAt INTEGER NOT NULL DEFAULT 0,
       data TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS events (
+      ts INTEGER NOT NULL,
+      workspaceId TEXT,
+      kind TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
     CREATE TABLE IF NOT EXISTS history (
       url TEXT PRIMARY KEY,
       title TEXT,
@@ -220,6 +226,71 @@ export function getChatTitleBySession(sessionId: string): string | undefined {
   return row?.title ?? undefined
 }
 
+/** Append to the activity log the dashboard reads. Cheap, fire-and-forget. */
+export function recordEvent(kind: string, workspaceId?: string | null): void {
+  try {
+    db.prepare('INSERT INTO events (ts, workspaceId, kind) VALUES (?, ?, ?)').run(
+      Date.now(),
+      workspaceId ?? null,
+      kind
+    )
+  } catch {
+    // never let bookkeeping break the app
+  }
+}
+
+/** Everything the dashboard shows, computed in SQL. */
+export function getDashboard(): unknown {
+  const dayMs = 86_400_000
+  const startOfToday = new Date().setHours(0, 0, 0, 0)
+  const turnsToday = (
+    db.prepare("SELECT COUNT(*) n FROM events WHERE kind='turn' AND ts >= ?").get(startOfToday) as {
+      n: number
+    }
+  ).n
+  const tasksToday = (
+    db
+      .prepare("SELECT COUNT(*) n FROM events WHERE kind='task-done' AND ts >= ?")
+      .get(startOfToday) as { n: number }
+  ).n
+  // Streak: consecutive days (ending today or yesterday) with at least one turn.
+  const days = new Set(
+    (
+      db.prepare("SELECT DISTINCT ts/86400000 AS d FROM events WHERE kind='turn'").all() as {
+        d: number
+      }[]
+    ).map((r) => Math.floor(r.d))
+  )
+  let streak = 0
+  let cursor = Math.floor(Date.now() / dayMs)
+  if (!days.has(cursor)) cursor -= 1 // today hasn't started yet — count from yesterday
+  while (days.has(cursor)) {
+    streak += 1
+    cursor -= 1
+  }
+  // Attention: turns per project, last 7 days, named.
+  const attention = db
+    .prepare(
+      `SELECT w.name AS name, COUNT(*) AS turns
+       FROM events e JOIN workspaces w ON w.id = e.workspaceId
+       WHERE e.kind='turn' AND e.ts >= ?
+       GROUP BY e.workspaceId ORDER BY turns DESC LIMIT 8`
+    )
+    .all(Date.now() - 7 * dayMs)
+  // 14-day activity sparkline (turns per day).
+  const spark: number[] = []
+  for (let i = 13; i >= 0; i--) {
+    const d0 = startOfToday - i * dayMs
+    const n = (
+      db
+        .prepare("SELECT COUNT(*) n FROM events WHERE kind='turn' AND ts >= ? AND ts < ?")
+        .get(d0, d0 + dayMs) as { n: number }
+    ).n
+    spark.push(n)
+  }
+  return { turnsToday, tasksToday, streak, attention, spark }
+}
+
 export function registerStoreIpc(): void {
   initStore()
 
@@ -311,6 +382,11 @@ export function registerStoreIpc(): void {
       )
       .all()
   )
+  ipcMain.on('events:record', (_e, kind: string, workspaceId?: string) =>
+    recordEvent(kind, workspaceId)
+  )
+  ipcMain.handle('events:dashboard', () => getDashboard())
+
   ipcMain.handle('chat:create', (_e, workspaceId: string, cwd?: string) => {
     const id = randomUUID()
     const next =
