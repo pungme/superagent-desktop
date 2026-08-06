@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, nativeTheme, ipcMain, dialog, session } from 'electron'
+import { app, shell, BrowserWindow, Menu, clipboard, nativeTheme, ipcMain, dialog, session } from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -133,6 +133,18 @@ app.whenReady().then(() => {
   // background — otherwise there's no way to tell what you're running, or to say
   // so in a bug report.
   ipcMain.handle('app:version', () => app.getVersion())
+
+  // Right-click on a file-tree row: the little things a real file browser owes you.
+  ipcMain.on('files:menu', (e, absPath: string) => {
+    const menu = Menu.buildFromTemplate([
+      { label: 'Reveal in Finder', click: () => shell.showItemInFolder(absPath) },
+      { label: 'Copy Path', click: () => clipboard.writeText(absPath) },
+      { type: 'separator' },
+      { label: 'Open with Default App', click: () => void shell.openPath(absPath) }
+    ])
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (win) menu.popup({ window: win })
+  })
 
   ipcMain.handle('dialog:pickFolder', async () => {
     const win = BrowserWindow.getFocusedWindow()
