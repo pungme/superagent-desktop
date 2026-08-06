@@ -31,17 +31,16 @@ export function WorkspaceView({
   // Browser projects open with the preview showing by default.
   // A browser project auto-opens its pane — but not on a cold launch, so a fresh
   // start lands on the chat instead of a reloaded (often logged-out) live page.
-  const browserOpen = useStore(
-    (s) =>
-      s.browserOpen[ws.id] ??
-      (ws.kind === 'browser'
-        ? // Browser projects: open once you've interacted this run — never on a
-          // cold start (a reloaded live page is often a logged-out login screen).
-          !s.coldStart
-        : // Code projects: an open preview survives the restart. It's a dev
-          // server or a file — nothing that can log you out.
-          localStorage.getItem(`paneOpen:${ws.id}`) === '1')
-  )
+  const browserOpen = useStore((s) => {
+    if (s.browserOpen[ws.id] !== undefined) return s.browserOpen[ws.id]
+    // An explicit remembered state — open OR closed — wins for every project
+    // kind: what you (or the agent) had on screen comes back after a restart.
+    const saved = localStorage.getItem(`paneOpen:${ws.id}`)
+    if (saved !== null) return saved === '1'
+    // No record: browser projects still default open only after first
+    // interaction this run, so a cold start lands on the chat.
+    return ws.kind === 'browser' ? !s.coldStart : false
+  })
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore(
     (s) => s.filesOpen[ws.id] ?? localStorage.getItem(`filesOpen:${ws.id}`) === '1'
