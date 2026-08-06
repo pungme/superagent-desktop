@@ -45,6 +45,33 @@ type Item =
   | { kind: 'diff'; diff: FileDiff }
   | { kind: 'thinking'; id: string; text: string }
 
+/**
+ * Sticky one-liner when a dev server is running for this project and the
+ * preview isn't showing it — one click to open, without hunting the toolbar.
+ */
+function DevServerStrip({ workspaceId }: { workspaceId: string }): React.JSX.Element | null {
+  const ports = useStore((s) => s.ports[workspaceId])
+  const paneOpen = useStore((s) => s.browserOpen[workspaceId] === true)
+  const openPreview = useStore((s) => s.openPreview)
+  const [dismissed, setDismissed] = useState(false)
+  const port = ports?.[0]
+  if (!port || paneOpen || dismissed) return null
+  return (
+    <div className="easy-devserver" role="status">
+      <span className="easy-devserver-dot" />
+      <span className="easy-devserver-label">
+        Dev server running at <b>localhost:{port}</b>
+      </span>
+      <button className="easy-devserver-open" onClick={() => openPreview(workspaceId, port)}>
+        Open preview
+      </button>
+      <button className="easy-devserver-x" onClick={() => setDismissed(true)} title="Hide">
+        ×
+      </button>
+    </div>
+  )
+}
+
 interface EasyChatProps {
   cwd: string
   workspaceId: string
@@ -1253,6 +1280,28 @@ export function EasyChat({
     setAtBottom(true)
   }
 
+  // Cleared from the sidebar menu: drop everything and go dormant — the next
+  // message starts a fresh session with no carried context.
+  useEffect(() => {
+    const onCleared = (e: Event): void => {
+      const detail = (e as CustomEvent).detail as { chatId: string }
+      if (detail.chatId !== chatId) return
+      if (agentIdRef.current) {
+        window.cove.agentStop(agentIdRef.current)
+        agentIdRef.current = null
+      }
+      setItems([])
+      tasks.current.clear()
+      useStore.getState().clearTodos(workspaceId)
+      resumeIdRef.current = null
+      setReady(false)
+      suspendedRef.current = true
+      setSuspended(true)
+    }
+    window.addEventListener('cove:chat-cleared', onCleared)
+    return () => window.removeEventListener('cove:chat-cleared', onCleared)
+  }, [chatId, workspaceId])
+
   // Messages injected from toolbar actions (e.g. the Skills panel) in Easy mode.
   useEffect(() => {
     const onInjected = (e: Event): void => {
@@ -1554,6 +1603,7 @@ export function EasyChat({
         </div>
       )}
       <TasksPanel workspaceId={workspaceId} />
+      <DevServerStrip workspaceId={workspaceId} />
       <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length === 0 && (ready || suspended) && (
           <div className="easy-empty">
