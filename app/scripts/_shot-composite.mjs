@@ -22,47 +22,35 @@ const app = (
 ).find(Boolean)
 if (!app) throw new Error('app page not found')
 
-// Several workspaces can have a pane open at once, and every one of them is a
-// separate CDP target. The right one is whichever matches the address bar of the
-// workspace currently on screen — matching on a URL fragment picks the wrong pane
-// as soon as two are open.
-const activeUrl = await app.evaluate(() => {
-  const input = [...document.querySelectorAll('.browser-address')].find(
-    (el) => el.offsetParent !== null
+// Pane pixels come from main's capturePage (full display resolution, exactly
+// what the compositor shows) — a debugger screenshot of the zoomed page captures
+// at the page's shrunken pixel scale and has to be blown back up, which is why
+// earlier shots were soft.
+const shot = await app.evaluate(async () => {
+  const host = [...document.querySelectorAll('.browser-host')].find(
+    (h) => h.getBoundingClientRect().width > 0
   )
-  return input ? input.value : null
+  const id = host && host.dataset.paneId
+  if (!id) return null
+  const bytes = await window.cove.browserShoot(id)
+  if (!bytes || !bytes.length) return null
+  const arr = new Uint8Array(bytes)
+  let bin = ''
+  const CH = 0x8000
+  for (let i = 0; i < arr.length; i += CH) {
+    bin += String.fromCharCode.apply(null, arr.subarray(i, i + CH))
+  }
+  return btoa(bin)
 })
-const pane = pages.find((p) => {
-  if (p === app || p.url().startsWith('devtools://')) return false
-  if (paneMatch) return p.url().includes(paneMatch)
-  if (!activeUrl) return false
-  const norm = (u) => u.replace(/\/$/, '')
-  return norm(p.url()) === norm(activeUrl) || p.url().startsWith(activeUrl)
-})
-
-let shot = null
-// The pane renders zoomed (the app scales a simulated 1440-wide screen down to
-// fit), so the compositor fills only the top-left fraction of the framebuffer that
-// a CDP capture hands back — the rest is blank. That fraction is the pane's own
-// devicePixelRatio over the capture scale, and the painted part holds the WHOLE
-// viewport, just drawn smaller. Scale the image back up by it and clip.
-let paintedFraction = 1
-if (pane) {
-  shot = (await pane.screenshot({ type: 'png' })).toString('base64')
-  const paneDpr = await pane.evaluate(() => window.devicePixelRatio).catch(() => 1)
-  const appDpr = await app.evaluate(() => window.devicePixelRatio).catch(() => 1)
-  paintedFraction = Math.min(1, paneDpr / appDpr)
-  console.log('captured pane:', pane.url().slice(0, 60), '| painted', paintedFraction.toFixed(3))
-} else {
-  console.log('no pane target — capturing app only')
-}
+if (shot) console.log('captured pane via main, bytes:', Math.round((shot.length * 3) / 4))
+else console.log('no pane capture — app only')
 
 // The card the native view floats on; its top strip is the docked omnibar, so the
 // page itself starts CARD_OMNIBAR_H below the card's top edge.
 const CARD_OMNIBAR_H = 40
 
 await app.evaluate(
-  ({ shot, CARD_OMNIBAR_H, paintedFraction }) => {
+  ({ shot, CARD_OMNIBAR_H }) => {
     document.querySelectorAll('.__shot_overlay').forEach((n) => n.remove())
     // A focused composer draws a focus ring, which reads as "mid-typing" in a still.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -124,21 +112,24 @@ await app.evaluate(
       width: `${w}px`,
       height: `${h}px`,
       overflow: 'hidden',
+      // Matches the live look: flush square top under the omnibar, rounded bottom
+      // (the page's real corners since 1.0.9).
+      borderRadius: card ? '0 0 10px 10px' : '0',
       pointerEvents: 'none'
     })
     const img = document.createElement('img')
     img.src = `data:image/png;base64,${shot}`
     Object.assign(img.style, {
       display: 'block',
-      width: `${w / paintedFraction}px`,
-      height: `${h / paintedFraction}px`,
+      width: `${w}px`,
+      height: `${h}px`,
       objectFit: 'fill'
     })
     clip.appendChild(img)
     host.appendChild(clip)
     return 'placed'
   },
-  { shot, CARD_OMNIBAR_H, paintedFraction }
+  { shot, CARD_OMNIBAR_H }
 )
 
 // Let the data: URL decode and paint before capturing. A full-page capture can be

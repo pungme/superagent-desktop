@@ -67,7 +67,11 @@ export function startAutoUpdate(): void {
   })
 
   autoUpdater.on('error', (err) => {
-    console.error('[updater]', err?.message ?? err)
+    console.error('[updater]', err?.message ??  err)
+    // A silent failure looks like "downloading forever" — the restart pill never
+    // arrives and nothing says why. Tell the UI so Settings can show the failure
+    // and re-enable the check button as the retry.
+    broadcast('update:error', String(err?.message ?? err).slice(0, 200))
   })
 
   // Renderer can trigger the install immediately (quit + relaunch into the update).

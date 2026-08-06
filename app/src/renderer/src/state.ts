@@ -149,6 +149,8 @@ interface CoveState {
   /** An update downloading in the background: version + percent. Store-backed so
       Settings shows it even when reopened mid-download. */
   updateProgress: { version: string | null; percent: number } | null
+  /** Last updater failure, cleared by progress/ready. Settings shows it. */
+  updateError: string | null
 
   /** How much the agent may do without asking. Applies to newly started chats. */
   permissionMode: PermissionMode
@@ -242,6 +244,7 @@ export const useStore = create<CoveState>((set, get) => ({
   busy: {},
   agentLive: {},
   updateProgress: null,
+  updateError: null,
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
   permissionMode:
     (localStorage.getItem('cove.permissionMode') as PermissionMode) || 'bypassPermissions',
