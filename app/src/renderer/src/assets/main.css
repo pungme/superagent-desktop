@@ -1304,79 +1304,25 @@ button {
   white-space: nowrap;
 }
 
+/* Timestamp hangs just below the bubble; the bubble's bottom margin reserves
+   the room so it never crams against the next message. */
 .easy-msg-time {
   position: absolute;
-  bottom: -13px;
+  bottom: -17px;
   font-size: 10px;
   line-height: 1;
   color: var(--text-tertiary);
   white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.12s ease;
   pointer-events: none;
 }
-.easy-user .easy-file-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 220px;
-  padding: 5px 24px 5px 9px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--bg-panel);
-  font-size: 12px;
+.easy-msg:not(.easy-system) {
+  margin-bottom: 10px;
 }
-.easy-file-chip-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.easy-msg-time {
+.easy-user .easy-msg-time {
   right: 6px;
 }
-.easy-assistant .easy-file-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 220px;
-  padding: 5px 24px 5px 9px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--bg-panel);
-  font-size: 12px;
-}
-.easy-file-chip-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.easy-msg-time {
+.easy-assistant .easy-msg-time {
   left: 6px;
-}
-.easy-msg:hover .easy-file-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 220px;
-  padding: 5px 24px 5px 9px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--bg-panel);
-  font-size: 12px;
-}
-.easy-file-chip-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.easy-msg-time {
-  opacity: 1;
 }
 
 .easy-msg-reply {

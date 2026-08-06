@@ -1,9 +1,31 @@
 import { BrowserWindow, WebContentsView, Notification, ipcMain, shell, app, net, session } from 'electron'
 import { connect as tcpConnect } from 'net'
 import { fileURLToPath } from 'url'
-import { basename } from 'path'
+import { basename, join } from 'path'
+import { appendFileSync, renameSync, statSync } from 'fs'
 import { normalizeUrl } from './util'
 import { getRecentHistory } from './store'
+
+// Lightweight pane-lifecycle trail for the "agent-opened pane is blank" reports —
+// the bug has never reproduced on demand, so leave breadcrumbs where it happens.
+// One line per event in userData/pane-debug.log, rotated once at ~512 KB.
+let paneLogRotated = false
+export function paneLog(event: string, id: string, detail = ''): void {
+  try {
+    const file = join(app.getPath('userData'), 'pane-debug.log')
+    if (!paneLogRotated) {
+      paneLogRotated = true
+      try {
+        if (statSync(file).size > 512 * 1024) renameSync(file, file + '.old')
+      } catch {
+        /* first run — no log yet */
+      }
+    }
+    appendFileSync(file, `${new Date().toISOString()} ${event} ${id} ${detail}\n`)
+  } catch {
+    /* logging must never break browsing */
+  }
+}
 
 // Electron's setUserAgent rewrites the UA *string* to look like Chrome, but not the
 // User-Agent Client Hints: the Sec-CH-UA header still advertises bare "Chromium",
@@ -205,6 +227,7 @@ const emptyPanes = new Set<string>()
 
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
+  paneLog('create', id, partition)
   hardenClientHints(partition)
 
   const view = new WebContentsView({
@@ -270,8 +293,15 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     if (isNavigable(url)) wc.loadURL(url)
     return { action: 'deny' }
   })
-  wc.on('render-process-gone', () => {
+  wc.on('render-process-gone', (_e, details) => {
+    paneLog('render-process-gone', id, details.reason)
     if (!window.isDestroyed()) window.webContents.send(`browser:crashed:${id}`)
+  })
+  // A failed main-frame load leaves the pane blank with no other trace — the
+  // prime suspect for "agent opened a page and it's empty".
+  wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+    if (isMainFrame && code !== -3 /* ERR_ABORTED: superseded navigation, normal */)
+      paneLog('did-fail-load', id, `${code} ${desc} ${url}`)
   })
   // ⌘/Ctrl +/-/0 zoom while the native pane has focus (the renderer never sees
   // these keys then). Mirrors the toolbar buttons and reports back the new level.
@@ -358,6 +388,7 @@ export function registerBrowserIpc(): void {
   // (no URL yet) so the pane isn't an empty white card.
   ipcMain.on('browser:show-empty', (_e, id: string) => {
     const wc = getPaneWebContents(id)
+    paneLog('show-empty', id, wc ? `over=${wc.getURL().slice(0, 80)}` : 'NO-PANE')
     if (!wc) return
     emptyPanes.add(id)
     wc.loadURL(emptyStateUrl(getRecentHistory(6)))
@@ -513,9 +544,11 @@ export function registerBrowserIpc(): void {
   })
   ipcMain.on('browser:navigate', (_e, id: string, rawUrl: string) => {
     const wc = getPaneWebContents(id)
-    if (!wc) return
     const url = normalizeUrl(rawUrl)
-    if (isNavigable(url) || isLocalFile(url)) wc.loadURL(url)
+    const ok = isNavigable(url) || isLocalFile(url)
+    if (!wc || !ok) paneLog('navigate-dropped', id, `${wc ? '' : 'NO-PANE '}${url.slice(0, 120)}`)
+    if (!wc) return
+    if (ok) wc.loadURL(url)
   })
   ipcMain.on('browser:back', (_e, id: string) => {
     getPaneWebContents(id)?.navigationHistory.goBack()
