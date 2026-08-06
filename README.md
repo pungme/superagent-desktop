@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><b>⬇ Download for Mac</b></a> ·
-  <a href="https://pungme.github.io/superagent-desktop/">Website</a> ·
+  <a href="https://superagent.computer/">Website</a> ·
   Apple Silicon · free &amp; open source
 </p>
 
