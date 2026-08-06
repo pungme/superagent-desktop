@@ -81,6 +81,10 @@ export function initStore(): void {
       visitCount INTEGER NOT NULL DEFAULT 1,
       lastVisit INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS kv (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `)
 
   // Migration: add the project-kind column to pre-existing databases.
@@ -398,11 +402,51 @@ export function getDashboard(): unknown {
       }
   }
 
-  const tokensTotal = (
-    db.prepare("SELECT COALESCE(SUM(n),0) t FROM events WHERE kind='tokens'").get() as {
-      t: number
-    }
-  ).t
+  const tokSince = (a: number, b = Infinity): number =>
+    (
+      db
+        .prepare(
+          "SELECT COALESCE(SUM(n),0) t FROM events WHERE kind='tokens' AND ts >= ? AND ts < ?"
+        )
+        .get(a, b === Infinity ? Number.MAX_SAFE_INTEGER : b) as { t: number }
+    ).t
+  const tokensTotal = tokSince(0)
+  const tokens = {
+    today: tokSince(startOfToday),
+    week: tokSince(now - 7 * dayMs),
+    month: tokSince(now - 30 * dayMs)
+  }
+
+  // Week-over-week momentum: this 7 days vs the 7 before.
+  const turnsWeek = turns.filter((e) => now - e.ts <= 7 * dayMs).length
+  const turnsPrevWeek = turns.filter(
+    (e) => now - e.ts > 7 * dayMs && now - e.ts <= 14 * dayMs
+  ).length
+  const trends = {
+    turnsWeek,
+    turnsPrevWeek,
+    tokensWeek: tokens.week,
+    tokensPrevWeek: tokSince(now - 14 * dayMs, now - 7 * dayMs)
+  }
+
+  // Weekly rhythm: average turns per weekday over the last 8 weeks (Mon-first).
+  const weekday = new Array<number>(7).fill(0)
+  for (const e of turns) {
+    if (now - e.ts <= 56 * dayMs) weekday[(new Date(e.ts).getDay() + 6) % 7] += 1
+  }
+  const weekdayAvg = weekday.map((n) => Math.round((n / 8) * 10) / 10)
+
+  // Where the tokens went: per project, last 30 days.
+  const tokensByProject = (
+    db
+      .prepare(
+        `SELECT w.name AS name, SUM(e.n) AS tokens
+         FROM events e JOIN workspaces w ON w.id = e.workspaceId
+         WHERE e.kind='tokens' AND e.ts >= ?
+         GROUP BY e.workspaceId ORDER BY tokens DESC LIMIT 6`
+      )
+      .all(now - 30 * dayMs) as { name: string; tokens: number }[]
+  ).filter((r) => r.tokens > 0)
   const chatCount = (db.prepare('SELECT COUNT(*) n FROM chats').get() as { n: number }).n
   const projectCount = (db.prepare('SELECT COUNT(*) n FROM workspaces').get() as { n: number }).n
 
@@ -426,7 +470,13 @@ export function getDashboard(): unknown {
     hours,
     busiestDay,
     avgTurns30,
+    activeDays30: recentDays.length,
     firstTs,
+    tokens,
+    trends,
+    weekdayAvg,
+    tokensByProject,
+    avgMsgsPerChat: chatCount ? Math.round(totalMessages / chatCount) : 0,
     totals: {
       turns: turns.length,
       tasks: tasksTotal,
@@ -532,6 +582,35 @@ export function registerStoreIpc(): void {
   ipcMain.on('events:record', (_e, kind: string, workspaceId?: string, n?: number) =>
     recordEvent(kind, workspaceId, n)
   )
+
+  // Durable mirror of the renderer's localStorage (UI state: paneOpen, theme,
+  // onboarded…). localStorage lives in a Chromium leveldb that an unclean
+  // shutdown can corrupt — which then resets it wholesale (happened 2026-08-06:
+  // onboarding reappeared, pane state lost). SQLite in WAL mode survives kills;
+  // the renderer restores any missing keys from here at startup.
+  ipcMain.handle('kv:all', () => {
+    const rows = db.prepare('SELECT key, value FROM kv').all() as {
+      key: string
+      value: string
+    }[]
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]))
+  })
+  ipcMain.on('kv:set', (_e, key: string, value: string) => {
+    try {
+      db.prepare(
+        'INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value'
+      ).run(String(key), String(value))
+    } catch {
+      // mirroring must never break the app
+    }
+  })
+  ipcMain.on('kv:del', (_e, key: string) => {
+    try {
+      db.prepare('DELETE FROM kv WHERE key = ?').run(String(key))
+    } catch {
+      /* ditto */
+    }
+  })
   ipcMain.handle('events:dashboard', () => getDashboard())
 
   ipcMain.handle('chat:create', (_e, workspaceId: string, cwd?: string) => {
