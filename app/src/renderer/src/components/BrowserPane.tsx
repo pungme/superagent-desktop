@@ -105,12 +105,17 @@ export function BrowserPane({
   // only) — otherwise recreating it on every mode change would re-run the pane's
   // setup effect and re-navigate to the initial URL.
   const viewportRef = useRef(viewport)
+  // A local document (PDF/image opened from the file tree) is for READING — the
+  // miniature simulated desktop is the wrong frame for it, so it fills the pane
+  // regardless of the saved viewport. Picking a viewport manually overrides.
+  const docModeRef = useRef(false)
   // In "Fit" (none) mode the page defaults to zoomed-out-to-width so a desktop site
   // isn't cramped in a narrow pane; a manual zoom (⌘±/buttons) turns this off until
   // the user re-picks Fit. Desktop/Mobile own their own zoom, so this only matters
   // for Fit.
   const autoFitRef = useRef(true)
   const pickViewport = (v: 'none' | 'desktop' | 'mobile'): void => {
+    docModeRef.current = false // explicit choice wins over the document default
     localStorage.setItem(`viewport:${paneId}`, v)
     viewportRef.current = v
     autoFitRef.current = true // re-fit whenever a mode is (re)selected
@@ -164,7 +169,8 @@ export function BrowserPane({
       window.cove.browserSetBounds(paneId, b)
     }
     // WebContentsView bounds are window-relative CSS pixels.
-    if (viewportRef.current === 'none') {
+    const mode = docModeRef.current ? 'none' : viewportRef.current
+    if (mode === 'none') {
       setSimFrame(null)
       // "Fit": fill the pane, but default to zooming out so a 1280-wide desktop
       // layout fits the pane width (not a cramped 1:1 render). A manual zoom
@@ -177,7 +183,7 @@ export function BrowserPane({
     // Zooming out widens the page's layout viewport (window.innerWidth = px / zoom).
     // Optional-chained: during a preload/renderer hot-reload desync browserSetZoom
     // may be missing, and a throw here (inside an effect) would unmount the app.
-    if (viewportRef.current === 'desktop') {
+    if (mode === 'desktop') {
       // Simulate a real 16:10 desktop screen (1440×900), scaled to fit INSIDE a
       // margin so the backdrop + shadow wrap it on every side — it reads as a
       // separate, floating screen rather than a page flush to the pane edges.
@@ -297,6 +303,10 @@ export function BrowserPane({
     let alive = true
     const offState = window.cove.onBrowserState(paneId, (s) => {
       setState(s)
+      const isDoc =
+        s.url.startsWith('file://') &&
+        /\.(pdf|png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(s.url.split('?')[0])
+      if (isDoc !== docModeRef.current) docModeRef.current = isDoc
       // A fresh load means the page recovered — drop any stale crash overlay.
       if (s.loading) setCrashed(false)
       // Re-assert the simulated size/zoom once a navigation settles (a page load
