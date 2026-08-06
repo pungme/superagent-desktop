@@ -1286,6 +1286,24 @@ button {
    long conversation doesn't turn into a wall of clock faces. Absolute, so
    revealing it never reflows the transcript; kept inside the bubble's own width
    so it can't widen the scroller. */
+.easy-file-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 5px 24px 5px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  font-size: 12px;
+}
+.easy-file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .easy-msg-time {
   position: absolute;
   bottom: -13px;
@@ -1297,13 +1315,67 @@ button {
   transition: opacity 0.12s ease;
   pointer-events: none;
 }
-.easy-user .easy-msg-time {
+.easy-user .easy-file-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 5px 24px 5px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  font-size: 12px;
+}
+.easy-file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.easy-msg-time {
   right: 6px;
 }
-.easy-assistant .easy-msg-time {
+.easy-assistant .easy-file-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 5px 24px 5px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  font-size: 12px;
+}
+.easy-file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.easy-msg-time {
   left: 6px;
 }
-.easy-msg:hover .easy-msg-time {
+.easy-msg:hover .easy-file-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 5px 24px 5px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  font-size: 12px;
+}
+.easy-file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.easy-msg-time {
   opacity: 1;
 }
 
