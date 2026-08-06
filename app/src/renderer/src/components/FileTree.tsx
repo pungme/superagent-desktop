@@ -107,6 +107,10 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
             className="file-tree-row file-tree-dir"
             style={pad}
             onClick={() => toggle(node.path)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              window.cove.filesMenu(`${cwd}/${node.path}`)
+            }}
             title={node.path}
           >
             <span className={`file-tree-caret ${open ? 'open' : ''}`}>▸</span>
@@ -121,6 +125,10 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
             className="file-tree-row file-tree-file"
             style={pad}
             onClick={() => open(node.path)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              window.cove.filesMenu(`${cwd}/${node.path}`)
+            }}
             title={`Open ${node.path}`}
           >
             <span className="file-tree-icon">{fileIcon(node.name)}</span>

@@ -87,6 +87,8 @@ export interface CoveApi {
   browserSampleCorners: (id: string) => Promise<{ left: string; right: string } | null>
   /** Full-res PNG bytes of the pane (screenshot tooling). */
   browserShoot: (id: string) => Promise<Uint8Array | null>
+  /** Native context menu for a file-tree row (Reveal in Finder, Copy Path…). */
+  filesMenu: (absPath: string) => void
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
@@ -233,6 +235,7 @@ const cove: CoveApi = {
   browserSetRadius: (id, radius) => ipcRenderer.send('browser:set-radius', id, radius),
   browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
+  filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
