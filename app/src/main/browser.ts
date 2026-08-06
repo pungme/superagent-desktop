@@ -1,5 +1,7 @@
-import { BrowserWindow, WebContentsView, ipcMain, shell, app, net, session } from 'electron'
+import { BrowserWindow, WebContentsView, Notification, ipcMain, shell, app, net, session } from 'electron'
 import { connect as tcpConnect } from 'net'
+import { fileURLToPath } from 'url'
+import { basename } from 'path'
 import { normalizeUrl } from './util'
 import { getRecentHistory } from './store'
 
@@ -75,6 +77,40 @@ interface BrowserPane {
 }
 
 const panes = new Map<string, BrowserPane>()
+
+// Sessions that already route PDF saves back to the source file.
+const pdfSaveWired = new WeakSet<Electron.Session>()
+
+/**
+ * Chromium's PDF viewer can fill forms and annotate, but its edits live only in
+ * the viewer — the download button is the sole way out, and by default it asks
+ * where to put a COPY. When the pane is showing a local PDF, point that download
+ * back at the original file instead: the viewer's ⬇ becomes a real Save.
+ * Downloads from actual web pages keep the normal save dialog.
+ */
+function wirePdfSaveBack(ses: Electron.Session): void {
+  if (pdfSaveWired.has(ses)) return
+  pdfSaveWired.add(ses)
+  ses.on('will-download', (_e, item, wc) => {
+    try {
+      const pageUrl = wc.getURL()
+      if (!pageUrl.startsWith('file://') || !/\.pdf$/i.test(pageUrl.split('?')[0])) return
+      if (item.getMimeType() !== 'application/pdf') return
+      const target = fileURLToPath(pageUrl.split('?')[0])
+      item.setSavePath(target)
+      item.once('done', (_ev, state) => {
+        if (!Notification.isSupported()) return
+        new Notification(
+          state === 'completed'
+            ? { title: 'PDF saved', body: basename(target) }
+            : { title: 'PDF save failed', body: `${basename(target)} — ${state}` }
+        ).show()
+      })
+    } catch {
+      // fall through to the default save dialog
+    }
+  })
+}
 
 const ALLOWED_INSECURE = new Set(['localhost', '127.0.0.1', '[::1]'])
 
@@ -164,6 +200,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
       sandbox: true
     }
   })
+  wirePdfSaveBack(view.webContents.session)
   view.setBackgroundColor('#ffffff')
   // A native view isn't clipped by the card's CSS radius, so its corners are its
   // own problem. Electron's radius is uniform — all four or none — which is why
@@ -268,6 +305,7 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
   const view = new WebContentsView({
     webPreferences: { partition, contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
+  wirePdfSaveBack(view.webContents.session)
   view.setBackgroundColor('#ffffff')
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
   view.webContents.setUserAgent(chromeUserAgent(view.webContents.getUserAgent()))
