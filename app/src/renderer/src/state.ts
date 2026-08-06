@@ -638,9 +638,11 @@ export const useStore = create<CoveState>((set, get) => ({
     const tree = await window.cove.updateGroup(id, { collapsed: collapsed ? 1 : 0 })
     set({ tree })
   },
-  // Opens the Code-vs-Browser chooser rather than immediately picking a folder.
+  // Straight to the folder picker — browser projects have their own entry
+  // point (the Browse section's +), so the Code-vs-Browser chooser was a
+  // pointless extra click.
   addWorkspace: async (groupId) => {
-    set({ newProjectGroupId: groupId })
+    await get().createCodeProject(groupId)
   },
   newProjectGroupId: null,
   closeNewProject: () => set({ newProjectGroupId: null }),
