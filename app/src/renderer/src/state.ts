@@ -121,8 +121,6 @@ interface CoveState {
   newChat: (workspaceId: string) => Promise<void>
   /** New chat running in a fresh git worktree of the project. */
   newChatInWorktree: (workspaceId: string, projectPath: string) => Promise<boolean>
-  /** Move an unstarted chat onto its own git worktree; returns the branch or null. */
-  branchOffChat: (workspaceId: string, chatId: string, projectPath: string) => Promise<string | null>
   selectChat: (workspaceId: string, chatId: string) => void
   removeChat: (workspaceId: string, chatId: string) => Promise<void>
   renameChat: (workspaceId: string, chatId: string, title: string) => Promise<void>
@@ -492,14 +490,6 @@ export const useStore = create<CoveState>((set, get) => ({
       chats: { ...s.chats, [workspaceId]: list },
       activeChatId: { ...s.activeChatId, [workspaceId]: id }
     }))
-  },
-  branchOffChat: async (workspaceId, chatId, projectPath) => {
-    const wt = await window.cove.worktreeCreate(projectPath)
-    if (!wt) return null // not a git repo, or git refused — caller says so
-    await window.cove.chatUpdate(chatId, { cwd: wt.path })
-    const list = await window.cove.chatList(workspaceId)
-    set((s) => ({ chats: { ...s.chats, [workspaceId]: list } }))
-    return wt.branch
   },
   newChatInWorktree: async (workspaceId, projectPath) => {
     const wt = await window.cove.worktreeCreate(projectPath)

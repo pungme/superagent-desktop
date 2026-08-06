@@ -361,6 +361,7 @@ export function WorkspaceView({
               chatId={activeChat.id}
               initialSessionId={activeChat.claudeSessionId}
               browserProject={ws.kind === 'browser'}
+              isRepo={branch !== null}
               visible={visible}
             />
           )}

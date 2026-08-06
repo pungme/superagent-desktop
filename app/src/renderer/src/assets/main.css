@@ -4161,13 +4161,19 @@ button {
   box-shadow: 0 1px 3px var(--shadow);
 }
 
-/* Static "Where" chip once a chat lives in a worktree — informative, not a menu. */
-.easy-where-chip {
-  cursor: default;
-  opacity: 0.85;
+/* New chat + New worktree sit together, same pill look. */
+.easy-newchat-group {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
 }
-.easy-where-chip .easy-control-val {
-  color: var(--text-secondary);
+.easy-newchat-group .easy-newchat {
+  position: static;
+  top: auto;
+  right: auto;
 }
 .dash-hours-axis {
   display: flex;
