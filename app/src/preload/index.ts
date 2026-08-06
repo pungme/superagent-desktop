@@ -89,6 +89,8 @@ export interface CoveApi {
   browserShoot: (id: string) => Promise<Uint8Array | null>
   /** Native context menu for a file-tree row (Reveal in Finder, Copy Path…). */
   filesMenu: (absPath: string) => void
+  /** Which agent events raise a native banner. */
+  setNotifyPrefs: (prefs: { done?: boolean; needsYou?: boolean }) => void
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
@@ -236,6 +238,7 @@ const cove: CoveApi = {
   browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
+  setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),

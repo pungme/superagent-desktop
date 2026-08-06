@@ -21,6 +21,11 @@ import { getWorkspaceName, getChatTitleBySession } from './store'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 
+// What deserves a banner. The renderer owns the persisted setting and pushes it
+// here on startup and on change — banners pop over whatever the user is doing,
+// so "Claude is done" must be optional; "needs you" defaults on but can go too.
+export const notifyPrefs = { done: true, needsYou: true }
+
 const EVENT_STATUS: Record<string, WorkspaceStatus> = {
   UserPromptSubmit: 'working',
   Notification: 'needs-you',
@@ -53,7 +58,7 @@ export function startHookServer(): Promise<string> {
 
     if (event === 'Notification') {
       const focused = BrowserWindow.getFocusedWindow()
-      if (!focused && Notification.isSupported()) {
+      if (!focused && Notification.isSupported() && notifyPrefs.needsYou) {
         const message = typeof body.message === 'string' ? body.message : 'Claude needs your input'
         const name = getWorkspaceName(workspaceId)
         const about = sessionId ? getChatTitleBySession(sessionId) : undefined
@@ -81,7 +86,7 @@ export function startHookServer(): Promise<string> {
     // the project. (When the app is already frontmost, stay quiet.)
     if (event === 'Stop') {
       const focused = BrowserWindow.getFocusedWindow()
-      if (!focused && Notification.isSupported()) {
+      if (!focused && Notification.isSupported() && notifyPrefs.done) {
         const name = getWorkspaceName(workspaceId)
         // Chats name themselves after what they turned out to be about, so the
         // title is the closest thing we have to "what was it about".
@@ -131,6 +136,11 @@ exit 0
 `
 
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Notification', 'Stop', 'SubagentStop']
+
+ipcMain.on('notify:prefs', (_e, prefs: { done?: boolean; needsYou?: boolean }) => {
+  if (typeof prefs.done === 'boolean') notifyPrefs.done = prefs.done
+  if (typeof prefs.needsYou === 'boolean') notifyPrefs.needsYou = prefs.needsYou
+})
 
 type HookSettings = { hooks?: Record<string, unknown[]> } & Record<string, unknown>
 

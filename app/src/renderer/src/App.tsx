@@ -139,6 +139,12 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     startHookListener()
+    // Main owns the banner gate but the persisted preference lives here — push it
+    // at startup so a pref set last run holds before any agent finishes.
+    window.cove.setNotifyPrefs({
+      done: localStorage.getItem('cove.notifyDone') !== '0',
+      needsYou: localStorage.getItem('cove.notifyNeedsYou') !== '0'
+    })
     startBrowsingListener()
     startRoutinesListener()
     // Persisted dev-server chips: keep the ones still listening, drop the rest.
