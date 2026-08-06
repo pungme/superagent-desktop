@@ -2465,10 +2465,22 @@ button {
 
 /* ---------- File tree ---------- */
 .files-side {
-  flex: 0 0 220px;
+  flex: 0 0 220px; /* flex-basis overridden inline by the saved width */
   min-width: 0;
   border-right: 1px solid var(--border);
   overflow: hidden;
+  position: relative;
+}
+
+/* Invisible grab strip on the tree's right edge. */
+.files-divider {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
 }
 
 .file-tree {
