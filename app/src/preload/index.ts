@@ -91,6 +91,8 @@ export interface CoveApi {
   filesMenu: (absPath: string) => void
   /** Which agent events raise a native banner. */
   setNotifyPrefs: (prefs: { done?: boolean; needsYou?: boolean }) => void
+  /** Copy dropped files/folders into a project directory; returns created paths. */
+  filesImport: (destDir: string, sources: string[]) => Promise<string[]>
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
@@ -239,6 +241,7 @@ const cove: CoveApi = {
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
+  filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),

@@ -50,11 +50,20 @@ function fileIcon(name: string): string {
   return '📄'
 }
 
+/** Absolute paths of files dragged in from Finder (empty for in-app drags). */
+function droppedPaths(e: React.DragEvent): string[] {
+  return Array.from(e.dataTransfer.files)
+    .map((f) => window.cove.getPathForFile(f))
+    .filter(Boolean)
+}
+
 export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element {
   const openPath = useStore((s) => s.openPath)
   const [paths, setPaths] = useState<string[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  // Finder drag hovering the tree ('' = root) or a specific folder row.
+  const [dropDir, setDropDir] = useState<string | null>(null)
 
   const load = useCallback(() => {
     // `loading` starts true, so we don't set it synchronously here (that would
@@ -83,6 +92,17 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
     [paths]
   )
 
+  const importTo = async (relDir: string, e: React.DragEvent): Promise<void> => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDropDir(null)
+    const sources = droppedPaths(e)
+    if (!sources.length) return
+    const dest = relDir ? `${cwd}/${relDir}` : cwd
+    await window.cove.filesImport(dest, sources)
+    load()
+  }
+
   const toggle = (path: string): void =>
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -104,13 +124,21 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
         rows.push(
           <button
             key={node.path}
-            className="file-tree-row file-tree-dir"
+            className={`file-tree-row file-tree-dir ${dropDir === node.path ? 'drop-target' : ''}`}
             style={pad}
             onClick={() => toggle(node.path)}
             onContextMenu={(e) => {
               e.preventDefault()
               window.cove.filesMenu(`${cwd}/${node.path}`)
             }}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('Files')) {
+                e.preventDefault()
+                e.stopPropagation()
+                setDropDir(node.path)
+              }
+            }}
+            onDragLeave={() => setDropDir((d) => (d === node.path ? '' : d))}
             title={node.path}
           >
             <span className={`file-tree-caret ${open ? 'open' : ''}`}>▸</span>
@@ -141,7 +169,19 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
   render(tree, 0)
 
   return (
-    <div className="file-tree">
+    <div
+      className={`file-tree ${dropDir === '' ? 'drop-target' : ''}`}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault()
+          if (dropDir === null) setDropDir('')
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDropDir(null)
+      }}
+      onDrop={(e) => void importTo(dropDir ?? '', e)}
+    >
       <div className="file-tree-header">
         <span className="file-tree-title">Files</span>
         <button className="file-tree-refresh" onClick={load} title="Refresh">
