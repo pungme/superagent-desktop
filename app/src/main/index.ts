@@ -59,6 +59,13 @@ function createWindow(): BrowserWindow {
   })
 
   mainWindow.on('ready-to-show', () => {
+    // Tooling relaunches (screenshot/verification loops) must never steal focus
+    // from whatever the user is doing — a maximized window shoving itself
+    // forward on every dev restart reads as the app misbehaving.
+    if (process.env.COVE_NO_FOCUS) {
+      mainWindow.showInactive()
+      return
+    }
     // Open filling the screen (maximized, keeping the menu bar/traffic lights) so
     // the app isn't a small window on every launch.
     mainWindow.maximize()
