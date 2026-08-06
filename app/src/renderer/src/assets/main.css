@@ -4038,16 +4038,87 @@ button {
 }
 .dash-hours {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 2px;
   height: 56px;
 }
-.dash-hour-bar {
+.dash-hour-wrap {
   flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+.dash-hour-bar {
+  width: 100%;
   background: var(--accent);
   opacity: 0.6;
   border-radius: 2px 2px 0 0;
   min-height: 2px;
+}
+.dash-weekdays {
+  gap: 6px;
+}
+
+/* Instant custom tooltip — the native title delay made hover feel dead. */
+.dash-tip {
+  position: relative;
+}
+.dash-tip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 4px 14px var(--shadow);
+}
+
+.dash-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.dash-cols .dash-section {
+  margin-bottom: 24px;
+}
+.dash-tok-row {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.dash-tok-row b {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dash-trend {
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-left: 7px;
+  vertical-align: 3px;
+}
+.dash-trend.up {
+  color: #34a885;
+}
+.dash-trend.down {
+  color: #d4766a;
+}
+.dash-trend.flat {
+  color: var(--text-tertiary);
+}
+.dash-stat-sub {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  font-weight: 600;
 }
 .dash-hours-axis {
   display: flex;

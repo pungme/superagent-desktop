@@ -108,6 +108,10 @@ export interface CoveApi {
   chatLastReply: (workspaceId: string, excerpt: string) => void
   /** Append to the activity log (dashboard). */
   eventsRecord: (kind: string, workspaceId?: string, n?: number) => void
+  /** Durable localStorage mirror (SQLite) — see kv handlers in store.ts. */
+  kvAll: () => Promise<Record<string, string>>
+  kvSet: (key: string, value: string) => void
+  kvDel: (key: string) => void
   eventsDashboard: () => Promise<{
     turnsToday: number
     tasksToday: number
@@ -119,7 +123,13 @@ export interface CoveApi {
     hours: number[]
     busiestDay: { date: string; turns: number } | null
     avgTurns30: number
+    activeDays30: number
     firstTs: number | null
+    tokens: { today: number; week: number; month: number }
+    trends: { turnsWeek: number; turnsPrevWeek: number; tokensWeek: number; tokensPrevWeek: number }
+    weekdayAvg: number[]
+    tokensByProject: { name: string; tokens: number }[]
+    avgMsgsPerChat: number
     totals: {
       turns: number
       tasks: number
@@ -289,6 +299,9 @@ const cove: CoveApi = {
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),
   eventsRecord: (kind, workspaceId, n) => ipcRenderer.send('events:record', kind, workspaceId, n),
+  kvAll: () => ipcRenderer.invoke('kv:all'),
+  kvSet: (key, value) => ipcRenderer.send('kv:set', key, value),
+  kvDel: (key) => ipcRenderer.send('kv:del', key),
   eventsDashboard: () => ipcRenderer.invoke('events:dashboard'),
   worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
   worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
