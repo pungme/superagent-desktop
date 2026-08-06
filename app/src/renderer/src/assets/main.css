@@ -1834,6 +1834,10 @@ button {
   background: var(--hover);
   padding: 1px 5px;
   border-radius: 5px;
+  /* 'anywhere', not 'break-word': only 'anywhere' shrinks min-content, and a
+     long unbroken token (scope lists, hashes) otherwise widens the line box
+     right out of the bubble instead of wrapping. */
+  overflow-wrap: anywhere;
 }
 
 .md-code {
