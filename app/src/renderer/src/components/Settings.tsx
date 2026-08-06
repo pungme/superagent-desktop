@@ -12,6 +12,21 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
+  // Banners pop over whatever you're doing — both kinds are optional.
+  const [notifyDone, setNotifyDone] = useState(localStorage.getItem('cove.notifyDone') !== '0')
+  const [notifyNeedsYou, setNotifyNeedsYou] = useState(
+    localStorage.getItem('cove.notifyNeedsYou') !== '0'
+  )
+  const toggleNotifyDone = (v: boolean): void => {
+    localStorage.setItem('cove.notifyDone', v ? '1' : '0')
+    setNotifyDone(v)
+    window.cove.setNotifyPrefs({ done: v })
+  }
+  const toggleNotifyNeedsYou = (v: boolean): void => {
+    localStorage.setItem('cove.notifyNeedsYou', v ? '1' : '0')
+    setNotifyNeedsYou(v)
+    window.cove.setNotifyPrefs({ needsYou: v })
+  }
   const [version, setVersion] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
@@ -86,6 +101,36 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
               Edits
             </button>
           </div>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Notify when Claude finishes</strong>
+            <span>A banner when a turn completes while you're in another app.</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={notifyDone}
+              onChange={(e) => toggleNotifyDone(e.target.checked)}
+            />
+            <span className="switch-slider" />
+          </label>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Notify when Claude needs you</strong>
+            <span>A banner when the agent is waiting on your input.</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={notifyNeedsYou}
+              onChange={(e) => toggleNotifyNeedsYou(e.target.checked)}
+            />
+            <span className="switch-slider" />
+          </label>
         </div>
 
         <div className="settings-row">
