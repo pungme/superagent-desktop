@@ -357,7 +357,7 @@ export function WorkspaceView({
             <EasyChat
               // Remount on switch so no state leaks between conversations.
               key={activeChat.id}
-              cwd={ws.path}
+              cwd={activeChat.cwd ?? ws.path}
               workspaceId={ws.id}
               chatId={activeChat.id}
               initialSessionId={activeChat.claudeSessionId}

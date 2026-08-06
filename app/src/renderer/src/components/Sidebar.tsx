@@ -216,7 +216,14 @@ function ChatRow({
           }}
         />
       ) : (
-        <span className="chat-tree-title">{label}</span>
+        <span className="chat-tree-title">
+          {label}
+          {chat.cwd && (
+            <span className="chat-tree-wt" title={`Worktree: ${chat.cwd}`}>
+              ⎇ {chat.cwd.split('/').pop()}
+            </span>
+          )}
+        </span>
       )}
       <button
         className="routine-tree-run chat-tree-remove"

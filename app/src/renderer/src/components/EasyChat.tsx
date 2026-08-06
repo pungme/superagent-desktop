@@ -1510,7 +1510,22 @@ export function EasyChat({
     >
       {dragOver && <div className="easy-drop-hint">Drop a file to add it</div>}
       {items.length > 0 && (
-        <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
+        <button
+          className="easy-newchat"
+          onClick={newChat}
+          onContextMenu={(e) => {
+            // Right-click: same button, isolated variant — the chat gets its own
+            // git worktree so parallel agents stop fighting over one tree.
+            e.preventDefault()
+            void useStore
+              .getState()
+              .newChatInWorktree(workspaceId, cwd)
+              .then((ok) => {
+                if (!ok) window.alert('Could not create a worktree here (is this a git repo?)')
+              })
+          }}
+          title="Start a new conversation (right-click: in a git worktree)"
+        >
           ✎ New chat
         </button>
       )}
