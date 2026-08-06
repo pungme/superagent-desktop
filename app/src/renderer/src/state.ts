@@ -75,12 +75,12 @@ interface CoveState {
   filesOpen: Record<string, boolean>
   // Absolute path of the text file open in the in-app viewer/editor, per workspace.
   openFile: Record<string, string | null>
-  openFileInViewer: (workspaceId: string, path: string) => void
+  openFileInViewer: (workspaceId: string, path: string, focus?: boolean) => void
   closeFile: (workspaceId: string) => void
   // Open an absolute file path the right way: text/code/markdown in the in-app
   // viewer, PDFs/images in the preview pane, everything else in the OS default.
   // Shared by the file tree and the agent's open_file tool.
-  openPath: (workspaceId: string, absPath: string) => void
+  openPath: (workspaceId: string, absPath: string, focus?: boolean) => void
 
   // Count of open HTML overlays (slide-overs, modals). While > 0 the native
   // browser view is hidden so it can't cover them.
@@ -104,7 +104,7 @@ interface CoveState {
   toast: { workspaceId: string; port: number } | null
   openPreview: (workspaceId: string, port: number) => void
   /** Reveal the browser pane on an arbitrary URL (e.g. a file:// from the tree). */
-  openUrl: (workspaceId: string, url: string) => void
+  openUrl: (workspaceId: string, url: string, focus?: boolean) => void
   dismissToast: () => void
   setReloadOnIdle: (workspaceId: string, v: boolean) => void
 
@@ -211,10 +211,13 @@ export const useStore = create<CoveState>((set, get) => ({
   openFile: {},
   // A text file replaces the browser pane's slot; hide the native view so it can't
   // cover the viewer, and remember which file is showing.
-  openFileInViewer: (workspaceId, path) => {
+  openFileInViewer: (workspaceId, path, focus = true) => {
     localStorage.setItem(`openFile:${workspaceId}`, path)
     set((s) => ({
-      activeWorkspaceId: workspaceId,
+      // Only a USER action may move the user. The agent opening its results must
+      // land in its own project quietly — yanking the active workspace mid-typing
+      // is the "app hijacks my work" bug.
+      ...(focus ? { activeWorkspaceId: workspaceId } : {}),
       openFile: { ...s.openFile, [workspaceId]: path }
     }))
   },
@@ -222,13 +225,13 @@ export const useStore = create<CoveState>((set, get) => ({
     localStorage.removeItem(`openFile:${workspaceId}`)
     set((s) => ({ openFile: { ...s.openFile, [workspaceId]: null } }))
   },
-  openPath: (workspaceId, absPath) => {
+  openPath: (workspaceId, absPath, focus = true) => {
     const ext = absPath.slice(absPath.lastIndexOf('.') + 1).toLowerCase()
     if (FILE_TEXT_EXTS.has(ext)) {
-      get().openFileInViewer(workspaceId, absPath)
+      get().openFileInViewer(workspaceId, absPath, focus)
     } else if (FILE_PREVIEW_EXTS.has(ext)) {
       // encodeURI (not encodeURIComponent) so path separators survive.
-      get().openUrl(workspaceId, `file://${encodeURI(absPath)}`)
+      get().openUrl(workspaceId, `file://${encodeURI(absPath)}`, focus)
     } else {
       // .docx, .xlsx, archives, unknown types → hand off to the OS.
       window.cove.filesOpenExternal(absPath)
@@ -362,12 +365,12 @@ export const useStore = create<CoveState>((set, get) => ({
         toast: null
       }
     }),
-  openUrl: (workspaceId, url) =>
+  openUrl: (workspaceId, url, focus = true) =>
     set((s) => {
       localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
       return {
-        activeWorkspaceId: workspaceId,
+        ...(focus ? { activeWorkspaceId: workspaceId } : {}),
         browserOpen,
         coldStart: false,
         previewUrls: { ...s.previewUrls, [workspaceId]: url },
