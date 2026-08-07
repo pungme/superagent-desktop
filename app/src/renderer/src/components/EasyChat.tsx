@@ -610,6 +610,8 @@ export function EasyChat({
     images: { mediaType: string; data: string }[]
   } | null>(null)
   const retriedEmptyTurnRef = useRef(false)
+  /** We stopped it on purpose — the turn's error result isn't news. */
+  const interruptedRef = useRef(false)
   const thinkingIdRef = useRef<string | null>(null)
   // Session to resume so context survives restarts; updated once claude reports it.
   const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
@@ -1234,6 +1236,13 @@ export function EasyChat({
         const isError =
           (event.is_error as boolean) ||
           (typeof event.subtype === 'string' && event.subtype !== 'success')
+        // A turn we cut short reports itself as an error; that's expected, not
+        // something to put in front of the user.
+        if (interruptedRef.current) {
+          interruptedRef.current = false
+          streamedThisTurnRef.current = false
+          return
+        }
         // Nothing at all came back — no text, no tools, no error detail. Send it
         // again once rather than making the user do it; only when the turn was
         // completely empty, so a partially-completed turn is never repeated.
@@ -1553,6 +1562,49 @@ export function EasyChat({
     setGenerating(true)
   }
 
+  /**
+   * Stop what the agent is doing right now — even inside a long tool call —
+   * and pick up from the same session. Sending to stdin only reaches Claude
+   * between steps, so a message during a 15-minute deploy waited for the
+   * deploy; this signals the process instead and resumes with --resume, so
+   * nothing about the conversation is lost.
+   */
+  const interruptNow = useCallback(
+    async (thenSend?: { text: string; images: { mediaType: string; data: string }[] }): Promise<void> => {
+      const id = agentIdRef.current
+      if (!id) return
+      interruptedRef.current = true
+      setThinking(false)
+      setGenerating(false)
+      await window.cove.agentHardInterrupt?.(id)
+      agentIdRef.current = null
+      setReady(false)
+      setItems((prev) => [
+        ...prev,
+        {
+          kind: 'msg',
+          msg: {
+            id: `sys-${Date.now()}`,
+            at: Date.now(),
+            role: 'assistant',
+            text: thenSend ? '⏹ Interrupted — picking up your message.' : '⏹ Interrupted.',
+            system: true
+          }
+        }
+      ])
+      if (thenSend) pendingSendsRef.current.push(thenSend)
+      // Respawn against the same session; queued sends flush once it's up.
+      suspendedRef.current = true
+      setSuspended(true)
+      wake()
+      if (thenSend) {
+        setThinking(true)
+        setGenerating(true)
+      }
+    },
+    [wake]
+  )
+
   const send = (): void => submit(input.trim(), pendingImages)
 
   const beginReply = (msg: ChatMessage): void => {
@@ -1615,10 +1667,7 @@ export function EasyChat({
   }
 
   const stop = (): void => {
-    const id = agentIdRef.current
-    if (id) window.cove.agentInterrupt(id)
-    setThinking(false)
-    setGenerating(false)
+    void interruptNow()
   }
 
   const startDictation = useCallback((): void => {
@@ -2044,8 +2093,32 @@ export function EasyChat({
                 return
               }
             }
+            // Esc stops the agent where it is — the terminal's Ctrl-C, and the
+            // only thing that reaches it inside a long tool call.
+            if (e.key === 'Escape' && (generating || thinking)) {
+              e.preventDefault()
+              void interruptNow()
+              return
+            }
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
+              // ⌘⏎ (or ⌥⏎) while it's working: stop what it's doing and take
+              // this message now, instead of queueing it behind the current step.
+              if ((e.metaKey || e.altKey) && (generating || thinking)) {
+                const text = input.trim()
+                if (text) {
+                  setItems((prev) => [
+                    ...prev,
+                    {
+                      kind: 'msg',
+                      msg: { id: `u-${Date.now()}`, at: Date.now(), role: 'user', text }
+                    }
+                  ])
+                  setInput('')
+                  void interruptNow({ text, images: [] })
+                  return
+                }
+              }
               send()
             }
           }}

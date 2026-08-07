@@ -292,6 +292,40 @@ export function interruptAgent(id: string): void {
   session.proc.stdin.write(JSON.stringify(control) + '\n')
 }
 
+/**
+ * Interrupt that works even mid-tool-call.
+ *
+ * The stdin control_request above is the polite route, but the CLI only reads
+ * stdin between steps — inside a long Bash call (a 15-minute deploy) nothing is
+ * read at all, which is why a mid-turn message could sit unseen for a quarter of
+ * an hour. A signal doesn't need the CLI to be listening. Escalates: control
+ * request → SIGINT → kill, and reports whether the process ended so the caller
+ * knows it has to resume the session.
+ */
+export async function hardInterruptAgent(id: string): Promise<boolean> {
+  const session = sessions.get(id)
+  if (!session) return true
+  interruptAgent(id)
+  const gone = async (ms: number): Promise<boolean> => {
+    const until = Date.now() + ms
+    while (Date.now() < until) {
+      if (session.proc.exitCode !== null || session.proc.signalCode !== null) return true
+      await new Promise((r) => setTimeout(r, 60))
+    }
+    return false
+  }
+  if (await gone(700)) return true
+  session.killed = true // a deliberate interrupt is not a crash
+  session.proc.kill('SIGINT')
+  if (await gone(1200)) {
+    sessions.delete(id)
+    return true
+  }
+  session.proc.kill('SIGKILL')
+  sessions.delete(id)
+  return true
+}
+
 export function stopAgent(id: string): void {
   const session = sessions.get(id)
   if (session) {
@@ -378,4 +412,5 @@ export function registerAgentIpc(): void {
   )
   ipcMain.on('agent:interrupt', (_e, id: string) => interruptAgent(id))
   ipcMain.on('agent:stop', (_e, id: string) => stopAgent(id))
+  ipcMain.handle('agent:hard-interrupt', (_e, id: string) => hardInterruptAgent(id))
 }
