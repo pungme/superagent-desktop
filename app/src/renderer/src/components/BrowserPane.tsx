@@ -258,9 +258,12 @@ export function BrowserPane({
     const top = Math.round((H - dh) / 2)
     window.cove.browserSetZoom?.(paneId, scale)
     setSimFrame({ left, top, width: dw, height: dh })
-    // A phone is rounded on every corner, and has no omnibar butted against it.
     window.cove.browserSetRadius?.(paneId, PANE_RADIUS)
-    emit({ x: x0 + left, y: y0 + top, width: dw, height: dh })
+    // The omnibar is docked on the phone's top strip too (added when mobile got
+    // its own address bar), so the page has to start BELOW it — a native view
+    // paints over all HTML, so a full-frame view hides the toolbar completely
+    // and with it the only way back to Desktop.
+    emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: dw, height: dh - CARD_OMNIBAR_H })
   }, [paneId])
 
   // The omnibox dropdown is HTML and nothing renders above the native view, so
