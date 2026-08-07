@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import { basename, join } from 'path'
 import { appendFileSync, renameSync, statSync } from 'fs'
 import { execFile } from 'child_process'
-import { normalizeUrl } from './util'
+import { normalizeUrl, broadcastToWindows } from './util'
 import { getRecentHistory } from './store'
 
 // Lightweight pane-lifecycle trail for the "agent-opened pane is blank" reports —
@@ -371,18 +371,18 @@ function detachPanesWhileAway(): void {
   }
 }
 
-/** The user is back (window focused): put the panes on screen. */
+/**
+ * The user is back. Do NOT attach from here: main doesn't know which panes the
+ * UI still wants on screen, and blindly re-adding one produced a view floating
+ * over the chat with no toolbar (the component that owns it had unmounted).
+ * Ask the renderer to re-sync instead — whichever panes are still mounted will
+ * push fresh bounds, and browser:set-bounds attaches them.
+ */
 export function attachPanesOnReturn(): void {
   if (detachedWhileAway.size === 0) return
-  for (const id of detachedWhileAway) {
-    const pane = panes.get(id)
-    if (pane && !pane.window.isDestroyed() && !pane.visible) {
-      pane.window.contentView.addChildView(pane.view)
-      pane.visible = true
-      paneLog('pane-reattached', id)
-    }
-  }
   detachedWhileAway.clear()
+  paneLog('pane-resync-requested', 'window')
+  broadcastToWindows('browser:resync')
 }
 
 export function releaseFocusGuard(): void {
