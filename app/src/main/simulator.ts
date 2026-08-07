@@ -1,9 +1,10 @@
-import { ipcMain, BrowserWindow, nativeImage } from 'electron'
+import { ipcMain, BrowserWindow, nativeImage, systemPreferences, shell } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { readFileSync, unlinkSync } from 'fs'
+import { createHash } from 'crypto'
 
 const run = promisify(execFile)
 
@@ -35,14 +36,23 @@ export interface SimDevice {
 interface Stream {
   udid: string
   name: string
-  timer: ReturnType<typeof setInterval>
+  timer: ReturnType<typeof setTimeout> | null
   window: BrowserWindow
   busy: boolean
+  stopped: boolean
   /** Bumped on input so a grab that is already in flight can be discarded. */
   generation: number
+  /** Poll fast until this moment — set whenever the user touches the device. */
+  activeUntil: number
+  /** Digest of the last frame sent, so a still screen costs nothing. */
+  lastHash: string
+  /** Consecutive failures; the device is probably shutting down. */
+  misses: number
 }
 
 const streams = new Map<string, Stream>()
+/** "Stay On Top" is a toggle we can set but not read — so set it only once. */
+let pinnedOnce = false
 /** Whether baguette is on PATH — decided once, since input needs it. */
 let baguettePath: string | null | undefined
 
@@ -117,19 +127,26 @@ function toPoints(
 async function grabFrame(
   udid: string,
   name = ''
-): Promise<{ url: string; width: number; height: number } | null> {
+): Promise<{ url: string; width: number; height: number; hash: string } | null> {
   const file = join(tmpdir(), `sa-sim-${udid.slice(0, 8)}.jpg`)
   try {
     await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], { timeout: 15_000 })
     const img = nativeImage.createFromBuffer(readFileSync(file))
     if (img.isEmpty()) return null
     const { width: pxW, height: pxH } = img.getSize()
-    // Half-size is plenty for a pane and a quarter of the bytes over IPC.
+    // Half-size is plenty for a pane and a quarter of the pixels.
     const small = img.resize({ width: Math.max(320, Math.round(pxW / 2)), quality: 'good' })
-    // Report POINTS: the renderer maps a click into this space and hands it
-    // straight to the injector, so there is one coordinate system, not three.
+    // JPEG, not toDataURL(): that returns PNG, which for a phone screenshot is
+    // ~600 KB — encoded on the main thread and pushed over IPC twice a second.
+    // The same frame as JPEG is around a tenth of that and encodes far faster.
+    const buf = small.toJPEG(72)
     const pt = toPoints(pxW, pxH, name)
-    return { url: small.toDataURL(), width: pt.width, height: pt.height }
+    return {
+      url: `data:image/jpeg;base64,${buf.toString('base64')}`,
+      width: pt.width,
+      height: pt.height,
+      hash: createHash('md5').update(buf).digest('hex')
+    }
   } catch {
     return null
   } finally {
@@ -141,21 +158,55 @@ async function grabFrame(
   }
 }
 
-function startStream(window: BrowserWindow, udid: string, fps: number, name = ''): void {
+/**
+ * Poll the device for frames. Self-scheduling rather than a fixed interval so
+ * the rate can follow what the user is doing: quick while they are touching the
+ * screen, lazy when they are only watching. A grab takes ~600ms, so this is the
+ * ceiling either way — the point is not to spend it when nothing is happening.
+ */
+const FAST_MS = 250
+const IDLE_MS = 900
+const ACTIVE_WINDOW_MS = 4000
+
+function startStream(window: BrowserWindow, udid: string, _fps: number, name = ''): void {
   stopStream(udid)
-  const stream: Stream = { udid, name, window, busy: false, generation: 0, timer: 0 as never }
+  const stream: Stream = {
+    udid,
+    name,
+    window,
+    busy: false,
+    stopped: false,
+    generation: 0,
+    timer: null,
+    activeUntil: Date.now() + ACTIVE_WINDOW_MS,
+    lastHash: '',
+    misses: 0
+  }
   const tick = async (): Promise<void> => {
-    if (stream.busy || window.isDestroyed()) return
+    if (stream.stopped || window.isDestroyed()) return
     stream.busy = true
     const gen = stream.generation
     const frame = await grabFrame(udid, stream.name)
     stream.busy = false
-    // A newer input landed while this grab was in flight — its frame is the one
-    // worth showing, so drop this stale picture rather than flashing backwards.
-    if (gen !== stream.generation || window.isDestroyed()) return
-    if (frame) window.webContents.send(`sim:frame:${udid}`, frame)
+    if (stream.stopped || window.isDestroyed()) return
+    if (!frame) {
+      // A few failures in a row means the device went away — say so once
+      // rather than silently freezing on the last picture.
+      stream.misses += 1
+      if (stream.misses === 3) window.webContents.send(`sim:gone:${udid}`)
+    } else {
+      stream.misses = 0
+      // A newer input landed while this grab was in flight, or the screen has
+      // not changed: either way this picture is not worth an IPC round trip.
+      if (gen === stream.generation && frame.hash !== stream.lastHash) {
+        stream.lastHash = frame.hash
+        window.webContents.send(`sim:frame:${udid}`, frame)
+      }
+    }
+    if (stream.stopped) return
+    const fast = Date.now() < stream.activeUntil
+    stream.timer = setTimeout(tick, fast ? FAST_MS : IDLE_MS)
   }
-  stream.timer = setInterval(tick, Math.max(300, Math.round(1000 / fps)))
   streams.set(udid, stream)
   void tick()
 }
@@ -163,7 +214,8 @@ function startStream(window: BrowserWindow, udid: string, fps: number, name = ''
 function stopStream(udid: string): void {
   const s = streams.get(udid)
   if (!s) return
-  clearInterval(s.timer)
+  s.stopped = true
+  if (s.timer) clearTimeout(s.timer)
   streams.delete(udid)
 }
 
@@ -176,14 +228,151 @@ function nudge(udid: string): void {
   const s = streams.get(udid)
   if (!s) return
   s.generation += 1
-  s.busy = false
+  s.activeUntil = Date.now() + ACTIVE_WINDOW_MS
   const w = s.window
   void grabFrame(udid, s.name).then((frame) => {
-    if (frame && !w.isDestroyed()) w.webContents.send(`sim:frame:${udid}`, frame)
+    if (!frame || w.isDestroyed() || s.stopped) return
+    s.lastHash = frame.hash
+    w.webContents.send(`sim:frame:${udid}`, frame)
   })
 }
 
+/**
+ * "Attach" mode: instead of mirroring frames, put Apple's own Simulator window
+ * exactly over the pane. Nothing is streamed, so it runs at native speed with
+ * real touch and keyboard — the honest answer to "can't we just put the
+ * simulator in there?".
+ *
+ * macOS has no supported way to reparent another application's window into
+ * ours, so this is the closest legitimate thing: move and size the real window
+ * to the pane's rectangle and keep it there. It needs Accessibility permission
+ * (the same grant window managers ask for), and the window floats above ours
+ * rather than being clipped by it — so the pane hides it when it scrolls away
+ * or the app goes to the back.
+ */
+async function osa(script: string): Promise<string> {
+  const { stdout } = await run('osascript', ['-e', script], { timeout: 8000 })
+  return stdout.trim()
+}
+
+async function moveSimulatorWindow(rect: {
+  x: number
+  y: number
+  width: number
+  height: number
+}): Promise<{ ok: boolean; error?: string }> {
+  // Three steps, not one script: the window keeps the device's aspect ratio, so
+  // asking for a box gives back a different one, and reading that back inside
+  // the same script returns the size we asked for rather than the size it took
+  // (measured — the device then sat hard against the left edge instead of
+  // centred). Set, read, then place using what it actually became.
+  const win = 'tell application "System Events" to tell process "Simulator" to'
+  try {
+    const exists = await osa(
+      'tell application "System Events" to if exists process "Simulator" then return "y"'
+    )
+    if (exists !== 'y') return { ok: false, error: 'no-process' }
+    await osa(`${win} set size of window 1 to {${Math.round(rect.width)}, ${Math.round(rect.height)}}`)
+    // The resize settles a beat after the call returns; reading immediately
+    // gives back the size we asked for rather than the one it took.
+    await new Promise((r) => setTimeout(r, 250))
+    const got = await osa(`${win} get size of window 1`)
+    const [w, h] = got.split(',').map((n) => Number(n.trim()))
+    const x = Math.round(rect.x + (rect.width - (w || rect.width)) / 2)
+    const y = Math.round(rect.y + (rect.height - (h || rect.height)) / 2)
+    await osa(`${win} set position of window 1 to {${x}, ${y}}`)
+    return { ok: true }
+  } catch (err) {
+    const msg = String(err)
+    // -1719 is the permission refusal; everything else is a real failure.
+    if (/1719/.test(msg)) return { ok: false, error: 'no-accessibility' }
+    if (/window 1/.test(msg)) return { ok: false, error: 'no-window' }
+    return { ok: false, error: msg.slice(0, 160) }
+  }
+}
+
 export function registerSimulatorIpc(): void {
+  ipcMain.handle('sim:attach-ready', () => ({
+    trusted: systemPreferences.isTrustedAccessibilityClient(false)
+  }))
+  ipcMain.handle('sim:attach-request', () => ({
+    // Passing true makes macOS show its own "grant access" dialog once.
+    trusted: systemPreferences.isTrustedAccessibilityClient(true)
+  }))
+  ipcMain.handle('sim:attach-settings', () => {
+    void shell.openExternal(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+    )
+    return true
+  })
+  ipcMain.handle(
+    'sim:attach',
+    async (_e, udid: string, rect: { x: number; y: number; width: number; height: number }) => {
+      // Bring up Apple's Simulator showing this device, then park its window.
+      await run('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
+        timeout: 20_000
+      }).catch(() => {})
+      // Once per run: the menu item doesn't expose its checked state through
+      // accessibility (it always reads `missing value`), so clicking it on
+      // every attach would toggle it back off half the time.
+      if (!pinnedOnce) {
+        pinnedOnce = true
+      // Two Simulator settings make an attached window behave: "Stay On Top"
+      // (otherwise clicking back into SuperAgent to type sends the device
+      // behind our window and the pane looks empty) and bezels off.
+      await run('osascript', [
+        '-e',
+        `tell application "System Events" to tell process "Simulator"
+           try
+             set mi to menu item "Stay On Top" of menu 1 of menu bar item "Window" of menu bar 1
+             set mark to value of attribute "AXMenuItemMarkChar" of mi
+             if mark is missing value or mark is "" then click mi
+           end try
+         end tell`
+      ]).catch(() => {})
+      }
+      // Device bezels carry a large minimum window size — with them on, the
+      // window refuses to shrink into a pane (measured: 972px tall against a
+      // 682px pane). Off, the same window fits happily, and the pane's own
+      // frame reads better than a second one inside it.
+      await run('osascript', [
+        '-e',
+        `tell application "System Events" to tell process "Simulator"
+           try
+             set mi to menu item "Show Device Bezels" of menu 1 of menu bar item "Window" of menu bar 1
+             set mark to value of attribute "AXMenuItemMarkChar" of mi
+             if mark is not missing value and mark is not "" then click mi
+           end try
+         end tell`
+      ]).catch(() => {})
+      // The window needs a moment to exist before it can be positioned.
+      for (let i = 0; i < 12; i++) {
+        const res = await moveSimulatorWindow(rect)
+        if (res.ok) return res
+        if (res.error === 'no-accessibility') return res
+        await new Promise((r) => setTimeout(r, 700))
+      }
+      return { ok: false, error: 'window-never-appeared' }
+    }
+  )
+  ipcMain.handle('sim:attach-move', (_e, rect) => moveSimulatorWindow(rect))
+  ipcMain.handle('sim:attach-hide', async () => {
+    // Hiding beats un-pinning: a window told to stay on top would otherwise
+    // float over whatever the user switches to.
+    await run('osascript', [
+      '-e',
+      'tell application "System Events" to set visible of process "Simulator" to false'
+    ]).catch(() => {})
+    return true
+  })
+  ipcMain.handle('sim:attach-show', async () => {
+    await run('osascript', [
+      '-e',
+      'tell application "System Events" to set visible of process "Simulator" to true'
+    ]).catch(() => {})
+    return true
+  })
+
   ipcMain.handle('sim:list', () => listDevices())
   ipcMain.handle('sim:boot', async (_e, udid: string) => {
     await bootDevice(udid)
@@ -213,12 +402,15 @@ export function registerSimulatorIpc(): void {
     async (
       _e,
       udid: string,
-      action: { type: 'tap' | 'swipe' | 'press' | 'text'; [k: string]: unknown }
+      action: { type: 'tap' | 'swipe' | 'press' | 'text' | 'key'; [k: string]: unknown }
     ) => {
       const bin = await findBaguette()
       if (!bin) return { ok: false, error: 'baguette-not-installed' }
       const args: string[] = []
-      if (action.type === 'tap') {
+      if (action.type === 'key') {
+        args.push('key', '--udid', udid, '--code', String(action.code))
+        if (action.modifiers) args.push('--modifiers', String(action.modifiers))
+      } else if (action.type === 'tap') {
         args.push('tap', '--udid', udid, '--x', String(action.x), '--y', String(action.y),
           '--width', String(action.width), '--height', String(action.height))
       } else if (action.type === 'swipe') {
