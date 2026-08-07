@@ -29,11 +29,19 @@ const EMPTY_PORTS: number[] = []
 
 function StatusDot({
   status,
-  live
+  live,
+  browsing
 }: {
   status: WorkspaceStatus
   live?: boolean
+  browsing?: boolean
 }): React.JSX.Element {
+  // Driving the browser is work too — and on a plain tab there is no turn to
+  // report, so without this the row sits at "idle" while the agent clicks
+  // around in it.
+  if (browsing) {
+    return <span className="status-spinner" title="Claude is using this page" />
+  }
   // A spinner while it works: a pulsing dot reads as a state, but the agent
   // running is an activity, and spinning says "still going" at a glance.
   if (status === 'working') {
@@ -255,6 +263,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
+  const browsingHere = useStore((s) => s.browsingWorkspaceId === ws.id)
   const removeWorkspace = useStore((s) => s.removeWorkspace)
 
   // Git repos nested inside a code project's folder (a folder-of-repos), shown
@@ -335,7 +344,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         {...attributes}
         {...listeners}
       >
-        <StatusDot status={status} live={agentLive} />
+        <StatusDot status={status} live={agentLive} browsing={browsingHere} />
         <span
           className="sidebar-item-kind"
           title={ws.kind === 'browser' ? 'Browser' : 'Folder'}

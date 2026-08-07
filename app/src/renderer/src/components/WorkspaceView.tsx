@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
+import { SimulatorPane } from './SimulatorPane'
 import { FileTree } from './FileTree'
 import { FileViewer } from './FileViewer'
 import { SkillsPanel } from './SkillsPanel'
@@ -55,7 +56,18 @@ export function WorkspaceView({
         : s.openFile[ws.id]
   )
   const closeFile = useStore((s) => s.closeFile)
-  const paneOpen = browserOpen || !!openFilePath
+  // The simulator takes the same pane slot as the browser — one thing on
+  // screen at a time until desktop mode lands. Remembered per project.
+  const [simOpen, setSimOpen] = useState(
+    () => localStorage.getItem(`simOpen:${ws.id}`) === '1'
+  )
+  const toggleSim = (): void => {
+    setSimOpen((v) => {
+      localStorage.setItem(`simOpen:${ws.id}`, v ? '0' : '1')
+      return !v
+    })
+  }
+  const paneOpen = browserOpen || !!openFilePath || simOpen
   // Belt-and-suspenders: when neither the browser preview nor a file viewer is
   // open, make sure the pane's native WebContentsView is detached from the window.
   // Otherwise a pane opened transiently (e.g. the agent browsing) can linger,
@@ -285,6 +297,15 @@ export function WorkspaceView({
         </button>
         {/* No manual toggle for code projects: the pane reveals itself when the
             agent navigates or you open a file, and closes from its own ✕. */}
+        {ws.kind !== 'browser' && (
+          <button
+            className={`toolbar-btn ${simOpen ? 'on' : ''}`}
+            onClick={toggleSim}
+            title="Mirror an iOS Simulator in the pane"
+          >
+            ▭ Simulator
+          </button>
+        )}
         {paneOpen && (
           <button
             className="toolbar-btn"
@@ -322,7 +343,9 @@ export function WorkspaceView({
         {paneOpen && (
           <>
             <div className="split-side" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
-              {openFilePath ? (
+              {simOpen ? (
+                <SimulatorPane visible={visible} />
+              ) : openFilePath ? (
                 <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
               ) : (
                 <BrowserPane
