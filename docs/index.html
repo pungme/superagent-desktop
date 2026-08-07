@@ -34,7 +34,9 @@
       -webkit-font-smoothing: antialiased;
     }
     a { color: inherit; }
-    img { max-width: 100%; display: block; }
+    /* height:auto is load-bearing — the screenshots carry width/height
+       attributes, so without it they scale in width only and distort. */
+    img { max-width: 100%; height: auto; display: block; }
     .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
 
     /* nav */
