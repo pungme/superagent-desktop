@@ -391,6 +391,13 @@ export function BrowserPane({
     }
   }, [paneId, partition, initialUrl, closable, syncBounds])
 
+  // Main detaches panes while the user is in another app (so a loading page
+  // can't pull the window forward). When they come back it asks for a re-sync;
+  // pushing bounds re-attaches this pane — and only panes still mounted here.
+  useEffect(() => {
+    return window.cove.onBrowserResync(() => syncBounds())
+  }, [syncBounds])
+
   // Navigate when a preview URL is requested (e.g. clicking a port chip).
   useEffect(() => {
     if (previewUrl) window.cove.browserNavigate(paneId, previewUrl)

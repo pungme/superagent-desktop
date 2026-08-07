@@ -80,6 +80,8 @@ export interface CoveApi {
   browserForward: (id: string) => void
   browserReload: (id: string) => void
   browserOpenExternal: (id: string) => void
+  /** Main asks every mounted pane to re-push its bounds (e.g. after the user returns). */
+  onBrowserResync: (cb: () => void) => () => void
   browserDestroy: (id: string) => void
   browserZoom: (id: string, action: 'in' | 'out' | 'reset') => Promise<number>
   browserSetZoom: (id: string, factor: number) => void
@@ -283,6 +285,7 @@ const cove: CoveApi = {
   browserForward: (id) => ipcRenderer.send('browser:forward', id),
   browserReload: (id) => ipcRenderer.send('browser:reload', id),
   browserOpenExternal: (id) => ipcRenderer.send('browser:open-external', id),
+  onBrowserResync: (cb) => subscribe('browser:resync', () => cb()),
   browserZoom: (id, action) => ipcRenderer.invoke('browser:zoom', id, action),
   browserSetZoom: (id, factor) => ipcRenderer.send('browser:set-zoom-factor', id, factor),
   browserSetRadius: (id, radius) => ipcRenderer.send('browser:set-radius', id, radius),

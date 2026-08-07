@@ -1607,8 +1607,20 @@ export function EasyChat({
       onDrop={onDrop}
     >
       {dragOver && <div className="easy-drop-hint">Drop a file to add it</div>}
-      {items.length > 0 && (
-        <div className="easy-newchat-group">
+      {agentFailed && (
+        <div className="easy-error">
+          <span>
+            ⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.
+          </span>
+          <button onClick={retry}>Retry</button>
+        </div>
+      )}
+      {/* Everything pinned above the transcript, in normal flow: the New chat /
+          New worktree pills used to float over the top-right corner, which put
+          them on top of the dev-server strip. */}
+      <div className="easy-topstack">
+        {items.length > 0 && (
+          <div className="easy-newchat-group">
           <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
             ✎ New chat
           </button>
@@ -1632,18 +1644,6 @@ export function EasyChat({
           )}
         </div>
       )}
-      {agentFailed && (
-        <div className="easy-error">
-          <span>
-            ⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.
-          </span>
-          <button onClick={retry}>Retry</button>
-        </div>
-      )}
-      {/* Everything pinned above the transcript. The New chat / New worktree
-          pills float over the column's top-right, so this band reserves room
-          for them — otherwise the dev-server strip sits under them. */}
-      <div className={`easy-topstack ${items.length > 0 ? 'with-actions' : ''}`}>
         <TasksPanel workspaceId={workspaceId} />
         <DevServerStrip workspaceId={workspaceId} />
       </div>

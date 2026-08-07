@@ -1201,9 +1201,7 @@ button {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* Extra top padding clears the floating "New chat" button so it never
-     overlaps the first (right-aligned) message bubble. */
-  padding: 42px 16px 12px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -4167,23 +4165,14 @@ button {
 .easy-topstack {
   flex: 0 0 auto;
 }
-.easy-topstack.with-actions:has(> *) {
-  padding-top: 30px;
-}
-/* With the band filled, the pills no longer overlap the scroll area, so it
-   doesn't need its own clearance for them. */
-.easy-topstack.with-actions:has(> *) + .easy-scroll {
-  padding-top: 12px;
-}
 
-/* New chat + New worktree sit together, same pill look. */
+/* New chat + New worktree, right-aligned in the pinned band (normal flow, so
+   nothing below can end up underneath them). */
 .easy-newchat-group {
-  position: absolute;
-  top: 6px;
-  right: 12px;
   display: flex;
+  justify-content: flex-end;
   gap: 6px;
-  z-index: 5;
+  padding: 8px 12px 0;
 }
 .easy-newchat-group .easy-newchat {
   position: static;
