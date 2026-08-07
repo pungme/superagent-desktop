@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow, nativeImage, systemPreferences, shell } from 'electron'
-import { execFile } from 'child_process'
+import { execFile, spawn, ChildProcessWithoutNullStreams } from 'child_process'
 import { promisify } from 'util'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -53,6 +53,93 @@ interface Stream {
 const streams = new Map<string, Stream>()
 /** "Stay On Top" is a toggle we can set but not read — so set it only once. */
 let pinnedOnce = false
+
+/**
+ * A long-lived `baguette input` per device. Spawning a process per gesture cost
+ * 200-400ms before anything reached the device, which is most of why tapping
+ * the mirror felt like poking something underwater. This session stays open and
+ * takes newline-delimited JSON, so a tap is a write to a pipe.
+ *
+ * It only understands tap, swipe and key (press and text come back as "unknown
+ * kind"), so those two still go through a one-shot command — they are not the
+ * ones you fire in quick succession.
+ */
+interface InputSession {
+  proc: ChildProcessWithoutNullStreams
+  pending: ((res: { ok: boolean; error?: string }) => void)[]
+}
+const inputSessions = new Map<string, InputSession>()
+const SESSION_KINDS = new Set(['tap', 'swipe', 'key'])
+
+async function inputSession(udid: string): Promise<InputSession | null> {
+  const existing = inputSessions.get(udid)
+  if (existing && !existing.proc.killed && existing.proc.exitCode === null) return existing
+  const bin = await findBaguette()
+  if (!bin) return null
+  const proc = spawn(bin, ['input', '--udid', udid], { stdio: ['pipe', 'pipe', 'pipe'] })
+  const session: InputSession = { proc, pending: [] }
+  let buf = ''
+  proc.stdout.on('data', (chunk: Buffer) => {
+    buf += chunk.toString()
+    let nl: number
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim()
+      buf = buf.slice(nl + 1)
+      if (!line.startsWith('{')) continue
+      const done = session.pending.shift()
+      if (!done) continue
+      try {
+        done(JSON.parse(line) as { ok: boolean; error?: string })
+      } catch {
+        done({ ok: false, error: 'bad-ack' })
+      }
+    }
+  })
+  const die = (): void => {
+    inputSessions.delete(udid)
+    for (const p of session.pending.splice(0)) p({ ok: false, error: 'session-ended' })
+  }
+  proc.on('exit', die)
+  proc.on('error', die)
+  inputSessions.set(udid, session)
+  return session
+}
+
+function endInputSession(udid: string): void {
+  const s = inputSessions.get(udid)
+  if (!s) return
+  inputSessions.delete(udid)
+  try {
+    s.proc.stdin.end()
+    s.proc.kill()
+  } catch {
+    /* already gone */
+  }
+}
+
+export function stopAllSimInput(): void {
+  for (const udid of [...inputSessions.keys()]) endInputSession(udid)
+}
+
+function sendGesture(
+  session: InputSession,
+  payload: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    // A gesture that never gets acked must not wedge the queue behind it.
+    const timer = setTimeout(() => {
+      const i = session.pending.indexOf(done)
+      if (i >= 0) session.pending.splice(i, 1)
+      resolve({ ok: false, error: 'timeout' })
+    }, 5000)
+    const done = (res: { ok: boolean; error?: string }): void => {
+      clearTimeout(timer)
+      resolve(res)
+    }
+    session.pending.push(done)
+    session.proc.stdin.write(JSON.stringify(payload) + '\n')
+  })
+}
 /** Whether baguette is on PATH — decided once, since input needs it. */
 let baguettePath: string | null | undefined
 
@@ -390,7 +477,10 @@ export function registerSimulatorIpc(): void {
     const name = (await listDevices()).find((d) => d.udid === udid)?.name ?? ''
     startStream(win, udid, fps, name)
   })
-  ipcMain.on('sim:stream-stop', (_e, udid: string) => stopStream(udid))
+  ipcMain.on('sim:stream-stop', (_e, udid: string) => {
+    stopStream(udid)
+    endInputSession(udid)
+  })
 
   /**
    * Input goes through baguette, whose gesture side works well. Coordinates
@@ -406,6 +496,43 @@ export function registerSimulatorIpc(): void {
     ) => {
       const bin = await findBaguette()
       if (!bin) return { ok: false, error: 'baguette-not-installed' }
+
+      // Fast path: tap/swipe/key go down the open session — no process to
+      // start, so the device feels the gesture almost immediately.
+      if (SESSION_KINDS.has(action.type)) {
+        const session = await inputSession(udid)
+        if (session) {
+          const payload: Record<string, unknown> =
+            action.type === 'swipe'
+              ? {
+                  type: 'swipe',
+                  startX: action.x,
+                  startY: action.y,
+                  endX: action.toX,
+                  endY: action.toY,
+                  width: action.width,
+                  height: action.height
+                }
+              : action.type === 'key'
+                ? { type: 'key', code: action.code, ...(action.modifiers ? { modifiers: action.modifiers } : {}) }
+                : {
+                    type: 'tap',
+                    x: action.x,
+                    y: action.y,
+                    width: action.width,
+                    height: action.height,
+                    ...(action.duration ? { duration: action.duration } : {})
+                  }
+          const res = await sendGesture(session, payload)
+          if (res.ok) {
+            nudge(udid)
+            return { ok: true }
+          }
+          // Session refused it — fall through to the one-shot command rather
+          // than dropping the gesture.
+        }
+      }
+
       const args: string[] = []
       if (action.type === 'key') {
         args.push('key', '--udid', udid, '--code', String(action.code))

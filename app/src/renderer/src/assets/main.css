@@ -4500,6 +4500,31 @@ button {
   color: var(--text-primary);
   background: var(--hover);
 }
+/* The touch you just made, drawn before the device has answered — the frame
+   behind it is up to a second old, and without this the mirror feels dead for
+   that second however fast the gesture actually landed. */
+.sim-ripple {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+  animation: sim-ripple 420ms ease-out forwards;
+}
+@keyframes sim-ripple {
+  from {
+    transform: scale(0.35);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
 .sim-mode {
   margin-left: auto;
   display: flex;

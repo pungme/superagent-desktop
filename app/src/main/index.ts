@@ -20,7 +20,7 @@ import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerFilesIpc } from './files'
-import { registerSimulatorIpc, stopAllSimStreams } from './simulator'
+import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded } from './updater'
 
@@ -240,6 +240,7 @@ app.on('before-quit', () => {
   killAllAgents()
   stopRoutines()
   stopAllSimStreams()
+  stopAllSimInput()
 })
 
 app.on('window-all-closed', () => {

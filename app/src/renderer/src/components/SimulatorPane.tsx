@@ -44,6 +44,8 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     () => (localStorage.getItem('cove.simMode') as 'mirror' | 'attach') || 'mirror'
   )
   const [attachError, setAttachError] = useState<string | null>(null)
+  /** Where the last touch landed, in % of the picture — drawn immediately. */
+  const [ripple, setRipple] = useState<{ x: number; y: number; id: number } | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const shotRef = useRef<HTMLImageElement>(null)
   const dragRef = useRef<{ x: number; y: number; at: number } | null>(null)
@@ -173,6 +175,18 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     const p = toDevice(e)
     if (p) dragRef.current = { x: p.x, y: p.y, at: Date.now() }
     shotRef.current?.focus()
+    // The next frame is up to a second away, so acknowledge the touch here.
+    // Without this the mirror feels dead for the moment after a tap, however
+    // fast the gesture actually reaches the device.
+    const img = shotRef.current
+    if (img && tappable) {
+      const r = img.getBoundingClientRect()
+      setRipple({
+        x: ((e.clientX - r.left) / r.width) * 100,
+        y: ((e.clientY - r.top) / r.height) * 100,
+        id: Date.now()
+      })
+    }
   }
 
   const onUp = (e: React.PointerEvent): void => {
@@ -373,6 +387,14 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
           <div className="sim-empty">
             {busy ?? (udid ? 'Waiting for the first frame…' : 'Pick a simulator to mirror it here.')}
           </div>
+        )}
+        {mode === 'mirror' && ripple && (
+          <span
+            key={ripple.id}
+            className="sim-ripple"
+            style={{ left: `${ripple.x}%`, top: `${ripple.y}%` }}
+            onAnimationEnd={() => setRipple(null)}
+          />
         )}
         {gone && frame && (
           <div className="sim-gone">
