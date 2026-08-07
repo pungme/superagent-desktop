@@ -2604,6 +2604,25 @@ button {
   flex-direction: column;
 }
 
+/* Chat docked below: without a hard edge, a message scrolled under the top of
+   the panel just bleeds off and the cut looks like a rendering fault. Give the
+   panel a real boundary and fade the last few pixels into it, so text passing
+   under it reads as scrolled-away rather than broken. */
+.split-main.vert .easy-chat {
+  border-top: 1px solid var(--border);
+}
+.split-main.vert .easy-chat::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 22px;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--bg-content) 40%, transparent);
+}
+
 .split-divider.horiz {
   width: auto;
   height: 6px;
