@@ -20,7 +20,7 @@ subscription — no middleman server, and the whole app is open source, so you c
 read exactly how it touches your browser. Quiet, keyboard-driven, and built to
 look like it belongs on a Mac.
 
-![SuperAgent — the same page as a desktop screen and a phone at once, driven by the agent in the chat beside it](docs/hero.png)
+![SuperAgent — a Monet at the Met open in the browser pane, with the agent that opened it explaining the painting in the chat below](docs/hero.png)
 
 ---
 
@@ -105,7 +105,18 @@ allowed to do without asking.
 - **A desktop.** Right now a project is a chat beside one pane. The idea is a
   workspace that behaves like a real computer: several things open at once —
   browser, files, a terminal, a simulator — arranged the way you left them,
-  with the agent working across all of them.
+  with the agent working across all of them, over a background you'd want to
+  look at.
+- **Memory that writes itself.** Your agent relearns the same things in every
+  new session — your conventions, a project's traps, which command actually
+  deploys. SuperAgent should notice those and carry them across projects, in a
+  list you can read, edit and delete.
+- **Watchers.** Routines already run on a schedule and the browser already
+  reads pages. Point one at a page and get told what changed, with a before
+  and after.
+- **A board the agent keeps.** Kanban/backlog inside the app, maintained by
+  the agent as it works: cards move themselves, each links to the chat,
+  worktree or PR that did the work, and you can ask what's left.
 
 <!--
   Maintainer note — how the embedded iOS Simulator should be built. Not
@@ -131,10 +142,24 @@ allowed to do without asking.
     Cost: an external binary the user must install — the same shape as the
     Claude Code dependency, so surface it the way we surface that (detect,
     explain, offer the brew command; never bundle silently).
-    VERIFY BEFORE COMMITTING A WEEK: current maintenance status, frame rate at
-    device resolution, latency of the HID round trip, and whether it needs
-    Screen Recording permission (it should not — it talks to simctl/CoreSim,
-    not the window server).
+    VERIFIED 2026-08-08 against baguette 0.1.88 (brew). Half of it works:
+      * INPUT INJECTION WORKS. `baguette tap|press|swipe|pinch|pan` drive a
+        booted device and answer {"ok":true,...}. `baguette input` reads
+        newline-delimited JSON gestures from stdin — exactly the shape we need.
+      * FRAMEBUFFER STREAMING DID NOT PRODUCE A SINGLE FRAME. `baguette stream
+        --format mjpeg` writes the multipart HTTP header to stdout
+        ("HTTP/1.1 200 OK / Content-Type: multipart/x-mixed-replace") and then
+        nothing — 76 bytes total, zero JPEG SOI markers. Tried: iOS 18.6 and
+        iOS 26.5 runtimes; headless and with Simulator.app visible; static
+        screen and with motion (openurl + home button); stdin held open; a
+        {"cmd":"snapshot"} control (acknowledged on stderr as
+        "control: snapshot", still no bytes); fps 5/10/15, scale 1/2.
+      So the embedded live view is blocked on the frame source, not on us.
+      Next moves, cheapest first: (1) read baguette's own repo/issues for a
+      required flag or a known 0.1.88 regression, and try `--format h264`;
+      (2) fall back to a screenshot loop — `simctl io screenshot` at 2-4 fps
+      is not a live view but is honest and works today; (3) OPTION C (idb),
+      which has its own video stream.
 
   OPTION B — ScreenCaptureKit on Simulator.app's window + CGEvent taps for
   input. No third-party dependency, but it needs Screen Recording AND
