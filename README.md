@@ -131,10 +131,24 @@ allowed to do without asking.
     Cost: an external binary the user must install — the same shape as the
     Claude Code dependency, so surface it the way we surface that (detect,
     explain, offer the brew command; never bundle silently).
-    VERIFY BEFORE COMMITTING A WEEK: current maintenance status, frame rate at
-    device resolution, latency of the HID round trip, and whether it needs
-    Screen Recording permission (it should not — it talks to simctl/CoreSim,
-    not the window server).
+    VERIFIED 2026-08-08 against baguette 0.1.88 (brew). Half of it works:
+      * INPUT INJECTION WORKS. `baguette tap|press|swipe|pinch|pan` drive a
+        booted device and answer {"ok":true,...}. `baguette input` reads
+        newline-delimited JSON gestures from stdin — exactly the shape we need.
+      * FRAMEBUFFER STREAMING DID NOT PRODUCE A SINGLE FRAME. `baguette stream
+        --format mjpeg` writes the multipart HTTP header to stdout
+        ("HTTP/1.1 200 OK / Content-Type: multipart/x-mixed-replace") and then
+        nothing — 76 bytes total, zero JPEG SOI markers. Tried: iOS 18.6 and
+        iOS 26.5 runtimes; headless and with Simulator.app visible; static
+        screen and with motion (openurl + home button); stdin held open; a
+        {"cmd":"snapshot"} control (acknowledged on stderr as
+        "control: snapshot", still no bytes); fps 5/10/15, scale 1/2.
+      So the embedded live view is blocked on the frame source, not on us.
+      Next moves, cheapest first: (1) read baguette's own repo/issues for a
+      required flag or a known 0.1.88 regression, and try `--format h264`;
+      (2) fall back to a screenshot loop — `simctl io screenshot` at 2-4 fps
+      is not a live view but is honest and works today; (3) OPTION C (idb),
+      which has its own video stream.
 
   OPTION B — ScreenCaptureKit on Simulator.app's window + CGEvent taps for
   input. No third-party dependency, but it needs Screen Recording AND
