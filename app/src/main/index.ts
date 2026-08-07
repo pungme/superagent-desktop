@@ -71,6 +71,7 @@ function createWindow(): BrowserWindow {
   // agent's actions, so the next occurrence shows what immediately preceded it.
   mainWindow.on('focus', () => {
     paneLog('window-focus', 'window')
+    mainWindow.webContents.send('app:focus', true)
     // If this focus arrived during agent work, the user didn't ask for it.
     returnFocusToUser()
     // The user is here now — the app is frontmost, so attaching the panes we
@@ -78,7 +79,12 @@ function createWindow(): BrowserWindow {
     releaseFocusGuard()
     attachPanesOnReturn()
   })
-  mainWindow.on('blur', () => noteUserLeftApp())
+  mainWindow.on('blur', () => {
+    noteUserLeftApp()
+    // The renderer can't tell: document.hasFocus() stays true in an unfocused
+    // app window, so the pane's freeze-while-away has to be driven from here.
+    mainWindow.webContents.send('app:focus', false)
+  })
   mainWindow.on('show', () => paneLog('window-show', 'window'))
   app.on('activate', () => paneLog('app-activate', 'window'))
 

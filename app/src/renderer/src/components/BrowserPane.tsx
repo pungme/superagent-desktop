@@ -271,7 +271,20 @@ export function BrowserPane({
   // over a still of the page instead of shoving the live page down.
   const suggestOpen = showSuggest && suggestions.length > 0
   const suggestRef = useRef<HTMLDivElement>(null)
-  const paneCovered = overlayOpen || suggestOpen
+
+  /**
+   * While the user is in another app the live view is taken out of the window
+   * (an attached view asks for focus when a page loads, and macOS then pulls the
+   * whole app forward). Rather than leave a hole, freeze: the same capture the
+   * overlays use stands in, so the pane still looks like the page from across
+   * the desk, and the live view returns the moment the window is focused again.
+   */
+  const [away, setAway] = useState(false)
+  useEffect(() => {
+    return window.cove.onAppFocus?.((focused) => setAway(!focused))
+  }, [])
+
+  const paneCovered = overlayOpen || suggestOpen || away
 
   // Follow the page's corner colour: once immediately, then a lazy tick — catches
   // navigations, theme flips and repaints without chasing every frame.
