@@ -1,6 +1,17 @@
 import { ipcMain, shell } from 'electron'
 import { execFile } from 'child_process'
-import { readdirSync, lstatSync, readFileSync, writeFileSync, statSync, existsSync, cpSync } from 'fs'
+import {
+  readdirSync,
+  lstatSync,
+  readFileSync,
+  writeFileSync,
+  statSync,
+  existsSync,
+  cpSync,
+  openSync,
+  readSync,
+  closeSync
+} from 'fs'
 import { join, relative, basename, extname } from 'path'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
@@ -111,6 +122,27 @@ export function gitSubrepos(root: string): SubRepo[] {
 const MAX_TEXT_BYTES = 2 * 1024 * 1024
 
 export function registerFilesIpc(): void {
+  // Background shells write their output to a file, and the Bash result says
+  // where. Reading it directly means the strip can show what a job is doing
+  // live, instead of waiting for the agent to poll it.
+  ipcMain.handle('bg:tail', (_e, path: string, maxBytes = 8000) => {
+    try {
+      if (!path.endsWith('.output')) return null
+      const { size } = statSync(path)
+      const start = Math.max(0, size - maxBytes)
+      const fd = openSync(path, 'r')
+      try {
+        const buf = Buffer.alloc(Math.min(size, maxBytes))
+        readSync(fd, buf, 0, buf.length, start)
+        return buf.toString('utf8')
+      } finally {
+        closeSync(fd)
+      }
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
   // Finder drops onto the file tree: copy into the project (folders included),
   // renaming on collision rather than overwriting someone's work.

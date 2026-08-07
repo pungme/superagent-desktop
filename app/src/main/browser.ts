@@ -823,6 +823,9 @@ export function registerBrowserIpc(): void {
   ipcMain.on('browser:forward', (_e, id: string) => {
     getPaneWebContents(id)?.navigationHistory.goForward()
   })
+  ipcMain.on('browser:stop', (_e, id: string) => {
+    getPaneWebContents(id)?.stop()
+  })
   ipcMain.on('browser:reload', (_e, id: string) => {
     getPaneWebContents(id)?.reload()
   })

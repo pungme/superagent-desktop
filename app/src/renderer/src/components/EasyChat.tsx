@@ -206,6 +206,12 @@ interface BackgroundTask {
   /** Claude's shell handle, once its result tells us. */
   shellId?: string
   command: string
+  startedAt: number
+  /** Latest output the agent has polled back, so the strip can show what's happening. */
+  output?: string
+  outputAt?: number
+  /** File the shell streams into; tailed directly for live output. */
+  outputPath?: string
 }
 
 // The Bash tool answers a backgrounded run with the shell's handle; BashOutput
@@ -213,6 +219,9 @@ interface BackgroundTask {
 // missed match leaves the pill up a little longer, which beats retiring a task
 // that's still going.
 const BG_SHELL_ID_RE = /(?:ID|bash_id|shell)[:\s]+([A-Za-z0-9_-]+)/i
+// "Output is being written to: /…/tasks/<id>.output" — reading that file is how
+// the strip shows live output without waiting for the agent to poll the shell.
+const BG_OUTFILE_RE = /written to:\s*(\S+\.output)/i
 const BG_DONE_RE = /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b/i
 
 /**
@@ -536,6 +545,32 @@ export function EasyChat({
   // prose and then moves on, so without this the only sign a deploy/build/server
   // is still going is a sentence that scrolls away.
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
+  const bgTasksRef = useRef<BackgroundTask[]>([])
+  const [bgOpen, setBgOpen] = useState(false)
+  // While the panel is open, tail each job's output file so the user watches it
+  // happen rather than waiting for the agent to check on it.
+  useEffect(() => {
+    if (!bgOpen) return
+    let alive = true
+    const tick = async (): Promise<void> => {
+      const paths = bgTasksRef.current.filter((t) => t.outputPath)
+      for (const t of paths) {
+        const text = await window.cove.bgTail?.(t.outputPath!, 8000)
+        if (!alive || typeof text !== 'string') continue
+        setBgTasks((prev) =>
+          prev.map((p) =>
+            p.toolUseId === t.toolUseId ? { ...p, output: text.trim(), outputAt: Date.now() } : p
+          )
+        )
+      }
+    }
+    void tick()
+    const timer = setInterval(() => void tick(), 1500)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [bgOpen])
   // Context consumed by the last turn (input + cache tokens) — a quiet running
   // gauge of how full the conversation is.
   const [ctxTokens, setCtxTokens] = useState<number | null>(null)
@@ -1050,7 +1085,7 @@ export function EasyChat({
             const inp = (block.input ?? {}) as Record<string, unknown>
             if (name === 'Bash' && inp.run_in_background) {
               const command = typeof inp.command === 'string' ? inp.command : ''
-              setBgTasks((prev) => [...prev, { toolUseId: id, command }])
+              setBgTasks((prev) => [...prev, { toolUseId: id, command, startedAt: Date.now() }])
             } else if (name === 'BashOutput' && typeof inp.bash_id === 'string') {
               pollTargets.current.set(id, inp.bash_id)
             } else if (name === 'KillShell' && typeof inp.shell_id === 'string') {
@@ -1123,13 +1158,42 @@ export function EasyChat({
                 pollTargets.current.delete(resultFor)
                 if (BG_DONE_RE.test(text)) {
                   setBgTasks((prev) => prev.filter((t) => t.shellId !== polled))
+                } else {
+                  // Keep the tail of what the agent last read, so opening the
+                  // strip shows what the job is actually doing.
+                  const tail = text.trim().slice(-4000)
+                  if (tail)
+                    setBgTasks((prev) => {
+                      // Match on the shell handle when we managed to parse one
+                      // out of the Bash result; with a single job in flight the
+                      // poll can only be about that one, so don't lose the
+                      // output just because the handle never parsed.
+                      const byShell = prev.some((t) => t.shellId === polled)
+                      return prev.map((t) =>
+                        byShell
+                          ? t.shellId === polled
+                            ? { ...t, output: tail, outputAt: Date.now() }
+                            : t
+                          : prev.length === 1
+                            ? { ...t, shellId: t.shellId ?? polled, output: tail, outputAt: Date.now() }
+                            : t
+                      )
+                    })
                 }
               }
               setBgTasks((prev) =>
                 prev.map((t) => {
-                  if (t.toolUseId !== resultFor || t.shellId) return t
-                  const m = text.match(BG_SHELL_ID_RE)
-                  return m ? { ...t, shellId: m[1] } : t
+                  if (t.toolUseId !== resultFor) return t
+                  const next = { ...t }
+                  if (!next.shellId) {
+                    const m = text.match(BG_SHELL_ID_RE)
+                    if (m) next.shellId = m[1]
+                  }
+                  if (!next.outputPath) {
+                    const f = text.match(BG_OUTFILE_RE)
+                    if (f) next.outputPath = f[1]
+                  }
+                  return next
                 })
               )
             }
@@ -1314,6 +1378,7 @@ export function EasyChat({
   const setBusy = useStore((s) => s.setBusy)
   const clearBusy = useStore((s) => s.clearBusy)
   useEffect(() => {
+    bgTasksRef.current = bgTasks
     setBusy(chatId, { generating: generating || thinking, background: bgTasks.length })
   }, [chatId, generating, thinking, bgTasks.length, setBusy])
   useEffect(() => () => clearBusy(chatId), [chatId, clearBusy])
@@ -1822,19 +1887,48 @@ export function EasyChat({
       )}
       <div className="easy-input-row">
         {bgTasks.length > 0 && (
-          <div className="easy-bg-bar" role="status">
-            <span className="easy-bg-pulse" />
-            <span className="easy-bg-label">
-              {bgTasks.length === 1 ? 'Running in the background' : `${bgTasks.length} running in the background`}
-            </span>
-            <span className="easy-bg-cmd">{bgTasks.map((t) => t.command).join(' · ')}</span>
+          <div className={`easy-bg ${bgOpen ? 'open' : ''}`}>
             <button
-              className="easy-bg-dismiss"
-              onClick={() => setBgTasks([])}
-              title="Hide — this doesn't stop anything"
+              className="easy-bg-bar"
+              onClick={() => setBgOpen((v) => !v)}
+              title={bgOpen ? 'Hide details' : 'Show what these are doing'}
             >
-              ✕
+              <span className="easy-bg-pulse" />
+              <span className="easy-bg-label">
+                {bgTasks.length === 1
+                  ? 'Running in the background'
+                  : `${bgTasks.length} running in the background`}
+              </span>
+              <span className="easy-bg-cmd">{bgTasks.map((t) => t.command).join(' · ')}</span>
+              <span className="easy-bg-caret">{bgOpen ? '⌄' : '›'}</span>
+              <span
+                className="easy-bg-dismiss"
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setBgTasks([])
+                }}
+                title="Hide — this doesn't stop anything"
+              >
+                ✕
+              </span>
             </button>
+            {bgOpen && (
+              <div className="easy-bg-panel">
+                {bgTasks.map((t) => (
+                  <div key={t.toolUseId} className="easy-bg-item">
+                    <div className="easy-bg-item-head">
+                      <code>{t.command}</code>
+                      <span className="easy-bg-age">{Math.max(1, Math.round((Date.now() - t.startedAt) / 1000))}s</span>
+                    </div>
+                    <pre className="easy-bg-out">
+                      {t.output?.trim() || 'Waiting for output…'}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {replyTarget && (

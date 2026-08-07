@@ -156,6 +156,10 @@ export interface CoveApi {
   onOpenFile: (cb: (p: { workspaceId: string; path: string }) => void) => () => void
   onBrowserCrashed: (id: string, cb: () => void) => () => void
   browserStopAutomation: (id: string) => void
+  /** Stop a page that is still loading (the reload button becomes ×). */
+  browserStop: (id: string) => void
+  /** Tail a background shell's output file (the Bash result says where it is). */
+  bgTail: (path: string, maxBytes?: number) => Promise<string | null>
   onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
   onBrowserRequestOpen: (cb: (workspaceId: string) => void) => () => void
   // Show the themed "new tab" empty state in a blank pane (no URL yet).
@@ -321,6 +325,8 @@ const cove: CoveApi = {
   onBrowserState: (id, cb) => subscribe(`browser:state:${id}`, (s) => cb(s as BrowserState)),
   onBrowserCrashed: (id, cb) => subscribe(`browser:crashed:${id}`, () => cb()),
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
+  browserStop: (id) => ipcRenderer.send('browser:stop', id),
+  bgTail: (path, maxBytes) => ipcRenderer.invoke('bg:tail', path, maxBytes),
   onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
   onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
   browserShowEmpty: (id) => ipcRenderer.send('browser:show-empty', id),
