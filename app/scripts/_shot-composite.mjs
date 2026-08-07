@@ -45,12 +45,25 @@ const shot = await app.evaluate(async () => {
 if (shot) console.log('captured pane via main, bytes:', Math.round((shot.length * 3) / 4))
 else console.log('no pane capture — app only')
 
+// Side-by-side mode runs the phone in a second WebContentsView, invisible to the
+// pane capture above — without this the phone comes out an empty white slab.
+const twinShot = await app.evaluate(async () => {
+  const bytes = await window.cove.browserShootTwin?.()
+  if (!bytes || !bytes.length) return null
+  const arr = new Uint8Array(bytes)
+  let bin = ''
+  const CH = 0x8000
+  for (let i = 0; i < arr.length; i += CH) bin += String.fromCharCode.apply(null, arr.subarray(i, i + CH))
+  return btoa(bin)
+})
+if (twinShot) console.log('captured phone twin')
+
 // The card the native view floats on; its top strip is the docked omnibar, so the
 // page itself starts CARD_OMNIBAR_H below the card's top edge.
 const CARD_OMNIBAR_H = 40
 
 await app.evaluate(
-  ({ shot, CARD_OMNIBAR_H }) => {
+  ({ shot, twinShot, CARD_OMNIBAR_H }) => {
     document.querySelectorAll('.__shot_overlay').forEach((n) => n.remove())
     // A focused composer draws a focus ring, which reads as "mid-typing" in a still.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -92,7 +105,11 @@ await app.evaluate(
     const visible = (el) => el && el.offsetParent !== null
     const host = [...document.querySelectorAll('.browser-host')].find(visible)
     if (!host) return 'no-target'
-    const card = [...host.querySelectorAll('.browser-sim-frame')].find(visible)
+    const frames = [...host.querySelectorAll('.browser-sim-frame')].filter(visible)
+    const card = frames[0]
+    // In "both" mode the second frame is the phone: its own engine, its own
+    // capture, and no omnibar docked on it.
+    const phone = frames[1]
     // Anchored inside the pane rather than fixed over the window: a full-window
     // overlay makes the compositor re-render the whole surface, and the sidebar's
     // translucent material has nothing behind it in a CDP capture, so it comes out
@@ -127,9 +144,35 @@ await app.evaluate(
     })
     clip.appendChild(img)
     host.appendChild(clip)
+
+    if (phone && twinShot) {
+      const pr = phone.getBoundingClientRect()
+      const pclip = document.createElement('div')
+      pclip.className = '__shot_overlay'
+      Object.assign(pclip.style, {
+        position: 'absolute',
+        left: `${pr.left - hostRect.left}px`,
+        top: `${pr.top - hostRect.top}px`,
+        width: `${pr.width}px`,
+        height: `${pr.height}px`,
+        overflow: 'hidden',
+        borderRadius: '14px',
+        pointerEvents: 'none'
+      })
+      const pimg = document.createElement('img')
+      pimg.src = `data:image/png;base64,${twinShot}`
+      Object.assign(pimg.style, {
+        display: 'block',
+        width: `${pr.width}px`,
+        height: `${pr.height}px`,
+        objectFit: 'fill'
+      })
+      pclip.appendChild(pimg)
+      host.appendChild(pclip)
+    }
     return 'placed'
   },
-  { shot, CARD_OMNIBAR_H }
+  { shot, twinShot, CARD_OMNIBAR_H }
 )
 
 // Let the data: URL decode and paint before capturing. A full-page capture can be
