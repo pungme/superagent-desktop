@@ -3308,6 +3308,12 @@ button {
 
 /* ---- update-ready banner (top center) ---- */
 .update-banner {
+  /* The banner floats over .workspace-toolbar, which is a window-drag region.
+     Chromium builds drag rects from geometry, so an element painted on top does
+     NOT punch a hole in them — every click on the banner was being handed to
+     the window as a drag, which is why "Restart to update" did nothing here but
+     worked on the Dashboard (no toolbar there, so no drag rect). */
+  -webkit-app-region: no-drag;
   position: fixed;
   top: 14px;
   left: 50%;
