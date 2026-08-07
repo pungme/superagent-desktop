@@ -76,47 +76,40 @@ interface Dictation {
   state: DictationState
   /** 0–1 while the model downloads the first time. */
   progress: number
+  /** Live input level, 0–1, while recording — so the button can show it's hearing you. */
+  level: number
   error: string | null
   start: () => Promise<void>
   /** Stops recording and resolves with the transcript ('' if nothing was said). */
   stop: () => Promise<string>
+  /** Throw the recording away and close the mic — the way out of a stuck hold. */
+  cancel: () => void
 }
 
 export function useDictation(): Dictation {
   const [state, setState] = useState<DictationState>('idle')
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [level, setLevel] = useState(0)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const rafRef = useRef<number | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
 
-  const start = useCallback(async (): Promise<void> => {
-    if (recorderRef.current) return
-    setError(null)
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-      const rec = new MediaRecorder(stream)
-      chunksRef.current = []
-      rec.ondataavailable = (e) => {
-        if (e.data.size) chunksRef.current.push(e.data)
-      }
-      rec.start()
-      recorderRef.current = rec
-      setState('recording')
-      // Warm the model while the user is still speaking, so a first-run download
-      // overlaps with the recording instead of stalling after it.
-      void getPipeline(setProgress).catch(() => {})
-    } catch (e) {
-      setState('idle')
-      setError(e instanceof Error ? e.message : 'Could not access the microphone')
-    }
+  const teardownMeter = useCallback((): void => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = null
+    void audioCtxRef.current?.close().catch(() => {})
+    audioCtxRef.current = null
+    setLevel(0)
   }, [])
 
   const stop = useCallback(async (): Promise<string> => {
     const rec = recorderRef.current
     if (!rec) return ''
     recorderRef.current = null
+    teardownMeter()
 
     const blob = await new Promise<Blob>((resolve) => {
       rec.onstop = () => resolve(new Blob(chunksRef.current, { type: rec.mimeType }))
@@ -147,5 +140,70 @@ export function useDictation(): Dictation {
     }
   }, [])
 
-  return { state, progress, error, start, stop }
+  const start = useCallback(async (): Promise<void> => {
+    if (recorderRef.current) return
+    setError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const rec = new MediaRecorder(stream)
+      chunksRef.current = []
+      rec.ondataavailable = (e) => {
+        if (e.data.size) chunksRef.current.push(e.data)
+      }
+      rec.start()
+      recorderRef.current = rec
+      setState('recording')
+      // Meter the input so the button can show it is actually hearing something
+      // — "is this thing on?" should never need an answer in prose.
+      try {
+        const ctx = new AudioContext()
+        audioCtxRef.current = ctx
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 512
+        ctx.createMediaStreamSource(stream).connect(analyser)
+        const data = new Uint8Array(analyser.frequencyBinCount)
+        const tick = (): void => {
+          analyser.getByteTimeDomainData(data)
+          let peak = 0
+          for (const v of data) peak = Math.max(peak, Math.abs(v - 128) / 128)
+          setLevel(peak)
+          rafRef.current = requestAnimationFrame(tick)
+        }
+        tick()
+      } catch {
+        /* no meter is survivable; recording still works */
+      }
+      // Warm the model while the user is still speaking, so a first-run download
+      // overlaps with the recording instead of stalling after it.
+      void getPipeline(setProgress).catch(() => {})
+    } catch (e) {
+      setState('idle')
+      setError(e instanceof Error ? e.message : 'Could not access the microphone')
+    }
+  }, [])
+
+  /**
+   * Abandon a recording without transcribing it. Hold-to-talk has no exit if the
+   * release is ever missed — the window losing focus mid-hold, or ⌥Space being
+   * swallowed by a system shortcut — and a mic stuck open with no way to close
+   * it is not something the user should have to restart the app over.
+   */
+  const cancel = useCallback((): void => {
+    const rec = recorderRef.current
+    recorderRef.current = null
+    chunksRef.current = []
+    teardownMeter()
+    try {
+      rec?.stop()
+    } catch {
+      /* already stopped */
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    setState('idle')
+    setProgress(0)
+  }, [teardownMeter])
+
+  return { state, progress, level, error, start, stop, cancel }
 }

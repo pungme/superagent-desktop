@@ -838,11 +838,13 @@ export function EasyChat({
   const dictation = useDictation()
   const micTitle =
     dictation.state === 'recording'
-      ? 'Listening — release to transcribe'
+      ? 'Listening — release (or click) to transcribe, Esc to discard'
       : dictation.state === 'loading-model'
-        ? 'Preparing the speech model (first time only)…'
+        ? `Downloading the speech model, one time only${
+            dictation.progress > 0 ? ` — ${Math.round(dictation.progress)}%` : ''
+          }`
         : dictation.state === 'transcribing'
-          ? 'Transcribing…'
+          ? 'Turning your speech into text…'
           : 'Hold to dictate (⌥Space)'
 
   // Latest transcript for callbacks that must not re-subscribe on every message.
@@ -1670,6 +1672,11 @@ export function EasyChat({
     void interruptNow()
   }
 
+  /** When the mic went down, and whether this is a hands-free (tapped) session. */
+  const micDownAtRef = useRef(0)
+  const handsFreeRef = useRef(false)
+  const lastMicKeyRef = useRef(0)
+
   const startDictation = useCallback((): void => {
     if (dictation.state !== 'idle') return
     void dictation.start()
@@ -1693,10 +1700,25 @@ export function EasyChat({
     })
   }, [dictation, input.length])
 
+  // The window going away mid-hold means no keyup and no pointerup is ever
+  // coming: transcribe what we have rather than recording into the void.
+  useEffect(() => {
+    const onBlur = (): void => {
+      if (dictation.state === 'recording') finishDictation()
+    }
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [dictation.state, finishDictation])
+
   // Hold ⌥Space to dictate from anywhere in the window; release to transcribe.
   useEffect(() => {
     const down = (e: KeyboardEvent): void => {
       if (e.altKey && e.code === 'Space' && !e.repeat) {
+        const now = Date.now()
+        // Double-tap = hands-free, so a long dictation doesn't mean a long hold.
+        if (now - lastMicKeyRef.current < 400) handsFreeRef.current = true
+        else handsFreeRef.current = false
+        lastMicKeyRef.current = now
         e.preventDefault()
         startDictation()
       }
@@ -1704,7 +1726,7 @@ export function EasyChat({
     const up = (e: KeyboardEvent): void => {
       // Releasing either key ends the gesture — holding ⌥ and letting go of
       // Space (or vice versa) should both stop, not leave the mic open.
-      if (e.code === 'Space' || e.key === 'Alt') finishDictation()
+      if ((e.code === 'Space' || e.key === 'Alt') && !handsFreeRef.current) finishDictation()
     }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
@@ -2093,6 +2115,14 @@ export function EasyChat({
                 return
               }
             }
+            // Esc drops a recording first: if the mic is open that's what the
+            // user means by "stop".
+            if (e.key === 'Escape' && dictation.state === 'recording') {
+              e.preventDefault()
+              handsFreeRef.current = false
+              dictation.cancel()
+              return
+            }
             // Esc stops the agent where it is — the terminal's Ctrl-C, and the
             // only thing that reaches it inside a long tool call.
             if (e.key === 'Escape' && (generating || thinking)) {
@@ -2125,16 +2155,48 @@ export function EasyChat({
         />
         <button
           className={`easy-mic ${dictation.state === 'recording' ? 'recording' : ''}`}
-          // Pointer, not click: dictation runs for exactly as long as you hold.
-          onPointerDown={startDictation}
-          onPointerUp={finishDictation}
-          onPointerLeave={finishDictation}
+          // Hold to talk, or tap for hands-free — the shape Wispr Flow settled
+          // on, and the reason a stuck mic used to have no way out.
+          onPointerDown={() => {
+            if (dictation.state === 'recording') {
+              finishDictation()
+              return
+            }
+            micDownAtRef.current = Date.now()
+            handsFreeRef.current = false
+            startDictation()
+          }}
+          onPointerUp={() => {
+            // A tap (rather than a hold) means "keep listening until I say stop".
+            if (Date.now() - micDownAtRef.current < 350) {
+              handsFreeRef.current = true
+              return
+            }
+            finishDictation()
+          }}
           disabled={dictation.state === 'transcribing' || dictation.state === 'loading-model'}
           title={micTitle}
           aria-label={micTitle}
         >
-            {dictation.state === 'loading-model' && dictation.progress > 0 ? (
-              <span className="easy-mic-pct">{Math.round(dictation.progress)}</span>
+            {dictation.state === 'recording' ? (
+              // Bars that move with your voice: the one affordance that answers
+              // "is it hearing me?" without a word of explanation. Clicking
+              // stops — the button is a toggle once it's listening.
+              <span className="easy-mic-wave" aria-hidden="true">
+                {[0, 1, 2, 3].map((i) => (
+                  <i
+                    key={i}
+                    style={{
+                      height: `${Math.min(
+                        13,
+                        3 + dictation.level * 22 * (i === 1 || i === 2 ? 1 : 0.6)
+                      )}px`
+                    }}
+                  />
+                ))}
+              </span>
+            ) : dictation.state === 'loading-model' || dictation.state === 'transcribing' ? (
+              <span className="easy-mic-spin" />
             ) : (
               <MicIcon />
             )}

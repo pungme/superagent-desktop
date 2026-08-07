@@ -2473,6 +2473,34 @@ button {
   color: var(--text-tertiary);
 }
 
+.easy-mic-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 14px;
+}
+.easy-mic-wave i {
+  width: 2px;
+  min-height: 3px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: height 0.08s linear;
+}
+.easy-mic-spin {
+  display: block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--text-secondary);
+  animation: easy-mic-spin 0.7s linear infinite;
+}
+@keyframes easy-mic-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .easy-mic-pct {
   font-size: 9.5px;
   font-variant-numeric: tabular-nums;
