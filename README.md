@@ -20,7 +20,7 @@ subscription — no middleman server, and the whole app is open source, so you c
 read exactly how it touches your browser. Quiet, keyboard-driven, and built to
 look like it belongs on a Mac.
 
-![SuperAgent — a Monet at the Met open in the browser pane, with the agent that opened it explaining the painting in the chat below](docs/hero.png)
+![SuperAgent — a Monet at the Met open in the browser pane as a desktop page and an iPhone side by side, with the agent that opened it explaining the painting in the chat beside them](docs/hero.png)
 
 ---
 
