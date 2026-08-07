@@ -202,9 +202,12 @@ button {
   margin-top: 20px;
 }
 
+/* Dropping INTO a group is a different gesture from reordering, so it gets a
+   different signal: the whole group outlined, not a line between rows. */
 .sidebar-group.drop-target {
   background: var(--hover);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 
 .sidebar-group-header {
@@ -342,8 +345,31 @@ button {
 }
 
 /* Insert-before indicator while dragging another workspace over this row. */
-.sidebar-item.drop-before {
-  box-shadow: inset 0 2px 0 var(--accent);
+/* Reordering: an insertion line BETWEEN rows. The old inset shadow sat inside
+   the row's own box, which read as "drop into this project" rather than
+   "drop above it". */
+.sidebar-item.drop-before::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: -3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.sidebar-item.drop-before::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: -6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: var(--bg-panel);
+  pointer-events: none;
 }
 
 .sidebar-item-name {
