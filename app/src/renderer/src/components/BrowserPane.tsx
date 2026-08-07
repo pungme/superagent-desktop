@@ -527,6 +527,7 @@ export function BrowserPane({
         className={`browser-toolbar ${onCard ? 'on-card' : ''}`}
         style={toolbarStyle}
       >
+        {state.loading && <span className="browser-loadbar" />}
         <button
           className="browser-nav-btn"
           disabled={!state.canGoBack}
@@ -544,11 +545,13 @@ export function BrowserPane({
           ›
         </button>
         <button
-          className="browser-nav-btn"
-          onClick={() => window.cove.browserReload(paneId)}
-          title="Reload"
+          className={`browser-nav-btn ${state.loading ? 'loading' : ''}`}
+          onClick={() =>
+            state.loading ? window.cove.browserStop?.(paneId) : window.cove.browserReload(paneId)
+          }
+          title={state.loading ? 'Stop loading' : 'Reload'}
         >
-          ⟳
+          {state.loading ? '×' : '⟳'}
         </button>
         <div className="browser-omnibox">
           <input

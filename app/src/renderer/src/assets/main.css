@@ -1438,20 +1438,81 @@ button {
 /* Work the agent left running in the background. It sits above the composer
    rather than in the transcript because the whole point is that it outlives the
    turn that started it — a message about it would just scroll away. */
-.easy-bg-bar {
+ /* The strip sits just above the composer and opens downward-in-place, so a
+    long-running job can be inspected without leaving the chat. */
+.easy-bg {
   position: absolute;
   bottom: calc(100% + 2px);
   left: 14px;
   right: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 2px 8px var(--shadow);
+  overflow: hidden;
+}
+.easy-bg-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: none;
   font-size: 12px;
+  text-align: left;
+  color: var(--text-primary);
+}
+.easy-bg-bar:hover {
+  background: var(--hover);
+}
+.easy-bg-caret {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  margin-left: 2px;
+}
+.easy-bg-panel {
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.easy-bg-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.easy-bg-item-head code {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.easy-bg-age {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.easy-bg-out {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--hover);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 160px;
+  overflow-y: auto;
 }
 .easy-bg-pulse {
   flex: none;
@@ -4358,6 +4419,38 @@ button {
   padding: 4px 10px 8px;
   font-size: 11.5px;
   color: var(--text-tertiary);
+}
+
+/* Loading feedback: the reload button turns into a stop ×, and a hairline
+   sweeps the omnibar. Without either, hitting reload looked like nothing
+   happened at all. */
+.browser-nav-btn.loading {
+  color: var(--accent);
+}
+.browser-loadbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.browser-loadbar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 35%;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.85;
+  animation: browser-load-sweep 0.9s ease-in-out infinite;
+}
+@keyframes browser-load-sweep {
+  0% { left: -35%; }
+  100% { left: 100%; }
 }
 
 .browser-corner-fill {
