@@ -6,6 +6,7 @@ import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
 import { getWorkspaceName, getChatTitleBySession, recordEvent } from './store'
+import { paneLog, allowUserFocus } from './browser'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -77,6 +78,8 @@ export function startHookServer(): Promise<string> {
           const win = BrowserWindow.getAllWindows()[0]
           if (win) {
             if (win.isMinimized()) win.restore()
+            paneLog('notification-click-focus', workspaceId)
+            allowUserFocus() // deliberate: don't bounce this one back
             win.focus()
             win.webContents.send('hook:focus-workspace', workspaceId)
           }
@@ -107,6 +110,8 @@ export function startHookServer(): Promise<string> {
           const win = BrowserWindow.getAllWindows()[0]
           if (win) {
             if (win.isMinimized()) win.restore()
+            paneLog('notification-click-focus', workspaceId)
+            allowUserFocus() // deliberate: don't bounce this one back
             win.focus()
             win.webContents.send('hook:focus-workspace', workspaceId)
           }
