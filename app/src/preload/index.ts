@@ -97,6 +97,8 @@ export interface CoveApi {
   browserSampleCorners: (id: string) => Promise<{ left: string; right: string } | null>
   /** Full-res PNG bytes of the pane (screenshot tooling). */
   browserShoot: (id: string) => Promise<Uint8Array | null>
+  /** PNG of the side-by-side phone twin, if one is on screen. */
+  browserShootTwin: () => Promise<Uint8Array | null>
   /** Native context menu for a file-tree row (Reveal in Finder, Copy Path…). */
   filesMenu: (absPath: string) => void
   chatMenu: (chatId: string, workspaceId: string) => void
@@ -292,6 +294,7 @@ const cove: CoveApi = {
   browserTwinBounds: (id, bounds, zoom) => ipcRenderer.send('browser:twin-bounds', id, bounds, zoom),
   browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
+  browserShootTwin: () => ipcRenderer.invoke('browser:shoot-twin'),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
   chatMenu: (chatId, workspaceId) => ipcRenderer.send('chat:menu', chatId, workspaceId),
   onChatCleared: (cb) =>
