@@ -175,6 +175,24 @@ export interface CoveApi {
     udid: string,
     cb: (f: { url: string; width: number; height: number }) => void
   ) => () => void
+  /** The device stopped answering (shut down, or wedged). */
+  onSimGone: (udid: string, cb: () => void) => () => void
+  /** Attach mode: park Apple's real Simulator window over the pane. */
+  simAttachReady: () => Promise<{ trusted: boolean }>
+  simAttachRequest: () => Promise<{ trusted: boolean }>
+  simAttachSettings: () => Promise<boolean>
+  simAttach: (
+    udid: string,
+    rect: { x: number; y: number; width: number; height: number }
+  ) => Promise<{ ok: boolean; error?: string }>
+  simAttachMove: (rect: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }) => Promise<{ ok: boolean; error?: string }>
+  simAttachHide: () => Promise<boolean>
+  simAttachShow: () => Promise<boolean>
   /** Interrupt even mid-tool-call (signal, not stdin). Resolves when it's stopped. */
   agentHardInterrupt: (id: string) => Promise<boolean>
   onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
@@ -353,6 +371,14 @@ const cove: CoveApi = {
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),
   onSimFrame: (udid, cb) =>
     subscribe(`sim:frame:${udid}`, (f) => cb(f as { url: string; width: number; height: number })),
+  onSimGone: (udid, cb) => subscribe(`sim:gone:${udid}`, () => cb()),
+  simAttachReady: () => ipcRenderer.invoke('sim:attach-ready'),
+  simAttachRequest: () => ipcRenderer.invoke('sim:attach-request'),
+  simAttachSettings: () => ipcRenderer.invoke('sim:attach-settings'),
+  simAttach: (udid, rect) => ipcRenderer.invoke('sim:attach', udid, rect),
+  simAttachMove: (rect) => ipcRenderer.invoke('sim:attach-move', rect),
+  simAttachHide: () => ipcRenderer.invoke('sim:attach-hide'),
+  simAttachShow: () => ipcRenderer.invoke('sim:attach-show'),
   agentHardInterrupt: (id) => ipcRenderer.invoke('agent:hard-interrupt', id),
   onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
   onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
