@@ -105,7 +105,18 @@ allowed to do without asking.
 - **A desktop.** Right now a project is a chat beside one pane. The idea is a
   workspace that behaves like a real computer: several things open at once —
   browser, files, a terminal, a simulator — arranged the way you left them,
-  with the agent working across all of them.
+  with the agent working across all of them, over a background you'd want to
+  look at.
+- **Memory that writes itself.** Your agent relearns the same things in every
+  new session — your conventions, a project's traps, which command actually
+  deploys. SuperAgent should notice those and carry them across projects, in a
+  list you can read, edit and delete.
+- **Watchers.** Routines already run on a schedule and the browser already
+  reads pages. Point one at a page and get told what changed, with a before
+  and after.
+- **A board the agent keeps.** Kanban/backlog inside the app, maintained by
+  the agent as it works: cards move themselves, each links to the chat,
+  worktree or PR that did the work, and you can ask what's left.
 
 <!--
   Maintainer note — how the embedded iOS Simulator should be built. Not
