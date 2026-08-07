@@ -1613,8 +1613,13 @@ export function EasyChat({
           <button onClick={retry}>Retry</button>
         </div>
       )}
-      <TasksPanel workspaceId={workspaceId} />
-      <DevServerStrip workspaceId={workspaceId} />
+      {/* Everything pinned above the transcript. The New chat / New worktree
+          pills float over the column's top-right, so this band reserves room
+          for them — otherwise the dev-server strip sits under them. */}
+      <div className={`easy-topstack ${items.length > 0 ? 'with-actions' : ''}`}>
+        <TasksPanel workspaceId={workspaceId} />
+        <DevServerStrip workspaceId={workspaceId} />
+      </div>
       <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length === 0 && (ready || suspended) && (
           <div className="easy-empty">

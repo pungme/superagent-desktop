@@ -4161,6 +4161,21 @@ button {
   box-shadow: 0 1px 3px var(--shadow);
 }
 
+/* Pinned band above the transcript (tasks panel, dev-server strip). Only pads
+   when it actually has something in it — an empty band must not push the
+   transcript down. */
+.easy-topstack {
+  flex: 0 0 auto;
+}
+.easy-topstack.with-actions:has(> *) {
+  padding-top: 30px;
+}
+/* With the band filled, the pills no longer overlap the scroll area, so it
+   doesn't need its own clearance for them. */
+.easy-topstack.with-actions:has(> *) + .easy-scroll {
+  padding-top: 12px;
+}
+
 /* New chat + New worktree sit together, same pill look. */
 .easy-newchat-group {
   position: absolute;

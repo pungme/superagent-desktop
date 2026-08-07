@@ -1,5 +1,5 @@
 import { WebContents, ipcMain } from 'electron'
-import { getPaneWebContents, paneLog } from './browser'
+import { getPaneWebContents, paneLog, withoutStealingFocus, markAgentLoad } from './browser'
 import { broadcastToWindows, pushBounded, normalizeUrl } from './util'
 
 /**
@@ -208,6 +208,12 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 }
 
 export async function navigate(paneId: string, url: string): Promise<string> {
+  // The whole call runs behind the focus guard: pane creation, attachment and
+  // the load itself are all points where the page can ask macOS to raise us.
+  return withoutStealingFocus(() => navigateInner(paneId, url))
+}
+
+async function navigateInner(paneId: string, url: string): Promise<string> {
   // Cold start: the agent may drive the browser before the user has opened the
   // preview, so no pane exists yet. For an interactive pane (routine panes carry
   // a "::" suffix and run offscreen), ask the renderer to open the preview, then
@@ -237,8 +243,11 @@ export async function navigate(paneId: string, url: string): Promise<string> {
   const target = normalizeUrl(url)
   // The agent drives the user's own browser on their own machine — real sites
   // included (that's the whole point of browser automation / routines).
+  paneLog('load-start', paneId, target.slice(0, 60))
+  markAgentLoad(paneId)
   try {
     await contents.loadURL(target)
+    paneLog('load-done', paneId)
   } catch (err) {
     if (/ERR_ABORTED/.test(String(err))) {
       // Superseded by a competing navigation (pane init, a redirect) — ours
@@ -257,16 +266,19 @@ export async function navigate(paneId: string, url: string): Promise<string> {
       throw err
     }
   }
+  markAgentLoad(paneId)
   paneLog('agent-navigate', paneId, contents.getURL().slice(0, 120))
   return contents.getURL()
 }
 
 export async function screenshot(paneId: string): Promise<string> {
-  const contents = ensureDebugger(paneId)
-  const { data } = (await contents.debugger.sendCommand('Page.captureScreenshot', {
-    format: 'png'
-  })) as { data: string }
-  return data
+  return withoutStealingFocus(async () => {
+    const contents = ensureDebugger(paneId)
+    const { data } = (await contents.debugger.sendCommand('Page.captureScreenshot', {
+      format: 'png'
+    })) as { data: string }
+    return data
+  })
 }
 
 export async function readPage(paneId: string): Promise<unknown> {
@@ -275,6 +287,14 @@ export async function readPage(paneId: string): Promise<unknown> {
 }
 
 export async function click(
+  paneId: string,
+  target: { index?: number; text?: string }
+): Promise<string> {
+  // A click usually navigates — same activation risk as navigate().
+  return withoutStealingFocus(() => clickInner(paneId, target))
+}
+
+async function clickInner(
   paneId: string,
   target: { index?: number; text?: string }
 ): Promise<string> {
@@ -315,14 +335,20 @@ export async function click(
 }
 
 export async function typeText(paneId: string, text: string): Promise<string> {
-  const contents = ensureDebugger(paneId)
-  for (const char of text) {
-    await contents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'char', text: char })
-  }
-  return `typed ${text.length} characters`
+  return withoutStealingFocus(async () => {
+    const contents = ensureDebugger(paneId)
+    for (const char of text) {
+      await contents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'char', text: char })
+    }
+    return `typed ${text.length} characters`
+  })
 }
 
 export async function pressKey(paneId: string, key: string): Promise<string> {
+  return withoutStealingFocus(() => pressKeyInner(paneId, key))
+}
+
+async function pressKeyInner(paneId: string, key: string): Promise<string> {
   const contents = ensureDebugger(paneId)
   const codes: Record<string, { keyCode: number; code: string }> = {
     Enter: { keyCode: 13, code: 'Enter' },

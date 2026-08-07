@@ -103,6 +103,66 @@ allowed to do without asking.
   LLM driving a home — the plan is an agent layer that other CLIs and local
   models can plug into.
 
+<!--
+  Maintainer note — how the embedded iOS Simulator should be built. Not
+  user-facing; kept here so the research isn't redone from scratch.
+
+  WHERE WE ARE. Phase 1 shipped in 1.1: `sim_list_devices`, `sim_boot`,
+  `sim_screenshot`, `sim_open_url`, `sim_install_and_launch` in
+  src/main/mcp.ts — all `xcrun simctl`, public APIs only, no private
+  frameworks. The agent boots a device, drives it, and screenshots land in the
+  in-app viewer via the `app:open-file` broadcast. What's missing is only the
+  LIVE view: today Apple's Simulator.app is a separate window the user has to
+  look at themselves.
+
+  WHY IT ISN'T JUST "EMBED THE WINDOW". macOS gives no supported way to
+  reparent another application's window into ours. Anything that looks like
+  embedding is really capture + input forwarding. Two consequences: we need a
+  frame source, and we need a way to send taps/keys back.
+
+  OPTION A — baguette (the candidate). Open source, Apache-2.0, brew
+  installable; runs a local server that streams the booted simulator over a
+  WebSocket and accepts HID events (tap, swipe, key) back. That is exactly the
+  two halves we need, already solved, and it keeps us on public APIs.
+    Cost: an external binary the user must install — the same shape as the
+    Claude Code dependency, so surface it the way we surface that (detect,
+    explain, offer the brew command; never bundle silently).
+    VERIFY BEFORE COMMITTING A WEEK: current maintenance status, frame rate at
+    device resolution, latency of the HID round trip, and whether it needs
+    Screen Recording permission (it should not — it talks to simctl/CoreSim,
+    not the window server).
+
+  OPTION B — ScreenCaptureKit on Simulator.app's window + CGEvent taps for
+  input. No third-party dependency, but it needs Screen Recording AND
+  Accessibility permissions, breaks the moment the window is occluded or
+  moved, and synthesising touches from CGEvent into another app is fragile.
+  Fallback only.
+
+  OPTION C — idb (Meta). Has video streaming and HID commands, so it would
+  also work, but it is a heavier install (python + companion) and less
+  maintained than it was. Keep as plan C.
+
+  HOW IT SLOTS IN. Render it in the SAME pane slot the browser uses, not a new
+  window: a WebContentsView loading a tiny local page that paints the incoming
+  frames onto a canvas and posts pointer/key events back over the socket. That
+  buys the existing geometry work for free — bounds sync, freeze-on-overlay
+  (`browser:freeze`), the phone-frame chrome from the mobile viewport, and the
+  corner treatment. Reuse `browser:twin-bounds`-style layout so a simulator can
+  sit beside the desktop page the way the phone twin does.
+    Pane lifecycle should mirror browser.ts: create on demand, destroy on
+    hide, never leave a live socket behind a hidden view.
+
+  AGENT SURFACE. Once frames exist, add `sim_tap`, `sim_type`, `sim_swipe`
+  alongside the phase-1 tools, and let `sim_screenshot` read from the live
+  stream instead of shelling out — cheaper, and it matches what the user sees.
+
+  ROUGH SIZE: ~1 week. Split it: (1) spike baguette against a booted device
+  from the terminal and measure, (2) main-process supervisor for the binary
+  (spawn, health, teardown) + IPC, (3) the canvas page + input forwarding,
+  (4) pane integration and the missing agent tools.
+-->
+
+
 ## What you need
 
 - A Mac

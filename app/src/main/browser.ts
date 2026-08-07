@@ -3,6 +3,7 @@ import { connect as tcpConnect } from 'net'
 import { fileURLToPath } from 'url'
 import { basename, join } from 'path'
 import { appendFileSync, renameSync, statSync } from 'fs'
+import { execFile } from 'child_process'
 import { normalizeUrl } from './util'
 import { getRecentHistory } from './store'
 
@@ -254,6 +255,170 @@ h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
   return 'data:text/html;charset=utf-8,' + encodeURIComponent(html)
 }
 
+/**
+ * Run agent-driven browser work without letting the app steal the user's focus.
+ *
+ * A page can ask to be activated (window.focus(), and Chromium raises the
+ * window when content it just loaded takes focus). Nothing in our code calls
+ * focus() — the request comes from the web contents — so the only reliable
+ * defence is to make the window unable to accept activation while an agent
+ * drives it. A non-focusable window cannot be raised by anyone.
+ *
+ * Only engages when the app is already in the background: if the user is
+ * sitting in SuperAgent, nothing changes for them. Ref-counted so overlapping
+ * tool calls can't restore it early, with a hard timeout so a hung load can
+ * never leave the window permanently unclickable.
+ */
+let guardDepth = 0
+let guardTimer: ReturnType<typeof setTimeout> | null = null
+let focusGuardActive = false
+
+/**
+ * Keep the app from jumping in front of the user while an agent drives the
+ * browser.
+ *
+ * Measured, not guessed: an attached WebContentsView takes focus when its page
+ * finishes loading (and again when it is attached), and macOS activates the
+ * whole app to deliver that focus. Neither detaching the view nor
+ * win.setFocusable(false) stops it — the window still receives focus and the
+ * app still comes forward. The only thing that does is the app's activation
+ * policy: 'prohibited' makes NSApp refuse activation outright.
+ *
+ * So the guard flips the policy for the duration of the agent's action plus a
+ * short tail, and only when the user is already in another app. It is
+ * ref-counted (agents chain calls), has a 30s backstop, and is dropped the
+ * moment the user focuses the window themselves.
+ */
+function setPolicy(policy: 'regular' | 'prohibited'): void {
+  if (process.platform === 'darwin') app.setActivationPolicy(policy)
+}
+
+/**
+ * Belt and braces. The activation policy stops most activations, but a request
+ * created by a page load can survive it and land later. So we also remember who
+ * the user was actually working in, and hand focus straight back if we ever end
+ * up in front. Worst case that is a flicker; without it the app steals the
+ * session. Bundle ids come from lsappinfo (no permissions needed, unlike
+ * System Events).
+ */
+let lastAppUserWasIn: string | null = null
+let frontAppBeforeGuard: string | null = null
+let focusReturnedThisCycle = false
+let guardEndedAt = 0
+
+/**
+ * Kept warm: when our window loses focus we note which app the user moved to,
+ * so the guard has a target ready the instant it needs one (looking it up at
+ * engage time was too late — the shell call hadn't returned before the stolen
+ * focus arrived).
+ */
+export function noteUserLeftApp(): void {
+  if (process.platform !== 'darwin') return
+  execFile('/bin/sh', ['-c', 'lsappinfo info -only bundleid $(lsappinfo front)'], (err, out) => {
+    if (err) return
+    const id = /"(?:CFBundleIdentifier|LSBundleID)"="([^"]+)"/.exec(out)?.[1]
+    // Never target ourselves — that would turn the guard into the hijack.
+    if (id && !/superagent|electron/i.test(id)) {
+      lastAppUserWasIn = id
+      if (focusGuardActive && !frontAppBeforeGuard) frontAppBeforeGuard = id
+      paneLog('user-left-to', 'window', id)
+    }
+  })
+}
+
+function rememberFrontApp(): void {
+  frontAppBeforeGuard = lastAppUserWasIn
+  focusReturnedThisCycle = false
+  // Refresh in the background too: the window may never have been focused this
+  // run (so no blur ever fired), and the lookup returns long before a stolen
+  // activation lands ~500ms later.
+  noteUserLeftApp()
+}
+
+/**
+ * Called when our window takes focus during (or just after) agent work: give it
+ * back. The tail matters — a page's activation request can be queued while the
+ * policy forbids it and only land once the policy is restored.
+ */
+export function allowUserFocus(): void {
+  frontAppBeforeGuard = null
+}
+
+export function returnFocusToUser(): void {
+  const justAfter = Date.now() - guardEndedAt < 2500
+  if ((!focusGuardActive && !justAfter) || focusReturnedThisCycle || !frontAppBeforeGuard) return
+  focusReturnedThisCycle = true
+  const target = frontAppBeforeGuard
+  paneLog('focus-return', 'window', target)
+  execFile('open', ['-b', target], () => {})
+}
+
+export function releaseFocusGuard(): void {
+  if (!focusGuardActive) return
+  focusGuardActive = false
+  guardDepth = 0
+  if (guardTimer) {
+    clearTimeout(guardTimer)
+    guardTimer = null
+  }
+  setPolicy('regular')
+  guardEndedAt = Date.now()
+  paneLog('focus-guard', 'window', 'released')
+}
+
+export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> {
+  const win = BrowserWindow.getAllWindows()[0]
+  // The user is looking right at the app — let it behave normally.
+  const engage = !!win && !win.isDestroyed() && !win.isFocused()
+  if (engage) {
+    if (guardDepth === 0) {
+      focusGuardActive = true
+      rememberFrontApp()
+      setPolicy('prohibited')
+      paneLog('focus-guard', 'window', 'engaged')
+    }
+    guardDepth += 1
+    if (guardTimer) clearTimeout(guardTimer)
+    // Backstop: a hung tool call must never leave the app unable to activate.
+    guardTimer = setTimeout(releaseFocusGuard, 30_000)
+  }
+  try {
+    return await fn()
+  } finally {
+    if (engage) {
+      guardDepth = Math.max(0, guardDepth - 1)
+      if (guardDepth === 0) {
+        // The grab lands ~100ms after the load settles; a short tail covers it
+        // without leaving the app un-clickable between chained calls.
+        setTimeout(() => {
+          if (guardDepth === 0) releaseFocusGuard()
+        }, 500)
+      }
+    }
+  }
+}
+
+/**
+ * When the agent opens a pane that was closed, the renderer mounts it and
+ * restores the URL it had last time — and that restore can land AFTER the
+ * agent's own load, silently replacing the page the agent just opened. Record
+ * agent loads so the restore can be ignored while one is fresh.
+ */
+const lastAgentLoadAt = new Map<string, number>()
+export function markAgentLoad(paneId: string): void {
+  lastAgentLoadAt.set(paneId, Date.now())
+}
+function agentLoadedRecently(paneId: string): boolean {
+  const at = lastAgentLoadAt.get(paneId)
+  return !!at && Date.now() - at < 3000
+}
+
+function attachPaneView(pane: BrowserPane): void {
+  if (pane.window.isDestroyed()) return
+  pane.window.contentView.addChildView(pane.view)
+  pane.visible = true
+}
+
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
   paneLog('create', id, partition)
@@ -435,8 +600,7 @@ export function registerBrowserIpc(): void {
     const pane = panes.get(id)
     if (!pane || pane.window.isDestroyed()) return
     if (!pane.visible) {
-      pane.window.contentView.addChildView(pane.view)
-      pane.visible = true
+      attachPaneView(pane)
     }
     pane.view.setBounds(bounds)
   })
@@ -583,6 +747,12 @@ export function registerBrowserIpc(): void {
   ipcMain.on('browser:navigate', (_e, id: string, rawUrl: string) => {
     const wc = getPaneWebContents(id)
     const url = normalizeUrl(rawUrl)
+    // The mount's URL restore, arriving after the agent already loaded a page
+    // here — dropping it keeps the agent's page on screen.
+    if (agentLoadedRecently(id) && wc && url !== wc.getURL()) {
+      paneLog('navigate-skipped-stale-restore', id, url.slice(0, 100))
+      return
+    }
     const ok = isNavigable(url) || isLocalFile(url)
     if (!wc || !ok) paneLog('navigate-dropped', id, `${wc ? '' : 'NO-PANE '}${url.slice(0, 120)}`)
     if (!wc) return

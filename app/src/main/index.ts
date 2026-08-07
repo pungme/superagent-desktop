@@ -3,7 +3,13 @@ import { basename } from 'path'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { registerBrowserIpc } from './browser'
+import {
+  registerBrowserIpc,
+  paneLog,
+  releaseFocusGuard,
+  returnFocusToUser,
+  noteUserLeftApp
+} from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
 import { startHookServer, registerHookIpc } from './hooks'
@@ -57,6 +63,22 @@ function createWindow(): BrowserWindow {
       sandbox: false
     }
   })
+
+  // Focus trace. "The app jumped in front of me" has been reported repeatedly
+  // and never reproduced on demand — nothing in our code raises the window
+  // outside notification clicks. These lines land in pane-debug.log next to the
+  // agent's actions, so the next occurrence shows what immediately preceded it.
+  mainWindow.on('focus', () => {
+    paneLog('window-focus', 'window')
+    // If this focus arrived during agent work, the user didn't ask for it.
+    returnFocusToUser()
+    // The user is here now — put any pane the focus guard is holding back on
+    // screen immediately rather than making them wait out the guard's tail.
+    releaseFocusGuard()
+  })
+  mainWindow.on('blur', () => noteUserLeftApp())
+  mainWindow.on('show', () => paneLog('window-show', 'window'))
+  app.on('activate', () => paneLog('app-activate', 'window'))
 
   mainWindow.on('ready-to-show', () => {
     // Tooling relaunches (screenshot/verification loops) must never steal focus
