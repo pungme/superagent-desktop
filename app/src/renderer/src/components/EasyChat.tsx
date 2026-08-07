@@ -229,7 +229,19 @@ function msgAt(msg: { id: string; at?: number }): number | null {
 
 /** Clock time for a message's hover stamp; the title carries the full date. */
 function msgTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const d = new Date(ms)
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const midnight = new Date()
+  midnight.setHours(0, 0, 0, 0)
+  const daysAgo = Math.floor((midnight.getTime() - d.getTime()) / 86_400_000) + 1
+  // A bare clock is ambiguous the moment a conversation spans days.
+  if (d.getTime() >= midnight.getTime()) return `Today ${time}`
+  if (daysAgo === 1) return `Yesterday ${time}`
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  const date = d.toLocaleDateString([], sameYear
+    ? { day: 'numeric', month: 'short' }
+    : { day: 'numeric', month: 'short', year: 'numeric' })
+  return `${date} ${time}`
 }
 
 function toolDetail(input: unknown): string {
@@ -551,6 +563,18 @@ export function EasyChat({
   // Whether this turn produced any assistant text/tool activity, so a `result`
   // that yielded nothing visible can be flagged instead of vanishing.
   const streamedThisTurnRef = useRef(false)
+  /**
+   * The exact payload of the turn in flight, so a turn that produces literally
+   * nothing can be sent again once. Long conversations resumed from disk fail
+   * their first request now and then — the CLI compacts and the same message
+   * works immediately after, which is what the user was doing by hand ("first
+   * message after opening is always broken").
+   */
+  const inFlightSendRef = useRef<{
+    text: string
+    images: { mediaType: string; data: string }[]
+  } | null>(null)
+  const retriedEmptyTurnRef = useRef(false)
   const thinkingIdRef = useRef<string | null>(null)
   // Session to resume so context survives restarts; updated once claude reports it.
   const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
@@ -922,6 +946,18 @@ export function EasyChat({
 
       if (type === 'assistant') {
         const msg = event.message as Record<string, unknown>
+        // Per-request usage: input + cache tokens on THIS message is the size of
+        // the prompt Claude just carried, i.e. the live context. (The result
+        // event's usage sums every request in the turn — a tool-heavy turn can
+        // total several times the window, which is how the meter reached 166%.)
+        const mu = msg?.usage as Record<string, number> | undefined
+        if (mu) {
+          const live =
+            (mu.input_tokens ?? 0) +
+            (mu.cache_read_input_tokens ?? 0) +
+            (mu.cache_creation_input_tokens ?? 0)
+          if (live > 0) setCtxTokens(live)
+        }
         const content = (msg?.content as Record<string, unknown>[]) || []
         // Some assistant messages arrive whole rather than streamed — most notably
         // API-error notices like "You've reached your Fable 5 limit… switch models
@@ -1105,13 +1141,12 @@ export function EasyChat({
       if (type === 'result') {
         const u = (event as { usage?: Record<string, number> }).usage
         if (u) {
-          const ctx =
+          const processed =
             (u.input_tokens ?? 0) +
             (u.cache_read_input_tokens ?? 0) +
             (u.cache_creation_input_tokens ?? 0)
-          if (ctx > 0) setCtxTokens(ctx)
-          // Feed the dashboard's token chart: everything this turn processed.
-          const total = ctx + (u.output_tokens ?? 0)
+          // Everything this turn processed — the dashboard's chart, not the meter.
+          const total = processed + (u.output_tokens ?? 0)
           if (total > 0) window.cove.eventsRecord?.('tokens', workspaceId, total)
         }
         // A completed turn means the session genuinely works — clear the guard so
@@ -1135,6 +1170,21 @@ export function EasyChat({
         const isError =
           (event.is_error as boolean) ||
           (typeof event.subtype === 'string' && event.subtype !== 'success')
+        // Nothing at all came back — no text, no tools, no error detail. Send it
+        // again once rather than making the user do it; only when the turn was
+        // completely empty, so a partially-completed turn is never repeated.
+        const emptyTurn = !streamedThisTurnRef.current && !event.is_error
+        if (emptyTurn && !retriedEmptyTurnRef.current && inFlightSendRef.current) {
+          const again = inFlightSendRef.current
+          retriedEmptyTurnRef.current = true
+          const agentId = agentIdRef.current
+          if (agentId) {
+            window.cove.agentSend(agentId, again.text, again.images)
+            setGenerating(true)
+            setThinking(true)
+            return
+          }
+        }
         if (isError || !streamedThisTurnRef.current) {
           const sub = event.subtype as string | undefined
           let note = 'Claude ended the turn without a response. Try sending your message again.'
@@ -1423,6 +1473,10 @@ export function EasyChat({
     // turn — a mid-turn interjection is part of the turn already in progress.
     if (!interjecting) streamedThisTurnRef.current = false
     const payload = images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
+    if (!interjecting) {
+      inFlightSendRef.current = { text: agentText, images: payload }
+      retriedEmptyTurnRef.current = false
+    }
     if (id) {
       window.cove.agentSend(id, agentText, payload)
     } else {
@@ -1593,7 +1647,7 @@ export function EasyChat({
   // How much of Claude's memory this conversation fills. The window depends on
   // the model actually running — the 1M variants advertise themselves in the id.
   const ctxWindow = activeModel && /\[?1m\]?/i.test(activeModel) ? 1_000_000 : 200_000
-  const ctxPercent = Math.round(((ctxTokens ?? 0) / ctxWindow) * 100)
+  const ctxPercent = Math.min(100, Math.round(((ctxTokens ?? 0) / ctxWindow) * 100))
   const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
 
   return (
