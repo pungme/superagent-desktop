@@ -313,12 +313,24 @@ function extractPorts(text: string): number[] {
 // Model choices for the composer picker. '' = Claude's own default (whatever the
 // CLI is configured to use); the rest are passed as --model at spawn.
 const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
-  { value: '', label: 'Default', hint: "Claude Code's configured model" },
+  { value: '', label: 'Default', hint: 'Whatever your Claude account defaults to' },
   { value: 'opus', label: 'Opus', hint: 'Most capable' },
   { value: 'sonnet', label: 'Sonnet', hint: 'Balanced' },
   { value: 'haiku', label: 'Haiku', hint: 'Fastest, lightest' },
   { value: 'fable', label: 'Fable', hint: 'Fast, for quick edits' }
 ]
+
+/**
+ * "claude-fable-5-20260115" → "Fable". The picker's Default entry shows this so
+ * you can see what your account default actually resolves to.
+ */
+function shortModel(id: string): string {
+  const known = ['opus', 'sonnet', 'haiku', 'fable', 'mythos']
+  const hit = known.find((k) => id.toLowerCase().includes(k))
+  if (!hit) return 'Default'
+  const version = /-(\d+(?:\.\d+)?)/.exec(id.toLowerCase().split(hit)[1] ?? '')?.[1]
+  return hit[0].toUpperCase() + hit.slice(1) + (version ? ` ${version}` : '')
+}
 
 // Agent modes (permission-mode). Plan = read-only planning, no changes made.
 const MODE_OPTIONS: { value: 'bypassPermissions' | 'acceptEdits' | 'plan'; label: string; hint: string }[] =
@@ -566,6 +578,8 @@ export function EasyChat({
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [controlMenu, setControlMenu] = useState<'model' | 'mode' | null>(null)
+  /** The model the running session reports (from claude's init event). */
+  const [activeModel, setActiveModel] = useState<string | null>(null)
 
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
@@ -826,6 +840,12 @@ export function EasyChat({
 
       if (type === 'system' && (event.subtype as string) === 'init') {
         setReady(true)
+        // What the CLI actually resolved to. With the picker on "Default" this
+        // is the only way to know which model you are spending — the reason
+        // "Default" could silently be Fable and the limit message came as a
+        // surprise.
+        const m = event.model as string | undefined
+        if (m) setActiveModel(m)
         // Claude reports every slash command this session can actually run (built-ins
         // like /compact, /review plus the user's own skills; interactive TUI-only ones
         // are already excluded). Fold them into the "/" autocomplete pool so the menu
@@ -1206,7 +1226,10 @@ export function EasyChat({
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
     }
-  }, [cwd, workspaceId, chatId, registerAgent, resetKey, browserProject])
+    // model + permissionMode are dependencies on purpose: changing either must
+    // restart the agent (resuming the same session, so context is kept) or the
+    // picker silently does nothing to the conversation you are in.
+  }, [cwd, workspaceId, chatId, registerAgent, resetKey, browserProject, model, permissionMode])
 
   const wake = useCallback((): void => {
     if (!suspendedRef.current) return
@@ -1916,7 +1939,9 @@ export function EasyChat({
             title="Model"
           >
             <span className="easy-control-key">Model</span>
-            <span className="easy-control-val">{modelLabel}</span>
+            <span className="easy-control-val">
+              {model === '' && activeModel ? shortModel(activeModel) : modelLabel}
+            </span>
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
