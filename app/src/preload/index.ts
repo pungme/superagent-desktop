@@ -160,6 +160,8 @@ export interface CoveApi {
   browserStop: (id: string) => void
   /** Tail a background shell's output file (the Bash result says where it is). */
   bgTail: (path: string, maxBytes?: number) => Promise<string | null>
+  /** Interrupt even mid-tool-call (signal, not stdin). Resolves when it's stopped. */
+  agentHardInterrupt: (id: string) => Promise<boolean>
   onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
   onBrowserRequestOpen: (cb: (workspaceId: string) => void) => () => void
   // Show the themed "new tab" empty state in a blank pane (no URL yet).
@@ -327,6 +329,7 @@ const cove: CoveApi = {
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   browserStop: (id) => ipcRenderer.send('browser:stop', id),
   bgTail: (path, maxBytes) => ipcRenderer.invoke('bg:tail', path, maxBytes),
+  agentHardInterrupt: (id) => ipcRenderer.invoke('agent:hard-interrupt', id),
   onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
   onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
   browserShowEmpty: (id) => ipcRenderer.send('browser:show-empty', id),
