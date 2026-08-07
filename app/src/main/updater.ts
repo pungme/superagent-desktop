@@ -115,29 +115,39 @@ export function startAutoUpdate(): void {
 
   // Renderer can trigger the install immediately (quit + relaunch into the update).
   ipcMain.on('update:install', () => {
-    // quitAndInstall on macOS silently no-ops if anything interferes with the
-    // quit sequence (observed in the wild: the pill's click did nothing). The
-    // canonical robust shape: defer out of the IPC dispatch, force non-silent
-    // install + relaunch, and if it throws, say so instead of doing nothing.
+    logLine('info', `install requested (downloaded=${updateDownloaded})`)
     setImmediate(() => {
       try {
-        autoUpdater.logger?.info?.(`install requested (downloaded=${updateDownloaded})`)
-        // Anything still holding the app open turns quitAndInstall into a no-op,
-        // and the banner comes back on the next launch looking like the update
-        // failed. Close the windows ourselves first, then install.
-        for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.destroy()
+        // Squirrel's ShipIt installs only once THIS process is gone, and it
+        // gives up if the app is still running when it goes to swap the bundle
+        // (SQRLInstallerErrorDomain -9, "App Still Running Error" — exactly what
+        // the user's log showed). quitAndInstall goes through NSApp terminate,
+        // which anything can veto: a window refusing to close, or a page in a
+        // browser pane with a beforeunload handler. When that happens nothing
+        // visible occurs at all, and ShipIt sits waiting for a process that
+        // never dies — the "Restart to update does nothing" report.
+        //
+        // So: destroy the windows (destroy() cannot be vetoed), ask Squirrel to
+        // install, and if we are somehow still alive a moment later, exit hard.
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.destroy()
+        }
         autoUpdater.quitAndInstall(false, true)
-        // If we are still alive a moment later, the install did not take over —
-        // say so rather than leaving a dead button.
         setTimeout(() => {
-          autoUpdater.logger?.error?.('still running 3s after quitAndInstall')
-          broadcast(
-            'update:error',
-            'The update could not be applied automatically. Quit SuperAgent and reopen it, or reinstall from superagent.computer.'
-          )
-        }, 3000)
+          // Only when Squirrel really has an update staged this session —
+          // otherwise a forced exit would just close the app for nothing.
+          if (!updateDownloaded) {
+            logLine('warn', 'no staged update; not forcing exit')
+            return
+          }
+          logLine('warn', 'still running after quitAndInstall — forcing exit so ShipIt can install')
+          // app.exit skips the quit handlers, so run the same cleanup they do
+          // (killing agent processes, stopping routines) before going.
+          app.emit('before-quit')
+          app.exit(0)
+        }, 1200)
       } catch (err) {
-        autoUpdater.logger?.error?.(`quitAndInstall failed: ${String(err)}`)
+        logLine('error', `quitAndInstall failed: ${String(err)}`)
         broadcast('update:error', `Restart failed: ${String((err as Error)?.message ?? err)}`)
       }
     })
