@@ -8,7 +8,8 @@ import {
   paneLog,
   releaseFocusGuard,
   returnFocusToUser,
-  noteUserLeftApp
+  noteUserLeftApp,
+  attachPanesOnReturn
 } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
@@ -72,9 +73,10 @@ function createWindow(): BrowserWindow {
     paneLog('window-focus', 'window')
     // If this focus arrived during agent work, the user didn't ask for it.
     returnFocusToUser()
-    // The user is here now — put any pane the focus guard is holding back on
-    // screen immediately rather than making them wait out the guard's tail.
+    // The user is here now — the app is frontmost, so attaching the panes we
+    // kept out of the window can no longer steal anything.
     releaseFocusGuard()
+    attachPanesOnReturn()
   })
   mainWindow.on('blur', () => noteUserLeftApp())
   mainWindow.on('show', () => paneLog('window-show', 'window'))

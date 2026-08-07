@@ -353,6 +353,38 @@ export function returnFocusToUser(): void {
   execFile('open', ['-b', target], () => {})
 }
 
+/**
+ * Panes detached while the user is elsewhere. They stay out of the window —
+ * and therefore unable to ask for focus — until the user actually looks at the
+ * app, at which point attaching is harmless because we are already frontmost.
+ */
+const detachedWhileAway = new Set<string>()
+
+function detachPanesWhileAway(): void {
+  for (const pane of panes.values()) {
+    if (pane.visible && !pane.window.isDestroyed()) {
+      pane.window.contentView.removeChildView(pane.view)
+      pane.visible = false
+      detachedWhileAway.add(pane.id)
+      paneLog('pane-detached-while-away', pane.id)
+    }
+  }
+}
+
+/** The user is back (window focused): put the panes on screen. */
+export function attachPanesOnReturn(): void {
+  if (detachedWhileAway.size === 0) return
+  for (const id of detachedWhileAway) {
+    const pane = panes.get(id)
+    if (pane && !pane.window.isDestroyed() && !pane.visible) {
+      pane.window.contentView.addChildView(pane.view)
+      pane.visible = true
+      paneLog('pane-reattached', id)
+    }
+  }
+  detachedWhileAway.clear()
+}
+
 export function releaseFocusGuard(): void {
   if (!focusGuardActive) return
   focusGuardActive = false
@@ -361,6 +393,12 @@ export function releaseFocusGuard(): void {
     clearTimeout(guardTimer)
     guardTimer = null
   }
+  // Hand focus to the app's own renderer before lifting the policy: the queued
+  // activation belongs to the pane view's focus request, and giving focus
+  // elsewhere inside the window discards it (otherwise it fires the instant the
+  // policy allows, and we can only bounce it back — a visible flash).
+  const w = BrowserWindow.getAllWindows()[0]
+  if (w && !w.isDestroyed()) w.webContents.focus()
   setPolicy('regular')
   guardEndedAt = Date.now()
   paneLog('focus-guard', 'window', 'released')
@@ -374,6 +412,7 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
     if (guardDepth === 0) {
       focusGuardActive = true
       rememberFrontApp()
+      detachPanesWhileAway()
       setPolicy('prohibited')
       paneLog('focus-guard', 'window', 'engaged')
     }
@@ -480,6 +519,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     if (isMainFrame && !url.startsWith('data:text/html')) {
       emptyPanes.delete(id)
       errorUrlByPane.delete(id)
+  detachedWhileAway.delete(id)
     }
   })
   wc.on('page-favicon-updated', (_e, favicons) => {
@@ -566,11 +606,13 @@ export function destroyBrowserPane(id: string): void {
   zoomFactors.delete(id)
   faviconByPane.delete(id)
   errorUrlByPane.delete(id)
+  detachedWhileAway.delete(id)
   hidePane(pane)
   pane.view.webContents.close()
 }
 
 function hidePane(pane: BrowserPane): void {
+  detachedWhileAway.delete(pane.id)
   if (pane.visible && !pane.window.isDestroyed()) {
     pane.window.contentView.removeChildView(pane.view)
     if (twin?.forPane === pane.id) destroyTwin(pane.window)
@@ -600,7 +642,12 @@ export function registerBrowserIpc(): void {
     const pane = panes.get(id)
     if (!pane || pane.window.isDestroyed()) return
     if (!pane.visible) {
-      attachPaneView(pane)
+      if (focusGuardActive || detachedWhileAway.size > 0) {
+        // Away: keep it out of the window until the user returns.
+        detachedWhileAway.add(id)
+      } else {
+        attachPaneView(pane)
+      }
     }
     pane.view.setBounds(bounds)
   })
