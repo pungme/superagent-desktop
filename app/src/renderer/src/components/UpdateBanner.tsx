@@ -17,6 +17,7 @@ export function UpdateBanner(): React.JSX.Element | null {
   const [version, setVersion] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [installing, setInstalling] = useState(false)
   const busy = useStore((s) => s.busy)
 
   const progress = useStore((s) => s.updateProgress)
@@ -66,7 +67,13 @@ export function UpdateBanner(): React.JSX.Element | null {
   const backgroundTasks = entries.reduce((n, b) => n + b.background, 0)
   const inFlight = workingChats > 0 || backgroundTasks > 0
 
-  const install = (): void => window.cove.installUpdate()
+  const install = (): void => {
+    // The app takes a second or two to go down and hand over to the installer.
+    // Without this the click looks like it did nothing — the exact complaint
+    // that turned out to be a real failure underneath.
+    setInstalling(true)
+    window.cove.installUpdate()
+  }
   const onRestart = (): void => {
     if (inFlight) setConfirming(true)
     else install()
@@ -115,8 +122,8 @@ export function UpdateBanner(): React.JSX.Element | null {
       <span className="update-banner-text">
         SuperAgent <b>{version}</b> is ready to install.
       </span>
-      <button className="update-banner-action" onClick={onRestart}>
-        Restart to update
+      <button className="update-banner-action" onClick={onRestart} disabled={installing}>
+        {installing ? 'Updating…' : 'Restart to update'}
       </button>
       <button
         className="update-banner-close"
