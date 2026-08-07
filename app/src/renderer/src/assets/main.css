@@ -1438,13 +1438,21 @@ button {
 /* Work the agent left running in the background. It sits above the composer
    rather than in the transcript because the whole point is that it outlives the
    turn that started it — a message about it would just scroll away. */
- /* The strip sits just above the composer and opens downward-in-place, so a
-    long-running job can be inspected without leaving the chat. */
-.easy-bg {
+/* Everything that reports on something still running lives here, stacked just
+   above the composer: the dev server, and any background jobs. */
+.easy-abovebar {
   position: absolute;
   bottom: calc(100% + 2px);
   left: 14px;
   right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Opens downward-in-place, so a long-running job can be inspected without
+   leaving the chat. */
+.easy-bg {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -3991,7 +3999,6 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 8px 14px 0;
   padding: 7px 10px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -4011,6 +4018,9 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.easy-devserver:hover {
+  background: var(--hover);
 }
 .easy-devserver-open {
   border: 1px solid var(--border-strong);
