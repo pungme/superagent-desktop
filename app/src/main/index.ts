@@ -20,6 +20,7 @@ import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerFilesIpc } from './files'
+import { registerSimulatorIpc, stopAllSimStreams } from './simulator'
 import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded } from './updater'
 
@@ -162,6 +163,7 @@ app.whenReady().then(() => {
   registerRoutinesIpc()
   registerEnvironmentIpc()
   registerFilesIpc()
+  registerSimulatorIpc()
   buildMenu()
   startHookServer()
   startRoutines()
@@ -237,6 +239,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   killAllAgents()
   stopRoutines()
+  stopAllSimStreams()
 })
 
 app.on('window-all-closed', () => {

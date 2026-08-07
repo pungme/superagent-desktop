@@ -160,6 +160,21 @@ export interface CoveApi {
   browserStop: (id: string) => void
   /** Tail a background shell's output file (the Bash result says where it is). */
   bgTail: (path: string, maxBytes?: number) => Promise<string | null>
+  /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
+  simList: () => Promise<{ udid: string; name: string; state: string; runtime: string }[]>
+  simBoot: (udid: string) => Promise<boolean>
+  simShutdown: (udid: string) => Promise<boolean>
+  simStreamStart: (udid: string, fps?: number) => void
+  simStreamStop: (udid: string) => void
+  simInput: (
+    udid: string,
+    action: Record<string, unknown>
+  ) => Promise<{ ok: boolean; error?: string }>
+  simHasInput: () => Promise<boolean>
+  onSimFrame: (
+    udid: string,
+    cb: (f: { url: string; width: number; height: number }) => void
+  ) => () => void
   /** Interrupt even mid-tool-call (signal, not stdin). Resolves when it's stopped. */
   agentHardInterrupt: (id: string) => Promise<boolean>
   onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
@@ -329,6 +344,15 @@ const cove: CoveApi = {
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   browserStop: (id) => ipcRenderer.send('browser:stop', id),
   bgTail: (path, maxBytes) => ipcRenderer.invoke('bg:tail', path, maxBytes),
+  simList: () => ipcRenderer.invoke('sim:list'),
+  simBoot: (udid) => ipcRenderer.invoke('sim:boot', udid),
+  simShutdown: (udid) => ipcRenderer.invoke('sim:shutdown', udid),
+  simStreamStart: (udid, fps) => ipcRenderer.send('sim:stream-start', udid, fps),
+  simStreamStop: (udid) => ipcRenderer.send('sim:stream-stop', udid),
+  simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
+  simHasInput: () => ipcRenderer.invoke('sim:has-input'),
+  onSimFrame: (udid, cb) =>
+    subscribe(`sim:frame:${udid}`, (f) => cb(f as { url: string; width: number; height: number })),
   agentHardInterrupt: (id) => ipcRenderer.invoke('agent:hard-interrupt', id),
   onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
   onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
