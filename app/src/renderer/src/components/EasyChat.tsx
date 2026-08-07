@@ -1590,6 +1590,10 @@ export function EasyChat({
     applyRespawn()
   }
   const modelLabel = MODEL_OPTIONS.find((m) => m.value === model)?.label ?? 'Default'
+  // How much of Claude's memory this conversation fills. The window depends on
+  // the model actually running — the 1M variants advertise themselves in the id.
+  const ctxWindow = activeModel && /\[?1m\]?/i.test(activeModel) ? 1_000_000 : 200_000
+  const ctxPercent = Math.round(((ctxTokens ?? 0) / ctxWindow) * 100)
   const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
 
   return (
@@ -1961,14 +1965,6 @@ export function EasyChat({
             </div>
           )}
         </div>
-        {ctxTokens !== null && (
-          <span
-            className={`easy-ctx ${ctxTokens > 150_000 ? 'warm' : ''}`}
-            title={`~${ctxTokens.toLocaleString()} tokens of context in use`}
-          >
-            {Math.round(ctxTokens / 1000)}k ctx
-          </span>
-        )}
         <div className="easy-control">
           <button
             className={`easy-control-btn ${controlMenu === 'mode' ? 'open' : ''}`}
@@ -1996,6 +1992,18 @@ export function EasyChat({
             </div>
           )}
         </div>
+        {ctxTokens !== null && (
+          <span
+            className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}
+            title={`This conversation is using about ${ctxTokens.toLocaleString()} of ${ctxWindow.toLocaleString()} tokens of Claude's memory. When it fills up, older turns are summarised automatically — nothing is lost, but detail fades.`}
+          >
+            <span className="easy-ctx-label">Memory</span>
+            <span className="easy-ctx-track">
+              <span className="easy-ctx-fill" style={{ width: `${Math.min(100, ctxPercent)}%` }} />
+            </span>
+            <span className="easy-ctx-pct">{ctxPercent}%</span>
+          </span>
+        )}
       </div>
       {lightbox && (
         <div className="easy-lightbox" onClick={() => setLightbox(null)}>

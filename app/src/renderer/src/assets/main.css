@@ -4254,11 +4254,41 @@ button {
 }
 
 .easy-ctx {
+  /* Sits at the right end of the controls row — a status readout, not a control. */
+  margin-left: auto;
   align-self: center;
-  font-size: 10.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
   color: var(--text-tertiary);
-  font-family: 'SF Mono', ui-monospace, monospace;
-  padding: 0 4px;
+  padding: 0 2px;
+  cursor: default;
+}
+.easy-ctx-label {
+  font-weight: 600;
+}
+.easy-ctx-track {
+  width: 46px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--hover);
+  overflow: hidden;
+}
+.easy-ctx-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--text-tertiary);
+  transition: width 0.3s ease;
+}
+.easy-ctx-pct {
+  font-variant-numeric: tabular-nums;
+  min-width: 26px;
+  text-align: right;
+}
+.easy-ctx.warm .easy-ctx-fill {
+  background: #d97706;
 }
 .easy-ctx.warm {
   color: #d97706; /* the window is filling up */
