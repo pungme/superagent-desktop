@@ -57,17 +57,30 @@ function DevServerStrip({ workspaceId }: { workspaceId: string }): React.JSX.Ele
   const port = ports?.[0]
   if (!port || paneOpen || dismissed) return null
   return (
-    <div className="easy-devserver" role="status">
+    <div
+      className="easy-devserver"
+      role="button"
+      tabIndex={0}
+      title="Open this in the browser pane"
+      onClick={() => openPreview(workspaceId, port)}
+    >
       <span className="easy-devserver-dot" />
       <span className="easy-devserver-label">
         Dev server running at <b>localhost:{port}</b>
       </span>
-      <button className="easy-devserver-open" onClick={() => openPreview(workspaceId, port)}>
-        Open preview
-      </button>
-      <button className="easy-devserver-x" onClick={() => setDismissed(true)} title="Hide">
+      <span className="easy-devserver-open">Open preview</span>
+      <span
+        className="easy-devserver-x"
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.stopPropagation()
+          setDismissed(true)
+        }}
+        title="Hide"
+      >
         ×
-      </button>
+      </span>
     </div>
   )
 }
@@ -680,19 +693,44 @@ export function EasyChat({
     }
   }, [chatId])
 
-  useEffect(() => {
+  /** Last payload actually written, so an unchanged transcript is never rewritten. */
+  const lastSavedRef = useRef('')
+  const saveTranscript = useCallback((): void => {
     // Never write without a chat to write to, and never before this chat's own
     // transcript has loaded — either would persist an empty list over real data.
     if (!chatId || !hydratedRef.current) return
-    const t = setTimeout(() => {
-      // Persist a clean copy — no mid-stream flags to reanimate on reload.
-      const clean = items.map((it) =>
-        it.kind === 'msg' && it.msg.streaming ? { ...it, msg: { ...it.msg, streaming: false } } : it
-      )
-      window.cove.chatSave(chatId, JSON.stringify(clean))
-    }, 400)
+    // Persist a clean copy — no mid-stream flags to reanimate on reload.
+    const clean = itemsRef.current.map((it) =>
+      it.kind === 'msg' && it.msg.streaming ? { ...it, msg: { ...it.msg, streaming: false } } : it
+    )
+    const json = JSON.stringify(clean)
+    if (json === lastSavedRef.current) return
+    lastSavedRef.current = json
+    window.cove.chatSave(chatId, json)
+  }, [chatId])
+
+  useEffect(() => {
+    // Idle edits (sending, editing, clearing) settle quickly.
+    if (!chatId || !hydratedRef.current || generating) return
+    const t = setTimeout(saveTranscript, 600)
     return () => clearTimeout(t)
-  }, [items, chatId])
+  }, [items, chatId, generating, saveTranscript])
+
+  /**
+   * Streaming rewrote the WHOLE transcript every 400ms — with a long chat that
+   * is megabytes of JSON.stringify on the main thread, several times a second:
+   * 2.4 GB of disk writes in four hours (macOS filed a diagnostic) and a UI that
+   * stutters while the agent types. A checkpoint every few seconds loses nothing
+   * that matters — the final save lands the moment the turn ends.
+   */
+  useEffect(() => {
+    if (!generating || !chatId) return
+    const iv = setInterval(saveTranscript, 5000)
+    return () => {
+      clearInterval(iv)
+      saveTranscript()
+    }
+  }, [generating, chatId, saveTranscript])
 
   // Paste a screenshot/image into the composer.
   const attachImage = (file: File): void => {
@@ -848,10 +886,10 @@ export function EasyChat({
           : 'Hold to dictate (⌥Space)'
 
   // Latest transcript for callbacks that must not re-subscribe on every message.
+  // Assigned during render, not in an effect: the periodic save reads it from an
+  // interval and must never write a transcript that is a render behind.
   const itemsRef = useRef<Item[]>(items)
-  useEffect(() => {
-    itemsRef.current = items
-  }, [items])
+  itemsRef.current = items
 
   const nameConversation = useCallback(async (): Promise<void> => {
     const store = useStore.getState()
@@ -1835,7 +1873,6 @@ export function EasyChat({
         </div>
       )}
         <TasksPanel workspaceId={workspaceId} />
-        <DevServerStrip workspaceId={workspaceId} />
       </div>
       <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length === 0 && (ready || suspended) && (
@@ -1957,6 +1994,8 @@ export function EasyChat({
         </div>
       )}
       <div className="easy-input-row">
+        <div className="easy-abovebar">
+        <DevServerStrip workspaceId={workspaceId} />
         {bgTasks.length > 0 && (
           <div className={`easy-bg ${bgOpen ? 'open' : ''}`}>
             <button
@@ -2002,6 +2041,7 @@ export function EasyChat({
             )}
           </div>
         )}
+        </div>
         {replyTarget && (
           <div className="easy-reply-bar">
             <span className="easy-reply-bar-icon">↩</span>
