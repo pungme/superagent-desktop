@@ -153,8 +153,12 @@ export function startAutoUpdate(): void {
     })
   })
 
-  // A small delay so it doesn't compete with app startup work.
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((err) => console.error('[updater]', err?.message ?? err))
-  }, 4000)
+  // A small delay so it doesn't compete with app startup work, then keep
+  // checking: the app is left running for days, and a check only at launch
+  // means a fix can sit unnoticed for just as long.
+  const check = (): void => {
+    autoUpdater.checkForUpdates().catch((err) => logLine('error', String(err?.message ?? err)))
+  }
+  setTimeout(check, 4000)
+  setInterval(check, 2 * 60 * 60 * 1000)
 }
