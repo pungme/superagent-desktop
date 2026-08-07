@@ -102,6 +102,10 @@ allowed to do without asking.
 - **Other agents.** SuperAgent wraps Claude Code today, but in the end it's an
   LLM driving a home — the plan is an agent layer that other CLIs and local
   models can plug into.
+- **A desktop.** Right now a project is a chat beside one pane. The idea is a
+  workspace that behaves like a real computer: several things open at once —
+  browser, files, a terminal, a simulator — arranged the way you left them,
+  with the agent working across all of them.
 
 <!--
   Maintainer note — how the embedded iOS Simulator should be built. Not
