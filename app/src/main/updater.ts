@@ -1,6 +1,8 @@
 import { autoUpdater } from 'electron-updater'
 import { BrowserWindow, Notification, app, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
+import { appendFileSync } from 'fs'
+import { join } from 'path'
 
 /**
  * Background auto-update against the GitHub Releases feed (configured via the
@@ -44,7 +46,34 @@ export function startAutoUpdate(): void {
 
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
-  autoUpdater.logger = null
+  // Silence was the problem: "Restart to update" doing nothing left no trace at
+  // all, so the same report came back release after release with nothing to go
+  // on. Log to userData/updater.log — small, local, and the first thing to read
+  // next time an install doesn't take.
+  const logFile = join(app.getPath('userData'), 'updater.log')
+  const logLine = (level: string, ...args: unknown[]): void => {
+    try {
+      appendFileSync(
+        logFile,
+        `${new Date().toISOString()} [${level}] ${args
+          .map((a) => (typeof a === 'string' ? a : JSON.stringify(a)))
+          .join(' ')}\n`
+      )
+    } catch {
+      /* logging must never break the updater */
+    }
+  }
+  autoUpdater.logger = {
+    info: (...a: unknown[]) => logLine('info', ...a),
+    warn: (...a: unknown[]) => logLine('warn', ...a),
+    error: (...a: unknown[]) => logLine('error', ...a),
+    debug: (...a: unknown[]) => logLine('debug', ...a)
+  }
+  logLine('info', 'updater started', {
+    version: app.getVersion(),
+    appPath: app.getAppPath(),
+    packaged: app.isPackaged
+  })
 
   // Progress for the UI: version first (percent 0), then percent as it moves.
   // Without this the stretch between "downloading" and the restart pill is a
@@ -92,9 +121,23 @@ export function startAutoUpdate(): void {
     // install + relaunch, and if it throws, say so instead of doing nothing.
     setImmediate(() => {
       try {
+        autoUpdater.logger?.info?.(`install requested (downloaded=${updateDownloaded})`)
+        // Anything still holding the app open turns quitAndInstall into a no-op,
+        // and the banner comes back on the next launch looking like the update
+        // failed. Close the windows ourselves first, then install.
+        for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.destroy()
         autoUpdater.quitAndInstall(false, true)
+        // If we are still alive a moment later, the install did not take over —
+        // say so rather than leaving a dead button.
+        setTimeout(() => {
+          autoUpdater.logger?.error?.('still running 3s after quitAndInstall')
+          broadcast(
+            'update:error',
+            'The update could not be applied automatically. Quit SuperAgent and reopen it, or reinstall from superagent.computer.'
+          )
+        }, 3000)
       } catch (err) {
-        console.error('[updater] quitAndInstall failed:', err)
+        autoUpdater.logger?.error?.(`quitAndInstall failed: ${String(err)}`)
         broadcast('update:error', `Restart failed: ${String((err as Error)?.message ?? err)}`)
       }
     })
