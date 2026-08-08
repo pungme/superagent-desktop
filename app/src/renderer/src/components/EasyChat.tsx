@@ -1355,6 +1355,7 @@ export function EasyChat({
       .agentStart({
         cwd,
         workspaceId,
+        chatId,
         resumeSessionId: resumeIdRef.current,
         browserProject,
         permissionMode: useStore.getState().permissionMode,

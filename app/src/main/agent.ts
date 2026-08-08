@@ -28,6 +28,8 @@ const sessions = new Map<string, AgentSession>()
 export interface AgentStartOptions {
   cwd?: string
   workspaceId?: string
+  /** The conversation this session belongs to — stamped onto board cards. */
+  chatId?: string
   mcpConfigPath?: string
   /** Resume a prior conversation by session id (so history/context persists). */
   resumeSessionId?: string | null
@@ -64,8 +66,9 @@ const TODO_PROMPT =
 // The board outlives the conversation, so it is where work that isn't happening
 // right now belongs — the todo list above is per-turn and disappears with it.
 const BOARD_PROMPT =
-  "This project has a board that persists across conversations: columns backlog, todo, doing, " +
-  'done, kept with board_list, board_add, board_move and board_update. Use it for work that ' +
+  "This project has a board that persists across conversations: columns backlog, todo (shown to " +
+  'the user as "Next"), doing and done, kept with board_list, board_add, board_move and ' +
+  'board_update. Use it for work that ' +
   'outlives this turn — something the user asked for and you deferred, a follow-up your change ' +
   'made necessary, a bug you noticed while doing something else. Call board_list first so you ' +
   "don't add a card that is already there. When you start on a card move it to doing, and when " +
@@ -202,7 +205,8 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
   watchOwner(owner)
   const id = randomUUID()
   const mcpConfig =
-    opts.mcpConfigPath || (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId) : undefined)
+    opts.mcpConfigPath ||
+    (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId, opts.chatId) : undefined)
 
   // A valid resume emits a `system/init` event; a missing session makes claude
   // exit having only emitted SessionStart *hook* events (which fire before the
