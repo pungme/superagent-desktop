@@ -12,6 +12,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
+  const [deskArt, setDeskArt] = useState(localStorage.getItem('cove.deskArt') !== '0')
   // Banners pop over whatever you're doing — both kinds are optional.
   const [notifyDone, setNotifyDone] = useState(localStorage.getItem('cove.notifyDone') !== '0')
   const [notifyNeedsYou, setNotifyNeedsYou] = useState(
@@ -55,6 +56,14 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const toggleDev = (v: boolean): void => {
     localStorage.setItem('cove.devMode', v ? '1' : '0')
     setDevMode(v)
+  }
+
+  // The desk's painting. On by default, off for anyone who'd rather their work
+  // sat on plain grey — applied to <html> so it needs no re-render anywhere.
+  const toggleDesk = (v: boolean): void => {
+    localStorage.setItem('cove.deskArt', v ? '1' : '0')
+    setDeskArt(v)
+    document.documentElement.classList.toggle('no-desk-art', !v)
   }
 
   return (
@@ -128,6 +137,21 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
               type="checkbox"
               checked={notifyNeedsYou}
               onChange={(e) => toggleNotifyNeedsYou(e.target.checked)}
+            />
+            <span className="switch-slider" />
+          </label>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Painting behind your work</strong>
+            <span>Monet’s Water Lilies as the surface panes sit on. Off is plain grey.</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={deskArt}
+              onChange={(e) => toggleDesk(e.target.checked)}
             />
             <span className="switch-slider" />
           </label>

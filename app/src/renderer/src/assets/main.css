@@ -11,6 +11,7 @@
   /* Dark theme (default) */
   --bg-content: #1e1f24;
   --sim-bg: #141518;
+  --desk-veil: rgba(16, 18, 22, 0.72);
   --bg-panel: #26272e;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
@@ -48,6 +49,7 @@
 :root[data-theme='light'] {
   --bg-content: #ffffff;
   --sim-bg: #e6e6ec;
+  --desk-veil: rgba(255, 255, 255, 0.6);
   --bg-panel: #f6f6f8;
   --border: rgba(0, 0, 0, 0.08);
   --border-strong: rgba(0, 0, 0, 0.13);
@@ -2580,6 +2582,89 @@ button {
   flex-shrink: 1;
 }
 
+/* The desk: the pane half of a workspace, holding one or more cards over a
+   painting. The art is only ever seen where a card doesn't reach — around the
+   phone, in the gutters — so it reads as a surface the work sits on rather
+   than wallpaper competing with it. */
+.desk {
+  flex-direction: row;
+  position: relative;
+  gap: 0;
+  /* A gutter, so the surface reads as something the cards are sitting on
+     rather than a stripe that leaked out from behind one. */
+  padding: 9px;
+  background-image: url('./desk-waterlilies.jpg');
+  background-size: cover;
+  background-position: center;
+}
+/* Knock the painting back so text and chrome on top of it stay readable; the
+   veil is lighter in dark mode, where the art is already quiet enough. */
+.desk::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--desk-veil);
+  pointer-events: none;
+}
+/* Not everyone wants a painting behind their work — Settings turns it off. */
+:root.no-desk-art .desk {
+  background-image: none;
+}
+:root.no-desk-art .desk::before {
+  background: var(--bg-content);
+}
+:root.no-desk-art .desk .browser-host.sim {
+  background: var(--sim-bg);
+}
+.desk-card {
+  position: relative;
+  z-index: 1;
+  border-radius: 12px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 0;
+  flex-shrink: 1;
+}
+/* The simulator centres a portrait device in its card, so this is where the
+   painting actually shows — let it through, and lean the phone's shadow a
+   little harder so it still reads as sitting above the surface. */
+.desk-card-sim {
+  background: transparent;
+}
+.desk-card-sim .sim-pane {
+  background: transparent;
+}
+.desk-card-sim .sim-screen,
+.desk-card-sim .sim-live {
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+}
+.desk-divider {
+  width: 8px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  position: relative;
+  z-index: 2;
+}
+.desk-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: var(--border);
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+.desk-divider:hover::after,
+.desk-divider.dragging::after {
+  opacity: 1;
+}
+
 /* Anchor the docked routine-run panel to the chat column. */
 .split-side-chat {
   position: relative;
@@ -4013,6 +4098,16 @@ button {
 .browser-host.sim {
   background: var(--sim-bg);
 }
+/* On the desk, the stage behind the device cards is the painting — the page
+   and the phone read as things resting on a surface rather than as cutouts in
+   a grey slab. Only the viewport modes have a stage to give away; with no
+   viewport the native view covers the host completely either way. */
+.desk .browser-host.sim {
+  background: transparent;
+}
+.desk .browser-pane {
+  border-left: 0;
+}
 
 /* Sits behind the native device view so the simulated screen reads as a separate,
    floating surface — the native view draws on top, so only this card's shadow and
@@ -4469,11 +4564,18 @@ button {
   gap: 8px;
   padding: 8px 10px;
   flex-shrink: 0;
+  /* On the desk the simulator can be a narrow card beside your work, so the
+     toolbar has to fold rather than run off the edge of it, and drop what it
+     can't fit — hence the container, which .sim-runtime queries. */
+  flex-wrap: wrap;
+  container: sim-toolbar / inline-size;
 }
 .sim-device {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border);
   background: var(--bg-panel);
   color: var(--text-primary);
@@ -4486,6 +4588,15 @@ button {
   font-size: 10.5px;
   font-weight: 400;
   color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Narrow card: the device name alone is enough to know what you're looking at. */
+@container sim-toolbar (max-width: 320px) {
+  .sim-runtime {
+    display: none;
+  }
 }
 .sim-btn {
   border: 1px solid var(--border);

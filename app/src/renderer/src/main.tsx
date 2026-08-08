@@ -48,6 +48,11 @@ void hydrateStorage().then(() => {
         : 'light'
       : saved
   document.documentElement.setAttribute('data-theme', resolved)
+  // Same idea for the desk's painting: decided before first paint so a pane
+  // never flashes a background the user turned off.
+  if (localStorage.getItem('cove.deskArt') === '0') {
+    document.documentElement.classList.add('no-desk-art')
+  }
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
