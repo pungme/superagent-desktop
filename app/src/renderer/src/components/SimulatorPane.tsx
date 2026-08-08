@@ -70,7 +70,10 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     void refresh().then((list) => {
       // Whatever is already booted — every runtime can be tapped.
       const booted = list.filter((d) => d.state === 'Booted')
-      const best = booted[0]
+      // Whichever one you picked last, if it's still running — otherwise the
+      // pane silently swaps devices under you on every restart.
+      const remembered = localStorage.getItem('cove.simDevice')
+      const best = booted.find((d) => d.udid === remembered) ?? booted[0]
       if (best) setUdid(best.udid)
       else setPicking(true)
     })
@@ -262,6 +265,7 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
 
   const choose = async (d: Device): Promise<void> => {
     setPicking(false)
+    localStorage.setItem('cove.simDevice', d.udid)
     setUdid(d.udid)
     setFrame(null)
     if (d.state !== 'Booted') {
