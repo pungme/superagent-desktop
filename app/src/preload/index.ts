@@ -161,6 +161,13 @@ export interface CoveApi {
   /** Tail a background shell's output file (the Bash result says where it is). */
   bgTail: (path: string, maxBytes?: number) => Promise<string | null>
   /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
+  simCaptureSource: (
+    name?: string
+  ) => Promise<{ ok: boolean; id?: string; name?: string; error?: string }>
+  simCapturePrepare: (
+    udid: string
+  ) => Promise<{ ok: boolean; bezels: boolean; width: number; height: number }>
+  simCaptureSettings: () => Promise<boolean>
   simList: () => Promise<{ udid: string; name: string; state: string; runtime: string }[]>
   simBoot: (udid: string) => Promise<boolean>
   simShutdown: (udid: string) => Promise<boolean>
@@ -362,6 +369,9 @@ const cove: CoveApi = {
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   browserStop: (id) => ipcRenderer.send('browser:stop', id),
   bgTail: (path, maxBytes) => ipcRenderer.invoke('bg:tail', path, maxBytes),
+  simCaptureSource: (name) => ipcRenderer.invoke('sim:capture-source', name),
+  simCapturePrepare: (udid) => ipcRenderer.invoke('sim:capture-prepare', udid),
+  simCaptureSettings: () => ipcRenderer.invoke('sim:capture-settings'),
   simList: () => ipcRenderer.invoke('sim:list'),
   simBoot: (udid) => ipcRenderer.invoke('sim:boot', udid),
   simShutdown: (udid) => ipcRenderer.invoke('sim:shutdown', udid),

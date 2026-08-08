@@ -13,17 +13,49 @@ interface Frame {
   height: number
 }
 
+type Mode = 'live' | 'mirror' | 'attach'
+
+/**
+ * Where the device's screen sits inside the captured Simulator window.
+ *
+ * Window capture hands back the whole window, macOS title bar included. With
+ * device bezels off the rest is exactly the screen, so the bar's height is
+ * arithmetic rather than a guess: the screen is as tall as the window is wide
+ * divided by the device's aspect ratio, and the remainder is the bar. Bezels on
+ * makes the content taller than the screen in a way we can't derive, so nothing
+ * is cropped and the frame shows as-is.
+ */
+export function screenCrop(
+  videoW: number,
+  videoH: number,
+  ptW: number,
+  ptH: number,
+  bezels: boolean
+): number {
+  if (!videoW || !videoH || !ptW || !ptH || bezels) return 0
+  const screenH = videoW / (ptW / ptH)
+  return Math.max(0, Math.min(videoH - 1, videoH - screenH))
+}
+
 /** iOS major from a runtime label like "iOS 26 5"; 0 when it can't be read. */
 function iosMajor(runtime: string): number {
   return Number(/iOS[ -](\d+)/i.exec(runtime)?.[1] ?? 0)
 }
 
 /**
- * A live iOS Simulator inside the app, beside the chat.
+ * A live iOS Simulator inside the app, beside the chat. Three ways to get it
+ * there, in the order you'd want them:
  *
- * Frames come from simctl screenshots — see src/main/simulator.ts for why the
- * video stream isn't used — and gestures go through baguette, which forces an
- * immediate grab so the picture answers a touch straight away.
+ *   live    the Simulator's own window, captured and played in the pane at the
+ *           rate it renders. Smooth, and the window itself stays hidden behind
+ *           ours. Costs one Screen Recording grant.
+ *   mirror  simctl screenshots. Needs nothing at all, but a screenshot takes
+ *           about half a second, so it tops out near two frames a second.
+ *   attach  Apple's window parked on top of the pane. Native speed and real
+ *           touch, but it floats above the app rather than living inside it.
+ *
+ * Gestures go through baguette in every mode, and force an immediate grab in
+ * mirror mode so the picture answers a touch straight away.
  */
 export function SimulatorPane({ visible = true }: { visible?: boolean }): React.JSX.Element {
   const [devices, setDevices] = useState<Device[]>([])
@@ -40,19 +72,34 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
    * frames and works with no permissions. Remembered, because whichever one
    * suits your machine suits it every time.
    */
-  const [mode, setMode] = useState<'mirror' | 'attach'>(
-    () => (localStorage.getItem('cove.simMode') as 'mirror' | 'attach') || 'mirror'
+  const [mode, setMode] = useState<Mode>(
+    () => (localStorage.getItem('cove.simMode') as Mode) || 'live'
   )
   const [attachError, setAttachError] = useState<string | null>(null)
+  const [liveError, setLiveError] = useState<string | null>(null)
+  /** Set when we fell back to the mirror on first run rather than nagging. */
+  const [offerLive, setOfferLive] = useState(false)
+  /** Device size in points, plus the captured window's size and its title bar. */
+  const [live, setLive] = useState<{
+    width: number
+    height: number
+    vw: number
+    vh: number
+    topCrop: number
+  } | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   /** Where the last touch landed, in % of the picture — drawn immediately. */
   const [ripple, setRipple] = useState<{ x: number; y: number; id: number } | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const shotRef = useRef<HTMLImageElement>(null)
+  const liveRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ x: number; y: number; at: number } | null>(null)
   const typeBuf = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({
     text: '',
     timer: null
   })
+
+  const device = devices.find((d) => d.udid === udid)
 
   const refresh = useCallback(async (): Promise<Device[]> => {
     const list = await window.cove.simList()
@@ -89,6 +136,88 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
       offGone()
     }
   }, [udid, visible, mode])
+
+  /**
+   * The live view. Chromium can capture another application's window — that's
+   * ScreenCaptureKit underneath — and it keeps delivering frames while the
+   * window is behind ours, so the Simulator can sit hidden and its pixels play
+   * here at the frame rate it actually renders at. That is the difference
+   * between this and the mirror: no screenshot costs 500ms, so nothing is
+   * capped at two frames a second.
+   *
+   * The captured window includes the macOS title bar. With device bezels off
+   * the rest of it is exactly the screen, so the bar's height falls out of the
+   * arithmetic: content height is width ÷ the device's aspect ratio, and
+   * whatever is left over at the top is the bar.
+   */
+  useEffect(() => {
+    if (mode !== 'live' || !udid || !visible) return
+    let alive = true
+    let stream: MediaStream | null = null
+    const stop = (): void => {
+      stream?.getTracks().forEach((t) => t.stop())
+      stream = null
+    }
+    void (async () => {
+      setLiveError(null)
+      const prep = await window.cove.simCapturePrepare(udid)
+      if (!alive) return
+      const src = await window.cove.simCaptureSource(device?.name)
+      if (!alive) return
+      if (!src.ok || !src.id) {
+        if (!localStorage.getItem('cove.simMode') && src.error === 'screen-recording-denied') {
+          setOfferLive(true)
+          setMode('mirror')
+          return
+        }
+        setLiveError(src.error ?? 'no-source')
+        return
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            // Electron's desktop-capture constraints, which the typed
+            // MediaTrackConstraints doesn't describe.
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: src.id,
+              maxFrameRate: 60
+            }
+          } as unknown as MediaTrackConstraints
+        })
+      } catch (err) {
+        if (alive) setLiveError(String((err as Error).message || err).slice(0, 120))
+        return
+      }
+      if (!alive) {
+        stop()
+        return
+      }
+      const el = videoRef.current
+      if (!el) return
+      el.srcObject = stream
+      void el.play().catch(() => {})
+      el.onloadedmetadata = () => {
+        const vw = el.videoWidth
+        const vh = el.videoHeight
+        if (!vw || !vh || !prep.width || !prep.height) return
+        setLive({
+          width: prep.width,
+          height: prep.height,
+          vw,
+          vh,
+          topCrop: screenCrop(vw, vh, prep.width, prep.height, prep.bezels)
+        })
+      }
+    })()
+    return () => {
+      alive = false
+      stop()
+      const el = videoRef.current
+      if (el) el.srcObject = null
+    }
+  }, [mode, udid, visible, device?.name])
 
   /**
    * Keep the real Simulator window sitting exactly on this pane. There is no
@@ -152,7 +281,6 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     })
   }, [mode, visible, udid])
 
-  const device = devices.find((d) => d.udid === udid)
   // Gestures are injected by baguette, which targets iOS 26 and up: on older
   // runtimes a tap reports success and quietly does nothing (measured — the
   // same tap opens an app on 26.5 and no-ops on 18.6).
@@ -160,14 +288,16 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
 
   /** Rendered position → device points, which is what the injector expects. */
   const toDevice = (e: React.PointerEvent): { x: number; y: number; w: number; h: number } | null => {
-    const img = shotRef.current
-    if (!img || !frame) return null
-    const r = img.getBoundingClientRect()
+    const box = mode === 'live' ? liveRef.current : shotRef.current
+    const size = mode === 'live' ? live : frame
+    if (!box || !size) return null
+    const r = box.getBoundingClientRect()
+    if (!r.width || !r.height) return null
     return {
-      x: Math.round(((e.clientX - r.left) / r.width) * frame.width),
-      y: Math.round(((e.clientY - r.top) / r.height) * frame.height),
-      w: frame.width,
-      h: frame.height
+      x: Math.round(((e.clientX - r.left) / r.width) * size.width),
+      y: Math.round(((e.clientY - r.top) / r.height) * size.height),
+      w: size.width,
+      h: size.height
     }
   }
 
@@ -178,9 +308,9 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     // The next frame is up to a second away, so acknowledge the touch here.
     // Without this the mirror feels dead for the moment after a tap, however
     // fast the gesture actually reaches the device.
-    const img = shotRef.current
-    if (img && tappable) {
-      const r = img.getBoundingClientRect()
+    const box = mode === 'live' ? liveRef.current : shotRef.current
+    if (box && tappable) {
+      const r = box.getBoundingClientRect()
       setRipple({
         x: ((e.clientX - r.left) / r.width) * 100,
         y: ((e.clientY - r.top) / r.height) * 100,
@@ -291,6 +421,18 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
         {typing && <span className="sim-typing">typing…</span>}
         <div className="sim-mode">
           <button
+            className={`sim-mode-btn ${mode === 'live' ? 'on' : ''}`}
+            onClick={() => {
+              localStorage.setItem('cove.simMode', 'live')
+              setLiveError(null)
+              setLive(null)
+              setMode('live')
+            }}
+            title="Play the device inside this pane — smooth, and the Simulator window stays out of your way"
+          >
+            Live
+          </button>
+          <button
             className={`sim-mode-btn ${mode === 'mirror' ? 'on' : ''}`}
             onClick={() => {
               localStorage.setItem('cove.simMode', 'mirror')
@@ -344,7 +486,66 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
       </div>
 
       <div className="sim-stage" ref={stageRef}>
-        {mode === 'attach' ? (
+        {mode === 'live' ? (
+          liveError ? (
+            <div className="sim-attach-msg">
+              {liveError === 'screen-recording-denied' ? (
+                <>
+                  <p>
+                    Playing the device in here means capturing its window, which macOS gates behind
+                    Screen Recording. Grant it once and the simulator appears in this pane.
+                  </p>
+                  <button
+                    className="sim-retry"
+                    onClick={() => void window.cove.simCaptureSettings()}
+                  >
+                    Open System Settings
+                  </button>
+                </>
+              ) : liveError === 'simulator-window-not-found' ? (
+                <>
+                  <p>The Simulator is running but has no device window open yet.</p>
+                  <button className="sim-retry" onClick={() => setMode('live')}>
+                    Try again
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p>Couldn’t play the device here ({liveError}).</p>
+                  <button className="sim-retry" onClick={() => setMode('mirror')}>
+                    Use the mirror instead
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div
+              className={`sim-live ${tappable ? 'live' : ''}`}
+              ref={liveRef}
+              tabIndex={0}
+              style={live ? { aspectRatio: `${live.vw} / ${live.vh - live.topCrop}` } : undefined}
+              onPointerDown={onDown}
+              onPointerUp={onUp}
+              onKeyDown={onKeyDown}
+            >
+              <video
+                ref={videoRef}
+                className="sim-live-video"
+                muted
+                playsInline
+                style={
+                  live
+                    ? {
+                        height: `${(live.vh / (live.vh - live.topCrop)) * 100}%`,
+                        top: `${(-live.topCrop / (live.vh - live.topCrop)) * 100}%`
+                      }
+                    : undefined
+                }
+              />
+              {!live && <div className="sim-empty">Starting the live view…</div>}
+            </div>
+          )
+        ) : mode === 'attach' ? (
           attachError ? (
             <div className="sim-attach-msg">
               {attachError === 'no-accessibility' ? (
@@ -388,7 +589,7 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
             {busy ?? (udid ? 'Waiting for the first frame…' : 'Pick a simulator to mirror it here.')}
           </div>
         )}
-        {mode === 'mirror' && ripple && (
+        {mode !== 'attach' && ripple && (
           <span
             key={ripple.id}
             className="sim-ripple"
@@ -413,6 +614,23 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
         )}
       </div>
 
+      {offerLive && mode === 'mirror' && (
+        <div className="sim-note">
+          This is a mirror at about two frames a second.{' '}
+          <button
+            className="sim-note-link"
+            onClick={() => {
+              localStorage.setItem('cove.simMode', 'live')
+              setOfferLive(false)
+              setLiveError(null)
+              setMode('live')
+            }}
+          >
+            Play it live instead
+          </button>{' '}
+          — needs Screen Recording, once.
+        </div>
+      )}
       {!canInput && (
         <div className="sim-note">
           Tapping needs <code>brew install baguette</code> — the mirror works without it.
