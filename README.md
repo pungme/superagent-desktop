@@ -66,10 +66,11 @@ allowed to do without asking.
   an isolated branch while your checkout stays clean.
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
   actually got your time. Computed locally.
-- **Files, PDFs & simulators.** Drag files into the chat, annotate PDFs in
-  place, and run an iOS Simulator *inside* the app — the real device playing
-  live in the pane, tap and type included, while Apple's own window stays out
-  of your way.
+- **An iPhone in the window.** Run an iOS Simulator *inside* the app — the real
+  device playing live in the pane, tap and type included, while Apple's own
+  window stays out of your way.
+- **Files & PDFs.** Drag files into the chat and annotate PDFs in place, right
+  beside the tree.
 - **Context gauge.** Every conversation shows how much of the context window
   it has used.
 - **Dev server strip.** The agent starts your dev server and iterates while

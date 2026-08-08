@@ -319,6 +319,11 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     },
     async ({ title, body, status }) => {
       const ws = workspaceIdFromPane(PANE_ID)
+      // A blank card is a blank box on the board with no way to tell what it
+      // was for — better to say so than to write one.
+      if (!title.trim()) {
+        return { content: [{ type: 'text', text: 'A card needs a title.' }] }
+      }
       const card = addCard(ws, title, { body, status, ...stamp(ws) })
       broadcastToWindows('board:changed', { workspaceId: ws })
       return { content: [{ type: 'text', text: `Added "${card.title}" to ${card.status} (${card.id}).` }] }
@@ -375,6 +380,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         removeCard(id)
         broadcastToWindows('board:changed', { workspaceId: ws })
         return { content: [{ type: 'text', text: `Deleted card ${id}.` }] }
+      }
+      if (title !== undefined && !title.trim()) {
+        return { content: [{ type: 'text', text: 'A card needs a title.' }] }
       }
       const card = updateCard(id, { title, body })
       broadcastToWindows('board:changed', { workspaceId: ws })
