@@ -2582,6 +2582,191 @@ button {
   flex-shrink: 1;
 }
 
+/* The board. Takes the whole content area rather than sliding over it: native
+   pane views composite above the DOM, so a slide-over would end up underneath
+   the browser. */
+.board-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-content);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.board-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  flex-shrink: 0;
+}
+.board-head h2 {
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+.board-sub {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.board-head-spacer {
+  flex: 1;
+}
+.board-close {
+  border: 0;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.board-close:hover {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+.board-cols {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+  padding: 0 10px 10px;
+  /* It lives on the desk beside the chat, so it is often half a window wide.
+     Columns keep a readable width and the board scrolls sideways instead of
+     squeezing four columns into nothing. */
+  overflow-x: auto;
+}
+.board-col {
+  /* All four columns should fit the desk at a normal width — Done being the one
+     scrolled off screen would defeat the point. Below ~600px they stop
+     shrinking and the board scrolls sideways instead. */
+  flex: 1 1 0;
+  min-width: 128px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--bg-panel);
+  border: 1px solid transparent;
+  transition: border-color 0.12s ease;
+}
+/* Where the card will land, said plainly while you're still holding it. */
+.board-col.over {
+  border-color: var(--accent);
+}
+.board-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  flex-shrink: 0;
+}
+.board-col-name {
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.board-col-count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.board-add {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 6px;
+}
+.board-add:hover {
+  background: var(--bg-content);
+  color: var(--text-primary);
+}
+.board-col-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.board-col-empty {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  padding: 6px 4px;
+}
+.board-draft {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-content);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12.5px;
+}
+.board-draft:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.board-card {
+  position: relative;
+  background: var(--bg-content);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 26px 9px 10px;
+  cursor: grab;
+}
+.board-card.dragging {
+  opacity: 0.45;
+}
+.board-card-title {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+.board-card-body {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+.board-card-branch {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.board-card-x {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  border: 0;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.board-card:hover .board-card-x {
+  opacity: 1;
+}
+.board-card-x:hover {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
 /* The desk: the pane half of a workspace, holding one or more cards over a
    painting. The art is only ever seen where a card doesn't reach — around the
    phone, in the gutters — so it reads as a surface the work sits on rather
