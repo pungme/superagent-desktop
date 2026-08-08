@@ -187,8 +187,14 @@ export function BoardPanel({
                       void drop(col.key, c.id)
                     }}
                   >
-                    <div className="board-card-title">{c.title}</div>
-                    {c.body && <div className="board-card-body">{c.body}</div>}
+                    <div className="board-card-title" title={c.title}>
+                      {c.title}
+                    </div>
+                    {c.body && (
+                      <div className="board-card-body" title={c.body}>
+                        {c.body}
+                      </div>
+                    )}
                     {(chatTitle(c.chatId) || c.branch) && (
                       <div className="board-card-meta">
                         {chatTitle(c.chatId) && (
