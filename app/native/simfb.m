@@ -25,6 +25,7 @@
 #import <IOSurface/IOSurface.h>
 #import <UniformTypeIdentifiers/UTCoreTypes.h>
 #import <dlfcn.h>
+#import <unistd.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
 
@@ -160,12 +161,18 @@ static NSData *encodeJPEG(IOSurfaceRef surface, double scale, double quality) {
   return data.length ? data : nil;
 }
 
+/**
+ * A frame, or exit trying: once the reader has gone the writes fail forever,
+ * and a helper that ignores that just keeps decoding a screen nobody reads.
+ */
 static void writeFrame(NSData *jpeg) {
   uint32_t n = (uint32_t)jpeg.length;
   uint8_t hdr[4] = {(uint8_t)(n >> 24), (uint8_t)(n >> 16), (uint8_t)(n >> 8), (uint8_t)n};
-  fwrite(hdr, 1, 4, stdout);
-  fwrite(jpeg.bytes, 1, n, stdout);
-  fflush(stdout);
+  if (fwrite(hdr, 1, 4, stdout) != 4 || fwrite(jpeg.bytes, 1, n, stdout) != n ||
+      fflush(stdout) != 0) {
+    fprintf(stderr, "simfb: nobody is reading — stopping\n");
+    exit(0);
+  }
 }
 
 int main(int argc, const char **argv) {
@@ -233,6 +240,14 @@ int main(int argc, const char **argv) {
     dispatch_source_t tick = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
     dispatch_source_set_timer(tick, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), NSEC_PER_SEC, 0);
     dispatch_source_set_event_handler(tick, ^{
+      // Orphaned. The app normally kills us on the way out, but a crash or a
+      // force-quit never gets that far, and then we would stream a framebuffer
+      // to a closed pipe for as long as the machine stays up — which is exactly
+      // what was found running five hours after its app had gone.
+      if (getppid() == 1) {
+        fprintf(stderr, "simfb: the app that started us is gone\n");
+        exit(0);
+      }
       // A shut-down device keeps its last surface around, so the stream would
       // otherwise sit there forever showing a frozen picture. 3 == Booted.
       if ([[device valueForKey:@"state"] unsignedLongValue] != 3) {
