@@ -102,8 +102,10 @@ export function BoardPanel({
       <div className="board-head">
         <h2>Board</h2>
         <span className="board-sub">
+          {/* The empty board is exactly when someone needs telling what it is,
+              so the explanation belongs here rather than after the first card. */}
           {cards.length === 0
-            ? 'Nothing on it yet'
+            ? 'Claude adds cards here as it works — or write your own with +'
             : `${done} of ${cards.length} done · Claude keeps this up to date as it works`}
         </span>
         <div className="board-head-spacer" />
@@ -213,7 +215,9 @@ export function BoardPanel({
                     </button>
                   </article>
                 ))}
-                {mine.length === 0 && adding !== col.key && (
+                {/* A dash marks a column that happens to be empty; on a board
+                    with nothing on it at all, four of them just read as broken. */}
+                {mine.length === 0 && adding !== col.key && cards.length > 0 && (
                   <div className="board-col-empty">—</div>
                 )}
               </div>

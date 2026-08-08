@@ -5079,6 +5079,13 @@ button {
   color: var(--text-tertiary);
   border-top: 1px solid var(--border);
 }
+/* On the desk the pane is transparent, so a footnote would otherwise be small
+   grey text sitting straight on the painting. Give it something to sit on. */
+.desk .sim-note {
+  background: var(--bg-content);
+  color: var(--text-secondary);
+  border-radius: 0 0 12px 12px;
+}
 
 /* Dashboard entry pinned above everything in the sidebar. */
 .sidebar-dash-row {
