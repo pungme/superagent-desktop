@@ -1,7 +1,7 @@
 {
   "name": "superagent",
   "version": "1.2.0",
-  "description": "The desktop home for Claude Code — a persistent chat, a real browser your agent drives on your own logins, and routines on a schedule. Local, on your own Claude subscription, open source.",
+  "description": "The desktop home for Claude Code \u2014 a persistent chat, a real browser your agent drives on your own logins, and routines on a schedule. Local, on your own Claude subscription, open source.",
   "main": "./out/main/index.js",
   "scripts": {
     "format": "prettier --write .",
@@ -16,12 +16,13 @@
     "predev": "npm run copy-ort",
     "dev": "electron-vite dev",
     "prebuild": "npm run copy-ort",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run build:native && npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux"
+    "build:linux": "electron-vite build && electron-builder --linux",
+    "build:native": "sh native/build.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
