@@ -4,19 +4,26 @@ import { useStore } from '../state'
 
 type Status = BoardCard['status']
 
-const COLUMNS: { key: Status; label: string }[] = [
-  { key: 'backlog', label: 'Backlog' },
-  { key: 'todo', label: 'Next' },
+const STAGES: { key: Status; label: string }[] = [
+  { key: 'todo', label: 'Todo' },
   { key: 'doing', label: 'Doing' },
+  { key: 'testing', label: 'Testing' },
   { key: 'done', label: 'Done' }
 ]
 
+/** Where a card goes when you click its dot: todo → doing → testing → done → todo. */
+function nextStage(s: Status): Status {
+  const i = STAGES.findIndex((x) => x.key === s)
+  return STAGES[(i + 1) % STAGES.length].key
+}
+
 /**
- * The project's board, kept by whoever is working — you or the agent.
+ * The project's list, kept by whoever is working — you or the agent.
  *
- * It reads the same table the board_* tools write, and redraws on the
- * board:changed broadcast, so a card the agent moves mid-turn moves here while
- * you watch. Drag a card between columns to move it yourself.
+ * A list rather than a board: four columns spent most of the window on empty
+ * space, and a project's work reads better as one column you can scan than as
+ * four you have to compare. Same table the board_* tools write, redrawn on
+ * board:changed, so a card the agent moves moves here while you watch.
  */
 export function BoardPanel({
   workspaceId,
@@ -26,17 +33,10 @@ export function BoardPanel({
   onClose: () => void
 }): React.JSX.Element {
   const [cards, setCards] = useState<BoardCard[]>([])
-  const [adding, setAdding] = useState<Status | null>(null)
   const [draft, setDraft] = useState('')
-  const [dragId, setDragId] = useState<string | null>(null)
-  const [overCol, setOverCol] = useState<Status | null>(null)
-  /** The card the drag is currently hovering — the new card lands above it. */
-  const [overCard, setOverCard] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const chats = useStore((s) => s.chats[workspaceId])
   const selectChat = useStore((s) => s.selectChat)
-  // A card names the conversation that raised it, but only one still open is
-  // worth offering as a link.
   const chatTitle = (id: string | null): string | null =>
     (id && chats?.find((c) => c.id === id)?.title) || null
 
@@ -46,46 +46,24 @@ export function BoardPanel({
 
   useEffect(() => {
     void refresh()
-    // The agent edits the same board — redraw when it does.
     return window.cove.onBoardChanged((p) => {
       if (p.workspaceId === workspaceId) void refresh()
     })
   }, [workspaceId, refresh])
 
-  useEffect(() => {
-    if (adding) inputRef.current?.focus()
-  }, [adding])
-
-  const submit = async (status: Status): Promise<void> => {
+  const add = async (): Promise<void> => {
     const title = draft.trim()
     setDraft('')
-    if (!title) {
-      setAdding(null)
-      return
-    }
-    await window.cove.boardAdd(workspaceId, title, { status })
+    if (!title) return
+    await window.cove.boardAdd(workspaceId, title, { status: 'todo' })
     await refresh()
-    // Stay open so a list of things can be typed straight in.
     inputRef.current?.focus()
   }
 
-  /** `beforeId` is the card it was dropped onto; null appends to the column. */
-  const drop = async (status: Status, beforeId: string | null): Promise<void> => {
-    const id = dragId
-    setDragId(null)
-    setOverCol(null)
-    setOverCard(null)
-    if (!id || beforeId === id) return
-    const card = cards.find((c) => c.id === id)
-    if (!card) return
-    // Dropping a card back where it already is isn't a move.
-    if (card.status === status && beforeId === null) {
-      const last = cards.filter((c) => c.status === status).pop()
-      if (last?.id === id) return
-    }
-    // Optimistic: the card lands where it was dropped, then the write confirms.
-    setCards((cs) => cs.map((c) => (c.id === id ? { ...c, status } : c)))
-    await window.cove.boardMove(id, status, beforeId)
+  const cycle = async (c: BoardCard): Promise<void> => {
+    const to = nextStage(c.status)
+    setCards((cs) => cs.map((x) => (x.id === c.id ? { ...x, status: to } : x)))
+    await window.cove.boardMove(c.id, to, null)
     await refresh()
   }
 
@@ -100,136 +78,80 @@ export function BoardPanel({
   return (
     <div className="board-panel">
       <div className="board-head">
-        <h2>Board</h2>
+        <h2>List</h2>
         <span className="board-sub">
-          {/* The empty board is exactly when someone needs telling what it is,
-              so the explanation belongs here rather than after the first card. */}
           {cards.length === 0
-            ? 'Claude adds cards here as it works — or write your own with +'
-            : `${done} of ${cards.length} done · Claude keeps this up to date as it works`}
+            ? 'Claude adds work here as it goes — or type your own below'
+            : `${done} of ${cards.length} done`}
         </span>
         <div className="board-head-spacer" />
-        <button className="board-close" onClick={onClose} title="Close the board">
+        <button className="board-close" onClick={onClose} title="Close the list">
           ✕
         </button>
       </div>
 
-      <div className="board-cols">
-        {COLUMNS.map((col) => {
-          const mine = cards.filter((c) => c.status === col.key)
+      <div className="board-list">
+        {STAGES.map((stage) => {
+          const mine = cards.filter((c) => c.status === stage.key)
+          if (mine.length === 0) return null
           return (
-            <section
-              key={col.key}
-              className={`board-col ${overCol === col.key ? 'over' : ''}`}
-              onDragOver={(e) => {
-                e.preventDefault()
-                setOverCol(col.key)
-              }}
-              onDragLeave={() => setOverCol((c) => (c === col.key ? null : c))}
-              onDrop={() => void drop(col.key, null)}
-            >
-              <header className="board-col-head">
-                <span className="board-col-name">{col.label}</span>
-                <span className="board-col-count">{mine.length}</span>
-                <button
-                  className="board-add"
-                  title={`Add to ${col.label}`}
-                  onClick={() => {
-                    setAdding(col.key)
-                    setDraft('')
-                  }}
-                >
-                  +
-                </button>
+            <section key={stage.key} className="board-stage">
+              <header className="board-stage-head">
+                <span className={`board-stage-name s-${stage.key}`}>{stage.label}</span>
+                <span className="board-stage-count">{mine.length}</span>
               </header>
-
-              <div className="board-col-body">
-                {adding === col.key && (
-                  <input
-                    ref={inputRef}
-                    className="board-draft"
-                    value={draft}
-                    placeholder="What needs doing?"
-                    onChange={(e) => setDraft(e.target.value)}
-                    onBlur={() => void submit(col.key)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void submit(col.key)
-                      if (e.key === 'Escape') {
-                        setDraft('')
-                        setAdding(null)
-                      }
-                    }}
+              {mine.map((c) => (
+                <article key={c.id} className={`board-row s-${c.status}`}>
+                  <button
+                    className="board-row-dot"
+                    title={`Move to ${STAGES.find((s) => s.key === nextStage(c.status))?.label}`}
+                    onClick={() => void cycle(c)}
                   />
-                )}
-                {mine.map((c) => (
-                  <article
-                    key={c.id}
-                    className={`board-card ${dragId === c.id ? 'dragging' : ''} ${
-                      overCard === c.id && dragId && dragId !== c.id ? 'insert-above' : ''
-                    }`}
-                    draggable
-                    onDragStart={() => setDragId(c.id)}
-                    onDragEnd={() => {
-                      setDragId(null)
-                      setOverCol(null)
-                      setOverCard(null)
-                    }}
-                    onDragOver={(e) => {
-                      // Stop the column handler from also claiming this, or the
-                      // drop would always append instead of landing here.
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setOverCol(col.key)
-                      setOverCard(c.id)
-                    }}
-                    onDrop={(e) => {
-                      e.stopPropagation()
-                      void drop(col.key, c.id)
-                    }}
-                  >
-                    <div className="board-card-title" title={c.title}>
+                  <div className="board-row-main">
+                    <div className="board-row-title" title={c.title}>
                       {c.title}
                     </div>
-                    {c.body && (
-                      <div className="board-card-body" title={c.body}>
-                        {c.body}
-                      </div>
-                    )}
-                    {(chatTitle(c.chatId) || c.branch) && (
-                      <div className="board-card-meta">
+                    {(c.body || chatTitle(c.chatId) || c.branch) && (
+                      <div className="board-row-meta">
+                        {c.body && <span className="board-row-body">{c.body}</span>}
                         {chatTitle(c.chatId) && (
                           <button
-                            className="board-card-chat"
+                            className="board-row-chat"
                             title="Open the conversation this came from"
                             onClick={() => {
                               selectChat(workspaceId, c.chatId!)
                               onClose()
                             }}
                           >
-                            from {chatTitle(c.chatId)}
+                            {chatTitle(c.chatId)}
                           </button>
                         )}
-                        {c.branch && <span className="board-card-branch">⎇ {c.branch}</span>}
+                        {c.branch && <span className="board-row-branch">⎇ {c.branch}</span>}
                       </div>
                     )}
-                    <button
-                      className="board-card-x"
-                      title="Remove this card"
-                      onClick={() => void remove(c.id)}
-                    >
-                      ✕
-                    </button>
-                  </article>
-                ))}
-                {/* A dash marks a column that happens to be empty; on a board
-                    with nothing on it at all, four of them just read as broken. */}
-                {mine.length === 0 && adding !== col.key && cards.length > 0 && (
-                  <div className="board-col-empty">—</div>
-                )}
-              </div>
+                  </div>
+                  <button className="board-row-x" title="Remove" onClick={() => void remove(c.id)}>
+                    ✕
+                  </button>
+                </article>
+              ))}
             </section>
           )
         })}
+
+        <div className="board-add-row">
+          <input
+            ref={inputRef}
+            className="board-add-input"
+            value={draft}
+            placeholder="Add something to do…"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void add()
+              if (e.key === 'Escape') setDraft('')
+            }}
+          />
+        </div>
       </div>
     </div>
   )

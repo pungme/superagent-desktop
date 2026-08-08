@@ -76,7 +76,7 @@ export interface BoardCard {
   workspaceId: string
   title: string
   body: string
-  status: 'backlog' | 'todo' | 'doing' | 'done'
+  status: 'todo' | 'doing' | 'testing' | 'done'
   chatId: string | null
   branch: string | null
   position: number

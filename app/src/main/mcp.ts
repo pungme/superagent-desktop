@@ -284,7 +284,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'board_list',
     {
       description:
-        "List this project's board: every card with its id, column and title. Read this before adding a card so you don't duplicate one that already exists, and to get ids for board_move and board_update. The columns are backlog, todo, doing and done — the user sees todo labelled \"Next\", so treat the two as the same column.",
+        "List this project's work: every item with its id, stage and title. Read this before adding one so you don't duplicate something already there, and to get ids for board_move and board_update. The stages are todo, doing, testing and done.",
       inputSchema: {}
     },
     async () => {
@@ -320,7 +320,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
           .string()
           .optional()
           .describe(
-            'backlog (default), todo (the user sees this as "Next"), doing or done. Near-misses like "in progress" or "completed" are understood.'
+            'todo (default), doing, testing or done. Near-misses like "in progress", "QA" or "completed" are understood.'
           )
       }
     },
@@ -347,7 +347,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         status: z
           .string()
           .describe(
-            'backlog, todo (the user sees this as "Next"), doing or done. Near-misses like "in progress" or "completed" are understood.'
+            'todo, doing, testing or done. Near-misses like "in progress", "QA" or "completed" are understood.'
           )
       }
     },

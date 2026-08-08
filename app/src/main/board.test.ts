@@ -2,11 +2,21 @@ import { describe, it, expect } from 'vitest'
 import { insertIndex, normalizeStatus, positionBetween } from './store'
 
 describe('normalizeStatus', () => {
-  it('accepts the four columns as written', () => {
-    expect(normalizeStatus('backlog')).toBe('backlog')
+  it('accepts the four stages as written', () => {
     expect(normalizeStatus('todo')).toBe('todo')
     expect(normalizeStatus('doing')).toBe('doing')
+    expect(normalizeStatus('testing')).toBe('testing')
     expect(normalizeStatus('done')).toBe('done')
+  })
+
+  it('maps cards written before the columns changed', () => {
+    expect(normalizeStatus('backlog')).toBe('todo')
+  })
+
+  it('accepts the words people use for the testing stage', () => {
+    expect(normalizeStatus('QA')).toBe('testing')
+    expect(normalizeStatus('in review')).toBe('testing')
+    expect(normalizeStatus('test')).toBe('testing')
   })
 
   it('accepts the words an agent would plausibly reach for instead', () => {
@@ -20,13 +30,13 @@ describe('normalizeStatus', () => {
     expect(normalizeStatus('next')).toBe('todo')
   })
 
-  it('never drops a card: anything unrecognised is backlog', () => {
+  it('never drops a card: anything unrecognised is todo', () => {
     // The agent writes these — a typo must not make a card disappear.
-    expect(normalizeStatus('blocked')).toBe('backlog')
-    expect(normalizeStatus('')).toBe('backlog')
-    expect(normalizeStatus(undefined)).toBe('backlog')
-    expect(normalizeStatus(null)).toBe('backlog')
-    expect(normalizeStatus(42)).toBe('backlog')
+    expect(normalizeStatus('blocked')).toBe('todo')
+    expect(normalizeStatus('')).toBe('todo')
+    expect(normalizeStatus(undefined)).toBe('todo')
+    expect(normalizeStatus(null)).toBe('todo')
+    expect(normalizeStatus(42)).toBe('todo')
   })
 })
 
