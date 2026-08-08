@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useEscapeClose } from '../hooks/useEscapeClose'
 
 interface DeskFile {
   path: string
@@ -41,6 +42,8 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
   /** Which menu-bar title is open, if any. */
   const [menu, setMenu] = useState<string | null>(null)
   const [sort, setSort] = useState<'name' | 'kind'>('name')
+  // Escape peels one layer: an open menu first, then the desktop itself.
+  useEscapeClose(menu ? () => setMenu(null) : onClose)
 
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(files))

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useEscapeClose } from '../hooks/useEscapeClose'
 import { Markdown } from './Markdown'
 
 interface FileViewerProps {
@@ -53,6 +54,8 @@ export function FileViewer({ path, onClose }: FileViewerProps): React.JSX.Elemen
   }, [path])
 
   const dirty = editing && draft !== savedRef.current
+  // Not while there are unsaved edits — Escape must not be how you lose them.
+  useEscapeClose(onClose, !dirty)
 
   const save = async (): Promise<void> => {
     setSaving(true)

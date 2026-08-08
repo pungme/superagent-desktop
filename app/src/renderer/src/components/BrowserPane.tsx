@@ -498,6 +498,8 @@ export function BrowserPane({
       const picked = suggestIndex >= 0 ? suggestions[suggestIndex] : interpretOmnibox(addressInput)
       if (picked) go(picked.target)
     } else if (e.key === 'Escape') {
+      // Claim it, so dismissing the omnibox does not also close a panel behind.
+      e.preventDefault()
       setShowSuggest(false)
       inputRef.current?.blur()
     }
