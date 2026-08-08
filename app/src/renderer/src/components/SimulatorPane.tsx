@@ -42,6 +42,8 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
    */
   const [reload, setReload] = useState(0)
   const [canInput, setCanInput] = useState(true)
+  /** Brief acknowledgement after copying the install command. */
+  const [copied, setCopied] = useState(false)
   const [picking, setPicking] = useState(false)
   const [typing, setTyping] = useState(false)
   /**
@@ -65,6 +67,15 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
   })
 
   const device = devices.find((d) => d.udid === udid)
+
+  /**
+   * Booted first, then alphabetical. simctl lists by runtime, so the device you
+   * are actually running would otherwise sit somewhere down a list of dozens.
+   */
+  const menuDevices = [...devices].sort(
+    (a, b) =>
+      Number(b.state === 'Booted') - Number(a.state === 'Booted') || a.name.localeCompare(b.name)
+  )
 
   const refresh = useCallback(async (): Promise<Device[]> => {
     const list = await window.cove.simList()
@@ -340,8 +351,13 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
                   No simulators found — install Xcode’s simulator runtimes.
                 </div>
               )}
-              {devices.map((d) => (
-                <button key={d.udid} className="sim-menu-item" onClick={() => void choose(d)}>
+              {menuDevices.map((d) => (
+                <button
+                  key={d.udid}
+                  className="sim-menu-item"
+                  title={d.state === 'Booted' ? 'Mirror this simulator' : `Boot ${d.name} and mirror it`}
+                  onClick={() => void choose(d)}
+                >
                   <span className={`sim-dot ${d.state === 'Booted' ? 'on' : ''}`} />
                   <span className="sim-menu-name">{d.name}</span>
                   <span className="sim-menu-rt">
@@ -396,7 +412,16 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
           />
         ) : (
           <div className="sim-empty">
-            {busy ?? (udid ? 'Waiting for the first frame…' : 'Pick a simulator to mirror it here.')}
+            {busy ??
+              (udid ? (
+                'Waiting for the first frame…'
+              ) : (
+                // The picker is the only thing to do from here, so say it once
+                // and make the words themselves open it.
+                <button className="sim-note-link" onClick={() => setPicking(true)}>
+                  Pick a simulator to mirror it here
+                </button>
+              ))}
           </div>
         )}
         {mode !== 'attach' && ripple && (
@@ -429,7 +454,17 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
 
       {!canInput && (
         <div className="sim-note">
-          Tapping needs <code>brew install baguette</code> — the mirror works without it.
+          Tapping needs <code>brew install baguette</code> — the mirror works without it.{' '}
+          <button
+            className="sim-note-link"
+            onClick={() => {
+              void navigator.clipboard.writeText('brew install baguette')
+              setCopied(true)
+              setTimeout(() => setCopied(false), 1600)
+            }}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
         </div>
       )}
     </div>
