@@ -6,7 +6,6 @@ import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
 import { DashboardPanel } from './components/DashboardPanel'
-import { DesktopPanel } from './components/DesktopPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { useStore } from './state'
@@ -135,25 +134,14 @@ function App(): React.JSX.Element {
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [dashOpen, setDashOpen] = useState(false)
-  const [desktopOpen, setDesktopOpen] = useState(false)
   useEffect(() => {
-    const open = (): void => {
-      setDashOpen(true)
-      setDesktopOpen(false)
-    }
+    const open = (): void => setDashOpen(true)
     const close = (): void => setDashOpen(false)
-    const openDesk = (): void => {
-      setDesktopOpen(true)
-      setDashOpen(false)
-    }
     window.addEventListener('cove:open-dashboard', open)
-    window.addEventListener('cove:open-desktop', openDesk)
     // Picking anything in the sidebar leaves the dashboard.
     window.addEventListener('cove:close-dashboard', close)
-    window.addEventListener('cove:close-dashboard', () => setDesktopOpen(false))
     return () => {
       window.removeEventListener('cove:open-dashboard', open)
-      window.removeEventListener('cove:open-desktop', openDesk)
       window.removeEventListener('cove:close-dashboard', close)
     }
   }, [])
@@ -266,7 +254,7 @@ function App(): React.JSX.Element {
           )}
         </div>
         <HookConsent />
-        {openedWorkspaces.length === 0 && !dashOpen && !desktopOpen ? (
+        {openedWorkspaces.length === 0 && !dashOpen ? (
           <div className="empty-state">
             <div className="empty-state-inner">
               <h1>Welcome to SuperAgent</h1>
@@ -281,16 +269,15 @@ function App(): React.JSX.Element {
             <div
               key={ws.id}
               className="workspace-host"
-              style={{ display: ws.id === activeId && !dashOpen && !desktopOpen ? 'flex' : 'none' }}
+              style={{ display: ws.id === activeId && !dashOpen ? 'flex' : 'none' }}
             >
               {/* visible also detaches the native browser view — it would
                   composite above the dashboard otherwise. */}
-              <WorkspaceView ws={ws} visible={ws.id === activeId && !dashOpen && !desktopOpen} />
+              <WorkspaceView ws={ws} visible={ws.id === activeId && !dashOpen} />
             </div>
           ))
         )}
         {dashOpen && <DashboardPanel onClose={() => setDashOpen(false)} />}
-        {desktopOpen && <DesktopPanel onClose={() => setDesktopOpen(false)} />}
       </main>
       <PreviewToast />
       <UpdateBanner />
