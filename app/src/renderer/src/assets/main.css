@@ -4175,6 +4175,10 @@ button {
 /* Model + agent-mode pickers under the composer. */
 .easy-controls {
   display: flex;
+  /* The chat column is ~157px at the smallest window we allow, and the pills
+     need more than that side by side — without wrapping they ran off the edge
+     of the window entirely, where they could not be clicked at all. */
+  flex-wrap: wrap;
   gap: 6px;
   /* No top padding: the input row's 10px bottom is the gap above the pills; the
      10px bottom here matches it, so the row sits evenly between input and edge. */
