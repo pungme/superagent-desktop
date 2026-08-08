@@ -562,6 +562,20 @@ export function positionBetween(before: number | null, after: number | null): nu
   return (before + after) / 2
 }
 
+/**
+ * Where a card lands when dropped "before" another. `column` is the target
+ * column's positions in order, already excluding the card being moved; `before`
+ * is the position of the card it was dropped onto, or undefined to append.
+ *
+ * Pulled out because the off-by-one here is invisible: a wrong answer doesn't
+ * throw, it just quietly puts the card one slot away from where you dropped it.
+ */
+export function insertIndex(column: number[], before: number | undefined): number {
+  if (before === undefined) return column.length
+  const at = column.findIndex((p) => p >= before)
+  return at === -1 ? column.length : at
+}
+
 export function listCards(workspaceId: string): Card[] {
   return db
     .prepare('SELECT * FROM cards WHERE workspaceId = ? ORDER BY position ASC, createdAt ASC')
@@ -652,8 +666,7 @@ export function moveCard(id: string, status: unknown, beforeId: string | null): 
           | undefined
       )?.position
     : undefined
-  const at = idx === undefined ? column.length : column.findIndex((p) => p >= idx)
-  const i = at === -1 ? column.length : at
+  const i = insertIndex(column, idx)
   const position = positionBetween(i > 0 ? column[i - 1] : null, i < column.length ? column[i] : null)
   db.prepare('UPDATE cards SET status=?, position=?, updatedAt=? WHERE id=?').run(
     target,

@@ -30,6 +30,8 @@ export function BoardPanel({
   const [draft, setDraft] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<Status | null>(null)
+  /** The card the drag is currently hovering — the new card lands above it. */
+  const [overCard, setOverCard] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const chats = useStore((s) => s.chats[workspaceId])
   const selectChat = useStore((s) => s.selectChat)
@@ -67,16 +69,23 @@ export function BoardPanel({
     inputRef.current?.focus()
   }
 
-  const drop = async (status: Status): Promise<void> => {
+  /** `beforeId` is the card it was dropped onto; null appends to the column. */
+  const drop = async (status: Status, beforeId: string | null): Promise<void> => {
     const id = dragId
     setDragId(null)
     setOverCol(null)
-    if (!id) return
+    setOverCard(null)
+    if (!id || beforeId === id) return
     const card = cards.find((c) => c.id === id)
-    if (!card || card.status === status) return
+    if (!card) return
+    // Dropping a card back where it already is isn't a move.
+    if (card.status === status && beforeId === null) {
+      const last = cards.filter((c) => c.status === status).pop()
+      if (last?.id === id) return
+    }
     // Optimistic: the card lands where it was dropped, then the write confirms.
     setCards((cs) => cs.map((c) => (c.id === id ? { ...c, status } : c)))
-    await window.cove.boardMove(id, status, null)
+    await window.cove.boardMove(id, status, beforeId)
     await refresh()
   }
 
@@ -115,7 +124,7 @@ export function BoardPanel({
                 setOverCol(col.key)
               }}
               onDragLeave={() => setOverCol((c) => (c === col.key ? null : c))}
-              onDrop={() => void drop(col.key)}
+              onDrop={() => void drop(col.key, null)}
             >
               <header className="board-col-head">
                 <span className="board-col-name">{col.label}</span>
@@ -153,12 +162,27 @@ export function BoardPanel({
                 {mine.map((c) => (
                   <article
                     key={c.id}
-                    className={`board-card ${dragId === c.id ? 'dragging' : ''}`}
+                    className={`board-card ${dragId === c.id ? 'dragging' : ''} ${
+                      overCard === c.id && dragId && dragId !== c.id ? 'insert-above' : ''
+                    }`}
                     draggable
                     onDragStart={() => setDragId(c.id)}
                     onDragEnd={() => {
                       setDragId(null)
                       setOverCol(null)
+                      setOverCard(null)
+                    }}
+                    onDragOver={(e) => {
+                      // Stop the column handler from also claiming this, or the
+                      // drop would always append instead of landing here.
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setOverCol(col.key)
+                      setOverCard(c.id)
+                    }}
+                    onDrop={(e) => {
+                      e.stopPropagation()
+                      void drop(col.key, c.id)
                     }}
                   >
                     <div className="board-card-title">{c.title}</div>

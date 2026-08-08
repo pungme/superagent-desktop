@@ -2728,6 +2728,17 @@ button {
 .board-card.dragging {
   opacity: 0.45;
 }
+/* Where it will land, drawn as a line above the card you're hovering. */
+.board-card.insert-above::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
 .board-card-title {
   font-size: 12.5px;
   line-height: 1.35;
