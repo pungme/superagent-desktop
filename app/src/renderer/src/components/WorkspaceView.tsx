@@ -74,7 +74,11 @@ export function WorkspaceView({
       return !v
     })
   }
-  const [boardOpen, setBoardOpen] = useState(false)
+  // Remembered like the other surfaces: leaving the board up and restarting
+  // should put you back on the board, not silently on the chat.
+  const [boardOpen, setBoardOpen] = useState(
+    () => localStorage.getItem(`boardOpen:${ws.id}`) === '1'
+  )
   /**
    * Four columns need about 620px to be worth looking at, and the pane half is
    * usually narrower than that. Opening the board widens it just enough —
@@ -98,7 +102,13 @@ export function WorkspaceView({
   // code project with neither simply has no surface — the simulator gets the
   // whole desk.
   const surface = boardOpen ? (
-    <BoardPanel workspaceId={ws.id} onClose={() => setBoardOpen(false)} />
+    <BoardPanel
+      workspaceId={ws.id}
+      onClose={() => {
+        localStorage.setItem(`boardOpen:${ws.id}`, '0')
+        setBoardOpen(false)
+      }}
+    />
   ) : openFilePath ? (
     <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
   ) : browserOpen ? (
@@ -378,6 +388,7 @@ export function WorkspaceView({
           onClick={() =>
             setBoardOpen((v) => {
               if (!v) widenForBoard()
+              localStorage.setItem(`boardOpen:${ws.id}`, v ? '0' : '1')
               return !v
             })
           }
