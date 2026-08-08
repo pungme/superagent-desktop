@@ -34,6 +34,11 @@ export function BoardPanel({
 }): React.JSX.Element {
   const [cards, setCards] = useState<BoardCard[]>([])
   const [draft, setDraft] = useState('')
+  /** The row being dragged, and the row it would land above. */
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+  /** The stage being hovered when the drop would append rather than insert. */
+  const [overStage, setOverStage] = useState<Status | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const chats = useStore((s) => s.chats[workspaceId])
   const selectChat = useStore((s) => s.selectChat)
@@ -67,6 +72,24 @@ export function BoardPanel({
     await refresh()
   }
 
+  /** Drop onto a row inserts above it; drop onto a stage appends to the end. */
+  const drop = async (status: Status, beforeId: string | null): Promise<void> => {
+    const id = dragId
+    setDragId(null)
+    setOverId(null)
+    setOverStage(null)
+    if (!id || id === beforeId) return
+    setCards((cs) => cs.map((c) => (c.id === id ? { ...c, status } : c)))
+    await window.cove.boardMove(id, status, beforeId)
+    await refresh()
+  }
+
+  const endDrag = (): void => {
+    setDragId(null)
+    setOverId(null)
+    setOverStage(null)
+  }
+
   const remove = async (id: string): Promise<void> => {
     setCards((cs) => cs.filter((c) => c.id !== id))
     await window.cove.boardRemove(id)
@@ -93,15 +116,50 @@ export function BoardPanel({
       <div className="board-list">
         {STAGES.map((stage) => {
           const mine = cards.filter((c) => c.status === stage.key)
-          if (mine.length === 0) return null
+          // Empty stages stay hidden normally, but during a drag they have to
+          // be visible — otherwise there is nowhere to drop something into a
+          // stage that happens to be empty.
+          if (mine.length === 0 && !dragId) return null
           return (
-            <section key={stage.key} className="board-stage">
+            <section
+              key={stage.key}
+              className={`board-stage ${overStage === stage.key ? 'over' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setOverStage(stage.key)
+                setOverId(null)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                void drop(stage.key, null)
+              }}
+            >
               <header className="board-stage-head">
                 <span className={`board-stage-name s-${stage.key}`}>{stage.label}</span>
                 <span className="board-stage-count">{mine.length}</span>
               </header>
               {mine.map((c) => (
-                <article key={c.id} className={`board-row s-${c.status}`}>
+                <article
+                  key={c.id}
+                  className={`board-row s-${c.status} ${dragId === c.id ? 'dragging' : ''} ${
+                    overId === c.id && dragId && dragId !== c.id ? 'insert-above' : ''
+                  }`}
+                  draggable
+                  onDragStart={() => setDragId(c.id)}
+                  onDragEnd={endDrag}
+                  onDragOver={(e) => {
+                    // Claim it from the stage, or every drop would append.
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setOverId(c.id)
+                    setOverStage(null)
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    void drop(stage.key, c.id)
+                  }}
+                >
                   <button
                     className="board-row-dot"
                     title={`Move to ${STAGES.find((s) => s.key === nextStage(c.status))?.label}`}
