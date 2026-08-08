@@ -60,6 +60,8 @@ allowed to do without asking.
   and an iPhone frame — same session, both live.
 - **A desk, not a slot.** The page you're on and an iOS Simulator sit side by
   side on the same surface, over a Monet you can switch off.
+- **A board the agent keeps.** Backlog, next, doing, done — per project, and
+  Claude moves the cards as it works. Watch them move while you talk to it.
 - **Worktree chats.** Start a chat on its own git worktree; the agent works on
   an isolated branch while your checkout stays clean.
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
@@ -115,9 +117,6 @@ allowed to do without asking.
 - **Watchers.** Routines already run on a schedule and the browser already
   reads pages. Point one at a page and get told what changed, with a before
   and after.
-- **A board the agent keeps.** Kanban/backlog inside the app, maintained by
-  the agent as it works: cards move themselves, each links to the chat,
-  worktree or PR that did the work, and you can ask what's left.
 
 <!--
   Maintainer note — how the embedded iOS Simulator works, and every route that
