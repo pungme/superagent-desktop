@@ -56,17 +56,45 @@ export function WorkspaceView({
         : s.openFile[ws.id]
   )
   const closeFile = useStore((s) => s.closeFile)
-  // The simulator takes the same pane slot as the browser — one thing on
-  // screen at a time until desktop mode lands. Remembered per project.
+  // The simulator is a card on the desk, not a replacement for what's already
+  // there: open it next to the page or the file you're working on, which is how
+  // you actually build an iOS app. Remembered per project.
   const [simOpen, setSimOpen] = useState(
     () => localStorage.getItem(`simOpen:${ws.id}`) === '1'
   )
+  /** The working surface's share of the desk when the simulator sits beside it. */
+  const [deskRatio, setDeskRatio] = useState(() => {
+    const saved = Number(localStorage.getItem(`desk:${ws.id}`))
+    return Number.isFinite(saved) && saved > 0.2 && saved < 0.85 ? saved : 0.62
+  })
   const toggleSim = (): void => {
     setSimOpen((v) => {
       localStorage.setItem(`simOpen:${ws.id}`, v ? '0' : '1')
       return !v
     })
   }
+  // The desk's working surface: a file you opened wins over the page, and a
+  // code project with neither simply has no surface — the simulator gets the
+  // whole desk.
+  const surface = openFilePath ? (
+    <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
+  ) : browserOpen ? (
+    <BrowserPane
+      paneId={ws.id}
+      // Browser projects share one session so a manual login carries across all
+      // of them; code previews stay isolated per workspace.
+      partition={ws.kind === 'browser' ? 'persist:browser' : `persist:ws-${ws.id}`}
+      initialUrl={
+        ws.browserUrl ??
+        (ws.kind !== 'browser'
+          ? (localStorage.getItem(`paneUrl:${ws.id}`) ?? undefined)
+          : undefined)
+      }
+      visible={visible}
+      closable={ws.kind !== 'browser'}
+    />
+  ) : null
+
   const paneOpen = browserOpen || !!openFilePath || simOpen
   // Belt-and-suspenders: when neither the browser preview nor a file viewer is
   // open, make sure the pane's native WebContentsView is detached from the window.
@@ -209,6 +237,33 @@ export function WorkspaceView({
     [ws.id, filesWidth]
   )
 
+  const onDeskDividerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      setDragging(true)
+      const move = (ev: PointerEvent): void => {
+        const desk = containerRef.current?.querySelector('.desk')
+        if (!desk) return
+        const rect = desk.getBoundingClientRect()
+        const frac = (ev.clientX - rect.left) / rect.width
+        if (!Number.isFinite(frac)) return
+        setDeskRatio(Math.min(0.85, Math.max(0.25, frac)))
+      }
+      const up = (): void => {
+        setDragging(false)
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+        setDeskRatio((r) => {
+          localStorage.setItem(`desk:${ws.id}`, String(r))
+          return r
+        })
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+    },
+    [ws.id]
+  )
+
   const onDividerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault()
@@ -342,26 +397,33 @@ export function WorkspaceView({
         <div className={`split-main ${layout === 'bottom' ? 'vert' : ''}`}>
         {paneOpen && (
           <>
-            <div className="split-side" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
-              {simOpen ? (
-                <SimulatorPane visible={visible} />
-              ) : openFilePath ? (
-                <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
-              ) : (
-                <BrowserPane
-                  paneId={ws.id}
-                  // Browser projects share one session so a manual login carries
-                  // across all of them; code previews stay isolated per workspace.
-                  partition={ws.kind === 'browser' ? 'persist:browser' : `persist:ws-${ws.id}`}
-                  initialUrl={
-                    ws.browserUrl ??
-                    (ws.kind !== 'browser'
-                      ? (localStorage.getItem(`paneUrl:${ws.id}`) ?? undefined)
-                      : undefined)
-                  }
-                  visible={visible}
-                  closable={ws.kind !== 'browser'}
+            {/* The desk. One card is the working surface — the page you're on or
+                the file you opened — and the simulator is a second card beside
+                it rather than something that pushes the first one out. The
+                painting behind them shows wherever a card doesn't reach. */}
+            <div className="split-side desk" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
+              {surface && (
+                <div
+                  className="desk-card"
+                  style={{ flexBasis: simOpen ? `${deskRatio * 100}%` : '100%' }}
+                >
+                  {surface}
+                </div>
+              )}
+              {surface && simOpen && (
+                <div
+                  className={`desk-divider ${dragging ? 'dragging' : ''}`}
+                  onPointerDown={onDeskDividerDown}
+                  role="separator"
                 />
+              )}
+              {simOpen && (
+                <div
+                  className="desk-card desk-card-sim"
+                  style={{ flexBasis: surface ? `${(1 - deskRatio) * 100}%` : '100%' }}
+                >
+                  <SimulatorPane visible={visible} />
+                </div>
               )}
             </div>
             <div
