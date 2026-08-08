@@ -134,6 +134,57 @@ function watchOwner(owner: WebContents): void {
   owner.on('destroyed', () => killSessionsOwnedBy(owner))
 }
 
+/**
+ * The exact command line a chat session runs on.
+ *
+ * Pulled out as a pure function for two reasons. It is the only place the
+ * agent's reach is decided — the permission mode and the tools it may never
+ * call — so it is worth testing rather than reading. And it is the seam a
+ * second agent backend would sit behind: everything above it is "start a
+ * conversation", everything below is "how this particular CLI is invoked".
+ */
+export function buildAgentArgs(
+  opts: AgentStartOptions,
+  ctx: { resume?: string | null; mcpConfig?: string } = {}
+): string[] {
+  const args = [
+    '-p',
+    '--output-format',
+    'stream-json',
+    '--input-format',
+    'stream-json',
+    '--include-partial-messages',
+    '--verbose',
+    // Under -p there is no interactive prompt, so anything needing approval is
+    // auto-denied — Edit/Write silently fail while reads succeed. The default
+    // gives the agent the same reach it has in a terminal session where the
+    // user approves prompts themselves. --disallowedTools below still applies.
+    '--permission-mode',
+    opts.permissionMode ?? 'bypassPermissions'
+  ]
+  // Pin the model when the user picked one; otherwise Claude's default applies.
+  if (opts.model) args.push('--model', opts.model)
+  if (ctx.resume) args.unshift('--resume', ctx.resume)
+  if (ctx.mcpConfig) args.push('--mcp-config', ctx.mcpConfig)
+  const appended = [
+    TODO_PROMPT,
+    SCHEDULING_PROMPT,
+    CHOICES_PROMPT,
+    FILE_OPEN_PROMPT,
+    opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+  args.push('--append-system-prompt', appended)
+  // Hard stops: cloud/loop schedulers can't reach SuperAgent's browser (scheduling
+  // must use create_routine). The Task* tools are Claude's task-tracking surface
+  // that the Tasks panel now reads, so they're allowed. Unknown names are no-ops.
+  // Variadic, so this must stay last — it would otherwise swallow whatever
+  // follows as tool names.
+  args.push('--disallowedTools', 'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup')
+  return args
+}
+
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
   watchOwner(owner)
   const id = randomUUID()
@@ -148,45 +199,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
   let sawInit = false
 
   const spawnProc = (resume: string | null): void => {
-    const args = [
-      '-p',
-      '--output-format',
-      'stream-json',
-      '--input-format',
-      'stream-json',
-      '--include-partial-messages',
-      '--verbose',
-      // Under -p there is no interactive prompt, so anything needing approval is
-      // auto-denied — Edit/Write silently fail while reads succeed. The default
-      // gives the agent the same reach it has in a terminal session where the
-      // user approves prompts themselves. --disallowedTools below still applies.
-      '--permission-mode',
-      opts.permissionMode ?? 'bypassPermissions'
-    ]
-    // Pin the model when the user picked one; otherwise Claude's default applies.
-    if (opts.model) args.push('--model', opts.model)
-    if (resume) args.unshift('--resume', resume)
-    if (mcpConfig) args.push('--mcp-config', mcpConfig)
-    const appended = [
-      TODO_PROMPT,
-      SCHEDULING_PROMPT,
-      CHOICES_PROMPT,
-      FILE_OPEN_PROMPT,
-      opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
-    ]
-      .filter(Boolean)
-      .join(' ')
-    args.push('--append-system-prompt', appended)
-    // Hard stops: cloud/loop schedulers can't reach SuperAgent's browser (scheduling
-    // must use create_routine). The Task* tools are Claude's task-tracking surface
-    // that the Tasks panel now reads, so they're allowed. Unknown names are no-ops.
-    args.push(
-      '--disallowedTools',
-      'CronCreate',
-      'CronDelete',
-      'CronList',
-      'ScheduleWakeup'
-    )
+    const args = buildAgentArgs(opts, { resume, mcpConfig })
 
     const proc = spawn(findClaude(), args, {
       cwd: opts.cwd || os.homedir(),
