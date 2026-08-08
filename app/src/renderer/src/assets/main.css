@@ -4718,6 +4718,10 @@ button {
   font-size: 12.5px;
   padding: 8px 0;
 }
+/* Most of these are a single line; the failure state also carries a button. */
+.dash-empty p {
+  margin: 0 0 8px;
+}
 .dash-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -5212,7 +5216,8 @@ button {
   font-size: 12px;
   color: var(--text-secondary);
 }
-.sim-retry {
+.sim-retry,
+.dash-retry {
   border: 1px solid var(--border);
   background: none;
   color: var(--text-primary);
