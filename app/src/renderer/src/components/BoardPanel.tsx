@@ -90,6 +90,21 @@ export function BoardPanel({
     setOverStage(null)
   }
 
+  /**
+   * Hand an item to the agent: move it to doing, then send it as the prompt and
+   * get out of the way so you can watch. The body goes too when there is one —
+   * that is where the specification lives.
+   */
+  const workOn = async (c: BoardCard): Promise<void> => {
+    const text = c.body ? `${c.title}\n\n${c.body}` : c.title
+    if (c.status !== 'doing') await window.cove.boardMove(c.id, 'doing', null)
+    await refresh()
+    window.dispatchEvent(
+      new CustomEvent('cove:work-on', { detail: { workspaceId, text } })
+    )
+    onClose()
+  }
+
   const remove = async (id: string): Promise<void> => {
     setCards((cs) => cs.filter((c) => c.id !== id))
     await window.cove.boardRemove(id)
@@ -188,9 +203,24 @@ export function BoardPanel({
                       </div>
                     )}
                   </div>
-                  <button className="board-row-x" title="Remove" onClick={() => void remove(c.id)}>
-                    ✕
-                  </button>
+                  <div className="board-row-actions">
+                    {c.status !== 'done' && (
+                      <button
+                        className="board-row-work"
+                        title="Send this to Claude and start on it"
+                        onClick={() => void workOn(c)}
+                      >
+                        Work on this
+                      </button>
+                    )}
+                    <button
+                      className="board-row-x"
+                      title="Remove"
+                      onClick={() => void remove(c.id)}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </article>
               ))}
             </section>

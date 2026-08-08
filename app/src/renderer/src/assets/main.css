@@ -2927,8 +2927,38 @@ button {
 .board-row-branch {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-.board-row-x {
+/* Actions sit together at the row's right edge, revealed on hover so a long
+   list stays quiet. */
+.board-row-actions {
   position: absolute;
+  top: 5px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+}
+.board-row:hover .board-row-actions {
+  opacity: 1;
+}
+.board-row-work {
+  border: 1px solid var(--border);
+  background: var(--bg-content);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.board-row-work:hover {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+.board-row-x {
+  position: static;
   top: 7px;
   right: 6px;
   border: 0;
@@ -2936,12 +2966,8 @@ button {
   color: var(--text-tertiary);
   font-size: 10px;
   cursor: pointer;
-  opacity: 0;
   padding: 2px 4px;
   border-radius: 4px;
-}
-.board-row:hover .board-row-x {
-  opacity: 1;
 }
 .board-row-x:hover {
   color: var(--text-primary);
