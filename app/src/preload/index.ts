@@ -173,7 +173,7 @@ export interface CoveApi {
   browserStop: (id: string) => void
   /** Tail a background shell's output file (the Bash result says where it is). */
   bgTail: (path: string, maxBytes?: number) => Promise<string | null>
-  /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
+  /** The project's board — the same cards the board_* agent tools write. */
   boardList: (workspaceId: string) => Promise<BoardCard[]>
   boardAdd: (
     workspaceId: string,
@@ -187,6 +187,7 @@ export interface CoveApi {
   boardMove: (id: string, status: string, beforeId: string | null) => Promise<BoardCard | undefined>
   boardRemove: (id: string) => Promise<boolean>
   onBoardChanged: (cb: (p: { workspaceId: string }) => void) => () => void
+  /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
   simCaptureSource: (
     name?: string
   ) => Promise<{ ok: boolean; id?: string; name?: string; error?: string }>
@@ -322,6 +323,7 @@ export interface CoveApi {
   agentStart: (opts: {
     cwd?: string
     workspaceId?: string
+    chatId?: string
     resumeSessionId?: string | null
     browserProject?: boolean
     permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'

@@ -19,6 +19,7 @@ import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { createRoutineForWorkspace, listRoutines, deleteRoutine } from './routines'
 import { getWorkspacePath, listCards, addCard, updateCard, moveCard, removeCard } from './store'
+import { gitBranch } from './files'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 import { isAbsolute, resolve } from 'path'
 import { homedir } from 'os'
@@ -26,8 +27,9 @@ import { homedir } from 'os'
 let port = 0
 let secret = ''
 
-function buildServer(paneId: string): McpServer {
+function buildServer(paneId: string, chatId: string | null): McpServer {
   const PANE_ID = paneId
+  const CHAT_ID = chatId
   const server = new McpServer({ name: 'cove-browser', version: '0.1.0' })
 
   // --- iOS Simulator (phase 1: simctl, public APIs only) -------------------
@@ -260,11 +262,22 @@ function buildServer(paneId: string): McpServer {
     }
   )
 
+  /**
+   * Who did this. A card is far more useful if it can take you back to the
+   * conversation that raised it, and to the branch the work happened on — the
+   * chat comes from the MCP URL this agent was configured with, the branch is
+   * read at the moment the card is touched.
+   */
+  const stamp = (ws: string): { chatId: string | null; branch: string | null } => {
+    const dir = getWorkspacePath(ws)
+    return { chatId: CHAT_ID, branch: dir ? gitBranch(dir) : null }
+  }
+
   server.registerTool(
     'board_list',
     {
       description:
-        "List this project's board: every card with its id, column and title. Read this before adding a card so you don't duplicate one that already exists, and to get ids for board_move and board_update. Columns are backlog, todo, doing, done.",
+        "List this project's board: every card with its id, column and title. Read this before adding a card so you don't duplicate one that already exists, and to get ids for board_move and board_update. The columns are backlog, todo, doing and done — the user sees todo labelled \"Next\", so treat the two as the same column.",
       inputSchema: {}
     },
     async () => {
@@ -299,12 +312,14 @@ function buildServer(paneId: string): McpServer {
         status: z
           .string()
           .optional()
-          .describe('backlog (default), todo, doing or done')
+          .describe(
+            'backlog (default), todo (the user sees this as "Next"), doing or done. Near-misses like "in progress" or "completed" are understood.'
+          )
       }
     },
     async ({ title, body, status }) => {
       const ws = workspaceIdFromPane(PANE_ID)
-      const card = addCard(ws, title, { body, status })
+      const card = addCard(ws, title, { body, status, ...stamp(ws) })
       broadcastToWindows('board:changed', { workspaceId: ws })
       return { content: [{ type: 'text', text: `Added "${card.title}" to ${card.status} (${card.id}).` }] }
     }
@@ -317,7 +332,11 @@ function buildServer(paneId: string): McpServer {
         "Move a card to another column (get ids from board_list). Move a card to doing when you start it and done when you finish, so the board reflects what actually happened rather than what was planned.",
       inputSchema: {
         id: z.string().describe('The card id, as returned by board_list'),
-        status: z.string().describe('backlog, todo, doing or done')
+        status: z
+          .string()
+          .describe(
+            'backlog, todo (the user sees this as "Next"), doing or done. Near-misses like "in progress" or "completed" are understood.'
+          )
       }
     },
     async ({ id, status }) => {
@@ -328,6 +347,8 @@ function buildServer(paneId: string): McpServer {
         return { content: [{ type: 'text', text: `No card with id ${id} on this board.` }] }
       }
       const card = moveCard(id, status, null)
+      // Whoever moved it last is who you'd want to ask about it.
+      updateCard(id, stamp(ws))
       broadcastToWindows('board:changed', { workspaceId: ws })
       return { content: [{ type: 'text', text: `Moved "${card?.title}" to ${card?.status}.` }] }
     }
@@ -423,14 +444,18 @@ export function startMcpServer(): Promise<{ url: string }> {
     }
     try {
       // Scope tools to the workspace named in ?ws=<id> (always present — see writeWorkspaceMcpConfig).
-      const paneId = new URL(req.url, 'http://127.0.0.1').searchParams.get('ws')
+      const params = new URL(req.url, 'http://127.0.0.1').searchParams
+      const paneId = params.get('ws')
+      // Present when the session belongs to a chat; absent for routines, which
+      // have no conversation to point a card back at.
+      const chatId = params.get('chat')
       if (!paneId) {
         res.writeHead(400, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'missing ws param' }))
         return
       }
       // Stateless mode: fresh server+transport per request, no session tracking.
-      const server = buildServer(paneId)
+      const server = buildServer(paneId, chatId)
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
       res.on('close', () => {
         transport.close()
@@ -466,9 +491,16 @@ export function getMcpUrl(): string {
  * Write a per-workspace MCP config file and return its path.
  * The URL carries ?ws=<id> so tool calls hit this workspace's browser pane.
  */
-export function writeWorkspaceMcpConfig(workspaceId: string): string {
-  const url = `${getMcpUrl()}?ws=${encodeURIComponent(workspaceId)}`
-  const configPath = join(app.getPath('userData'), `mcp-${workspaceId}.json`)
+export function writeWorkspaceMcpConfig(workspaceId: string, chatId?: string): string {
+  // ?chat=<id> is what lets a board card name the conversation that raised it,
+  // so the config is per-chat when there is one.
+  const url =
+    `${getMcpUrl()}?ws=${encodeURIComponent(workspaceId)}` +
+    (chatId ? `&chat=${encodeURIComponent(chatId)}` : '')
+  const configPath = join(
+    app.getPath('userData'),
+    chatId ? `mcp-${workspaceId}-${chatId}.json` : `mcp-${workspaceId}.json`
+  )
   writeFileSync(
     configPath,
     JSON.stringify({ mcpServers: { 'cove-browser': { type: 'http', url } } })

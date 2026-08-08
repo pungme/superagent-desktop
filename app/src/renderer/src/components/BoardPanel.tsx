@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BoardCard } from '../../../preload'
+import { useStore } from '../state'
 
 type Status = BoardCard['status']
 
@@ -30,6 +31,12 @@ export function BoardPanel({
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<Status | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const chats = useStore((s) => s.chats[workspaceId])
+  const selectChat = useStore((s) => s.selectChat)
+  // A card names the conversation that raised it, but only one still open is
+  // worth offering as a link.
+  const chatTitle = (id: string | null): string | null =>
+    (id && chats?.find((c) => c.id === id)?.title) || null
 
   const refresh = useCallback(async (): Promise<void> => {
     setCards(await window.cove.boardList(workspaceId))
@@ -156,7 +163,23 @@ export function BoardPanel({
                   >
                     <div className="board-card-title">{c.title}</div>
                     {c.body && <div className="board-card-body">{c.body}</div>}
-                    {c.branch && <span className="board-card-branch">⎇ {c.branch}</span>}
+                    {(chatTitle(c.chatId) || c.branch) && (
+                      <div className="board-card-meta">
+                        {chatTitle(c.chatId) && (
+                          <button
+                            className="board-card-chat"
+                            title="Open the conversation this came from"
+                            onClick={() => {
+                              selectChat(workspaceId, c.chatId!)
+                              onClose()
+                            }}
+                          >
+                            from {chatTitle(c.chatId)}
+                          </button>
+                        )}
+                        {c.branch && <span className="board-card-branch">⎇ {c.branch}</span>}
+                      </div>
+                    )}
                     <button
                       className="board-card-x"
                       title="Remove this card"
