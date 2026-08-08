@@ -531,7 +531,7 @@ export function EasyChat({
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
-  const [agentFailed, setAgentFailed] = useState(false)
+  const [agentFailed, setAgentFailed] = useState<boolean | 'missing-cwd'>(false)
   const [generating, setGenerating] = useState(false)
   const [resetKey, setResetKey] = useState(0)
   // No live claude process. Chats START here — opening a project must not cost
@@ -1376,11 +1376,20 @@ export function EasyChat({
         offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
         // main only emits agent:exit on a genuine unexpected exit (deliberate
         // stops and the resume→fresh retry are suppressed), so surface it.
-        offExit = window.cove.onAgentExit(id, () => {
+        const died = (reason?: string): void => {
           setReady(false)
           setGenerating(false)
           setThinking(false)
-          setAgentFailed(true)
+          setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
+        }
+        offExit = window.cove.onAgentExit(id, () => {
+          // The exit event carries no reason; main still knows one.
+          void window.cove.agentDied?.(id).then((d) => died(d?.reason))
+        })
+        // A spawn failure lands before this subscription exists — ask whether we
+        // already missed it, or the chat sits on "Working" with nothing coming.
+        void window.cove.agentDied?.(id).then((d) => {
+          if (!disposed && d) died(d.reason)
         })
       })
 
@@ -1839,7 +1848,11 @@ export function EasyChat({
       {agentFailed && (
         <div className="easy-error">
           <span>
-            ⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.
+            {agentFailed === 'missing-cwd' ? (
+              <>⚠ This project&rsquo;s folder isn&rsquo;t there any more — it was moved or deleted.</>
+            ) : (
+              <>⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.</>
+            )}
           </span>
           <button onClick={retry}>Retry</button>
         </div>

@@ -2,6 +2,7 @@ import { ipcMain, WebContents } from 'electron'
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process'
 import { randomUUID } from 'crypto'
 import os from 'os'
+import { existsSync } from 'fs'
 import { getHookUrl } from './hooks'
 import { getMcpUrl, writeWorkspaceMcpConfig } from './mcp'
 import { findClaude } from './claude-cli'
@@ -134,6 +135,23 @@ function killSessionsOwnedBy(owner: WebContents): void {
   }
 }
 
+/**
+ * Sessions that died before anyone could hear about it.
+ *
+ * startAgent returns the id over IPC and the renderer subscribes to
+ * agent:exit:<id> only once that round trip lands — but a spawn failure
+ * (missing binary, a project folder that no longer exists) arrives on the very
+ * next tick, before the subscription exists, so the event went nowhere and the
+ * chat span forever saying "Working". Record it here and let the renderer ask.
+ */
+const deadSessions = new Map<string, { code: number; reason?: string }>()
+
+function markDead(id: string, code: number, reason?: string): void {
+  deadSessions.set(id, { code, reason })
+  // Long enough for the renderer to ask, short enough not to be a leak.
+  setTimeout(() => deadSessions.delete(id), 60_000)
+}
+
 /** Renderers we've already wired the teardown handlers onto. */
 const watchedOwners = new WeakSet<WebContents>()
 
@@ -204,6 +222,16 @@ export function buildAgentArgs(
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
   watchOwner(owner)
   const id = randomUUID()
+  // A project folder that has been moved or deleted fails as a spawn ENOENT
+  // naming the *binary*, which reads as "Claude Code is broken" when it isn't.
+  // Catch it here so the chat can say what actually happened.
+  if (opts.cwd && !existsSync(opts.cwd)) {
+    markDead(id, 1, 'missing-cwd')
+    setTimeout(() => {
+      if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, 1)
+    }, 0)
+    return id
+  }
   const mcpConfig =
     opts.mcpConfigPath ||
     (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId, opts.chatId) : undefined)
@@ -270,6 +298,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
         spawnProc(null)
         return
       }
+      markDead(id, 1)
       if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, 1)
     })
 
@@ -283,6 +312,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
         spawnProc(null)
         return
       }
+      markDead(id, code ?? 0)
       if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, code ?? 0)
     })
   }
@@ -437,6 +467,9 @@ export function registerAgentIpc(): void {
     suggestTitle(cwd, excerpt)
   )
   ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => startAgent(e.sender, opts))
+  // Asked once, right after the renderer subscribes: did this session already
+  // die in the gap? Returns the exit code, or null if it's alive.
+  ipcMain.handle('agent:died', (_e, id: string) => deadSessions.get(id) ?? null)
   ipcMain.on('agent:send', (_e, id: string, text: string, images?: AgentImage[]) =>
     sendToAgent(id, text, images ?? [])
   )
