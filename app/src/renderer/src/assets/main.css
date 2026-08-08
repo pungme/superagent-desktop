@@ -2830,8 +2830,11 @@ button {
   flex-direction: row;
   position: relative;
   gap: 0;
-  /* A gutter, so the surface reads as something the cards are sitting on
-     rather than a stripe that leaked out from behind one. */
+}
+/* Desktop mode only. Off, the pane is a plain surface and the cards fill it;
+   on, they sit on a painting with a gutter so it reads as a surface rather
+   than a stripe that leaked out from behind one. */
+.desk.on {
   padding: 9px;
   background-image: url('./desk-waterlilies.jpg');
   background-size: cover;
@@ -2839,7 +2842,7 @@ button {
 }
 /* Knock the painting back so text and chrome on top of it stay readable; the
    veil is lighter in dark mode, where the art is already quiet enough. */
-.desk::before {
+.desk.on::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -2847,13 +2850,13 @@ button {
   pointer-events: none;
 }
 /* Not everyone wants a painting behind their work — Settings turns it off. */
-:root.no-desk-art .desk {
+:root.no-desk-art .desk.on {
   background-image: none;
 }
-:root.no-desk-art .desk::before {
+:root.no-desk-art .desk.on::before {
   background: var(--bg-content);
 }
-:root.no-desk-art .desk .browser-host.sim {
+:root.no-desk-art .desk.on .browser-host.sim {
   background: var(--sim-bg);
 }
 .desk-card {
@@ -2873,7 +2876,7 @@ button {
 .desk-card-sim {
   background: transparent;
 }
-.desk-card-sim .sim-pane {
+.desk.on .desk-card-sim .sim-pane {
   background: transparent;
 }
 .desk-card-sim .sim-screen,
@@ -4342,16 +4345,16 @@ button {
    and the phone read as things resting on a surface rather than as cutouts in
    a grey slab. Only the viewport modes have a stage to give away; with no
    viewport the native view covers the host completely either way. */
-.desk .browser-host.sim {
+.desk.on .browser-host.sim {
   background: transparent;
 }
-.desk .browser-pane {
+.desk.on .browser-pane {
   border-left: 0;
 }
 /* With no viewport there is no stage to show the painting through — the native
    view covers the whole host — so the pane is a solid card instead. Without
    this the omnibox sits directly on the water lilies, which is unreadable. */
-.desk .browser-pane:has(.browser-host:not(.sim)) {
+.desk.on .browser-pane:has(.browser-host:not(.sim)) {
   background: var(--bg-content);
 }
 
@@ -5094,7 +5097,7 @@ button {
 }
 /* On the desk the pane is transparent, so a footnote would otherwise be small
    grey text sitting straight on the painting. Give it something to sit on. */
-.desk .sim-note {
+.desk.on .sim-note {
   background: var(--bg-content);
   color: var(--text-secondary);
   border-radius: 0 0 12px 12px;

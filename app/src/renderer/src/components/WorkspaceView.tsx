@@ -80,6 +80,14 @@ export function WorkspaceView({
     () => localStorage.getItem(`boardOpen:${ws.id}`) === '1'
   )
   /**
+   * Desktop mode. The painted surface is opt-in and off by default: a Monet
+   * behind every pane is wallpaper, and most of the time the pane is one card
+   * filling the space anyway. Turn this on and the desk becomes a desktop.
+   */
+  const [desktopOn, setDesktopOn] = useState(
+    () => localStorage.getItem(`desktopOn:${ws.id}`) === '1'
+  )
+  /**
    * Four columns need about 620px to be worth looking at, and the pane half is
    * usually narrower than that. Opening the board widens it just enough —
    * never narrows it, and never past two thirds, so the chat stays usable and
@@ -336,6 +344,18 @@ export function WorkspaceView({
     <div className="workspace-view">
       <div className="workspace-toolbar">
         {/* Leads the toolbar because the pane it opens is the leftmost column. */}
+        <button
+          className={`toolbar-btn ${desktopOn ? 'on' : ''}`}
+          onClick={() =>
+            setDesktopOn((v) => {
+              localStorage.setItem(`desktopOn:${ws.id}`, v ? '0' : '1')
+              return !v
+            })
+          }
+          title="Desktop — put your work on a surface instead of a plain pane"
+        >
+          🖥 Desktop
+        </button>
         {ws.kind !== 'browser' && (
           <button
             className={`toolbar-btn ${filesOpen ? 'on' : ''}`}
@@ -447,7 +467,10 @@ export function WorkspaceView({
                 the file you opened — and the simulator is a second card beside
                 it rather than something that pushes the first one out. The
                 painting behind them shows wherever a card doesn't reach. */}
-            <div className="split-side desk" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
+            <div
+              className={`split-side desk ${desktopOn ? 'on' : ''}`}
+              style={{ flexBasis: `${(1 - ratio) * 100}%` }}
+            >
               {surface && (
                 <div
                   className="desk-card"
