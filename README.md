@@ -63,7 +63,9 @@ allowed to do without asking.
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
   actually got your time. Computed locally.
 - **Files, PDFs & simulators.** Drag files into the chat, annotate PDFs in
-  place, boot an iOS Simulator with a sentence.
+  place, and run an iOS Simulator *inside* the app — the real device playing
+  live in the pane, tap and type included, while Apple's own window stays out
+  of your way.
 - **Context gauge.** Every conversation shows how much of the context window
   it has used.
 - **Dev server strip.** The agent starts your dev server and iterates while
@@ -97,8 +99,6 @@ allowed to do without asking.
 
 ## Roadmap
 
-- **Embedded iOS Simulator** — the live simulator streaming inside the app,
-  not just driven by it.
 - **Other agents.** SuperAgent wraps Claude Code today, but in the end it's an
   LLM driving a home — the plan is an agent layer that other CLIs and local
   models can plug into.
@@ -119,76 +119,63 @@ allowed to do without asking.
   worktree or PR that did the work, and you can ask what's left.
 
 <!--
-  Maintainer note — how the embedded iOS Simulator should be built. Not
-  user-facing; kept here so the research isn't redone from scratch.
+  Maintainer note — how the embedded iOS Simulator works, and every route that
+  turned out to be a dead end. Not user-facing; kept here so the research isn't
+  redone from scratch.
 
   WHERE WE ARE. Phase 1 shipped in 1.1: `sim_list_devices`, `sim_boot`,
-  `sim_screenshot`, `sim_open_url`, `sim_install_and_launch` in
-  src/main/mcp.ts — all `xcrun simctl`, public APIs only, no private
-  frameworks. The agent boots a device, drives it, and screenshots land in the
-  in-app viewer via the `app:open-file` broadcast. What's missing is only the
-  LIVE view: today Apple's Simulator.app is a separate window the user has to
-  look at themselves.
+  `sim_screenshot`, `sim_open_url`, `sim_install_and_launch` in src/main/mcp.ts
+  — all `xcrun simctl`, public APIs only. Phase 2 shipped in 1.2: a live view
+  in the pane. Three modes in src/renderer/src/components/SimulatorPane.tsx:
+  live (window capture), mirror (screenshots), attach (park Apple's window).
 
   WHY IT ISN'T JUST "EMBED THE WINDOW". macOS gives no supported way to
   reparent another application's window into ours. Anything that looks like
-  embedding is really capture + input forwarding. Two consequences: we need a
-  frame source, and we need a way to send taps/keys back.
+  embedding is really capture + input forwarding.
 
-  OPTION A — baguette (the candidate). Open source, Apache-2.0, brew
-  installable; runs a local server that streams the booted simulator over a
-  WebSocket and accepts HID events (tap, swipe, key) back. That is exactly the
-  two halves we need, already solved, and it keeps us on public APIs.
-    Cost: an external binary the user must install — the same shape as the
-    Claude Code dependency, so surface it the way we surface that (detect,
-    explain, offer the brew command; never bundle silently).
-    VERIFIED 2026-08-08 against baguette 0.1.88 (brew). Half of it works:
-      * INPUT INJECTION WORKS. `baguette tap|press|swipe|pinch|pan` drive a
-        booted device and answer {"ok":true,...}. `baguette input` reads
-        newline-delimited JSON gestures from stdin — exactly the shape we need.
-      * FRAMEBUFFER STREAMING DID NOT PRODUCE A SINGLE FRAME. `baguette stream
-        --format mjpeg` writes the multipart HTTP header to stdout
-        ("HTTP/1.1 200 OK / Content-Type: multipart/x-mixed-replace") and then
-        nothing — 76 bytes total, zero JPEG SOI markers. Tried: iOS 18.6 and
-        iOS 26.5 runtimes; headless and with Simulator.app visible; static
-        screen and with motion (openurl + home button); stdin held open; a
-        {"cmd":"snapshot"} control (acknowledged on stderr as
-        "control: snapshot", still no bytes); fps 5/10/15, scale 1/2.
-      So the embedded live view is blocked on the frame source, not on us.
-      Next moves, cheapest first: (1) read baguette's own repo/issues for a
-      required flag or a known 0.1.88 regression, and try `--format h264`;
-      (2) fall back to a screenshot loop — `simctl io screenshot` at 2-4 fps
-      is not a live view but is honest and works today; (3) OPTION C (idb),
-      which has its own video stream.
+  THE FRAME SOURCE. Everything that reads the simulator's framebuffer through
+  Apple's private frameworks is broken on this host, and it is worth knowing
+  that before trying again:
 
-  OPTION B — ScreenCaptureKit on Simulator.app's window + CGEvent taps for
-  input. No third-party dependency, but it needs Screen Recording AND
-  Accessibility permissions, breaks the moment the window is occluded or
-  moved, and synthesising touches from CGEvent into another app is fragile.
-  Fallback only.
+    * baguette 0.1.88 — `stream --format mjpeg` writes its multipart HTTP
+      header and then zero frames. `--format h264` is rejected as unknown.
+      Tried iOS 18.6 and 26.5, headless and visible, static and with motion.
+    * idb_companion 1.1.8 (Meta) — its gRPC `video_stream` behaves IDENTICALLY.
+      The companion logs "connectToFramebuffer succeeded", mounts the surface,
+      prints the scale it will apply — and then emits not one byte, on both
+      runtimes, with or without motion. Verified from Node over @grpc/grpc-js
+      with proto/idb.proto, not just through idb's Python client.
 
-  OPTION C — idb (Meta). Has video streaming and HID commands, so it would
-  also work, but it is a heavier install (python + companion) and less
-  maintained than it was. Keep as plan C.
+    Two independent tools failing the same way on Xcode 26.5 / macOS 26.5 says
+    the framebuffer API changed under them, not that we held either wrong.
 
-  HOW IT SLOTS IN. Render it in the SAME pane slot the browser uses, not a new
-  window: a WebContentsView loading a tiny local page that paints the incoming
-  frames onto a canvas and posts pointer/key events back over the socket. That
-  buys the existing geometry work for free — bounds sync, freeze-on-overlay
-  (`browser:freeze`), the phone-frame chrome from the mobile viewport, and the
-  corner treatment. Reuse `browser:twin-bounds`-style layout so a simulator can
-  sit beside the desktop page the way the phone twin does.
-    Pane lifecycle should mirror browser.ts: create on demand, destroy on
-    hide, never leave a live socket behind a hidden view.
+    What DOES work, all public API:
+    * `simctl io <udid> recordVideo out.mov` — a real h264 movie. But it is
+      AVAssetWriter underneath: a fifo yields nothing and an http:// target is
+      rejected ("Cannot create file"), so there is no way to get frames out of
+      it while it runs. Only useful for recordings, not a live view.
+    * `simctl io <udid> screenshot` — works everywhere, and costs ~530ms per
+      frame. That is the mirror's ~2fps ceiling and it can't be tuned away.
+    * Window capture of Simulator.app — what live mode uses. Chromium's
+      desktopCapturer is ScreenCaptureKit here, it keeps delivering frames for
+      an occluded window, and it needs one Screen Recording grant.
 
-  AGENT SURFACE. Once frames exist, add `sim_tap`, `sim_type`, `sim_swipe`
-  alongside the phase-1 tools, and let `sim_screenshot` read from the live
-  stream instead of shelling out — cheaper, and it matches what the user sees.
+  INPUT. baguette's gesture side works and is what ships, but only on iOS 26+:
+  on 18.6 a tap reports success and does nothing (measured — the same tap opens
+  an app on 26.5). idb's `hid` rpc does NOT have that limit: verified landing
+  taps on iOS 18.6, and at 13ms on a warm connection against baguette's 56ms.
+  If the "view only" note on old runtimes becomes a real complaint, that is the
+  fix — at the cost of idb_companion as a second optional install plus a gRPC
+  client in main.
 
-  ROUGH SIZE: ~1 week. Split it: (1) spike baguette against a booted device
-  from the terminal and measure, (2) main-process supervisor for the binary
-  (spawn, health, teardown) + IPC, (3) the canvas page + input forwarding,
-  (4) pane integration and the missing agent tools.
+  CROPPING. Window capture returns the window, title bar included. Simulator's
+  Window menu exposes checkbox state through AXMenuItemMarkChar (a ✓ when on,
+  `missing value` when off) — so "Show Device Bezels" is readable, not just
+  settable, and with bezels off the captured content is exactly the screen.
+  The bar's height is then arithmetic: see screenCrop() and its unit tests.
+
+  AGENT SURFACE. Still to do: `sim_tap`, `sim_type`, `sim_swipe` alongside the
+  phase-1 tools, so the agent drives the device the same way the user does.
 -->
 
 
