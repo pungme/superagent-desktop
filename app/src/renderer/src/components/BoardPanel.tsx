@@ -1,0 +1,179 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { BoardCard } from '../../../preload'
+
+type Status = BoardCard['status']
+
+const COLUMNS: { key: Status; label: string }[] = [
+  { key: 'backlog', label: 'Backlog' },
+  { key: 'todo', label: 'Next' },
+  { key: 'doing', label: 'Doing' },
+  { key: 'done', label: 'Done' }
+]
+
+/**
+ * The project's board, kept by whoever is working — you or the agent.
+ *
+ * It reads the same table the board_* tools write, and redraws on the
+ * board:changed broadcast, so a card the agent moves mid-turn moves here while
+ * you watch. Drag a card between columns to move it yourself.
+ */
+export function BoardPanel({
+  workspaceId,
+  onClose
+}: {
+  workspaceId: string
+  onClose: () => void
+}): React.JSX.Element {
+  const [cards, setCards] = useState<BoardCard[]>([])
+  const [adding, setAdding] = useState<Status | null>(null)
+  const [draft, setDraft] = useState('')
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overCol, setOverCol] = useState<Status | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setCards(await window.cove.boardList(workspaceId))
+  }, [workspaceId])
+
+  useEffect(() => {
+    void refresh()
+    // The agent edits the same board — redraw when it does.
+    return window.cove.onBoardChanged((p) => {
+      if (p.workspaceId === workspaceId) void refresh()
+    })
+  }, [workspaceId, refresh])
+
+  useEffect(() => {
+    if (adding) inputRef.current?.focus()
+  }, [adding])
+
+  const submit = async (status: Status): Promise<void> => {
+    const title = draft.trim()
+    setDraft('')
+    if (!title) {
+      setAdding(null)
+      return
+    }
+    await window.cove.boardAdd(workspaceId, title, { status })
+    await refresh()
+    // Stay open so a list of things can be typed straight in.
+    inputRef.current?.focus()
+  }
+
+  const drop = async (status: Status): Promise<void> => {
+    const id = dragId
+    setDragId(null)
+    setOverCol(null)
+    if (!id) return
+    const card = cards.find((c) => c.id === id)
+    if (!card || card.status === status) return
+    // Optimistic: the card lands where it was dropped, then the write confirms.
+    setCards((cs) => cs.map((c) => (c.id === id ? { ...c, status } : c)))
+    await window.cove.boardMove(id, status, null)
+    await refresh()
+  }
+
+  const remove = async (id: string): Promise<void> => {
+    setCards((cs) => cs.filter((c) => c.id !== id))
+    await window.cove.boardRemove(id)
+    await refresh()
+  }
+
+  const done = cards.filter((c) => c.status === 'done').length
+
+  return (
+    <div className="board-panel">
+      <div className="board-head">
+        <h2>Board</h2>
+        <span className="board-sub">
+          {cards.length === 0
+            ? 'Nothing on it yet'
+            : `${done} of ${cards.length} done · Claude keeps this up to date as it works`}
+        </span>
+        <div className="board-head-spacer" />
+        <button className="board-close" onClick={onClose} title="Close the board">
+          ✕
+        </button>
+      </div>
+
+      <div className="board-cols">
+        {COLUMNS.map((col) => {
+          const mine = cards.filter((c) => c.status === col.key)
+          return (
+            <section
+              key={col.key}
+              className={`board-col ${overCol === col.key ? 'over' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setOverCol(col.key)
+              }}
+              onDragLeave={() => setOverCol((c) => (c === col.key ? null : c))}
+              onDrop={() => void drop(col.key)}
+            >
+              <header className="board-col-head">
+                <span className="board-col-name">{col.label}</span>
+                <span className="board-col-count">{mine.length}</span>
+                <button
+                  className="board-add"
+                  title={`Add to ${col.label}`}
+                  onClick={() => {
+                    setAdding(col.key)
+                    setDraft('')
+                  }}
+                >
+                  +
+                </button>
+              </header>
+
+              <div className="board-col-body">
+                {adding === col.key && (
+                  <input
+                    ref={inputRef}
+                    className="board-draft"
+                    value={draft}
+                    placeholder="What needs doing?"
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => void submit(col.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void submit(col.key)
+                      if (e.key === 'Escape') {
+                        setDraft('')
+                        setAdding(null)
+                      }
+                    }}
+                  />
+                )}
+                {mine.map((c) => (
+                  <article
+                    key={c.id}
+                    className={`board-card ${dragId === c.id ? 'dragging' : ''}`}
+                    draggable
+                    onDragStart={() => setDragId(c.id)}
+                    onDragEnd={() => {
+                      setDragId(null)
+                      setOverCol(null)
+                    }}
+                  >
+                    <div className="board-card-title">{c.title}</div>
+                    {c.body && <div className="board-card-body">{c.body}</div>}
+                    {c.branch && <span className="board-card-branch">⎇ {c.branch}</span>}
+                    <button
+                      className="board-card-x"
+                      title="Remove this card"
+                      onClick={() => void remove(c.id)}
+                    >
+                      ✕
+                    </button>
+                  </article>
+                ))}
+                {mine.length === 0 && adding !== col.key && (
+                  <div className="board-col-empty">—</div>
+                )}
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

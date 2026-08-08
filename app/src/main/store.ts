@@ -3,6 +3,7 @@ import { join } from 'path'
 import { mkdirSync } from 'fs'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
+import { broadcastToWindows } from './util'
 
 /**
  * SuperAgent persistence: groups → workspaces → tabs.
@@ -85,6 +86,23 @@ export function initStore(): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    -- The project's board. Outlives any one conversation, which is the point:
+    -- a chat ends, the work it left behind doesn't.
+    CREATE TABLE IF NOT EXISTS cards (
+      id TEXT PRIMARY KEY,
+      workspaceId TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'backlog',
+      -- The conversation that last touched this card, so a card can take you
+      -- back to the work rather than just describing it.
+      chatId TEXT,
+      branch TEXT,
+      position REAL NOT NULL DEFAULT 0,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_cards_ws ON cards(workspaceId, status, position);
   `)
 
   // Migration: add the project-kind column to pre-existing databases.
@@ -495,10 +513,206 @@ export function getDashboard(rangeDays = 14): unknown {
   }
 }
 
+export type CardStatus = 'backlog' | 'todo' | 'doing' | 'done'
+
+export interface Card {
+  id: string
+  workspaceId: string
+  title: string
+  body: string
+  status: CardStatus
+  chatId: string | null
+  branch: string | null
+  position: number
+  createdAt: number
+  updatedAt: number
+}
+
+export const CARD_STATUSES: CardStatus[] = ['backlog', 'todo', 'doing', 'done']
+
+/** Anything unrecognised lands in the backlog rather than vanishing from the board. */
+export function normalizeStatus(raw: unknown): CardStatus {
+  const s = String(raw ?? '').toLowerCase().trim().replace(/[\s-]+/g, '_')
+  const alias: Record<string, CardStatus> = {
+    backlog: 'backlog',
+    todo: 'todo',
+    to_do: 'todo',
+    next: 'todo',
+    doing: 'doing',
+    in_progress: 'doing',
+    inprogress: 'doing',
+    wip: 'doing',
+    done: 'done',
+    complete: 'done',
+    completed: 'done'
+  }
+  return alias[s] ?? 'backlog'
+}
+
+/**
+ * Where a card dropped between two others should sit. Positions are floats and
+ * gaps are halved, so moving one card rewrites one row instead of renumbering
+ * the column — which matters when the agent is reordering while you're looking
+ * at it.
+ */
+export function positionBetween(before: number | null, after: number | null): number {
+  if (before === null && after === null) return 1000
+  if (before === null) return after! - 1000
+  if (after === null) return before + 1000
+  return (before + after) / 2
+}
+
+export function listCards(workspaceId: string): Card[] {
+  return db
+    .prepare('SELECT * FROM cards WHERE workspaceId = ? ORDER BY position ASC, createdAt ASC')
+    .all(workspaceId) as Card[]
+}
+
+export function addCard(
+  workspaceId: string,
+  title: string,
+  opts: { body?: string; status?: unknown; chatId?: string | null; branch?: string | null } = {}
+): Card {
+  const status = normalizeStatus(opts.status ?? 'backlog')
+  const last = db
+    .prepare('SELECT MAX(position) p FROM cards WHERE workspaceId = ? AND status = ?')
+    .get(workspaceId, status) as { p: number | null }
+  const now = Date.now()
+  const card: Card = {
+    id: randomUUID(),
+    workspaceId,
+    title: title.trim().slice(0, 200),
+    body: (opts.body ?? '').slice(0, 4000),
+    status,
+    chatId: opts.chatId ?? null,
+    branch: opts.branch ?? null,
+    position: positionBetween(last.p ?? null, null),
+    createdAt: now,
+    updatedAt: now
+  }
+  db.prepare(
+    `INSERT INTO cards (id, workspaceId, title, body, status, chatId, branch, position, createdAt, updatedAt)
+     VALUES (@id, @workspaceId, @title, @body, @status, @chatId, @branch, @position, @createdAt, @updatedAt)`
+  ).run(card)
+  return card
+}
+
+export function updateCard(
+  id: string,
+  patch: { title?: string; body?: string; status?: unknown; chatId?: string | null; branch?: string | null }
+): Card | undefined {
+  const existing = db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as Card | undefined
+  if (!existing) return undefined
+  const status = patch.status === undefined ? existing.status : normalizeStatus(patch.status)
+  // Moving to another column puts the card at the end of it; staying put keeps
+  // its place, so an edit doesn't reshuffle the board under you.
+  let position = existing.position
+  if (status !== existing.status) {
+    const last = db
+      .prepare('SELECT MAX(position) p FROM cards WHERE workspaceId = ? AND status = ?')
+      .get(existing.workspaceId, status) as { p: number | null }
+    position = positionBetween(last.p ?? null, null)
+  }
+  const next: Card = {
+    ...existing,
+    title: patch.title === undefined ? existing.title : patch.title.trim().slice(0, 200),
+    body: patch.body === undefined ? existing.body : patch.body.slice(0, 4000),
+    status,
+    chatId: patch.chatId === undefined ? existing.chatId : patch.chatId,
+    branch: patch.branch === undefined ? existing.branch : patch.branch,
+    position,
+    updatedAt: Date.now()
+  }
+  db.prepare(
+    `UPDATE cards SET title=@title, body=@body, status=@status, chatId=@chatId,
+     branch=@branch, position=@position, updatedAt=@updatedAt WHERE id=@id`
+  ).run(next)
+  if (status === 'done' && existing.status !== 'done') {
+    recordEvent('task-done', existing.workspaceId)
+  }
+  return next
+}
+
+/** Reorder within a column, or move to a specific slot in another one. */
+export function moveCard(id: string, status: unknown, beforeId: string | null): Card | undefined {
+  const existing = db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as Card | undefined
+  if (!existing) return undefined
+  const target = normalizeStatus(status)
+  const column = (
+    db
+      .prepare(
+        'SELECT * FROM cards WHERE workspaceId = ? AND status = ? AND id != ? ORDER BY position ASC'
+      )
+      .all(existing.workspaceId, target, id) as Card[]
+  ).map((c) => c.position)
+  const idx = beforeId
+    ? (
+        db.prepare('SELECT position FROM cards WHERE id = ?').get(beforeId) as
+          | { position: number }
+          | undefined
+      )?.position
+    : undefined
+  const at = idx === undefined ? column.length : column.findIndex((p) => p >= idx)
+  const i = at === -1 ? column.length : at
+  const position = positionBetween(i > 0 ? column[i - 1] : null, i < column.length ? column[i] : null)
+  db.prepare('UPDATE cards SET status=?, position=?, updatedAt=? WHERE id=?').run(
+    target,
+    position,
+    Date.now(),
+    id
+  )
+  if (target === 'done' && existing.status !== 'done') recordEvent('task-done', existing.workspaceId)
+  return db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as Card
+}
+
+export function removeCard(id: string): void {
+  db.prepare('DELETE FROM cards WHERE id = ?').run(id)
+}
+
 export function registerStoreIpc(): void {
   initStore()
 
   ipcMain.handle('store:tree', () => getTree())
+
+  // Every writer announces itself, so a board open in any window redraws no
+  // matter who moved the card — the agent, this window, or another one.
+  const announce = (workspaceId: string | undefined): void => {
+    if (workspaceId) broadcastToWindows('board:changed', { workspaceId })
+  }
+  const ownerOf = (id: string): string | undefined =>
+    (db.prepare('SELECT workspaceId FROM cards WHERE id = ?').get(id) as
+      | { workspaceId: string }
+      | undefined)?.workspaceId
+
+  ipcMain.handle('board:list', (_e, workspaceId: string) => listCards(workspaceId))
+  ipcMain.handle(
+    'board:add',
+    (_e, workspaceId: string, title: string, opts?: { body?: string; status?: string }) => {
+      const card = addCard(workspaceId, title, opts ?? {})
+      announce(workspaceId)
+      return card
+    }
+  )
+  ipcMain.handle(
+    'board:update',
+    (_e, id: string, patch: { title?: string; body?: string; status?: string }) => {
+      const card = updateCard(id, patch)
+      announce(card?.workspaceId)
+      return card
+    }
+  )
+  ipcMain.handle('board:move', (_e, id: string, status: string, beforeId: string | null) => {
+    const card = moveCard(id, status, beforeId)
+    announce(card?.workspaceId)
+    return card
+  })
+  ipcMain.handle('board:remove', (_e, id: string) => {
+    // Read the owner before the row goes away, or there is nothing left to name.
+    const ws = ownerOf(id)
+    removeCard(id)
+    announce(ws)
+    return true
+  })
 
   ipcMain.handle('store:createGroup', (_e, name: string) => {
     const id = randomUUID()

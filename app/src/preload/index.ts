@@ -71,6 +71,19 @@ export interface HookEvent {
   body: Record<string, unknown>
 }
 
+export interface BoardCard {
+  id: string
+  workspaceId: string
+  title: string
+  body: string
+  status: 'backlog' | 'todo' | 'doing' | 'done'
+  chatId: string | null
+  branch: string | null
+  position: number
+  createdAt: number
+  updatedAt: number
+}
+
 export interface CoveApi {
   browserCreate: (id: string, partition: string) => Promise<void>
   browserSetBounds: (id: string, b: { x: number; y: number; width: number; height: number }) => void
@@ -161,6 +174,19 @@ export interface CoveApi {
   /** Tail a background shell's output file (the Bash result says where it is). */
   bgTail: (path: string, maxBytes?: number) => Promise<string | null>
   /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
+  boardList: (workspaceId: string) => Promise<BoardCard[]>
+  boardAdd: (
+    workspaceId: string,
+    title: string,
+    opts?: { body?: string; status?: string }
+  ) => Promise<BoardCard>
+  boardUpdate: (
+    id: string,
+    patch: { title?: string; body?: string; status?: string }
+  ) => Promise<BoardCard | undefined>
+  boardMove: (id: string, status: string, beforeId: string | null) => Promise<BoardCard | undefined>
+  boardRemove: (id: string) => Promise<boolean>
+  onBoardChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   simCaptureSource: (
     name?: string
   ) => Promise<{ ok: boolean; id?: string; name?: string; error?: string }>
@@ -369,6 +395,12 @@ const cove: CoveApi = {
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   browserStop: (id) => ipcRenderer.send('browser:stop', id),
   bgTail: (path, maxBytes) => ipcRenderer.invoke('bg:tail', path, maxBytes),
+  boardList: (workspaceId) => ipcRenderer.invoke('board:list', workspaceId),
+  boardAdd: (workspaceId, title, opts) => ipcRenderer.invoke('board:add', workspaceId, title, opts),
+  boardUpdate: (id, patch) => ipcRenderer.invoke('board:update', id, patch),
+  boardMove: (id, status, beforeId) => ipcRenderer.invoke('board:move', id, status, beforeId),
+  boardRemove: (id) => ipcRenderer.invoke('board:remove', id),
+  onBoardChanged: (cb) => subscribe('board:changed', (p) => cb(p as { workspaceId: string })),
   simCaptureSource: (name) => ipcRenderer.invoke('sim:capture-source', name),
   simCapturePrepare: (udid) => ipcRenderer.invoke('sim:capture-prepare', udid),
   simCaptureSettings: () => ipcRenderer.invoke('sim:capture-settings'),

@@ -18,7 +18,7 @@ import { app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { createRoutineForWorkspace, listRoutines, deleteRoutine } from './routines'
-import { getWorkspacePath } from './store'
+import { getWorkspacePath, listCards, addCard, updateCard, moveCard, removeCard } from './store'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 import { isAbsolute, resolve } from 'path'
 import { homedir } from 'os'
@@ -257,6 +257,107 @@ function buildServer(paneId: string): McpServer {
       // Strip the "::routine" suffix so routine-launched sessions map to the real workspace.
       const res = createRoutineForWorkspace(workspaceIdFromPane(PANE_ID), prompt, intervalMinutes)
       return { content: [{ type: 'text', text: res.message }] }
+    }
+  )
+
+  server.registerTool(
+    'board_list',
+    {
+      description:
+        "List this project's board: every card with its id, column and title. Read this before adding a card so you don't duplicate one that already exists, and to get ids for board_move and board_update. Columns are backlog, todo, doing, done.",
+      inputSchema: {}
+    },
+    async () => {
+      const cards = listCards(workspaceIdFromPane(PANE_ID)).map((c) => ({
+        id: c.id,
+        status: c.status,
+        title: c.title,
+        body: c.body || undefined,
+        branch: c.branch || undefined
+      }))
+      return {
+        content: [
+          {
+            type: 'text',
+            text: cards.length
+              ? JSON.stringify(cards, null, 2)
+              : 'The board is empty. Add cards with board_add.'
+          }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'board_add',
+    {
+      description:
+        "Add a card to this project's board. Use it when work is identified but not done yet — something the user asked for and you deferred, a follow-up your change made necessary, a bug you noticed in passing. Do not add a card for work you are finishing right now in this turn.",
+      inputSchema: {
+        title: z.string().describe('One line, imperative — what needs doing'),
+        body: z.string().optional().describe('Detail worth keeping: why, or where to start'),
+        status: z
+          .string()
+          .optional()
+          .describe('backlog (default), todo, doing or done')
+      }
+    },
+    async ({ title, body, status }) => {
+      const ws = workspaceIdFromPane(PANE_ID)
+      const card = addCard(ws, title, { body, status })
+      broadcastToWindows('board:changed', { workspaceId: ws })
+      return { content: [{ type: 'text', text: `Added "${card.title}" to ${card.status} (${card.id}).` }] }
+    }
+  )
+
+  server.registerTool(
+    'board_move',
+    {
+      description:
+        "Move a card to another column (get ids from board_list). Move a card to doing when you start it and done when you finish, so the board reflects what actually happened rather than what was planned.",
+      inputSchema: {
+        id: z.string().describe('The card id, as returned by board_list'),
+        status: z.string().describe('backlog, todo, doing or done')
+      }
+    },
+    async ({ id, status }) => {
+      const ws = workspaceIdFromPane(PANE_ID)
+      // Scope safety: an agent in one project must not be able to move another
+      // project's cards, so only ids on this board are addressable.
+      if (!listCards(ws).some((c) => c.id === id)) {
+        return { content: [{ type: 'text', text: `No card with id ${id} on this board.` }] }
+      }
+      const card = moveCard(id, status, null)
+      broadcastToWindows('board:changed', { workspaceId: ws })
+      return { content: [{ type: 'text', text: `Moved "${card?.title}" to ${card?.status}.` }] }
+    }
+  )
+
+  server.registerTool(
+    'board_update',
+    {
+      description:
+        "Rewrite a card's title or detail, or delete it (get ids from board_list). Delete a card that turned out to be unnecessary or a duplicate; otherwise prefer board_move to done, which keeps the record of what was finished.",
+      inputSchema: {
+        id: z.string().describe('The card id, as returned by board_list'),
+        title: z.string().optional(),
+        body: z.string().optional(),
+        remove: z.boolean().optional().describe('Delete the card instead of editing it')
+      }
+    },
+    async ({ id, title, body, remove }) => {
+      const ws = workspaceIdFromPane(PANE_ID)
+      if (!listCards(ws).some((c) => c.id === id)) {
+        return { content: [{ type: 'text', text: `No card with id ${id} on this board.` }] }
+      }
+      if (remove) {
+        removeCard(id)
+        broadcastToWindows('board:changed', { workspaceId: ws })
+        return { content: [{ type: 'text', text: `Deleted card ${id}.` }] }
+      }
+      const card = updateCard(id, { title, body })
+      broadcastToWindows('board:changed', { workspaceId: ws })
+      return { content: [{ type: 'text', text: `Updated "${card?.title}".` }] }
     }
   )
 

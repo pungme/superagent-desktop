@@ -3,6 +3,7 @@ import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
 import { SimulatorPane } from './SimulatorPane'
+import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
 import { FileViewer } from './FileViewer'
 import { SkillsPanel } from './SkillsPanel'
@@ -73,10 +74,32 @@ export function WorkspaceView({
       return !v
     })
   }
+  const [boardOpen, setBoardOpen] = useState(false)
+  /**
+   * Four columns need about 620px to be worth looking at, and the pane half is
+   * usually narrower than that. Opening the board widens it just enough —
+   * never narrows it, and never past two thirds, so the chat stays usable and
+   * the divider you drag afterwards wins.
+   */
+  const widenForBoard = useCallback((): void => {
+    const wrap = containerRef.current?.querySelector('.split-main')
+    const total = wrap?.getBoundingClientRect().width ?? 0
+    if (!total) return
+    setRatio((r) => {
+      const paneNow = total * (1 - r)
+      if (paneNow >= 620) return r
+      const next = Math.max(0.2, Math.min(r, 1 - Math.min(620, total * 0.66) / total))
+      localStorage.setItem(`split:${ws.id}`, String(next))
+      return next
+    })
+  }, [ws.id])
+
   // The desk's working surface: a file you opened wins over the page, and a
   // code project with neither simply has no surface — the simulator gets the
   // whole desk.
-  const surface = openFilePath ? (
+  const surface = boardOpen ? (
+    <BoardPanel workspaceId={ws.id} onClose={() => setBoardOpen(false)} />
+  ) : openFilePath ? (
     <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
   ) : browserOpen ? (
     <BrowserPane
@@ -95,7 +118,7 @@ export function WorkspaceView({
     />
   ) : null
 
-  const paneOpen = browserOpen || !!openFilePath || simOpen
+  const paneOpen = browserOpen || !!openFilePath || simOpen || boardOpen
   // Belt-and-suspenders: when neither the browser preview nor a file viewer is
   // open, make sure the pane's native WebContentsView is detached from the window.
   // Otherwise a pane opened transiently (e.g. the agent browsing) can linger,
@@ -349,6 +372,18 @@ export function WorkspaceView({
         </button>
         <button className="toolbar-btn" onClick={() => setSkillsOpen(true)} title="Your skills">
           ✦ Skills
+        </button>
+        <button
+          className={`toolbar-btn ${boardOpen ? 'on' : ''}`}
+          onClick={() =>
+            setBoardOpen((v) => {
+              if (!v) widenForBoard()
+              return !v
+            })
+          }
+          title="This project's board — what's left, and what Claude finished"
+        >
+          ▤ Board
         </button>
         {/* No manual toggle for code projects: the pane reveals itself when the
             agent navigates or you open a file, and closes from its own ✕. */}

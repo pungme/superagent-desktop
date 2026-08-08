@@ -61,6 +61,18 @@ const TODO_PROMPT =
   'the user live in its Tasks panel, so create the tasks up front and keep their status current as ' +
   'you work.'
 
+// The board outlives the conversation, so it is where work that isn't happening
+// right now belongs — the todo list above is per-turn and disappears with it.
+const BOARD_PROMPT =
+  "This project has a board that persists across conversations: columns backlog, todo, doing, " +
+  'done, kept with board_list, board_add, board_move and board_update. Use it for work that ' +
+  'outlives this turn — something the user asked for and you deferred, a follow-up your change ' +
+  'made necessary, a bug you noticed while doing something else. Call board_list first so you ' +
+  "don't add a card that is already there. When you start on a card move it to doing, and when " +
+  'you finish it move it to done, so the board records what happened rather than what was ' +
+  'intended. Do not add a card for work you are completing in this same turn, and do not use the ' +
+  'board as a scratchpad for the steps of one task — your task-tracking tools already do that.'
+
 // Scheduling MUST go through SuperAgent's own routines — cloud/loop schedulers run
 // elsewhere and can't reach this browser or the user's logged-in session.
 const SCHEDULING_PROMPT =
@@ -168,6 +180,7 @@ export function buildAgentArgs(
   if (ctx.mcpConfig) args.push('--mcp-config', ctx.mcpConfig)
   const appended = [
     TODO_PROMPT,
+    BOARD_PROMPT,
     SCHEDULING_PROMPT,
     CHOICES_PROMPT,
     FILE_OPEN_PROMPT,
