@@ -2838,14 +2838,18 @@ button {
 .board-row.dragging {
   opacity: 0.4;
 }
-/* An open ticket is a child of the row, and the row is a flexbox — so without
-   this it lands beside the title instead of under it. */
+/* With the ticket open the row is just the dot and the ticket beside it — the
+   title moves into the ticket, so the row's own text area would be an empty
+   column pushing everything down. */
 .board-row:has(.ticket) {
-  flex-wrap: wrap;
   cursor: default;
 }
 .board-row:has(.ticket) .ticket {
-  flex: 1 0 100%;
+  flex: 1;
+  min-width: 0;
+}
+.board-row-main:empty {
+  display: none;
 }
 /* Where it will land — a line above the row you're hovering. */
 .board-row.insert-above::before {
@@ -3050,6 +3054,7 @@ button {
   height: 100%;
   object-fit: cover;
   display: block;
+  cursor: zoom-in;
 }
 .ticket-shot-x {
   position: absolute;

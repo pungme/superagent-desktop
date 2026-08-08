@@ -166,7 +166,7 @@ export function BoardPanel({
                   className={`board-row s-${c.status} ${dragId === c.id ? 'dragging' : ''} ${
                     overId === c.id && dragId && dragId !== c.id ? 'insert-above' : ''
                   }`}
-                  draggable
+                  draggable={openId !== c.id}
                   onDragStart={() => setDragId(c.id)}
                   onDragEnd={endDrag}
                   onDragOver={(e) => {
@@ -191,10 +191,14 @@ export function BoardPanel({
                     className="board-row-main"
                     onClick={() => setOpenId(openId === c.id ? null : c.id)}
                   >
-                    <div className="board-row-title" title={c.title}>
-                      {c.title}
-                    </div>
-                    {(c.body || chatTitle(c.chatId) || c.branch) && (
+                    {/* The open ticket carries the title, so showing it here too
+                        just prints the same line twice. */}
+                    {openId !== c.id && (
+                      <div className="board-row-title" title={c.title}>
+                        {c.title}
+                      </div>
+                    )}
+                    {openId !== c.id && (c.body || chatTitle(c.chatId) || c.branch) && (
                       <div className="board-row-meta">
                         {c.body && <span className="board-row-body">{c.body}</span>}
                         {chatTitle(c.chatId) && (
@@ -348,7 +352,12 @@ function Ticket({
         <div className="ticket-shots">
           {thumbs.map((t) => (
             <div key={t.path} className="ticket-shot">
-              <img src={t.data} alt="" />
+              <img
+                src={t.data}
+                alt=""
+                title="Open full size"
+                onClick={() => void window.cove.filesOpenExternal(t.path)}
+              />
               <button
                 className="ticket-shot-x"
                 title="Remove this picture"
