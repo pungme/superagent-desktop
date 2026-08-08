@@ -79,6 +79,7 @@ export interface BoardCard {
   status: 'todo' | 'doing' | 'testing' | 'done'
   chatId: string | null
   branch: string | null
+  images: string[]
   position: number
   createdAt: number
   updatedAt: number
@@ -188,6 +189,9 @@ export interface CoveApi {
   ) => Promise<BoardCard | undefined>
   boardMove: (id: string, status: string, beforeId: string | null) => Promise<BoardCard | undefined>
   boardRemove: (id: string) => Promise<boolean>
+  boardAddImage: (cardId: string, name: string, bytes: Uint8Array) => Promise<string | null>
+  boardRemoveImage: (cardId: string, path: string) => Promise<boolean>
+  boardImageData: (path: string) => Promise<string | null>
   onBoardChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
   simList: () => Promise<{ udid: string; name: string; state: string; runtime: string }[]>
@@ -399,6 +403,9 @@ const cove: CoveApi = {
   boardUpdate: (id, patch) => ipcRenderer.invoke('board:update', id, patch),
   boardMove: (id, status, beforeId) => ipcRenderer.invoke('board:move', id, status, beforeId),
   boardRemove: (id) => ipcRenderer.invoke('board:remove', id),
+  boardAddImage: (cardId, name, bytes) => ipcRenderer.invoke('board:addImage', cardId, name, bytes),
+  boardRemoveImage: (cardId, path) => ipcRenderer.invoke('board:removeImage', cardId, path),
+  boardImageData: (path) => ipcRenderer.invoke('board:imageData', path),
   onBoardChanged: (cb) => subscribe('board:changed', (p) => cb(p as { workspaceId: string })),
   simList: () => ipcRenderer.invoke('sim:list'),
   simBoot: (udid) => ipcRenderer.invoke('sim:boot', udid),
