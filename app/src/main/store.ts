@@ -528,8 +528,6 @@ export interface Card {
   updatedAt: number
 }
 
-export const CARD_STATUSES: CardStatus[] = ['backlog', 'todo', 'doing', 'done']
-
 /** Anything unrecognised lands in the backlog rather than vanishing from the board. */
 export function normalizeStatus(raw: unknown): CardStatus {
   const s = String(raw ?? '').toLowerCase().trim().replace(/[\s-]+/g, '_')
