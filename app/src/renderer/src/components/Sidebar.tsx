@@ -670,6 +670,25 @@ export function Sidebar(): React.JSX.Element {
         <div className="sidebar-scroll">
           <button
             className="sidebar-dash-row"
+            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-desktop'))}
+          >
+            <svg
+              className="sidebar-dash-icon"
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+            >
+              <rect x="1.5" y="2.5" width="13" height="9" rx="1.2" />
+              <path d="M6 14h4" />
+            </svg>
+            Desktop
+          </button>
+          <button
+            className="sidebar-dash-row"
             onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
           >
             <svg

@@ -68,24 +68,10 @@ export function WorkspaceView({
     const saved = Number(localStorage.getItem(`desk:${ws.id}`))
     return Number.isFinite(saved) && saved > 0.2 && saved < 0.85 ? saved : 0.62
   })
-  const toggleSim = (): void => {
-    setSimOpen((v) => {
-      localStorage.setItem(`simOpen:${ws.id}`, v ? '0' : '1')
-      return !v
-    })
-  }
   // Remembered like the other surfaces: leaving the board up and restarting
   // should put you back on the board, not silently on the chat.
   const [boardOpen, setBoardOpen] = useState(
     () => localStorage.getItem(`boardOpen:${ws.id}`) === '1'
-  )
-  /**
-   * Desktop mode. The painted surface is opt-in and off by default: a Monet
-   * behind every pane is wallpaper, and most of the time the pane is one card
-   * filling the space anyway. Turn this on and the desk becomes a desktop.
-   */
-  const [desktopOn, setDesktopOn] = useState(
-    () => localStorage.getItem(`desktopOn:${ws.id}`) === '1'
   )
   /**
    * Four columns need about 620px to be worth looking at, and the pane half is
@@ -137,6 +123,16 @@ export function WorkspaceView({
   ) : null
 
   const paneOpen = browserOpen || !!openFilePath || simOpen || boardOpen
+
+  // No manual toggle, same as the browser: the pane appears when the agent
+  // boots or launches something on a simulator, and closes from its own ✕.
+  useEffect(() => {
+    return window.cove.onOpenSimulator?.((p) => {
+      if (p.workspaceId !== ws.id) return
+      localStorage.setItem(`simOpen:${ws.id}`, '1')
+      setSimOpen(true)
+    })
+  }, [ws.id])
   // Belt-and-suspenders: when neither the browser preview nor a file viewer is
   // open, make sure the pane's native WebContentsView is detached from the window.
   // Otherwise a pane opened transiently (e.g. the agent browsing) can linger,
@@ -344,18 +340,6 @@ export function WorkspaceView({
     <div className="workspace-view">
       <div className="workspace-toolbar">
         {/* Leads the toolbar because the pane it opens is the leftmost column. */}
-        <button
-          className={`toolbar-btn ${desktopOn ? 'on' : ''}`}
-          onClick={() =>
-            setDesktopOn((v) => {
-              localStorage.setItem(`desktopOn:${ws.id}`, v ? '0' : '1')
-              return !v
-            })
-          }
-          title="Desktop — put your work on a surface instead of a plain pane"
-        >
-          🖥 Desktop
-        </button>
         {ws.kind !== 'browser' && (
           <button
             className={`toolbar-btn ${filesOpen ? 'on' : ''}`}
@@ -418,15 +402,6 @@ export function WorkspaceView({
         </button>
         {/* No manual toggle for code projects: the pane reveals itself when the
             agent navigates or you open a file, and closes from its own ✕. */}
-        {ws.kind !== 'browser' && (
-          <button
-            className={`toolbar-btn ${simOpen ? 'on' : ''}`}
-            onClick={toggleSim}
-            title="Mirror an iOS Simulator in the pane"
-          >
-            ▭ Simulator
-          </button>
-        )}
         {paneOpen && (
           <button
             className="toolbar-btn"
@@ -467,10 +442,7 @@ export function WorkspaceView({
                 the file you opened — and the simulator is a second card beside
                 it rather than something that pushes the first one out. The
                 painting behind them shows wherever a card doesn't reach. */}
-            <div
-              className={`split-side desk ${desktopOn ? 'on' : ''}`}
-              style={{ flexBasis: `${(1 - ratio) * 100}%` }}
-            >
+            <div className="split-side desk" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
               {surface && (
                 <div
                   className="desk-card"
