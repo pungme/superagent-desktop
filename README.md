@@ -161,13 +161,17 @@ allowed to do without asking.
       desktopCapturer is ScreenCaptureKit here, it keeps delivering frames for
       an occluded window, and it needs one Screen Recording grant.
 
-  INPUT. baguette's gesture side works and is what ships, but only on iOS 26+:
-  on 18.6 a tap reports success and does nothing (measured — the same tap opens
-  an app on 26.5). idb's `hid` rpc does NOT have that limit: verified landing
-  taps on iOS 18.6, and at 13ms on a warm connection against baguette's 56ms.
-  If the "view only" note on old runtimes becomes a real complaint, that is the
-  fix — at the cost of idb_companion as a second optional install plus a gRPC
-  client in main.
+  INPUT. baguette's gesture side works, on every runtime — CORRECTED 2026-08-08.
+  This note used to claim iOS 26+ only, and the pane shipped a version gate that
+  disabled tapping on anything older. Both were wrong: the original measurement
+  aimed at empty space, so of course nothing changed. Re-measured against real
+  controls — a Continue button on 26.5, a banner dismiss and Safari's tab button
+  on 18.6 — and every tap registered, including one dispatched through the pane.
+    Watch for this shape of mistake: a tap that changes nothing is not evidence
+    of a broken injector. Aim at something that must react.
+    idb's `hid` rpc remains an alternative (13ms warm vs baguette's 56ms) but
+    there is no longer a correctness reason to take on idb_companion and a gRPC
+    client for it.
 
   CROPPING. Window capture returns the window, title bar included. Simulator's
   Window menu exposes checkbox state through AXMenuItemMarkChar (a ✓ when on,
