@@ -98,6 +98,9 @@ interface EasyChatProps {
       mounted (so switching back is instant) but get their claude process reaped
       once they've been idle a while — see IDLE_REAP_MS. */
   visible?: boolean
+  /** Where the chat sits relative to the pane, and how to flip it. */
+  layout?: 'side' | 'bottom'
+  onToggleLayout?: () => void
 }
 
 // Drop lines shared by the start/end of both sides so only the real change shows.
@@ -525,7 +528,9 @@ export function EasyChat({
   initialSessionId,
   browserProject,
   isRepo = false,
-  visible = true
+  visible = true,
+  layout,
+  onToggleLayout
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
   const [input, setInput] = useState('')
@@ -1863,6 +1868,19 @@ export function EasyChat({
       <div className="easy-topstack">
         {items.length > 0 && (
           <div className="easy-newchat-group">
+          {onToggleLayout && (
+            <button
+              className="easy-newchat"
+              onClick={onToggleLayout}
+              title={
+                layout === 'side'
+                  ? 'Move the chat below the page (full-width preview)'
+                  : 'Move the chat beside the page'
+              }
+            >
+              {layout === 'side' ? '⬓ Chat below' : '◨ Chat right'}
+            </button>
+          )}
           <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
             ✎ New chat
           </button>
