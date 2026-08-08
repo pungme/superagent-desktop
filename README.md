@@ -66,9 +66,9 @@ allowed to do without asking.
   an isolated branch while your checkout stays clean.
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
   actually got your time. Computed locally.
-- **An iPhone in the window.** Run an iOS Simulator *inside* the app — the real
-  device playing live in the pane, tap and type included, while Apple's own
-  window stays out of your way.
+- **An iPhone in the window.** An iOS Simulator streamed *inside* the app from
+  its own framebuffer — the real device, live at the rate it renders, tap and
+  type included. No permission to grant, and Apple's own window stays shut.
 - **Files & PDFs.** Drag files into the chat and annotate PDFs in place, right
   beside the tree.
 - **Context gauge.** Every conversation shows how much of the context window
@@ -126,9 +126,12 @@ allowed to do without asking.
 
   WHERE WE ARE. Phase 1 shipped in 1.1: `sim_list_devices`, `sim_boot`,
   `sim_screenshot`, `sim_open_url`, `sim_install_and_launch` in src/main/mcp.ts
-  — all `xcrun simctl`, public APIs only. Phase 2 shipped in 1.2: a live view
-  in the pane. Three modes in src/renderer/src/components/SimulatorPane.tsx:
-  live (window capture), mirror (screenshots), attach (park Apple's window).
+  — all `xcrun simctl`, public APIs only. Phase 2 shipped in 1.2: the device
+  streamed into the pane from its own framebuffer, via native/simfb. Two modes
+  in src/renderer/src/components/SimulatorPane.tsx — "In the app" (the stream)
+  and "Real device" (park Apple's window on the pane). The pane has no toolbar
+  button: it reveals itself when the agent boots or launches something, the
+  way the browser pane does.
 
   WHY IT ISN'T JUST "EMBED THE WINDOW". macOS gives no supported way to
   reparent another application's window into ours. Anything that looks like
@@ -166,13 +169,29 @@ allowed to do without asking.
   Two old tools failing the same way is evidence they are both old, not that the
   platform is shut.
 
-  WHAT SHIPS TODAY, and what should replace it. `simctl io screenshot` at ~530ms
-  a frame (the mirror's ~2fps ceiling), and Chromium window capture of
-  Simulator.app for the live view, which costs a Screen Recording grant. Both
-  become unnecessary once the IOSurface path is wired up: a small native addon
-  that grabs the surface, registers the damage callback and hands frames to the
-  renderer would be faster than either, need no permission at all, and not care
-  whether Simulator.app is even open.
+  WHAT SHIPS. native/simfb — a small compiled helper, not a Node addon, so
+  there is no node-gyp and nothing to rebuild against Electron's Node ABI. It
+  takes the IOSurface, encodes JPEG on the damage callback and writes frames on
+  stdout (4-byte big-endian length, then the bytes). Measured in the pane: 22fps
+  while scrolling, ~1fps on a still screen because a quiet screen sends no
+  damage. `simctl io screenshot` survives only as the fallback.
+
+  FALLING BACK, which matters because this is private API. main treats the
+  helper as best-effort: missing binary, won't start, or started-but-never-sent-
+  a-frame all drop to the screenshot mirror. That last case is what a future
+  macOS moving these symbols would look like, so it is the one worth keeping.
+
+  THINGS THAT BIT, all found by breaking it rather than reading it:
+    * A shut-down device keeps its last surface, so nothing fails — the helper
+      has to check the device is still booted on its heartbeat and exit.
+    * When it exits, the pane needs telling (sim:gone), or it sits on a frozen
+      picture for ever.
+    * And "Boot it again" then has to actually restart the stream: the helper is
+      gone and nothing else in the effect's inputs changes on the way back.
+    * Flipping modes quickly leaked a helper per flip — start must stop whatever
+      is already running for that device, of either kind.
+    * build:mac did not run build:native, so a release from a clean checkout
+      would have bundled a binary nothing had built.
 
   INPUT. baguette's gesture side works, on every runtime — CORRECTED 2026-08-08.
   This note used to claim iOS 26+ only, and the pane shipped a version gate that
@@ -186,11 +205,10 @@ allowed to do without asking.
     there is no longer a correctness reason to take on idb_companion and a gRPC
     client for it.
 
-  CROPPING. Window capture returns the window, title bar included. Simulator's
-  Window menu exposes checkbox state through AXMenuItemMarkChar (a ✓ when on,
-  `missing value` when off) — so "Show Device Bezels" is readable, not just
-  settable, and with bezels off the captured content is exactly the screen.
-  The bar's height is then arithmetic: see screenCrop() and its unit tests.
+  WINDOW MENU, still useful for the attach mode. Simulator's Window menu
+  exposes checkbox state through AXMenuItemMarkChar (a ✓ when on, `missing
+  value` when off), so "Show Device Bezels" and "Stay On Top" are readable and
+  not just settable.
 
   AGENT SURFACE. Still to do: `sim_tap`, `sim_type`, `sim_swipe` alongside the
   phase-1 tools, so the agent drives the device the same way the user does.
