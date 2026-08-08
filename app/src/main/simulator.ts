@@ -298,15 +298,27 @@ const nativeStreams = new Map<string, ChildProcessByStdio<null, Readable, Readab
  */
 const watched = new WeakSet<BrowserWindow>()
 
+/**
+ * Whether a navigation replaces the page the pane lives on.
+ *
+ * Only a real main-frame load does. Same-document navigation keeps the
+ * renderer and its pane exactly where they are, and a subframe is some other
+ * page entirely — stopping on either would blank a simulator nobody asked to
+ * close.
+ */
+export function navigationReplacesPage(details: {
+  isMainFrame: boolean
+  isSameDocument: boolean
+}): boolean {
+  return details.isMainFrame && !details.isSameDocument
+}
+
 function watchWindow(window: BrowserWindow): void {
   if (watched.has(window)) return
   watched.add(window)
   const wc = window.webContents
   wc.on('did-start-navigation', (details) => {
-    // Only a real page change. Same-document navigation keeps the renderer and
-    // its pane exactly where they are, so stopping the stream would blank a
-    // simulator nobody asked to close.
-    if (details.isMainFrame && !details.isSameDocument) stopAllSimStreams()
+    if (navigationReplacesPage(details)) stopAllSimStreams()
   })
   // A renderer that crashed cannot send anything at all.
   wc.on('render-process-gone', () => stopAllSimStreams())
