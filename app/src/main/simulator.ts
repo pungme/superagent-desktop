@@ -2,7 +2,6 @@ import {
   app,
   ipcMain,
   BrowserWindow,
-  desktopCapturer,
   nativeImage,
   systemPreferences,
   shell
@@ -501,31 +500,6 @@ async function moveSimulatorWindow(rect: {
   }
 }
 
-/**
- * Read a checkbox in Simulator's Window menu. Checked items expose a ✓ in
- * AXMenuItemMarkChar and unchecked ones read `missing value`, so the state is
- * knowable — which is what makes the live view's crop exact rather than guessed.
- * Returns null when we can't ask at all (no Accessibility, no Simulator).
- */
-async function menuChecked(item: string): Promise<boolean | null> {
-  try {
-    const v = await osa(
-      `tell application "System Events" to tell process "Simulator" to get value of attribute "AXMenuItemMarkChar" of menu item "${item}" of menu 1 of menu bar item "Window" of menu bar 1`
-    )
-    return v !== 'missing value' && v !== ''
-  } catch {
-    return null
-  }
-}
-
-async function setMenuChecked(item: string, on: boolean): Promise<void> {
-  const now = await menuChecked(item)
-  if (now === null || now === on) return
-  await osa(
-    `tell application "System Events" to tell process "Simulator" to click menu item "${item}" of menu 1 of menu bar item "Window" of menu bar 1`
-  ).catch(() => {})
-}
-
 export function registerSimulatorIpc(): void {
   ipcMain.handle('sim:attach-ready', () => ({
     trusted: systemPreferences.isTrustedAccessibilityClient(false)
@@ -615,75 +589,6 @@ export function registerSimulatorIpc(): void {
    * Simulator window can sit out of the way while its pixels play inside the
    * pane. Returns the source id the renderer feeds to getUserMedia.
    */
-  ipcMain.handle('sim:capture-settings', () => {
-    void shell.openExternal(
-      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
-    )
-    return true
-  })
-
-  /**
-   * Get the Simulator ready to be captured: its window showing this device, no
-   * device bezels (so the captured content is exactly the screen and the crop
-   * is arithmetic rather than a guess), not pinned on top, and parked behind
-   * our own window where it can't be seen. Occluded windows keep producing
-   * frames, so out of sight costs nothing.
-   *
-   * Everything here except launching Simulator needs Accessibility, and none of
-   * it is required — without it the live view still works, the Simulator window
-   * is just somewhere on screen instead of tucked away.
-   */
-  ipcMain.handle('sim:capture-prepare', async (e, udid: string) => {
-    // -g: launch it without bringing it forward. The live view never wants the
-    // Simulator in front — the whole point is that you watch it in here — and
-    // taking the user's window away, even for the moment it takes to park it,
-    // is the thing this app is not allowed to do.
-    await run('open', ['-g', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
-      timeout: 20_000
-    }).catch(() => {})
-    await setMenuChecked('Show Device Bezels', false)
-    await setMenuChecked('Stay On Top', false)
-    pinnedOnce = false
-    const bezels = await menuChecked('Show Device Bezels')
-    const win = BrowserWindow.fromWebContents(e.sender)
-    if (win && !win.isDestroyed()) {
-      const b = win.getBounds()
-      // Behind us, not off-screen: macOS clamps windows back onto a display, so
-      // "off-screen" isn't a place a window can go.
-      await osa(
-        `tell application "System Events" to tell process "Simulator" to set position of window 1 to {${b.x + 12}, ${b.y + 12}}`
-      ).catch(() => {})
-    }
-    // The live view has no frames of its own to measure, so read the device's
-    // size once here — it's what turns a click in the pane into a point on the
-    // device.
-    const name = (await listDevices()).find((d) => d.udid === udid)?.name ?? ''
-    const shot = await grabFrame(udid, name)
-    // A null bezels means we couldn't read the menu — assume the default (off)
-    // rather than refusing to show anything.
-    return {
-      ok: true,
-      bezels: bezels === true,
-      width: shot?.width ?? 0,
-      height: shot?.height ?? 0
-    }
-  })
-
-  ipcMain.handle('sim:capture-source', async (_e, deviceName?: string) => {
-    // Window capture needs Screen Recording. Ask first so the failure is a
-    // sentence the pane can show, not an opaque "Failed to get sources".
-    const access = systemPreferences.getMediaAccessStatus('screen')
-    if (access !== 'granted') return { ok: false, error: 'screen-recording-denied', access }
-    const sources = await desktopCapturer.getSources({
-      types: ['window'],
-      thumbnailSize: { width: 0, height: 0 }
-    })
-    const sims = sources.filter((s) => /^(iPhone|iPad|iPod|Apple (Watch|TV|Vision))/i.test(s.name))
-    if (!sims.length) return { ok: false, error: 'simulator-window-not-found' }
-    const pick = (deviceName && sims.find((s) => s.name.startsWith(deviceName))) || sims[0]
-    return { ok: true, id: pick.id, name: pick.name }
-  })
-
   ipcMain.handle('sim:list', () => listDevices())
   ipcMain.handle('sim:boot', async (_e, udid: string) => {
     await bootDevice(udid)
