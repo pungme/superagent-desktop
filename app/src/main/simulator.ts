@@ -1,4 +1,5 @@
 import {
+  app,
   ipcMain,
   BrowserWindow,
   desktopCapturer,
@@ -6,11 +7,17 @@ import {
   systemPreferences,
   shell
 } from 'electron'
-import { execFile, spawn, ChildProcessWithoutNullStreams } from 'child_process'
+import {
+  execFile,
+  spawn,
+  ChildProcessWithoutNullStreams,
+  ChildProcessByStdio
+} from 'child_process'
+import type { Readable } from 'stream'
 import { promisify } from 'util'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { readFileSync, unlinkSync } from 'fs'
+import { readFileSync, unlinkSync, existsSync } from 'fs'
 import { createHash } from 'crypto'
 
 const run = promisify(execFile)
@@ -267,6 +274,109 @@ const FAST_MS = 250
 const IDLE_MS = 900
 const ACTIVE_WINDOW_MS = 4000
 
+/**
+ * The native framebuffer stream.
+ *
+ * `native/simfb` reads the device's IOSurface straight out of CoreSimulator —
+ * the same surface Simulator.app draws — and writes JPEG frames on a damage
+ * callback. That is roughly 20fps while something is moving against the
+ * screenshot mirror's hard ~2fps ceiling, it needs no Screen Recording grant,
+ * and it doesn't care whether Simulator.app is running.
+ *
+ * It leans on private API, so treat it as best-effort: if the helper is
+ * missing, won't start, or dies, `startStream` falls back to the mirror.
+ */
+const nativeStreams = new Map<string, ChildProcessByStdio<null, Readable, Readable>>()
+
+function simfbPath(): string | null {
+  const candidates = app.isPackaged
+    ? [join(process.resourcesPath, 'simfb')]
+    : [join(__dirname, '../../native/simfb'), join(process.cwd(), 'native/simfb')]
+  for (const p of candidates) if (existsSync(p)) return p
+  return null
+}
+
+/** @returns true if the native stream took over; false to use the mirror. */
+function startNativeStream(window: BrowserWindow, udid: string, name: string): boolean {
+  const bin = simfbPath()
+  if (!bin) return false
+  let proc: ChildProcessByStdio<null, Readable, Readable>
+  try {
+    proc = spawn(bin, ['--udid', udid, '--scale', '0.5', '--quality', '0.6', '--fps', '30'], {
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+  } catch {
+    return false
+  }
+
+  let buf = Buffer.alloc(0)
+  let header: { width: number; height: number } | null = null
+  let sawFrame = false
+
+  proc.stdout.on('data', (chunk: Buffer) => {
+    buf = Buffer.concat([buf, chunk])
+    if (!header) {
+      const nl = buf.indexOf(0x0a)
+      if (nl < 0) return
+      try {
+        header = JSON.parse(buf.subarray(0, nl).toString()) as { width: number; height: number }
+      } catch {
+        return
+      }
+      buf = buf.subarray(nl + 1)
+    }
+    // 4-byte big-endian length, then that many JPEG bytes.
+    while (buf.length >= 4) {
+      const n = buf.readUInt32BE(0)
+      if (buf.length < 4 + n) break
+      const jpeg = buf.subarray(4, 4 + n)
+      buf = buf.subarray(4 + n)
+      if (window.isDestroyed()) return
+      sawFrame = true
+      const pt = toPoints(header!.width, header!.height, name)
+      window.webContents.send(`sim:frame:${udid}`, {
+        url: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
+        width: pt.width,
+        height: pt.height
+      })
+    }
+  })
+
+  let stderr = ''
+  proc.stderr.on('data', (c: Buffer) => {
+    stderr += c.toString()
+  })
+
+  const done = (): void => {
+    nativeStreams.delete(udid)
+    if (sawFrame || window.isDestroyed()) return
+    // Never produced a frame — the private API probably moved. Say why once,
+    // then fall back so the pane still shows something.
+    console.error('[simfb] no frames:', stderr.trim() || 'exited silently')
+    if (!streams.has(udid)) startStream(window, udid, 2, name)
+  }
+  proc.on('exit', done)
+  proc.on('error', done)
+
+  nativeStreams.set(udid, proc)
+  return true
+}
+
+function stopNativeStream(udid: string): void {
+  const p = nativeStreams.get(udid)
+  if (!p) return
+  nativeStreams.delete(udid)
+  try {
+    p.kill()
+  } catch {
+    /* already gone */
+  }
+}
+
+export function stopAllNativeStreams(): void {
+  for (const udid of [...nativeStreams.keys()]) stopNativeStream(udid)
+}
+
 function startStream(window: BrowserWindow, udid: string, _fps: number, name = ''): void {
   stopStream(udid)
   const stream: Stream = {
@@ -319,6 +429,7 @@ function stopStream(udid: string): void {
 }
 
 export function stopAllSimStreams(): void {
+  stopAllNativeStreams()
   for (const udid of [...streams.keys()]) stopStream(udid)
 }
 
@@ -588,9 +699,12 @@ export function registerSimulatorIpc(): void {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return
     const name = (await listDevices()).find((d) => d.udid === udid)?.name ?? ''
+    // Native framebuffer first; the screenshot mirror is the fallback.
+    if (startNativeStream(win, udid, name)) return
     startStream(win, udid, fps, name)
   })
   ipcMain.on('sim:stream-stop', (_e, udid: string) => {
+    stopNativeStream(udid)
     stopStream(udid)
     endInputSession(udid)
   })

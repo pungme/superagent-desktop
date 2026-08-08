@@ -19,6 +19,11 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!scripts/*'
+extraResources:
+  # The simulator framebuffer helper. A plain executable, so it has to sit
+  # outside the asar to be spawnable.
+  - from: native/simfb
+    to: simfb
 asarUnpack:
   - resources/**
   # node-pty's spawn-helper must stay executable outside the asar
