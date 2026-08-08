@@ -402,19 +402,6 @@ export function WorkspaceView({
         </button>
         {/* No manual toggle for code projects: the pane reveals itself when the
             agent navigates or you open a file, and closes from its own ✕. */}
-        {paneOpen && (
-          <button
-            className="toolbar-btn"
-            onClick={toggleLayout}
-            title={
-              layout === 'side'
-                ? 'Move the chat below the page (full-width preview)'
-                : 'Move the chat beside the page'
-            }
-          >
-            {layout === 'side' ? '⬓ Chat below' : '◨ Chat right'}
-          </button>
-        )}
         {ws.kind === 'browser' && (
           <button
             className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
@@ -489,6 +476,8 @@ export function WorkspaceView({
               browserProject={ws.kind === 'browser'}
               isRepo={branch !== null}
               visible={visible}
+              layout={paneOpen ? layout : undefined}
+              onToggleLayout={paneOpen ? toggleLayout : undefined}
             />
           )}
           {activeRun && visible && <RoutineRunView routine={activeRun} />}
