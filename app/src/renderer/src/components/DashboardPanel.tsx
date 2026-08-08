@@ -109,6 +109,9 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
             tokens: d?.totals?.tokens ?? 0
           }
         })
+        // Belt and braces. Nothing can currently reach this with failed still
+        // set — the range buttons are not rendered while the error is showing,
+        // so "Try again", which clears the flag itself, is the only way back.
         setFailed(false)
       })
       .catch(() => setFailed(true))
