@@ -4108,6 +4108,12 @@ button {
 .desk .browser-pane {
   border-left: 0;
 }
+/* With no viewport there is no stage to show the painting through — the native
+   view covers the whole host — so the pane is a solid card instead. Without
+   this the omnibox sits directly on the water lilies, which is unreadable. */
+.desk .browser-pane:has(.browser-host:not(.sim)) {
+  background: var(--bg-content);
+}
 
 /* Sits behind the native device view so the simulated screen reads as a separate,
    floating surface — the native view draws on top, so only this card's shadow and
