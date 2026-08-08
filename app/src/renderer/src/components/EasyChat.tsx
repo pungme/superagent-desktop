@@ -841,6 +841,22 @@ export function EasyChat({
     return () => window.removeEventListener('cove:insert-reference', onInsert)
   }, [workspaceId])
 
+  /**
+   * "Work on this" from the list: send the item straight through as the prompt.
+   * Unlike a file reference this does submit — the button says it will, and a
+   * prefilled composer you then have to press Enter on is a worse version of
+   * the same thing.
+   */
+  useEffect(() => {
+    const onWorkOn = (e: Event): void => {
+      const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
+      if (detail.workspaceId !== workspaceId) return
+      submitRef.current?.(detail.text)
+    }
+    window.addEventListener('cove:work-on', onWorkOn)
+    return () => window.removeEventListener('cove:work-on', onWorkOn)
+  }, [workspaceId])
+
   // Detect a "/command" at the start, or an "@file" at the caret, for the dropdown.
   const updateMention = (value: string): void => {
     const cmd = /^\/(\S*)$/.exec(value)
@@ -1533,6 +1549,8 @@ export function EasyChat({
     return () => window.removeEventListener('cove:easy-user-message', onInjected)
   }, [workspaceId, wake])
 
+  const submitRef = useRef<((t: string) => void) | null>(null)
+
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
     const files = pendingFiles
@@ -1661,6 +1679,7 @@ export function EasyChat({
   )
 
   const send = (): void => submit(input.trim(), pendingImages)
+  submitRef.current = (t: string) => submit(t)
 
   const beginReply = (msg: ChatMessage): void => {
     setReplyTarget({ role: msg.role, text: msg.text })
