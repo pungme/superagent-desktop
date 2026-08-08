@@ -167,6 +167,8 @@ export interface CoveApi {
   onBrowserZoom: (id: string, cb: (factor: number) => void) => () => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
   onOpenFile: (cb: (p: { workspaceId: string; path: string }) => void) => () => void
+  /** The agent booted or launched something on a simulator — reveal the pane. */
+  onOpenSimulator: (cb: (p: { workspaceId: string; udid?: string }) => void) => () => void
   onBrowserCrashed: (id: string, cb: () => void) => () => void
   browserStopAutomation: (id: string) => void
   /** Stop a page that is still loading (the reload button becomes ×). */
@@ -435,6 +437,8 @@ const cove: CoveApi = {
   onUpdateError: (cb) => subscribe('update:error', (m) => cb(m as string)),
   installUpdate: () => ipcRenderer.send('update:install'),
   // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
+  onOpenSimulator: (cb) =>
+    subscribe('app:open-simulator', (p) => cb(p as { workspaceId: string; udid?: string })),
   onOpenFile: (cb) =>
     subscribe('app:open-file', (p) => cb(p as { workspaceId: string; path: string })),
 

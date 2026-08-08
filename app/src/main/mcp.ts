@@ -70,6 +70,12 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         if (!String(e).includes('current state: Booted')) throw e
       })
       execFile('open', ['-a', 'Simulator', '--background'], () => {})
+      // Reveal the pane the way browser_navigate reveals the browser: the user
+      // asked for a simulator, so show them one instead of leaving a button.
+      broadcastToWindows('app:open-simulator', {
+        workspaceId: workspaceIdFromPane(PANE_ID),
+        udid
+      })
       return { content: [{ type: 'text', text: `Booted ${udid}.` }] }
     }
   )
@@ -112,6 +118,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     async ({ appPath, bundleId }) => {
       await simctl(['install', 'booted', appPath])
       const out = await simctl(['launch', 'booted', bundleId])
+      broadcastToWindows('app:open-simulator', { workspaceId: workspaceIdFromPane(PANE_ID) })
       return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
     }
   )
