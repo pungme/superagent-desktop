@@ -16,21 +16,26 @@ import { createHash } from 'crypto'
 const run = promisify(execFile)
 
 /**
- * The live simulator pane.
+ * The simulator pane's main-process half: frames, gestures, and the Simulator
+ * window itself.
  *
- * The plan was baguette's framebuffer stream, and half of that tool delivers:
- * its input injection (tap/swipe/type/press) drives a booted device reliably.
- * The stream does not — measured against 0.1.88, `--format mjpeg` writes its
- * multipart HTTP header and then zero frames on iOS 18.6 and 26.5, headless or
- * with Simulator.app visible, and `--format h264` is rejected as an unknown
- * format despite being advertised in --help.
+ * Reading the simulator's framebuffer directly would be the obvious way to get
+ * a live picture, and every tool that does it through Apple's private
+ * frameworks is broken on Xcode 26 — baguette and idb both mount the surface,
+ * announce success, and then emit nothing. The README's maintainer note has
+ * the measurements. So there are two honest sources instead:
  *
- * So frames come from `simctl io screenshot`, which works everywhere and needs
- * nothing installed: ~1.6 fps at full resolution, which is a poor video and a
- * perfectly good mirror of an app you are building. Two things make it feel
- * live rather than laggy: frames are downscaled here (a 290 KB JPEG per tick
- * would cost more in IPC than in capture), and any input forces an immediate
- * grab, so the picture reacts to a tap in about the time the tap takes.
+ *   - `sim:capture-*` prepares the Simulator's own window to be captured by the
+ *     renderer, which is what the live view plays. Costs a Screen Recording
+ *     grant, and gives the frame rate the device actually renders at.
+ *   - `grabFrame` shells out to `simctl io screenshot`, which needs no
+ *     permission at all and costs ~530ms a frame — a poor video and a perfectly
+ *     good mirror of an app you are building. Frames are downscaled here (a
+ *     290 KB JPEG per tick would cost more in IPC than in capture) and any
+ *     input forces an immediate grab, so the picture reacts to a tap in about
+ *     the time the tap takes.
+ *
+ * Gestures go through baguette either way; see `inputSession`.
  */
 
 export interface SimDevice {
@@ -518,7 +523,11 @@ export function registerSimulatorIpc(): void {
    * is just somewhere on screen instead of tucked away.
    */
   ipcMain.handle('sim:capture-prepare', async (e, udid: string) => {
-    await run('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
+    // -g: launch it without bringing it forward. The live view never wants the
+    // Simulator in front — the whole point is that you watch it in here — and
+    // taking the user's window away, even for the moment it takes to park it,
+    // is the thing this app is not allowed to do.
+    await run('open', ['-g', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
       timeout: 20_000
     }).catch(() => {})
     await setMenuChecked('Show Device Bezels', false)
@@ -533,7 +542,6 @@ export function registerSimulatorIpc(): void {
       await osa(
         `tell application "System Events" to tell process "Simulator" to set position of window 1 to {${b.x + 12}, ${b.y + 12}}`
       ).catch(() => {})
-      win.focus()
     }
     // The live view has no frames of its own to measure, so read the device's
     // size once here — it's what turns a click in the pane into a point on the
