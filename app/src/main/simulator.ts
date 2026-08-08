@@ -287,6 +287,32 @@ const ACTIVE_WINDOW_MS = 4000
  */
 const nativeStreams = new Map<string, ChildProcessByStdio<null, Readable, Readable>>()
 
+/**
+ * Windows whose page we are already watching.
+ *
+ * A stream normally ends when the pane unmounts and the renderer sends
+ * sim:stream-stop. A reload never gets to do that — React cleanup does not run
+ * on a page that is being replaced — so the helper carried on decoding for a
+ * pane that no longer existed, and the next page started a second one beside
+ * it. Streams belong to the page that asked for them; when it goes, they go.
+ */
+const watched = new WeakSet<BrowserWindow>()
+
+function watchWindow(window: BrowserWindow): void {
+  if (watched.has(window)) return
+  watched.add(window)
+  const wc = window.webContents
+  wc.on('did-start-navigation', (details) => {
+    // Only a real page change. Same-document navigation keeps the renderer and
+    // its pane exactly where they are, so stopping the stream would blank a
+    // simulator nobody asked to close.
+    if (details.isMainFrame && !details.isSameDocument) stopAllSimStreams()
+  })
+  // A renderer that crashed cannot send anything at all.
+  wc.on('render-process-gone', () => stopAllSimStreams())
+  wc.on('destroyed', () => stopAllSimStreams())
+}
+
 function simfbPath(): string | null {
   const candidates = app.isPackaged
     ? [join(process.resourcesPath, 'simfb')]
@@ -299,6 +325,7 @@ function simfbPath(): string | null {
 function startNativeStream(window: BrowserWindow, udid: string, name: string): boolean {
   const bin = simfbPath()
   if (!bin) return false
+  watchWindow(window)
   // Flipping modes quickly used to leave a helper per flip, all decoding the
   // same device — only ever one stream of either kind per device.
   stopNativeStream(udid)
@@ -388,6 +415,7 @@ export function stopAllNativeStreams(): void {
 }
 
 function startStream(window: BrowserWindow, udid: string, _fps: number, name = ''): void {
+  watchWindow(window)
   stopStream(udid)
   stopNativeStream(udid)
   const stream: Stream = {
