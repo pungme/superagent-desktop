@@ -35,6 +35,9 @@ function iconFor(name: string): string {
 export function DesktopPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
   const [files, setFiles] = useState<DeskFile[]>(load)
   const [over, setOver] = useState(false)
+  /** Which menu-bar title is open, if any. */
+  const [menu, setMenu] = useState<string | null>(null)
+  const [sort, setSort] = useState<'name' | 'kind'>('name')
 
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(files))
@@ -60,6 +63,13 @@ export function DesktopPanel({ onClose }: { onClose: () => void }): React.JSX.El
     add(paths)
   }
 
+  const sorted = [...files].sort((a, b) =>
+    sort === 'name'
+      ? a.name.localeCompare(b.name)
+      : (a.name.split('.').pop() ?? '').localeCompare(b.name.split('.').pop() ?? '') ||
+        a.name.localeCompare(b.name)
+  )
+
   return (
     <div
       className={`desktop-view ${over ? 'over' : ''}`}
@@ -70,19 +80,60 @@ export function DesktopPanel({ onClose }: { onClose: () => void }): React.JSX.El
       onDragLeave={() => setOver(false)}
       onDrop={onDrop}
     >
-      <div className="desktop-head">
-        <h2>Desktop</h2>
-        <span className="desktop-sub">
-          {files.length === 0 ? 'Drop files here to keep them to hand' : `${files.length} item${files.length === 1 ? '' : 's'}`}
-        </span>
+      {/* A menu bar, the way a desktop has one. Click a title to open it;
+          clicking anywhere else puts it away. */}
+      <div className="desktop-menubar" onClick={(e) => e.stopPropagation()}>
+        <span className="desktop-menu-mark">◉</span>
+        <div className="desktop-menu">
+          <button
+            className={`desktop-menu-title ${menu === 'file' ? 'on' : ''}`}
+            onClick={() => setMenu((m) => (m === 'file' ? null : 'file'))}
+          >
+            File
+          </button>
+          {menu === 'file' && (
+            <div className="desktop-menu-drop">
+              <button
+                onClick={() => {
+                  setMenu(null)
+                  setFiles([])
+                }}
+                disabled={files.length === 0}
+              >
+                Clear the desktop
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="desktop-menu">
+          <button
+            className={`desktop-menu-title ${menu === 'view' ? 'on' : ''}`}
+            onClick={() => setMenu((m) => (m === 'view' ? null : 'view'))}
+          >
+            View
+          </button>
+          {menu === 'view' && (
+            <div className="desktop-menu-drop">
+              <button onClick={() => { setSort('name'); setMenu(null) }}>
+                {sort === 'name' ? '✓ ' : '\u00a0\u00a0'}Sort by name
+              </button>
+              <button onClick={() => { setSort('kind'); setMenu(null) }}>
+                {sort === 'kind' ? '✓ ' : '\u00a0\u00a0'}Sort by kind
+              </button>
+            </div>
+          )}
+        </div>
         <div className="desktop-head-spacer" />
+        <span className="desktop-sub">
+          {files.length === 0 ? 'Drop files here' : `${files.length} item${files.length === 1 ? '' : 's'}`}
+        </span>
         <button className="desktop-close" onClick={onClose} title="Close">
           ✕
         </button>
       </div>
 
-      <div className="desktop-surface">
-        {files.map((f) => (
+      <div className="desktop-surface" onClick={() => setMenu(null)}>
+        {sorted.map((f) => (
           <button
             key={f.path}
             className="desktop-file"

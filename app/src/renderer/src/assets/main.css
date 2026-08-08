@@ -11,7 +11,7 @@
   /* Dark theme (default) */
   --bg-content: #1e1f24;
   --sim-bg: #141518;
-  --desk-veil: rgba(16, 18, 22, 0.72);
+  --desktop-bg: #17181c;
   --bg-panel: #26272e;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
@@ -49,7 +49,7 @@
 :root[data-theme='light'] {
   --bg-content: #ffffff;
   --sim-bg: #e6e6ec;
-  --desk-veil: rgba(255, 255, 255, 0.6);
+  --desktop-bg: #eceef2;
   --bg-panel: #f6f6f8;
   --border: rgba(0, 0, 0, 0.08);
   --border-strong: rgba(0, 0, 0, 0.13);
@@ -2590,16 +2590,7 @@ button {
   display: flex;
   flex-direction: column;
   position: relative;
-  background-image: url('./desk-waterlilies.jpg');
-  background-size: cover;
-  background-position: center;
-}
-.desktop-view::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--desk-veil);
-  pointer-events: none;
+  background: var(--desktop-bg);
 }
 .desktop-view.over::after {
   content: '';
@@ -2609,22 +2600,77 @@ button {
   border-radius: 14px;
   pointer-events: none;
 }
-.desktop-head,
 .desktop-surface {
   position: relative;
   z-index: 1;
 }
-.desktop-head {
+/* The menu bar. Thin, always there, and the only chrome on the surface. */
+.desktop-menubar {
+  position: relative;
+  z-index: 2;
   display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 18px 22px 12px;
+  align-items: center;
+  gap: 2px;
+  padding: 0 10px;
+  height: 28px;
   flex-shrink: 0;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
 }
-.desktop-head h2 {
-  font-size: 17px;
-  font-weight: 650;
+.desktop-menu-mark {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-right: 8px;
+}
+.desktop-menu {
+  position: relative;
+}
+.desktop-menu-title {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
   color: var(--text-primary);
+  padding: 3px 9px;
+  border-radius: 5px;
+  cursor: default;
+}
+.desktop-menu-title:hover,
+.desktop-menu-title.on {
+  background: var(--active, rgba(0, 0, 0, 0.06));
+}
+.desktop-menu-drop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 3px;
+  min-width: 168px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+}
+.desktop-menu-drop button {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-primary);
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: default;
+  white-space: nowrap;
+}
+.desktop-menu-drop button:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.desktop-menu-drop button:disabled {
+  color: var(--text-tertiary);
 }
 .desktop-sub {
   font-size: 12px;
@@ -2650,7 +2696,7 @@ button {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px 22px 22px;
+  padding: 16px 22px 22px;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
