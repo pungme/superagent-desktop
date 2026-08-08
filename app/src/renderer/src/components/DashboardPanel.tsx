@@ -55,6 +55,8 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
   useEscapeClose(onClose)
   const [failed, setFailed] = useState(false)
   const [range, setRange] = useState(14)
+  /** Bumped by "Try again" — the only thing that re-runs a fetch on demand. */
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     window.cove
@@ -107,9 +109,10 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
             tokens: d?.totals?.tokens ?? 0
           }
         })
+        setFailed(false)
       })
       .catch(() => setFailed(true))
-  }, [range])
+  }, [range, attempt])
 
   const maxTurns = Math.max(1, ...(dash?.attention.map((a) => a.turns) ?? [1]))
   const maxAll = Math.max(1, ...(dash?.attentionAll.map((a) => a.turns) ?? [1]))
@@ -127,7 +130,18 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
       </div>
       <div className="dash">
         {failed ? (
-          <div className="dash-empty">Couldn&rsquo;t load activity data — try reopening.</div>
+          <div className="dash-empty">
+            <p>Couldn&rsquo;t load activity data.</p>
+            <button
+              className="dash-retry"
+              onClick={() => {
+                setFailed(false)
+                setAttempt((n) => n + 1)
+              }}
+            >
+              Try again
+            </button>
+          </div>
         ) : !dash ? (
           <div className="dash-empty">Loading…</div>
         ) : (
