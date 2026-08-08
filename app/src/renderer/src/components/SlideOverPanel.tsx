@@ -1,4 +1,5 @@
 import { ReactNode } from 'react'
+import { useEscapeClose } from '../hooks/useEscapeClose'
 import { useOverlayLock } from '../state'
 
 interface SlideOverPanelProps {
@@ -18,6 +19,7 @@ export function SlideOverPanel({
 }: SlideOverPanelProps): React.JSX.Element {
   // Hide the native browser view while this panel is open (it would cover it).
   useOverlayLock()
+  useEscapeClose(onClose)
   return (
     <div className="skills-overlay" onClick={onClose}>
       <div

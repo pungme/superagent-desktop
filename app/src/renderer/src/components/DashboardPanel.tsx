@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useEscapeClose } from '../hooks/useEscapeClose'
 
 interface Dash {
   turnsToday: number
@@ -51,6 +52,7 @@ function Trend({ cur, prev }: { cur: number; prev: number }): React.JSX.Element 
  */
 export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
   const [dash, setDash] = useState<Dash | null>(null)
+  useEscapeClose(onClose)
   const [failed, setFailed] = useState(false)
   const [range, setRange] = useState(14)
 

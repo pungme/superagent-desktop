@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BoardCard } from '../../../preload'
+import { useEscapeClose } from '../hooks/useEscapeClose'
 import { useStore } from '../state'
 
 type Status = BoardCard['status']
@@ -46,6 +47,12 @@ export function BoardPanel({
   const selectChat = useStore((s) => s.selectChat)
   const chatTitle = (id: string | null): string | null =>
     (id && chats?.find((c) => c.id === id)?.title) || null
+
+  // Escape peels one layer at a time: the open ticket, then whatever you had
+  // half-typed, then the list. Nothing you would have to retype is skipped.
+  useEscapeClose(
+    openId ? () => setOpenId(null) : draft ? () => setDraft('') : onClose
+  )
 
   const refresh = useCallback(async (): Promise<void> => {
     setCards(await window.cove.boardList(workspaceId))
@@ -253,7 +260,6 @@ export function BoardPanel({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') void add()
-              if (e.key === 'Escape') setDraft('')
             }}
           />
         </div>
@@ -326,9 +332,6 @@ function Ticket({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => title.trim() && title !== card.title && void onSave(card.id, { title })}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
-        }}
       />
       <textarea
         className="ticket-body"
@@ -342,9 +345,6 @@ function Ticket({
             e.preventDefault()
             void addFiles(files)
           }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
         }}
       />
 
