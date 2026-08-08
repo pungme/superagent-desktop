@@ -335,6 +335,8 @@ export interface CoveApi {
   agentStop: (id: string) => void
   onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
   onAgentExit: (id: string, cb: (code: number) => void) => () => void
+  /** Non-null if the session already exited before we were listening. */
+  agentDied: (id: string) => Promise<{ code: number; reason?: string } | null>
 
   onHookEvent: (cb: (e: HookEvent) => void) => () => void
   onFocusWorkspace: (cb: (workspaceId: string) => void) => () => void
@@ -511,6 +513,7 @@ const cove: CoveApi = {
   onAgentEvent: (id, cb) =>
     subscribe(`agent:event:${id}`, (event) => cb(event as Record<string, unknown>)),
   onAgentExit: (id, cb) => subscribe(`agent:exit:${id}`, (code) => cb(code as number)),
+  agentDied: (id) => ipcRenderer.invoke('agent:died', id),
 
   onHookEvent: (cb) => subscribe('hook:event', (ev) => cb(ev as HookEvent)),
   onFocusWorkspace: (cb) => subscribe('hook:focus-workspace', (id) => cb(id as string)),
