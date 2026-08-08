@@ -69,14 +69,26 @@ const TODO_PROMPT =
 const BOARD_PROMPT =
   "This project keeps a list that persists across conversations: stages todo, " +
   'doing, testing and done, kept with board_list, board_add, board_move and ' +
-  'board_update. Use it for work that outlives this turn — something the user ' +
-  'asked for and you deferred, a follow-up your change made necessary, a bug you ' +
-  'noticed while doing something else. Call board_list first so you don\'t add ' +
-  'something already there. Move an item to doing when you start it and done when ' +
-  'you finish, so the list records what happened rather than what was intended. ' +
-  'Do not add an item for work you are completing in this same turn, and do not ' +
-  'use it as a scratchpad for the steps of one task — your task-tracking tools ' +
-  'already do that.'
+  'board_update. It is yours to maintain, not just to append to.\n' +
+  'ADD work that outlives this turn — something the user asked for and you ' +
+  'deferred, a follow-up your change made necessary, a bug you noticed while ' +
+  'doing something else. Call board_list first so you do not duplicate one. Do ' +
+  'not add an item for work you are finishing in this same turn, and do not use ' +
+  'the list as a scratchpad for the steps of one task — your task-tracking tools ' +
+  'already do that.\n' +
+  'MOVE an item to doing when you start it and done when you finish, so the list ' +
+  'records what happened rather than what was intended. Use testing for work that ' +
+  'is written but unverified.\n' +
+  'TIDY as you go, with board_update. A title should say what to do specifically ' +
+  'enough that someone else could pick it up: rewrite "fix the header" into "Stop ' +
+  'the header collapsing below 400px". Put a short specification in the body — ' +
+  'what done means, where to start, which files — when the item is worth more ' +
+  'than its title. Merge duplicates, and remove items that turned out to be ' +
+  'unnecessary.\n' +
+  'Two limits on tidying. Do not rewrite an item just to reword it — only when it ' +
+  'is genuinely unclear or you learned something that makes it clearer. And when ' +
+  'the user wrote the item themselves, sharpen it rather than replacing what they ' +
+  'meant; if you would be changing the intent, ask instead.'
 
 // Scheduling MUST go through SuperAgent's own routines — cloud/loop schedulers run
 // elsewhere and can't reach this browser or the user's logged-in session.

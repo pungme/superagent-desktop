@@ -370,7 +370,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'board_update',
     {
       description:
-        "Rewrite a card's title or detail, or delete it (get ids from board_list). Delete a card that turned out to be unnecessary or a duplicate; otherwise prefer board_move to done, which keeps the record of what was finished.",
+        "Rewrite an item's title or detail, or delete it (get ids from board_list). Use this to keep the list clear: sharpen a vague title into a specific one, and put a short specification in the body — what done means, where to start, which files. Delete an item that turned out to be unnecessary or a duplicate; otherwise prefer board_move to done, which keeps the record of what was finished.",
       inputSchema: {
         id: z.string().describe('The card id, as returned by board_list'),
         title: z.string().optional(),
