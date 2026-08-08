@@ -1,6 +1,6 @@
 import { app, ipcMain } from 'electron'
 import { join } from 'path'
-import { mkdirSync } from 'fs'
+import { mkdirSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import { broadcastToWindows } from './util'
@@ -99,11 +99,18 @@ export function initStore(): void {
       chatId TEXT,
       branch TEXT,
       position REAL NOT NULL DEFAULT 0,
+      images TEXT NOT NULL DEFAULT '[]',
       createdAt INTEGER NOT NULL,
       updatedAt INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_cards_ws ON cards(workspaceId, status, position);
   `)
+
+  // Migration: pictures on a list item, for databases that predate them.
+  const cardCols = db.prepare('PRAGMA table_info(cards)').all() as { name: string }[]
+  if (cardCols.length && !cardCols.some((c) => c.name === 'images')) {
+    db.exec("ALTER TABLE cards ADD COLUMN images TEXT NOT NULL DEFAULT '[]'")
+  }
 
   // Migration: add the project-kind column to pre-existing databases.
   const cols = db.prepare('PRAGMA table_info(workspaces)').all() as { name: string }[]
@@ -523,6 +530,8 @@ export interface Card {
   status: CardStatus
   chatId: string | null
   branch: string | null
+  /** Absolute paths of pictures attached to the item, oldest first. */
+  images: string[]
   position: number
   createdAt: number
   updatedAt: number
@@ -580,10 +589,24 @@ export function insertIndex(column: number[], before: number | undefined): numbe
   return at === -1 ? column.length : at
 }
 
+/** SQLite has no arrays, so images ride as JSON text and are parsed here. */
+function hydrate(row: unknown): Card {
+  const r = row as Card & { images: string | string[] }
+  let images: string[] = []
+  try {
+    images = typeof r.images === 'string' ? (JSON.parse(r.images) as string[]) : (r.images ?? [])
+  } catch {
+    images = []
+  }
+  return { ...r, images }
+}
+
 export function listCards(workspaceId: string): Card[] {
-  return db
-    .prepare('SELECT * FROM cards WHERE workspaceId = ? ORDER BY position ASC, createdAt ASC')
-    .all(workspaceId) as Card[]
+  return (
+    db
+      .prepare('SELECT * FROM cards WHERE workspaceId = ? ORDER BY position ASC, createdAt ASC')
+      .all(workspaceId) as unknown[]
+  ).map(hydrate)
 }
 
 export function addCard(
@@ -607,23 +630,32 @@ export function addCard(
     status,
     chatId: opts.chatId ?? null,
     branch: opts.branch ?? null,
+    images: [],
     position: positionBetween(last.p ?? null, null),
     createdAt: now,
     updatedAt: now
   }
   db.prepare(
-    `INSERT INTO cards (id, workspaceId, title, body, status, chatId, branch, position, createdAt, updatedAt)
-     VALUES (@id, @workspaceId, @title, @body, @status, @chatId, @branch, @position, @createdAt, @updatedAt)`
-  ).run(card)
+    `INSERT INTO cards (id, workspaceId, title, body, status, chatId, branch, images, position, createdAt, updatedAt)
+     VALUES (@id, @workspaceId, @title, @body, @status, @chatId, @branch, @images, @position, @createdAt, @updatedAt)`
+  ).run({ ...card, images: JSON.stringify(card.images) })
   return card
 }
 
 export function updateCard(
   id: string,
-  patch: { title?: string; body?: string; status?: unknown; chatId?: string | null; branch?: string | null }
+  patch: {
+    title?: string
+    body?: string
+    status?: unknown
+    chatId?: string | null
+    branch?: string | null
+    images?: string[]
+  }
 ): Card | undefined {
-  const existing = db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as Card | undefined
-  if (!existing) return undefined
+  const row = db.prepare('SELECT * FROM cards WHERE id = ?').get(id)
+  if (!row) return undefined
+  const existing = hydrate(row)
   const status = patch.status === undefined ? existing.status : normalizeStatus(patch.status)
   // Moving to another column puts the card at the end of it; staying put keeps
   // its place, so an edit doesn't reshuffle the board under you.
@@ -641,13 +673,14 @@ export function updateCard(
     status,
     chatId: patch.chatId === undefined ? existing.chatId : patch.chatId,
     branch: patch.branch === undefined ? existing.branch : patch.branch,
+    images: patch.images === undefined ? existing.images : patch.images,
     position,
     updatedAt: Date.now()
   }
   db.prepare(
     `UPDATE cards SET title=@title, body=@body, status=@status, chatId=@chatId,
-     branch=@branch, position=@position, updatedAt=@updatedAt WHERE id=@id`
-  ).run(next)
+     branch=@branch, images=@images, position=@position, updatedAt=@updatedAt WHERE id=@id`
+  ).run({ ...next, images: JSON.stringify(next.images) })
   if (status === 'done' && existing.status !== 'done') {
     recordEvent('task-done', existing.workspaceId)
   }
@@ -656,15 +689,16 @@ export function updateCard(
 
 /** Reorder within a column, or move to a specific slot in another one. */
 export function moveCard(id: string, status: unknown, beforeId: string | null): Card | undefined {
-  const existing = db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as Card | undefined
-  if (!existing) return undefined
+  const row0 = db.prepare('SELECT * FROM cards WHERE id = ?').get(id)
+  if (!row0) return undefined
+  const existing = hydrate(row0)
   const target = normalizeStatus(status)
   const column = (
     db
       .prepare(
         'SELECT * FROM cards WHERE workspaceId = ? AND status = ? AND id != ? ORDER BY position ASC'
       )
-      .all(existing.workspaceId, target, id) as Card[]
+      .all(existing.workspaceId, target, id) as { position: number }[]
   ).map((c) => c.position)
   const idx = beforeId
     ? (
@@ -682,7 +716,37 @@ export function moveCard(id: string, status: unknown, beforeId: string | null): 
     id
   )
   if (target === 'done' && existing.status !== 'done') recordEvent('task-done', existing.workspaceId)
-  return db.prepare('SELECT * FROM cards WHERE id = ?').get(id) as Card
+  return hydrate(db.prepare('SELECT * FROM cards WHERE id = ?').get(id))
+}
+
+/**
+ * Save a picture attached to a list item. Files live on disk beside the
+ * database — a screenshot inlined into SQLite would bloat every read of the
+ * list for the sake of something shown in one detail view.
+ */
+export function saveCardImage(cardId: string, name: string, bytes: Uint8Array): string | null {
+  const row = db.prepare('SELECT id FROM cards WHERE id = ?').get(cardId)
+  if (!row) return null
+  const dir = join(app.getPath('userData'), 'card-images', cardId)
+  mkdirSync(dir, { recursive: true })
+  const safe = (name || 'image.png').replace(/[^\w.-]/g, '_').slice(-64)
+  const file = join(dir, `${Date.now()}-${safe}`)
+  writeFileSync(file, bytes)
+  const card = hydrate(db.prepare('SELECT * FROM cards WHERE id = ?').get(cardId))
+  updateCard(cardId, { images: [...card.images, file] })
+  return file
+}
+
+export function removeCardImage(cardId: string, path: string): void {
+  const row = db.prepare('SELECT * FROM cards WHERE id = ?').get(cardId)
+  if (!row) return
+  const card = hydrate(row)
+  updateCard(cardId, { images: card.images.filter((p) => p !== path) })
+  try {
+    unlinkSync(path)
+  } catch {
+    /* already gone, or never written */
+  }
 }
 
 export function removeCard(id: string): void {
@@ -725,6 +789,31 @@ export function registerStoreIpc(): void {
     const card = moveCard(id, status, beforeId)
     announce(card?.workspaceId)
     return card
+  })
+  ipcMain.handle(
+    'board:addImage',
+    (_e, cardId: string, name: string, bytes: Uint8Array) => {
+      const path = saveCardImage(cardId, name, bytes)
+      announce(ownerOf(cardId))
+      return path
+    }
+  )
+  ipcMain.handle('board:removeImage', (_e, cardId: string, path: string) => {
+    const ws = ownerOf(cardId)
+    removeCardImage(cardId, path)
+    announce(ws)
+    return true
+  })
+  // Pictures live outside the app, so the renderer can't just point an <img> at
+  // them — hand back a data URI instead of loosening the file:// rules.
+  ipcMain.handle('board:imageData', (_e, path: string) => {
+    try {
+      const ext = path.split('.').pop()?.toLowerCase() ?? 'png'
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
+      return `data:${mime};base64,${readFileSync(path).toString('base64')}`
+    } catch {
+      return null
+    }
   })
   ipcMain.handle('board:remove', (_e, id: string) => {
     // Read the owner before the row goes away, or there is nothing left to name.

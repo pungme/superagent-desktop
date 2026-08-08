@@ -2799,8 +2799,10 @@ button {
 
 .board-list {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0 10px 14px;
 }
 .board-stage {
@@ -2835,6 +2837,15 @@ button {
 }
 .board-row.dragging {
   opacity: 0.4;
+}
+/* An open ticket is a child of the row, and the row is a flexbox — so without
+   this it lands beside the title instead of under it. */
+.board-row:has(.ticket) {
+  flex-wrap: wrap;
+  cursor: default;
+}
+.board-row:has(.ticket) .ticket {
+  flex: 1 0 100%;
 }
 /* Where it will land — a line above the row you're hovering. */
 .board-row.insert-above::before {
@@ -2971,6 +2982,115 @@ button {
 }
 .board-row-x:hover {
   color: var(--text-primary);
+}
+
+/* An item opened up. Sits under its row so the list stays put; edits save on
+   blur, so there is no Save button and nothing to cancel. */
+.ticket {
+  /* No left indent: the list column is narrow enough already, and an indented
+     ticket was overflowing it and getting clipped mid-word. */
+  margin: 4px 0 8px 0;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-content);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: default;
+}
+.ticket.over {
+  border-color: var(--accent);
+}
+.ticket-title {
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 0;
+}
+.ticket-title:focus {
+  outline: none;
+}
+.ticket-body {
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+  min-height: 76px;
+  resize: vertical;
+  padding: 0;
+}
+.ticket-body:focus {
+  outline: none;
+}
+.ticket-body::placeholder {
+  color: var(--text-tertiary);
+}
+.ticket-shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ticket-shot {
+  position: relative;
+  width: 96px;
+  height: 72px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.ticket-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ticket-shot-x {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 9px;
+  padding: 1px 4px;
+  cursor: pointer;
+  opacity: 0;
+}
+.ticket-shot:hover .ticket-shot-x {
+  opacity: 1;
+}
+.ticket-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+.ticket-done {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ticket-done:hover {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+/* The row's own text becomes a target for opening the ticket. */
+.board-row-main {
+  cursor: pointer;
 }
 
 .board-add-row {

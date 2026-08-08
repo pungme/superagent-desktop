@@ -433,19 +433,22 @@ export function WorkspaceView({
               {surface && (
                 <div
                   className="desk-card"
-                  style={{ flexBasis: simOpen ? `${deskRatio * 100}%` : '100%' }}
+                  style={{ flexBasis: simOpen && !boardOpen ? `${deskRatio * 100}%` : '100%' }}
                 >
                   {surface}
                 </div>
               )}
-              {surface && simOpen && (
+              {surface && simOpen && !boardOpen && (
                 <div
                   className={`desk-divider ${dragging ? 'dragging' : ''}`}
                   onPointerDown={onDeskDividerDown}
                   role="separator"
                 />
               )}
-              {simOpen && (
+              {/* The list takes the whole desk while it's open. Sharing it with
+                  the simulator squeezed the list to ~200px, which is too narrow
+                  to read an item in, let alone open one. */}
+              {simOpen && !boardOpen && (
                 <div
                   className="desk-card desk-card-sim"
                   style={{ flexBasis: surface ? `${(1 - deskRatio) * 100}%` : '100%' }}
