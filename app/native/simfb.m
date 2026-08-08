@@ -233,6 +233,12 @@ int main(int argc, const char **argv) {
     dispatch_source_t tick = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
     dispatch_source_set_timer(tick, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), NSEC_PER_SEC, 0);
     dispatch_source_set_event_handler(tick, ^{
+      // A shut-down device keeps its last surface around, so the stream would
+      // otherwise sit there forever showing a frozen picture. 3 == Booted.
+      if ([[device valueForKey:@"state"] unsignedLongValue] != 3) {
+        fprintf(stderr, "simfb: device is no longer booted\n");
+        exit(3);
+      }
       if (!dirty) emit();
       dirty = NO;
     });

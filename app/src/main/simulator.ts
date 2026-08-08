@@ -351,8 +351,15 @@ function startNativeStream(window: BrowserWindow, udid: string, name: string): b
   })
 
   const done = (): void => {
+    const deliberate = nativeStreams.get(udid) !== proc
     nativeStreams.delete(udid)
-    if (sawFrame || window.isDestroyed()) return
+    if (deliberate || window.isDestroyed()) return
+    if (sawFrame) {
+      // It was working and stopped — almost always the device shutting down.
+      // Say so rather than leaving a frozen picture on screen.
+      window.webContents.send(`sim:gone:${udid}`)
+      return
+    }
     // Never produced a frame — the private API probably moved. Say why once,
     // then fall back so the pane still shows something.
     console.error('[simfb] no frames:', stderr.trim() || 'exited silently')
