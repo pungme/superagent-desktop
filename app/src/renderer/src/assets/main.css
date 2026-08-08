@@ -5362,9 +5362,19 @@ button {
   color: var(--text-primary);
 }
 .tabs-empty {
+  display: block;
+  width: 100%;
   padding: 4px 10px 8px;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: 11.5px;
+  text-align: left;
   color: var(--text-tertiary);
+  cursor: pointer;
+}
+.tabs-empty:hover {
+  color: var(--text-secondary);
 }
 
 /* Loading feedback: the reload button turns into a stop ×, and a hairline
