@@ -716,7 +716,11 @@ export function Sidebar(): React.JSX.Element {
               <WorkspaceRow key={ws.id} ws={ws} index={i} />
             ))}
             {(tabsGroup?.workspaces ?? []).length === 0 && (
-              <div className="tabs-empty">Click + to browse</div>
+              // Was "Click + to browse" — grey text aiming you at a control an
+              // inch away. It opens the tab itself now.
+              <button className="tabs-empty" onClick={() => void newTab()}>
+                Open a tab to browse
+              </button>
             )}
           </div>
           {tree
