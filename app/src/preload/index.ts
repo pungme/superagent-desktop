@@ -190,13 +190,6 @@ export interface CoveApi {
   boardRemove: (id: string) => Promise<boolean>
   onBoardChanged: (cb: (p: { workspaceId: string }) => void) => () => void
   /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
-  simCaptureSource: (
-    name?: string
-  ) => Promise<{ ok: boolean; id?: string; name?: string; error?: string }>
-  simCapturePrepare: (
-    udid: string
-  ) => Promise<{ ok: boolean; bezels: boolean; width: number; height: number }>
-  simCaptureSettings: () => Promise<boolean>
   simList: () => Promise<{ udid: string; name: string; state: string; runtime: string }[]>
   simBoot: (udid: string) => Promise<boolean>
   simShutdown: (udid: string) => Promise<boolean>
@@ -407,9 +400,6 @@ const cove: CoveApi = {
   boardMove: (id, status, beforeId) => ipcRenderer.invoke('board:move', id, status, beforeId),
   boardRemove: (id) => ipcRenderer.invoke('board:remove', id),
   onBoardChanged: (cb) => subscribe('board:changed', (p) => cb(p as { workspaceId: string })),
-  simCaptureSource: (name) => ipcRenderer.invoke('sim:capture-source', name),
-  simCapturePrepare: (udid) => ipcRenderer.invoke('sim:capture-prepare', udid),
-  simCaptureSettings: () => ipcRenderer.invoke('sim:capture-settings'),
   simList: () => ipcRenderer.invoke('sim:list'),
   simBoot: (udid) => ipcRenderer.invoke('sim:boot', udid),
   simShutdown: (udid) => ipcRenderer.invoke('sim:shutdown', udid),
