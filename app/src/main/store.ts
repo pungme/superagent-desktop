@@ -593,7 +593,10 @@ export function addCard(
   const card: Card = {
     id: randomUUID(),
     workspaceId,
-    title: title.trim().slice(0, 200),
+    // Both callers refuse a blank title, but a card with none is invisible on
+    // the board with no way to say what it was — so the invariant lives here
+    // too, where it can't be bypassed.
+    title: title.trim().slice(0, 200) || 'Untitled',
     body: (opts.body ?? '').slice(0, 4000),
     status,
     chatId: opts.chatId ?? null,
