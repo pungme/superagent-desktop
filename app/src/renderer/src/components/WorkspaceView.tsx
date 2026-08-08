@@ -396,9 +396,9 @@ export function WorkspaceView({
               return !v
             })
           }
-          title="This project's board — what's left, and what Claude finished"
+          title="This project's list — what's left, and what Claude finished"
         >
-          ▤ Board
+          ▤ List
         </button>
         {/* No manual toggle for code projects: the pane reveals itself when the
             agent navigates or you open a file, and closes from its own ✕. */}

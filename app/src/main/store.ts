@@ -93,7 +93,7 @@ export function initStore(): void {
       workspaceId TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
       body TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'backlog',
+      status TEXT NOT NULL DEFAULT 'todo',
       -- The conversation that last touched this card, so a card can take you
       -- back to the work rather than just describing it.
       chatId TEXT,
@@ -513,7 +513,7 @@ export function getDashboard(rangeDays = 14): unknown {
   }
 }
 
-export type CardStatus = 'backlog' | 'todo' | 'doing' | 'done'
+export type CardStatus = 'todo' | 'doing' | 'testing' | 'done'
 
 export interface Card {
   id: string
@@ -528,23 +528,29 @@ export interface Card {
   updatedAt: number
 }
 
-/** Anything unrecognised lands in the backlog rather than vanishing from the board. */
+/** Anything unrecognised lands in Todo rather than vanishing from the list. */
 export function normalizeStatus(raw: unknown): CardStatus {
   const s = String(raw ?? '').toLowerCase().trim().replace(/[\s-]+/g, '_')
   const alias: Record<string, CardStatus> = {
-    backlog: 'backlog',
     todo: 'todo',
     to_do: 'todo',
     next: 'todo',
+    // Cards written before the columns changed.
+    backlog: 'todo',
     doing: 'doing',
     in_progress: 'doing',
     inprogress: 'doing',
     wip: 'doing',
+    testing: 'testing',
+    test: 'testing',
+    qa: 'testing',
+    review: 'testing',
+    in_review: 'testing',
     done: 'done',
     complete: 'done',
     completed: 'done'
   }
-  return alias[s] ?? 'backlog'
+  return alias[s] ?? 'todo'
 }
 
 /**
@@ -585,7 +591,7 @@ export function addCard(
   title: string,
   opts: { body?: string; status?: unknown; chatId?: string | null; branch?: string | null } = {}
 ): Card {
-  const status = normalizeStatus(opts.status ?? 'backlog')
+  const status = normalizeStatus(opts.status ?? 'todo')
   const last = db
     .prepare('SELECT MAX(position) p FROM cards WHERE workspaceId = ? AND status = ?')
     .get(workspaceId, status) as { p: number | null }
