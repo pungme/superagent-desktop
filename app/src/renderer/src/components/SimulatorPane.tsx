@@ -35,6 +35,12 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
   const [frame, setFrame] = useState<Frame | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [gone, setGone] = useState(false)
+  /**
+   * Bumped to restart the stream. The native helper exits when its device goes
+   * away, and nothing else in the effect's inputs changes on the way back — so
+   * without this, booting the device again leaves a frozen picture.
+   */
+  const [reload, setReload] = useState(0)
   const [canInput, setCanInput] = useState(true)
   const [picking, setPicking] = useState(false)
   const [typing, setTyping] = useState(false)
@@ -96,7 +102,7 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
       offFrame()
       offGone()
     }
-  }, [udid, visible, mode])
+  }, [udid, visible, mode, reload])
 
   /**
    * Keep the real Simulator window sitting exactly on this pane. There is no
@@ -409,7 +415,10 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
               onClick={() => {
                 if (!udid) return
                 setGone(false)
-                void window.cove.simBoot(udid).then(refresh)
+                void window.cove.simBoot(udid).then(async () => {
+                  await refresh()
+                  setReload((n) => n + 1)
+                })
               }}
             >
               Boot it again
