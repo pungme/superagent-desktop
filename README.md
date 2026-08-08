@@ -134,32 +134,45 @@ allowed to do without asking.
   reparent another application's window into ours. Anything that looks like
   embedding is really capture + input forwarding.
 
-  THE FRAME SOURCE. Everything that reads the simulator's framebuffer through
-  Apple's private frameworks is broken on this host, and it is worth knowing
-  that before trying again:
+  THE FRAME SOURCE. There is a native one, and it works — PROVEN 2026-08-08.
+  CoreSimulator hands out the device's framebuffer as an IOSurface, in-process,
+  no permissions, no screenshots, no window capture. Verified end to end: pulled
+  a 1179x2556 BGRA surface off a booted iPhone 16 and wrote it out as a PNG of
+  the real screen, clock and all.
 
-    * baguette 0.1.88 — `stream --format mjpeg` writes its multipart HTTP
-      header and then zero frames. `--format h264` is rejected as unknown.
-      Tried iOS 18.6 and 26.5, headless and visible, static and with motion.
-    * idb_companion 1.1.8 (Meta) — its gRPC `video_stream` behaves IDENTICALLY.
-      The companion logs "connectToFramebuffer succeeded", mounts the surface,
-      prints the scale it will apply — and then emits not one byte, on both
-      runtimes, with or without motion. Verified from Node over @grpc/grpc-js
-      with proto/idb.proto, not just through idb's Python client.
+    dlopen /Library/Developer/PrivateFrameworks/CoreSimulator.framework
+    dlopen <Xcode>/Contents/Developer/Library/PrivateFrameworks/SimulatorKit.framework
+    SimServiceContext sharedServiceContextForDeveloperDir:error:
+      -> defaultDeviceSetWithError: -> devices -> the one with state == 3
+    device.io.ioPorts -> the descriptor conforming to SimDisplayIOSurfaceRenderable
+      -framebufferSurface                              -> IOSurface, BGRA, native res
+      -registerCallbackWithUUID:ioSurfacesChangeCallback:
+      -registerCallbackWithUUID:damageRectanglesCallback:   (from SimDisplayRenderable)
 
-    Two independent tools failing the same way on Xcode 26.5 / macOS 26.5 says
-    the framebuffer API changed under them, not that we held either wrong.
+    Gotchas, all hit for real:
+      * Only the FIRST display port returns a surface; the other two are nil.
+      * The descriptors are ROCKRemoteProxy objects. KVC throws
+        (NSUnknownKeyException) — use performSelector / NSInvocation.
+      * SimulatorKit.SimDisplayView is an NSView with -setDevice: and it accepts
+        a SimDevice happily, but on its own it renders nothing: intrinsicContentSize
+        stays 0x0 and its layer has no contents. The display port still has to be
+        attached. Grabbing the IOSurface directly is the simpler path.
 
-    What DOES work, all public API:
-    * `simctl io <udid> recordVideo out.mov` — a real h264 movie. But it is
-      AVAssetWriter underneath: a fifo yields nothing and an http:// target is
-      rejected ("Cannot create file"), so there is no way to get frames out of
-      it while it runs. Only useful for recordings, not a live view.
-    * `simctl io <udid> screenshot` — works everywhere, and costs ~530ms per
-      frame. That is the mirror's ~2fps ceiling and it can't be tuned away.
-    * Window capture of Simulator.app — what live mode uses. Chromium's
-      desktopCapturer is ScreenCaptureKit here, it keeps delivering frames for
-      an occluded window, and it needs one Screen Recording grant.
+  WHY THE EXISTING TOOLS FAIL, and why that misled us. idb_companion 1.1.8 from
+  brew reports a build date of AUG 2022 and baguette is 0.1.88; both mount a
+  surface and emit zero frames on Xcode 26.5. The earlier conclusion here — that
+  Apple had broken framebuffer streaming — was wrong. Simulator.app renders fine,
+  so the API works; those clients simply predate the current ROCK remoting layer.
+  Two old tools failing the same way is evidence they are both old, not that the
+  platform is shut.
+
+  WHAT SHIPS TODAY, and what should replace it. `simctl io screenshot` at ~530ms
+  a frame (the mirror's ~2fps ceiling), and Chromium window capture of
+  Simulator.app for the live view, which costs a Screen Recording grant. Both
+  become unnecessary once the IOSurface path is wired up: a small native addon
+  that grabs the surface, registers the damage callback and hands frames to the
+  renderer would be faster than either, need no permission at all, and not care
+  whether Simulator.app is even open.
 
   INPUT. baguette's gesture side works, on every runtime — CORRECTED 2026-08-08.
   This note used to claim iOS 26+ only, and the pane shipped a version gate that
