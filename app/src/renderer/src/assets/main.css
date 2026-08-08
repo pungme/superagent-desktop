@@ -4681,9 +4681,53 @@ button {
   -webkit-user-drag: none;
   cursor: default;
 }
+/* The live view: the captured Simulator window, cropped to just the screen.
+   The window arrives with its macOS title bar attached, so the video is taller
+   than the box and slides up behind it. */
+.sim-live {
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+  max-height: 100%;
+  height: 100%;
+  border-radius: 28px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  background: #000;
+  user-select: none;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sim-live.live {
+  cursor: pointer;
+}
+.sim-live:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.sim-live-video {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  object-fit: fill;
+  pointer-events: none;
+}
+
 .sim-empty {
   color: var(--text-tertiary);
   font-size: 12.5px;
+}
+.sim-note-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
 }
 .sim-note {
   padding: 8px 12px;
