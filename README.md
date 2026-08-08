@@ -58,6 +58,8 @@ allowed to do without asking.
 
 - **Desktop & phone at once.** One click shows the same page in a desktop card
   and an iPhone frame — same session, both live.
+- **A desk, not a slot.** The page you're on and an iOS Simulator sit side by
+  side on the same surface, over a Monet you can switch off.
 - **Worktree chats.** Start a chat on its own git worktree; the agent works on
   an isolated branch while your checkout stays clean.
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
@@ -102,11 +104,10 @@ allowed to do without asking.
 - **Other agents.** SuperAgent wraps Claude Code today, but in the end it's an
   LLM driving a home — the plan is an agent layer that other CLIs and local
   models can plug into.
-- **A desktop.** Right now a project is a chat beside one pane. The idea is a
-  workspace that behaves like a real computer: several things open at once —
-  browser, files, a terminal, a simulator — arranged the way you left them,
-  with the agent working across all of them, over a background you'd want to
-  look at.
+- **A desktop.** The pane half is a desk now: your page or file and a simulator
+  side by side on a painted surface, arranged the way you left them. Still to
+  come — a terminal as a third card, and the agent working across all of them
+  at once.
 - **Memory that writes itself.** Your agent relearns the same things in every
   new session — your conventions, a project's traps, which command actually
   deploys. SuperAgent should notice those and carry them across projects, in a
@@ -227,3 +228,6 @@ npm run dev
 ## License
 
 [MIT](LICENSE)
+
+The desk background is Claude Monet, *Water Lilies* (1906), from the Art
+Institute of Chicago's open-access collection — public domain (CC0).
