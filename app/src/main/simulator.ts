@@ -299,6 +299,10 @@ function simfbPath(): string | null {
 function startNativeStream(window: BrowserWindow, udid: string, name: string): boolean {
   const bin = simfbPath()
   if (!bin) return false
+  // Flipping modes quickly used to leave a helper per flip, all decoding the
+  // same device — only ever one stream of either kind per device.
+  stopNativeStream(udid)
+  stopStream(udid)
   let proc: ChildProcessByStdio<null, Readable, Readable>
   try {
     proc = spawn(bin, ['--udid', udid, '--scale', '0.5', '--quality', '0.6', '--fps', '30'], {
@@ -378,6 +382,7 @@ export function stopAllNativeStreams(): void {
 
 function startStream(window: BrowserWindow, udid: string, _fps: number, name = ''): void {
   stopStream(udid)
+  stopNativeStream(udid)
   const stream: Stream = {
     udid,
     name,
