@@ -37,13 +37,8 @@ export function screenCrop(
   return Math.max(0, Math.min(videoH - 1, videoH - screenH))
 }
 
-/** iOS major from a runtime label like "iOS 26 5"; 0 when it can't be read. */
-function iosMajor(runtime: string): number {
-  return Number(/iOS[ -](\d+)/i.exec(runtime)?.[1] ?? 0)
-}
-
 /**
- * A live iOS Simulator inside the app, beside the chat. Three ways to get it
+ * An iOS Simulator inside the app, beside the chat. Three ways to get it
  * there, in the order you'd want them:
  *
  *   live    the Simulator's own window, captured and played in the pane at the
@@ -55,7 +50,8 @@ function iosMajor(runtime: string): number {
  *           touch, but it floats above the app rather than living inside it.
  *
  * Gestures go through baguette in every mode, and force an immediate grab in
- * mirror mode so the picture answers a touch straight away.
+ * mirror mode so the picture answers a touch straight away. Every iOS version
+ * accepts them — see the note on `tappable`.
  */
 export function SimulatorPane({ visible = true }: { visible?: boolean }): React.JSX.Element {
   const [devices, setDevices] = useState<Device[]>([])
@@ -109,10 +105,9 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
 
   useEffect(() => {
     void refresh().then((list) => {
-      // Prefer something already booted that can also be tapped — landing on an
-      // old runtime means a mirror that ignores every touch.
+      // Whatever is already booted — every runtime can be tapped.
       const booted = list.filter((d) => d.state === 'Booted')
-      const best = booted.find((d) => iosMajor(d.runtime) >= 26) ?? booted[0]
+      const best = booted[0]
       if (best) setUdid(best.udid)
       else setPicking(true)
     })
@@ -281,10 +276,11 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     })
   }, [mode, visible, udid])
 
-  // Gestures are injected by baguette, which targets iOS 26 and up: on older
-  // runtimes a tap reports success and quietly does nothing (measured — the
-  // same tap opens an app on 26.5 and no-ops on 18.6).
-  const tappable = canInput && (!device || iosMajor(device.runtime) >= 26)
+  // Anything baguette can drive is tappable. There used to be an iOS 26+ gate
+  // here, on the belief that older runtimes silently ignored input — measured
+  // against 18.6 and that is simply not true: taps land and the screen reacts.
+  // The gate was disabling a working feature on every older simulator.
+  const tappable = canInput
 
   /** Rendered position → device points, which is what the injector expects. */
   const toDevice = (e: React.PointerEvent): { x: number; y: number; w: number; h: number } | null => {
@@ -471,12 +467,6 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
                   <span className="sim-menu-name">{d.name}</span>
                   <span className="sim-menu-rt">
                     {d.runtime}
-                    {iosMajor(d.runtime) < 26 && iosMajor(d.runtime) > 0 && (
-                      <span className="sim-menu-warn" title="Tapping needs iOS 26 or newer">
-                        {' '}
-                        view only
-                      </span>
-                    )}
                   </span>
                 </button>
               ))}
@@ -634,11 +624,6 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
       {!canInput && (
         <div className="sim-note">
           Tapping needs <code>brew install baguette</code> — the mirror works without it.
-        </div>
-      )}
-      {canInput && device && iosMajor(device.runtime) > 0 && iosMajor(device.runtime) < 26 && (
-        <div className="sim-note">
-          {device.runtime} mirrors fine, but tapping needs an iOS 26 or newer simulator.
         </div>
       )}
     </div>
