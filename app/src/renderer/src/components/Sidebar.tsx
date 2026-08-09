@@ -252,7 +252,7 @@ function ChatRow({
 }
 
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
-  const active = useStore((s) => s.activeWorkspaceId === ws.id)
+  const active = useStore((s) => s.activeWorkspaceId === ws.id && s.overlay === null)
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
   const agentLive = useStore((s) => Boolean(s.agentLive[ws.id]))
   // A live dev server on this project → green dot on its icon (mirrors the
@@ -588,6 +588,7 @@ const TABS_GROUP = '__tabs'
 
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
+  const overlay = useStore((s) => s.overlay)
   const refresh = useStore((s) => s.refresh)
   const addGroup = useStore((s) => s.addGroup)
   const setActive = useStore((s) => s.setActive)
@@ -669,7 +670,7 @@ export function Sidebar(): React.JSX.Element {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="sidebar-scroll">
           <button
-            className="sidebar-dash-row"
+            className={`sidebar-dash-row ${overlay === 'computer' ? 'on' : ''}`}
             onClick={() => window.dispatchEvent(new CustomEvent('cove:open-computer'))}
           >
             <svg
@@ -688,7 +689,7 @@ export function Sidebar(): React.JSX.Element {
             Computer
           </button>
           <button
-            className="sidebar-dash-row"
+            className={`sidebar-dash-row ${overlay === 'dashboard' ? 'on' : ''}`}
             onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
           >
             <svg
@@ -704,6 +705,56 @@ export function Sidebar(): React.JSX.Element {
               <path d="M2.5 13.5v-4M6.5 13.5v-7M10.5 13.5v-2.5M14.5 13.5v-9" />
             </svg>
             Dashboard
+          </button>
+          {/* Skills and Routines belong to the app, not to one project's
+              toolbar — they open for whichever project is current. */}
+          <button
+            className={`sidebar-dash-row ${overlay === 'skills' ? 'on' : ''}`}
+            title="Your skills"
+            onClick={() => {
+              // Leave Computer/Dashboard first, or the panel would open behind them.
+              window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+              window.dispatchEvent(new CustomEvent('cove:open-skills'))
+            }}
+          >
+            <svg
+              className="sidebar-dash-icon"
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            >
+              <path d="M8 1.8l1.7 3.9 4.2.4-3.2 2.8 1 4.1L8 10.9l-3.7 2.1 1-4.1-3.2-2.8 4.2-.4z" />
+            </svg>
+            Skills
+          </button>
+          <button
+            className={`sidebar-dash-row ${overlay === 'routines' ? 'on' : ''}`}
+            title="Scheduled tasks"
+            onClick={() => {
+              // Leave Computer/Dashboard first, or the panel would open behind them.
+              window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+              window.dispatchEvent(new CustomEvent('cove:open-routines'))
+            }}
+          >
+            <svg
+              className="sidebar-dash-icon"
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            >
+              <circle cx="8" cy="8.6" r="5.6" />
+              <path d="M8 5.6v3.2l2 1.2M5.6 1.6h4.8" />
+            </svg>
+            Routines
           </button>
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">
