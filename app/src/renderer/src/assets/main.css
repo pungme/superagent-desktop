@@ -955,6 +955,11 @@ button {
     0 12px 32px var(--shadow);
 }
 
+/* The desktop supplies its own bar, which drags the window itself. */
+.content.computer .content-titlebar {
+  height: 0;
+}
+
 .content-titlebar {
   height: 8px;
   flex-shrink: 0;
@@ -2664,6 +2669,7 @@ button {
 }
 /* The menu bar. Thin, always there, and the only chrome on the surface. */
 .computer-menubar {
+  -webkit-app-region: drag;
   position: relative;
   z-index: 2;
   display: flex;
@@ -2708,6 +2714,11 @@ button {
 .computer-menu {
   position: relative;
 }
+.computer-menubar button,
+.computer-menubar .computer-menu {
+  -webkit-app-region: no-drag;
+}
+
 .computer-menu-title {
   border: 0;
   background: none;
@@ -6051,6 +6062,109 @@ button {
   padding: 28px 20px;
   color: var(--text-tertiary);
   font-size: 12.5px;
+}
+
+/* The Browser app: a tab strip over real Chromium panes. */
+.dbrowser {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dbrowser-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.dbrowser-tabs::-webkit-scrollbar {
+  height: 0;
+}
+.dbrowser-tab {
+  position: relative;
+  flex: 0 1 170px;
+  min-width: 78px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: default;
+  transition: padding-right 0.12s ease;
+}
+.dbrowser-tab:hover {
+  background: var(--hover);
+  padding-right: 26px;
+}
+.dbrowser-tab.on {
+  background: var(--bg-content);
+  color: var(--text-primary);
+  padding-right: 26px;
+}
+.dbrowser-tab-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dbrowser-tab-x {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.dbrowser-tab:hover .dbrowser-tab-x,
+.dbrowser-tab.on .dbrowser-tab-x {
+  opacity: 1;
+}
+.dbrowser-tab-x:hover {
+  color: #f97583;
+}
+.dbrowser-new {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 15px;
+  line-height: 1;
+}
+.dbrowser-new:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.dbrowser-panes {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--bg-content);
+}
+/* Kept mounted so a tab holds its page; only the active one is on screen. */
+.dbrowser-pane {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+.dbrowser-pane.on {
+  display: flex;
 }
 
 /* The Chat app: conversations down the side, the current one beside them. */
