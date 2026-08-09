@@ -410,7 +410,7 @@ export function getDashboard(rangeDays = 14): unknown {
   const tokRows = db
     .prepare("SELECT ts, n FROM events WHERE kind='tokens' AND ts >= ?")
     .all(startOfToday - range * dayMs) as { ts: number; n: number }[]
-  const spark: { day: string; turns: number; tokens: number }[] = []
+  const spark: { day: string; date: string; turns: number; tokens: number }[] = []
   for (let i = range - 1; i >= 0; i--) {
     const d = today - i
     const date = new Date((d + 1) * dayMs + tzOffMs - 1)
@@ -422,6 +422,13 @@ export function getDashboard(rangeDays = 14): unknown {
           : ''
     spark.push({
       day: label,
+      // The label is a single letter at 14 days and blank at 90 — the tooltip
+      // needs the actual day, not "S".
+      date: date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short'
+      }),
       turns: turns.filter((e) => dayOf(e.ts) === d).length,
       tokens: tokRows.filter((r) => dayOf(r.ts) === d).reduce((s, r) => s + r.n, 0)
     })

@@ -137,7 +137,7 @@ export interface CoveApi {
     tasksToday: number
     streak: number
     longestStreak: number
-    spark: { day: string; turns: number; tokens: number }[]
+    spark: { day: string; date: string; turns: number; tokens: number }[]
     attention: { name: string; turns: number }[]
     attentionAll: { name: string; turns: number }[]
     hours: number[]

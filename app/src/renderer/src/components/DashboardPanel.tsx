@@ -6,7 +6,7 @@ interface Dash {
   tasksToday: number
   streak: number
   longestStreak: number
-  spark: { day: string; turns: number; tokens: number }[]
+  spark: { day: string; date: string; turns: number; tokens: number }[]
   attention: { name: string; turns: number }[]
   attentionAll: { name: string; turns: number }[]
   hours: number[]
@@ -79,8 +79,13 @@ export function DashboardPanel({
           spark: Array.isArray(d?.spark)
             ? d.spark.map((s) =>
                 typeof s === 'number'
-                  ? { day: '', turns: s, tokens: 0 }
-                  : { day: s?.day ?? '', turns: s?.turns ?? 0, tokens: s?.tokens ?? 0 }
+                  ? { day: '', date: '', turns: s, tokens: 0 }
+                  : {
+                      day: s?.day ?? '',
+                      date: s?.date ?? '',
+                      turns: s?.turns ?? 0,
+                      tokens: s?.tokens ?? 0
+                    }
               )
             : [],
           attention: d?.attention ?? [],
@@ -234,7 +239,7 @@ export function DashboardPanel({
                   <div
                     key={i}
                     className="dash-spark-col dash-tip"
-                    data-tip={`${fmtTokens(s.tokens)} tokens · ${s.turns} turns`}
+                    data-tip={`${s.date ? `${s.date} · ` : ''}${fmtTokens(s.tokens)} tokens · ${s.turns} turns`}
                   >
                     <span className="dash-spark-val">
                       {s.tokens > 0 && range <= 14 ? fmtTokens(s.tokens) : ''}

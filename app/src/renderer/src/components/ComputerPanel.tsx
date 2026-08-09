@@ -4,7 +4,7 @@ import { useStore } from '../state'
 import { DesktopWindow, WindowRect } from './DesktopWindow'
 import { AppId, DESKTOP_APPS, appById } from './desktopApps'
 import { DashboardPanel } from './DashboardPanel'
-import { EasyChat } from './EasyChat'
+import { DesktopChat } from './DesktopChat'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
 
@@ -82,8 +82,6 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
    * repository, no dev server and nothing to be careful about — a plain chat.
    */
   const [chatHome, setChatHome] = useState<{ workspaceId: string; cwd: string } | null>(null)
-  const chats = useStore((s) => (chatHome ? s.chats[chatHome.workspaceId] : undefined))
-  const activeChatId = useStore((s) => (chatHome ? s.activeChatId[chatHome.workspaceId] : undefined))
   const loadChats = useStore((s) => s.loadChats)
   const activeWorkspace = useStore((s) => {
     const id = s.activeWorkspaceId
@@ -226,17 +224,8 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
 
   const renderApp = (app: AppId): React.JSX.Element => {
     if (app === 'chat') {
-      if (!chatHome || !activeChatId) return <div className="desktop-app-empty">Starting…</div>
-      const chat = chats?.find((c) => c.id === activeChatId)
-      return (
-        <EasyChat
-          key={activeChatId}
-          cwd={chat?.cwd || chatHome.cwd}
-          workspaceId={chatHome.workspaceId}
-          chatId={activeChatId}
-          initialSessionId={chat?.claudeSessionId ?? null}
-        />
-      )
+      if (!chatHome) return <div className="desktop-app-empty">Starting…</div>
+      return <DesktopChat workspaceId={chatHome.workspaceId} cwd={chatHome.cwd} />
     }
     if (app === 'dashboard') return <DashboardPanel embedded onClose={() => {}} />
     if (app === 'skills') {
