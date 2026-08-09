@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — the terminal, unfolded</title>
+<meta name="description" content="A Mac app that gives your agent a computer." />
+<style>
+/*
+  CONCEPT 5 — "Unfold".
+  The whole argument in one move. It opens as the thing you already use — a
+  terminal running `claude -p` — and then that terminal grows a window, a
+  sidebar and a browser beside it, without a cut. One continuous surface, which
+  is the transition award juries actually reward: the page never changes, it
+  becomes.
+*/
+:root {
+  --void: #0a0b0d;
+  --shell: #101215;
+  --chrome: #16191e;
+  --ink: #eceef1;
+  --muted: #949aa5;
+  --faint: #5b616c;
+  --line: rgba(255,255,255,0.08);
+  --green: #57b06f;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--void); color:var(--ink); -webkit-font-smoothing:antialiased;
+  font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif; }
+a { color:inherit } img { max-width:100%; display:block; height:auto }
+.wrap { max-width:1060px; margin:0 auto; padding:0 26px; }
+
+/* ── the stage ─────────────────────────────────────────────────────────── */
+.stage { min-height:100vh; display:grid; place-items:center; padding:8vh 20px; }
+.machine {
+  width: min(980px, 94vw);
+  background: var(--shell); border:1px solid var(--line); border-radius:14px;
+  box-shadow: 0 40px 100px -30px rgba(0,0,0,.85);
+  overflow:hidden;
+  /* The unfold: a terminal-sized box that grows into an app-sized one. */
+  height: 300px;
+  transition: height 1.05s cubic-bezier(.16,1,.3,1);
+}
+.machine.open { height: min(600px, 72vh); }
+.bar { height:36px; display:flex; align-items:center; gap:8px; padding:0 12px;
+  background:var(--chrome); border-bottom:1px solid var(--line); }
+.bar .t { font-size:12.5px; color:var(--muted); font-family:var(--mono); }
+.bar .t b { color:var(--ink); font-family:-apple-system, sans-serif; font-weight:640; }
+.bar .lights { display:flex; gap:6px; }
+.bar .lights i { width:10px; height:10px; border-radius:50%; background:#2a2e35; display:block; }
+
+.inner { display:grid; grid-template-columns: 0px 1fr 0px; height: calc(100% - 36px);
+  transition: grid-template-columns 1.05s cubic-bezier(.16,1,.3,1); }
+.machine.open .inner { grid-template-columns: 168px 1fr 46%; }
+
+.side { overflow:hidden; border-right:1px solid var(--line); background:#0e1013;
+  opacity:0; transition:opacity .5s ease .45s; }
+.machine.open .side { opacity:1; }
+.side .grp { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint);
+  padding:14px 14px 6px; }
+.side .it { display:flex; align-items:center; gap:8px; padding:6px 14px; font-size:13px; color:var(--muted); }
+.side .it.on { background:rgba(255,255,255,.05); color:var(--ink); }
+.side .it i { width:6px; height:6px; border-radius:50%; background:var(--green); display:block; }
+
+.term { padding:16px 18px; font-family:var(--mono); font-size:13px; line-height:1.7; overflow:hidden; }
+.term .p { color:var(--green); }
+.term .d { color:var(--faint); }
+.term .out { color:var(--muted); }
+.cursor { display:inline-block; width:7px; height:15px; background:var(--ink); vertical-align:-2px;
+  animation: blink 1.05s steps(1) infinite; }
+@keyframes blink { 50% { opacity:0 } }
+
+.right { overflow:hidden; border-left:1px solid var(--line); background:#0d0f12;
+  opacity:0; transition:opacity .5s ease .5s; position:relative; }
+.machine.open .right { opacity:1; }
+.right .omni { margin:10px; padding:7px 11px; border-radius:8px; background:#141719;
+  border:1px solid var(--line); font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+.right img { width:100%; }
+
+.caption { text-align:center; margin-top:34px; }
+.caption h1 { font-size:clamp(28px,4.6vw,56px); line-height:1.04; letter-spacing:-0.04em; font-weight:670; }
+.caption h1 span { color:var(--faint); }
+.caption p { margin:16px auto 0; max-width:52ch; color:var(--muted); font-size:16px; line-height:1.6; }
+.ctas { display:flex; gap:12px; justify-content:center; margin-top:26px; flex-wrap:wrap; }
+.btn { padding:12px 22px; border-radius:10px; background:var(--ink); color:#0b0c0f;
+  text-decoration:none; font-weight:640; font-size:14px; }
+.btn.ghost { background:none; color:var(--ink); border:1px solid var(--line); }
+.note { margin-top:16px; font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+
+/* ── below the fold ────────────────────────────────────────────────────── */
+.rows { padding: 14vh 0 6vh; display:grid; gap:1px; background:var(--line);
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+.rows > div { background:var(--void); padding:26px 4px; display:grid;
+  grid-template-columns: 150px 1fr; gap:24px; align-items:baseline; }
+.rows b { font-size:15px; font-weight:620; }
+.rows p { color:var(--muted); font-size:14.5px; line-height:1.62; max-width:58ch; }
+.rows small { display:block; font-family:var(--mono); font-size:11px; color:var(--faint); margin-top:6px; }
+
+.shots { display:grid; grid-template-columns:1fr 1fr; gap:18px; padding: 8vh 0; }
+.shots img { border-radius:12px; border:1px solid var(--line); }
+.tail { text-align:center; padding: 4vh 0 16vh; }
+.tail h2 { font-size:clamp(28px,4.8vw,54px); letter-spacing:-0.035em; }
+
+@media (max-width: 860px) {
+  .machine, .machine.open { height:auto; }
+  .inner, .machine.open .inner { grid-template-columns:1fr; }
+  .side, .right { display:none; }
+  .rows > div { grid-template-columns:1fr; gap:8px; }
+  .shots { grid-template-columns:1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .machine, .inner, .side, .right { transition:none }
+  .cursor { animation:none }
+}
+</style>
+</head>
+<body>
+
+<section class="stage">
+  <div>
+    <div class="machine" id="machine">
+      <div class="bar">
+        <span class="lights"><i></i><i></i><i></i></span>
+        <span class="t" id="barTitle">~/wepush — claude</span>
+      </div>
+      <div class="inner">
+        <aside class="side">
+          <div class="grp">Browse</div>
+          <div class="it"><i style="background:#4b8ef7"></i> New Tab</div>
+          <div class="grp">Wepush</div>
+          <div class="it on"><i></i> wepush</div>
+          <div class="it"><i style="background:#2a2e35"></i> wepush-ios</div>
+          <div class="it"><i style="background:#2a2e35"></i> advertiser</div>
+        </aside>
+        <div class="term" id="term"></div>
+        <div class="right">
+          <div class="omni">https://wepush.app/pricing</div>
+          <img src="../browser-view.png" alt="A live browser pane inside SuperAgent" loading="lazy" />
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <h1>You already have the agent.<br /><span>It just has nowhere to work.</span></h1>
+      <p>SuperAgent runs the same <code>claude</code> you run in the terminal — and gives it a
+      real browser, a real iPhone and a desk, on your Mac, on your subscription.</p>
+      <div class="ctas">
+        <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+        <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">Source</a>
+      </div>
+      <p class="note">free · open source · runs locally · notarized by Apple</p>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="rows">
+    <div><b>A real browser</b><p>A Chromium view the agent drives — it reads the page, clicks by name, fills forms, screenshots it. You watch every step beside the conversation.<small>browser_navigate · browser_read_page · browser_click</small></p></div>
+    <div><b>An iPhone</b><p>A real iOS Simulator streamed inside the window from its own framebuffer. Tap it, type into it, watch a build install onto it.<small>sim_boot · sim_install_and_launch · sim_screenshot</small></p></div>
+    <div><b>A board it keeps</b><p>Backlog, next, doing, done — per project. Cards move themselves as the work happens, and each remembers the conversation that raised it.<small>board_add · board_move · board_update</small></p></div>
+    <div><b>A computer</b><p>Windows you drag, a dock, files you drop on the desk — and a chat that can see all of it and drive it.<small>computer_state · computer_open_app · computer_arrange</small></p></div>
+  </div>
+
+  <div class="shots">
+    <img src="../build.png" alt="The agent building a site and previewing it live" loading="lazy" />
+    <img src="../hero.png" alt="One page shown as a desktop site and on an iPhone at once" loading="lazy" />
+  </div>
+
+  <section class="tail">
+    <h2>Give your agent a screen.</h2>
+    <div class="ctas">
+      <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+      <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">GitHub</a>
+    </div>
+  </section>
+</div>
+
+<script>
+// Type the command, then let the box become an app around it.
+const LINES = [
+  { cls: 'p', text: '$ ', type: 'claude -p "fix the pricing page on mobile"' },
+  { cls: 'd', text: '  ⎿ reading wepush.app/pricing…' },
+  { cls: 'out', text: '  the plan cards overflow below 380px — the grid never drops to one column' },
+  { cls: 'd', text: '  ⎿ editing src/routes/pricing/+page.svelte' }
+]
+const term = document.getElementById('term')
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+function line(cls, text) {
+  const el = document.createElement('div')
+  el.className = cls
+  el.textContent = text
+  term.appendChild(el)
+  return el
+}
+
+async function run() {
+  const first = line(LINES[0].cls, LINES[0].text)
+  const cur = document.createElement('span')
+  cur.className = 'cursor'
+  first.appendChild(cur)
+  if (still) {
+    first.textContent = LINES[0].text + LINES[0].type
+    LINES.slice(1).forEach(l => line(l.cls, l.text))
+    document.getElementById('machine').classList.add('open')
+    document.getElementById('barTitle').innerHTML = '<b>SuperAgent</b> — wepush'
+    return
+  }
+  await new Promise(r => setTimeout(r, 550))
+  for (const ch of LINES[0].type) {
+    first.insertBefore(document.createTextNode(ch), cur)
+    await new Promise(r => setTimeout(r, 34 + Math.random() * 40))
+  }
+  await new Promise(r => setTimeout(r, 420))
+  cur.remove()
+  for (const l of LINES.slice(1)) {
+    line(l.cls, l.text)
+    await new Promise(r => setTimeout(r, 420))
+  }
+  await new Promise(r => setTimeout(r, 260))
+  // …and the terminal becomes the app.
+  document.getElementById('machine').classList.add('open')
+  document.getElementById('barTitle').innerHTML = '<b>SuperAgent</b> — wepush'
+}
+run()
+</script>
+</body>
+</html>

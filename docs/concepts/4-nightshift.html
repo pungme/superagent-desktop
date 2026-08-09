@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — it works while you don't</title>
+<meta name="description" content="A Mac app that gives your agent a computer." />
+<style>
+/*
+  CONCEPT 4 — "Night shift".
+  One idea, held: the agent works while you are somewhere else. The page is a
+  long exposure of a night's work — a quiet canvas field where each mote is a
+  turn taken, drifting while you read. Canvas 2D rather than WebGL, because a
+  few hundred motes hold 60fps on anything and the atmosphere is the point,
+  not the spectacle.
+*/
+:root {
+  --night: #07080b;
+  --ink: #eef0f4;
+  --muted: #8f96a3;
+  --faint: #565d69;
+  --line: rgba(255,255,255,0.07);
+  --warm: #e3b765;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background: var(--night); color: var(--ink); -webkit-font-smoothing:antialiased;
+  font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif; }
+a { color:inherit }
+img { max-width:100%; display:block; height:auto }
+canvas { position: fixed; inset:0; width:100%; height:100%; z-index:0; }
+.veil { position:fixed; inset:0; z-index:1; pointer-events:none;
+  background: radial-gradient(70% 55% at 50% 42%, transparent 30%, rgba(7,8,11,0.75) 100%); }
+.page { position:relative; z-index:2; }
+.wrap { max-width: 1020px; margin:0 auto; padding: 0 26px; }
+
+.hero { min-height: 100vh; display:grid; align-content:center; text-align:center; }
+.hero img.mark { width:46px; height:46px; border-radius:12px; margin:0 auto 26px;
+  box-shadow: 0 0 40px rgba(227,183,101,0.25); }
+.time { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; color:var(--warm); text-transform:uppercase; }
+h1 { margin-top:18px; font-size: clamp(36px,7vw,86px); line-height:1.0; letter-spacing:-0.042em; font-weight:660; }
+h1 span { display:block; color:var(--faint); }
+.lede { margin:22px auto 0; max-width:52ch; color:var(--muted); font-size:clamp(15px,1.7vw,18px); line-height:1.6; }
+.ctas { display:flex; gap:12px; justify-content:center; margin-top:32px; flex-wrap:wrap; }
+.btn { padding:12px 22px; border-radius:999px; background:var(--ink); color:#0b0c0f;
+  text-decoration:none; font-weight:640; font-size:14px; }
+.btn.ghost { background:none; color:var(--ink); border:1px solid var(--line); }
+.note { margin-top:18px; font-family:var(--mono); font-size:11.5px; color:var(--faint); letter-spacing:0.04em; }
+
+/* the night's ledger — what happened while you were away */
+.night { padding: 14vh 0 8vh; }
+.night h2 { font-size:clamp(24px,3.4vw,38px); letter-spacing:-0.03em; text-align:center; }
+.night .sub { text-align:center; color:var(--muted); margin-top:10px; font-size:15px; }
+.log { margin-top:44px; border-top:1px solid var(--line); }
+.log div { display:grid; grid-template-columns: 76px 1fr auto; gap:18px; align-items:center;
+  padding:15px 4px; border-bottom:1px solid var(--line); opacity:0; transform:translateY(10px); }
+.log div.on { opacity:1; transform:none; transition: opacity .6s ease, transform .6s ease; }
+.log time { font-family:var(--mono); font-size:12px; color:var(--warm); }
+.log b { font-weight:560; font-size:14.5px; }
+.log span { font-size:12.5px; color:var(--faint); font-family:var(--mono); }
+
+.grid { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; padding: 8vh 0 12vh; }
+.card { border:1px solid var(--line); border-radius:14px; padding:22px 20px;
+  background: rgba(255,255,255,0.02); }
+.card b { display:block; font-size:15px; margin-bottom:8px; }
+.card p { font-size:13.5px; color:var(--muted); line-height:1.6; }
+
+figure { margin: 0 0 12vh; }
+figure img { border-radius:14px; border:1px solid var(--line); }
+figcaption { margin-top:12px; text-align:center; font-size:12.5px; color:var(--faint); }
+
+.tail { padding: 4vh 0 16vh; text-align:center; }
+.tail h2 { font-size:clamp(28px,4.8vw,56px); letter-spacing:-0.035em; }
+
+@media (max-width:820px) { .grid { grid-template-columns:1fr } .log div { grid-template-columns:64px 1fr } .log span { display:none } }
+@media (prefers-reduced-motion: reduce) { .log div { opacity:1; transform:none } }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div class="veil"></div>
+
+<div class="page">
+  <section class="hero">
+    <div class="wrap">
+      <img class="mark" src="../logo.png" alt="" />
+      <p class="time" id="clock">— · —</p>
+      <h1>It works.<br /><span>You don't have to watch.</span></h1>
+      <p class="lede">SuperAgent gives Claude Code a computer of its own — a real browser, a real
+      iPhone, a desk it keeps its work on. It runs on your Mac, on your subscription, and it
+      never once pulls the window in front of what you were doing.</p>
+      <div class="ctas">
+        <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+        <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">Source</a>
+      </div>
+      <p class="note">free · open source · runs locally · notarized by Apple</p>
+    </div>
+  </section>
+
+  <section class="night wrap">
+    <h2>What happened while you were away.</h2>
+    <p class="sub">Every turn is recorded, summarised and left where you'll find it.</p>
+    <div class="log" id="log">
+      <div><time>23:14</time><b>Opened the pricing page and found the overflow</b><span>browser</span></div>
+      <div><time>23:16</time><b>Collapsed the plan grid below 380px</b><span>edit</span></div>
+      <div><time>23:22</time><b>Installed the build on iPhone 17 Pro and checked it</b><span>simulator</span></div>
+      <div><time>23:24</time><b>Moved “mobile pricing” to done</b><span>board</span></div>
+      <div><time>23:25</time><b>Notified you — and stayed where it was</b><span>quiet</span></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <figure>
+      <img src="../hero.png" alt="A chat beside a live browser showing the same page as a desktop site and on an iPhone" loading="lazy" />
+      <figcaption>The conversation on one side, the thing it is working on live on the other.</figcaption>
+    </figure>
+  </section>
+
+  <section class="wrap">
+    <div class="grid">
+      <div class="card"><b>Never steals focus</b><p>The one rule the whole app is built around: it asks with a notification, and comes forward only when you say so.</p></div>
+      <div class="card"><b>Survives restarts</b><p>Panes, open files, the active chat — exactly where you left them, even through an update.</p></div>
+      <div class="card"><b>Light on memory</b><p>Sessions start on your first message and wind down when they go idle. Nothing runs for the sake of running.</p></div>
+      <div class="card"><b>A board it keeps</b><p>Cards move themselves as the work happens, and each one remembers the conversation that raised it.</p></div>
+      <div class="card"><b>Worktree chats</b><p>A conversation on its own git branch, in its own worktree. Your checkout stays clean.</p></div>
+      <div class="card"><b>Useful notifications</b><p>Done, or has a question — with a summary of what it actually said, not just that something finished.</p></div>
+    </div>
+  </section>
+
+  <section class="tail wrap">
+    <h2>Give your agent a screen.</h2>
+    <div class="ctas">
+      <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+      <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">GitHub</a>
+    </div>
+  </section>
+</div>
+
+<script>
+// A drifting field. Each mote is one turn taken; they wander slowly and the
+// nearest few thread themselves together, so the field reads as work rather
+// than as decoration.
+const c = document.getElementById('sky'), x = c.getContext('2d')
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+let W, H, motes
+function size() {
+  const d = Math.min(devicePixelRatio || 1, 2)
+  W = c.width = innerWidth * d; H = c.height = innerHeight * d
+  x.setTransform(d, 0, 0, d, 0, 0)
+  const n = Math.round(Math.min(150, innerWidth / 11))
+  motes = Array.from({ length: n }, () => ({
+    x: Math.random() * innerWidth, y: Math.random() * innerHeight,
+    vx: (Math.random() - .5) * .13, vy: (Math.random() - .5) * .13,
+    r: Math.random() * 1.5 + .5, a: Math.random() * .5 + .18
+  }))
+}
+function frame() {
+  x.clearRect(0, 0, innerWidth, innerHeight)
+  for (const m of motes) {
+    if (!still) { m.x += m.vx; m.y += m.vy }
+    if (m.x < -20) m.x = innerWidth + 20; if (m.x > innerWidth + 20) m.x = -20
+    if (m.y < -20) m.y = innerHeight + 20; if (m.y > innerHeight + 20) m.y = -20
+    x.beginPath(); x.arc(m.x, m.y, m.r, 0, 6.284)
+    x.fillStyle = `rgba(227,183,101,${m.a})`; x.fill()
+  }
+  for (let i = 0; i < motes.length; i++) for (let j = i + 1; j < motes.length; j++) {
+    const a = motes[i], b = motes[j], dx = a.x - b.x, dy = a.y - b.y
+    const d2 = dx * dx + dy * dy
+    if (d2 < 15000) {
+      x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(b.x, b.y)
+      x.strokeStyle = `rgba(227,183,101,${(1 - d2 / 15000) * 0.06})`; x.stroke()
+    }
+  }
+  if (!still) requestAnimationFrame(frame)
+}
+size(); frame()
+addEventListener('resize', () => { size(); if (still) frame() })
+
+const clock = document.getElementById('clock')
+const t = () => clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · still working'
+t(); setInterval(t, 20000)
+
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('on')), { threshold: .4 })
+document.querySelectorAll('#log div').forEach((el, i) => { el.style.transitionDelay = (i * 70) + 'ms'; io.observe(el) })
+</script>
+</body>
+</html>
