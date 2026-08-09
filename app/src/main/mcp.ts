@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 import * as auto from './automation'
+import { simTarget, isMirroring } from './simulator'
 import { execFile } from 'child_process'
 import { tmpdir } from 'os'
 
@@ -44,7 +45,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'sim_list_devices',
     {
       description:
-        'List iOS Simulator devices (name, UDID, state). Use before booting or targeting a device.',
+        'List iOS Simulator devices (name, UDID, state). Use before booting or targeting a device. The device the user is WATCHING in the pane is marked — build, install and launch onto that one unless told otherwise.',
       inputSchema: {}
     },
     async () => {
@@ -52,7 +53,20 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const data = JSON.parse(out) as { devices: Record<string, { name: string; udid: string; state: string }[]> }
       const lines: string[] = []
       for (const [runtime, devs] of Object.entries(data.devices)) {
-        for (const d of devs) lines.push(`${d.name} — ${d.state} — ${d.udid} (${runtime.split('.').pop()})`)
+        for (const d of devs) {
+          const watched = d.udid === simTarget() ? '  <-- SHOWN IN THE PANE' : ''
+          lines.push(
+            `${d.name} — ${d.state} — ${d.udid} (${runtime.split('.').pop()})${watched}`
+          )
+        }
+      }
+      // More than one booted device is exactly when `simctl ... booted` picks
+      // the wrong one, which put an app on a simulator the user could not see.
+      if (simTarget() !== 'booted') {
+        lines.push(
+          '',
+          `The pane is showing ${simTarget()}. If you run simctl yourself, pass that UDID — NOT the word "booted", which resolves to an arbitrary one when several are running.`
+        )
       }
       return { content: [{ type: 'text', text: lines.join('\n') || 'No simulators available.' }] }
     }
@@ -62,14 +76,16 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'sim_boot',
     {
       description:
-        'Boot an iOS Simulator by UDID (from sim_list_devices) and open the Simulator app so the user can see it.',
+        "Boot an iOS Simulator by UDID (from sim_list_devices) and show it in SuperAgent's own simulator pane, where the user is watching. Do NOT open Apple's Simulator app for this — the pane is the point.",
       inputSchema: { udid: z.string() }
     },
     async ({ udid }) => {
       await simctl(['boot', udid]).catch((e) => {
         if (!String(e).includes('current state: Booted')) throw e
       })
-      execFile('open', ['-a', 'Simulator', '--background'], () => {})
+      // Deliberately NOT `open -a Simulator`: that put a second, separate
+      // window on screen showing a different device from the one in the pane,
+      // which is where the user is actually looking.
       // Reveal the pane the way browser_navigate reveals the browser: the user
       // asked for a simulator, so show them one instead of leaving a button.
       broadcastToWindows('app:open-simulator', {
@@ -84,26 +100,40 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'sim_screenshot',
     {
       description:
-        "Screenshot the booted iOS Simulator and show it to the user in SuperAgent's viewer. Returns the PNG path.",
+        "Screenshot the iOS Simulator the user is watching and return the PNG path. If the pane is already mirroring that device live, the still is not opened — the user can see it already.",
       inputSchema: {}
     },
     async () => {
       const file = `${tmpdir()}/sim-${Date.now()}.png`
-      await simctl(['io', 'booted', 'screenshot', file])
+      await simctl(['io', simTarget(), 'screenshot', file])
       const ws = workspaceIdFromPane(PANE_ID)
-      broadcastToWindows('app:open-file', { workspaceId: ws, path: file })
-      return { content: [{ type: 'text', text: `Simulator screenshot saved to ${file} and opened in SuperAgent.` }] }
+      // If the pane is already mirroring this device the user is looking at it
+      // live; opening the still as a file would take over the working surface
+      // and leave two views of the same phone side by side.
+      const live = isMirroring(simTarget())
+      if (!live) broadcastToWindows('app:open-file', { workspaceId: ws, path: file })
+      return {
+        content: [
+          {
+            type: 'text',
+            text: live
+              ? `Simulator screenshot saved to ${file}. The pane is already showing this device live, so it was not opened as a file.`
+              : `Simulator screenshot saved to ${file} and opened in SuperAgent.`
+          }
+        ]
+      }
     }
   )
 
   server.registerTool(
     'sim_open_url',
     {
-      description: 'Open a URL in the booted iOS Simulator (deep links and web URLs).',
+      description:
+        'Open a URL (deep link or web) on the iOS Simulator the user is watching in the pane.',
       inputSchema: { url: z.string() }
     },
     async ({ url }) => {
-      await simctl(['openurl', 'booted', url])
+      await simctl(['openurl', simTarget(), url])
       return { content: [{ type: 'text', text: `Opened ${url} in the simulator.` }] }
     }
   )
@@ -112,12 +142,12 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'sim_install_and_launch',
     {
       description:
-        'Install a .app bundle onto the booted simulator and launch it by bundle id.',
+        "Install a .app bundle and launch it by bundle id on the simulator the user is watching in the pane. Prefer this over running `simctl install/launch` yourself — a bare `booted` picks an arbitrary device when several are running, and the app then opens where nobody can see it.",
       inputSchema: { appPath: z.string(), bundleId: z.string() }
     },
     async ({ appPath, bundleId }) => {
-      await simctl(['install', 'booted', appPath])
-      const out = await simctl(['launch', 'booted', bundleId])
+      await simctl(['install', simTarget(), appPath])
+      const out = await simctl(['launch', simTarget(), bundleId])
       broadcastToWindows('app:open-simulator', { workspaceId: workspaceIdFromPane(PANE_ID) })
       return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
     }
