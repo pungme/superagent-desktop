@@ -362,21 +362,6 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
         }}
       >
         <div className="computer-icons">
-          {DESKTOP_APPS.map((a) => (
-            <button
-              key={a.id}
-              className={`computer-icon ${selected === a.id ? 'selected' : ''}`}
-              title={`Open ${a.name}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                setSelected(a.id)
-              }}
-              onDoubleClick={() => openApp(a.id)}
-            >
-              <span className="computer-icon-glyph">{a.icon}</span>
-              <span className="computer-icon-name">{a.name}</span>
-            </button>
-          ))}
           {sorted.map((f) => (
             <button
               key={f.path}
@@ -406,7 +391,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
 
         {files.length === 0 && windows.length === 0 && (
           <div className="computer-empty">
-            Double-click an app to open it, or drag a file in from Finder.
+            Open an app from the dock, or drag a file in from Finder.
           </div>
         )}
 
@@ -441,32 +426,28 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
           ))}
       </div>
 
-      {/* Minimised windows go to a strip along the bottom, which is also the
-          only way back to them. */}
-      {windows.some((w) => w.minimized) && (
-        <div className="computer-dock">
-          {windows
-            .filter((w) => w.minimized)
-            .map((w) => (
+      {/* The dock: every app, always there, with a light under the ones that
+          are open — the way a desktop tells you what is running without you
+          having to go looking for the window. */}
+      <div className="dock">
+        <div className="dock-inner">
+          {DESKTOP_APPS.map((a) => {
+            const win = windows.find((w) => w.app === a.id)
+            return (
               <button
-                key={w.id}
-                className="computer-dock-item"
-                title={`Restore ${appById(w.app).name}`}
-                onClick={() => {
-                  setWindows((ws) => {
-                    const maxZ = Math.max(0, ...ws.map((x) => x.z))
-                    return ws.map((x) =>
-                      x.id === w.id ? { ...x, minimized: false, z: maxZ + 1 } : x
-                    )
-                  })
-                }}
+                key={a.id}
+                className={`dock-app ${win ? 'open' : ''} ${win?.minimized ? 'hidden' : ''}`}
+                title={win ? (win.minimized ? `${a.name} — minimised` : a.name) : `Open ${a.name}`}
+                onClick={() => openApp(a.id)}
               >
-                <span className="computer-dock-glyph">{appById(w.app).icon}</span>
-                {appById(w.app).name}
+                <span className="dock-glyph">{a.icon}</span>
+                <span className="dock-name">{a.name}</span>
+                <span className="dock-light" />
               </button>
-            ))}
+            )
+          })}
         </div>
-      )}
+      </div>
     </div>
   )
 }

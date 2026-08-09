@@ -5766,6 +5766,102 @@ button {
   line-height: 1.25;
 }
 
+/* ── The dock ─────────────────────────────────────────────────────────
+   Centred at the bottom, every app always present, and a light under the
+   ones that are open. Minimal on purpose: this is a shelf, not a toolbar. */
+.dock {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+}
+.dock-inner {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 7px 8px 9px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-panel) 82%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 30px var(--shadow);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+}
+.dock-app {
+  position: relative;
+  width: 50px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 11px;
+  background: none;
+  color: var(--text-secondary);
+  transition:
+    background 0.12s,
+    color 0.12s,
+    transform 0.12s ease;
+}
+.dock-app:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+.dock-app.open {
+  color: var(--text-primary);
+}
+/* Minimised: still running, just not on screen — dimmed rather than absent. */
+.dock-app.hidden .dock-glyph {
+  opacity: 0.45;
+}
+.dock-glyph {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+}
+.dock-glyph svg {
+  width: 24px;
+  height: 24px;
+}
+/* The name appears above the icon on hover, the way a dock label does. */
+.dock-name {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px var(--shadow);
+  color: var(--text-primary);
+  font-size: 11.5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.dock-app:hover .dock-name {
+  opacity: 1;
+}
+.dock-light {
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  opacity: 0;
+}
+.dock-app.open .dock-light {
+  opacity: 1;
+}
+
 /* ── Windows ─────────────────────────────────────────────────────────── */
 .dw {
   position: absolute;
@@ -6051,46 +6147,6 @@ button {
 }
 .dchat-back:hover {
   color: var(--text-primary);
-}
-
-/* Minimised windows wait here. */
-.computer-dock {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
-  padding: 6px;
-  border-radius: 12px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  box-shadow: 0 8px 26px var(--shadow);
-  z-index: 9999;
-}
-.computer-dock-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 11px;
-  border: none;
-  border-radius: 8px;
-  background: none;
-  color: var(--text-secondary);
-  font-size: 11.5px;
-}
-.computer-dock-item:hover {
-  background: var(--hover);
-  color: var(--text-primary);
-}
-.computer-dock-glyph {
-  display: inline-flex;
-  width: 14px;
-  height: 14px;
-}
-.computer-dock-glyph svg {
-  width: 14px;
-  height: 14px;
 }
 
 /* Dashboard entry pinned above everything in the sidebar. */
