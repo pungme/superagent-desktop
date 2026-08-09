@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state'
 import { BrowserPane } from './BrowserPane'
 
@@ -73,10 +73,13 @@ export function DesktopBrowser(): React.JSX.Element {
    * how the desktop chat's browser_* tools know which page to drive, and how
    * computer_state can say what the user is looking at.
    */
+  const reportedRef = useRef('')
   useEffect(() => {
-    window.cove.desktopReport?.({
-      tabs: tabs.map((t) => ({ id: t.id, url: pageUrls[t.id] ?? '', active: t.id === activeId }))
-    })
+    const list = tabs.map((t) => ({ id: t.id, url: pageUrls[t.id] ?? '', active: t.id === activeId }))
+    const key = JSON.stringify(list)
+    if (key === reportedRef.current) return
+    reportedRef.current = key
+    window.cove.desktopReport?.({ tabs: list })
   })
   // Closing the Browser window leaves no tab to drive.
   useEffect(() => () => window.cove.desktopReport?.({ tabs: [] }), [])
