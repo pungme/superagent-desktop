@@ -77,6 +77,46 @@ const streams = new Map<string, Stream>()
  */
 let pinnedOnce = false
 
+/**
+ * Whether Apple's Simulator window is allowed on screen.
+ *
+ * It is not enough to stop *us* opening it: `xcodebuild` with a simulator
+ * destination launches Simulator.app on its own, so building an app puts a
+ * window on screen that the user never asked for — usually showing a different
+ * device from the one in the pane. While the pane is mirroring we put it away
+ * again. The user can still ask for it, and then this stands aside.
+ */
+let simulatorWindowAllowed = false
+
+export function allowSimulatorWindow(): void {
+  simulatorWindowAllowed = true
+}
+
+/** Put Apple's Simulator out of sight — it is not what the user is watching. */
+async function hideSimulatorApp(): Promise<void> {
+  if (simulatorWindowAllowed) return
+  await run('osascript', [
+    '-e',
+    'tell application "System Events" to if exists process "Simulator" then set visible of process "Simulator" to false'
+  ]).catch(() => {})
+}
+
+/**
+ * Keep it out of sight for a moment: xcodebuild opens the window some seconds
+ * after it starts, so one hide at the end of a tool call misses it.
+ */
+export function keepSimulatorHidden(): void {
+  if (simulatorWindowAllowed) return
+  void hideSimulatorApp()
+  for (const delay of [1500, 4000, 8000]) {
+    setTimeout(() => {
+      if (!simulatorWindowAllowed && (nativeStreams.size > 0 || streams.size > 0)) {
+        void hideSimulatorApp()
+      }
+    }, delay)
+  }
+}
+
 /** Which app is in front — the answer decides whether hiding would be rude. */
 async function frontmostApp(): Promise<string> {
   try {
@@ -647,6 +687,8 @@ export function registerSimulatorIpc(): void {
   ipcMain.handle(
     'sim:attach',
     async (_e, udid: string, rect: { x: number; y: number; width: number; height: number }) => {
+      // Attach mode IS the user asking for Apple's window.
+      simulatorWindowAllowed = true
       // Bring up Apple's Simulator showing this device, then park its window.
       await run('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
         timeout: 20_000
@@ -716,6 +758,16 @@ export function registerSimulatorIpc(): void {
    */
   ipcMain.handle('sim:attach-release', async () => {
     await unpinSimulator()
+    simulatorWindowAllowed = false
+    void hideSimulatorApp()
+    return true
+  })
+  /** The user explicitly asked for Apple's Simulator — stand aside and show it. */
+  ipcMain.handle('sim:open-app', async (_e, udid: string) => {
+    simulatorWindowAllowed = true
+    await run('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
+      timeout: 20_000
+    }).catch(() => {})
     return true
   })
   ipcMain.handle('sim:attach-show', async () => {
