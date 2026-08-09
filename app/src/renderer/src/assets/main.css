@@ -5934,6 +5934,10 @@ button {
 }
 
 .dw {
+  /* How much of the frame stays clear of a native view, so the edge can still
+     be grabbed. A shade wider than the grips reach inside (7px), so the band
+     and the page never meet on a rounding error. */
+  --dw-grab: 9px;
   position: absolute;
   /* Short and slightly overshooting, so a window reads as arriving rather than
      appearing. Long enough to see, short enough not to wait for. */
@@ -6058,14 +6062,14 @@ button {
 .dw-grip {
   position: absolute;
 }
-.dw-grip-n { top: -3px; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
-.dw-grip-s { bottom: -3px; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
-.dw-grip-e { right: -3px; top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
-.dw-grip-w { left: -3px; top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
+.dw-grip-n { top: -3px; left: 10px; right: 10px; height: 9px; cursor: ns-resize; }
+.dw-grip-s { bottom: 0; left: 10px; right: 10px; height: 7px; cursor: ns-resize; }
+.dw-grip-e { right: 0; top: 10px; bottom: 10px; width: 7px; cursor: ew-resize; }
+.dw-grip-w { left: 0; top: 10px; bottom: 10px; width: 7px; cursor: ew-resize; }
 .dw-grip-ne { top: -3px; right: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
 .dw-grip-nw { top: -3px; left: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
-.dw-grip-se { bottom: -3px; right: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
-.dw-grip-sw { bottom: -3px; left: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
+.dw-grip-se { bottom: 0; right: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+.dw-grip-sw { bottom: 0; left: 0; width: 14px; height: 14px; cursor: nesw-resize; }
 
 /* An app inside a window has no head of its own — the frame carries it. */
 .section-embedded {
@@ -6171,16 +6175,29 @@ button {
   background: var(--hover);
   color: var(--text-primary);
 }
+/* The page stops short of the window's left, right and bottom edges.
+   .dw clips to its rounded corners, so a resize grip only exists inside the
+   frame — and inside the frame is where the native page view is, which paints
+   above all HTML and swallows the pointer with it. Three of the four edges
+   could not be grabbed at all. This band is what is left to grab by; the top
+   edge never needed it, since the tab strip above the page is ordinary HTML. */
 .dbrowser-panes {
   flex: 1;
   min-height: 0;
   position: relative;
   background: var(--bg-content);
 }
-/* Kept mounted so a tab holds its page; only the active one is on screen. */
+/* In a workspace the pane's left border is the seam against the chat beside
+   it. A browser window has nothing to its left, so the seam is just a line. */
+.dbrowser-pane .browser-pane {
+  border-left: 0;
+}
+/* Kept mounted so a tab holds its page; only the active one is on screen.
+   Inset from three edges — an absolutely positioned child resolves against the
+   padding box, so the band has to be here rather than on the container. */
 .dbrowser-pane {
   position: absolute;
-  inset: 0;
+  inset: 0 var(--dw-grab) var(--dw-grab);
   display: none;
 }
 .dbrowser-pane.on {
