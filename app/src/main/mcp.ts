@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod'
 import * as auto from './automation'
 import { simTarget, isMirroring, keepSimulatorHidden } from './simulator'
+import { withoutStealingFocus } from './browser'
 import { execFile } from 'child_process'
 import { tmpdir } from 'os'
 
@@ -36,6 +37,29 @@ import { homedir } from 'os'
 
 let port = 0
 let secret = ''
+
+/**
+ * Show a file in the app without pulling the app in front of whatever the user
+ * is doing.
+ *
+ * The browser tools all run inside withoutStealingFocus; this one did not,
+ * because it does its work in the renderer — main broadcasts, the renderer
+ * navigates the pane, and the load happens well outside any guard main is
+ * holding. For a PDF or an image that means Chromium's viewer initialising and
+ * asking for focus, which on macOS raises the whole window. Nothing in the
+ * automation path could prevent it, since the automation path is not involved.
+ *
+ * The guard is held across the round trip rather than the broadcast: the grab
+ * comes from the load, not from the send.
+ */
+function openFileInApp(workspaceId: string, path: string): Promise<void> {
+  return withoutStealingFocus(async () => {
+    broadcastToWindows('app:open-file', { workspaceId, path })
+    // Long enough for the renderer to mount the pane and the viewer to start —
+    // the guard adds its own short tail on release.
+    await new Promise((r) => setTimeout(r, 1500))
+  })
+}
 
 function buildServer(paneId: string, chatId: string | null): McpServer {
   const PANE_ID = paneId
@@ -137,7 +161,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       // live; opening the still as a file would take over the working surface
       // and leave two views of the same phone side by side.
       const live = isMirroring(simTarget())
-      if (!live) broadcastToWindows('app:open-file', { workspaceId: ws, path: file })
+      if (!live) await openFileInApp(ws, file)
       return {
         content: [
           {
@@ -209,7 +233,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         const root = getWorkspacePath(ws)
         abs = root ? resolve(root, abs) : resolve(abs)
       }
-      broadcastToWindows('app:open-file', { workspaceId: ws, path: abs })
+      await openFileInApp(ws, abs)
       return { content: [{ type: 'text', text: `Opened ${abs} in SuperAgent.` }] }
     }
   )
