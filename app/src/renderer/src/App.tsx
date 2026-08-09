@@ -7,6 +7,8 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
 import { DashboardPanel } from './components/DashboardPanel'
 import { ComputerPanel } from './components/ComputerPanel'
+import { SkillsPanel } from './components/SkillsPanel'
+import { RoutinesPanel } from './components/RoutinesPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { useStore } from './state'
@@ -134,26 +136,31 @@ function App(): React.JSX.Element {
     .map((id) => allWorkspaces.find((w) => w.id === id))
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [dashOpen, setDashOpen] = useState(false)
-  const [computerOpen, setComputerOpen] = useState(false)
+  // One source of truth: the sidebar highlights whichever of these is showing.
+  const overlay = useStore((s) => s.overlay)
+  const setOverlay = useStore((s) => s.setOverlay)
+  const dashOpen = overlay === 'dashboard'
+  const computerOpen = overlay === 'computer'
+  /** Any full-window section — all four cover the projects the same way. */
+  const sectionOpen = overlay !== null
+  // Skills and Routines act on whichever project is current.
+  const activeWorkspace = openedWorkspaces.find((w) => w.id === activeId)
   useEffect(() => {
-    const open = (): void => {
-      setDashOpen(true)
-      setComputerOpen(false)
-    }
-    const openComputer = (): void => {
-      setComputerOpen(true)
-      setDashOpen(false)
-    }
+    // One value, so opening either inherently closes the other.
+    const open = (): void => setOverlay('dashboard')
+    const openComputer = (): void => setOverlay('computer')
+    const openSkills = (): void => setOverlay('skills')
+    const openRoutines = (): void => setOverlay('routines')
     // Picking anything in the sidebar leaves both.
-    const close = (): void => {
-      setDashOpen(false)
-      setComputerOpen(false)
-    }
+    const close = (): void => setOverlay(null)
     window.addEventListener('cove:open-dashboard', open)
     window.addEventListener('cove:open-computer', openComputer)
+    window.addEventListener('cove:open-skills', openSkills)
+    window.addEventListener('cove:open-routines', openRoutines)
     window.addEventListener('cove:close-dashboard', close)
     return () => {
+      window.removeEventListener('cove:open-skills', openSkills)
+      window.removeEventListener('cove:open-routines', openRoutines)
       window.removeEventListener('cove:open-dashboard', open)
       window.removeEventListener('cove:open-computer', openComputer)
       window.removeEventListener('cove:close-dashboard', close)
@@ -268,7 +275,7 @@ function App(): React.JSX.Element {
           )}
         </div>
         <HookConsent />
-        {openedWorkspaces.length === 0 && !dashOpen && !computerOpen ? (
+        {openedWorkspaces.length === 0 && !sectionOpen ? (
           <div className="empty-state">
             <div className="empty-state-inner">
               <h1>Welcome to SuperAgent</h1>
@@ -283,16 +290,26 @@ function App(): React.JSX.Element {
             <div
               key={ws.id}
               className="workspace-host"
-              style={{ display: ws.id === activeId && !dashOpen && !computerOpen ? 'flex' : 'none' }}
+              style={{ display: ws.id === activeId && !sectionOpen ? 'flex' : 'none' }}
             >
               {/* visible also detaches the native browser view — it would
                   composite above the dashboard otherwise. */}
-              <WorkspaceView ws={ws} visible={ws.id === activeId && !dashOpen && !computerOpen} />
+              <WorkspaceView ws={ws} visible={ws.id === activeId && !sectionOpen} />
             </div>
           ))
         )}
-        {dashOpen && <DashboardPanel onClose={() => setDashOpen(false)} />}
-        {computerOpen && <ComputerPanel onClose={() => setComputerOpen(false)} />}
+        {dashOpen && <DashboardPanel onClose={() => setOverlay(null)} />}
+        {computerOpen && <ComputerPanel onClose={() => setOverlay(null)} />}
+        {overlay === 'skills' && activeWorkspace && (
+          <SkillsPanel
+            workspaceId={activeWorkspace.id}
+            projectPath={activeWorkspace.path}
+            onClose={() => setOverlay(null)}
+          />
+        )}
+        {overlay === 'routines' && activeWorkspace && (
+          <RoutinesPanel ws={activeWorkspace} onClose={() => setOverlay(null)} />
+        )}
       </main>
       <PreviewToast />
       <UpdateBanner />

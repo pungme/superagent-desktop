@@ -6,8 +6,6 @@ import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
 import { FileViewer } from './FileViewer'
-import { SkillsPanel } from './SkillsPanel'
-import { RoutinesPanel } from './RoutinesPanel'
 import { RoutineRunView } from './RoutineRunView'
 import type { Workspace, Routine } from '../../../preload'
 
@@ -153,8 +151,6 @@ export function WorkspaceView({
   // toolbar — there's room here, unlike the cramped sidebar row.
   const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
   const openPreview = useStore((s) => s.openPreview)
-  const [skillsOpen, setSkillsOpen] = useState(false)
-  const [routinesOpen, setRoutinesOpen] = useState(false)
   // Current git branch, for code projects only (browser projects have no repo).
   const [branch, setBranch] = useState<string | null>(null)
   useEffect(() => {
@@ -196,9 +192,14 @@ export function WorkspaceView({
   // workspaces stay mounted for keep-alive).
   useEffect(() => {
     if (!visible) return
-    const onSkills = (): void => setSkillsOpen(true)
-    const onRoutines = (): void => setRoutinesOpen(true)
-    const onToggle = (): void => toggleBrowser(ws.id)
+    // These are full sections now, owned by the app rather than this project.
+    const onSkills = (): void => {
+      window.dispatchEvent(new CustomEvent('cove:open-skills'))
+    }
+    const onRoutines = (): void => {
+      window.dispatchEvent(new CustomEvent('cove:open-routines'))
+    }
+    const onToggle = (): void => toggleBrowser(ws.id, browserOpen)
     // Cmd+R: reload the page when the browser pane is on screen; otherwise a
     // no-op rather than surprising the user with an app reload.
     const onReload = (): void => {
@@ -378,16 +379,6 @@ export function WorkspaceView({
         )}
         <div className="workspace-toolbar-spacer" />
         <button
-          className="toolbar-btn"
-          onClick={() => setRoutinesOpen(true)}
-          title="Scheduled tasks"
-        >
-          ⏱ Routines
-        </button>
-        <button className="toolbar-btn" onClick={() => setSkillsOpen(true)} title="Your skills">
-          ✦ Skills
-        </button>
-        <button
           className={`toolbar-btn ${boardOpen ? 'on' : ''}`}
           onClick={() =>
             setBoardOpen((v) => {
@@ -405,9 +396,25 @@ export function WorkspaceView({
         {ws.kind === 'browser' && (
           <button
             className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
-            onClick={() => toggleBrowser(ws.id)}
+            onClick={() => toggleBrowser(ws.id, browserOpen)}
           >
             {browserOpen ? 'Hide preview' : 'Show preview'}
+          </button>
+        )}
+        {/* Where the chat sits is a view control, so it belongs here with the
+            others rather than among the New chat pills. The glyph shows the
+            arrangement you would move to; no label, it is not worth a word. */}
+        {paneOpen && (
+          <button
+            className="toolbar-btn toolbar-icon"
+            onClick={toggleLayout}
+            title={
+              layout === 'side'
+                ? 'Move the chat below the page (full-width preview)'
+                : 'Move the chat beside the page'
+            }
+          >
+            {layout === 'side' ? '⬓' : '◨'}
           </button>
         )}
       </div>
@@ -453,7 +460,13 @@ export function WorkspaceView({
                   className="desk-card desk-card-sim"
                   style={{ flexBasis: surface ? `${(1 - deskRatio) * 100}%` : '100%' }}
                 >
-                  <SimulatorPane visible={visible} />
+                  <SimulatorPane
+                    visible={visible}
+                    onClose={() => {
+                      localStorage.setItem(`simOpen:${ws.id}`, '0')
+                      setSimOpen(false)
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -479,8 +492,6 @@ export function WorkspaceView({
               browserProject={ws.kind === 'browser'}
               isRepo={branch !== null}
               visible={visible}
-              layout={paneOpen ? layout : undefined}
-              onToggleLayout={paneOpen ? toggleLayout : undefined}
             />
           )}
           {activeRun && visible && <RoutineRunView routine={activeRun} />}
@@ -489,14 +500,6 @@ export function WorkspaceView({
       </div>
       {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
           mounted, or its overlay lock would blank the active workspace's preview. */}
-      {skillsOpen && visible && (
-        <SkillsPanel
-          workspaceId={ws.id}
-          projectPath={ws.path}
-          onClose={() => setSkillsOpen(false)}
-        />
-      )}
-      {routinesOpen && visible && <RoutinesPanel ws={ws} onClose={() => setRoutinesOpen(false)} />}
-    </div>
+          </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { Routine, Workspace } from '../../../preload'
 import { useStore } from '../state'
-import { SlideOverPanel } from './SlideOverPanel'
+import { SectionView } from './SectionView'
 
 interface RoutinesPanelProps {
   ws: Workspace
@@ -49,7 +49,7 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
   }
 
   return (
-    <SlideOverPanel title="Routines" onClose={onClose}>
+    <SectionView title="Routines" onClose={onClose}>
       <div className="routine-new">
         <textarea
           className="routine-prompt"
@@ -123,6 +123,6 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
       <div className="skills-footer">
         <span className="routine-note">Routines run only while SuperAgent is open.</span>
       </div>
-    </SlideOverPanel>
+    </SectionView>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
-import { SlideOverPanel } from './SlideOverPanel'
+import { SectionView } from './SectionView'
 
 interface Skill {
   name: string
@@ -53,7 +53,7 @@ export function SkillsPanel({
   }
 
   return (
-    <SlideOverPanel title="Skills" onClose={onClose}>
+    <SectionView title="Skills" onClose={onClose}>
       <div className="skills-list">
         {loading && <div className="skills-empty">Loading…</div>}
         {!loading && skills.length === 0 && (
@@ -79,6 +79,6 @@ export function SkillsPanel({
           + Save last session as a skill
         </button>
       </div>
-    </SlideOverPanel>
+    </SectionView>
   )
 }
