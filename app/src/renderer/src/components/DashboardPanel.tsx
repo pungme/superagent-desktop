@@ -50,9 +50,16 @@ function Trend({ cur, prev }: { cur: number; prev: number }): React.JSX.Element 
  * activity log and chat transcripts (which reach back before logging existed),
  * browsing stats come from the omnibar history.
  */
-export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
+export function DashboardPanel({
+  onClose,
+  embedded = false
+}: {
+  onClose: () => void
+  /** Inside a desktop window: the frame carries the title and the close. */
+  embedded?: boolean
+}): React.JSX.Element {
   const [dash, setDash] = useState<Dash | null>(null)
-  useEscapeClose(onClose)
+  useEscapeClose(onClose, !embedded)
   const [failed, setFailed] = useState(false)
   const [range, setRange] = useState(14)
   /** Bumped by "Try again" — the only thing that re-runs a fetch on demand. */
@@ -124,13 +131,15 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
   const maxHour = Math.max(1, ...(dash?.hours ?? [1]))
 
   return (
-    <div className="dash-view">
-      <div className="dash-head">
-        <h2>Dashboard</h2>
-        <button className="dash-close" onClick={onClose} title="Close">
-          ✕
-        </button>
-      </div>
+    <div className={`dash-view ${embedded ? 'embedded' : ''}`}>
+      {!embedded && (
+        <div className="dash-head">
+          <h2>Dashboard</h2>
+          <button className="dash-close" onClick={onClose} title="Close">
+            ✕
+          </button>
+        </div>
+      )}
       <div className="dash">
         {failed ? (
           <div className="dash-empty">

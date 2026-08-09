@@ -61,6 +61,11 @@ export function WorkspaceView({
   const [simOpen, setSimOpen] = useState(
     () => localStorage.getItem(`simOpen:${ws.id}`) === '1'
   )
+  // Mirrored into the store purely so the sidebar row can show a phone.
+  const reportSimOpen = useStore((s) => s.setSimOpen)
+  useEffect(() => {
+    reportSimOpen(ws.id, simOpen)
+  }, [ws.id, simOpen, reportSimOpen])
   /** The working surface's share of the desk when the simulator sits beside it. */
   const [deskRatio, setDeskRatio] = useState(() => {
     const saved = Number(localStorage.getItem(`desk:${ws.id}`))

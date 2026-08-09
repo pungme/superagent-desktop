@@ -13,12 +13,15 @@ interface SkillsPanelProps {
   workspaceId: string
   projectPath: string
   onClose: () => void
+  /** Rendered inside a desktop window, which supplies the frame. */
+  embedded?: boolean
 }
 
 export function SkillsPanel({
   workspaceId,
   projectPath,
-  onClose
+  onClose,
+  embedded = false
 }: SkillsPanelProps): React.JSX.Element {
   const [skills, setSkills] = useState<Skill[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,7 +56,7 @@ export function SkillsPanel({
   }
 
   return (
-    <SectionView title="Skills" onClose={onClose}>
+    <SectionView title="Skills" onClose={onClose} embedded={embedded}>
       <div className="skills-list">
         {loading && <div className="skills-empty">Loading…</div>}
         {!loading && skills.length === 0 && (

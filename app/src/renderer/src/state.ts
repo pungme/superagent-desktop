@@ -57,12 +57,16 @@ interface CoveState {
   tree: TreeGroup[]
   activeWorkspaceId: string | null
   /**
-   * The full-window view sitting over the projects, if any. The sidebar marks
-   * whichever is showing, and a project row must not keep looking selected
-   * while it is covered up.
+   * The full-window view sitting over the projects, if any — just Computer
+   * now that Dashboard, Skills and Routines are applications inside it. The
+   * sidebar marks it, and a project row must not keep looking selected while
+   * it is covered up.
    */
-  overlay: 'computer' | 'dashboard' | 'skills' | 'routines' | null
-  setOverlay: (o: 'computer' | 'dashboard' | 'skills' | 'routines' | null) => void
+  /** Projects with the simulator pane open, so the sidebar can say so. */
+  simOpen: Record<string, boolean>
+  setSimOpen: (workspaceId: string, open: boolean) => void
+  overlay: 'computer' | null
+  setOverlay: (o: 'computer' | null) => void
   // Routines grouped by workspace id, shown nested under each project in the sidebar.
   routines: Record<string, Routine[]>
   refreshRoutines: () => Promise<void>
@@ -204,6 +208,9 @@ const chatLoadInflight = new Map<string, Promise<Chat[]>>()
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
+  simOpen: {},
+  setSimOpen: (workspaceId, open) =>
+    set((s) => ({ simOpen: { ...s.simOpen, [workspaceId]: open } })),
   overlay: null,
   setOverlay: (o) => set({ overlay: o }),
   routines: {},

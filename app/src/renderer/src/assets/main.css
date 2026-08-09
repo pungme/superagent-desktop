@@ -622,6 +622,15 @@ button {
 }
 
 /* Branch chip on a project row whose own folder is a git repo. */
+/* Sits with the name, not the status column — it describes what the project
+   has on screen, like the favicon does for a browser project. */
+.sidebar-item-sim {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-tertiary);
+}
+
 .sidebar-item-branch {
   flex: 0 0 auto;
   font-size: 10px;
@@ -5668,6 +5677,227 @@ button {
   background: var(--bg-content);
   color: var(--text-secondary);
   border-radius: 0 0 12px 12px;
+}
+
+/* ── The Computer desktop ───────────────────────────────────────────────
+   Icons on a surface, and applications in windows you can move and resize.
+   Everything is positioned against .computer-surface, which is the desktop. */
+.computer-surface {
+  position: relative;
+  overflow: hidden;
+}
+
+.computer-icons {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 4px;
+  padding: 14px;
+  max-height: 100%;
+}
+
+.computer-icon {
+  position: relative;
+  width: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px 6px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 11.5px;
+  text-align: center;
+  cursor: default;
+}
+.computer-icon:hover {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+/* Selected, the way a picked icon looks before you open it. */
+.computer-icon.selected {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.computer-icon-glyph {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+}
+.computer-icon-glyph svg {
+  width: 30px;
+  height: 30px;
+}
+.computer-icon-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+/* ── Windows ─────────────────────────────────────────────────────────── */
+.dw {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  min-height: 220px;
+  background: var(--bg-content);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: 0 6px 20px var(--shadow);
+  overflow: hidden;
+}
+/* The front window is the one you are working in, and says so — an inactive
+   window that looks identical is how you lose track of which is which. */
+.dw.active {
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.28),
+    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.dw.max {
+  border-radius: 0;
+}
+
+.dw-bar {
+  flex: 0 0 auto;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+}
+.dw-bar:active {
+  cursor: grabbing;
+}
+.dw-lights {
+  display: flex;
+  gap: 6px;
+}
+.dw-light {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: var(--border-strong);
+  cursor: default;
+}
+.dw.active .dw-close {
+  background: #ff5f57;
+}
+.dw.active .dw-min {
+  background: #febc2e;
+}
+.dw.active .dw-zoom {
+  background: #28c840;
+}
+.dw-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dw.active .dw-title {
+  color: var(--text-primary);
+}
+.dw-title-icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+  color: var(--text-tertiary);
+}
+.dw-title-icon svg {
+  width: 13px;
+  height: 13px;
+}
+.dw-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+
+/* Eight grips: edges 6px wide, corners 12px so they win where they overlap. */
+.dw-grip {
+  position: absolute;
+}
+.dw-grip-n { top: -3px; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+.dw-grip-s { bottom: -3px; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+.dw-grip-e { right: -3px; top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
+.dw-grip-w { left: -3px; top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
+.dw-grip-ne { top: -3px; right: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
+.dw-grip-nw { top: -3px; left: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
+.dw-grip-se { bottom: -3px; right: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
+.dw-grip-sw { bottom: -3px; left: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
+
+/* An app inside a window has no head of its own — the frame carries it. */
+.section-embedded {
+  padding: 16px 18px 20px;
+}
+.section-embedded > * {
+  max-width: none;
+}
+.dash-view.embedded {
+  padding-top: 4px;
+}
+.desktop-app-empty {
+  padding: 28px 20px;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+}
+
+/* Minimised windows wait here. */
+.computer-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 26px var(--shadow);
+  z-index: 9999;
+}
+.computer-dock-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+.computer-dock-item:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.computer-dock-glyph {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+}
+.computer-dock-glyph svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* Dashboard entry pinned above everything in the sidebar. */

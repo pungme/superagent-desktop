@@ -12,13 +12,19 @@ import { useEscapeClose } from '../hooks/useEscapeClose'
 export function SectionView({
   title,
   onClose,
-  children
+  children,
+  embedded = false
 }: {
   title: string
   onClose: () => void
   children: ReactNode
+  /** Inside a desktop window, which supplies its own title bar and close. */
+  embedded?: boolean
 }): React.JSX.Element {
-  useEscapeClose(onClose)
+  // The window owns Escape when embedded — closing the app from in here would
+  // leave its frame standing empty.
+  useEscapeClose(onClose, !embedded)
+  if (embedded) return <div className="section-body section-embedded">{children}</div>
   return (
     <div className="section-view">
       <div className="section-head">

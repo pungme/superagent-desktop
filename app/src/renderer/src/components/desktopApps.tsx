@@ -1,0 +1,61 @@
+import { ReactNode } from 'react'
+
+/** The applications that live on the Computer desktop. */
+export type AppId = 'dashboard' | 'skills' | 'routines'
+
+export interface DesktopApp {
+  id: AppId
+  name: string
+  icon: ReactNode
+  /** Where its window opens the first time, before you move it. */
+  initial: { w: number; h: number }
+}
+
+const stroke = {
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.4,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const
+}
+
+/**
+ * Icons are drawn rather than emoji: at icon size an emoji carries its own
+ * colour and baseline, and three of them side by side never look like one set.
+ */
+export const DESKTOP_APPS: DesktopApp[] = [
+  {
+    id: 'dashboard',
+    name: 'Dashboard',
+    initial: { w: 900, h: 620 },
+    icon: (
+      <svg viewBox="0 0 24 24" {...stroke}>
+        <path d="M4 20V11M9.5 20V5M15 20v-6.5M20.5 20V8" />
+      </svg>
+    )
+  },
+  {
+    id: 'skills',
+    name: 'Skills',
+    initial: { w: 820, h: 560 },
+    icon: (
+      <svg viewBox="0 0 24 24" {...stroke}>
+        <path d="M12 3.2l2.6 5.8 6.2.6-4.7 4.2 1.4 6.1L12 16.7 6.5 19.9l1.4-6.1L3.2 9.6l6.2-.6z" />
+      </svg>
+    )
+  },
+  {
+    id: 'routines',
+    name: 'Routines',
+    initial: { w: 780, h: 560 },
+    icon: (
+      <svg viewBox="0 0 24 24" {...stroke}>
+        <circle cx="12" cy="13.5" r="8" />
+        <path d="M12 9v4.6l2.9 1.8M8.5 2.2h7" />
+      </svg>
+    )
+  }
+]
+
+export const appById = (id: AppId): DesktopApp =>
+  DESKTOP_APPS.find((a) => a.id === id) ?? DESKTOP_APPS[0]
