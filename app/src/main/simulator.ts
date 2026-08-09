@@ -69,8 +69,56 @@ interface Stream {
 }
 
 const streams = new Map<string, Stream>()
-/** "Stay On Top" is a toggle we can set but not read — so set it only once. */
+/**
+ * "Stay On Top" is a toggle we can set but not read, so it is clicked at most
+ * once per attach — and, crucially, clicked back off when we let the window go.
+ * Leaving it set meant every Simulator window floated over everything for the
+ * rest of the session, long after the user had returned to the in-app mirror.
+ */
 let pinnedOnce = false
+
+/** Which app is in front — the answer decides whether hiding would be rude. */
+async function frontmostApp(): Promise<string> {
+  try {
+    const { stdout } = await run(
+      'osascript',
+      ['-e', 'tell application "System Events" to get name of first process whose frontmost is true'],
+      { timeout: 4000 }
+    )
+    return stdout.trim()
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Put "Stay On Top" back the way we found it.
+ *
+ * macOS only enables an app's menus while it is frontmost, so the click cannot
+ * land from the background — the item reads `enabled:false` and nothing
+ * happens. Simulator therefore has to come forward for a moment, and
+ * SuperAgent takes the focus straight back.
+ */
+async function unpinSimulator(): Promise<void> {
+  if (!pinnedOnce) return
+  pinnedOnce = false
+  await run('osascript', [
+    '-e',
+    `tell application "Simulator" to activate
+     delay 0.35
+     tell application "System Events" to tell process "Simulator"
+       try
+         set mi to menu item "Stay On Top" of menu 1 of menu bar item "Window" of menu bar 1
+         set mark to value of attribute "AXMenuItemMarkChar" of mi
+         if mark is not missing value and mark is not "" then click mi
+       end try
+     end tell`
+  ]).catch(() => {})
+  // You clicked a button in SuperAgent, so SuperAgent is where you should still
+  // be — bringing Simulator forward was our doing, not yours.
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win && !win.isDestroyed()) win.show()
+}
 
 /**
  * A long-lived `baguette input` per device. Spawning a process per gesture cost
@@ -137,6 +185,9 @@ function endInputSession(udid: string): void {
 
 export function stopAllSimInput(): void {
   for (const udid of [...inputSessions.keys()]) endInputSession(udid)
+  // Never leave Apple's Simulator pinned above every other window once we are
+  // gone — we set that, so we take it back.
+  void unpinSimulator()
 }
 
 function sendGesture(
@@ -297,6 +348,27 @@ const nativeStreams = new Map<string, ChildProcessByStdio<null, Readable, Readab
  * it. Streams belong to the page that asked for them; when it goes, they go.
  */
 const watched = new WeakSet<BrowserWindow>()
+
+/**
+ * The device the pane is showing.
+ *
+ * The agent's tools used to say `booted`, which with more than one simulator
+ * running resolves to whichever simctl picks — so an app could be installed
+ * and launched on a device the user was not watching, while the pane sat
+ * showing an unrelated one. Whatever the pane is mirroring is what "the
+ * simulator" means to the person asking.
+ */
+let currentUdid: string | null = null
+
+/** The udid to aim simctl at, or 'booted' when we genuinely do not know. */
+export function simTarget(): string {
+  return currentUdid ?? 'booted'
+}
+
+/** True while frames for this device are going to the pane — they can see it. */
+export function isMirroring(udid: string): boolean {
+  return nativeStreams.has(udid) || streams.has(udid)
+}
 
 /**
  * Whether a navigation replaces the page the pane lives on.
@@ -553,6 +625,12 @@ async function moveSimulatorWindow(rect: {
 }
 
 export function registerSimulatorIpc(): void {
+  // The pane tells us which device it is on, so the agent's tools can aim at
+  // the same one.
+  ipcMain.handle('sim:set-current', (_e, udid: string | null) => {
+    currentUdid = udid && udid.length ? udid : null
+    return true
+  })
   ipcMain.handle('sim:attach-ready', () => ({
     trusted: systemPreferences.isTrustedAccessibilityClient(false)
   }))
@@ -618,12 +696,26 @@ export function registerSimulatorIpc(): void {
   )
   ipcMain.handle('sim:attach-move', (_e, rect) => moveSimulatorWindow(rect))
   ipcMain.handle('sim:attach-hide', async () => {
+    // Not when the device itself is what you just clicked. We hide on our own
+    // blur, and tapping the parked window blurs us — so this used to snatch
+    // away the very thing being tapped and put it straight back, which is the
+    // flicker on every single interaction.
+    if ((await frontmostApp()) === 'Simulator') return true
     // Hiding beats un-pinning: a window told to stay on top would otherwise
     // float over whatever the user switches to.
     await run('osascript', [
       '-e',
       'tell application "System Events" to set visible of process "Simulator" to false'
     ]).catch(() => {})
+    return true
+  })
+  /**
+   * Done with the parked window for good — as opposed to hiding it while the
+   * user is in another app. Drops "Stay On Top" so a Simulator opened later,
+   * or left running beside the in-app mirror, stops floating over everything.
+   */
+  ipcMain.handle('sim:attach-release', async () => {
+    await unpinSimulator()
     return true
   })
   ipcMain.handle('sim:attach-show', async () => {
@@ -695,7 +787,12 @@ export function registerSimulatorIpc(): void {
                   endX: action.toX,
                   endY: action.toY,
                   width: action.width,
-                  height: action.height
+                  height: action.height,
+                  // baguette's default is 0.25s per swipe. That is right for a
+                  // one-shot flick and far too slow for a drag, where it is the
+                  // whole of the lag between the finger and the screen — the
+                  // pane sends a short duration for each segment it streams.
+                  ...(action.duration ? { duration: action.duration } : {})
                 }
               : action.type === 'key'
                 ? { type: 'key', code: action.code, ...(action.modifiers ? { modifiers: action.modifiers } : {}) }
@@ -728,6 +825,7 @@ export function registerSimulatorIpc(): void {
         args.push('swipe', '--udid', udid, '--start-x', String(action.x), '--start-y', String(action.y),
           '--end-x', String(action.toX), '--end-y', String(action.toY),
           '--width', String(action.width), '--height', String(action.height))
+        if (action.duration) args.push('--duration', String(action.duration))
       } else if (action.type === 'press') {
         args.push('press', '--udid', udid, '--button', String(action.button))
       } else {
