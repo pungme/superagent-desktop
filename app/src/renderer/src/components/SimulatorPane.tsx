@@ -16,6 +16,13 @@ interface Frame {
 type Mode = 'mirror' | 'attach'
 
 /**
+ * How long each streamed drag segment takes on the device. Short enough that
+ * the picture keeps up with the pointer; not zero, because a swipe with no
+ * duration is a teleport and iOS reads velocity to decide whether you flicked.
+ */
+const DRAG_SEGMENT_SECONDS = 0.03
+
+/**
  * An iOS Simulator inside the app, beside the chat. Two ways to get it there:
  *
  *   mirror  the device streamed into the pane. Main prefers native/simfb, which
@@ -29,7 +36,14 @@ type Mode = 'mirror' | 'attach'
  * mirror mode so the picture answers a touch straight away. Every iOS version
  * accepts them — see the note on `tappable`.
  */
-export function SimulatorPane({ visible = true }: { visible?: boolean }): React.JSX.Element {
+export function SimulatorPane({
+  visible = true,
+  onClose
+}: {
+  visible?: boolean
+  /** Put the pane away. Nothing else could: there was no ✕ here at all. */
+  onClose?: () => void
+}): React.JSX.Element {
   const [devices, setDevices] = useState<Device[]>([])
   const [udid, setUdid] = useState<string | null>(null)
   const [frame, setFrame] = useState<Frame | null>(null)
@@ -44,6 +58,8 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
   const [canInput, setCanInput] = useState(true)
   /** Brief acknowledgement after copying the install command. */
   const [copied, setCopied] = useState(false)
+  /** The device currently being shut down, so its row can say so. */
+  const [shuttingDown, setShuttingDown] = useState<string | null>(null)
   const [picking, setPicking] = useState(false)
   const [typing, setTyping] = useState(false)
   /**
@@ -61,6 +77,12 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
   const stageRef = useRef<HTMLDivElement>(null)
   const shotRef = useRef<HTMLImageElement>(null)
   const dragRef = useRef<{ x: number; y: number; at: number } | null>(null)
+  /** Where the device has been dragged to so far, and where the pointer is now. */
+  const sentRef = useRef<{ x: number; y: number } | null>(null)
+  const latestRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  /** A segment is in flight; the next one waits for its ack rather than piling up. */
+  const draggingRef = useRef(false)
+  const movedRef = useRef(false)
   const typeBuf = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({
     text: '',
     timer: null
@@ -96,6 +118,31 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     })
     void window.cove.simHasInput().then(setCanInput)
   }, [refresh])
+
+  /**
+   * Follow the agent onto whatever device it just used.
+   *
+   * The pane kept showing the device you last picked while the agent booted and
+   * launched onto a different one — so you sat watching another app's screen
+   * wondering where yours had gone. Whatever it just acted on is what you want
+   * to see.
+   */
+  useEffect(() => {
+    return window.cove.onOpenSimulator?.((p) => {
+      if (!p.udid || p.udid === udid) return
+      localStorage.setItem('cove.simDevice', p.udid)
+      setFrame(null)
+      setGone(false)
+      setUdid(p.udid)
+    })
+  }, [udid])
+
+  // Keep main pointed at whatever this pane is showing: the agent's simctl
+  // tools said "booted", which with two simulators running would install and
+  // launch on whichever one simctl picked — not the one you are watching.
+  useEffect(() => {
+    void window.cove.simSetCurrent?.(udid)
+  }, [udid])
 
   // Frames only while this pane is on screen — a background stream would keep
   // shelling out to simctl for a picture nobody is looking at.
@@ -200,7 +247,14 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
 
   const onDown = (e: React.PointerEvent): void => {
     const p = toDevice(e)
-    if (p) dragRef.current = { x: p.x, y: p.y, at: Date.now() }
+    if (p) {
+      dragRef.current = { x: p.x, y: p.y, at: Date.now() }
+      sentRef.current = { x: p.x, y: p.y }
+      latestRef.current = p
+      movedRef.current = false
+      // Keep receiving moves even if the pointer leaves the picture mid-drag.
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+    }
     shotRef.current?.focus()
     // The next frame is up to a second away, so acknowledge the touch here.
     // Without this the mirror feels dead for the moment after a tap, however
@@ -216,27 +270,82 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     }
   }
 
+  /**
+   * Move the device to wherever the pointer has got to, one segment at a time.
+   *
+   * baguette has no touch-down/move/up — only whole swipes — so a drag used to
+   * be sent in one piece on release, and the screen sat still until you let go.
+   * Sending a short swipe per step follows the finger instead. The next segment
+   * waits for the previous one's ack, so this paces itself to whatever the
+   * device can take rather than queueing up a backlog behind your hand.
+   */
+  const pumpDrag = useCallback(async (): Promise<void> => {
+    if (draggingRef.current || !udid || !tappable) return
+    draggingRef.current = true
+    try {
+      // Catch up to the pointer, one segment at a time. Looping rather than
+      // recursing also means a finger lifted mid-flight still gets its last
+      // segment sent: onUp records the final position and the next turn of the
+      // loop carries the device there.
+      for (;;) {
+        const from = sentRef.current
+        const to = latestRef.current
+        if (!from || !to) break
+        // Below a few points it is a tremor, not a drag.
+        if (Math.hypot(to.x - from.x, to.y - from.y) < 6) break
+        sentRef.current = { x: to.x, y: to.y }
+        await window.cove.simInput(udid, {
+          type: 'swipe',
+          x: from.x,
+          y: from.y,
+          toX: to.x,
+          toY: to.y,
+          width: to.w,
+          height: to.h,
+          // A segment is one step of a drag, not a flick: baguette's 0.25s
+          // default was spent entirely on lag behind the pointer.
+          duration: DRAG_SEGMENT_SECONDS
+        })
+      }
+    } finally {
+      draggingRef.current = false
+    }
+  }, [udid, tappable])
+
+  const onMove = (e: React.PointerEvent): void => {
+    if (!dragRef.current) return
+    const p = toDevice(e)
+    if (!p) return
+    latestRef.current = p
+    const start = dragRef.current
+    if (!movedRef.current && Math.hypot(p.x - start.x, p.y - start.y) > 12) movedRef.current = true
+    if (movedRef.current) void pumpDrag()
+  }
+
   const onUp = (e: React.PointerEvent): void => {
     const start = dragRef.current
     const p = toDevice(e)
     dragRef.current = null
+    const dragged = movedRef.current
+    movedRef.current = false
     if (!start || !p || !udid || !tappable) return
-    const moved = Math.hypot(p.x - start.x, p.y - start.y)
     const held = Date.now() - start.at
-    void window.cove.simInput(
-      udid,
-      moved > 24
-        ? { type: 'swipe', x: start.x, y: start.y, toX: p.x, toY: p.y, width: p.w, height: p.h }
-        : {
-            type: 'tap',
-            x: start.x,
-            y: start.y,
-            width: p.w,
-            height: p.h,
-            // A held press is how you get context menus and app wobble.
-            ...(held > 500 ? { duration: Math.min(2, held / 1000) } : {})
-          }
-    )
+    if (dragged) {
+      // Finish where the finger actually left off — the last segment may still
+      // have been in flight when the pointer came up.
+      latestRef.current = p
+      void pumpDrag()
+      return
+    }
+    void window.cove.simInput(udid, {
+      type: 'tap',
+      x: start.x,
+      y: start.y,
+      width: p.w,
+      height: p.h,
+      // A held press is how you get context menus and app wobble.
+      ...(held > 500 ? { duration: Math.min(2, held / 1000) } : {})
+    })
   }
 
   /**
@@ -293,6 +402,39 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
     await refresh()
   }
 
+  /**
+   * Shut a device down from the picker. If it was the one on screen, move to
+   * another running one rather than sitting on a frozen last frame — and if
+   * there is none, fall back to the empty state instead of the "stopped
+   * responding" warning, which would be wrong for something you just did.
+   */
+  const shutdown = async (d: Device): Promise<void> => {
+    // Shutting a device down takes a few seconds and used to look like nothing
+    // had happened: the message went to the empty state, which a live picture
+    // is covering, so the only clue was the picture eventually freezing.
+    setShuttingDown(d.udid)
+    setBusy(`Shutting down ${d.name}…`)
+    const started = Date.now()
+    await window.cove.simShutdown(d.udid)
+    const list = await refresh()
+    // A device that goes down in 300ms would otherwise flash the message too
+    // briefly to read, which is indistinguishable from nothing happening.
+    const shown = Date.now() - started
+    if (shown < 700) await new Promise((r) => setTimeout(r, 700 - shown))
+    setBusy(null)
+    setShuttingDown(null)
+    if (d.udid !== udid) return
+    setGone(false)
+    setFrame(null)
+    const next = list.find((x) => x.state === 'Booted' && x.udid !== d.udid)
+    setUdid(next?.udid ?? null)
+    if (next) localStorage.setItem('cove.simDevice', next.udid)
+    else {
+      localStorage.removeItem('cove.simDevice')
+      setPicking(true)
+    }
+  }
+
   const hardware = (button: string, title: string, glyph: string): React.JSX.Element => (
     <button
       className="sim-btn"
@@ -311,7 +453,22 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
           <span className={`sim-dot ${device?.state === 'Booted' ? 'on' : ''}`} />
           {device ? device.name : 'Choose a simulator'}
           <span className="sim-runtime">{device?.runtime ?? ''}</span>
-          <span className="sim-caret">⌄</span>
+          {/* Drawn, not typed: ⌄ (U+2304) sits high off the baseline and thins
+              out at this size, which read as a stray mark rather than a menu. */}
+          <svg
+            className="sim-caret"
+            viewBox="0 0 16 16"
+            width="11"
+            height="11"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4.5 6.5 8 10l3.5-3.5" />
+          </svg>
         </button>
         {hardware('home', 'Home', '○')}
         {hardware('lock', 'Lock', '⏻')}
@@ -323,6 +480,9 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
             onClick={() => {
               localStorage.setItem('cove.simMode', 'mirror')
               setMode('mirror')
+              // Stop Apple's window floating over everything once we are done
+              // with it — the pin outlives attach mode otherwise.
+              void window.cove.simAttachRelease?.()
             }}
             title="Show the device here, streamed into the pane"
           >
@@ -342,6 +502,15 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
             Real device
           </button>
         </div>
+        {onClose && (
+          <button
+            className="sim-btn sim-close"
+            title="Close the simulator"
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        )}
         {picking && (
           <>
             <div className="sim-scrim" onClick={() => setPicking(false)} />
@@ -352,18 +521,43 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
                 </div>
               )}
               {menuDevices.map((d) => (
-                <button
-                  key={d.udid}
-                  className="sim-menu-item"
-                  title={d.state === 'Booted' ? 'Mirror this simulator' : `Boot ${d.name} and mirror it`}
-                  onClick={() => void choose(d)}
-                >
-                  <span className={`sim-dot ${d.state === 'Booted' ? 'on' : ''}`} />
-                  <span className="sim-menu-name">{d.name}</span>
-                  <span className="sim-menu-rt">
-                    {d.runtime}
-                  </span>
-                </button>
+                <div key={d.udid} className="sim-menu-row">
+                  <button
+                    className="sim-menu-item"
+                    title={
+                      d.state === 'Booted' ? 'Mirror this simulator' : `Boot ${d.name} and mirror it`
+                    }
+                    onClick={() => void choose(d)}
+                  >
+                    <span className={`sim-dot ${d.state === 'Booted' ? 'on' : ''}`} />
+                    <span className="sim-menu-name">{d.name}</span>
+                    <span className="sim-menu-rt">{d.runtime}</span>
+                  </button>
+                  {/* Shutting one down used to mean leaving for Simulator.app —
+                      and a second booted device is what sends an app to a
+                      screen nobody is watching. */}
+                  {/* Sits over the runtime label rather than beside it: the
+                      version keeps the right edge on every row, and hovering a
+                      running device swaps it for the button in place, so
+                      nothing shifts under the pointer. */}
+                  {d.state === 'Booted' && (
+                    <button
+                      className={`sim-menu-off ${shuttingDown === d.udid ? 'working' : ''}`}
+                      title={
+                        shuttingDown === d.udid
+                          ? `Shutting down ${d.name}…`
+                          : `Shut down ${d.name}`
+                      }
+                      disabled={shuttingDown !== null}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void shutdown(d)
+                      }}
+                    >
+                      {shuttingDown === d.udid ? <span className="sim-spinner" /> : '⏻'}
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </>
@@ -407,7 +601,9 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
             draggable={false}
             tabIndex={0}
             onPointerDown={onDown}
+            onPointerMove={onMove}
             onPointerUp={onUp}
+            onPointerCancel={onUp}
             onKeyDown={onKeyDown}
           />
         ) : (
@@ -424,6 +620,7 @@ export function SimulatorPane({ visible = true }: { visible?: boolean }): React.
               ))}
           </div>
         )}
+        {busy && frame && <div className="sim-status">{busy}</div>}
         {mode !== 'attach' && ripple && (
           <span
             key={ripple.id}
