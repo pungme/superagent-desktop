@@ -749,12 +749,12 @@ export function registerBrowserIpc(): void {
       const { width: tw, height: th } = thumb.getSize()
       const buf = thumb.toBitmap() // BGRA
       if (!buf.length || tw < 8 || th < 3) return null
-      const win = (x0: number): string => {
+      const win = (x0: number, y0 = 0): string => {
         let r = 0
         let g = 0
         let bl = 0
         let n = 0
-        for (let y = 0; y < 3; y++) {
+        for (let y = y0; y < y0 + 3; y++) {
           for (let x = x0; x < x0 + 3; x++) {
             const i = (y * tw + x) * 4
             bl += buf[i]
@@ -769,7 +769,10 @@ export function registerBrowserIpc(): void {
             .padStart(2, '0')
         return `#${h(r)}${h(g)}${h(bl)}`
       }
-      return { left: win(2), right: win(tw - 5) }
+      // The bottom edge too: a pane filling a rounded window hides its last few
+      // pixels behind a strip of this colour, which is what gives the page a
+      // rounded bottom the compositor would not.
+      return { left: win(2), right: win(tw - 5), bottom: win(Math.floor(tw / 2) - 1, th - 3) }
     } catch {
       return null
     }

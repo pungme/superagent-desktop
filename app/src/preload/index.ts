@@ -110,7 +110,9 @@ export interface CoveApi {
     zoom: number
   ) => void
   /** Sampled colours of the page's top corners, for the DOM backfills. */
-  browserSampleCorners: (id: string) => Promise<{ left: string; right: string } | null>
+  browserSampleCorners: (
+    id: string
+  ) => Promise<{ left: string; right: string; bottom: string } | null>
   /** Full-res PNG bytes of the pane (screenshot tooling). */
   browserShoot: (id: string) => Promise<Uint8Array | null>
   /** PNG of the side-by-side phone twin, if one is on screen. */
