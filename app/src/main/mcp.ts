@@ -16,10 +16,19 @@ import { tmpdir } from 'os'
  */
 
 import { app } from 'electron'
-import { writeFileSync } from 'fs'
+import { existsSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { createRoutineForWorkspace, listRoutines, deleteRoutine } from './routines'
-import { getWorkspacePath, listCards, addCard, updateCard, moveCard, removeCard } from './store'
+import {
+  DESKTOP_WORKSPACE_ID,
+  getWorkspacePath,
+  listCards,
+  addCard,
+  updateCard,
+  moveCard,
+  removeCard
+} from './store'
+import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
 import { gitBranch } from './files'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 import { isAbsolute, resolve } from 'path'
@@ -32,6 +41,21 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   const PANE_ID = paneId
   const CHAT_ID = chatId
   const server = new McpServer({ name: 'cove-browser', version: '0.1.0' })
+  /**
+   * The desktop chat is not a project — it is the computer's own agent, and the
+   * things it drives are the desktop's, not a workspace's.
+   */
+  const isDesktop = PANE_ID === DESKTOP_WORKSPACE_ID
+
+  /**
+   * Which browser the browser_* tools drive.
+   *
+   * In a project it is that workspace's pane. On the desktop the browser is an
+   * application with tabs, so the tools follow the tab in front — the one the
+   * user is actually looking at — exactly as they follow the visible pane
+   * everywhere else.
+   */
+  const browserPane = (): string => (isDesktop ? (activeDesktopTab() ?? PANE_ID) : PANE_ID)
 
   // --- iOS Simulator (phase 1: simctl, public APIs only) -------------------
   const simctl = (args: string[]): Promise<string> =>
@@ -167,7 +191,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { url: z.string() }
     },
     async ({ url }) => ({
-      content: [{ type: 'text', text: `Now at ${await auto.navigate(PANE_ID, url)}` }]
+      content: [{ type: 'text', text: `Now at ${await auto.navigate(browserPane(), url)}` }]
     })
   )
 
@@ -198,7 +222,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: {}
     },
     async () => ({
-      content: [{ type: 'text', text: JSON.stringify(await auto.readPage(PANE_ID)) }]
+      content: [{ type: 'text', text: JSON.stringify(await auto.readPage(browserPane())) }]
     })
   )
 
@@ -210,7 +234,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { index: z.number().optional(), text: z.string().optional() }
     },
     async ({ index, text }) => ({
-      content: [{ type: 'text', text: await auto.click(PANE_ID, { index, text }) }]
+      content: [{ type: 'text', text: await auto.click(browserPane(), { index, text }) }]
     })
   )
 
@@ -220,7 +244,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       description: 'Type text into the focused element (click an input first).',
       inputSchema: { text: z.string() }
     },
-    async ({ text }) => ({ content: [{ type: 'text', text: await auto.typeText(PANE_ID, text) }] })
+    async ({ text }) => ({ content: [{ type: 'text', text: await auto.typeText(browserPane(), text) }] })
   )
 
   server.registerTool(
@@ -229,7 +253,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       description: 'Press a key: Enter, Tab, Escape, Backspace, ArrowUp, ArrowDown.',
       inputSchema: { key: z.string() }
     },
-    async ({ key }) => ({ content: [{ type: 'text', text: await auto.pressKey(PANE_ID, key) }] })
+    async ({ key }) => ({ content: [{ type: 'text', text: await auto.pressKey(browserPane(), key) }] })
   )
 
   server.registerTool(
@@ -240,7 +264,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: {}
     },
     async () => ({
-      content: [{ type: 'image', data: await auto.screenshot(PANE_ID), mimeType: 'image/png' }]
+      content: [{ type: 'image', data: await auto.screenshot(browserPane()), mimeType: 'image/png' }]
     })
   )
 
@@ -251,7 +275,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: {}
     },
     async () => ({
-      content: [{ type: 'text', text: JSON.stringify(auto.consoleLogs(PANE_ID)) }]
+      content: [{ type: 'text', text: JSON.stringify(auto.consoleLogs(browserPane())) }]
     })
   )
 
@@ -262,7 +286,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { text: z.string(), timeoutMs: z.number().optional() }
     },
     async ({ text, timeoutMs }) => ({
-      content: [{ type: 'text', text: await auto.waitFor(PANE_ID, text, timeoutMs ?? 10000) }]
+      content: [{ type: 'text', text: await auto.waitFor(browserPane(), text, timeoutMs ?? 10000) }]
     })
   )
 
@@ -274,7 +298,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { expression: z.string() }
     },
     async ({ expression }) => ({
-      content: [{ type: 'text', text: await auto.evaluate(PANE_ID, expression) }]
+      content: [{ type: 'text', text: await auto.evaluate(browserPane(), expression) }]
     })
   )
 
@@ -285,7 +309,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         'Recent network requests, failed and error-status ones first. Good for finding broken API calls.',
       inputSchema: {}
     },
-    async () => ({ content: [{ type: 'text', text: JSON.stringify(auto.network(PANE_ID)) }] })
+    async () => ({ content: [{ type: 'text', text: JSON.stringify(auto.network(browserPane())) }] })
   )
 
   server.registerTool(
@@ -480,6 +504,147 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       return { content: [{ type: 'text', text: `Deleted routine ${id}.` }] }
     }
   )
+
+  // --- The Computer -------------------------------------------------------
+  // Only for the desktop's own chat: these drive the desktop itself, which a
+  // project's agent has no business rearranging.
+  if (isDesktop) {
+    const APP = z.enum(['chat', 'browser', 'dashboard', 'skills', 'routines'])
+    const command = (kind: string, payload: Record<string, unknown> = {}): void =>
+      broadcastToWindows('desktop:command', { kind, ...payload })
+
+    server.registerTool(
+      'computer_state',
+      {
+        description:
+          'What is on the desktop right now: every open window with its position and size, which one is in front, the browser tabs and which is showing, and the files sitting on the desktop. Read this before arranging anything, and whenever the user refers to "this window", "the browser" or "that file" — it is what they can see.',
+        inputSchema: {}
+      },
+      async () => ({ content: [{ type: 'text', text: describeDesktop() }] })
+    )
+
+    server.registerTool(
+      'computer_open_app',
+      {
+        description:
+          "Open an application on the desktop, or bring it forward if it is already open. Chat is this conversation, Browser is a tabbed web browser, Dashboard is the user's usage and activity, Skills and Routines belong to whichever project is selected.",
+        inputSchema: { app: APP }
+      },
+      async ({ app }) => {
+        command('open', { app })
+        return { content: [{ type: 'text', text: `Opened ${app}.` }] }
+      }
+    )
+
+    server.registerTool(
+      'computer_close_app',
+      {
+        description:
+          'Close an application window on the desktop. Do not close chat — that is this conversation, and closing it ends the session you are talking through.',
+        inputSchema: { app: APP }
+      },
+      async ({ app }) => {
+        // Closing the chat window kills the session running this very tool
+        // call, so the answer never arrives and the user is left looking at a
+        // desktop wondering what happened.
+        if (app === 'chat') {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Not closing Chat — this conversation runs in that window. Ask the user to close it themselves if that is really what they want.'
+              }
+            ]
+          }
+        }
+        command('close', { app })
+        return { content: [{ type: 'text', text: `Closed ${app}.` }] }
+      }
+    )
+
+    server.registerTool(
+      'computer_arrange',
+      {
+        description:
+          "Move or resize a window. Use a position for the ordinary cases — left and right tile it against one half of the desktop, full fills it, center puts it in the middle at a comfortable size, minimise puts it away — or give an explicit x, y, width and height in desktop pixels (computer_state reports the desktop's size). The window is brought to the front either way.",
+        inputSchema: {
+          app: APP,
+          position: z
+            .enum(['left', 'right', 'top', 'bottom', 'full', 'center', 'minimize'])
+            .optional(),
+          x: z.number().optional(),
+          y: z.number().optional(),
+          width: z.number().optional(),
+          height: z.number().optional()
+        }
+      },
+      async ({ app, position, x, y, width, height }) => {
+        const open = desktopState().windows.some((w) => w.app === app)
+        if (!open) {
+          return {
+            content: [
+              { type: 'text', text: `${app} is not open — call computer_open_app first.` }
+            ]
+          }
+        }
+        if (!position && x === undefined && y === undefined && width === undefined && height === undefined) {
+          return { content: [{ type: 'text', text: 'Give a position, or a rectangle to move it to.' }] }
+        }
+        command('arrange', { app, position, x, y, width, height })
+        return {
+          content: [
+            { type: 'text', text: `Moved ${app}${position ? ` to the ${position}` : ''}.` }
+          ]
+        }
+      }
+    )
+
+    server.registerTool(
+      'computer_desktop_file',
+      {
+        description:
+          "Put a file on the desktop, or take one off it. Files on the desktop are linked into your working directory under ./files/, so putting one there is how you hand the user something they can double-click — and how anything they dropped became readable to you.",
+        inputSchema: {
+          path: z.string().describe('Absolute path to the file'),
+          remove: z.boolean().optional().describe('Take it off the desktop instead of adding it')
+        }
+      },
+      async ({ path, remove }) => {
+        const abs = path.startsWith('~') ? join(homedir(), path.slice(1)) : resolve(path)
+        // An icon for a file that is not there is a dead icon: it links to
+        // nothing, opens nothing, and the user has to work out why themselves.
+        if (!remove && !existsSync(abs)) {
+          return { content: [{ type: 'text', text: `There is no file at ${abs}.` }] }
+        }
+        command(remove ? 'remove-file' : 'add-file', { path: abs })
+        return {
+          content: [
+            { type: 'text', text: remove ? `Took ${abs} off the desktop.` : `Put ${abs} on the desktop.` }
+          ]
+        }
+      }
+    )
+
+    server.registerTool(
+      'computer_browser_open',
+      {
+        description:
+          "Open a URL in the desktop Browser — in the tab in front, or in a new one. This opens the Browser app if it is closed. Afterwards the browser_* tools (browser_read_page, browser_click, browser_type, …) act on the tab that is showing.",
+        inputSchema: {
+          url: z.string(),
+          newTab: z.boolean().optional().describe('Open it in a new tab rather than the current one')
+        }
+      },
+      async ({ url, newTab }) => {
+        command('browser', { url, newTab: newTab ?? false })
+        // The tab has to exist before it can be navigated, and both happen in
+        // the renderer — wait for it rather than reporting a page that is not
+        // loading yet.
+        await new Promise((r) => setTimeout(r, 700))
+        return { content: [{ type: 'text', text: `Opening ${url} in the desktop browser.` }] }
+      }
+    )
+  }
 
   return server
 }

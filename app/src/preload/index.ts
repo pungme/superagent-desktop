@@ -278,6 +278,44 @@ export interface CoveApi {
   desktopChatHome: () => Promise<{ workspaceId: string; cwd: string }>
   /** Mirror the desktop's files into that chat's working directory. */
   desktopSyncFiles: (paths: string[]) => Promise<string>
+  /**
+   * Tell the main process what is on the desktop, so the desktop chat's agent
+   * can see the computer it is being asked about. Partial: the desktop reports
+   * its windows and files, the Browser app reports its tabs.
+   */
+  desktopReport: (patch: {
+    windows?: {
+      app: string
+      x: number
+      y: number
+      w: number
+      h: number
+      minimized: boolean
+      maximized: boolean
+      focused: boolean
+    }[]
+    files?: { name: string; path: string }[]
+    tabs?: { id: string; url: string; active: boolean }[]
+    bounds?: { w: number; h: number }
+    open?: boolean
+  }) => void
+  /** The Computer closed — nothing on the desktop is on screen any more. */
+  desktopGone: () => void
+  /** The desktop chat's agent driving the desktop (the computer_* tools). */
+  onDesktopCommand: (
+    cb: (c: {
+      kind: string
+      app?: string
+      path?: string
+      url?: string
+      newTab?: boolean
+      position?: string
+      x?: number
+      y?: number
+      width?: number
+      height?: number
+    }) => void
+  ) => () => void
   chatDelete: (id: string) => Promise<void>
   chatUpdate: (
     id: string,
@@ -474,6 +512,10 @@ const cove: CoveApi = {
   chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
   desktopChatHome: () => ipcRenderer.invoke('desktop:chat-home'),
   desktopSyncFiles: (paths) => ipcRenderer.invoke('desktop:sync-files', paths),
+  desktopReport: (patch) => ipcRenderer.send('desktop:report', patch),
+  desktopGone: () => ipcRenderer.send('desktop:gone'),
+  onDesktopCommand: (cb) =>
+    subscribe('desktop:command', (c) => cb(c as Parameters<typeof cb>[0])),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
