@@ -4,7 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 import * as auto from './automation'
-import { simTarget, isMirroring } from './simulator'
+import { simTarget, isMirroring, keepSimulatorHidden } from './simulator'
 import { execFile } from 'child_process'
 import { tmpdir } from 'os'
 
@@ -92,6 +92,8 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         workspaceId: workspaceIdFromPane(PANE_ID),
         udid
       })
+      // A build with a simulator destination opens Apple's window by itself.
+      if (isMirroring(udid)) keepSimulatorHidden()
       return { content: [{ type: 'text', text: `Booted ${udid}.` }] }
     }
   )
@@ -148,7 +150,11 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     async ({ appPath, bundleId }) => {
       await simctl(['install', simTarget(), appPath])
       const out = await simctl(['launch', simTarget(), bundleId])
-      broadcastToWindows('app:open-simulator', { workspaceId: workspaceIdFromPane(PANE_ID) })
+      broadcastToWindows('app:open-simulator', {
+        workspaceId: workspaceIdFromPane(PANE_ID),
+        udid: simTarget()
+      })
+      if (isMirroring(simTarget())) keepSimulatorHidden()
       return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
     }
   )

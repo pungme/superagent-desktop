@@ -218,6 +218,8 @@ export interface CoveApi {
   simAttachSettings: () => Promise<boolean>
   /** Leaving attach for good: unpin the window so it stops floating on top. */
   simAttachRelease: () => Promise<boolean>
+  /** The user asked for Apple's Simulator window — open it and stop hiding it. */
+  simOpenApp: (udid: string) => Promise<boolean>
   simAttach: (
     udid: string,
     rect: { x: number; y: number; width: number; height: number }
@@ -426,6 +428,7 @@ const cove: CoveApi = {
   simAttachRequest: () => ipcRenderer.invoke('sim:attach-request'),
   simAttachSettings: () => ipcRenderer.invoke('sim:attach-settings'),
   simAttachRelease: () => ipcRenderer.invoke('sim:attach-release'),
+  simOpenApp: (udid) => ipcRenderer.invoke('sim:open-app', udid),
   simAttach: (udid, rect) => ipcRenderer.invoke('sim:attach', udid, rect),
   simAttachMove: (rect) => ipcRenderer.invoke('sim:attach-move', rect),
   simAttachHide: () => ipcRenderer.invoke('sim:attach-hide'),
