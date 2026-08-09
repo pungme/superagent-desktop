@@ -631,23 +631,20 @@ button {
 /* Branch chip on a project row whose own folder is a git repo. */
 /* A badge on the project's icon, in the same corner as the dev-server dot:
    both say "this project has something running right now". */
-.sidebar-sim-dot {
+.sidebar-web-dot {
   position: absolute;
   right: -6px;
   bottom: -5px;
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--text-primary);
-  color: var(--bg-panel);
-  /* The screen is punched out in the badge's own background colour, so the
-     shape reads as a phone rather than a filled lozenge. */
-  --badge-screen: var(--text-primary);
-  box-shadow: 0 0 0 2px var(--bg-panel);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  box-shadow: 0 0 0 1.5px var(--bg-panel);
 }
-.sidebar-sim-dot svg {
+.sidebar-web-dot svg {
   width: 11px;
   height: 11px;
 }

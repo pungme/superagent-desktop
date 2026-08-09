@@ -89,6 +89,24 @@ function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.J
 }
 
 // A properly-sized disclosure chevron (points down; rotate -90° when collapsed).
+/** Stands in for the folder while a simulator is attached to the project. */
+function PhoneIcon({ size = 15 }: { size?: number }): React.JSX.Element {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.2}
+      strokeLinejoin="round"
+    >
+      <rect x="4.6" y="1.6" width="6.8" height="12.8" rx="1.6" />
+      <path d="M7 12.7h2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function Chevron({ size = 13 }: { size?: number }): React.JSX.Element {
   return (
     <svg
@@ -262,6 +280,17 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   // A live dev server on this project → green dot on its icon (mirrors the
   // toolbar's "● localhost:PORT" chip).
   const serverPorts = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
+  /**
+   * A page is attached to this project's session — whatever opened it.
+   *
+   * The green dot only ever meant "the agent started a dev server here", so a
+   * project sitting on a live site it did not start showed nothing at all. The
+   * question the row should answer is what this project currently has on
+   * screen, not who is responsible for it.
+   */
+  // Live only, reported by the pane itself. What is remembered is "a page was
+  // open here once", which is the same mistake the simulator badge made.
+  const pageHere = useStore((s) => ws.kind !== 'browser' && Boolean(s.pageOpen[ws.id]))
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
@@ -351,7 +380,13 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         <StatusDot status={status} live={agentLive} browsing={browsingHere} />
         <span
           className="sidebar-item-kind"
-          title={ws.kind === 'browser' ? 'Browser' : 'Folder'}
+          title={
+            simHere
+              ? 'A simulator is attached to this project'
+              : ws.kind === 'browser'
+                ? 'Browser'
+                : 'Folder'
+          }
         >
           {ws.kind === 'browser' && favicon ? (
             <img
@@ -361,6 +396,8 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               // A favicon that fails to render falls back to the globe icon.
               onError={() => setFavicon('')}
             />
+          ) : simHere ? (
+            <PhoneIcon />
           ) : (
             <KindIcon kind={ws.kind} />
           )}
@@ -370,15 +407,13 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               title={`Dev server on :${serverPorts.join(', :')}`}
             />
           )}
-          {/* Same badge position as the dev-server dot — this is another thing
-              the project currently has running, so it reads the same way. */}
-          {simHere && (
-            <span className="sidebar-sim-dot" title="A simulator is attached to this project">
-              {/* Solid body with a cut-out screen: an outline at this size just
-                  reads as a blob, and the point is to recognise a phone. */}
-              <svg viewBox="0 0 16 16" fill="currentColor">
-                <rect x="4" y="1" width="8" height="14" rx="2" />
-                <rect x="5.4" y="3.4" width="5.2" height="8.4" rx="0.7" fill="var(--badge-screen)" />
+          {/* A live page, when there is no dev server to report: the dot is the
+              more specific claim, so it wins the corner. */}
+          {pageHere && serverPorts.length === 0 && !simHere && (
+            <span className="sidebar-web-dot" title="A page is open in this project">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+                <circle cx="8" cy="8" r="6" />
+                <path d="M2 8h12M8 2c3 3.2 3 8.8 0 12M8 2C5 5.2 5 10.8 8 14" />
               </svg>
             </span>
           )}
