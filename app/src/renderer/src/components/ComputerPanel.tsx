@@ -5,6 +5,7 @@ import { DesktopWindow, WindowRect } from './DesktopWindow'
 import { AppId, DESKTOP_APPS, appById } from './desktopApps'
 import { DashboardPanel } from './DashboardPanel'
 import { DesktopChat } from './DesktopChat'
+import { DesktopBrowser } from './DesktopBrowser'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
 
@@ -248,6 +249,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
       if (!chatHome) return <div className="desktop-app-empty">Starting…</div>
       return <DesktopChat workspaceId={chatHome.workspaceId} cwd={chatHome.cwd} />
     }
+    if (app === 'browser') return <DesktopBrowser />
     if (app === 'dashboard') return <DashboardPanel embedded onClose={() => {}} />
     if (app === 'skills') {
       return activeWorkspace ? (

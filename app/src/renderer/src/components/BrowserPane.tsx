@@ -10,6 +10,12 @@ interface BrowserPaneProps {
   visible?: boolean
   /** Code projects can dismiss the pane; a browser project *is* the pane. */
   closable?: boolean
+  /**
+   * Fill the pane rather than simulating a desktop screen. A project preview
+   * wants the simulated viewport — it is showing you a site as a visitor sees
+   * it. A browser tab is not a preview of anything: it should fill its window.
+   */
+  fill?: boolean
 }
 
 interface Suggestion {
@@ -65,7 +71,8 @@ export function BrowserPane({
   partition,
   initialUrl,
   visible = true,
-  closable = false
+  closable = false,
+  fill = false
 }: BrowserPaneProps): React.JSX.Element {
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const previewUrl = useStore((s) => s.previewUrls[paneId])
@@ -116,7 +123,7 @@ export function BrowserPane({
   const [viewport, setViewport] = useState<'none' | 'desktop' | 'mobile' | 'both'>(
     () =>
       (localStorage.getItem(`viewport:${paneId}`) as 'none' | 'desktop' | 'mobile' | 'both') ||
-      'desktop'
+      (fill ? 'none' : 'desktop')
   )
   // syncBounds reads the mode through this ref so it can stay stable (deps: paneId
   // only) — otherwise recreating it on every mode change would re-run the pane's

@@ -267,7 +267,9 @@ function App(): React.JSX.Element {
           doesn't rebuild its expansion state on every toggle). */}
       <Sidebar />
       <SidebarResizer onCollapse={collapseSidebar} />
-      <main className="content">
+      {/* The Computer's own menubar is its top chrome and takes the drag
+          region with it, so the 8px title strip would read as a gap above it. */}
+      <main className={`content ${computerOpen ? 'computer' : ''}`}>
         {/* When the sidebar is hidden this strip grows to clear the traffic
             lights, which would otherwise sit on top of the content. */}
         <div className="content-titlebar">
