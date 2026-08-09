@@ -203,8 +203,9 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
    * something only this component knows. Reporting on every change keeps the
    * computer_state tool honest without it having to ask the renderer and wait.
    */
+  const reportedRef = useRef('')
   useEffect(() => {
-    window.cove.desktopReport?.({
+    const snapshot = {
       windows: windows.map((w) => {
         const r = clampToDesk(w.rect)
         return {
@@ -221,7 +222,13 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
       files: files.map((f) => ({ name: f.name, path: f.path })),
       bounds,
       open: true
-    })
+    }
+    // Dragging a window renders on every pointer move; sending an identical
+    // snapshot down the wire sixty times a second helps nobody.
+    const key = JSON.stringify(snapshot)
+    if (key === reportedRef.current) return
+    reportedRef.current = key
+    window.cove.desktopReport?.(snapshot)
   })
   // Closing the Computer takes the desktop off screen; the agent should not go
   // on describing windows that are not there.
