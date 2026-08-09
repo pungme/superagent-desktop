@@ -253,6 +253,12 @@ function ChatRow({
 
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id && s.overlay === null)
+  // Same shape as the other pane selectors: live state when the project is
+  // mounted, otherwise what it had open last time — a project you have not
+  // visited this run still has its simulator waiting.
+  const simHere = useStore(
+    (s) => s.simOpen[ws.id] ?? localStorage.getItem(`simOpen:${ws.id}`) === '1'
+  )
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
   const agentLive = useStore((s) => Boolean(s.agentLive[ws.id]))
   // A live dev server on this project → green dot on its icon (mirrors the
@@ -367,6 +373,24 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             />
           )}
         </span>
+        {/* A simulator is attached to this project — the same idea as a browser
+            project wearing the site's favicon: say what is on screen here. */}
+        {simHere && (
+          <span className="sidebar-item-sim" title="A simulator is open in this project">
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinejoin="round"
+            >
+              <rect x="4.5" y="1.5" width="7" height="13" rx="1.6" />
+              <path d="M7 12.6h2" strokeLinecap="round" />
+            </svg>
+          </span>
+        )}
         {/* Not editable: the name mirrors the folder, and renaming here changed
             only the label — which read as if it would move or rename the folder. */}
         <span className="sidebar-item-name" title={ws.path}>
@@ -687,74 +711,6 @@ export function Sidebar(): React.JSX.Element {
               <path d="M6 14h4" />
             </svg>
             Computer
-          </button>
-          <button
-            className={`sidebar-dash-row ${overlay === 'dashboard' ? 'on' : ''}`}
-            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
-          >
-            <svg
-              className="sidebar-dash-icon"
-              viewBox="0 0 16 16"
-              width="14"
-              height="14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            >
-              <path d="M2.5 13.5v-4M6.5 13.5v-7M10.5 13.5v-2.5M14.5 13.5v-9" />
-            </svg>
-            Dashboard
-          </button>
-          {/* Skills and Routines belong to the app, not to one project's
-              toolbar — they open for whichever project is current. */}
-          <button
-            className={`sidebar-dash-row ${overlay === 'skills' ? 'on' : ''}`}
-            title="Your skills"
-            onClick={() => {
-              // Leave Computer/Dashboard first, or the panel would open behind them.
-              window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
-              window.dispatchEvent(new CustomEvent('cove:open-skills'))
-            }}
-          >
-            <svg
-              className="sidebar-dash-icon"
-              viewBox="0 0 16 16"
-              width="14"
-              height="14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            >
-              <path d="M8 1.8l1.7 3.9 4.2.4-3.2 2.8 1 4.1L8 10.9l-3.7 2.1 1-4.1-3.2-2.8 4.2-.4z" />
-            </svg>
-            Skills
-          </button>
-          <button
-            className={`sidebar-dash-row ${overlay === 'routines' ? 'on' : ''}`}
-            title="Scheduled tasks"
-            onClick={() => {
-              // Leave Computer/Dashboard first, or the panel would open behind them.
-              window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
-              window.dispatchEvent(new CustomEvent('cove:open-routines'))
-            }}
-          >
-            <svg
-              className="sidebar-dash-icon"
-              viewBox="0 0 16 16"
-              width="14"
-              height="14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            >
-              <circle cx="8" cy="8.6" r="5.6" />
-              <path d="M8 5.6v3.2l2 1.2M5.6 1.6h4.8" />
-            </svg>
-            Routines
           </button>
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">

@@ -542,9 +542,22 @@ export function EasyChat({
   const [suspended, setSuspended] = useState(true)
   const suspendedRef = useRef(true)
   const [files, setFiles] = useState<string[]>([])
-  const [commands, setCommands] = useState<string[]>([])
+  /**
+   * Seeded with Claude's built-ins rather than starting empty.
+   *
+   * The list used to be filled from two places only: this project's skill
+   * folders, and the running session's init event. With no project skills and
+   * no session started yet — a fresh chat, or one whose process was reaped —
+   * typing "/" offered nothing at all, which reads as the feature being gone.
+   * The session's own list still arrives and merges over this.
+   */
+  const [commands, setCommands] = useState<string[]>(() =>
+    Object.keys(BUILTIN_COMMAND_DESCRIPTIONS).sort()
+  )
   // name → one-line description, shown beside each "/" command in the menu.
-  const [commandDescs, setCommandDescs] = useState<Record<string, string>>({})
+  const [commandDescs, setCommandDescs] = useState<Record<string, string>>(
+    () => ({ ...BUILTIN_COMMAND_DESCRIPTIONS })
+  )
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
@@ -660,7 +673,12 @@ export function EasyChat({
   useEffect(() => {
     window.cove.filesList(cwd).then(setFiles)
     window.cove.skillsList(cwd).then((list) => {
-      setCommands(list.map((s) => s.name))
+      // Merge, never replace: this used to overwrite the pool with the project's
+      // own skills, so a project with none — which is most of them — wiped the
+      // built-ins straight back out and "/" offered nothing at all.
+      setCommands((prev) =>
+        Array.from(new Set([...prev, ...list.map((s) => s.name)])).sort()
+      )
       setCommandDescs((prev) => {
         const next = { ...prev }
         for (const s of list) if (s.description) next[s.name] = s.description

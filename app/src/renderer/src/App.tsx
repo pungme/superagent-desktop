@@ -5,10 +5,7 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
-import { DashboardPanel } from './components/DashboardPanel'
 import { ComputerPanel } from './components/ComputerPanel'
-import { SkillsPanel } from './components/SkillsPanel'
-import { RoutinesPanel } from './components/RoutinesPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { useStore } from './state'
@@ -139,18 +136,24 @@ function App(): React.JSX.Element {
   // One source of truth: the sidebar highlights whichever of these is showing.
   const overlay = useStore((s) => s.overlay)
   const setOverlay = useStore((s) => s.setOverlay)
-  const dashOpen = overlay === 'dashboard'
   const computerOpen = overlay === 'computer'
   /** Any full-window section — all four cover the projects the same way. */
   const sectionOpen = overlay !== null
-  // Skills and Routines act on whichever project is current.
-  const activeWorkspace = openedWorkspaces.find((w) => w.id === activeId)
   useEffect(() => {
     // One value, so opening either inherently closes the other.
-    const open = (): void => setOverlay('dashboard')
     const openComputer = (): void => setOverlay('computer')
-    const openSkills = (): void => setOverlay('skills')
-    const openRoutines = (): void => setOverlay('routines')
+    // These live on the desktop now. Show it, then let it raise the window —
+    // after a tick, so a freshly mounted desktop is listening by then.
+    const openOnDesktop = (app: 'dashboard' | 'skills' | 'routines') => (): void => {
+      setOverlay('computer')
+      setTimeout(
+        () => window.dispatchEvent(new CustomEvent('cove:open-desktop-app', { detail: { app } })),
+        60
+      )
+    }
+    const open = openOnDesktop('dashboard')
+    const openSkills = openOnDesktop('skills')
+    const openRoutines = openOnDesktop('routines')
     // Picking anything in the sidebar leaves both.
     const close = (): void => setOverlay(null)
     window.addEventListener('cove:open-dashboard', open)
@@ -298,18 +301,8 @@ function App(): React.JSX.Element {
             </div>
           ))
         )}
-        {dashOpen && <DashboardPanel onClose={() => setOverlay(null)} />}
         {computerOpen && <ComputerPanel onClose={() => setOverlay(null)} />}
-        {overlay === 'skills' && activeWorkspace && (
-          <SkillsPanel
-            workspaceId={activeWorkspace.id}
-            projectPath={activeWorkspace.path}
-            onClose={() => setOverlay(null)}
-          />
-        )}
-        {overlay === 'routines' && activeWorkspace && (
-          <RoutinesPanel ws={activeWorkspace} onClose={() => setOverlay(null)} />
-        )}
+
       </main>
       <PreviewToast />
       <UpdateBanner />
