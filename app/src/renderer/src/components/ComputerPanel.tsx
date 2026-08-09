@@ -4,6 +4,7 @@ import { useStore } from '../state'
 import { DesktopWindow, WindowRect } from './DesktopWindow'
 import { AppId, DESKTOP_APPS, appById } from './desktopApps'
 import { DashboardPanel } from './DashboardPanel'
+import { EasyChat } from './EasyChat'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
 
@@ -74,6 +75,16 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
   const [selected, setSelected] = useState<string | null>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState({ w: 1200, h: 800 })
+  /**
+   * The desktop's own chat: a conversation that belongs to no project.
+   *
+   * It runs in a folder of ours rather than a project, so it starts with no
+   * repository, no dev server and nothing to be careful about — a plain chat.
+   */
+  const [chatHome, setChatHome] = useState<{ workspaceId: string; cwd: string } | null>(null)
+  const chats = useStore((s) => (chatHome ? s.chats[chatHome.workspaceId] : undefined))
+  const activeChatId = useStore((s) => (chatHome ? s.activeChatId[chatHome.workspaceId] : undefined))
+  const loadChats = useStore((s) => s.loadChats)
   const activeWorkspace = useStore((s) => {
     const id = s.activeWorkspaceId
     return id ? s.tree.flatMap((g) => g.workspaces).find((w) => w.id === id) : undefined
@@ -92,7 +103,24 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
 
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(files))
+    // What is on the desktop is what the chat can see: the files are linked
+    // into its working directory, so dropping one is all it takes for Claude
+    // to be able to read it — no attaching, no pasting a path.
+    void window.cove.desktopSyncFiles?.(files.map((f) => f.path))
   }, [files])
+
+  // Prepare the chat's home the first time the desktop is opened.
+  useEffect(() => {
+    let alive = true
+    void window.cove.desktopChatHome?.().then((home) => {
+      if (!alive || !home) return
+      setChatHome(home)
+      void loadChats(home.workspaceId)
+    })
+    return () => {
+      alive = false
+    }
+  }, [loadChats])
   useEffect(() => {
     localStorage.setItem(WIN_KEY, JSON.stringify(windows))
   }, [windows])
@@ -197,6 +225,19 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
   )
 
   const renderApp = (app: AppId): React.JSX.Element => {
+    if (app === 'chat') {
+      if (!chatHome || !activeChatId) return <div className="desktop-app-empty">Starting…</div>
+      const chat = chats?.find((c) => c.id === activeChatId)
+      return (
+        <EasyChat
+          key={activeChatId}
+          cwd={chat?.cwd || chatHome.cwd}
+          workspaceId={chatHome.workspaceId}
+          chatId={activeChatId}
+          initialSessionId={chat?.claudeSessionId ?? null}
+        />
+      )
+    }
     if (app === 'dashboard') return <DashboardPanel embedded onClose={() => {}} />
     if (app === 'skills') {
       return activeWorkspace ? (

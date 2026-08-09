@@ -253,12 +253,10 @@ function ChatRow({
 
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id && s.overlay === null)
-  // Same shape as the other pane selectors: live state when the project is
-  // mounted, otherwise what it had open last time — a project you have not
-  // visited this run still has its simulator waiting.
-  const simHere = useStore(
-    (s) => s.simOpen[ws.id] ?? localStorage.getItem(`simOpen:${ws.id}`) === '1'
-  )
+  // Live only — no localStorage fallback. What was remembered is "the pane was
+  // open here once", which kept showing a phone long after the device had been
+  // shut down.
+  const simHere = useStore((s) => s.simOpen[ws.id] ?? false)
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
   const agentLive = useStore((s) => Boolean(s.agentLive[ws.id]))
   // A live dev server on this project → green dot on its icon (mirrors the
@@ -372,25 +370,19 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               title={`Dev server on :${serverPorts.join(', :')}`}
             />
           )}
+          {/* Same badge position as the dev-server dot — this is another thing
+              the project currently has running, so it reads the same way. */}
+          {simHere && (
+            <span className="sidebar-sim-dot" title="A simulator is attached to this project">
+              {/* Solid body with a cut-out screen: an outline at this size just
+                  reads as a blob, and the point is to recognise a phone. */}
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <rect x="4" y="1" width="8" height="14" rx="2" />
+                <rect x="5.4" y="3.4" width="5.2" height="8.4" rx="0.7" fill="var(--badge-screen)" />
+              </svg>
+            </span>
+          )}
         </span>
-        {/* A simulator is attached to this project — the same idea as a browser
-            project wearing the site's favicon: say what is on screen here. */}
-        {simHere && (
-          <span className="sidebar-item-sim" title="A simulator is open in this project">
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.3"
-              strokeLinejoin="round"
-            >
-              <rect x="4.5" y="1.5" width="7" height="13" rx="1.6" />
-              <path d="M7 12.6h2" strokeLinecap="round" />
-            </svg>
-          </span>
-        )}
         {/* Not editable: the name mirrors the folder, and renaming here changed
             only the label — which read as if it would move or rename the folder. */}
         <span className="sidebar-item-name" title={ws.path}>

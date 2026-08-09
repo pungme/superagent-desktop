@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useStore } from '../state'
 
 interface Device {
   udid: string
@@ -55,9 +56,12 @@ function cornerShareOfWidth(width: number, height: number): number {
  */
 export function SimulatorPane({
   visible = true,
+  workspaceId,
   onClose
 }: {
   visible?: boolean
+  /** So the sidebar can say this project has a simulator attached. */
+  workspaceId?: string
   /** Put the pane away. Nothing else could: there was no ✕ here at all. */
   onClose?: () => void
 }): React.JSX.Element {
@@ -153,6 +157,21 @@ export function SimulatorPane({
       setUdid(p.udid)
     })
   }, [udid])
+
+  /**
+   * Tell the sidebar whether a simulator is really attached here.
+   *
+   * "The pane was open once" is not the same thing: it is remembered per
+   * project, so a phone showed against a project whose simulator had long
+   * since been shut down. A device selected and still answering is the honest
+   * signal, and it goes away with the pane.
+   */
+  const reportSim = useStore((s) => s.setSimOpen)
+  useEffect(() => {
+    if (!workspaceId) return
+    reportSim(workspaceId, Boolean(udid) && !gone)
+    return () => reportSim(workspaceId, false)
+  }, [workspaceId, udid, gone, reportSim])
 
   // Keep main pointed at whatever this pane is showing: the agent's simctl
   // tools said "booted", which with two simulators running would install and

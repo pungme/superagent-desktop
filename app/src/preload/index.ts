@@ -274,6 +274,10 @@ export interface CoveApi {
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
   chatCreate: (workspaceId: string, cwd?: string) => Promise<string>
+  /** The desktop's own chat: a workspace that belongs to no project. */
+  desktopChatHome: () => Promise<{ workspaceId: string; cwd: string }>
+  /** Mirror the desktop's files into that chat's working directory. */
+  desktopSyncFiles: (paths: string[]) => Promise<string>
   chatDelete: (id: string) => Promise<void>
   chatUpdate: (
     id: string,
@@ -466,6 +470,8 @@ const cove: CoveApi = {
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
   chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
+  desktopChatHome: () => ipcRenderer.invoke('desktop:chat-home'),
+  desktopSyncFiles: (paths) => ipcRenderer.invoke('desktop:sync-files', paths),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
