@@ -164,6 +164,9 @@ export function DesktopBrowser({
               fill
               occluded={occluded}
               positionKey={positionKey}
+              // Concentric with the window: its inner edge is rounded 10px and
+              // the page sits 6px inside that (--dw-grab), so 4px matches.
+              radius={4}
             />
           </div>
         ))}

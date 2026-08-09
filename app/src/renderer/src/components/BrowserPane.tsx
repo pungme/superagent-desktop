@@ -27,6 +27,14 @@ interface BrowserPaneProps {
    */
   positionKey?: string
   /**
+   * Corner radius for a pane that fills a rounded window. A native view is not
+   * clipped by anything's CSS, so square corners sat inside the window's arcs
+   * with a wedge of frame showing through each one. Electron's radius is
+   * uniform, so the top arcs are backfilled to read square — the page meets a
+   * toolbar up there, not a corner.
+   */
+  radius?: number
+  /**
    * Fill the pane rather than simulating a desktop screen. A project preview
    * wants the simulated viewport — it is showing you a site as a visitor sees
    * it. A browser tab is not a preview of anything: it should fill its window.
@@ -90,7 +98,8 @@ export function BrowserPane({
   closable = false,
   fill = false,
   occluded = false,
-  positionKey
+  positionKey,
+  radius = 0
 }: BrowserPaneProps): React.JSX.Element {
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const previewUrl = useStore((s) => s.previewUrls[paneId])
@@ -201,6 +210,13 @@ export function BrowserPane({
     overlayRef.current = overlayOpen
   }, [overlayOpen])
 
+  // Read through a ref: syncBounds is a dependency of half the effects in here,
+  // and rebuilding it on a prop that only ever changes once is not worth it.
+  const radiusRef = useRef(radius)
+  useEffect(() => {
+    radiusRef.current = radius
+  }, [radius])
+
   const syncBounds = useCallback((): void => {
     // Don't position the native view while this workspace is hidden (it would
     // overlay the active one) or while an HTML overlay is open (it would cover it).
@@ -229,7 +245,7 @@ export function BrowserPane({
       // layout fits the pane width (not a cramped 1:1 render). A manual zoom
       // (autoFit off) is respected instead.
       if (autoFitRef.current && W > 0) window.cove.browserSetZoom?.(paneId, W / 1280)
-      window.cove.browserSetRadius?.(paneId, 0)
+      window.cove.browserSetRadius?.(paneId, radiusRef.current)
       emit({ x: x0, y: y0, width: W, height: H })
       return
     }
@@ -329,7 +345,7 @@ export function BrowserPane({
   // Follow the page's corner colour: once immediately, then a lazy tick — catches
   // navigations, theme flips and repaints without chasing every frame.
   useEffect(() => {
-    if (!visible || paneCovered || viewport === 'none') return
+    if (!visible || paneCovered || (viewport === 'none' && !radius)) return
     let alive = true
     const tick = async (): Promise<void> => {
       const c = await window.cove.browserSampleCorners?.(paneId)
@@ -347,7 +363,7 @@ export function BrowserPane({
       window.clearInterval(t)
       offState?.()
     }
-  }, [visible, paneCovered, viewport, paneId])
+  }, [visible, paneCovered, viewport, paneId, radius])
 
   // Show/hide the native view as this workspace becomes active/inactive or as an
   // HTML overlay opens/closes over it; re-sync when the dropdown opens/closes so
@@ -774,6 +790,24 @@ export function BrowserPane({
             />
           </>
         )}
+        {viewport === 'none' && radius > 0 && visible && viewRect && cornerFill && (
+          <>
+            {/* DOM, so under the native page by nature: its rounded top arcs
+                reveal these and the top edge reads square against the toolbar. */}
+            <div
+              className="browser-corner-fill"
+              style={{ left: viewRect.left, top: viewRect.top, background: cornerFill.left }}
+            />
+            <div
+              className="browser-corner-fill"
+              style={{
+                left: viewRect.left + viewRect.width - 10,
+                top: viewRect.top,
+                background: cornerFill.right
+              }}
+            />
+          </>
+        )}
         {frozen && viewRect && (
           // Stand-in for the native view while an overlay is up. Corners match
           // what the compositor draws: square under the docked omnibar, rounded
@@ -788,7 +822,11 @@ export function BrowserPane({
               width: viewRect.width,
               height: viewRect.height,
               borderRadius:
-                viewport === 'desktop' ? '0 0 10px 10px' : viewport === 'mobile' ? '10px' : '0'
+                viewport === 'desktop'
+                  ? '0 0 10px 10px'
+                  : viewport === 'mobile'
+                    ? '10px'
+                    : `0 0 ${radius}px ${radius}px`
             }}
           />
         )}

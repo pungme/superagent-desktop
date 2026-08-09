@@ -5935,9 +5935,9 @@ button {
 
 .dw {
   /* How much of the frame stays clear of a native view, so the edge can still
-     be grabbed. A shade wider than the grips reach inside (7px), so the band
+     be grabbed. A shade wider than the grips reach inside (5px), so the band
      and the page never meet on a rounding error. */
-  --dw-grab: 9px;
+  --dw-grab: 6px;
   position: absolute;
   /* Short and slightly overshooting, so a window reads as arriving rather than
      appearing. Long enough to see, short enough not to wait for. */
@@ -6063,9 +6063,9 @@ button {
   position: absolute;
 }
 .dw-grip-n { top: -3px; left: 10px; right: 10px; height: 9px; cursor: ns-resize; }
-.dw-grip-s { bottom: 0; left: 10px; right: 10px; height: 7px; cursor: ns-resize; }
-.dw-grip-e { right: 0; top: 10px; bottom: 10px; width: 7px; cursor: ew-resize; }
-.dw-grip-w { left: 0; top: 10px; bottom: 10px; width: 7px; cursor: ew-resize; }
+.dw-grip-s { bottom: 0; left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
+.dw-grip-e { right: 0; top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+.dw-grip-w { left: 0; top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
 .dw-grip-ne { top: -3px; right: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
 .dw-grip-nw { top: -3px; left: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
 .dw-grip-se { bottom: 0; right: 0; width: 14px; height: 14px; cursor: nwse-resize; }
