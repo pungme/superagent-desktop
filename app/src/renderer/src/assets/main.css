@@ -6459,6 +6459,13 @@ button {
   transition: background-color 0.18s ease;
 }
 
+/* The last few pixels of a pane that fills a rounded window: DOM, because a
+   native view will not round its own corners here. Sits below the view, in the
+   page's own bottom-edge colour, so the page appears to end in a curve. */
+.browser-bottom-round {
+  position: absolute;
+  pointer-events: none;
+}
 .browser-frozen {
   position: absolute;
   object-fit: fill;

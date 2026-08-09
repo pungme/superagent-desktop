@@ -183,7 +183,11 @@ export function BrowserPane({
   const [frozen, setFrozen] = useState<string | null>(null)
   // Page-coloured DOM backfills for the top corners (desktop mode): the rounded
   // top arcs reveal these instead of the grey card, so the top reads square.
-  const [cornerFill, setCornerFill] = useState<{ left: string; right: string } | null>(null)
+  const [cornerFill, setCornerFill] = useState<{
+    left: string
+    right: string
+    bottom: string
+  } | null>(null)
   // Phone card of the side-by-side mode.
   const [twinFrame, setTwinFrame] = useState<{
     left: number
@@ -246,7 +250,14 @@ export function BrowserPane({
       // (autoFit off) is respected instead.
       if (autoFitRef.current && W > 0) window.cove.browserSetZoom?.(paneId, W / 1280)
       window.cove.browserSetRadius?.(paneId, radiusRef.current)
-      emit({ x: x0, y: y0, width: W, height: H })
+      // A native view is a rectangle and stays one — Electron's border radius
+      // does not clip a WebContentsView here, so the page's square bottom
+      // corners sat inside the window's arcs. Stop the view short of the bottom
+      // and let DOM draw those last few pixels, rounded, in the page's own
+      // colour. It costs the bottom `r` pixels of the page, which for any
+      // ordinary page is its background.
+      const r = radiusRef.current
+      emit({ x: x0, y: y0, width: W, height: Math.max(1, H - r) })
       return
     }
     // Zooming out widens the page's layout viewport (window.innerWidth = px / zoom).
@@ -790,23 +801,20 @@ export function BrowserPane({
             />
           </>
         )}
-        {viewport === 'none' && radius > 0 && visible && viewRect && cornerFill && (
-          <>
-            {/* DOM, so under the native page by nature: its rounded top arcs
-                reveal these and the top edge reads square against the toolbar. */}
-            <div
-              className="browser-corner-fill"
-              style={{ left: viewRect.left, top: viewRect.top, background: cornerFill.left }}
-            />
-            <div
-              className="browser-corner-fill"
-              style={{
-                left: viewRect.left + viewRect.width - 10,
-                top: viewRect.top,
-                background: cornerFill.right
-              }}
-            />
-          </>
+        {viewport === 'none' && radius > 0 && visible && viewRect && (
+          /* The page's rounded bottom: the strip the view was held back from,
+             filled with the colour of the page's own bottom edge. */
+          <div
+            className="browser-bottom-round"
+            style={{
+              left: viewRect.left,
+              top: viewRect.top + viewRect.height,
+              width: viewRect.width,
+              height: radius,
+              borderRadius: `0 0 ${radius}px ${radius}px`,
+              background: cornerFill?.bottom ?? 'var(--bg-content)'
+            }}
+          />
         )}
         {frozen && viewRect && (
           // Stand-in for the native view while an overlay is up. Corners match
@@ -821,12 +829,10 @@ export function BrowserPane({
               top: viewRect.top,
               width: viewRect.width,
               height: viewRect.height,
+              // Square in fill mode: the still stops where the view does, and
+              // the strip below it is what carries the curve.
               borderRadius:
-                viewport === 'desktop'
-                  ? '0 0 10px 10px'
-                  : viewport === 'mobile'
-                    ? '10px'
-                    : `0 0 ${radius}px ${radius}px`
+                viewport === 'desktop' ? '0 0 10px 10px' : viewport === 'mobile' ? '10px' : '0'
             }}
           />
         )}
