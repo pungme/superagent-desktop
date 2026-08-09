@@ -5372,6 +5372,11 @@ button {
 
 /* Set apart from the hardware buttons, and pushed to the end: this closes the
    whole pane, it is not another thing to press on the device. */
+.sim-open-app {
+  margin-left: 6px;
+  color: var(--text-tertiary);
+}
+
 .sim-close {
   /* .sim-mode already takes the free space; a second auto margin would split
      it and leave both groups floating in the middle. */
@@ -5629,6 +5634,8 @@ button {
 .sim-screen {
   max-width: 100%;
   max-height: 100%;
+  /* The real radius is set inline, proportional to the device — this is only
+     the fallback for the moment before the first frame reports its size. */
   border-radius: 28px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
   /* A tap is a tap, not a text selection or an image drag. */

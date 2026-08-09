@@ -23,6 +23,23 @@ type Mode = 'mirror' | 'attach'
 const DRAG_SEGMENT_SECONDS = 0.03
 
 /**
+ * The screen's corner radius, as a share of the device's own width.
+ *
+ * A fixed pixel radius cannot be right: the mirror is drawn at whatever size
+ * the pane allows, so 28px was too round when small and too square when large,
+ * and wrong on an iPad either way. Real hardware measures roughly 55pt of
+ * radius across a 393pt-wide iPhone, and about 18pt across an 820pt iPad;
+ * older phones with a home button have square corners.
+ */
+function cornerShareOfWidth(width: number, height: number): number {
+  if (!width || !height) return 0
+  const aspect = Math.max(width, height) / Math.min(width, height)
+  if (aspect >= 1.95) return 0.14 // notch / Dynamic Island iPhone
+  if (aspect >= 1.6) return 0 // iPhone SE, 8 and older — square
+  return 0.022 // iPad
+}
+
+/**
  * An iOS Simulator inside the app, beside the chat. Two ways to get it there:
  *
  *   mirror  the device streamed into the pane. Main prefers native/simfb, which
@@ -502,6 +519,16 @@ export function SimulatorPane({
             Real device
           </button>
         </div>
+        {/* The escape hatch: Apple's own window, only when asked for. Until
+            then it is kept out of sight, because a build opens it uninvited. */}
+        <button
+          className="sim-btn sim-open-app"
+          title="Open this device in Apple's Simulator app"
+          disabled={!udid}
+          onClick={() => udid && void window.cove.simOpenApp?.(udid)}
+        >
+          ↗
+        </button>
         {onClose && (
           <button
             className="sim-btn sim-close"
@@ -596,6 +623,17 @@ export function SimulatorPane({
           <img
             ref={shotRef}
             className={`sim-screen ${tappable ? 'live' : ''}`}
+            // Percentages, so the corner keeps its proportions at every size
+            // the pane draws. The second value is the same physical radius
+            // expressed against the height, which is what keeps it circular
+            // rather than an ellipse on a tall screen.
+            style={{
+              borderRadius: (() => {
+                const rx = cornerShareOfWidth(frame.width, frame.height) * 100
+                if (!rx) return 0
+                return `${rx.toFixed(2)}% / ${(rx * (frame.width / frame.height)).toFixed(2)}%`
+              })()
+            }}
             src={frame.url}
             alt={`${device?.name ?? 'iOS Simulator'} screen`}
             draggable={false}
