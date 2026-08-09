@@ -11,6 +11,22 @@ interface BrowserPaneProps {
   /** Code projects can dismiss the pane; a browser project *is* the pane. */
   closable?: boolean
   /**
+   * Something is on top of this pane that the pane itself cannot know about —
+   * on the desktop, a window stacked over the browser's. A native view paints
+   * above all HTML, so the page has to stand down and let its still stand in.
+   */
+  occluded?: boolean
+  /**
+   * Changes whenever the pane may have MOVED rather than resized.
+   *
+   * The native view is positioned in window coordinates, and the only things
+   * that re-push those coordinates are a ResizeObserver on the host and the
+   * window's own resize event. Neither fires when a surface merely moves — drag
+   * a desktop window and the page stayed behind at the old coordinates. There
+   * is no position observer in the platform, so whoever moves the pane says so.
+   */
+  positionKey?: string
+  /**
    * Fill the pane rather than simulating a desktop screen. A project preview
    * wants the simulated viewport — it is showing you a site as a visitor sees
    * it. A browser tab is not a preview of anything: it should fill its window.
@@ -72,7 +88,9 @@ export function BrowserPane({
   initialUrl,
   visible = true,
   closable = false,
-  fill = false
+  fill = false,
+  occluded = false,
+  positionKey
 }: BrowserPaneProps): React.JSX.Element {
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const previewUrl = useStore((s) => s.previewUrls[paneId])
@@ -306,7 +324,7 @@ export function BrowserPane({
     return window.cove.onAppFocus?.((focused) => setAway(!focused))
   }, [])
 
-  const paneCovered = overlayOpen || suggestOpen || away
+  const paneCovered = overlayOpen || suggestOpen || away || occluded
 
   // Follow the page's corner colour: once immediately, then a lazy tick — catches
   // navigations, theme flips and repaints without chasing every frame.
@@ -338,7 +356,7 @@ export function BrowserPane({
     if (visible && !paneCovered) syncBounds()
     else if (!visible) window.cove.browserHide(paneId)
     // The covered case is handled below, so the page can be frozen before it goes.
-  }, [visible, paneCovered, paneId, syncBounds])
+  }, [visible, paneCovered, paneId, syncBounds, positionKey])
 
   // Overlay opening: one IPC — main photographs the page and detaches the view
   // in the same handler, then the still stands in (~20 ms later). Detaching must

@@ -341,12 +341,48 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
     }
   }
 
-  const renderApp = (app: AppId): React.JSX.Element => {
+  /**
+   * Is anything stacked on top of this window?
+   *
+   * Only the Browser cares, and it cares a great deal: its page is a real
+   * Chromium view, a native layer that paints above every piece of HTML in the
+   * app. Stack the Chat window over it and the page carries on covering the
+   * chat — the window is in front by every rule the DOM knows and behind by the
+   * only one the screen obeys. So the browser is told when it is covered, and
+   * stands its page down in favour of a still of itself.
+   *
+   * An open menu counts too: the drop-down is HTML, and the desktop's menu bar
+   * sits exactly where a window's top-left corner tends to be.
+   */
+  const coveredBy = (win: OpenWindow): boolean => {
+    if (menu) return true
+    const rect = (w: OpenWindow): WindowRect =>
+      w.maximized ? { x: 0, y: 0, w: bounds.w, h: bounds.h } : clampToDesk(w.rect)
+    const a = rect(win)
+    return windows.some((o) => {
+      if (o.id === win.id || o.minimized || o.z <= win.z) return false
+      const b = rect(o)
+      return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+    })
+  }
+
+  const renderApp = (win: OpenWindow): React.JSX.Element => {
+    const app = win.app
     if (app === 'chat') {
       if (!chatHome) return <div className="desktop-app-empty">Starting…</div>
       return <DesktopChat workspaceId={chatHome.workspaceId} cwd={chatHome.cwd} />
     }
-    if (app === 'browser') return <DesktopBrowser />
+    if (app === 'browser') {
+      const r = win.maximized ? { x: 0, y: 0, w: bounds.w, h: bounds.h } : clampToDesk(win.rect)
+      return (
+        <DesktopBrowser
+          occluded={coveredBy(win)}
+          // Moving a window does not resize its contents, so nothing else tells
+          // the native view its coordinates changed.
+          positionKey={`${r.x},${r.y},${r.w},${r.h}`}
+        />
+      )
+    }
     if (app === 'dashboard') return <DashboardPanel embedded onClose={() => {}} />
     if (app === 'skills') {
       return activeWorkspace ? (
@@ -527,7 +563,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
                 )
               }
             >
-              {renderApp(w.app)}
+              {renderApp(w)}
             </DesktopWindow>
             ))}
         </div>

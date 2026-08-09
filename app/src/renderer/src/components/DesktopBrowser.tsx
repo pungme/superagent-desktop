@@ -47,7 +47,13 @@ function labelFor(url: string): string {
  * It shares the browser projects' session, so a login done in one is a login
  * everywhere.
  */
-export function DesktopBrowser(): React.JSX.Element {
+export function DesktopBrowser({
+  occluded,
+  positionKey
+}: {
+  occluded?: boolean
+  positionKey?: string
+}): React.JSX.Element {
   const [tabs, setTabs] = useState<Tab[]>(load)
   /**
    * Derived, not stored: load() mints a fresh id when there is nothing saved,
@@ -156,6 +162,8 @@ export function DesktopBrowser(): React.JSX.Element {
               initialUrl={t.initialUrl}
               visible={t.id === activeId}
               fill
+              occluded={occluded}
+              positionKey={positionKey}
             />
           </div>
         ))}
