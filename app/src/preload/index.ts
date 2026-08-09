@@ -198,6 +198,8 @@ export interface CoveApi {
   simBoot: (udid: string) => Promise<boolean>
   simShutdown: (udid: string) => Promise<boolean>
   simStreamStart: (udid: string, fps?: number) => void
+  /** Tell main which device the pane is on, so the agent's tools aim there. */
+  simSetCurrent: (udid: string | null) => Promise<boolean>
   simStreamStop: (udid: string) => void
   simInput: (
     udid: string,
@@ -214,6 +216,8 @@ export interface CoveApi {
   simAttachReady: () => Promise<{ trusted: boolean }>
   simAttachRequest: () => Promise<{ trusted: boolean }>
   simAttachSettings: () => Promise<boolean>
+  /** Leaving attach for good: unpin the window so it stops floating on top. */
+  simAttachRelease: () => Promise<boolean>
   simAttach: (
     udid: string,
     rect: { x: number; y: number; width: number; height: number }
@@ -411,6 +415,7 @@ const cove: CoveApi = {
   simBoot: (udid) => ipcRenderer.invoke('sim:boot', udid),
   simShutdown: (udid) => ipcRenderer.invoke('sim:shutdown', udid),
   simStreamStart: (udid, fps) => ipcRenderer.send('sim:stream-start', udid, fps),
+  simSetCurrent: (udid) => ipcRenderer.invoke('sim:set-current', udid),
   simStreamStop: (udid) => ipcRenderer.send('sim:stream-stop', udid),
   simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),
@@ -420,6 +425,7 @@ const cove: CoveApi = {
   simAttachReady: () => ipcRenderer.invoke('sim:attach-ready'),
   simAttachRequest: () => ipcRenderer.invoke('sim:attach-request'),
   simAttachSettings: () => ipcRenderer.invoke('sim:attach-settings'),
+  simAttachRelease: () => ipcRenderer.invoke('sim:attach-release'),
   simAttach: (udid, rect) => ipcRenderer.invoke('sim:attach', udid, rect),
   simAttachMove: (rect) => ipcRenderer.invoke('sim:attach-move', rect),
   simAttachHide: () => ipcRenderer.invoke('sim:attach-hide'),
