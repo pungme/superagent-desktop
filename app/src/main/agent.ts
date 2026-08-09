@@ -2,7 +2,8 @@ import { ipcMain, WebContents } from 'electron'
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process'
 import { randomUUID } from 'crypto'
 import os from 'os'
-import { existsSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { join } from 'path'
 import { getHookUrl } from './hooks'
 import { getMcpUrl, writeWorkspaceMcpConfig } from './mcp'
 import { findClaude } from './claude-cli'
@@ -135,6 +136,21 @@ const FILE_OPEN_PROMPT =
   'command to launch a file in an external app when open_file can show it in-app; only ' +
   'fall back to the shell for file types SuperAgent cannot display (e.g. .docx, .xlsx, archives).'
 
+// The simulator the user is watching lives INSIDE SuperAgent, in a pane beside
+// this chat. Apple's Simulator app is a separate window they did not ask for.
+const SIMULATOR_PROMPT =
+  "SuperAgent shows a live iOS Simulator in a pane next to this chat, and the user is " +
+  'watching THAT. Use the sim_* tools (sim_list_devices, sim_boot, sim_install_and_launch, ' +
+  'sim_screenshot, sim_open_url) for anything simulator-related. Two rules follow from this:\n' +
+  "1. Do NOT run `open -a Simulator`, `xcrun simctl boot` followed by opening Apple's " +
+  'Simulator app, or otherwise launch the Simulator application — it puts a second window ' +
+  'on screen, usually showing a different device from the one in the pane, and the user ' +
+  'ends up watching the wrong thing. Only do it if they explicitly ask for Apple\'s ' +
+  'Simulator app by name.\n' +
+  '2. Build, install and launch onto the device the pane is showing — sim_list_devices ' +
+  'marks it. If you run simctl directly, pass that UDID rather than the word `booted`, ' +
+  'which picks an arbitrary device when several are running.'
+
 /**
  * Kill every session a renderer owns. A reload tears the page down without running
  * React's effect cleanups, so the chats never get to call agent:stop and their
@@ -218,6 +234,7 @@ export function buildAgentArgs(
     SCHEDULING_PROMPT,
     CHOICES_PROMPT,
     FILE_OPEN_PROMPT,
+    SIMULATOR_PROMPT,
     opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
   ]
     .filter(Boolean)
@@ -339,9 +356,41 @@ export interface AgentImage {
   data: string // base64
 }
 
+/**
+ * Put a pasted image on disk and hand back the path.
+ *
+ * The image also travels inline, which is the fast path and normally all that
+ * is needed. But an inline image is attached to one message: if that message
+ * arrives mid-turn, or the session is later resumed, the agent can end up
+ * unable to see the picture the user is plainly talking about — it went
+ * looking for "wherever the app saved it" and there was nothing there. Now
+ * there is, and the path travels as text, which nothing drops.
+ */
+function saveImageForAgent(im: AgentImage): string | null {
+  try {
+    const dir = join(os.tmpdir(), 'superagent-pasted')
+    mkdirSync(dir, { recursive: true })
+    const ext = (im.mediaType.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '')
+    const file = join(dir, `paste-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`)
+    writeFileSync(file, Buffer.from(im.data, 'base64'))
+    return file
+  } catch {
+    return null
+  }
+}
+
 export function sendToAgent(id: string, text: string, images: AgentImage[] = []): void {
   const session = sessions.get(id)
   if (!session || !session.proc.stdin.writable) return
+  if (images.length > 0) {
+    const paths = images.map((im) => saveImageForAgent(im)).filter(Boolean)
+    if (paths.length > 0) {
+      const label = paths.length > 1 ? 'images are' : 'image is'
+      text =
+        `${text}${text ? '\n\n' : ''}[The pasted ${label} attached above, and also saved to disk ` +
+        `in case you cannot see it inline — read it with the Read tool if so:\n${paths.join('\n')}]`
+    }
+  }
   const content = [
     ...images.map((im) => ({
       type: 'image',
