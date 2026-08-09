@@ -325,6 +325,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       sessions.delete(id)
       if (session.killed) return
       if (resume && !sawInit) {
+        notifyResumeLost(owner, id)
         spawnProc(null)
         return
       }
@@ -339,6 +340,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       if (resume && !sawInit) {
         // The resume target was unavailable (claude exited before emitting
         // anything) — retry once with a fresh session.
+        notifyResumeLost(owner, id)
         spawnProc(null)
         return
       }
@@ -377,6 +379,18 @@ function saveImageForAgent(im: AgentImage): string | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Say when a conversation could not be resumed.
+ *
+ * Falling back to a fresh session is the right move — better than a dead chat —
+ * but it happened silently, so the window went on showing a conversation the
+ * model behind it no longer had any of. The one case where "does it still
+ * remember?" has a surprising answer, and nothing said so.
+ */
+function notifyResumeLost(owner: WebContents, id: string): void {
+  if (!owner.isDestroyed()) owner.send(`agent:resume-lost:${id}`)
 }
 
 export function sendToAgent(id: string, text: string, images: AgentImage[] = []): void {

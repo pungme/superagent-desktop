@@ -1385,6 +1385,7 @@ export function EasyChat({
     let disposed = false
     let offEvent: (() => void) | undefined
     let offExit: (() => void) | undefined
+    let offResumeLost: (() => void) | undefined
 
     window.cove
       .agentStart({
@@ -1417,6 +1418,26 @@ export function EasyChat({
           setThinking(false)
           setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
         }
+        // Resuming failed and a fresh session took its place: say so, or the
+        // transcript above goes on implying a memory that is no longer there.
+        offResumeLost = window.cove.onAgentResumeLost?.(id, () => {
+          if (disposed) return
+          setItems((prev) => [
+            ...prev,
+            {
+              kind: 'msg',
+              msg: {
+                id: `sys-resume-${Date.now()}`,
+                at: Date.now(),
+                role: 'assistant',
+                text:
+                  '⚠ The earlier session could not be resumed, so this one starts fresh — ' +
+                  'Claude cannot see the conversation above. Paste anything it still needs.',
+                system: true
+              }
+            }
+          ])
+        })
         offExit = window.cove.onAgentExit(id, () => {
           // The exit event carries no reason; main still knows one.
           void window.cove.agentDied?.(id).then((d) => died(d?.reason))
@@ -1430,6 +1451,7 @@ export function EasyChat({
 
     return () => {
       disposed = true
+      offResumeLost?.()
       offEvent?.()
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)

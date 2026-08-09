@@ -144,32 +144,48 @@ export function DesktopWindow({
         onPointerCancel={end}
         onDoubleClick={onToggleMaximize}
       >
-        <div className="dw-lights">
-          {/* Ordered and coloured the way every other window on the machine is,
-              so the red one is where the hand already expects it. */}
-          <button
-            className="dw-light dw-close"
-            title="Close"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={onClose}
-          />
-          <button
-            className="dw-light dw-min"
-            title="Minimise"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={onMinimize}
-          />
-          <button
-            className="dw-light dw-zoom"
-            title={maximized ? 'Restore' : 'Fill the desktop'}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={onToggleMaximize}
-          />
-        </div>
         <span className="dw-title">
           {icon}
           {title}
         </span>
+        {/* Ours, not an imitation of the traffic lights: quiet monochrome
+            glyphs on the right, where this app puts a ✕ everywhere else. */}
+        <div className="dw-controls">
+          <button
+            className="dw-ctl"
+            title="Minimise"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onMinimize}
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2.5 6h7" />
+            </svg>
+          </button>
+          <button
+            className="dw-ctl"
+            title={maximized ? 'Restore' : 'Fill the desktop'}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onToggleMaximize}
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              {maximized ? (
+                <path d="M2.5 5.2h4.3v4.3H2.5zM5.2 5.2V2.5h4.3v4.3H6.8" />
+              ) : (
+                <rect x="2.5" y="2.5" width="7" height="7" rx="1.2" />
+              )}
+            </svg>
+          </button>
+          <button
+            className="dw-ctl dw-ctl-close"
+            title="Close"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 3l6 6M9 3l-6 6" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <div className="dw-body">{children}</div>
