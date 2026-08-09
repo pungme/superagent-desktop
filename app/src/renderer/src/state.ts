@@ -56,6 +56,13 @@ export interface TodoItem {
 interface CoveState {
   tree: TreeGroup[]
   activeWorkspaceId: string | null
+  /**
+   * The full-window view sitting over the projects, if any. The sidebar marks
+   * whichever is showing, and a project row must not keep looking selected
+   * while it is covered up.
+   */
+  overlay: 'computer' | 'dashboard' | 'skills' | 'routines' | null
+  setOverlay: (o: 'computer' | 'dashboard' | 'skills' | 'routines' | null) => void
   // Routines grouped by workspace id, shown nested under each project in the sidebar.
   routines: Record<string, Routine[]>
   refreshRoutines: () => Promise<void>
@@ -93,7 +100,13 @@ interface CoveState {
   setStatus: (workspaceId: string, status: WorkspaceStatus) => void
   addPort: (workspaceId: string, port: number) => void
   verifyPorts: () => Promise<void>
-  toggleBrowser: (workspaceId: string) => void
+  /**
+   * `current` is the pane's *effective* open state, which the component has
+   * already resolved. Without it this toggled `browserOpen[id]` raw — and a
+   * pane restored from localStorage has no entry there, so `!undefined` was
+   * `true` and the first click on ✕ re-opened what was already open.
+   */
+  toggleBrowser: (workspaceId: string, current?: boolean) => void
   toggleFiles: (workspaceId: string) => void
   hooksEnabled: boolean
   setHooksEnabled: (v: boolean) => void
@@ -191,6 +204,8 @@ const chatLoadInflight = new Map<string, Promise<Chat[]>>()
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
+  overlay: null,
+  setOverlay: (o) => set({ overlay: o }),
   routines: {},
   openRoutineRunId: null,
   statuses: {},
@@ -343,9 +358,12 @@ export const useStore = create<CoveState>((set, get) => ({
       return { filesOpen: { ...s.filesOpen, [workspaceId]: next } }
     }),
 
-  toggleBrowser: (workspaceId) =>
+  toggleBrowser: (workspaceId, current) =>
     set((s) => {
-      const next = !s.browserOpen[workspaceId]
+      const saved = localStorage.getItem(`paneOpen:${workspaceId}`)
+      const effective =
+        current ?? s.browserOpen[workspaceId] ?? (saved !== null ? saved === '1' : false)
+      const next = !effective
       // Remembered so a code project's preview survives an app restart. Browser
       // projects deliberately don't restore (a cold start must not land on a
       // reloaded, often logged-out live page) — see the coldStart flag.
@@ -371,10 +389,16 @@ export const useStore = create<CoveState>((set, get) => ({
     set((s) => {
       localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
+      // The viewer and the pane are the same slot, and the viewer wins it. A
+      // text file left open therefore swallowed every PDF and image opened
+      // afterwards: the row highlighted, the page loaded, and nothing changed
+      // on screen. Whatever was asked for last is what you want to see.
+      localStorage.removeItem(`openFile:${workspaceId}`)
       return {
         ...(focus ? { activeWorkspaceId: workspaceId } : {}),
         browserOpen,
         coldStart: false,
+        openFile: { ...s.openFile, [workspaceId]: null },
         previewUrls: { ...s.previewUrls, [workspaceId]: url },
         toast: null
       }

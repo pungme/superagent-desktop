@@ -69,6 +69,14 @@ export function BrowserPane({
 }: BrowserPaneProps): React.JSX.Element {
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const previewUrl = useStore((s) => s.previewUrls[paneId])
+  /**
+   * The latest requested URL, for the create callback below. `initialUrl` is
+   * whatever this pane had last run; when the pane is re-mounted (leaving the
+   * file viewer, say) that value is stale, and because browserCreate resolves
+   * after the previewUrl effect has already navigated, it would clobber the
+   * page you just asked for with the one before it.
+   */
+  const previewUrlRef = useRef<string | undefined>(previewUrl)
   const reloadOnIdle = useStore((s) => s.reloadOnIdle[paneId] ?? true)
   const setReloadOnIdle = useStore((s) => s.setReloadOnIdle)
   const browsing = useStore((s) => s.browsingWorkspaceId === paneId)
@@ -387,7 +395,8 @@ export function BrowserPane({
       // A URL to load, or the themed "new tab" empty state — but only for browser
       // projects. A code preview with no URL stays blank (as before) so it never
       // renders an out-of-place "type a URL" page floating over the chat.
-      if (initialUrl) window.cove.browserNavigate(paneId, initialUrl)
+      const target = previewUrlRef.current ?? initialUrl
+      if (target) window.cove.browserNavigate(paneId, target)
       else if (!closable) window.cove.browserShowEmpty(paneId)
     })
 
@@ -418,6 +427,10 @@ export function BrowserPane({
   useEffect(() => {
     if (previewUrl) window.cove.browserNavigate(paneId, previewUrl)
   }, [paneId, previewUrl])
+
+  useEffect(() => {
+    previewUrlRef.current = previewUrl
+  })
 
   // Mirror the real page URL into the bar — but only on an actual URL change and
   // only while the user isn't editing, so typed text never flickers to a stale value.
@@ -668,9 +681,13 @@ export function BrowserPane({
         </button>
         {closable && (
           <button
-            className="browser-nav-btn"
-            onClick={() => toggleBrowser(paneId)}
-            title="Close preview"
+            // Set apart from the navigation buttons: as one more identical
+            // glyph at the end of ten, nobody read this as the way out.
+            className="browser-nav-btn browser-close-btn"
+            // This button only exists while the pane is on screen, so the
+            // current state is not in doubt: it is open, and this closes it.
+            onClick={() => toggleBrowser(paneId, true)}
+            title="Close this preview pane"
           >
             ✕
           </button>
