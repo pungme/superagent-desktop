@@ -281,7 +281,14 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
       {/* A menu bar, the way a desktop has one. Click a title to open it;
           clicking anywhere else puts it away. */}
       <div className="computer-menubar" onClick={(e) => e.stopPropagation()}>
-        <span className="computer-menu-mark">◉</span>
+        {/* The app's own mark, the same rounded square the splash uses — a
+            desktop's top-left corner is where you look to know whose it is. */}
+        <span className="computer-brand" title="SuperAgent">
+          <span className="computer-brand-mark">
+            <span className="computer-brand-inner" />
+          </span>
+          SuperAgent
+        </span>
         <div className="computer-menu">
           <button
             className={`computer-menu-title ${menu === 'file' ? 'on' : ''}`}

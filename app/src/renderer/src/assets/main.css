@@ -2675,6 +2675,31 @@ button {
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
 }
+.computer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-right: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.computer-brand-mark {
+  width: 15px;
+  height: 15px;
+  border-radius: 4.5px;
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+}
+.computer-brand-inner {
+  width: 5px;
+  height: 5px;
+  border-radius: 1.5px;
+  background: var(--accent-fg);
+}
+
 .computer-menu-mark {
   font-size: 11px;
   color: var(--text-secondary);
@@ -4200,6 +4225,9 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dw {
+    animation: none;
+  }
   /* The reveal is a nicety; someone who has asked for less movement should get
      the control immediately instead. */
   .sidebar-item,
@@ -5863,8 +5891,22 @@ button {
 }
 
 /* ── Windows ─────────────────────────────────────────────────────────── */
+@keyframes dw-open {
+  from {
+    opacity: 0;
+    transform: scale(0.965) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .dw {
   position: absolute;
+  /* Short and slightly overshooting, so a window reads as arriving rather than
+     appearing. Long enough to see, short enough not to wait for. */
+  animation: dw-open 0.16s cubic-bezier(0.32, 1.4, 0.6, 1) both;
   display: flex;
   flex-direction: column;
   min-width: 320px;
@@ -5901,28 +5943,45 @@ button {
 .dw-bar:active {
   cursor: grabbing;
 }
-.dw-lights {
+.dw-controls {
+  margin-left: auto;
   display: flex;
-  gap: 6px;
+  gap: 2px;
 }
-.dw-light {
+.dw-ctl {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-tertiary);
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.dw-ctl svg {
   width: 12px;
   height: 12px;
-  border: none;
-  border-radius: 50%;
-  padding: 0;
-  background: var(--border-strong);
-  cursor: default;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.dw.active .dw-close {
-  background: #ff5f57;
+.dw-ctl:hover {
+  background: var(--hover);
+  color: var(--text-primary);
 }
-.dw.active .dw-min {
-  background: #febc2e;
+.dw-ctl-close:hover {
+  background: rgba(220, 80, 80, 0.16);
+  color: #e06a6a;
 }
-.dw.active .dw-zoom {
-  background: #28c840;
+.dw.active .dw-ctl {
+  color: var(--text-secondary);
 }
+
 .dw-title {
   display: flex;
   align-items: center;
