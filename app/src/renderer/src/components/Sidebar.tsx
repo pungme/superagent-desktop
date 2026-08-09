@@ -290,7 +290,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    */
   // Live only, reported by the pane itself. What is remembered is "a page was
   // open here once", which is the same mistake the simulator badge made.
-  const pageHere = useStore((s) => ws.kind !== 'browser' && Boolean(s.pageOpen[ws.id]))
+  const pageHere = useStore((s) => ws.kind !== 'browser' && Boolean(s.pageUrl[ws.id]))
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
   const activeChatId = useStore((s) => s.activeChatId[ws.id])

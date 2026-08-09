@@ -92,11 +92,11 @@ export function BrowserPane({
   })
   // Tell the sidebar this project has a page on screen — whoever opened it,
   // and whether or not anything of ours started a server for it.
-  const setPageOpen = useStore((s) => s.setPageOpen)
+  const setPageUrl = useStore((s) => s.setPageUrl)
   useEffect(() => {
-    setPageOpen(paneId, Boolean(state.url))
-    return () => setPageOpen(paneId, false)
-  }, [paneId, state.url, setPageOpen])
+    setPageUrl(paneId, state.url || '')
+    return () => setPageUrl(paneId, '')
+  }, [paneId, state.url, setPageUrl])
   const [crashed, setCrashed] = useState(false)
   const [zoom, setZoom] = useState(1)
   // Host-relative rect of the simulated device screen, so an HTML card can sit

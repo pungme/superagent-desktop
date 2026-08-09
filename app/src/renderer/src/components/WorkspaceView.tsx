@@ -151,6 +151,8 @@ export function WorkspaceView({
   // toolbar — there's room here, unlike the cramped sidebar row.
   const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
   const openPreview = useStore((s) => s.openPreview)
+  /** The page this project currently has on its pane, whoever opened it. */
+  const attachedUrl = useStore((s) => s.pageUrl[ws.id] ?? '')
   // Current git branch, for code projects only (browser projects have no repo).
   const [branch, setBranch] = useState<string | null>(null)
   useEffect(() => {
@@ -365,6 +367,15 @@ export function WorkspaceView({
               </span>
             )}
           </>
+        )}
+        {/* A site attached to this project that is not one of our dev servers —
+            the chip was only ever about localhost, so a project sitting on a
+            real site said nothing at all up here. */}
+        {ws.kind !== 'browser' && ports.length === 0 && attachedUrl && (
+          <span className="workspace-server attached" title={attachedUrl}>
+            <span className="workspace-server-dot" />
+            {hostOf(attachedUrl) || 'page'}
+          </span>
         )}
         {ws.kind !== 'browser' && ports.length > 0 && (
           <button

@@ -68,8 +68,8 @@ interface CoveState {
    * restored at startup has none — and the sidebar could not tell a project
    * sitting on a live site from one with nothing open.
    */
-  pageOpen: Record<string, boolean>
-  setPageOpen: (workspaceId: string, open: boolean) => void
+  pageUrl: Record<string, string>
+  setPageUrl: (workspaceId: string, url: string) => void
   /** Projects with the simulator pane open, so the sidebar can say so. */
   simOpen: Record<string, boolean>
   setSimOpen: (workspaceId: string, open: boolean) => void
@@ -216,9 +216,9 @@ const chatLoadInflight = new Map<string, Promise<Chat[]>>()
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
-  pageOpen: {},
-  setPageOpen: (workspaceId, open) =>
-    set((s) => (s.pageOpen[workspaceId] === open ? s : { pageOpen: { ...s.pageOpen, [workspaceId]: open } })),
+  pageUrl: {},
+  setPageUrl: (workspaceId, url) =>
+    set((s) => (s.pageUrl[workspaceId] === url ? s : { pageUrl: { ...s.pageUrl, [workspaceId]: url } })),
   simOpen: {},
   setSimOpen: (workspaceId, open) =>
     set((s) => ({ simOpen: { ...s.simOpen, [workspaceId]: open } })),

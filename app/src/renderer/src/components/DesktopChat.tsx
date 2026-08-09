@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 
@@ -40,14 +40,44 @@ export function DesktopChat({
   const renameChat = useStore((s) => s.renameChat)
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  /**
+   * Narrow enough that two panes would be two cramped panes.
+   *
+   * Below this the window behaves like a phone: the list, or one conversation
+   * with a way back to the list — never both fighting over 200px each.
+   */
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [narrow, setNarrow] = useState(false)
+  const [showList, setShowList] = useState(true)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < 520))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const active = chats?.find((c) => c.id === activeChatId)
   const ordered = [...(chats ?? [])].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
 
+  const openChat = (id: string): void => {
+    selectChat(workspaceId, id)
+    setShowList(false)
+  }
+
   return (
-    <div className="dchat">
+    <div
+      className={`dchat ${narrow ? 'narrow' : ''} ${narrow && !showList ? 'on-chat' : ''}`}
+      ref={rootRef}
+    >
       <aside className="dchat-list">
-        <button className="dchat-new" onClick={() => void newChat(workspaceId)}>
+        <button
+          className="dchat-new"
+          onClick={() => {
+            void newChat(workspaceId)
+            setShowList(false)
+          }}
+        >
           + New chat
         </button>
         <div className="dchat-items">
@@ -55,7 +85,7 @@ export function DesktopChat({
             <div
               key={c.id}
               className={`dchat-item ${c.id === activeChatId ? 'on' : ''}`}
-              onClick={() => selectChat(workspaceId, c.id)}
+              onClick={() => openChat(c.id)}
               onDoubleClick={() => {
                 setDraft(c.title ?? '')
                 setEditing(c.id)
@@ -106,6 +136,11 @@ export function DesktopChat({
       </aside>
 
       <div className="dchat-main">
+        {narrow && (
+          <button className="dchat-back" onClick={() => setShowList(true)}>
+            ‹ Chats
+          </button>
+        )}
         {activeChatId ? (
           <EasyChat
             key={activeChatId}
