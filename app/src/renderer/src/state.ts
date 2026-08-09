@@ -506,7 +506,11 @@ export const useStore = create<CoveState>((set, get) => ({
         activeChatId: {
           ...s.activeChatId,
           [workspaceId]:
-            s.activeChatId[workspaceId] ??
+            // `||`, not `??`: removeChat writes '' when it deletes the last
+            // chat, and ?? kept that empty string — so the replacement chat was
+            // created and then never selected, leaving the pane on "Starting…"
+            // with no way back.
+            s.activeChatId[workspaceId] ||
             // Prefer the chat that was on screen last run, if it still exists.
             (() => {
               const saved = localStorage.getItem(`activeChat:${workspaceId}`)

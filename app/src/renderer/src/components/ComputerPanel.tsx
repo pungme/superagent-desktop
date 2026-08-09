@@ -222,6 +222,27 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
         a.name.localeCompare(b.name)
   )
 
+  /**
+   * Keep a window inside the desktop it is being drawn on.
+   *
+   * Geometry is remembered, so a window saved on a large desktop could come
+   * back onto a small one — 900x620 at (700,420) on a 421x448 desktop, with its
+   * title bar off the edge and no way to drag it back. The drag itself clamps,
+   * but nothing did on restore or when the app window shrank. Clamping here
+   * rather than rewriting the stored rect means growing the window back returns
+   * it to the size you left it at.
+   */
+  const clampToDesk = (r: WindowRect): WindowRect => {
+    const w = Math.min(r.w, Math.max(320, bounds.w - 16))
+    const h = Math.min(r.h, Math.max(220, bounds.h - 16))
+    return {
+      w,
+      h,
+      x: Math.min(Math.max(r.x, -w + 90), Math.max(0, bounds.w - 90)),
+      y: Math.min(Math.max(r.y, 0), Math.max(0, bounds.h - 34))
+    }
+  }
+
   const renderApp = (app: AppId): React.JSX.Element => {
     if (app === 'chat') {
       if (!chatHome) return <div className="desktop-app-empty">Starting…</div>
@@ -396,7 +417,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
               key={w.id}
               title={appById(w.app).name}
               icon={<span className="dw-title-icon">{appById(w.app).icon}</span>}
-              rect={w.rect}
+              rect={clampToDesk(w.rect)}
               z={w.z}
               active={top?.id === w.id}
               maximized={w.maximized}
