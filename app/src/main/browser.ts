@@ -666,18 +666,22 @@ export function registerBrowserIpc(): void {
       const t0 = Date.now()
       const img = await pane.view.webContents.capturePage()
       if (img.isEmpty()) return null
-      // Half-size JPEG, not a full-resolution PNG data URL. toDataURL() encodes
-      // PNG synchronously on the main thread and then hands back multiple MB of
-      // base64 — enough to stall the UI for a second or more on a big pane. This
-      // is a dimmed backdrop still, so quality barely matters; a Buffer also
-      // crosses IPC without the base64 tax.
-      const { width } = img.getSize()
-      const small = width > 2 ? img.resize({ width: Math.round(width / 2) }) : img
-      const buf = small.toJPEG(70)
+      // A JPEG Buffer, not a full-resolution PNG data URL: toDataURL() encodes
+      // PNG synchronously on the main thread and hands back multiple MB of
+      // base64, enough to stall the UI for a second or more on a big pane.
+      //
+      // At full resolution, though. This used to halve the width as well, which
+      // on a Retina display throws away three quarters of the pixels and then
+      // shows the result back at full pane size — the page visibly pixelating
+      // whenever you left the app. The base64 tax that justified that is
+      // already gone with the Buffer; the encode is milliseconds (see the log
+      // line below), so there is room to simply keep the pixels.
+      const buf = img.toJPEG(88)
       pane.window.contentView.removeChildView(pane.view)
       if (twin?.forPane === id) destroyTwin(pane.window)
       pane.visible = false
-      console.log(`[freeze] total=${Date.now() - t0}ms bytes=${buf.length}`)
+      const { width: fw, height: fh } = img.getSize()
+      console.log(`[freeze] total=${Date.now() - t0}ms bytes=${buf.length} ${fw}x${fh}`)
       return buf
     } catch {
       return null
