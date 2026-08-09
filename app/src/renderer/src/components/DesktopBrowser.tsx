@@ -4,7 +4,11 @@ import { BrowserPane } from './BrowserPane'
 
 interface Tab {
   id: string
-  /** Where it opened, for a brand new tab. */
+  /**
+   * Where the tab goes when its pane is created — the page it was asked to
+   * open, and afterwards the page it was last on, so quitting and coming back
+   * finds the tabs where you left them rather than a row of blank ones.
+   */
   initialUrl?: string
 }
 
@@ -55,9 +59,27 @@ export function DesktopBrowser(): React.JSX.Element {
   const activeId = chosenId && tabs.some((t) => t.id === chosenId) ? chosenId : (tabs[0]?.id ?? '')
   const pageUrls = useStore((s) => s.pageUrl)
 
+  // Saved with each tab's current page rather than the one it opened at: the
+  // pane's live url lives in the store, and it is what should come back.
   useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify(tabs))
-  }, [tabs])
+    localStorage.setItem(
+      KEY,
+      JSON.stringify(tabs.map((t) => ({ id: t.id, initialUrl: pageUrls[t.id] || t.initialUrl })))
+    )
+  }, [tabs, pageUrls])
+
+  /**
+   * Tell the main process which tabs exist and which one is in front — that is
+   * how the desktop chat's browser_* tools know which page to drive, and how
+   * computer_state can say what the user is looking at.
+   */
+  useEffect(() => {
+    window.cove.desktopReport?.({
+      tabs: tabs.map((t) => ({ id: t.id, url: pageUrls[t.id] ?? '', active: t.id === activeId }))
+    })
+  })
+  // Closing the Browser window leaves no tab to drive.
+  useEffect(() => () => window.cove.desktopReport?.({ tabs: [] }), [])
 
   const openTab = (url?: string): void => {
     const t: Tab = { id: newId(), initialUrl: url }

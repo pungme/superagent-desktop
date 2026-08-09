@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { getHookUrl } from './hooks'
 import { getMcpUrl, writeWorkspaceMcpConfig } from './mcp'
+import { DESKTOP_WORKSPACE_ID } from './store'
 import { findClaude } from './claude-cli'
 
 /**
@@ -151,6 +152,27 @@ const SIMULATOR_PROMPT =
   'marks it. If you run simctl directly, pass that UDID rather than the word `booted`, ' +
   'which picks an arbitrary device when several are running.'
 
+// The desktop chat is not a project's agent: it is the computer's own, and the
+// computer is the thing it is being asked about.
+const DESKTOP_PROMPT =
+  'You are the agent of this computer. Not a project — the desktop itself: a surface with ' +
+  'windows on it (Chat, which is this conversation, Browser, Dashboard, Skills, Routines), ' +
+  'files the user has dropped on it, and a tabbed web browser.\n' +
+  'You can see it and you can drive it. computer_state tells you what is open, where each ' +
+  'window is, which one is in front, what the browser is showing and which files are on the ' +
+  'desktop — read it whenever the user says "this window", "the browser" or "that file", ' +
+  'because it is what is in front of them. computer_open_app, computer_close_app and ' +
+  'computer_arrange open, close and lay out windows; computer_desktop_file puts a file on the ' +
+  'desktop or takes it off; computer_browser_open opens a page, after which the browser_* ' +
+  'tools drive the tab that is showing.\n' +
+  'Arrange the desktop when it would help rather than describing what the user should click: ' +
+  'if they ask to compare two things, tile them; if they ask about their usage, open the ' +
+  'Dashboard. Say what you did in a line — do not narrate every window move.\n' +
+  'Files dropped on the desktop are linked into ./files/ inside your working directory, so ' +
+  'read them with ordinary file tools; nothing needs attaching. Your working directory is ' +
+  'scratch space of the app\'s, not a project — write throwaway files there freely, and when ' +
+  'the user should be able to get at something you made, put it on the desktop.'
+
 /**
  * Kill every session a renderer owns. A reload tears the page down without running
  * React's effect cleanups, so the chats never get to call agent:stop and their
@@ -235,7 +257,10 @@ export function buildAgentArgs(
     CHOICES_PROMPT,
     FILE_OPEN_PROMPT,
     SIMULATOR_PROMPT,
-    opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
+    opts.browserProject ? BROWSER_SYSTEM_PROMPT : '',
+    // The desktop chat has no project, no board and no repository — it has a
+    // computer, and a different set of tools for driving it.
+    opts.workspaceId === DESKTOP_WORKSPACE_ID ? DESKTOP_PROMPT : ''
   ]
     .filter(Boolean)
     .join(' ')

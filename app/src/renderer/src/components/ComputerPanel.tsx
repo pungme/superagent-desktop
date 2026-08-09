@@ -186,16 +186,6 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
     [bounds.w, bounds.h]
   )
 
-  // The sidebar's Computer row can ask for a particular app.
-  useEffect(() => {
-    const onOpen = (e: Event): void => {
-      const app = (e as CustomEvent<{ app?: AppId }>).detail?.app
-      if (app) openApp(app)
-    }
-    window.addEventListener('cove:open-desktop-app', onOpen)
-    return () => window.removeEventListener('cove:open-desktop-app', onOpen)
-  }, [openApp])
-
   const add = useCallback((paths: string[]): void => {
     setFiles((cur) => {
       const seen = new Set(cur.map((f) => f.path))
@@ -205,6 +195,106 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
       return fresh.length ? [...cur, ...fresh] : cur
     })
   }, [])
+
+  /**
+   * Tell the main process what the desktop looks like.
+   *
+   * The desktop chat's agent runs out there, and "which window is in front" is
+   * something only this component knows. Reporting on every change keeps the
+   * computer_state tool honest without it having to ask the renderer and wait.
+   */
+  useEffect(() => {
+    window.cove.desktopReport?.({
+      windows: windows.map((w) => {
+        const r = clampToDesk(w.rect)
+        return {
+          app: w.app,
+          x: r.x,
+          y: r.y,
+          w: r.w,
+          h: r.h,
+          minimized: w.minimized,
+          maximized: w.maximized,
+          focused: top?.id === w.id
+        }
+      }),
+      files: files.map((f) => ({ name: f.name, path: f.path })),
+      bounds,
+      open: true
+    })
+  })
+  // Closing the Computer takes the desktop off screen; the agent should not go
+  // on describing windows that are not there.
+  useEffect(() => () => window.cove.desktopGone?.(), [])
+
+  /** The agent driving the desktop: open, close, arrange, put a file on it. */
+  useEffect(() => {
+    return window.cove.onDesktopCommand?.((c) => {
+      const app = c.app as AppId | undefined
+      if (c.kind === 'open' && app) openApp(app)
+      if (c.kind === 'browser') {
+        openApp('browser')
+        // The Browser app has to be mounted before it can be told where to go.
+        setTimeout(
+          () =>
+            window.dispatchEvent(
+              new CustomEvent('cove:desktop-browser-open', {
+                detail: { url: c.url, newTab: c.newTab }
+              })
+            ),
+          80
+        )
+      }
+      if (c.kind === 'close' && app) setWindows((ws) => ws.filter((w) => w.app !== app))
+      if (c.kind === 'add-file' && c.path) add([c.path])
+      if (c.kind === 'remove-file' && c.path)
+        setFiles((cur) => cur.filter((f) => f.path !== c.path))
+      if (c.kind === 'arrange' && app) {
+        setWindows((ws) => {
+          const maxZ = Math.max(0, ...ws.map((w) => w.z))
+          return ws.map((w) => {
+            if (w.app !== app) return w
+            const half = { w: Math.round(bounds.w / 2), h: Math.round(bounds.h / 2) }
+            const preset: Record<string, WindowRect> = {
+              left: { x: 0, y: 0, w: half.w, h: bounds.h },
+              right: { x: half.w, y: 0, w: bounds.w - half.w, h: bounds.h },
+              top: { x: 0, y: 0, w: bounds.w, h: half.h },
+              bottom: { x: 0, y: half.h, w: bounds.w, h: bounds.h - half.h },
+              center: {
+                x: Math.round((bounds.w - w.rect.w) / 2),
+                y: Math.round((bounds.h - w.rect.h) / 2),
+                w: w.rect.w,
+                h: w.rect.h
+              }
+            }
+            if (c.position === 'minimize') return { ...w, minimized: true }
+            if (c.position === 'full') return { ...w, minimized: false, maximized: true, z: maxZ + 1 }
+            const rect =
+              (c.position && preset[c.position]) ||
+              // An explicit rectangle: whatever it does not say keeps its
+              // current value, so "make it wider" need not restate the origin.
+              ({
+                x: c.x ?? w.rect.x,
+                y: c.y ?? w.rect.y,
+                w: c.width ?? w.rect.w,
+                h: c.height ?? w.rect.h
+              } as WindowRect)
+            return { ...w, rect, minimized: false, maximized: false, z: maxZ + 1 }
+          })
+        })
+      }
+    })
+  }, [openApp, add, bounds.w, bounds.h])
+
+  // The sidebar's Computer row can ask for a particular app.
+  useEffect(() => {
+    const onOpen = (e: Event): void => {
+      const app = (e as CustomEvent<{ app?: AppId }>).detail?.app
+      if (app) openApp(app)
+    }
+    window.addEventListener('cove:open-desktop-app', onOpen)
+    return () => window.removeEventListener('cove:open-desktop-app', onOpen)
+  }, [openApp])
 
   const onDrop = (e: React.DragEvent): void => {
     e.preventDefault()
