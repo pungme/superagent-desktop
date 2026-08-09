@@ -399,6 +399,9 @@ button {
   height: 17px;
   border-radius: 5px;
   opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s;
 }
 
 .sidebar-item:hover .sidebar-item-remove {
@@ -1004,6 +1007,9 @@ button {
   padding: 4px 12px 8px;
   flex-shrink: 0;
   -webkit-app-region: drag;
+  /* The project's own row ran straight into whatever the pane put beneath it —
+     an omnibar, a file tree header — so the two read as one crowded band. */
+  border-bottom: 1px solid var(--border);
 }
 
 .workspace-toolbar button {
@@ -1103,6 +1109,13 @@ button {
 .toolbar-btn:hover {
   background: var(--active);
   color: var(--text-primary);
+}
+
+/* Glyph on its own: the label's side padding would leave it swimming. */
+.toolbar-btn.toolbar-icon {
+  padding: 5px 8px;
+  font-size: 13px;
+  line-height: 1;
 }
 
 .toolbar-btn.on {
@@ -1277,6 +1290,15 @@ button {
 .easy-msg-copy:hover {
   background: var(--active);
   color: var(--text-primary);
+}
+
+/* The reply is the content of the pane, and 80% of a column this narrow left a
+   fifth of every line empty down the right-hand side. The user's bubble keeps
+   the inset — it is right-aligned and usually short, and that asymmetry is what
+   tells the two apart at a glance. Two classes so it does not depend on which
+   of the .easy-assistant blocks comes last. */
+.easy-msg.easy-assistant {
+  max-width: 100%;
 }
 
 .easy-msg {
@@ -4142,6 +4164,17 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* The reveal is a nicety; someone who has asked for less movement should get
+     the control immediately instead. */
+  .sidebar-item,
+  .sidebar-item-remove,
+  .sim-menu-row .sim-menu-item,
+  .sim-menu-off {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
   .intro {
     animation: intro-veil-quick 0.45s ease forwards;
   }
@@ -4200,6 +4233,10 @@ button {
   line-height: 1;
   padding: 5px 9px;
   border-radius: 8px;
+  /* Let the ROW wrap, never the label: without this "Opus 5" broke across two
+     lines inside its own pill as the column narrowed. */
+  white-space: nowrap;
+  flex-shrink: 0;
   transition:
     background 0.12s,
     border-color 0.12s;
@@ -4553,6 +4590,23 @@ button {
   line-height: 1;
 }
 
+/* Closing the pane is not navigation. A hairline and a little air separate it
+   from the arrows, and it reddens on hover so it reads as "this puts it away". */
+.browser-close-btn {
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+  border-radius: 0 6px 6px 0;
+  width: 30px;
+  /* A cramped toolbar was squeezing it to 21px — the one button you need to be
+     able to hit is the one that gets you out. */
+  flex-shrink: 0;
+}
+.browser-close-btn:hover:not(:disabled) {
+  background: rgba(220, 80, 80, 0.16);
+  color: #e06a6a;
+}
+
 .browser-nav-btn:hover:not(:disabled) {
   background: var(--hover);
   color: var(--text-primary);
@@ -4678,6 +4732,123 @@ button {
 }
 
 /* Dashboard — a full content-pane view, not an overlay. */
+/* Full-window sections (Skills, Routines) — the same shape as Dashboard, so
+   going to one feels like going to the other rather than opening a dialog. */
+.section-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 24px 12px;
+}
+.section-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.section-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 24px 24px;
+}
+/* These were laid out for a ~380px drawer; in a section they get the room.
+   Everything below is scoped to .section-body so the drawer versions (Settings)
+   are untouched. */
+.section-body {
+  --section-max: 1180px;
+}
+.section-body > * {
+  max-width: var(--section-max);
+}
+
+/* Skills become a grid of cards rather than one long column of text rows. */
+.section-body .skills-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  padding: 0;
+  overflow: visible;
+  flex: none;
+}
+.section-body .skill-item {
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-radius: 10px;
+  padding: 12px 14px;
+  gap: 6px;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+.section-body .skill-item:hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+}
+.section-body .skill-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Messages and the add-a-routine row span the grid instead of sitting in one
+   narrow column of it. */
+.section-body .skills-empty,
+.section-body .routine-item {
+  grid-column: 1 / -1;
+}
+.section-body .skills-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 18px;
+  padding: 14px 0 0;
+}
+/* width:100% is right in a 380px drawer and absurd across a window — these are
+   buttons, not banners. */
+.section-body .skills-action {
+  width: auto;
+  padding: 9px 16px;
+}
+/* The empty state stops floating in the middle of an empty window. */
+.section-body .skills-empty {
+  margin: 0;
+  align-items: flex-start;
+  text-align: left;
+  padding: 28px 0;
+}
+
+/* The routine composer uses the width: prompt on the left, controls beside it,
+   instead of a stack with a stretched textarea. */
+.section-body .routine-new {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 14px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
+}
+.section-body .routine-prompt {
+  flex: 1;
+  min-width: 0;
+}
+.section-body .routine-new-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-body .routine-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
 .dash-view {
   flex: 1;
   min-height: 0;
@@ -4939,6 +5110,19 @@ button {
   justify-content: flex-end;
   gap: 6px;
   padding: 8px 12px 0;
+  /* Pinned to the top of the transcript rather than sitting above it, so
+     messages pass underneath instead of being cut off against its edge. It is
+     inside the scroller, so it floats over the conversation only — the
+     tasks/dev-server strip above stays clear of it. */
+  position: sticky;
+  top: -12px;
+  z-index: 3;
+  /* Only the pills should catch the pointer; the message behind stays
+     selectable and scrollable. */
+  pointer-events: none;
+}
+.easy-newchat-group > * {
+  pointer-events: auto;
 }
 .easy-newchat-group .easy-newchat {
   position: static;
@@ -5019,6 +5203,9 @@ button {
   color: var(--text-tertiary);
   padding: 0 2px;
   cursor: default;
+  /* Same reasoning: it drops to its own line rather than being squeezed. */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .easy-ctx-label {
   font-weight: 600;
@@ -5041,6 +5228,32 @@ button {
   font-variant-numeric: tabular-nums;
   min-width: 26px;
   text-align: right;
+}
+
+/* Only shows once the bar is warm, so it reads as the answer to the number
+   next to it rather than another permanent control. */
+.easy-ctx-compact {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.easy-ctx-compact:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.easy-ctx-compact:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .easy-ctx.warm .easy-ctx-fill {
   background: #d97706;
@@ -5157,6 +5370,19 @@ button {
   }
 }
 
+/* Set apart from the hardware buttons, and pushed to the end: this closes the
+   whole pane, it is not another thing to press on the device. */
+.sim-close {
+  /* .sim-mode already takes the free space; a second auto margin would split
+     it and leave both groups floating in the middle. */
+  margin-left: 6px;
+  color: var(--text-tertiary);
+}
+.sim-close:hover {
+  background: rgba(220, 80, 80, 0.16);
+  color: #e06a6a;
+}
+
 .sim-mode {
   margin-left: auto;
   display: flex;
@@ -5195,7 +5421,10 @@ button {
 }
 .sim-caret {
   color: var(--text-tertiary);
-  font-size: 10px;
+  flex-shrink: 0;
+  /* An inline SVG sits on the text baseline by default, which is what made the
+     old glyph look like it was floating above the name. */
+  align-self: center;
 }
 .sim-typing {
   font-size: 11px;
@@ -5259,6 +5488,102 @@ button {
 }
 .sim-menu-item:hover {
   background: var(--hover);
+}
+.sim-menu-row {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.sim-menu-row .sim-menu-item {
+  flex: 1;
+  min-width: 0;
+  /* Same easing as a project row makes room for its ✕. */
+  transition: padding-right 0.12s ease;
+}
+/* Same trick as a project row's ✕ over its branch pill: out of flow so the
+   runtime label keeps the right edge on every row, and the row makes room on
+   hover so the two never sit on top of each other. */
+/* :has() so only a row that actually HAS a button makes room for one — a
+   shutdown device was sliding its version left on hover for nothing.
+   The button spans 26px in from the edge (20 wide + 6 out), so anything less
+   than that leaves the label touching it; 32px keeps 6px of air between. */
+.sim-menu-row:has(.sim-menu-off):hover .sim-menu-item {
+  padding-right: 32px;
+}
+.sim-menu-off {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s,
+    color 0.12s;
+}
+.sim-menu-row:hover .sim-menu-off,
+.sim-menu-off:focus-visible {
+  opacity: 1;
+}
+.sim-menu-off:hover:not(:disabled) {
+  background: rgba(220, 80, 80, 0.16);
+  color: #e06a6a;
+}
+/* While one is going down, the others stop offering — you cannot usefully
+   shut down two at once, and a dimmed row says the app heard you. */
+.sim-menu-off:disabled {
+  cursor: default;
+}
+.sim-menu-row:hover .sim-menu-off:disabled {
+  opacity: 0.5;
+}
+.sim-menu-off.working,
+.sim-menu-row .sim-menu-off.working {
+  opacity: 1;
+}
+
+.sim-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text-secondary);
+  border-radius: 50%;
+  animation: sim-spin 0.7s linear infinite;
+}
+@keyframes sim-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Said over the live picture, which is otherwise still showing a device that
+   is on its way down. */
+.sim-status {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px var(--shadow);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  pointer-events: none;
+  z-index: 4;
 }
 .sim-menu-empty {
   padding: 10px;
@@ -5358,6 +5683,15 @@ button {
   background: var(--hover);
   color: var(--text-primary);
 }
+/* Selected reads the same here as it does on a project row — these take the
+   window over, so leaving them unmarked made the covered project look current. */
+.sidebar-dash-row.on {
+  background: var(--active);
+  color: var(--text-primary);
+}
+.sidebar-dash-row.on .sidebar-dash-icon {
+  color: var(--text-primary);
+}
 .sidebar-dash-icon {
   color: var(--text-tertiary);
   flex-shrink: 0;
@@ -5386,15 +5720,21 @@ button {
    happened at all. */
 .browser-nav-btn.loading {
   color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
+/* A 2px hairline on the toolbar's bottom edge was missable enough that reload
+   read as doing nothing at all — even on a page that took seconds. It is a
+   little taller now, sits on a visible track so the empty part reads as
+   progress-yet-to-come, and runs at full strength. */
 .browser-loadbar {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 2px;
+  height: 3px;
   overflow: hidden;
   pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .browser-loadbar::after {
   content: '';
@@ -5402,10 +5742,10 @@ button {
   top: 0;
   left: 0;
   height: 100%;
-  width: 35%;
+  width: 40%;
   border-radius: 2px;
   background: var(--accent);
-  opacity: 0.85;
+  opacity: 1;
   animation: browser-load-sweep 0.9s ease-in-out infinite;
 }
 @keyframes browser-load-sweep {

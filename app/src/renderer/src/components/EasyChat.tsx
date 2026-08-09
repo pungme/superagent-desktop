@@ -99,8 +99,6 @@ interface EasyChatProps {
       once they've been idle a while — see IDLE_REAP_MS. */
   visible?: boolean
   /** Where the chat sits relative to the pane, and how to flip it. */
-  layout?: 'side' | 'bottom'
-  onToggleLayout?: () => void
 }
 
 // Drop lines shared by the start/end of both sides so only the real change shows.
@@ -528,9 +526,7 @@ export function EasyChat({
   initialSessionId,
   browserProject,
   isRepo = false,
-  visible = true,
-  layout,
-  onToggleLayout
+  visible = true
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
   const [input, setInput] = useState('')
@@ -1881,25 +1877,16 @@ export function EasyChat({
           <button onClick={retry}>Retry</button>
         </div>
       )}
-      {/* Everything pinned above the transcript, in normal flow: the New chat /
-          New worktree pills used to float over the top-right corner, which put
-          them on top of the dev-server strip. */}
+      {/* The tasks/dev-server strip stays in normal flow — floating the pills
+          over it is the old bug. The pills themselves live inside the
+          transcript below, pinned to its top, so they float over the messages
+          and nothing else. */}
       <div className="easy-topstack">
+        <TasksPanel workspaceId={workspaceId} />
+      </div>
+      <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length > 0 && (
           <div className="easy-newchat-group">
-          {onToggleLayout && (
-            <button
-              className="easy-newchat"
-              onClick={onToggleLayout}
-              title={
-                layout === 'side'
-                  ? 'Move the chat below the page (full-width preview)'
-                  : 'Move the chat beside the page'
-              }
-            >
-              {layout === 'side' ? '⬓ Chat below' : '◨ Chat right'}
-            </button>
-          )}
           <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
             ✎ New chat
           </button>
@@ -1921,11 +1908,8 @@ export function EasyChat({
               ⎇ New worktree
             </button>
           )}
-        </div>
-      )}
-        <TasksPanel workspaceId={workspaceId} />
-      </div>
-      <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
+          </div>
+        )}
         {items.length === 0 && (ready || suspended) && (
           <div className="easy-empty">
             <p>Tell Claude what you&rsquo;d like to build or change.</p>
@@ -2376,6 +2360,24 @@ export function EasyChat({
               <span className="easy-ctx-fill" style={{ width: `${Math.min(100, ctxPercent)}%` }} />
             </span>
             <span className="easy-ctx-pct">{ctxPercent}%</span>
+            {/* The bar only ever reported the problem. Past three quarters it
+                offers the fix too — /compact summarises the conversation and
+                hands the room back, which is otherwise something you have to
+                know to type. */}
+            {ctxPercent >= 75 && (
+              <button
+                className="easy-ctx-compact"
+                disabled={generating || thinking}
+                title={
+                  generating || thinking
+                    ? 'Wait for Claude to finish, then compact'
+                    : 'Summarise the conversation so far to free up memory (/compact)'
+                }
+                onClick={() => submitRef.current?.('/compact')}
+              >
+                Compact
+              </button>
+            )}
           </span>
         )}
       </div>
