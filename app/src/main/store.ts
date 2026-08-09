@@ -1,6 +1,16 @@
 import { app, ipcMain } from 'electron'
 import { join } from 'path'
-import { mkdirSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
+import {
+  mkdirSync,
+  writeFileSync,
+  unlinkSync,
+  readFileSync,
+  existsSync,
+  readdirSync,
+  lstatSync,
+  symlinkSync,
+  readlinkSync
+} from 'fs'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import { broadcastToWindows } from './util'
@@ -210,8 +220,30 @@ export interface TreeGroup extends Group {
   workspaces: Workspace[]
 }
 
+/**
+ * Reserved ids for the desktop's own chat.
+ *
+ * A chat row must belong to a workspace (foreign key), and a workspace to a
+ * group — so a chat that belongs to no project still needs both to exist. They
+ * are filtered out of the tree, which is what every list of projects is built
+ * from, so this pair never appears anywhere as a project.
+ */
+export const DESKTOP_GROUP_ID = '__desktop__'
+export const DESKTOP_WORKSPACE_ID = '__desktop_chat__'
+
+/** Where a symlink points, or '' if it is not one (or has gone). */
+function readlinkSafe(p: string): string {
+  try {
+    return readlinkSync(p)
+  } catch {
+    return ''
+  }
+}
+
 export function getTree(): TreeGroup[] {
-  const groups = db.prepare('SELECT * FROM groups ORDER BY position').all() as Group[]
+  const groups = (
+    db.prepare('SELECT * FROM groups ORDER BY position').all() as Group[]
+  ).filter((g) => g.id !== DESKTOP_GROUP_ID)
   const workspaces = db.prepare('SELECT * FROM workspaces ORDER BY position').all() as Workspace[]
   return groups.map((g) => ({
     ...g,
@@ -861,6 +893,73 @@ export function registerStoreIpc(): void {
     })
     tx()
     return getTree()
+  })
+
+  /**
+   * The desktop chat's home: a workspace that is not a project.
+   *
+   * Its working directory is a folder of ours under userData rather than the
+   * user's home — the agent has to run somewhere, and somewhere it can write
+   * scratch files without leaving them in the middle of anything.
+   */
+  ipcMain.handle('desktop:chat-home', () => {
+    const cwd = join(app.getPath('userData'), 'desktop-chat')
+    mkdirSync(cwd, { recursive: true })
+    const has = db.prepare('SELECT id FROM workspaces WHERE id = ?').get(DESKTOP_WORKSPACE_ID)
+    if (!has) {
+      db.prepare(
+        'INSERT OR IGNORE INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, -1)'
+      ).run(DESKTOP_GROUP_ID, 'Desktop', COLORS[0])
+      db.prepare(
+        "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, 'Chat', ?, 0, NULL, NULL, 'app')"
+      ).run(DESKTOP_WORKSPACE_ID, DESKTOP_GROUP_ID, cwd)
+    } else {
+      // Keep the path current if userData ever moves.
+      db.prepare('UPDATE workspaces SET path = ? WHERE id = ?').run(cwd, DESKTOP_WORKSPACE_ID)
+    }
+    return { workspaceId: DESKTOP_WORKSPACE_ID, cwd }
+  })
+
+  /**
+   * Mirror the desktop's files into the chat's working directory as symlinks.
+   *
+   * The point is that dropping a file on the desktop is enough — no attaching,
+   * no pasting a path. The chat runs in this folder, so `files/` simply
+   * contains what the desktop holds and Claude reads it with ordinary tools.
+   * Links rather than copies: a dropped video should not be duplicated into
+   * application support, and edits belong to the original.
+   */
+  ipcMain.handle('desktop:sync-files', (_e, paths: string[]) => {
+    const dir = join(app.getPath('userData'), 'desktop-chat', 'files')
+    mkdirSync(dir, { recursive: true })
+    const wanted = new Map<string, string>()
+    for (const p of paths) {
+      if (!p || !existsSync(p)) continue
+      // Collisions are possible — two files of the same name from different
+      // folders — so the second one keeps its parent folder in the link name.
+      let name = p.split('/').pop() || 'file'
+      if (wanted.has(name)) {
+        const parent = p.split('/').slice(-2, -1)[0] ?? ''
+        name = parent ? `${parent} — ${name}` : `${Date.now()}-${name}`
+      }
+      wanted.set(name, p)
+    }
+    // Anything no longer on the desktop stops being here too.
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry)
+      const stale = !wanted.has(entry) || wanted.get(entry) !== readlinkSafe(full)
+      if (stale && lstatSync(full).isSymbolicLink()) unlinkSync(full)
+    }
+    for (const [name, target] of wanted) {
+      const link = join(dir, name)
+      if (existsSync(link)) continue
+      try {
+        symlinkSync(target, link)
+      } catch {
+        /* a name we cannot create is not worth failing the whole sync for */
+      }
+    }
+    return dir
   })
 
   ipcMain.handle('store:createWorkspace', (_e, groupId: string, name: string, path: string) => {

@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 
 /** The applications that live on the Computer desktop. */
-export type AppId = 'dashboard' | 'skills' | 'routines'
+export type AppId = 'chat' | 'dashboard' | 'skills' | 'routines'
 
 export interface DesktopApp {
   id: AppId
@@ -24,6 +24,16 @@ const stroke = {
  * colour and baseline, and three of them side by side never look like one set.
  */
 export const DESKTOP_APPS: DesktopApp[] = [
+  {
+    id: 'chat',
+    name: 'Chat',
+    initial: { w: 720, h: 620 },
+    icon: (
+      <svg viewBox="0 0 24 24" {...stroke}>
+        <path d="M20.5 12.2c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 01-2.6-.34L4.6 20.5l1.2-3.4A6.9 6.9 0 013.5 12.2C3.5 8.2 7.3 5 12 5s8.5 3.2 8.5 7.2z" />
+      </svg>
+    )
+  },
   {
     id: 'dashboard',
     name: 'Dashboard',
