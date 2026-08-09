@@ -99,6 +99,16 @@ interface BrowserPane {
   visible: boolean
   /** Session partition, kept so the mobile twin can share logins. */
   partition: string
+  /**
+   * The corner radius this pane should have.
+   *
+   * Kept here rather than set once and forgotten: the radius is a property of
+   * the native layer, and the layer is rebuilt when the view is detached and
+   * re-attached (which happens whenever the pane is hidden and shown, or the
+   * user leaves the app and comes back). Setting it and walking away left
+   * square corners inside a rounded window.
+   */
+  radius: number
 }
 
 const panes = new Map<string, BrowserPane>()
@@ -481,7 +491,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // renderer sets the real value on the first bounds sync.
   view.setBorderRadius?.(0)
 
-  const pane: BrowserPane = { id, view, window, visible: false, partition }
+  const pane: BrowserPane = { id, view, window, visible: false, partition, radius: 0 }
   panes.set(id, pane)
 
   const wc = view.webContents
@@ -596,7 +606,7 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
   view.setBackgroundColor('#ffffff')
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
   view.webContents.setUserAgent(chromeUserAgent(view.webContents.getUserAgent()))
-  panes.set(id, { id, view, window, visible: false, partition })
+  panes.set(id, { id, view, window, visible: false, partition, radius: 0 })
 }
 
 export function destroyBrowserPane(id: string): void {
@@ -650,6 +660,10 @@ export function registerBrowserIpc(): void {
       }
     }
     pane.view.setBounds(bounds)
+    // After the bounds, and after any re-attach above: both rebuild the layer
+    // this is a property of, so applying it earlier is applying it to a layer
+    // that is about to be thrown away.
+    pane.view.setBorderRadius?.(pane.radius)
   })
 
   /**
@@ -842,7 +856,8 @@ export function registerBrowserIpc(): void {
   ipcMain.on('browser:set-radius', (_e, id: string, radius: number) => {
     const pane = panes.get(id)
     if (!pane) return
-    pane.view.setBorderRadius?.(Math.max(0, Math.round(radius)))
+    pane.radius = Math.max(0, Math.round(radius))
+    pane.view.setBorderRadius?.(pane.radius)
   })
 
   ipcMain.on('browser:set-zoom-factor', (_e, id: string, factor: number) => {
