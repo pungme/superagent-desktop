@@ -92,6 +92,12 @@ interface EasyChatProps {
   chatId: string
   initialSessionId?: string | null
   browserProject?: boolean
+  /**
+   * Suppress the floating "New chat" pill. The desktop Chat app keeps a list of
+   * conversations with its own button, and two of them a few inches apart doing
+   * the same thing is one too many.
+   */
+  hideNewChat?: boolean
   /** The project is a git repo — enables the "New worktree" chat button. */
   isRepo?: boolean
   /** Whether this chat's workspace is the one on screen. Background chats stay
@@ -524,6 +530,7 @@ export function EasyChat({
   workspaceId,
   chatId,
   initialSessionId,
+  hideNewChat,
   browserProject,
   isRepo = false,
   visible = true
@@ -1925,7 +1932,7 @@ export function EasyChat({
         <TasksPanel workspaceId={workspaceId} />
       </div>
       <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
-        {items.length > 0 && (
+        {items.length > 0 && !hideNewChat && (
           <div className="easy-newchat-group">
           <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
             ✎ New chat

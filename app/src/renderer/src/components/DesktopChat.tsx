@@ -148,6 +148,7 @@ export function DesktopChat({
             workspaceId={workspaceId}
             chatId={activeChatId}
             initialSessionId={active?.claudeSessionId ?? null}
+            hideNewChat
           />
         ) : (
           <div className="desktop-app-empty">Starting…</div>

@@ -454,7 +454,6 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
 
       <div
         className="computer-surface"
-        ref={surfaceRef}
         onClick={() => {
           setMenu(null)
           setSelected(null)
@@ -494,9 +493,10 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
           </div>
         )}
 
-        {windows
-          .filter((w) => !w.minimized)
-          .map((w) => (
+        <div className="computer-windows" ref={surfaceRef}>
+          {windows
+            .filter((w) => !w.minimized)
+            .map((w) => (
             <DesktopWindow
               key={w.id}
               title={appById(w.app).name}
@@ -522,7 +522,8 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
             >
               {renderApp(w.app)}
             </DesktopWindow>
-          ))}
+            ))}
+        </div>
       </div>
 
       {/* The dock: every app, always there, with a light under the ones that

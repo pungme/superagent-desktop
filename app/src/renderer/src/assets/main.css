@@ -5763,6 +5763,21 @@ button {
   max-height: 100%;
 }
 
+/* Where windows live: the desktop minus the strip the dock sits in.
+   The dock floats over the surface, so a window laid out against the bottom
+   edge had its own footer covered — in the Chat app, the model and mode
+   controls sat underneath it. Reserving the strip is what a dock does. */
+.computer-windows {
+  position: absolute;
+  inset: 0 0 var(--dock-space) 0;
+  /* Clicks that miss a window belong to the desktop underneath: they close a
+     menu and deselect an icon. */
+  pointer-events: none;
+}
+.computer-windows > * {
+  pointer-events: auto;
+}
+
 .computer-icon {
   position: relative;
   width: 92px;
@@ -5808,6 +5823,11 @@ button {
 /* ── The dock ─────────────────────────────────────────────────────────
    Centred at the bottom, every app always present, and a light under the
    ones that are open. Minimal on purpose: this is a shelf, not a toolbar. */
+/* How much of the desktop's bottom edge the dock owns: its own height plus
+   the gap it floats above. Windows are laid out inside what is left. */
+.computer-view {
+  --dock-space: 76px;
+}
 .dock {
   position: absolute;
   left: 50%;
