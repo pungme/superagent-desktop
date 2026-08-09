@@ -5953,6 +5953,14 @@ button {
 .dchat-item:hover {
   background: var(--hover);
 }
+/* The ✕ overlays the right end, so the row makes room for it on hover and the
+   timestamp steps aside — the same move a project row makes for its own ✕. */
+.dchat-item {
+  transition: padding-right 0.12s ease;
+}
+.dchat-item:hover {
+  padding-right: 28px;
+}
 .dchat-item.on {
   background: var(--active);
   color: var(--text-primary);
@@ -6012,6 +6020,37 @@ button {
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Narrow: one pane at a time, the way a phone does it. The list is the root
+   view, a conversation is pushed on top of it, and the back button returns. */
+.dchat.narrow .dchat-list {
+  flex: 1 1 auto;
+  border-right: none;
+}
+.dchat.narrow .dchat-main {
+  display: none;
+}
+.dchat.narrow.on-chat .dchat-list {
+  display: none;
+}
+.dchat.narrow.on-chat .dchat-main {
+  display: flex;
+}
+.dchat-back {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin: 8px 0 0 8px;
+  padding: 4px 10px 4px 6px;
+  border: none;
+  border-radius: 7px;
+  background: var(--hover);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.dchat-back:hover {
+  color: var(--text-primary);
 }
 
 /* Minimised windows wait here. */
