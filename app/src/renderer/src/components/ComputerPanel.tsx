@@ -94,6 +94,13 @@ export function ComputerPanel({
    * bottom edge, which is where you would reach for it anyway.
    */
   const [nearBottom, setNearBottom] = useState(false)
+  /**
+   * Where the dock is, in desk coordinates. Measured rather than assumed: it
+   * is centred and only as wide as the apps in it, and a window it does not
+   * actually overlap should not be disturbed.
+   */
+  const dockRef = useRef<HTMLDivElement>(null)
+  const [dockRect, setDockRect] = useState<WindowRect | null>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState({ w: 1200, h: 800 })
   /**
@@ -160,6 +167,23 @@ export function ComputerPanel({
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = dockRef.current
+    const desk = surfaceRef.current
+    if (!el || !desk) return
+    const measure = (): void => {
+      const d = el.getBoundingClientRect()
+      const s = desk.getBoundingClientRect()
+      if (!d.width) return
+      setDockRect({ x: d.left - s.left, y: d.top - s.top, w: d.width, h: d.height })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    ro.observe(desk)
     return () => ro.disconnect()
   }, [])
 
@@ -298,6 +322,17 @@ export function ComputerPanel({
    */
   const coveredBy = (win: OpenWindow): boolean => {
     if (menu) return true
+    // The dock is HTML and the page in a Browser window is not, so a revealed
+    // dock comes up *underneath* the page unless the page stands down for it.
+    if (dockAuto && nearBottom && dockRect) {
+      const r = win.maximized ? { x: 0, y: 0, w: bounds.w, h: bounds.h } : clampToDesk(win.rect)
+      // Where it sits once revealed. Measuring it as-is would read the hidden
+      // position, which is translated off the desk and intersects nothing —
+      // its width and centre are what the measurement is for. The 14 matches
+      // the gap it floats above the bottom edge.
+      const d = { x: dockRect.x, w: dockRect.w, h: dockRect.h + 14, y: bounds.h - dockRect.h - 14 }
+      if (r.x < d.x + d.w && d.x < r.x + r.w && r.y < d.y + d.h && d.y < r.y + r.h) return true
+    }
     const rect = (w: OpenWindow): WindowRect =>
       w.maximized ? { x: 0, y: 0, w: bounds.w, h: bounds.h } : clampToDesk(w.rect)
     const a = rect(win)
@@ -682,7 +717,7 @@ export function ComputerPanel({
           are open — the way a desktop tells you what is running without you
           having to go looking for the window. */}
       <div className="dock">
-        <div className="dock-inner">
+        <div className="dock-inner" ref={dockRef}>
           {DESKTOP_APPS.map((a) => {
             const win = windows.find((w) => w.app === a.id)
             return (
