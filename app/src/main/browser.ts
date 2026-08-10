@@ -108,109 +108,102 @@ function chromeUserAgent(defaultUA: string): string {
  * metadata once and Chromium regenerates all three from it, consistently.
  */
 function applyBrowserIdentity(wc: Electron.WebContents): void {
-  const ua = chromeUserAgent(wc.getUserAgent())
-  wc.setUserAgent(ua)
+  // Only the UA string here, and deliberately nothing that needs a debugger.
+  //
+  // Attaching the CDP debugger sets navigator.webdriver true and is itself one
+  // of the loudest bot signals there is. This used to attach one permanently
+  // at pane creation — so even opening a site by hand carried an attached
+  // debugger, which is what put the Cloudflare challenge back, and it also
+  // blocked the automation tools from attaching their own ("Debugger is
+  // already attached to the target"). The parts of the identity that genuinely
+  // need CDP — the JS brands, the chrome.* shims — now ride on automation's
+  // own transient, webdriver-masked session (see ensureDebugger) instead of a
+  // second permanent one. Hand-browsing gets a clean Chromium with no debugger
+  // at all, which is the best a Chromium can look.
+  wc.setUserAgent(chromeUserAgent(wc.getUserAgent()))
+}
+
+/** The userAgentMetadata for setUserAgentOverride — brands that name Chrome. */
+export function chromeUAMetadata(
+  ua: string
+): { userAgent: string; userAgentMetadata: Record<string, unknown> } | null {
   const m = ua.match(/Chrome\/(\d+)(\.[\d.]+)?/)
-  if (!m) return
+  if (!m) return null
   const major = m[1]
   const full = `${m[1]}${m[2] ?? '.0.0.0'}`
   const brands = (v: string): { brand: string; version: string }[] => [
-    // The GREASE entry is part of a real Chrome's list, not noise to drop.
     { brand: 'Not_A Brand', version: v === major ? '99' : '99.0.0.0' },
     { brand: 'Google Chrome', version: v },
     { brand: 'Chromium', version: v }
   ]
-  try {
-    if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
-    void wc.debugger.sendCommand('Emulation.setUserAgentOverride', {
-      userAgent: ua,
-      userAgentMetadata: {
-        brands: brands(major),
-        fullVersionList: brands(full),
-        fullVersion: full,
-        platform: 'macOS',
-        platformVersion: process.getSystemVersion(),
-        architecture: process.arch === 'arm64' ? 'arm' : 'x86',
-        bitness: '64',
-        model: '',
-        mobile: false,
-        wow64: false
-      }
-    })
-    // addScriptToEvaluateOnNewDocument is a Page-domain command and does
-    // nothing until the domain is enabled — which it silently was not.
-    void wc.debugger.sendCommand('Page.enable')
-    // Chrome's own branding layer adds window.chrome.csi and .loadTimes.
-    // Electron's Chromium has the object but not those two, and "window.chrome
-    // exists but is missing its methods" is one of the oldest tells there is —
-    // the very thing a challenge looks for after the UA says Chrome. Defined
-    // before any page script runs, so a page never sees the gap.
-    wc.debugger
-      .sendCommand('Page.addScriptToEvaluateOnNewDocument', {
-      source: `
-        (() => {
-          const c = window.chrome
-          if (!c || typeof c.csi === 'function') return
-          const start = Date.now()
-          // A shim that answers "function () { … }" to toString is no better
-          // than not being there: that is the next thing checked after the
-          // method is found. Chrome's own report [native code], so these say
-          // the same — including toString about itself, or the patch would be
-          // the thing that stood out.
-          const native = Function.prototype.toString
-          const asNative = new WeakMap()
-          Function.prototype.toString = new Proxy(native, {
-            apply(target, self, args) {
-              const faked = asNative.get(self)
-              return faked ?? Reflect.apply(target, self, args)
-            }
-          })
-          asNative.set(Function.prototype.toString, 'function toString() { [native code] }')
-          Object.defineProperty(c, 'csi', {
-            value: () => ({
-              onloadT: start,
-              startE: start,
-              pageT: performance.now(),
-              tran: 15
-            }),
-            writable: true,
-            enumerable: false,
-            configurable: true
-          })
-          Object.defineProperty(c, 'loadTimes', {
-            value: () => {
-              const t = performance.timing || {}
-              const s = (t.navigationStart || start) / 1000
-              return {
-                requestTime: s,
-                startLoadTime: s,
-                commitLoadTime: (t.responseStart || start) / 1000,
-                finishDocumentLoadTime: (t.domContentLoadedEventEnd || start) / 1000,
-                finishLoadTime: (t.loadEventEnd || start) / 1000,
-                firstPaintTime: (t.responseEnd || start) / 1000,
-                firstPaintAfterLoadTime: 0,
-                navigationType: 'Other',
-                wasFetchedViaSpdy: true,
-                wasNpnNegotiated: true,
-                npnNegotiatedProtocol: 'h2',
-                wasAlternateProtocolAvailable: false,
-                connectionInfo: 'h2'
-              }
-            },
-            writable: true,
-            enumerable: false,
-            configurable: true
-          })
-          asNative.set(c.csi, 'function () { [native code] }')
-          asNative.set(c.loadTimes, 'function () { [native code] }')
-        })()
-      `
-      })
-      .catch((e) => console.warn('[identity] chrome shims not installed:', e?.message))
-  } catch {
-    // Without it the pane still works; it just answers the older way.
+  return {
+    userAgent: ua,
+    userAgentMetadata: {
+      brands: brands(major),
+      fullVersionList: brands(full),
+      fullVersion: full,
+      platform: 'macOS',
+      platformVersion: process.getSystemVersion(),
+      architecture: process.arch === 'arm64' ? 'arm' : 'x86',
+      bitness: '64',
+      model: '',
+      mobile: false,
+      wow64: false
+    }
   }
 }
+
+/**
+ * The window.chrome.csi/loadTimes shims, as a source string.
+ *
+ * Chrome's own branding layer adds these; Electron's Chromium has the object
+ * but not the methods, and "window.chrome exists but its methods are missing"
+ * is one of the oldest tells there is. They also answer toString as native
+ * code, because a shim that admits to being a script is no better than an
+ * absent one, and the patch masks itself for the same reason.
+ *
+ * Injected before any page script by the automation session, so it only runs
+ * when the agent is driving — which is the only time a debugger is attached.
+ */
+export const CHROME_SHIMS = `
+  (() => {
+    const c = window.chrome
+    if (!c || typeof c.csi === 'function') return
+    const start = Date.now()
+    const native = Function.prototype.toString
+    const asNative = new WeakMap()
+    Function.prototype.toString = new Proxy(native, {
+      apply(target, self, args) {
+        const faked = asNative.get(self)
+        return faked ?? Reflect.apply(target, self, args)
+      }
+    })
+    asNative.set(Function.prototype.toString, 'function toString() { [native code] }')
+    Object.defineProperty(c, 'csi', {
+      value: () => ({ onloadT: start, startE: start, pageT: performance.now(), tran: 15 }),
+      writable: true, enumerable: false, configurable: true
+    })
+    Object.defineProperty(c, 'loadTimes', {
+      value: () => {
+        const t = performance.timing || {}
+        const s = (t.navigationStart || start) / 1000
+        return {
+          requestTime: s, startLoadTime: s,
+          commitLoadTime: (t.responseStart || start) / 1000,
+          finishDocumentLoadTime: (t.domContentLoadedEventEnd || start) / 1000,
+          finishLoadTime: (t.loadEventEnd || start) / 1000,
+          firstPaintTime: (t.responseEnd || start) / 1000,
+          firstPaintAfterLoadTime: 0, navigationType: 'Other',
+          wasFetchedViaSpdy: true, wasNpnNegotiated: true, npnNegotiatedProtocol: 'h2',
+          wasAlternateProtocolAvailable: false, connectionInfo: 'h2'
+        }
+      },
+      writable: true, enumerable: false, configurable: true
+    })
+    asNative.set(c.csi, 'function () { [native code] }')
+    asNative.set(c.loadTimes, 'function () { [native code] }')
+  })()
+`
 
 export interface BrowserBounds {
   x: number
