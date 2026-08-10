@@ -6039,6 +6039,28 @@ button {
   white-space: nowrap;
   line-height: 1.25;
 }
+/* A folder shown in a window: the same icon grid as the desk, scrollable,
+   filling the window body. */
+.folderview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  position: relative;
+}
+.folderview .computer-icons {
+  max-height: none;
+}
+.folderview-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  pointer-events: none;
+}
+
 .computer-icon-rename {
   width: 100%;
   border: 1px solid var(--accent);

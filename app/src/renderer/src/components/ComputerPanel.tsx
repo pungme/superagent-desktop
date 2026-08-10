@@ -8,6 +8,8 @@ import { DesktopChat } from './DesktopChat'
 import { DesktopBrowser } from './DesktopBrowser'
 import { BrowserPane } from './BrowserPane'
 import { FileViewer } from './FileViewer'
+import { FolderView } from './FolderView'
+import { announceDeskChange } from './deskEvents'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
 
@@ -28,6 +30,8 @@ interface OpenWindow {
   app: AppId
   /** For a 'file' window: which file it is showing. */
   file?: string
+  /** For a 'folder' window: which folder it is showing. */
+  dir?: string
   rect: WindowRect
   z: number
   minimized: boolean
@@ -35,7 +39,6 @@ interface OpenWindow {
 }
 
 const KEY = 'cove.computerFiles'
-/** The folder the desk is showing — the root, or one you have opened. */
 const WIN_KEY = 'cove.computerWindows'
 
 function loadWindows(): OpenWindow[] {
@@ -82,14 +85,23 @@ export function ComputerPanel({
 }): React.JSX.Element {
   const [files, setFiles] = useState<DeskFile[]>([])
   /** Which folder is on screen, and the way back up. */
-  const [at, setAt] = useState<string>('')
+  // The desk surface always shows the desk root; a folder opens as its own
+  // window rather than replacing what is under you.
   const [root, setRoot] = useState<string>('')
 
-  const refreshDesk = useCallback(async (dir?: string): Promise<void> => {
-    const entries = await window.cove.deskList?.(dir)
+  const refreshDesk = useCallback(async (): Promise<void> => {
+    const entries = await window.cove.deskList?.()
     if (!entries) return
     setFiles(entries.map((e) => ({ path: e.path, name: e.name, dir: e.dir, link: e.link, target: e.target })))
   }, [])
+
+  // Any window that changes the desk (a folder window moving something out to
+  // the root, say) tells the desk to redraw.
+  useEffect(() => {
+    const onChange = (): void => void refreshDesk()
+    window.addEventListener('cove:desk-changed', onChange)
+    return () => window.removeEventListener('cove:desk-changed', onChange)
+  }, [refreshDesk])
 
   // The desk is a real folder now. Whatever the old list remembered becomes a
   // link inside it, once, so nothing anybody put there is lost.
@@ -99,7 +111,6 @@ export function ComputerPanel({
       const r = await window.cove.deskRoot?.()
       if (!alive || !r) return
       setRoot(r)
-      setAt((cur) => cur || r)
       try {
         const remembered = JSON.parse(localStorage.getItem(KEY) || '[]') as DeskFile[]
         if (remembered.length) {
@@ -109,7 +120,7 @@ export function ComputerPanel({
       } catch {
         localStorage.removeItem(KEY)
       }
-      await refreshDesk(r)
+      await refreshDesk()
     })()
     return () => {
       alive = false
@@ -148,7 +159,10 @@ export function ComputerPanel({
     const name = renameDraft.trim()
     setRenaming(null)
     if (!path || !name) return
-    void window.cove.deskRename?.(path, name).then(() => refreshDesk(at || undefined))
+    void window.cove.deskRename?.(path, name).then(() => {
+      announceDeskChange()
+      void refreshDesk()
+    })
   }
   // Enter renames the one selected icon, the way a desktop does. Guarded so it
   // never fires while a field is being typed into (including the rename box).
@@ -355,6 +369,44 @@ export function ComputerPanel({
     [bounds.w, bounds.h]
   )
 
+  /**
+   * Open a folder in a window, the way a desktop does — rather than replacing
+   * the desk under you. Keyed by path, so a folder opens once and re-opening
+   * brings its window forward.
+   */
+  const openFolder = useCallback(
+    (path: string): void => {
+      setWindows((ws) => {
+        const maxZ = Math.max(0, ...ws.map((w) => w.z))
+        const existing = ws.find((w) => w.dir === path)
+        if (existing) {
+          return ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: maxZ + 1 } : w))
+        }
+        const width = Math.min(560, Math.max(360, bounds.w - 80))
+        const height = Math.min(460, Math.max(260, bounds.h - 80))
+        const step = ws.length * 28
+        return [
+          ...ws,
+          {
+            id: `folder-${path}`,
+            app: 'folder' as AppId,
+            dir: path,
+            rect: {
+              x: Math.max(20, Math.round((bounds.w - width) / 2) - 60 + step),
+              y: Math.max(16, Math.round((bounds.h - height) / 2) - 40 + step),
+              w: width,
+              h: height
+            },
+            z: maxZ + 1,
+            minimized: false,
+            maximized: false
+          }
+        ]
+      })
+    },
+    [bounds.w, bounds.h]
+  )
+
   useEffect(() => {
     let alive = true
     const wanted = files.filter((f) => !f.dir && isImage(f.name) && !(f.path in thumbs))
@@ -377,11 +429,12 @@ export function ComputerPanel({
   const add = useCallback(
     (paths: string[]): void => {
       void (async () => {
-        for (const p of paths) if (p) await window.cove.deskLink?.(p, at || undefined)
-        await refreshDesk(at || undefined)
+        for (const p of paths) if (p) await window.cove.deskLink?.(p, root || undefined)
+        announceDeskChange()
+        await refreshDesk()
       })()
     },
-    [at, refreshDesk]
+    [root, refreshDesk]
   )
 
   /**
@@ -615,6 +668,9 @@ export function ComputerPanel({
 
   const renderApp = (win: OpenWindow): React.JSX.Element => {
     const app = win.app
+    if (app === 'folder' && win.dir) {
+      return <FolderView dir={win.dir} onOpenFolder={openFolder} onOpenFile={openFile} />
+    }
     if (app === 'file' && win.file) {
       // Text opens in the in-app viewer; a picture or a PDF is not text, and
       // goes to the same real Chromium pane the browser window uses — a
@@ -727,8 +783,8 @@ export function ComputerPanel({
               <button
                 onClick={() => {
                   setMenu(null)
-                  void window.cove.deskNewFolder?.(at || undefined).then(async (path) => {
-                    await refreshDesk(at || undefined)
+                  void window.cove.deskNewFolder?.(root || undefined).then(async (path) => {
+                    await refreshDesk()
                     // Created selected and ready to name, the way a desktop does.
                     if (path) {
                       setSelected([path])
@@ -742,7 +798,7 @@ export function ComputerPanel({
               <button
                 onClick={() => {
                   setMenu(null)
-                  void window.cove.deskReveal?.(at || root)
+                  void window.cove.deskReveal?.(root)
                 }}
               >
                 Reveal in Finder
@@ -791,21 +847,6 @@ export function ComputerPanel({
             </div>
           )}
         </div>
-        {at && root && at !== root && (
-          <button
-            className="computer-up"
-            title="Back to the desktop"
-            onClick={() => {
-              const parent = at.slice(0, at.lastIndexOf('/'))
-              const next = parent.length >= root.length ? parent : root
-              setSelected([])
-              setAt(next)
-              void refreshDesk(next)
-            }}
-          >
-            ‹ {at.split('/').pop()}
-          </button>
-        )}
         <div className="computer-head-spacer" />
         <span className="computer-sub">
           {files.length === 0 ? 'Drop files here' : `${files.length} item${files.length === 1 ? '' : 's'}`}
@@ -866,15 +907,10 @@ export function ComputerPanel({
                 pickIcon(f.path, e)
               }}
               onDoubleClick={() => {
-                if (f.dir) {
-                  setSelected([])
-                  setAt(f.path)
-                  void refreshDesk(f.path)
-                } else {
-                  // Follow the link: the window should open the real file, not
-                  // a link to it.
-                  openFile(f.target || f.path)
-                }
+                // A folder opens as its own window, the way a desktop does; a
+                // file opens the real thing behind the link, not the link.
+                if (f.dir) openFolder(f.path)
+                else openFile(f.target || f.path)
               }}
               // Dropping an icon on a folder moves it in. A link moves as a
               // link, so nothing on disk leaves where it lives.
@@ -894,7 +930,8 @@ export function ComputerPanel({
                   const others = selected.includes(moving) ? selected : [moving]
                   for (const src of others) await window.cove.deskMove?.(src, f.path)
                   setSelected([])
-                  await refreshDesk(at || undefined)
+                  announceDeskChange()
+                  await refreshDesk()
                 })()
               }}
               draggable
@@ -950,7 +987,10 @@ export function ComputerPanel({
                 }
                 onClick={(e) => {
                   e.stopPropagation()
-                  void window.cove.deskRemove?.(f.path).then(() => refreshDesk(at || undefined))
+                  void window.cove.deskRemove?.(f.path).then(() => {
+                    announceDeskChange()
+                    void refreshDesk()
+                  })
                 }}
               >
                 ✕
@@ -983,7 +1023,9 @@ export function ComputerPanel({
             .map((w) => (
             <DesktopWindow
               key={w.id}
-              title={w.file ? w.file.split('/').pop() || appById(w.app).name : appById(w.app).name}
+              title={
+                (w.file || w.dir)?.split('/').pop() || appById(w.app).name
+              }
               icon={<span className="dw-title-icon">{appById(w.app).icon}</span>}
               rect={clampToDesk(w.rect)}
               z={w.z}
