@@ -84,7 +84,15 @@ export function ComputerPanel({
   const [menu, setMenu] = useState<string | null>(null)
   const [sort, setSort] = useState<'name' | 'kind'>('name')
   const [windows, setWindows] = useState<OpenWindow[]>(loadWindows)
-  const [selected, setSelected] = useState<string | null>(null)
+  /**
+   * Which icons are picked. A desktop that can only hold one selection is not
+   * one — you pick several to drag, to clear, to open together.
+   */
+  const [selected, setSelected] = useState<string[]>([])
+  /** Where a shift-range starts: the last icon picked on its own. */
+  const anchorRef = useRef<string | null>(null)
+  /** The rubber band, in desk coordinates, while one is being dragged. */
+  const [band, setBand] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   /**
    * The dock gets out of the way of a window that fills the desk.
    *
@@ -467,6 +475,50 @@ export function ComputerPanel({
         a.name.localeCompare(b.name)
   )
 
+  /**
+   * Clicking an icon. Plain picks it alone, cmd (or ctrl) adds and removes one
+   * at a time, and shift takes everything between the last plain pick and this
+   * one — in the order they are shown, which is the order the eye reads.
+   */
+  const pickIcon = (path: string, e: React.MouseEvent): void => {
+    const order = sorted.map((f) => f.path)
+    if (e.metaKey || e.ctrlKey) {
+      setSelected((cur) =>
+        cur.includes(path) ? cur.filter((p) => p !== path) : [...cur, path]
+      )
+      anchorRef.current = path
+      return
+    }
+    if (e.shiftKey && anchorRef.current) {
+      const a = order.indexOf(anchorRef.current)
+      const b = order.indexOf(path)
+      if (a >= 0 && b >= 0) {
+        setSelected(order.slice(Math.min(a, b), Math.max(a, b) + 1))
+        return
+      }
+    }
+    setSelected([path])
+    anchorRef.current = path
+  }
+
+  /** Icons the band touches, by their real positions on screen. */
+  const withinBand = (b: { x0: number; y0: number; x1: number; y1: number }): string[] => {
+    const desk = surfaceRef.current?.getBoundingClientRect()
+    if (!desk) return []
+    const left = Math.min(b.x0, b.x1) + desk.left
+    const right = Math.max(b.x0, b.x1) + desk.left
+    const top = Math.min(b.y0, b.y1) + desk.top
+    const bottom = Math.max(b.y0, b.y1) + desk.top
+    const hit: string[] = []
+    document.querySelectorAll<HTMLElement>('.computer-file[data-path]').forEach((el) => {
+      const r = el.getBoundingClientRect()
+      if (r.left < right && left < r.right && r.top < bottom && top < r.bottom) {
+        hit.push(el.dataset.path as string)
+      }
+    })
+    return hit
+  }
+
   const renderApp = (win: OpenWindow): React.JSX.Element => {
     const app = win.app
     if (app === 'file' && win.file) {
@@ -641,20 +693,51 @@ export function ComputerPanel({
 
       <div
         className="computer-surface"
-        onClick={() => {
+        onPointerDown={(e) => {
+          // Only from bare desk: a drag that starts on an icon or a window is
+          // that thing's drag, not a selection.
+          if (e.button !== 0 || (e.target as HTMLElement).closest('.computer-file, .dw')) return
           setMenu(null)
-          setSelected(null)
+          if (!e.shiftKey && !e.metaKey && !e.ctrlKey) setSelected([])
+          const desk = surfaceRef.current?.getBoundingClientRect()
+          if (!desk) return
+          const x = e.clientX - desk.left
+          const y = e.clientY - desk.top
+          setBand({ x0: x, y0: y, x1: x, y1: y })
+          e.currentTarget.setPointerCapture?.(e.pointerId)
         }}
+        onPointerMove={(e) => {
+          if (!band) return
+          const desk = surfaceRef.current?.getBoundingClientRect()
+          if (!desk) return
+          const next = { ...band, x1: e.clientX - desk.left, y1: e.clientY - desk.top }
+          setBand(next)
+          // Live, so you can see what you are about to get.
+          const hit = withinBand(next)
+          setSelected((cur) =>
+            e.shiftKey || e.metaKey || e.ctrlKey ? [...new Set([...cur, ...hit])] : hit
+          )
+        }}
+        onPointerUp={(e) => {
+          if (band) {
+            setBand(null)
+            e.currentTarget.releasePointerCapture?.(e.pointerId)
+          }
+        }}
+        onPointerCancel={() => setBand(null)}
       >
         <div className="computer-icons">
           {sorted.map((f) => (
             <button
               key={f.path}
-              className={`computer-icon computer-file ${selected === f.path ? 'selected' : ''}`}
+              className={`computer-icon computer-file ${
+                selected.includes(f.path) ? 'selected' : ''
+              }`}
+              data-path={f.path}
               title={f.path}
               onClick={(e) => {
                 e.stopPropagation()
-                setSelected(f.path)
+                pickIcon(f.path, e)
               }}
               onDoubleClick={() => openFile(f.path)}
             >
@@ -673,6 +756,18 @@ export function ComputerPanel({
             </button>
           ))}
         </div>
+
+        {band && (
+          <div
+            className="computer-band"
+            style={{
+              left: Math.min(band.x0, band.x1),
+              top: Math.min(band.y0, band.y1),
+              width: Math.abs(band.x1 - band.x0),
+              height: Math.abs(band.y1 - band.y0)
+            }}
+          />
+        )}
 
         {files.length === 0 && windows.length === 0 && (
           <div className="computer-empty">

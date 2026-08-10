@@ -5938,6 +5938,17 @@ button {
   max-height: 100%;
 }
 
+/* The rubber band. Drawn over the icons but never in the way of the pointer —
+   the drag belongs to the desk underneath it. */
+.computer-band {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 2px;
+}
+
 /* Where windows live: the desktop minus the strip the dock sits in.
    The dock floats over the surface, so a window laid out against the bottom
    edge had its own footer covered — in the Chat app, the model and mode
