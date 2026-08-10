@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
-import { Choices, splitAssistant } from './Choices'
+import { Choices } from './Choices'
+import { splitAssistant } from './assistantSegments'
 import { useDictation } from '../lib/dictation'
 
 interface ChatMessage {

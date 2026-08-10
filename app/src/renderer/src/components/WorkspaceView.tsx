@@ -77,18 +77,6 @@ export function WorkspaceView({
    * never narrows it, and never past two thirds, so the chat stays usable and
    * the divider you drag afterwards wins.
    */
-  const widenForBoard = useCallback((): void => {
-    const wrap = containerRef.current?.querySelector('.split-main')
-    const total = wrap?.getBoundingClientRect().width ?? 0
-    if (!total) return
-    setRatio((r) => {
-      const paneNow = total * (1 - r)
-      if (paneNow >= 620) return r
-      const next = Math.max(0.2, Math.min(r, 1 - Math.min(620, total * 0.66) / total))
-      localStorage.setItem(`split:${ws.id}`, String(next))
-      return next
-    })
-  }, [ws.id])
 
   // The desk's working surface: a file you opened wins over the page, and a
   // code project with neither simply has no surface — the simulator gets the
@@ -227,6 +215,19 @@ export function WorkspaceView({
     const fallback = ws.kind === 'browser' ? 0.22 : 0.55
     return saved ? Math.min(0.8, Math.max(0.2, Number(saved))) : fallback
   })
+
+  const widenForBoard = useCallback((): void => {
+    const wrap = containerRef.current?.querySelector('.split-main')
+    const total = wrap?.getBoundingClientRect().width ?? 0
+    if (!total) return
+    setRatio((r) => {
+      const paneNow = total * (1 - r)
+      if (paneNow >= 620) return r
+      const next = Math.max(0.2, Math.min(r, 1 - Math.min(620, total * 0.66) / total))
+      localStorage.setItem(`split:${ws.id}`, String(next))
+      return next
+    })
+  }, [ws.id])
   const [dragging, setDragging] = useState(false)
   // Where the chat sits relative to the pane: beside it (default) or below it,
   // for when a wide page matters more than a tall transcript. Per project.

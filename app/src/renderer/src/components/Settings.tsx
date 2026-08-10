@@ -107,7 +107,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
         <div className="settings-row">
           <div className="settings-label">
             <strong>Notify when Claude finishes</strong>
-            <span>A banner when a turn completes while you're in another app.</span>
+            <span>A banner when a turn completes while you&rsquo;re in another app.</span>
           </div>
           <label className="switch">
             <input
