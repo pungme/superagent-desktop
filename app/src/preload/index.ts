@@ -303,6 +303,17 @@ export interface CoveApi {
   }) => void
   /** The Computer closed — nothing on the desktop is on screen any more. */
   desktopGone: () => void
+  /** The desktop as a real folder: its entries, and what you can do to them. */
+  deskRoot: () => Promise<string>
+  deskList: (dir?: string) => Promise<
+    { name: string; path: string; target: string; dir: boolean; link: boolean }[]
+  >
+  deskNewFolder: (dir?: string, name?: string) => Promise<string | null>
+  deskLink: (target: string, dir?: string) => Promise<string | null>
+  deskMove: (from: string, toDir: string) => Promise<string | null>
+  deskRename: (path: string, name: string) => Promise<string | null>
+  deskRemove: (path: string) => Promise<boolean>
+  deskReveal: (path: string) => Promise<void>
   /** The desktop chat's agent driving the desktop (the computer_* tools). */
   onDesktopCommand: (
     cb: (c: {
@@ -518,6 +529,14 @@ const cove: CoveApi = {
   desktopSyncFiles: (paths) => ipcRenderer.invoke('desktop:sync-files', paths),
   desktopReport: (patch) => ipcRenderer.send('desktop:report', patch),
   desktopGone: () => ipcRenderer.send('desktop:gone'),
+  deskRoot: () => ipcRenderer.invoke('desk:root'),
+  deskList: (dir) => ipcRenderer.invoke('desk:list', dir),
+  deskNewFolder: (dir, name) => ipcRenderer.invoke('desk:newFolder', dir, name),
+  deskLink: (target, dir) => ipcRenderer.invoke('desk:link', target, dir),
+  deskMove: (from, toDir) => ipcRenderer.invoke('desk:move', from, toDir),
+  deskRename: (path, name) => ipcRenderer.invoke('desk:rename', path, name),
+  deskRemove: (path) => ipcRenderer.invoke('desk:remove', path),
+  deskReveal: (path) => ipcRenderer.invoke('desk:reveal', path),
   onDesktopCommand: (cb) =>
     subscribe('desktop:command', (c) => cb(c as Parameters<typeof cb>[0])),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),

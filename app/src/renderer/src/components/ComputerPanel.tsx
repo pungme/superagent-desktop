@@ -14,6 +14,12 @@ import { RoutinesPanel } from './RoutinesPanel'
 interface DeskFile {
   path: string
   name: string
+  /** A folder opens; a file is opened. */
+  dir?: boolean
+  /** Points at something living elsewhere — removing it deletes only the link. */
+  link?: boolean
+  /** What it actually is on disk, following a link. */
+  target?: string
 }
 
 /** An open window: which app, where it sits, and where it is in the stack. */
@@ -29,16 +35,8 @@ interface OpenWindow {
 }
 
 const KEY = 'cove.computerFiles'
+/** The folder the desk is showing — the root, or one you have opened. */
 const WIN_KEY = 'cove.computerWindows'
-
-function load(): DeskFile[] {
-  try {
-    const raw = localStorage.getItem(KEY)
-    return raw ? (JSON.parse(raw) as DeskFile[]) : []
-  } catch {
-    return []
-  }
-}
 
 function loadWindows(): OpenWindow[] {
   try {
@@ -82,7 +80,41 @@ export function ComputerPanel({
   visible?: boolean
   onClose: () => void
 }): React.JSX.Element {
-  const [files, setFiles] = useState<DeskFile[]>(load)
+  const [files, setFiles] = useState<DeskFile[]>([])
+  /** Which folder is on screen, and the way back up. */
+  const [at, setAt] = useState<string>('')
+  const [root, setRoot] = useState<string>('')
+
+  const refreshDesk = useCallback(async (dir?: string): Promise<void> => {
+    const entries = await window.cove.deskList?.(dir)
+    if (!entries) return
+    setFiles(entries.map((e) => ({ path: e.path, name: e.name, dir: e.dir, link: e.link, target: e.target })))
+  }, [])
+
+  // The desk is a real folder now. Whatever the old list remembered becomes a
+  // link inside it, once, so nothing anybody put there is lost.
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      const r = await window.cove.deskRoot?.()
+      if (!alive || !r) return
+      setRoot(r)
+      setAt((cur) => cur || r)
+      try {
+        const remembered = JSON.parse(localStorage.getItem(KEY) || '[]') as DeskFile[]
+        if (remembered.length) {
+          for (const f of remembered) await window.cove.deskLink?.(f.path)
+          localStorage.removeItem(KEY)
+        }
+      } catch {
+        localStorage.removeItem(KEY)
+      }
+      await refreshDesk(r)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [refreshDesk])
   const [over, setOver] = useState(false)
   /** Which menu-bar title is open, if any. */
   const [menu, setMenu] = useState<string | null>(null)
@@ -146,12 +178,11 @@ export function ComputerPanel({
         : onClose
   )
 
+  // What is on the desktop is what the chat can see. The desk is a real folder
+  // now, so what it hands over is what is actually in it — links resolved to
+  // whatever they point at, so Claude reads the file rather than the link.
   useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify(files))
-    // What is on the desktop is what the chat can see: the files are linked
-    // into its working directory, so dropping one is all it takes for Claude
-    // to be able to read it — no attaching, no pasting a path.
-    void window.cove.desktopSyncFiles?.(files.map((f) => f.path))
+    void window.cove.desktopSyncFiles?.(files.filter((f) => !f.dir).map((f) => f.target || f.path))
   }, [files])
 
   // Prepare the chat's home the first time the desktop is opened.
@@ -296,10 +327,10 @@ export function ComputerPanel({
 
   useEffect(() => {
     let alive = true
-    const wanted = files.filter((f) => isImage(f.name) && !(f.path in thumbs))
+    const wanted = files.filter((f) => !f.dir && isImage(f.name) && !(f.path in thumbs))
     if (!wanted.length) return
     void Promise.all(
-      wanted.map(async (f) => [f.path, await window.cove.filesThumb?.(f.path)] as const)
+      wanted.map(async (f) => [f.path, await window.cove.filesThumb?.(f.target || f.path)] as const)
     ).then((pairs) => {
       if (!alive) return
       const next: Record<string, string> = {}
@@ -313,15 +344,15 @@ export function ComputerPanel({
     }
   }, [files, thumbs])
 
-  const add = useCallback((paths: string[]): void => {
-    setFiles((cur) => {
-      const seen = new Set(cur.map((f) => f.path))
-      const fresh = paths
-        .filter((p) => p && !seen.has(p))
-        .map((p) => ({ path: p, name: p.split('/').pop() || p }))
-      return fresh.length ? [...cur, ...fresh] : cur
-    })
-  }, [])
+  const add = useCallback(
+    (paths: string[]): void => {
+      void (async () => {
+        for (const p of paths) if (p) await window.cove.deskLink?.(p, at || undefined)
+        await refreshDesk(at || undefined)
+      })()
+    },
+    [at, refreshDesk]
+  )
 
   /**
    * Keep a window inside the desktop it is being drawn on.
@@ -666,11 +697,20 @@ export function ComputerPanel({
               <button
                 onClick={() => {
                   setMenu(null)
-                  setFiles([])
+                  void window.cove
+                    .deskNewFolder?.(at || undefined)
+                    .then(() => refreshDesk(at || undefined))
                 }}
-                disabled={files.length === 0}
               >
-                Clear the desktop
+                New folder
+              </button>
+              <button
+                onClick={() => {
+                  setMenu(null)
+                  void window.cove.deskReveal?.(at || root)
+                }}
+              >
+                Reveal in Finder
               </button>
             </div>
           )}
@@ -716,6 +756,21 @@ export function ComputerPanel({
             </div>
           )}
         </div>
+        {at && root && at !== root && (
+          <button
+            className="computer-up"
+            title="Back to the desktop"
+            onClick={() => {
+              const parent = at.slice(0, at.lastIndexOf('/'))
+              const next = parent.length >= root.length ? parent : root
+              setSelected([])
+              setAt(next)
+              void refreshDesk(next)
+            }}
+          >
+            ‹ {at.split('/').pop()}
+          </button>
+        )}
         <div className="computer-head-spacer" />
         <span className="computer-sub">
           {files.length === 0 ? 'Drop files here' : `${files.length} item${files.length === 1 ? '' : 's'}`}
@@ -775,10 +830,48 @@ export function ComputerPanel({
                 e.stopPropagation()
                 pickIcon(f.path, e)
               }}
-              onDoubleClick={() => openFile(f.path)}
+              onDoubleClick={() => {
+                if (f.dir) {
+                  setSelected([])
+                  setAt(f.path)
+                  void refreshDesk(f.path)
+                } else {
+                  // Follow the link: the window should open the real file, not
+                  // a link to it.
+                  openFile(f.target || f.path)
+                }
+              }}
+              // Dropping an icon on a folder moves it in. A link moves as a
+              // link, so nothing on disk leaves where it lives.
+              onDragOver={(e) => {
+                if (f.dir) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }
+              }}
+              onDrop={(e) => {
+                if (!f.dir) return
+                e.preventDefault()
+                e.stopPropagation()
+                const moving = e.dataTransfer.getData('text/desk-path')
+                if (!moving) return
+                void (async () => {
+                  const others = selected.includes(moving) ? selected : [moving]
+                  for (const src of others) await window.cove.deskMove?.(src, f.path)
+                  setSelected([])
+                  await refreshDesk(at || undefined)
+                })()
+              }}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/desk-path', f.path)
+                e.dataTransfer.effectAllowed = 'move'
+              }}
             >
               <span className="computer-file-icon">
-                {thumbs[f.path] ? (
+                {f.dir ? (
+                  '📁'
+                ) : thumbs[f.path] ? (
                   <img className="computer-file-thumb" src={thumbs[f.path]} alt="" />
                 ) : (
                   iconFor(f.name)
@@ -787,10 +880,14 @@ export function ComputerPanel({
               <span className="computer-icon-name">{f.name}</span>
               <span
                 className="computer-file-x"
-                title="Take it off the desktop"
+                title={
+                  f.link
+                    ? 'Take it off the desktop — the file itself stays where it is'
+                    : 'Move it to the Trash'
+                }
                 onClick={(e) => {
                   e.stopPropagation()
-                  setFiles((cur) => cur.filter((x) => x.path !== f.path))
+                  void window.cove.deskRemove?.(f.path).then(() => refreshDesk(at || undefined))
                 }}
               >
                 ✕

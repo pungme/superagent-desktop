@@ -5942,6 +5942,26 @@ button {
   max-height: 100%;
 }
 
+/* Back out of a folder. Sits with the menu titles, since that is where "where
+   am I" belongs on a desktop. */
+.computer-up {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.computer-up:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
 /* A picture shows itself. Fitted rather than filled, so a wide screenshot and
    a tall one both sit on the same baseline as the emoji they replace. */
 .computer-file-thumb {
