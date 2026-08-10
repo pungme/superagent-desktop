@@ -1,0 +1,8 @@
+warpspeed.js — WarpSpeed.js by Federico Dossena
+https://fdossena.com/?p=warpspeed/i.frag
+
+Licensed under the GNU LGPL, version 3 or newer.
+
+Included here unmodified and loaded as a separate script, so it stays
+replaceable. The rest of this site is MIT (see ../../LICENSE); this file is
+not, and its licence travels with it.

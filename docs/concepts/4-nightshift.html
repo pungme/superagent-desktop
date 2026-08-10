@@ -7,47 +7,75 @@
 <meta name="description" content="A Mac app that gives your agent a computer." />
 <style>
 /*
-  CONCEPT 4 — "Night shift".
-  One idea, held: the agent works while you are somewhere else. The page is a
-  long exposure of a night's work — a quiet canvas field where each mote is a
-  turn taken, drifting while you read. Canvas 2D rather than WebGL, because a
-  few hundred motes hold 60fps on anything and the atmosphere is the point,
-  not the spectacle.
+  CONCEPT 4 — "Nightshift", light → warp.
+
+  The page is paper: calm, bright, nothing moving. Then you reach for
+  Download and it drops into space and accelerates — a real projected
+  starfield, not a texture, so the streaks lengthen with speed and pull from
+  the point you are heading into. Let go and it decelerates back to paper.
+
+  The interaction is the argument. You go somewhere; the page stays where it
+  is. That is what the product does — it works while you are elsewhere.
 */
 :root {
-  --night: #07080b;
-  --ink: #eef0f4;
-  --muted: #8f96a3;
-  --faint: #565d69;
-  --line: rgba(255,255,255,0.07);
-  --warm: #e3b765;
+  /* Paper, at rest. Every one of these is re-set per frame while the warp
+     runs, so the page changes state on the same clock as the starfield
+     rather than on a transition of its own. */
+  --paper: #f6f5f1;
+  --ink: #14151a;
+  --muted: #5d6068;
+  --faint: #92959d;
+  --line: rgba(20,21,26,0.12);
+  --card: rgba(20,21,26,0.02);
+  --accent: #b4551e;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --swap: 620ms cubic-bezier(.4,0,.2,1);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background: var(--night); color: var(--ink); -webkit-font-smoothing:antialiased;
-  font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif; }
+body {
+  background: var(--paper); color: var(--ink); -webkit-font-smoothing:antialiased;
+  font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+}
 a { color:inherit }
 img { max-width:100%; display:block; height:auto }
-canvas { position: fixed; inset:0; width:100%; height:100%; z-index:0; }
-.veil { position:fixed; inset:0; z-index:1; pointer-events:none;
-  background: radial-gradient(70% 55% at 50% 42%, transparent 30%, rgba(7,8,11,0.75) 100%); }
+
+/* The starfield sits behind everything and is invisible until it moves. */
+canvas#stars {
+  position: fixed; inset:0; width:100%; height:100%; z-index:0;
+  pointer-events:none;
+}
+
 .page { position:relative; z-index:2; }
 .wrap { max-width: 1020px; margin:0 auto; padding: 0 26px; }
 
 .hero { min-height: 100vh; display:grid; align-content:center; text-align:center; }
 .hero img.mark { width:46px; height:46px; border-radius:12px; margin:0 auto 26px;
-  box-shadow: 0 0 40px rgba(227,183,101,0.25); }
-.time { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; color:var(--warm); text-transform:uppercase; }
-h1 { margin-top:18px; font-size: clamp(36px,7vw,86px); line-height:1.0; letter-spacing:-0.042em; font-weight:660; }
+  transition: box-shadow var(--swap), transform var(--swap); }
+body.warping .hero img.mark { box-shadow: 0 0 46px rgba(255,201,120,.4); transform: scale(1.06); }
+.kicker { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; color:var(--accent);
+  text-transform:uppercase; }
+h1 { margin-top:18px; font-size: clamp(36px,7vw,86px); line-height:1.0;
+  letter-spacing:-0.042em; font-weight:660; }
 h1 span { display:block; color:var(--faint); }
-.lede { margin:22px auto 0; max-width:52ch; color:var(--muted); font-size:clamp(15px,1.7vw,18px); line-height:1.6; }
-.ctas { display:flex; gap:12px; justify-content:center; margin-top:32px; flex-wrap:wrap; }
-.btn { padding:12px 22px; border-radius:999px; background:var(--ink); color:#0b0c0f;
-  text-decoration:none; font-weight:640; font-size:14px; }
-.btn.ghost { background:none; color:var(--ink); border:1px solid var(--line); }
-.note { margin-top:18px; font-family:var(--mono); font-size:11.5px; color:var(--faint); letter-spacing:0.04em; }
+.lede { margin:22px auto 0; max-width:52ch; color:var(--muted); font-size:clamp(15px,1.7vw,18px);
+  line-height:1.6; }
 
-/* the night's ledger — what happened while you were away */
+.ctas { display:flex; gap:12px; justify-content:center; margin-top:34px; flex-wrap:wrap; }
+.btn {
+  position:relative; padding:13px 26px; border-radius:999px; text-decoration:none;
+  font-weight:640; font-size:14.5px; background:var(--ink); color:var(--paper);
+  transition: transform .35s cubic-bezier(.2,1.2,.4,1), box-shadow .45s ease;
+}
+.btn:hover { transform: translateY(-2px) scale(1.02); }
+body.warping .btn { box-shadow: 0 0 0 1px rgba(255,201,120,.5), 0 0 44px rgba(255,201,120,.35); }
+.btn.ghost { background:none; color:var(--ink); border:1px solid var(--line); }
+body.warping .btn.ghost { box-shadow:none; }
+.note { margin-top:18px; font-family:var(--mono); font-size:11.5px; color:var(--faint);
+  letter-spacing:0.04em; }
+.tip { display:block; margin-top:10px; font-family:var(--mono); font-size:11px; color:var(--faint);
+  opacity:.75; }
+
+/* the night's ledger */
 .night { padding: 14vh 0 8vh; }
 .night h2 { font-size:clamp(24px,3.4vw,38px); letter-spacing:-0.03em; text-align:center; }
 .night .sub { text-align:center; color:var(--muted); margin-top:10px; font-size:15px; }
@@ -55,13 +83,13 @@ h1 span { display:block; color:var(--faint); }
 .log div { display:grid; grid-template-columns: 76px 1fr auto; gap:18px; align-items:center;
   padding:15px 4px; border-bottom:1px solid var(--line); opacity:0; transform:translateY(10px); }
 .log div.on { opacity:1; transform:none; transition: opacity .6s ease, transform .6s ease; }
-.log time { font-family:var(--mono); font-size:12px; color:var(--warm); }
+.log time { font-family:var(--mono); font-size:12px; color:var(--accent); }
 .log b { font-weight:560; font-size:14.5px; }
 .log span { font-size:12.5px; color:var(--faint); font-family:var(--mono); }
 
 .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; padding: 8vh 0 12vh; }
-.card { border:1px solid var(--line); border-radius:14px; padding:22px 20px;
-  background: rgba(255,255,255,0.02); }
+.card { border:1px solid var(--line); border-radius:14px; padding:22px 20px; background:var(--card);
+  transition: border-color var(--swap), background var(--swap); }
 .card b { display:block; font-size:15px; margin-bottom:8px; }
 .card p { font-size:13.5px; color:var(--muted); line-height:1.6; }
 
@@ -72,28 +100,37 @@ figcaption { margin-top:12px; text-align:center; font-size:12.5px; color:var(--f
 .tail { padding: 4vh 0 16vh; text-align:center; }
 .tail h2 { font-size:clamp(28px,4.8vw,56px); letter-spacing:-0.035em; }
 
-@media (max-width:820px) { .grid { grid-template-columns:1fr } .log div { grid-template-columns:64px 1fr } .log span { display:none } }
-@media (prefers-reduced-motion: reduce) { .log div { opacity:1; transform:none } }
+@media (max-width:820px) {
+  .grid { grid-template-columns:1fr }
+  .log div { grid-template-columns:64px 1fr } .log span { display:none }
+}
+@media (prefers-reduced-motion: reduce) {
+  .log div { opacity:1; transform:none }
+  .btn:hover { transform:none }
+  body, .btn, canvas#stars { transition:none }
+}
 </style>
 </head>
 <body>
-<canvas id="sky"></canvas>
-<div class="veil"></div>
+<!-- WarpSpeed.js — Federico Dossena, LGPL-3.0-or-later. See ../assets/warpspeed.README.txt -->
+<script src="../assets/warpspeed.js"></script>
+<canvas id="stars"></canvas>
 
 <div class="page">
   <section class="hero">
     <div class="wrap">
       <img class="mark" src="../logo.png" alt="" />
-      <p class="time" id="clock">— · —</p>
+      <p class="kicker" id="kicker">01:14 · still working</p>
       <h1>It works.<br /><span>You don't have to watch.</span></h1>
       <p class="lede">SuperAgent gives Claude Code a computer of its own — a real browser, a real
       iPhone, a desk it keeps its work on. It runs on your Mac, on your subscription, and it
       never once pulls the window in front of what you were doing.</p>
       <div class="ctas">
-        <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+        <a class="btn warp-trigger" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
         <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">Source</a>
       </div>
-      <p class="note">free · open source · runs locally · notarized by Apple</p>
+      <p class="note">free · open source · runs locally · notarized by Apple
+        <span class="tip">hover the download</span></p>
     </div>
   </section>
 
@@ -130,55 +167,96 @@ figcaption { margin-top:12px; text-align:center; font-size:12.5px; color:var(--f
   <section class="tail wrap">
     <h2>Give your agent a screen.</h2>
     <div class="ctas">
-      <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+      <a class="btn warp-trigger" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
       <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">GitHub</a>
     </div>
   </section>
 </div>
 
 <script>
-// A drifting field. Each mote is one turn taken; they wander slowly and the
-// nearest few thread themselves together, so the field reads as work rather
-// than as decoration.
-const c = document.getElementById('sky'), x = c.getContext('2d')
-const still = matchMedia('(prefers-reduced-motion: reduce)').matches
-let W, H, motes
-function size() {
-  const d = Math.min(devicePixelRatio || 1, 2)
-  W = c.width = innerWidth * d; H = c.height = innerHeight * d
-  x.setTransform(d, 0, 0, d, 0, 0)
-  const n = Math.round(Math.min(150, innerWidth / 11))
-  motes = Array.from({ length: n }, () => ({
-    x: Math.random() * innerWidth, y: Math.random() * innerHeight,
-    vx: (Math.random() - .5) * .13, vy: (Math.random() - .5) * .13,
-    r: Math.random() * 1.5 + .5, a: Math.random() * .5 + .18
-  }))
-}
-function frame() {
-  x.clearRect(0, 0, innerWidth, innerHeight)
-  for (const m of motes) {
-    if (!still) { m.x += m.vx; m.y += m.vy }
-    if (m.x < -20) m.x = innerWidth + 20; if (m.x > innerWidth + 20) m.x = -20
-    if (m.y < -20) m.y = innerHeight + 20; if (m.y > innerHeight + 20) m.y = -20
-    x.beginPath(); x.arc(m.x, m.y, m.r, 0, 6.284)
-    x.fillStyle = `rgba(227,183,101,${m.a})`; x.fill()
-  }
-  for (let i = 0; i < motes.length; i++) for (let j = i + 1; j < motes.length; j++) {
-    const a = motes[i], b = motes[j], dx = a.x - b.x, dy = a.y - b.y
-    const d2 = dx * dx + dy * dy
-    if (d2 < 15000) {
-      x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(b.x, b.y)
-      x.strokeStyle = `rgba(227,183,101,${(1 - d2 / 15000) * 0.06})`; x.stroke()
-    }
-  }
-  if (!still) requestAnimationFrame(frame)
-}
-size(); frame()
-addEventListener('resize', () => { size(); if (still) frame() })
+/* ── the warp ──────────────────────────────────────────────────────────────
+   WarpSpeed.js draws the field (Federico Dossena, LGPL); the pacing is ours.
 
-const clock = document.getElementById('clock')
-const t = () => clock.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · still working'
-t(); setInterval(t, 20000)
+   Its own easing approaches the target speed fastest at the start and coasts
+   in — which is exactly backwards for this. Leaving a station should creep,
+   then build, then run. So speedAdjFactor is pinned to 1 (the library stops
+   easing) and TARGET_SPEED is set every frame from a cubic that starts nearly
+   flat.
+
+   The page's colours are interpolated on the same clock rather than switched
+   with a class, so the paper darkens *with* the acceleration instead of
+   arriving on its own schedule. */
+const PAPER = [246, 245, 241], VOID = [4, 5, 10]
+const INK_D = [20, 21, 26],   INK_L = [242, 244, 248]
+const MUT_D = [93, 96, 104],  MUT_L = [153, 160, 173]
+const FNT_D = [146, 149, 157], FNT_L = [92, 100, 114]
+const ACC_D = [180, 85, 30],  ACC_L = [255, 201, 120]
+const STAR_D = [20, 21, 26],  STAR_L = [255, 255, 255]
+
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+const IDLE = 0.10, TOP = 24
+const IN_MS = 2100, OUT_MS = 950
+
+const ws = new WarpSpeed('stars', {
+  speed: IDLE,
+  targetSpeed: IDLE,
+  speedAdjFactor: 1,       // we do the easing; the library must not fight it
+  density: 0.85,
+  shape: 'circle',
+  warpEffect: true,
+  warpEffectLength: 6,
+  depthFade: true,
+  starSize: 3.4,
+  backgroundColor: `rgb(${PAPER})`,
+  starColor: `rgba(${STAR_D}, 0.10)`
+})
+
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t))
+const root = document.documentElement.style
+let warp = 0, dir = -1, last = performance.now()
+
+function tick(now) {
+  const dt = Math.min(64, now - last); last = now
+  warp = Math.max(0, Math.min(1, warp + (dir > 0 ? dt / IN_MS : -dt / OUT_MS)))
+
+  // Nearly flat to begin with: the first half of the gesture barely moves.
+  const e = warp * warp * warp
+  // Light leaves sooner than speed arrives, so the change reads as departure
+  // rather than as a lamp being switched off.
+  const c = Math.pow(e, 0.45)
+
+  ws.TARGET_SPEED = IDLE + (TOP - IDLE) * e
+  ws.BACKGROUND_COLOR = `rgb(${mix(PAPER, VOID, c)})`
+  ws.STAR_COLOR = `rgba(${mix(STAR_D, STAR_L, c)}, ${0.10 + 0.90 * c})`
+
+  root.setProperty('--paper', `rgb(${mix(PAPER, VOID, c)})`)
+  root.setProperty('--ink', `rgb(${mix(INK_D, INK_L, c)})`)
+  root.setProperty('--muted', `rgb(${mix(MUT_D, MUT_L, c)})`)
+  root.setProperty('--faint', `rgb(${mix(FNT_D, FNT_L, c)})`)
+  root.setProperty('--accent', `rgb(${mix(ACC_D, ACC_L, c)})`)
+  root.setProperty('--line', `rgba(${mix(INK_D, INK_L, c)}, ${0.12 + 0.02 * c})`)
+  root.setProperty('--card', `rgba(${mix(INK_D, INK_L, c)}, ${0.02 + 0.01 * c})`)
+  document.body.classList.toggle('warping', c > 0.5)
+
+  requestAnimationFrame(tick)
+}
+if (!still) requestAnimationFrame(tick)
+
+const enter = () => { if (!still) dir = 1 }
+const leave = () => { dir = -1 }
+document.querySelectorAll('.warp-trigger').forEach(b => {
+  b.addEventListener('pointerenter', enter)
+  b.addEventListener('pointerleave', leave)
+  b.addEventListener('focus', enter)   // keyboard reaches it too
+  b.addEventListener('blur', leave)
+  b.addEventListener('touchstart', enter, { passive: true })  // hold, on touch
+  b.addEventListener('touchend', leave)
+})
+
+const kicker = document.getElementById('kicker')
+const showTime = () => kicker.textContent =
+  new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · still working'
+showTime(); setInterval(showTime, 20000)
 
 const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('on')), { threshold: .4 })
 document.querySelectorAll('#log div').forEach((el, i) => { el.style.transitionDelay = (i * 70) + 'ms'; io.observe(el) })
