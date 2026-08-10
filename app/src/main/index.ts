@@ -14,6 +14,7 @@ import {
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
 import { registerDesktopIpc } from './desktop'
+import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
@@ -158,6 +159,7 @@ app.whenReady().then(() => {
   registerBrowserIpc()
   registerStoreIpc()
   registerDesktopIpc()
+  registerDeskIpc()
   registerHookIpc()
   registerAutomationIpc()
   registerAgentIpc()
