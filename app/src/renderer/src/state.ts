@@ -294,7 +294,14 @@ export const useStore = create<CoveState>((set, get) => ({
     localStorage.setItem('cove.permissionMode', m)
     set({ permissionMode: m })
   },
-  model: localStorage.getItem('cove.model') || '',
+  // A preference saved before the picker moved to the 1M variants would name a
+  // model the menu no longer lists — it would still run, but the pill would
+  // label it "Default" and it would quietly be the 200K window.
+  model: ((): string => {
+    const saved = localStorage.getItem('cove.model') || ''
+    const moved: Record<string, string> = { opus: 'opus[1m]', sonnet: 'sonnet[1m]' }
+    return moved[saved] ?? saved
+  })(),
   setModel: (m) => {
     localStorage.setItem('cove.model', m)
     set({ model: m })

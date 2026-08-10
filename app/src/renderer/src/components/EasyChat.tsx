@@ -377,8 +377,12 @@ function extractPorts(text: string): number[] {
 // CLI is configured to use); the rest are passed as --model at spawn.
 const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: '', label: 'Default', hint: 'Whatever your Claude account defaults to' },
-  { value: 'opus', label: 'Opus', hint: 'Most capable' },
-  { value: 'sonnet', label: 'Sonnet', hint: 'Balanced' },
+  // The 1M variants, deliberately. Plain `opus` runs the 200K model: picking
+  // Opus from this menu quietly gave you a fifth of the window your own default
+  // already had (the CLI resolves that to claude-opus-5[1m]), and the memory
+  // gauge then read full on a conversation that had barely started.
+  { value: 'opus[1m]', label: 'Opus', hint: 'Most capable · 1M context' },
+  { value: 'sonnet[1m]', label: 'Sonnet', hint: 'Balanced · 1M context' },
   { value: 'haiku', label: 'Haiku', hint: 'Fastest, lightest' },
   { value: 'fable', label: 'Fable', hint: 'Fast, for quick edits' }
 ]
