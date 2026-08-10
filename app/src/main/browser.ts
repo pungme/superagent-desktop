@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView, Notification, ipcMain, shell, app, net, session } from 'electron'
+import { BrowserWindow, WebContentsView, Notification, ipcMain, shell, app, net } from 'electron'
 import { connect as tcpConnect } from 'net'
 import { fileURLToPath } from 'url'
 import { basename, join } from 'path'
@@ -28,34 +28,27 @@ export function paneLog(event: string, id: string, detail = ''): void {
   }
 }
 
-// Electron's setUserAgent rewrites the UA *string* to look like Chrome, but not the
-// User-Agent Client Hints: the Sec-CH-UA header still advertises bare "Chromium",
-// never "Google Chrome". Bot-detection (Cloudflare) cross-checks the two, and that
-// UA-says-Chrome / hints-say-Chromium mismatch is a reliable automation tell — it's
-// why real, human clicks still get challenged. Add the "Google Chrome" brand (kept
-// in sync with the actual Chromium major) so the hints agree with the UA string.
-const partitionsHardened = new Set<string>()
-
-function addChromeBrand(value: string): string {
-  if (!value || /Google Chrome/i.test(value)) return value
-  // Mirror the "Chromium";v="…" entry as a "Google Chrome" entry (same version),
-  // leaving the GREASE brand ("Not_A Brand";v="99") untouched — real Chrome has all three.
-  return value.replace(/"Chromium";v="([^"]+)"/i, '"Google Chrome";v="$1", "Chromium";v="$1"')
-}
-
-function hardenClientHints(partition: string): void {
-  if (partitionsHardened.has(partition)) return
-  partitionsHardened.add(partition)
-  const ses = session.fromPartition(partition)
-  ses.webRequest.onBeforeSendHeaders((details, cb) => {
-    const h = details.requestHeaders
-    for (const k of Object.keys(h)) {
-      const lk = k.toLowerCase()
-      if (lk === 'sec-ch-ua' || lk === 'sec-ch-ua-full-version-list') h[k] = addChromeBrand(h[k])
-    }
-    cb({ requestHeaders: h })
-  })
-}
+// A browser must tell one story about who it is. Its identity shows up in three
+// places — the UA string, the Sec-CH-UA request headers, and
+// navigator.userAgentData in JavaScript — and a challenge (Cloudflare Turnstile)
+// cross-checks them; any disagreement reads as a browser lying about itself, and
+// it refuses to issue the pass, so the "verify you are human" checkbox loops
+// forever even under a real human click.
+//
+// We used to rewrite the Sec-CH-UA header to claim "Google Chrome" — but the
+// JavaScript, which we cannot change without a debugger attached, still said
+// plain "Chromium". Header said Chrome, JS said Chromium: exactly the
+// contradiction the check is built to catch. Measured out-of-band on a
+// hand-browsed pane, that mismatch was real.
+//
+// So we no longer touch any of it beyond stripping "Electron" from the UA
+// string. Electron IS Chromium, and left alone it says so honestly and
+// consistently in all three places — a real Chromium browser, which challenges
+// pass. It presents the same whether the agent is driving or you are, so its
+// story never changes mid-session. Presenting an honest Chromium beats an
+// inconsistent fake Chrome — and a fully consistent Chrome is out of reach
+// anyway: Electron's TLS handshake lacks three post-quantum signature
+// algorithms Chrome's has compiled in, which is not fixable from here.
 
 // Latest favicon per pane, inlined as a data: URI (the app CSP allows data: but
 // not remote https: images, so we fetch the bytes here rather than in the renderer).
@@ -93,117 +86,17 @@ function chromeUserAgent(defaultUA: string): string {
 
 
 /**
- * Give a pane one consistent browser identity.
+ * The pane's only identity change: strip "Electron" from the UA string.
  *
- * A browser states who it is in three places: the User-Agent string, the
- * Sec-CH-UA headers, and navigator.userAgentData in JavaScript. Chrome derives
- * all three from the same metadata, so they always agree. We were setting them
- * separately — the UA string was rewritten to say Chrome, the headers were
- * rewritten to add the Google Chrome brand, and the JS API was left reporting
- * Chromium only. Anything that reads more than one of them sees a browser
- * disagreeing with itself, which is exactly the shape of a spoof: hence
- * Cloudflare's challenge looping even when a person ticks the box by hand.
- *
- * setUserAgentOverride is how DevTools does device emulation: hand it the
- * metadata once and Chromium regenerates all three from it, consistently.
+ * Everything else is left exactly as Chromium reports it, so the UA, the
+ * Sec-CH-UA headers and navigator.userAgentData all agree on their own (see the
+ * note above). No debugger is attached for identity — attaching one flips
+ * navigator.webdriver true and is a bot tell in itself, and a permanent one
+ * also blocked the automation tools from attaching their own.
  */
 function applyBrowserIdentity(wc: Electron.WebContents): void {
-  // Only the UA string here, and deliberately nothing that needs a debugger.
-  //
-  // Attaching the CDP debugger sets navigator.webdriver true and is itself one
-  // of the loudest bot signals there is. This used to attach one permanently
-  // at pane creation — so even opening a site by hand carried an attached
-  // debugger, which is what put the Cloudflare challenge back, and it also
-  // blocked the automation tools from attaching their own ("Debugger is
-  // already attached to the target"). The parts of the identity that genuinely
-  // need CDP — the JS brands, the chrome.* shims — now ride on automation's
-  // own transient, webdriver-masked session (see ensureDebugger) instead of a
-  // second permanent one. Hand-browsing gets a clean Chromium with no debugger
-  // at all, which is the best a Chromium can look.
   wc.setUserAgent(chromeUserAgent(wc.getUserAgent()))
 }
-
-/** The userAgentMetadata for setUserAgentOverride — brands that name Chrome. */
-export function chromeUAMetadata(
-  ua: string
-): { userAgent: string; userAgentMetadata: Record<string, unknown> } | null {
-  const m = ua.match(/Chrome\/(\d+)(\.[\d.]+)?/)
-  if (!m) return null
-  const major = m[1]
-  const full = `${m[1]}${m[2] ?? '.0.0.0'}`
-  const brands = (v: string): { brand: string; version: string }[] => [
-    { brand: 'Not_A Brand', version: v === major ? '99' : '99.0.0.0' },
-    { brand: 'Google Chrome', version: v },
-    { brand: 'Chromium', version: v }
-  ]
-  return {
-    userAgent: ua,
-    userAgentMetadata: {
-      brands: brands(major),
-      fullVersionList: brands(full),
-      fullVersion: full,
-      platform: 'macOS',
-      platformVersion: process.getSystemVersion(),
-      architecture: process.arch === 'arm64' ? 'arm' : 'x86',
-      bitness: '64',
-      model: '',
-      mobile: false,
-      wow64: false
-    }
-  }
-}
-
-/**
- * The window.chrome.csi/loadTimes shims, as a source string.
- *
- * Chrome's own branding layer adds these; Electron's Chromium has the object
- * but not the methods, and "window.chrome exists but its methods are missing"
- * is one of the oldest tells there is. They also answer toString as native
- * code, because a shim that admits to being a script is no better than an
- * absent one, and the patch masks itself for the same reason.
- *
- * Injected before any page script by the automation session, so it only runs
- * when the agent is driving — which is the only time a debugger is attached.
- */
-export const CHROME_SHIMS = `
-  (() => {
-    const c = window.chrome
-    if (!c || typeof c.csi === 'function') return
-    const start = Date.now()
-    const native = Function.prototype.toString
-    const asNative = new WeakMap()
-    Function.prototype.toString = new Proxy(native, {
-      apply(target, self, args) {
-        const faked = asNative.get(self)
-        return faked ?? Reflect.apply(target, self, args)
-      }
-    })
-    asNative.set(Function.prototype.toString, 'function toString() { [native code] }')
-    Object.defineProperty(c, 'csi', {
-      value: () => ({ onloadT: start, startE: start, pageT: performance.now(), tran: 15 }),
-      writable: true, enumerable: false, configurable: true
-    })
-    Object.defineProperty(c, 'loadTimes', {
-      value: () => {
-        const t = performance.timing || {}
-        const s = (t.navigationStart || start) / 1000
-        return {
-          requestTime: s, startLoadTime: s,
-          commitLoadTime: (t.responseStart || start) / 1000,
-          finishDocumentLoadTime: (t.domContentLoadedEventEnd || start) / 1000,
-          finishLoadTime: (t.loadEventEnd || start) / 1000,
-          firstPaintTime: (t.responseEnd || start) / 1000,
-          firstPaintAfterLoadTime: 0, navigationType: 'Other',
-          wasFetchedViaSpdy: true, wasNpnNegotiated: true, npnNegotiatedProtocol: 'h2',
-          wasAlternateProtocolAvailable: false, connectionInfo: 'h2'
-        }
-      },
-      writable: true, enumerable: false, configurable: true
-    })
-    asNative.set(c.csi, 'function () { [native code] }')
-    asNative.set(c.loadTimes, 'function () { [native code] }')
-  })()
-`
 
 export interface BrowserBounds {
   x: number
@@ -610,7 +503,7 @@ function attachPaneView(pane: BrowserPane): void {
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
   paneLog('create', id, partition)
-  hardenClientHints(partition)
+  // Identity is left honest (see the note by applyBrowserIdentity) — no header rewrite.
 
   const view = new WebContentsView({
     webPreferences: {
@@ -737,7 +630,7 @@ export function applyZoom(id: string, action: 'in' | 'out' | 'reset'): number {
  */
 export function ensureOffscreenPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
-  hardenClientHints(partition)
+  // Identity is left honest (see the note by applyBrowserIdentity) — no header rewrite.
   const view = new WebContentsView({
     webPreferences: { partition, contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
