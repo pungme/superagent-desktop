@@ -46,10 +46,22 @@ type Item =
   | { kind: 'thinking'; id: string; text: string }
 
 /**
- * Sticky one-liner when a dev server is running for this project and the
- * preview isn't showing it — one click to open, without hunting the toolbar.
+ * A dev server, as one of the pills that sit beside Model and Mode.
+ *
+ * It used to be a band floating over the transcript, which covered the last
+ * messages and shouted about something you mostly want to glance at. The row
+ * under the composer is already where this chat says what it is running on;
+ * something the project is running belongs in the same row.
  */
-function DevServerStrip({ workspaceId }: { workspaceId: string }): React.JSX.Element | null {
+function DevServerPill({
+  workspaceId,
+  open,
+  onToggle
+}: {
+  workspaceId: string
+  open: boolean
+  onToggle: () => void
+}): React.JSX.Element | null {
   const ports = useStore((s) => s.ports[workspaceId])
   const paneOpen = useStore((s) => s.browserOpen[workspaceId] === true)
   const openPreview = useStore((s) => s.openPreview)
@@ -57,30 +69,40 @@ function DevServerStrip({ workspaceId }: { workspaceId: string }): React.JSX.Ele
   const port = ports?.[0]
   if (!port || paneOpen || dismissed) return null
   return (
-    <div
-      className="easy-devserver"
-      role="button"
-      tabIndex={0}
-      title="Open this in the browser pane"
-      onClick={() => openPreview(workspaceId, port)}
-    >
-      <span className="easy-devserver-dot" />
-      <span className="easy-devserver-label">
-        Dev server running at <b>localhost:{port}</b>
-      </span>
-      <span className="easy-devserver-open">Open preview</span>
-      <span
-        className="easy-devserver-x"
-        role="button"
-        tabIndex={0}
-        onClick={(e) => {
-          e.stopPropagation()
-          setDismissed(true)
-        }}
-        title="Hide"
+    <div className="easy-control">
+      <button
+        className={`easy-control-btn ${open ? 'open' : ''}`}
+        onClick={onToggle}
+        title={`Dev server on localhost:${port}`}
       >
-        ×
-      </span>
+        <span className="easy-run-dot live" />
+        <span className="easy-control-key">Server</span>
+        <span className="easy-control-val">:{port}</span>
+      </button>
+      {open && (
+        <div className="easy-control-menu">
+          <button
+            className="easy-control-item"
+            onClick={() => {
+              onToggle()
+              openPreview(workspaceId, port)
+            }}
+          >
+            <span className="easy-control-item-label">Open preview</span>
+            <span className="easy-control-item-hint">Show localhost:{port} in the pane</span>
+          </button>
+          <button
+            className="easy-control-item"
+            onClick={() => {
+              onToggle()
+              setDismissed(true)
+            }}
+          >
+            <span className="easy-control-item-label">Hide</span>
+            <span className="easy-control-item-hint">This doesn&rsquo;t stop the server</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -578,11 +600,13 @@ export function EasyChat({
   // Commands the agent left running in the background. Claude mentions them in
   // prose and then moves on, so without this the only sign a deploy/build/server
   // is still going is a sentence that scrolls away.
+  /** Which pill's menu is open — 'model', 'mode', 'server', or `bg-<id>`. */
+  const [controlMenu, setControlMenu] = useState<string | null>(null)
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
   const bgTasksRef = useRef<BackgroundTask[]>([])
-  const [bgOpen, setBgOpen] = useState(false)
-  // While the panel is open, tail each job's output file so the user watches it
+  // Tail each job's output while one of their pills is open, so you watch it
   // happen rather than waiting for the agent to check on it.
+  const bgOpen = controlMenu?.startsWith('bg-') ?? false
   useEffect(() => {
     if (!bgOpen) return
     let alive = true
@@ -626,17 +650,6 @@ export function EasyChat({
   const swipeTimer = useRef<number | null>(null)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  /** Height of the strips floating above the composer, so the transcript can
-      leave room for however many of them are showing. */
-  const aboveRef = useRef<HTMLDivElement>(null)
-  const [aboveH, setAboveH] = useState(0)
-  useEffect(() => {
-    const el = aboveRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([e]) => setAboveH(Math.round(e.contentRect.height)))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
   const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
@@ -683,7 +696,6 @@ export function EasyChat({
   const setModel = useStore((s) => s.setModel)
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
-  const [controlMenu, setControlMenu] = useState<'model' | 'mode' | null>(null)
   /** The model the running session reports (from claude's init event). */
   const [activeModel, setActiveModel] = useState<string | null>(null)
 
@@ -1947,11 +1959,6 @@ export function EasyChat({
         className="easy-scroll"
         ref={scrollRef}
         onScroll={onScroll}
-        /* The dev-server and background-task strips float above the composer,
-           over the transcript. Nothing reserved room for them, so they sat on
-           top of the last messages — reserve exactly their height and the
-           conversation scrolls clear of them instead. */
-        style={aboveH ? { paddingBottom: 12 + aboveH } : undefined}
       >
         {items.length > 0 && !hideNewChat && (
           <div className="easy-newchat-group">
@@ -2097,54 +2104,6 @@ export function EasyChat({
         </div>
       )}
       <div className="easy-input-row">
-        <div className="easy-abovebar" ref={aboveRef}>
-        <DevServerStrip workspaceId={workspaceId} />
-        {bgTasks.length > 0 && (
-          <div className={`easy-bg ${bgOpen ? 'open' : ''}`}>
-            <button
-              className="easy-bg-bar"
-              onClick={() => setBgOpen((v) => !v)}
-              title={bgOpen ? 'Hide details' : 'Show what these are doing'}
-            >
-              <span className="easy-bg-pulse" />
-              <span className="easy-bg-label">
-                {bgTasks.length === 1
-                  ? 'Running in the background'
-                  : `${bgTasks.length} running in the background`}
-              </span>
-              <span className="easy-bg-cmd">{bgTasks.map((t) => t.command).join(' · ')}</span>
-              <span className="easy-bg-caret">{bgOpen ? '⌄' : '›'}</span>
-              <span
-                className="easy-bg-dismiss"
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setBgTasks([])
-                }}
-                title="Hide — this doesn't stop anything"
-              >
-                ✕
-              </span>
-            </button>
-            {bgOpen && (
-              <div className="easy-bg-panel">
-                {bgTasks.map((t) => (
-                  <div key={t.toolUseId} className="easy-bg-item">
-                    <div className="easy-bg-item-head">
-                      <code>{t.command}</code>
-                      <span className="easy-bg-age">{Math.max(1, Math.round((Date.now() - t.startedAt) / 1000))}s</span>
-                    </div>
-                    <pre className="easy-bg-out">
-                      {t.output?.trim() || 'Waiting for output…'}
-                    </pre>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        </div>
         {replyTarget && (
           <div className="easy-reply-bar">
             <span className="easy-reply-bar-icon">↩</span>
@@ -2418,6 +2377,51 @@ export function EasyChat({
             </div>
           )}
         </div>
+        <DevServerPill
+          workspaceId={workspaceId}
+          open={controlMenu === 'server'}
+          onToggle={() => setControlMenu((m) => (m === 'server' ? null : 'server'))}
+        />
+        {/* One pill per thing the agent left running. A count in a band told
+            you a number; a pill each tells you which, and opens onto what it
+            is actually doing. */}
+        {bgTasks.map((t) => {
+          const key = `bg-${t.toolUseId}`
+          const name = t.command.trim().split(/\s+/)[0].split('/').pop() || 'job'
+          return (
+            <div className="easy-control" key={t.toolUseId}>
+              <button
+                className={`easy-control-btn ${controlMenu === key ? 'open' : ''}`}
+                onClick={() => setControlMenu((m) => (m === key ? null : key))}
+                title={t.command}
+              >
+                <span className="easy-run-dot" />
+                <span className="easy-control-val">{name}</span>
+              </button>
+              {controlMenu === key && (
+                <div className="easy-control-menu easy-run-menu">
+                  <div className="easy-run-head">
+                    <code>{t.command}</code>
+                    <span className="easy-run-age">
+                      {Math.max(1, Math.round((Date.now() - t.startedAt) / 1000))}s
+                    </span>
+                  </div>
+                  <pre className="easy-run-out">{t.output?.trim() || 'Waiting for output…'}</pre>
+                  <button
+                    className="easy-control-item"
+                    onClick={() => {
+                      setControlMenu(null)
+                      setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
+                    }}
+                  >
+                    <span className="easy-control-item-label">Hide</span>
+                    <span className="easy-control-item-hint">This doesn&rsquo;t stop it</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
         {ctxTokens !== null && (
           <span
             className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}

@@ -3971,6 +3971,10 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 10px 30px var(--shadow);
   font-size: 13px;
+  /* The chip is dark whatever the theme is, so it carries its own text colour.
+     Without this it inherited --text-primary — near-black in the light theme,
+     on a near-black chip. */
+  color: #f2f3f5;
   animation: toast-in 0.2s ease;
 }
 
@@ -4001,7 +4005,9 @@ button {
 .preview-toast-close {
   border: none;
   background: none;
-  color: var(--text-tertiary);
+  /* Same reason as the toast's own colour: --text-tertiary is a light-theme
+     grey, invisible here. */
+  color: rgba(242, 243, 245, 0.55);
   font-size: 16px;
   line-height: 1;
   width: 18px;
@@ -4337,6 +4343,70 @@ button {
 .easy-control-caret {
   color: var(--text-tertiary);
   margin-left: 1px;
+}
+
+/* A thing that is running, shown the same size as Model and Mode — the row
+   under the composer is where this chat says what it is running on, and
+   something the project is running belongs in it rather than in a band over
+   the conversation. */
+.easy-run-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+  animation: easy-run-pulse 1.9s ease-in-out infinite;
+}
+.easy-run-dot.live {
+  background: #45b46a;
+  animation: none;
+}
+@keyframes easy-run-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .easy-run-dot { animation: none; opacity: 0.8; }
+}
+/* Wider than the model list: this one holds a command and its output. */
+.easy-run-menu {
+  min-width: 340px;
+  max-width: min(560px, 68vw);
+}
+.easy-run-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px 4px;
+}
+.easy-run-head code {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  /* The command can be a whole shell script; show its shape, not all of it. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.easy-run-age {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.easy-run-out {
+  margin: 0 4px 4px;
+  padding: 8px 9px;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 7px;
+  background: var(--bg-inset, rgba(127, 127, 127, 0.08));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .easy-control-menu {
