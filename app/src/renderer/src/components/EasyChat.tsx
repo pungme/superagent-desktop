@@ -611,6 +611,19 @@ export function EasyChat({
   // Tail each job's output while one of their pills is open, so you watch it
   // happen rather than waiting for the agent to check on it.
   const bgOpen = controlMenu?.startsWith('bg-') ?? false
+  /**
+   * A clock for the "53s" in an open job's menu. Read from state rather than
+   * called during render: Date.now() in the middle of rendering is impure, and
+   * it also meant the age froze at whatever it was when the menu opened.
+   */
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!bgOpen) return
+    // No synchronous set on open: the first tick is a second away and the age
+    // is already right to the second from the initial value.
+    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [bgOpen])
   useEffect(() => {
     if (!bgOpen) return
     let alive = true
@@ -2442,7 +2455,7 @@ export function EasyChat({
                   <div className="easy-run-head">
                     <code>{t.command}</code>
                     <span className="easy-run-age">
-                      {Math.max(1, Math.round((Date.now() - t.startedAt) / 1000))}s
+                      {Math.max(1, Math.round((now - t.startedAt) / 1000))}s
                     </span>
                   </div>
                   <pre className="easy-run-out">{t.output?.trim() || 'Waiting for output…'}</pre>
