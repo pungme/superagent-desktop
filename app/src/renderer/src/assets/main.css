@@ -5994,6 +5994,25 @@ button {
 .computer-view {
   --dock-space: 76px;
 }
+/* Except when something fills the desk: then the dock owns nothing, the window
+   takes the whole height, and the dock floats over it on approach. */
+.computer-view.dock-auto {
+  --dock-space: 0px;
+}
+.computer-view.dock-auto .dock {
+  transform: translate(-50%, calc(100% + 18px));
+  opacity: 0;
+  transition:
+    transform 0.26s cubic-bezier(0.32, 1.2, 0.5, 1),
+    opacity 0.2s ease;
+}
+.computer-view.dock-auto.dock-peek .dock {
+  transform: translateX(-50%);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .computer-view.dock-auto .dock { transition: none; }
+}
 .dock {
   position: absolute;
   left: 50%;
