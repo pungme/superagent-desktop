@@ -6,6 +6,8 @@ import { AppId, DESKTOP_APPS, appById } from './desktopApps'
 import { DashboardPanel } from './DashboardPanel'
 import { DesktopChat } from './DesktopChat'
 import { DesktopBrowser } from './DesktopBrowser'
+import { BrowserPane } from './BrowserPane'
+import { FileViewer } from './FileViewer'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
 
@@ -18,6 +20,8 @@ interface DeskFile {
 interface OpenWindow {
   id: string
   app: AppId
+  /** For a 'file' window: which file it is showing. */
+  file?: string
   rect: WindowRect
   z: number
   minimized: boolean
@@ -170,6 +174,48 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
           {
             id: `${app}-${Date.now()}`,
             app,
+            rect: {
+              x: Math.max(20, Math.round((bounds.w - width) / 2) - 60 + step),
+              y: Math.max(16, Math.round((bounds.h - height) / 2) - 40 + step),
+              w: width,
+              h: height
+            },
+            z: maxZ + 1,
+            minimized: false,
+            maximized: false
+          }
+        ]
+      })
+    },
+    [bounds.w, bounds.h]
+  )
+
+  /**
+   * Open a file in a window on the desktop.
+   *
+   * Double-clicking used to hand the file to macOS, which is the one thing a
+   * desktop should not do with its own icons — you asked for it here, so it
+   * opens here. Keyed by path rather than by app, so two files are two windows
+   * and the same file twice is the one you already have.
+   */
+  const openFile = useCallback(
+    (path: string): void => {
+      setWindows((ws) => {
+        const maxZ = Math.max(0, ...ws.map((w) => w.z))
+        const existing = ws.find((w) => w.file === path)
+        if (existing) {
+          return ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: maxZ + 1 } : w))
+        }
+        const { w: iw, h: ih } = appById('file').initial
+        const width = Math.min(iw, Math.max(360, bounds.w - 80))
+        const height = Math.min(ih, Math.max(260, bounds.h - 80))
+        const step = ws.length * 28
+        return [
+          ...ws,
+          {
+            id: `file-${path}`,
+            app: 'file' as AppId,
+            file: path,
             rect: {
               x: Math.max(20, Math.round((bounds.w - width) / 2) - 60 + step),
               y: Math.max(16, Math.round((bounds.h - height) / 2) - 40 + step),
@@ -368,6 +414,38 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
 
   const renderApp = (win: OpenWindow): React.JSX.Element => {
     const app = win.app
+    if (app === 'file' && win.file) {
+      // Text opens in the in-app viewer; a picture or a PDF is not text, and
+      // goes to the same real Chromium pane the browser window uses — a
+      // desktop that hands its own icons to Preview is not a desktop.
+      const ext = win.file.slice(win.file.lastIndexOf('.') + 1).toLowerCase()
+      const previewable = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'bmp', 'ico', 'pdf']
+      if (previewable.includes(ext)) {
+        return (
+          <BrowserPane
+            key={win.file}
+            paneId={`dfile-${win.id}`}
+            partition="persist:browser"
+            initialUrl={`file://${encodeURI(win.file)}`}
+            visible
+            fill
+            radius={4}
+            occluded={coveredBy(win)}
+            positionKey={`${clampToDesk(win.rect).x},${clampToDesk(win.rect).y},${clampToDesk(win.rect).w},${clampToDesk(win.rect).h},${win.maximized}`}
+          />
+        )
+      }
+      // The frame carries the filename and the close button, so the viewer
+      // shows neither — and closing still closes, rather than a dead ✕.
+      return (
+        <FileViewer
+          key={win.file}
+          path={win.file}
+          embedded
+          onClose={() => setWindows((ws) => ws.filter((x) => x.id !== win.id))}
+        />
+      )
+    }
     if (app === 'chat') {
       if (!chatHome) return <div className="desktop-app-empty">Starting…</div>
       return <DesktopChat workspaceId={chatHome.workspaceId} cwd={chatHome.cwd} />
@@ -512,7 +590,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
                 e.stopPropagation()
                 setSelected(f.path)
               }}
-              onDoubleClick={() => void window.cove.filesOpenExternal?.(f.path)}
+              onDoubleClick={() => openFile(f.path)}
             >
               <span className="computer-file-icon">{iconFor(f.name)}</span>
               <span className="computer-icon-name">{f.name}</span>
@@ -542,7 +620,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
             .map((w) => (
             <DesktopWindow
               key={w.id}
-              title={appById(w.app).name}
+              title={w.file ? w.file.split('/').pop() || appById(w.app).name : appById(w.app).name}
               icon={<span className="dw-title-icon">{appById(w.app).icon}</span>}
               rect={clampToDesk(w.rect)}
               z={w.z}

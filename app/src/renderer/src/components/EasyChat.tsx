@@ -626,6 +626,17 @@ export function EasyChat({
   const swipeTimer = useRef<number | null>(null)
   const agentIdRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  /** Height of the strips floating above the composer, so the transcript can
+      leave room for however many of them are showing. */
+  const aboveRef = useRef<HTMLDivElement>(null)
+  const [aboveH, setAboveH] = useState(0)
+  useEffect(() => {
+    const el = aboveRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => setAboveH(Math.round(e.contentRect.height)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
@@ -1932,7 +1943,16 @@ export function EasyChat({
       <div className="easy-topstack">
         <TasksPanel workspaceId={workspaceId} />
       </div>
-      <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
+      <div
+        className="easy-scroll"
+        ref={scrollRef}
+        onScroll={onScroll}
+        /* The dev-server and background-task strips float above the composer,
+           over the transcript. Nothing reserved room for them, so they sat on
+           top of the last messages — reserve exactly their height and the
+           conversation scrolls clear of them instead. */
+        style={aboveH ? { paddingBottom: 12 + aboveH } : undefined}
+      >
         {items.length > 0 && !hideNewChat && (
           <div className="easy-newchat-group">
           <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
@@ -2077,7 +2097,7 @@ export function EasyChat({
         </div>
       )}
       <div className="easy-input-row">
-        <div className="easy-abovebar">
+        <div className="easy-abovebar" ref={aboveRef}>
         <DevServerStrip workspaceId={workspaceId} />
         {bgTasks.length > 0 && (
           <div className={`easy-bg ${bgOpen ? 'open' : ''}`}>
