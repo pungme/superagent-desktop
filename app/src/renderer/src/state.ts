@@ -161,6 +161,13 @@ interface CoveState {
    * the banner needs to be able to ask before it throws work away.
    */
   busy: Record<string, { generating: boolean; background: number }>
+  /**
+   * Conversations that finished a turn while you were looking elsewhere.
+   * Keyed by chat id; cleared the moment you actually read it.
+   */
+  unread: Record<string, boolean>
+  markUnread: (chatId: string) => void
+  markRead: (chatId: string) => void
   setBusy: (chatId: string, state: { generating: boolean; background: number }) => void
   clearBusy: (chatId: string) => void
 
@@ -284,6 +291,7 @@ export const useStore = create<CoveState>((set, get) => ({
   activeChatId: {},
   agentIds: {},
   busy: {},
+  unread: {},
   agentLive: {},
   updateProgress: null,
   updateError: null,
@@ -556,6 +564,8 @@ export const useStore = create<CoveState>((set, get) => ({
     return true
   },
   selectChat: (workspaceId, chatId) => {
+    // Opening a conversation is reading it.
+    get().markRead(chatId)
     localStorage.setItem(`activeChat:${workspaceId}`, chatId)
     set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } }))
   },
@@ -597,6 +607,15 @@ export const useStore = create<CoveState>((set, get) => ({
   registerAgent: (workspaceId, agentId) =>
     set((s) => ({ agentIds: { ...s.agentIds, [workspaceId]: agentId } })),
 
+  markUnread: (chatId) =>
+    set((s) => (s.unread[chatId] ? s : { unread: { ...s.unread, [chatId]: true } })),
+  markRead: (chatId) =>
+    set((s) => {
+      if (!s.unread[chatId]) return s
+      const next = { ...s.unread }
+      delete next[chatId]
+      return { unread: next }
+    }),
   setBusy: (chatId, state) =>
     set((s) => {
       const prev = s.busy[chatId]

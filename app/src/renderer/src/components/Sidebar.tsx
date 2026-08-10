@@ -207,13 +207,16 @@ function ChatRow({
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const removeChat = useStore((s) => s.removeChat)
+  const unread = useStore((st) => Boolean(st.unread[chat.id]))
   const [editing, setEditing] = useState(false)
   const label = chat.title ?? 'New chat'
   const [draft, setDraft] = useState(label)
 
   return (
     <div
-      className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''}`}
+      className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''} ${
+        unread ? 'unread' : ''
+      }`}
       title={label}
       onClick={onOpen}
       onContextMenu={(e) => {
@@ -247,6 +250,9 @@ function ChatRow({
         />
       ) : (
         <span className="chat-tree-title">
+          {unread && (
+            <span className="sidebar-unread" title="Claude finished — you haven't read this" />
+          )}
           {label}
           {chat.cwd && (
             <span className="chat-tree-wt" title={`Worktree: ${chat.cwd}`}>
@@ -293,6 +299,12 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const pageHere = useStore((s) => ws.kind !== 'browser' && Boolean(s.pageUrl[ws.id]))
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
+  /**
+   * Something finished here that you have not read. Shown on the project too,
+   * because a collapsed project is exactly when you would otherwise miss it.
+   */
+  const unread = useStore((s) => s.unread)
+  const unreadHere = chats.some((c) => unread[c.id])
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
@@ -432,6 +444,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         <span className="sidebar-item-name" title={ws.path}>
           {displayName}
         </span>
+        {unreadHere && !active && (
+          <span className="sidebar-unread" title="Claude finished something you haven't read" />
+        )}
         {selfBranch && (
           <span className="sidebar-item-branch" title={`On git branch ${selfBranch}`}>
             ⎇ {selfBranch}

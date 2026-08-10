@@ -442,6 +442,27 @@ button {
   color: var(--text-primary);
 }
 
+/* Something finished here that you have not read. A dot, not a count: the
+   question is "is there anything?", and the conversation itself is one click
+   away for the rest. */
+.sidebar-unread {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-right: 6px;
+  align-self: center;
+}
+.sidebar-item-name + .sidebar-unread {
+  margin-right: 0;
+  margin-left: 6px;
+}
+.chat-tree-row.unread .chat-tree-title {
+  color: var(--text-primary);
+  font-weight: 560;
+}
+
 .chat-tree-title {
   flex: 1;
   white-space: nowrap;
