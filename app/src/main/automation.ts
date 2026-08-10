@@ -1,5 +1,12 @@
 import { WebContents, ipcMain } from 'electron'
-import { getPaneWebContents, paneLog, withoutStealingFocus, markAgentLoad } from './browser'
+import {
+  getPaneWebContents,
+  paneLog,
+  withoutStealingFocus,
+  markAgentLoad,
+  chromeUAMetadata,
+  CHROME_SHIMS
+} from './browser'
 import { broadcastToWindows, pushBounded, normalizeUrl } from './util'
 
 /**
@@ -171,16 +178,22 @@ function ensureDebugger(paneId: string): WebContents {
     })
     contents.debugger.sendCommand('Runtime.enable').catch(() => {})
     contents.debugger.sendCommand('Network.enable').catch(() => {})
-    // Hide the automation tell for future navigations + the current page.
+    // While the debugger is up for input, make the browser's story consistent:
+    // the JS brands name Chrome (matching the header rewrite and the UA), and
+    // the chrome.* methods a challenge checks for exist. Done on this one
+    // transient session rather than a second permanent one, so nothing is
+    // attached while nobody is automating — which is the clean state that lets
+    // hand-browsing past the challenge in the first place.
+    const meta = chromeUAMetadata(contents.getUserAgent())
+    if (meta) contents.debugger.sendCommand('Emulation.setUserAgentOverride', meta).catch(() => {})
+    const preDoc = WEBDRIVER_MASK + '\n' + CHROME_SHIMS
     contents.debugger
       .sendCommand('Page.enable')
       .then(() =>
-        contents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', {
-          source: WEBDRIVER_MASK
-        })
+        contents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: preDoc })
       )
       .catch(() => {})
-    contents.executeJavaScript(WEBDRIVER_MASK).catch(() => {})
+    contents.executeJavaScript(preDoc).catch(() => {})
   }
   return contents
 }
