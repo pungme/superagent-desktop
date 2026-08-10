@@ -79,14 +79,14 @@
     .shot figcaption { margin-top: 12px; font-size: 0.8rem; color: var(--faint); }
 
     /* ── the demo ──────────────────────────────────────────────────────────
-       The app drawn rather than screenshotted: real labels, real panes, one
-       red site and one amber highlight, so it reads as the thing itself and
-       not as a wireframe. Text is sized in cqw so every part of it scales with
-       the stage. A beat is an attribute on the stage; CSS does the morphing. */
+       The app drawn rather than screenshotted. The surface holds one scene at
+       a time: an empty browser that fills with a page, a phone that joins it,
+       a board, a document. A beat is an attribute on the stage and CSS does
+       the morphing; text is sized in cqw so all of it scales together. */
     .demo { margin: 60px 0 0; }
     .stage {
-      --sil: #eceae6; --sil2: #dedcd7; --sil3: #cbc9c3;
-      --live: #4ea86b; --red: #c0392b; --amber: #f7e08a;
+      --sil: #eceae6; --sil2: #dedcd7; --sil3: #cbc9c3; --edge: rgba(26,27,30,0.09);
+      --live: #4ea86b; --brand: #2f3b52; --amber: #f7e08a;
       container-type: inline-size;
       position: relative; aspect-ratio: 16 / 10; overflow: hidden;
       border: 1px solid var(--line); border-radius: 12px; background: #fff;
@@ -97,85 +97,106 @@
     .win { position: absolute; inset: 0; display: grid; grid-template-columns: 20% 1fr 27%; }
 
     /* sidebar */
-    .side { border-right: 1px solid var(--line); background: #f7f6f4; padding: 1.6cqw 1cqw; overflow: hidden; }
+    .side { border-right: 1px solid var(--line); background: #f7f6f4; padding: 1.6cqw 1cqw 1cqw;
+            display: flex; flex-direction: column; overflow: hidden; }
     .lights { display: flex; gap: 0.5cqw; padding: 0 0.5cqw 1.4cqw; }
     .lights i { width: 0.72cqw; aspect-ratio: 1; border-radius: 50%; background: #dcdad5; }
-    .lab { display: block; font-size: 0.72cqw; letter-spacing: 0.1em; color: #a7a49d; padding: 1.1cqw 0.6cqw 0.35cqw; }
-    .row { display: flex; align-items: center; gap: 0.6cqw; padding: 0.42cqw 0.6cqw; border-radius: 0.5cqw;
-           color: #33352f; white-space: nowrap; overflow: hidden; }
-    .row i { width: 0.95cqw; aspect-ratio: 1; border-radius: 0.2cqw; background: var(--sil2); flex: 0 0 auto; }
+    .lab { display: block; font-size: 0.62cqw; letter-spacing: 0.1em; color: #a7a49d; padding: 1.1cqw 0.6cqw 0.35cqw; }
+    .row { display: flex; align-items: center; gap: 0.55cqw; padding: 0.4cqw 0.6cqw; border-radius: 0.5cqw;
+           color: #33352f; font-size: 0.8cqw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row i { width: 0.8cqw; aspect-ratio: 1; border-radius: 0.2cqw; background: var(--sil2); flex: 0 0 auto; }
     .row i.y { background: #ff6600; } .row i.w { background: #3b5bdb; }
     .row.on { background: rgba(26,27,30,0.06); }
     .row em { margin-left: auto; font-style: normal; font-size: 0.66cqw; color: #a7a49d;
               background: rgba(26,27,30,0.05); padding: 0.1cqw 0.4cqw; border-radius: 0.35cqw; }
     .row.sub { padding-left: 2.2cqw; color: #8d8b84; }
-    .row .live { width: 0.6cqw; aspect-ratio: 1; border-radius: 50%; background: var(--live); flex: 0 0 auto;
+    .row .live { width: 0.5cqw; aspect-ratio: 1; border-radius: 50%; background: var(--live); flex: 0 0 auto;
                  opacity: 0; transition: opacity 0.4s ease; margin-left: auto; }
-    .stage[data-beat="1"] .row .live, .stage[data-beat="2"] .row .live,
-    .stage[data-beat="3"] .row .live, .stage[data-beat="4"] .row .live,
-    .stage[data-beat="5"] .row .live { opacity: 1; }
+    .side .end { margin-top: auto; display: flex; align-items: center; gap: 0.5cqw;
+                 padding: 0.5cqw 0.6cqw; font-size: 0.75cqw; color: #a7a49d; }
+    .stage[data-beat="1"] .live, .stage[data-beat="2"] .live, .stage[data-beat="3"] .live,
+    .stage[data-beat="4"] .live, .stage[data-beat="5"] .live { opacity: 1; }
 
-    /* toolbar + the surface everything sits on */
+    /* toolbar + surface */
     .mid { display: grid; grid-template-rows: 3.4cqw 1fr; min-width: 0; }
     .bar { display: flex; align-items: center; gap: 0.8cqw; padding: 0 1.2cqw; border-bottom: 1px solid var(--line); }
     .bar b { font-size: 0.95cqw; font-weight: 600; }
-    .bar span { font-size: 0.85cqw; color: #96938c; }
+    .bar .path { font-size: 0.8cqw; color: #96938c; }
     .bar .pill { border: 1px solid var(--line); border-radius: 0.45cqw; padding: 0.28cqw 0.7cqw;
                  font-size: 0.75cqw; color: #7c7a73; }
     .bar .pill:first-of-type { margin-left: auto; }
     .bar .pill.hot { border-color: var(--ink); color: var(--ink); }
     .surface { position: relative; margin: 1.1cqw; border-radius: 0.7cqw; background: #f1efec; overflow: hidden; }
-    .layer { position: absolute; inset: 1.1cqw; opacity: 0;
-             transition: opacity 0.5s ease, transform 0.75s cubic-bezier(0.4,0,0.15,1),
-                         right 0.75s cubic-bezier(0.4,0,0.15,1), width 0.75s cubic-bezier(0.4,0,0.15,1); }
+    .layer { position: absolute; inset: 1.4cqw; opacity: 0; transition: opacity 0.5s ease; }
     .layer.on { opacity: 1; }
 
-    /* the site in the browser */
-    .page { background: #fff; border-radius: 0.5cqw; box-shadow: 0 0.5cqw 1.4cqw -0.8cqw rgba(26,27,30,0.4);
-            overflow: hidden; display: flex; flex-direction: column; }
-    .page .nav { background: var(--red); color: #fff; display: flex; align-items: center; gap: 0.7cqw;
-                 padding: 0.55cqw 0.9cqw; font-size: 0.78cqw; font-weight: 600; }
-    .page .nav s { height: 0.2cqw; width: 1.4cqw; background: rgba(255,255,255,0.55); border-radius: 0.1cqw; }
-    .page .in { padding: 1cqw 1.1cqw; }
-    .page h6 { font-size: 1.1cqw; font-weight: 640; letter-spacing: -0.01em; }
-    .page p { font-size: 0.72cqw; color: #96938c; margin-top: 0.2cqw; }
+    /* the browser card and the phone, side by side and vertically centred */
+    .web { display: flex; align-items: center; justify-content: center; gap: 1.4cqw; }
+    /* position:relative is load-bearing — the simulator overlay inside the
+       phone is absolutely positioned, and without it, it resolves against the
+       layer and covers the entire surface instead of the phone. */
+    .card { position: relative; background: #fff; border-radius: 0.55cqw;
+            box-shadow: 0 0.5cqw 1.4cqw -0.8cqw rgba(26,27,30,0.4);
+            overflow: hidden; display: flex; flex-direction: column;
+            transition: flex-basis 0.75s cubic-bezier(0.4,0,0.15,1), height 0.75s cubic-bezier(0.4,0,0.15,1),
+                        opacity 0.5s ease; }
+    .browser { flex: 0 0 100%; aspect-ratio: 16 / 10; height: auto; }
+    .omni { display: flex; align-items: center; gap: 0.5cqw; padding: 0.45cqw 0.6cqw; border-bottom: 1px solid var(--line); }
+    .omni s { display: flex; gap: 0.3cqw; }
+    .omni s b { width: 0.35cqw; height: 0.35cqw; border-radius: 50%; background: var(--sil2); }
+    .omni .url { flex: 1; background: #f4f3f1; border-radius: 0.35cqw; padding: 0.2cqw 0.5cqw;
+                 font-size: 0.68cqw; color: #8d8b84; font-family: var(--mono); white-space: nowrap; overflow: hidden; }
+    .view { flex: 1; position: relative; overflow: hidden; }
+    .blank { position: absolute; inset: 0; display: grid; place-items: center; color: #b6b3ad; font-size: 0.75cqw;
+             transition: opacity 0.5s ease; }
+    .site { position: absolute; inset: 0; opacity: 0; transition: opacity 0.6s ease; overflow: hidden; }
+    .site.on { opacity: 1; }
+    .site .nav { background: var(--brand); display: flex; align-items: center; gap: 0.6cqw; padding: 0.5cqw 0.9cqw; }
+    .site .nav i { width: 0.65cqw; aspect-ratio: 1; border-radius: 0.15cqw; background: #fff; opacity: 0.9; }
+    .site .nav s { height: 0.2cqw; width: 1.5cqw; background: rgba(255,255,255,0.5); border-radius: 0.1cqw; }
+    .site .in { padding: 1cqw 1.1cqw; }
+    .site h6 { font-size: 1.1cqw; font-weight: 640; letter-spacing: -0.01em; }
+    .site p { font-size: 0.72cqw; color: #96938c; margin-top: 0.2cqw; }
     .plans { display: flex; gap: 0.7cqw; margin-top: 0.9cqw; }
-    .plan { flex: 1; border: 1px solid var(--line); border-radius: 0.4cqw; padding: 0.7cqw 0.6cqw; background: #fafaf9; }
+    .plan { flex: 1; border: 1px solid var(--edge); border-radius: 0.4cqw; padding: 0.7cqw 0.6cqw; background: #fafaf9; }
     .plan b { display: block; font-size: 0.68cqw; color: #7c7a73; }
     .plan em { display: block; font-style: normal; font-size: 1.15cqw; font-weight: 660; margin: 0.15cqw 0 0.5cqw; }
     .plan s { display: block; height: 0.2cqw; background: var(--sil2); border-radius: 0.1cqw; margin-bottom: 0.3cqw; }
     .plan s.w { width: 62%; }
-    .stage[data-beat="2"] .page, .stage[data-beat="3"] .page { right: 32%; }
+    .band { display: flex; gap: 0.7cqw; margin-top: 0.9cqw; }
+    .band span { flex: 1; height: 2.8cqw; border-radius: 0.4cqw; background: #f4f3f1; }
+    .foot { display: flex; gap: 0.6cqw; margin-top: 1cqw; padding-top: 0.8cqw; border-top: 1px solid var(--edge); }
+    .foot s { height: 0.2cqw; width: 2.2cqw; background: var(--sil2); border-radius: 0.1cqw; }
+    .phone .band span { height: 1.8cqw; }
 
-    /* the phone beside it */
-    .phone { left: auto; right: 1.1cqw; width: 22%; background: #fff; border-radius: 1cqw;
-             box-shadow: 0 0.5cqw 1.4cqw -0.8cqw rgba(26,27,30,0.4); transform: translateX(16%);
-             overflow: hidden; display: flex; flex-direction: column; }
-    .phone .nav { background: var(--red); padding: 0.4cqw 0.6cqw; font-size: 0.6cqw; color: #fff; font-weight: 600; }
-    .phone .in { padding: 0.7cqw; }
+    .phone { flex: 0 0 auto; width: auto; height: 0; aspect-ratio: 1 / 2; opacity: 0; border-radius: 1.1cqw; }
+    .stage[data-beat="2"] .browser, .stage[data-beat="3"] .browser { flex-basis: 62%; }
+    .stage[data-beat="2"] .phone, .stage[data-beat="3"] .phone { height: 64%; opacity: 1; }
+    .stage[data-beat="3"] .browser { flex-basis: 48%; }
+    .stage[data-beat="3"] .phone { height: 82%; }
+    .phone .pnav { background: var(--brand); padding: 0.35cqw 0.5cqw; }
+    .phone .pnav i { display: block; width: 0.5cqw; aspect-ratio: 1; border-radius: 0.12cqw; background: #fff; opacity: 0.9; }
+    .phone .in { padding: 0.6cqw; }
     .phone h6 { font-size: 0.78cqw; font-weight: 640; }
-    .phone .plans { flex-direction: column; gap: 0.5cqw; margin-top: 0.6cqw; }
-    .phone .plan em { font-size: 0.85cqw; }
-    .phone .home { margin: auto auto 0.5cqw; width: 32%; height: 0.22cqw; border-radius: 0.15cqw;
-                   background: #cbc9c3; opacity: 0; transition: opacity 0.5s ease; }
-    .phone .sim { position: absolute; inset: 0; background: #fff; opacity: 0; transition: opacity 0.5s ease;
-                  padding: 0.8cqw; display: flex; flex-direction: column; gap: 0.55cqw; }
-    .phone .sim .st { display: flex; justify-content: space-between; font-size: 0.6cqw; font-weight: 600; }
-    .phone .sim h6 { font-size: 0.9cqw; margin-bottom: 0.2cqw; }
-    .phone .sim .r { display: flex; align-items: center; gap: 0.5cqw; border-top: 1px solid var(--line); padding-top: 0.45cqw; }
-    .phone .sim .r i { width: 1.1cqw; aspect-ratio: 1; border-radius: 0.25cqw; background: var(--sil); }
-    .phone .sim .r s { flex: 1; height: 0.22cqw; background: var(--sil2); border-radius: 0.1cqw; }
-    .stage[data-beat="2"] .phone, .stage[data-beat="3"] .phone { transform: none; }
-    .stage[data-beat="3"] .phone { width: 28%; right: 32%; }
-    .stage[data-beat="3"] .phone .home, .stage[data-beat="3"] .phone .sim { opacity: 1; }
+    .phone .plans { flex-direction: column; gap: 0.45cqw; margin-top: 0.5cqw; }
+    .phone .plan em { font-size: 0.8cqw; }
+    .phone .home { margin: auto auto 0.5cqw; width: 32%; height: 0.22cqw; border-radius: 0.15cqw; background: #cbc9c3; }
+    .sim { position: absolute; inset: 0; background: #fff; opacity: 0; transition: opacity 0.5s ease;
+           padding: 0.7cqw; display: flex; flex-direction: column; gap: 0.5cqw; }
+    .sim .st { display: flex; justify-content: space-between; font-size: 0.58cqw; font-weight: 600; }
+    .sim h6 { font-size: 0.85cqw; }
+    .sim .r { display: flex; align-items: center; gap: 0.45cqw; border-top: 1px solid var(--edge); padding-top: 0.4cqw; }
+    .sim .r i { width: 1cqw; aspect-ratio: 1; border-radius: 0.22cqw; background: var(--sil); }
+    .sim .r s { flex: 1; height: 0.2cqw; background: var(--sil2); border-radius: 0.1cqw; }
+    .stage[data-beat="3"] .sim { opacity: 1; }
 
     /* the board */
     .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8cqw; }
     .col { background: #fff; border-radius: 0.5cqw; padding: 0.7cqw 0.6cqw; display: flex; flex-direction: column; gap: 0.5cqw; }
     .col h6 { font-size: 0.62cqw; letter-spacing: 0.09em; color: #a7a49d; font-weight: 600; }
-    .card { border: 1px solid var(--line); border-radius: 0.4cqw; padding: 0.5cqw; background: #fafaf9; font-size: 0.68cqw; }
-    .card s { display: block; height: 0.2cqw; background: var(--sil2); border-radius: 0.1cqw; margin-top: 0.3cqw; width: 70%; }
-    .slot { height: 2.4cqw; }
+    .tile { border: 1px solid var(--edge); border-radius: 0.4cqw; padding: 0.5cqw; background: #fafaf9; font-size: 0.68cqw; }
+    .tile s { display: block; height: 0.2cqw; background: var(--sil2); border-radius: 0.1cqw; margin-top: 0.3cqw; width: 70%; }
+    .slot { height: 2.6cqw; }
     .flyer { position: absolute; border: 1px solid var(--ink); border-radius: 0.4cqw; background: #fff;
              padding: 0.5cqw; font-size: 0.68cqw; font-weight: 560; opacity: 0;
              box-shadow: 0 0.4cqw 1cqw -0.4cqw rgba(26,27,30,0.5);
@@ -184,36 +205,46 @@
     .stage[data-beat="4"].moved .flyer { transform: translateX(var(--dx, 0px)); }
 
     /* files and a document */
-    .files { display: grid; grid-template-columns: 27% 1fr; gap: 0.8cqw; }
-    .tree { background: #fff; border-radius: 0.5cqw; padding: 0.8cqw 0.6cqw; font-size: 0.7cqw; color: #8d8b84; }
-    .tree div { padding: 0.25cqw 0.45cqw; border-radius: 0.35cqw; white-space: nowrap; overflow: hidden; }
+    .files { display: grid; grid-template-columns: 26% 1fr; gap: 0.9cqw; }
+    .tree { background: #fff; border-radius: 0.5cqw; padding: 0.8cqw 0.6cqw; font-size: 0.72cqw; color: #8d8b84; }
+    .tree div { padding: 0.28cqw 0.45cqw; border-radius: 0.35cqw; white-space: nowrap; overflow: hidden; }
     .tree div.in { padding-left: 1.2cqw; }
     .tree div.sel { background: rgba(26,27,30,0.06); color: var(--ink); }
-    .doc { background: #fff; border-radius: 0.5cqw; padding: 1cqw 1.2cqw; }
-    .doc h6 { font-size: 0.85cqw; font-weight: 640; margin-bottom: 0.6cqw; }
-    .doc s { display: block; height: 0.24cqw; background: var(--sil); border-radius: 0.12cqw; margin-bottom: 0.45cqw; }
+    .doc { background: #fff; border-radius: 0.5cqw; padding: 1cqw 1.2cqw; position: relative; }
+    .doc h6 { font-size: 0.85cqw; font-weight: 640; margin-bottom: 0.7cqw; }
+    .doc s { display: block; height: 0.24cqw; background: var(--sil); border-radius: 0.12cqw; margin-bottom: 0.5cqw; }
     .doc s.w { width: 72%; }
-    .doc .mark { display: block; height: 0.72cqw; width: 64%; border-radius: 0.12cqw; background: var(--amber);
-                 margin: 0.6cqw 0; transform: scaleX(0); transform-origin: left;
+    .doc .mark { display: block; height: 0.75cqw; width: 60%; border-radius: 0.12cqw; background: var(--amber);
+                 margin: 0.7cqw 0; transform: scaleX(0); transform-origin: left;
                  transition: transform 0.6s cubic-bezier(0.4,0,0.15,1); }
+    .doc .pin { position: absolute; right: 0.9cqw; top: 42%; width: 30%; border: 1px solid var(--ink);
+                border-radius: 0.4cqw; background: #fff; padding: 0.5cqw 0.6cqw; font-size: 0.66cqw; line-height: 1.35;
+                opacity: 0; transform: translateY(0.4cqw); transition: opacity 0.45s ease 0.35s, transform 0.45s ease 0.35s; }
     .stage[data-beat="5"] .doc .mark { transform: scaleX(1); }
+    .stage[data-beat="5"] .doc .pin { opacity: 1; transform: none; }
 
     /* the chat */
-    .chat { border-left: 1px solid var(--line); display: grid; grid-template-rows: 1fr auto auto;
-            padding: 1.1cqw 1cqw; min-height: 0; overflow: hidden; }
-    .thread { display: flex; flex-direction: column; justify-content: flex-end; gap: 0.6cqw; overflow: hidden; }
+    .chat { border-left: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr auto auto;
+            padding: 1cqw; min-height: 0; overflow: hidden; }
+    .chat .new { justify-self: end; border: 1px solid var(--line); border-radius: 0.9cqw;
+                 padding: 0.2cqw 0.6cqw; font-size: 0.68cqw; color: #96938c; margin-bottom: 0.7cqw; }
+    .thread { display: flex; flex-direction: column; justify-content: flex-end; gap: 0.55cqw; overflow: hidden; }
     .bub { border-radius: 0.7cqw; padding: 0.5cqw 0.65cqw; font-size: 0.78cqw; line-height: 1.45;
            background: rgba(26,27,30,0.045); opacity: 0; transform: translateY(0.4cqw);
            transition: opacity 0.45s ease, transform 0.45s ease; }
     .bub.on { opacity: 1; transform: none; }
     .bub.me { align-self: flex-end; background: var(--ink); color: #fff; max-width: 88%; }
     .bub.tool { background: none; padding: 0 0.2cqw; font-size: 0.7cqw; color: #96938c; font-family: var(--mono); }
-    .composer { border: 1px solid var(--line); border-radius: 0.55cqw; padding: 0.55cqw 0.7cqw;
+    .composer { display: flex; align-items: center; gap: 0.5cqw; border: 1px solid var(--line);
+                border-radius: 0.55cqw; padding: 0.5cqw 0.6cqw; margin-top: 0.7cqw;
                 font-size: 0.78cqw; color: #a7a49d; white-space: nowrap; overflow: hidden; }
+    .composer span { flex: 1; overflow: hidden; }
     .composer .tx { display: none; color: var(--ink); }
+    .composer .send { flex: 0 0 auto; width: 1.3cqw; aspect-ratio: 1; border-radius: 50%; background: var(--sil2); }
     .stage.typing .composer { border-color: var(--ink); }
     .stage.typing .composer .ph { display: none; }
     .stage.typing .composer .tx { display: inline; }
+    .stage.typing .composer .send { background: var(--ink); }
     .crow { display: flex; gap: 0.5cqw; margin-top: 0.6cqw; }
     .crow span { border: 1px solid var(--line); border-radius: 0.4cqw; padding: 0.2cqw 0.5cqw;
                  font-size: 0.66cqw; color: #96938c; }
@@ -250,7 +281,7 @@
 
     @media (max-width: 640px) { .demo-cap span { display: none; } .demo-cap { min-height: 24px; } }
     @media (prefers-reduced-motion: reduce) {
-      .layer, .bub, .cursor, .note, .demo-cap div, .flyer, .page, .phone, .doc .mark { transition: none; }
+      .layer, .bub, .cursor, .note, .demo-cap div, .flyer, .card, .site, .doc .mark, .doc .pin { transition: none; }
       .cursor, .ripple { display: none; }
     }
 
@@ -334,65 +365,85 @@
               <div class="row"><i class="y"></i>news.ycombinator.com</div>
               <div class="row"><i class="w"></i>en.wikipedia.org</div>
               <span class="lab">WORK</span>
-              <div class="row on"><i></i>wepush<b class="live"></b></div>
+              <div class="row on"><i></i>landing-page<b class="live"></b></div>
               <div class="row sub">pricing on mobile</div>
-              <div class="row sub">Nimbus landing page</div>
+              <div class="row sub">og image and meta</div>
               <div class="row"><i></i>design-system<em>main</em></div>
               <div class="row"><i></i>notes-app<em>main</em></div>
               <span class="lab">PERSONAL</span>
               <div class="row"><i></i>shop-web<em>main</em></div>
+              <div class="row"><i></i>docs-site<em>main</em></div>
+              <div class="end">+ New group</div>
             </aside>
 
             <div class="mid">
               <div class="bar">
-                <b>wepush</b><span>wepush.app/pricing</span>
+                <b>landing-page</b><span class="path" id="path">~/work/landing-page</span>
                 <span class="pill" id="pill">Routines</span>
                 <span class="pill">Skills</span>
               </div>
-              <div class="surface" id="surface">
-                <div class="layer page" id="l-page">
-                  <div class="nav">wepush<s></s><s></s></div>
-                  <div class="in">
-                    <h6>Simple pricing</h6>
-                    <p>Three plans. No seats, no per-message billing.</p>
-                    <div class="plans">
-                      <div class="plan"><b>Starter</b><em>$0</em><s></s><s class="w"></s></div>
-                      <div class="plan"><b>Team</b><em>$12</em><s></s><s class="w"></s></div>
-                      <div class="plan"><b>Studio</b><em>$49</em><s></s><s class="w"></s></div>
+              <div class="surface">
+                <div class="layer web on" id="l-web">
+                  <div class="card browser">
+                    <div class="omni"><s><b></b><b></b></s><span class="url" id="url">about:blank</span></div>
+                    <div class="view">
+                      <div class="blank" id="blank">nothing open yet</div>
+                      <div class="site" id="site">
+                        <div class="nav"><i></i><s></s><s></s></div>
+                        <div class="in">
+                          <h6>Simple pricing</h6>
+                          <p>Three plans. No seats, no per-message billing.</p>
+                          <div class="plans">
+                            <div class="plan"><b>Starter</b><em>$0</em><s></s><s class="w"></s></div>
+                            <div class="plan"><b>Team</b><em>$12</em><s></s><s class="w"></s></div>
+                            <div class="plan"><b>Studio</b><em>$49</em><s></s><s class="w"></s></div>
+                          </div>
+                          <div class="band"><span></span><span></span><span></span></div>
+                          <div class="band"><span></span><span></span></div>
+                          <div class="foot"><s></s><s></s><s></s></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="card phone">
+                    <div class="pnav"><i></i></div>
+                    <div class="in">
+                      <h6>Simple pricing</h6>
+                      <div class="plans">
+                        <div class="plan"><b>Starter</b><em>$0</em><s></s></div>
+                        <div class="plan"><b>Team</b><em>$12</em><s></s></div>
+                        <div class="plan"><b>Studio</b><em>$49</em><s></s></div>
+                      </div>
+                      <div class="band"><span></span></div>
+                    </div>
+                    <div class="home"></div>
+                    <div class="sim">
+                      <div class="st"><span>9:41</span><span>▮</span></div>
+                      <h6>Preview</h6>
+                      <div class="r"><i></i><s></s></div>
+                      <div class="r"><i></i><s></s></div>
+                      <div class="r"><i></i><s></s></div>
+                      <div class="r"><i></i><s></s></div>
                     </div>
                   </div>
                 </div>
-                <div class="layer phone" id="l-phone">
-                  <div class="nav">wepush</div>
-                  <div class="in">
-                    <h6>Simple pricing</h6>
-                    <div class="plans">
-                      <div class="plan"><b>Starter</b><em>$0</em><s></s></div>
-                      <div class="plan"><b>Team</b><em>$12</em><s></s></div>
-                    </div>
-                  </div>
-                  <div class="home"></div>
-                  <div class="sim">
-                    <div class="st"><span>9:41</span><span>􀛨</span></div>
-                    <h6>wepush</h6>
-                    <div class="r"><i></i><s></s></div>
-                    <div class="r"><i></i><s></s></div>
-                    <div class="r"><i></i><s></s></div>
-                    <div class="r"><i></i><s></s></div>
-                  </div>
-                </div>
+
                 <div class="layer board" id="l-board">
                   <div class="col"><h6>BACKLOG</h6>
-                    <div class="card">empty states<s></s></div>
-                    <div class="card">sitemap<s></s></div>
+                    <div class="tile">empty states<s></s></div>
+                    <div class="tile">sitemap<s></s></div>
                   </div>
-                  <div class="col"><h6>NEXT</h6><div class="card">seat limits<s></s></div></div>
-                  <div class="col"><h6>DOING</h6><span class="slot" id="from"></span></div>
+                  <div class="col"><h6>NEXT</h6><div class="tile">seat limits<s></s></div></div>
+                  <div class="col"><h6>DOING</h6><span class="slot" id="from"></span>
+                    <div class="tile">og image<s></s></div>
+                  </div>
                   <div class="col"><h6>DONE</h6><span class="slot" id="to"></span>
-                    <div class="card">og image<s></s></div>
+                    <div class="tile">favicon<s></s></div>
                   </div>
-                  <span class="flyer" id="flyer">mobile pricing</span>
+                  <span class="flyer" id="flyer">pricing on mobile</span>
                 </div>
+
                 <div class="layer files" id="l-files">
                   <div class="tree">
                     <div>▾ src</div>
@@ -406,23 +457,28 @@
                     <h6>Plans &amp; limits — page 3</h6>
                     <s></s><s class="w"></s>
                     <span class="mark"></span>
-                    <s></s><s class="w"></s><s></s>
+                    <s></s><s class="w"></s><s></s><s class="w"></s><s></s>
+                    <s class="w"></s><s></s><s></s><s class="w"></s><s></s><s class="w"></s>
+                    <div class="pin">Studio caps at 20 seats — the page says unlimited.</div>
                   </div>
                 </div>
               </div>
             </div>
 
             <div class="chat">
+              <span class="new">New chat</span>
               <div class="thread" id="thread">
                 <span class="bub me">check the pricing page on mobile</span>
                 <span class="bub it">Opening it in the browser.</span>
                 <span class="bub tool">› 3 steps · navigate · read page</span>
                 <span class="bub it">The plan cards overflow below 380px — the grid never drops to one column.</span>
-                <span class="bub me">fix it and check the brief</span>
+                <span class="bub me">fix it, then check it against the brief</span>
                 <span class="bub tool">› 2 steps · 1 edit · simulator</span>
+                <span class="bub it">Fixed and checked on the simulator. The brief caps Studio at 20 seats — the page says unlimited.</span>
               </div>
               <div class="composer" id="composer">
                 <span class="ph">Message Claude…</span><span class="tx">check the pricing page on mobile</span>
+                <span class="send"></span>
               </div>
               <div class="crow"><span>Model Default</span><span>Mode Full</span></div>
             </div>
@@ -430,7 +486,7 @@
 
           <div class="note" id="note">
             <i></i>
-            <div><b>SuperAgent</b><span>Done — the plan grid collapses at 380px. Checked on iPhone 17 Pro too.</span></div>
+            <div><b>SuperAgent</b><span>Done — the grid collapses at 380px. Flagged the seat limit in the brief.</span></div>
           </div>
           <span class="ripple" id="ripple"></span>
           <svg class="cursor" id="cursor" viewBox="0 0 21 21" fill="none" aria-hidden="true">
@@ -520,37 +576,31 @@
   </footer>
 
   <script>
-  /* The demo reel.
+  /* The demo reel: seven beats, ~26s, looping.
 
-     Six beats over ~24s, looping. Everything you see is a shape — the point is
-     the arrangement, not the pixels — so a beat is just an attribute on the
-     stage and CSS does the morphing. The cursor is moved in stage percentages,
-     and the board card is measured from its two real slots so it lands square.
-
-     Nothing here runs unless the demo is on screen. */
+     The order is the point — you ask, and only then does the page open. So
+     beat 0 is a browser with nothing in it, and the omnibox, the toolbar path
+     and the chat all fill in as the agent does the work. A beat is just an
+     attribute on the stage; CSS does the morphing. Nothing runs off screen. */
   (function () {
     var stage = document.getElementById('stage');
     if (!stage) return;
     var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    var cursor = document.getElementById('cursor');
-    var ripple = document.getElementById('ripple');
-    var note = document.getElementById('note');
-    var pill = document.getElementById('pill');
-    var flyer = document.getElementById('flyer');
+    var cursor = document.getElementById('cursor'), ripple = document.getElementById('ripple');
+    var note = document.getElementById('note'), pill = document.getElementById('pill');
+    var flyer = document.getElementById('flyer'), site = document.getElementById('site');
+    var blank = document.getElementById('blank'), url = document.getElementById('url');
+    var path = document.getElementById('path');
     var bubbles = document.querySelectorAll('#thread .bub');
-    var layers = {
-      page: document.getElementById('l-page'),
-      phone: document.getElementById('l-phone'),
-      board: document.getElementById('l-board'),
-      files: document.getElementById('l-files')
-    };
+    var layers = { web: document.getElementById('l-web'), board: document.getElementById('l-board'),
+                   files: document.getElementById('l-files') };
     var cap = document.getElementById('cap'), dots = document.getElementById('dots');
 
     var BEATS = [
-      ['You ask, in the chat.', 'One conversation per project — with a computer attached to it, not a scrollback buffer.'],
+      ['You ask, in the chat.', 'One conversation per project — with a browser, a phone and your files attached to it.'],
       ['It opens the page itself.', 'A real browser it drives: navigate, click, type, read back — on the sites you are already signed into.'],
-      ['Desktop and phone at once.', 'The same live page in a desktop card and an iPhone frame. One session, both live.'],
+      ['Desktop and phone at once.', 'The same live page in a desktop card and a phone frame. One session, both live.'],
       ['A real iPhone, in the window.', 'An iOS Simulator streamed from its own framebuffer. Tap it, type into it — it is the device.'],
       ['A board it keeps for you.', 'Backlog, next, doing, done. Claude moves the cards as the work lands, while you watch.'],
       ['Files and PDFs, beside the chat.', 'Click any file to read it. Annotate a PDF in place and the agent reads what you marked.'],
@@ -571,19 +621,20 @@
         dotEls[k].classList.toggle('on', k <= i);
       }
     }
-    function layer() {
-      var want = [].slice.call(arguments);
-      for (var k in layers) layers[k].classList.toggle('on', want.indexOf(k) >= 0);
-    }
-    function bubs(n) {
-      for (var i = 0; i < bubbles.length; i++) bubbles[i].classList.toggle('on', i < n);
-    }
+    function layer(name) { for (var k in layers) layers[k].classList.toggle('on', k === name); }
+    function bubs(n) { for (var i = 0; i < bubbles.length; i++) bubbles[i].classList.toggle('on', i < n); }
     function move(x, y) { cursor.style.left = x + '%'; cursor.style.top = y + '%'; }
     function click(x, y) {
       cursor.classList.add('down');
       setTimeout(function () { cursor.classList.remove('down'); }, 170);
       ripple.style.left = x + '%'; ripple.style.top = y + '%';
       ripple.classList.remove('go'); void ripple.offsetWidth; ripple.classList.add('go');
+    }
+    function loaded(on) {
+      site.classList.toggle('on', on);
+      blank.style.opacity = on ? 0 : 1;
+      url.textContent = on ? 'localhost:5173/pricing' : 'about:blank';
+      path.textContent = on ? 'localhost:5173/pricing' : '~/work/landing-page';
     }
     /* the card crosses the board by the real distance between its two slots */
     function armFlyer() {
@@ -593,45 +644,46 @@
       flyer.style.left = (a.left - o.left) + 'px';
       flyer.style.top = (a.top - o.top) + 'px';
       flyer.style.width = a.width + 'px';
-      flyer.style.height = a.height + 'px';
       flyer.style.setProperty('--dx', (b.left - a.left) + 'px');
     }
 
     var TIMELINE = [
       [0, function () {
-        beat(0); layer(); bubs(0); armFlyer();
+        beat(0); layer('web'); bubs(0); loaded(false); armFlyer();
         stage.classList.remove('typing', 'dim', 'moved');
         note.classList.remove('on'); pill.classList.remove('hot');
         cursor.style.transition = 'none'; move(101, 103); void cursor.offsetWidth;
         cursor.style.transition = '';
       }],
-      [400, function () { move(84, 88); }],
-      [1400, function () { click(84, 88); stage.classList.add('typing'); }],
-      [2600, function () { bubs(1); stage.classList.remove('typing'); }],
-      [3100, function () { bubs(2); }],
+      [500, function () { move(84, 87); }],
+      [1500, function () { click(84, 87); stage.classList.add('typing'); }],
+      [2900, function () { click(96, 87); }],
+      [3100, function () { stage.classList.remove('typing'); bubs(1); }],
 
-      [3900, function () { beat(1); layer('page'); bubs(3); move(45, 50); }],
-      [5400, function () { move(38, 62); }],
+      [3800, function () { beat(1); bubs(2); move(45, 40); }],
+      [4600, function () { loaded(true); }],
+      [5600, function () { bubs(3); move(40, 55); }],
+      [7000, function () { bubs(4); }],
 
-      [7000, function () { beat(2); layer('page', 'phone'); bubs(4); move(62, 55); }],
+      [7900, function () { beat(2); move(62, 50); }],
 
-      [10100, function () { beat(3); bubs(5); move(58, 46); }],
-      [11000, function () { click(58, 46); }],
-      [12000, function () { move(58, 62); }],
-      [12600, function () { click(58, 62); }],
+      [10800, function () { beat(3); bubs(5); move(70, 45); }],
+      [11700, function () { click(70, 45); }],
+      [12700, function () { move(70, 62); }],
+      [13300, function () { click(70, 62); }],
 
-      [13800, function () { beat(4); layer('board'); bubs(6); armFlyer(); move(46, 40); }],
-      [15000, function () { stage.classList.add('moved'); move(58, 40); }],
+      [14600, function () { beat(4); layer('board'); bubs(6); armFlyer(); move(46, 38); }],
+      [15800, function () { stage.classList.add('moved'); move(58, 38); }],
 
-      [17400, function () { beat(5); stage.classList.remove('moved'); layer('files'); move(30, 45); }],
-      [18600, function () { click(30, 45); }],
-      [19400, function () { move(52, 52); }],
+      [18000, function () { beat(5); stage.classList.remove('moved'); layer('files'); move(28, 42); }],
+      [19000, function () { click(28, 42); }],
+      [19900, function () { move(52, 52); bubs(7); }],
 
-      [21000, function () { beat(6); layer('page', 'phone'); pill.classList.add('hot'); move(103, 103); }],
-      [22000, function () { note.classList.add('on'); stage.classList.add('dim'); }],
-      [25200, function () { note.classList.remove('on'); stage.classList.remove('dim'); }]
+      [21800, function () { beat(6); layer('web'); loaded(true); pill.classList.add('hot'); move(103, 103); }],
+      [22800, function () { note.classList.add('on'); stage.classList.add('dim'); }],
+      [25800, function () { note.classList.remove('on'); stage.classList.remove('dim'); }]
     ];
-    var LOOP = 25800;
+    var LOOP = 26400;
 
     var timers = [], playing = false;
     function run() {
@@ -642,7 +694,7 @@
     function play() { if (!playing) { playing = true; run(); } }
     function stop() { playing = false; clear(); }
 
-    if (reduced) { beat(2); layer('page', 'phone'); bubs(4); return; }
+    if (reduced) { beat(2); layer('web'); loaded(true); bubs(4); return; }
     addEventListener('resize', armFlyer);
 
     if ('IntersectionObserver' in window) {
