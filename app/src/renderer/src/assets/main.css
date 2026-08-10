@@ -6052,7 +6052,10 @@ button {
   left: 50%;
   bottom: 12px;
   transform: translateX(-50%);
-  z-index: 9999;
+  /* Above the desk and its windows, and nothing more. It was 9999, which also
+     put it over the launch splash — so the dock appeared while the app was
+     still starting, on top of the thing covering the app. */
+  z-index: 3;
   pointer-events: none;
 }
 .dock-inner {
