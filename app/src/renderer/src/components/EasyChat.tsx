@@ -678,7 +678,8 @@ export function EasyChat({
 
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
-    window.cove.filesList(cwd).then(setFiles)
+    // Directories come back too (trailing '/'), but you mention a file.
+    window.cove.filesList(cwd).then((fs) => setFiles(fs.filter((f) => !f.endsWith('/'))))
     window.cove.skillsList(cwd).then((list) => {
       // Merge, never replace: this used to overwrite the pool with the project's
       // own skills, so a project with none — which is most of them — wiped the
