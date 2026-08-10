@@ -4,8 +4,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 import * as auto from './automation'
-import { simTarget, isMirroring, keepSimulatorHidden } from './simulator'
+import { simTarget, isMirroring, keepSimulatorHidden, sendSimInput } from './simulator'
 import { withoutStealingFocus } from './browser'
+import { nativeImage } from 'electron'
+import { readFileSync } from 'fs'
 import { execFile } from 'child_process'
 import { tmpdir } from 'os'
 
@@ -204,6 +206,223 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       })
       if (isMirroring(simTarget())) keepSimulatorHidden()
       return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
+    }
+  )
+
+  // --- iOS Simulator: driving the device (phase 2: real gestures) ----------
+  //
+  // The device the pane is showing, tapped and typed the way the browser tools
+  // drive a page. Coordinates are in the PIXELS of what sim_screen returns:
+  // take a screen, look at it, act on what you saw. baguette scales pixels to
+  // the real device by the size the screen reports, so the numbers you read off
+  // the image are the numbers you pass.
+  //
+  // The device's pixel size is fixed, so it is remembered once — a tap does not
+  // need its own screenshot to know the scale.
+  const screenSize = new Map<string, { w: number; h: number }>()
+
+  // simTarget() is 'booted' when the pane is not mirroring a specific device.
+  // simctl accepts that word for a screenshot; baguette needs a real UDID. So
+  // input resolves it — to the one booted device, or an error if the choice is
+  // ambiguous rather than driving the wrong phone.
+  const inputTarget = async (): Promise<{ udid: string } | { error: string }> => {
+    const t = simTarget()
+    if (t && t !== 'booted') return { udid: t }
+    const out = await simctl(['list', 'devices', 'booted', '--json'])
+    const data = JSON.parse(out) as { devices: Record<string, { udid: string; state: string }[]> }
+    const booted = Object.values(data.devices)
+      .flat()
+      .filter((d) => d.state === 'Booted')
+    if (booted.length === 1) return { udid: booted[0].udid }
+    if (booted.length === 0) return { error: 'No simulator is booted. Boot one with sim_boot first.' }
+    return {
+      error: 'Several simulators are booted — open the one you mean in the pane (sim_boot) so it is the target.'
+    }
+  }
+
+  const grabScreen = async (): Promise<{ buf: Buffer; w: number; h: number }> => {
+    const file = `${tmpdir()}/sim-${Date.now()}.png`
+    await simctl(['io', simTarget(), 'screenshot', file])
+    const buf = readFileSync(file)
+    const size = nativeImage.createFromPath(file).getSize()
+    screenSize.set(simTarget(), { w: size.width, h: size.height })
+    return { buf, w: size.width, h: size.height }
+  }
+
+  const sizeFor = async (): Promise<{ w: number; h: number }> => {
+    const known = screenSize.get(simTarget())
+    if (known) return known
+    const { w, h } = await grabScreen()
+    return { w, h }
+  }
+
+  server.registerTool(
+    'sim_screen',
+    {
+      description:
+        'See the iOS Simulator: returns the current screen as an image, and its pixel size. This is how you read the device — there is no DOM, so look at the picture. Tap and swipe coordinates are in these pixels: the top-left is 0,0 and the numbers you read off this image are the numbers you pass to sim_tap/sim_swipe.',
+      inputSchema: {}
+    },
+    async () => {
+      const { buf, w, h } = await grabScreen()
+      return {
+        content: [
+          { type: 'text', text: `iOS Simulator screen — ${w}x${h} pixels. Tap/swipe in these coordinates.` },
+          { type: 'image', data: buf.toString('base64'), mimeType: 'image/png' }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'sim_tap',
+    {
+      description:
+        'Tap the simulator at a point, in the pixel coordinates of sim_screen. Give a duration (seconds) for a long press — how you get context menus, app wobble, or a held control.',
+      inputSchema: {
+        x: z.number().describe('X in screen pixels (from sim_screen)'),
+        y: z.number().describe('Y in screen pixels'),
+        duration: z.number().optional().describe('Seconds to hold, for a long press')
+      }
+    },
+    async ({ x, y, duration }) => {
+      const tgt = await inputTarget()
+      if ('error' in tgt) return { content: [{ type: 'text', text: tgt.error }] }
+      const { w, h } = await sizeFor()
+      const res = await sendSimInput(tgt.udid, {
+        type: 'tap',
+        x,
+        y,
+        width: w,
+        height: h,
+        ...(duration ? { duration } : {})
+      })
+      return {
+        content: [
+          {
+            type: 'text',
+            text: res.ok
+              ? `Tapped ${Math.round(x)},${Math.round(y)}${duration ? ` (held ${duration}s)` : ''}. Call sim_screen to see the result.`
+              : `Tap failed: ${res.error}`
+          }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'sim_swipe',
+    {
+      description:
+        'Swipe or drag on the simulator, from one point to another in sim_screen pixels. Use it to scroll (swipe up/down), page (left/right), or drag something — a longer duration is a slow drag, a short one is a flick.',
+      inputSchema: {
+        x: z.number(),
+        y: z.number(),
+        toX: z.number(),
+        toY: z.number(),
+        duration: z.number().optional().describe('Seconds; short = flick, longer = slow drag')
+      }
+    },
+    async ({ x, y, toX, toY, duration }) => {
+      const tgt = await inputTarget()
+      if ('error' in tgt) return { content: [{ type: 'text', text: tgt.error }] }
+      const { w, h } = await sizeFor()
+      const res = await sendSimInput(tgt.udid, {
+        type: 'swipe',
+        x,
+        y,
+        toX,
+        toY,
+        width: w,
+        height: h,
+        ...(duration ? { duration } : {})
+      })
+      return {
+        content: [
+          {
+            type: 'text',
+            text: res.ok
+              ? `Swiped ${Math.round(x)},${Math.round(y)} → ${Math.round(toX)},${Math.round(toY)}. Call sim_screen to see the result.`
+              : `Swipe failed: ${res.error}`
+          }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'sim_type',
+    {
+      description:
+        'Type text into the simulator. Tap the field first so it has focus, exactly as you would on the device.',
+      inputSchema: { text: z.string() }
+    },
+    async ({ text }) => {
+      const tgt = await inputTarget()
+      if ('error' in tgt) return { content: [{ type: 'text', text: tgt.error }] }
+      const res = await sendSimInput(tgt.udid, { type: 'text', text })
+      return {
+        content: [{ type: 'text', text: res.ok ? `Typed "${text}".` : `Type failed: ${res.error}` }]
+      }
+    }
+  )
+
+  server.registerTool(
+    'sim_press',
+    {
+      description:
+        'Press a hardware button on the simulator: home, lock, or the side button. Home returns to the springboard; lock sleeps/wakes the screen.',
+      inputSchema: { button: z.enum(['home', 'lock', 'side']) }
+    },
+    async ({ button }) => {
+      const tgt = await inputTarget()
+      if ('error' in tgt) return { content: [{ type: 'text', text: tgt.error }] }
+      const res = await sendSimInput(tgt.udid, { type: 'press', button })
+      return {
+        content: [
+          { type: 'text', text: res.ok ? `Pressed ${button}.` : `Press failed: ${res.error}` }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'sim_wait_stable',
+    {
+      description:
+        'Wait until the simulator screen stops changing — a load or an animation has settled — then return. Use it after a tap that starts something, so the next step is not a race. There is no text-matching wait here (the screen is pixels, not a DOM); when it returns, take a sim_screen and read what is there.',
+      inputSchema: {
+        timeoutMs: z.number().optional().describe('Give up after this long (default 8000)')
+      }
+    },
+    async ({ timeoutMs }) => {
+      const deadline = Date.now() + (timeoutMs ?? 8000)
+      // "Settled" = two consecutive shots almost identical. Compared on a cheap
+      // downscale so a single moving pixel does not read as motion.
+      const thumb = (buf: Buffer): Buffer =>
+        nativeImage.createFromBuffer(buf).resize({ width: 32 }).toBitmap()
+      const diff = (a: Buffer, b: Buffer): number => {
+        if (a.length !== b.length || !a.length) return 1
+        let d = 0
+        for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) > 12) d++
+        return d / (a.length / 4)
+      }
+      let prev = thumb((await grabScreen()).buf)
+      let stableFor = 0
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 350))
+        const now = thumb((await grabScreen()).buf)
+        if (diff(prev, now) < 0.02) {
+          stableFor += 1
+          // Two quiet checks in a row: a slow animation gets a moment to prove
+          // it is actually done rather than mid-frame.
+          if (stableFor >= 2) return { content: [{ type: 'text', text: 'Screen settled.' }] }
+        } else {
+          stableFor = 0
+        }
+        prev = now
+      }
+      return { content: [{ type: 'text', text: 'Still changing when the wait timed out.' }] }
     }
   )
 

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — 23:14 to 06:02</title>
+<style>
+/* 12 · THE LEDGER — the page is the printout of one night's work. No hero, no
+   feature grid: an itemised account of what the thing did while nobody was
+   watching, ending in the only number that matters — interruptions: 0. */
+:root { --paper:#f2efe6; --ink:#1b1a17; --mut:#7d7768; --line:#ddd8ca; --acc:#a8321f;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace }
+* { margin:0; padding:0; box-sizing:border-box }
+body { background:#e6e2d7; color:var(--ink); font:13.5px/1.85 var(--mono); -webkit-font-smoothing:antialiased;
+  padding:44px 20px 90px }
+img { max-width:100%; display:block }
+a { color:inherit }
+
+.roll { max-width:680px; margin:0 auto; background:var(--paper); padding:56px 54px 64px; position:relative;
+  box-shadow:0 2px 2px rgba(27,26,23,.06), 0 26px 50px -28px rgba(27,26,23,.4) }
+/* torn top and bottom edge */
+.roll::before, .roll::after { content:''; position:absolute; left:0; right:0; height:9px;
+  background:repeating-linear-gradient(-45deg, var(--paper) 0 7px, transparent 7px 14px) }
+.roll::before { top:-8px } .roll::after { bottom:-8px; transform:scaleY(-1) }
+
+.head { text-align:center; padding-bottom:26px; border-bottom:1px dashed var(--line) }
+.head img { width:34px; height:34px; border-radius:9px; margin:0 auto 18px; filter:grayscale(1) contrast(1.1) }
+.head h1 { font-size:20px; letter-spacing:.38em; font-weight:600; text-indent:.38em }
+.head p { margin-top:8px; font-size:11.5px; color:var(--mut); letter-spacing:.1em }
+
+.meta { display:flex; justify-content:space-between; padding:16px 0; color:var(--mut); font-size:11.5px;
+  border-bottom:1px dashed var(--line) }
+
+h2 { margin:34px 0 12px; font-size:11.5px; letter-spacing:.2em; color:var(--acc) }
+h2::after { content:''; display:block; height:1px; background:var(--line); margin-top:10px }
+
+.line { display:flex; gap:14px; align-items:baseline; padding:3px 0 }
+.line time { flex:0 0 44px; color:var(--mut) }
+.line b { font-weight:400 }
+.line .dots { flex:1; border-bottom:1px dotted var(--line); transform:translateY(-3px) }
+.line span { color:var(--mut); font-size:11.5px }
+.line.sub { padding-left:58px; color:var(--mut); font-size:11.5px }
+
+.say { margin:16px 0 16px 58px; padding:12px 14px; background:#fffdf6; border-left:2px solid var(--acc);
+  font-size:12.5px; line-height:1.7 }
+
+figure { margin:30px 0; position:relative }
+figure img { width:100%; border:1px solid var(--line); filter:saturate(.92) contrast(1.02) }
+figure::before { content:''; position:absolute; top:-10px; left:50%; width:96px; height:20px;
+  transform:translateX(-50%) rotate(-1.5deg); background:rgba(214,204,178,.65);
+  box-shadow:0 1px 2px rgba(27,26,23,.12) }
+figcaption { margin-top:10px; font-size:11px; color:var(--mut); text-align:center; letter-spacing:.04em }
+
+.total { margin-top:36px; padding-top:18px; border-top:2px solid var(--ink) }
+.total .line b { font-weight:600 }
+.big { display:flex; align-items:baseline; gap:14px; margin-top:14px; font-size:15px }
+.big span { margin-left:auto; font-size:26px; letter-spacing:-.02em }
+
+.stamp { margin:40px auto 0; width:max-content; border:2px solid var(--acc); color:var(--acc);
+  padding:9px 16px; font-size:12.5px; letter-spacing:.22em; transform:rotate(-4deg); opacity:.85 }
+
+.foot { margin-top:44px; padding-top:22px; border-top:1px dashed var(--line); text-align:center }
+.foot p { font-size:11.5px; color:var(--mut); line-height:1.8 }
+.cta { margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap }
+.btn { padding:11px 20px; background:var(--ink); color:var(--paper); text-decoration:none; font-size:12.5px;
+  letter-spacing:.06em }
+.btn:hover { background:var(--acc) }
+.btn.g { background:none; color:var(--ink); box-shadow:inset 0 0 0 1px var(--line) }
+.btn.g:hover { background:none; box-shadow:inset 0 0 0 1px var(--ink) }
+.barcode { margin:30px auto 0; width:190px; height:34px; opacity:.7;
+  background:repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 5px,
+    transparent 5px 9px, var(--ink) 9px 12px, transparent 12px 14px) }
+@media (max-width:620px){ .roll{ padding:38px 24px 46px } .line.sub,.say{ margin-left:0; padding-left:0 } }
+</style>
+</head>
+<body>
+<div class="roll">
+  <div class="head">
+    <img src="../logo.png" alt="" />
+    <h1>SUPERAGENT</h1>
+    <p>WHAT IT DID WHILE YOU WERE ASLEEP</p>
+  </div>
+
+  <div class="meta">
+    <span>wepush · main</span>
+    <span>23:14 — 06:02</span>
+  </div>
+
+  <h2>THE BROWSER</h2>
+  <div class="line"><time>23:14</time><b>opened wepush.app/pricing</b><i class="dots"></i><span>your session</span></div>
+  <div class="line sub">the browser on your screen, signed in as you — not a headless copy of it</div>
+  <div class="line"><time>23:16</time><b>read the page back</b><i class="dots"></i><span>3 steps</span></div>
+  <div class="say">“The plan cards overflow below 380px — the grid never drops to one column.”</div>
+
+  <h2>THE EDIT</h2>
+  <div class="line"><time>23:18</time><b>src/routes/pricing/+page.svelte</b><i class="dots"></i><span>1 edit</span></div>
+  <div class="line"><time>23:18</time><b>vite reloaded</b><i class="dots"></i><span>118 ms</span></div>
+  <div class="line sub">you would have watched the grid collapse, if you had been there</div>
+
+  <figure>
+    <img src="../hero.png" alt="A live browser and an iPhone beside the chat that is driving them" />
+    <figcaption>23:22 — the page and the phone, same session, both live</figcaption>
+  </figure>
+
+  <h2>THE PHONE</h2>
+  <div class="line"><time>23:22</time><b>booted iPhone 17 Pro</b><i class="dots"></i><span>simulator</span></div>
+  <div class="line"><time>23:23</time><b>installed and launched the build</b><i class="dots"></i><span>1.9 s</span></div>
+  <div class="line sub">a real simulator streamed inside the window, from its own framebuffer</div>
+
+  <h2>THE PAPERWORK</h2>
+  <div class="line"><time>23:26</time><b>read docs/brief.pdf</b><i class="dots"></i><span>page 3</span></div>
+  <div class="say">“Page 3 caps Studio at 20 seats; the page still says unlimited. I highlighted it.”</div>
+  <div class="line"><time>23:31</time><b>moved “mobile pricing” to done</b><i class="dots"></i><span>board</span></div>
+  <div class="line"><time>23:31</time><b>branched wt-3f9a</b><i class="dots"></i><span>worktree</span></div>
+  <div class="line sub">your checkout never moved</div>
+
+  <h2>THE REST OF THE NIGHT</h2>
+  <div class="line"><time>00:14</time><b>routine: checked the pricing page</b><i class="dots"></i><span>no change</span></div>
+  <div class="line"><time>01:14</time><b>routine: checked the pricing page</b><i class="dots"></i><span>no change</span></div>
+  <div class="line"><time>02:14</time><b>routine: checked the pricing page</b><i class="dots"></i><span>2 changes</span></div>
+  <div class="line"><time>06:02</time><b>session wound down — idle</b><i class="dots"></i><span>0 MB</span></div>
+
+  <div class="total">
+    <div class="line"><time></time><b>turns</b><i class="dots"></i><span>14</span></div>
+    <div class="line"><time></time><b>edits</b><i class="dots"></i><span>1</span></div>
+    <div class="line"><time></time><b>routines run</b><i class="dots"></i><span>7</span></div>
+    <div class="line"><time></time><b>windows raised in front of you</b><i class="dots"></i><span>0</span></div>
+    <div class="big"><b>INTERRUPTIONS</b><span>0</span></div>
+  </div>
+
+  <div class="stamp">NEVER WOKE YOU</div>
+
+  <div class="foot">
+    <p>SuperAgent is the desktop home for Claude Code: a real browser it can drive, an iPhone in the
+    window, files and a board — running locally on your Mac, on your own subscription.<br />
+    It notifies. It does not come forward.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">DOWNLOAD FOR MAC</a>
+      <a class="btn g" href="https://github.com/pungme/superagent-desktop">SOURCE</a>
+    </div>
+    <p style="margin-top:18px">free · open source · apple silicon · notarized</p>
+    <div class="barcode"></div>
+  </div>
+</div>
+</body>
+</html>

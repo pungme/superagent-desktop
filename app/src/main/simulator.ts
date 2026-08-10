@@ -810,18 +810,31 @@ export function registerSimulatorIpc(): void {
     endInputSession(udid)
   })
 
-  /**
-   * Input goes through baguette, whose gesture side works well. Coordinates
-   * arrive in POINTS in the device's own space, which is what baguette wants —
-   * the renderer converts from its rendered size before sending.
-   */
-  ipcMain.handle(
-    'sim:input',
-    async (
-      _e,
-      udid: string,
-      action: { type: 'tap' | 'swipe' | 'press' | 'text' | 'key'; [k: string]: unknown }
-    ) => {
+  ipcMain.handle('sim:input', (_e, udid: string, action: SimAction) => sendSimInput(udid, action))
+
+  ipcMain.handle('sim:has-input', async () => !!(await findBaguette()))
+}
+
+export interface SimAction {
+  type: 'tap' | 'swipe' | 'press' | 'text' | 'key'
+  [k: string]: unknown
+}
+
+export interface SimInputResult {
+  ok: boolean
+  error?: string
+  out?: string
+}
+
+/**
+ * Drive the simulator through baguette. One path for everyone: the pane's
+ * gestures and the agent's sim_* tools both come through here.
+ *
+ * Coordinates arrive in POINTS in the device's own space (baguette scales them
+ * by the width/height it is given), so a caller working in screenshot pixels
+ * just passes the screenshot's pixel size as width/height.
+ */
+export async function sendSimInput(udid: string, action: SimAction): Promise<SimInputResult> {
       const bin = await findBaguette()
       if (!bin) return { ok: false, error: 'baguette-not-installed' }
 
@@ -890,8 +903,4 @@ export function registerSimulatorIpc(): void {
       } catch (err) {
         return { ok: false, error: String(err).slice(0, 200) }
       }
-    }
-  )
-
-  ipcMain.handle('sim:has-input', async () => !!(await findBaguette()))
 }
