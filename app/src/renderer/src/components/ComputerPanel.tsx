@@ -135,6 +135,39 @@ export function ComputerPanel({
    * of five screenshots you are about to open.
    */
   const [thumbs, setThumbs] = useState<Record<string, string>>({})
+  /** The icon being renamed inline, and the text so far. */
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+
+  const startRename = (path: string, name: string): void => {
+    setRenameDraft(name)
+    setRenaming(path)
+  }
+  const commitRename = (): void => {
+    const path = renaming
+    const name = renameDraft.trim()
+    setRenaming(null)
+    if (!path || !name) return
+    void window.cove.deskRename?.(path, name).then(() => refreshDesk(at || undefined))
+  }
+  // Enter renames the one selected icon, the way a desktop does. Guarded so it
+  // never fires while a field is being typed into (including the rename box).
+  useEffect(() => {
+    if (!visible) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Enter' || renaming) return
+      const el = document.activeElement
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return
+      if (selected.length !== 1) return
+      const f = files.find((x) => x.path === selected[0])
+      if (f) {
+        e.preventDefault()
+        startRename(f.path, f.name)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [visible, renaming, selected, files])
   /**
    * The dock gets out of the way of a window that fills the desk.
    *
@@ -694,9 +727,14 @@ export function ComputerPanel({
               <button
                 onClick={() => {
                   setMenu(null)
-                  void window.cove
-                    .deskNewFolder?.(at || undefined)
-                    .then(() => refreshDesk(at || undefined))
+                  void window.cove.deskNewFolder?.(at || undefined).then(async (path) => {
+                    await refreshDesk(at || undefined)
+                    // Created selected and ready to name, the way a desktop does.
+                    if (path) {
+                      setSelected([path])
+                      startRename(path, path.split('/').pop() || 'New folder')
+                    }
+                  })
                 }}
               >
                 New folder
@@ -874,7 +912,35 @@ export function ComputerPanel({
                   iconFor(f.name)
                 )}
               </span>
-              <span className="computer-icon-name">{f.name}</span>
+              {renaming === f.path ? (
+                <input
+                  className="computer-icon-rename"
+                  value={renameDraft}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur()
+                    if (e.key === 'Escape') setRenaming(null)
+                  }}
+                />
+              ) : (
+                <span
+                  className="computer-icon-name"
+                  // A second, deliberate click on the name renames it, the way a
+                  // desktop does — distinct from the double-click that opens it.
+                  onClick={(e) => {
+                    if (selected.length === 1 && selected[0] === f.path) {
+                      e.stopPropagation()
+                      startRename(f.path, f.name)
+                    }
+                  }}
+                >
+                  {f.name}
+                </span>
+              )}
               <span
                 className="computer-file-x"
                 title={

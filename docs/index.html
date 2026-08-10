@@ -78,6 +78,91 @@
     .shot img { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 1px 3px rgba(26,27,30,0.06), 0 16px 40px -16px rgba(26,27,30,0.14); }
     .shot figcaption { margin-top: 12px; font-size: 0.8rem; color: var(--faint); }
 
+    /* ── the demo ──────────────────────────────────────────────────────────
+       Not a video and not a mock-up: the real screenshots, with a camera that
+       pushes into whichever part of the window is being talked about and a
+       cursor that goes and does the work. Plays when it scrolls into view. */
+    .demo { margin: 60px 0 0; }
+    .stage {
+      position: relative; aspect-ratio: 16 / 10; overflow: hidden;
+      border: 1px solid var(--line); border-radius: 12px; background: #edecea;
+      box-shadow: 0 1px 3px rgba(26,27,30,0.06), 0 26px 60px -22px rgba(26,27,30,0.28);
+    }
+    .cam {
+      position: absolute; inset: 0; will-change: transform;
+      transition: transform 1.4s cubic-bezier(0.45, 0.05, 0.15, 1);
+    }
+    .cam img {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; object-position: top left;
+      opacity: 0; transition: opacity 0.65s ease;
+    }
+    .cam img.on { opacity: 1; }
+
+    .cursor {
+      position: absolute; left: 50%; top: 50%; width: 21px; z-index: 6;
+      transform-origin: top left; transform: scale(var(--cs, 1));
+      filter: drop-shadow(0 2px 5px rgba(20, 22, 26, 0.4));
+      transition: left 1s cubic-bezier(0.4, 0, 0.12, 1), top 1s cubic-bezier(0.4, 0, 0.12, 1), transform 0.18s ease;
+    }
+    .cursor.down { transform: scale(calc(var(--cs, 1) * 0.82)); }
+    .ripple {
+      position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px;
+      border-radius: 50%; border: 2px solid rgba(26, 27, 30, 0.55);
+      opacity: 0; z-index: 5; pointer-events: none;
+    }
+    .ripple.go { animation: rip 0.65s ease-out; }
+    @keyframes rip {
+      from { opacity: 0.85; transform: scale(calc(var(--cs, 1) * 0.35)); }
+      to   { opacity: 0;    transform: scale(calc(var(--cs, 1) * 2.4)); }
+    }
+
+    /* things the screenshots cannot say for themselves */
+    .flag {
+      position: absolute; z-index: 7; opacity: 0; transform: translateY(6px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      font-size: 12px; font-weight: 560; letter-spacing: -0.01em;
+      background: rgba(20, 22, 26, 0.9); color: #fff; padding: 7px 12px; border-radius: 999px;
+      backdrop-filter: blur(8px); white-space: nowrap;
+      box-shadow: 0 8px 20px -8px rgba(20, 22, 26, 0.6);
+    }
+    .flag.on { opacity: 1; transform: none; }
+    .flag i { font-style: normal; color: #78d39a; margin-right: 7px; }
+    .flag.busy { left: 50%; top: 16px; transform: translate(-50%, 6px); }
+    .flag.busy.on { transform: translate(-50%, 0); }
+    .flag.build { left: 4%; bottom: 6%; font-family: var(--mono); font-size: 11px; }
+    .flag.dev  { left: 50%; bottom: 8%; transform: translate(-50%, 6px); font-family: var(--mono); font-size: 11px; }
+    .flag.dev.on { transform: translate(-50%, 0); }
+
+    .note {
+      position: absolute; right: 14px; top: 14px; width: 60%; max-width: 296px; z-index: 8;
+      background: rgba(252, 252, 250, 0.94); backdrop-filter: blur(14px);
+      border: 1px solid rgba(26, 27, 30, 0.12); border-radius: 13px; padding: 11px 13px;
+      display: flex; gap: 10px; text-align: left;
+      box-shadow: 0 18px 40px -14px rgba(26, 27, 30, 0.5);
+      opacity: 0; transform: translateY(-12px); transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
+    }
+    .note.on { opacity: 1; transform: none; }
+    .note img { width: 26px; height: 26px; border-radius: 7px; }
+    .note b { display: block; font-size: 12.5px; }
+    .note span { display: block; font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 1px; }
+
+    .demo-bar { display: flex; align-items: baseline; gap: 18px; margin-top: 14px; }
+    .demo-cap { flex: 1; min-height: 40px; position: relative; }
+    .demo-cap div { position: absolute; inset: 0; opacity: 0; transform: translateY(5px); transition: opacity 0.35s ease, transform 0.35s ease; }
+    .demo-cap div.on { opacity: 1; transform: none; }
+    .demo-cap b { font-size: 0.94rem; font-weight: 650; letter-spacing: -0.01em; }
+    .demo-cap span { color: var(--muted); font-size: 0.94rem; }
+    .demo-dots { display: flex; gap: 6px; flex: 0 0 auto; padding-top: 6px; }
+    .demo-dots i { width: 16px; height: 3px; border-radius: 2px; background: var(--line); display: block; transition: background 0.3s ease; }
+    .demo-dots i.on { background: var(--ink); }
+
+    @media (max-width: 640px) { .demo-cap span { display: none; } .note { width: 74%; } }
+    @media (prefers-reduced-motion: reduce) {
+      .cam, .cam img, .cursor, .flag, .note, .demo-cap div { transition: none; }
+      .cursor, .ripple, .flag, .note { display: none; }
+    }
+
     /* sections */
     section { padding: 72px 0; border-top: 1px solid var(--line); }
     h2 { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; }
@@ -149,9 +234,33 @@
         <a class="link" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub</a>
       </div>
       <p class="hero-note">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription</p>
-      <figure class="shot">
-        <img src="hero.png" alt="SuperAgent: a chat with Claude Code beside a live browser showing the same page as a desktop site and on an iPhone" width="2560" height="1600" />
-      </figure>
+      <div class="demo" id="demo">
+        <div class="stage">
+          <div class="cam" id="cam">
+            <img id="s-hero" src="hero.png" class="on" alt="SuperAgent: a chat with Claude Code beside a live browser showing the same page as a desktop site and on an iPhone" width="2560" height="1600" />
+            <img id="s-browse" src="browser-view.png" alt="The agent opening a site in the browser pane and summarising it in the chat" />
+            <img id="s-build" src="build.png" alt="The agent building a landing page and previewing it live in the same window" />
+            <svg class="cursor" id="cursor" viewBox="0 0 21 21" fill="none" aria-hidden="true">
+              <path d="M2 1.5 L2 17 L6.2 13.2 L9 19.4 L11.9 18 L9.1 12 L14.6 12 Z" fill="#fff" stroke="#1a1b1e" stroke-width="1.4" stroke-linejoin="round" />
+            </svg>
+            <span class="ripple" id="ripple"></span>
+            <span class="flag busy" id="f-busy"><i>●</i>Claude is browsing — news.ycombinator.com</span>
+            <span class="flag dev" id="f-dev">vite · reloaded in 118 ms</span>
+            <span class="flag build" id="f-tap">iPhone 17 Pro · simulator · live</span>
+          </div>
+          <div class="note" id="note">
+            <img src="logo.png" alt="" />
+            <div>
+              <b>SuperAgent</b>
+              <span>Done — the plan grid collapses at 380px. Checked on iPhone 17 Pro too.</span>
+            </div>
+          </div>
+        </div>
+        <div class="demo-bar">
+          <div class="demo-cap" id="cap"></div>
+          <div class="demo-dots" id="dots"></div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -173,8 +282,8 @@
         <div class="feat"><b>Dev server strip</b><span>The agent starts your dev server and iterates while you watch the page change.</span></div>
       </div>
       <figure class="shot midshot">
-        <img src="build.png" alt="The agent building a site while previewing it live in its own pane" loading="lazy" />
-        <figcaption>Building a landing page and previewing it live, in the same window.</figcaption>
+        <img src="chat.png" alt="The chat beside the file tree it is editing, with grouped steps and edits" loading="lazy" />
+        <figcaption>Click any file to read it beside the chat — and see every edit the moment it happens.</figcaption>
       </figure>
     </div>
   </section>
@@ -228,5 +337,150 @@
       </div>
     </div>
   </footer>
+
+  <script>
+  /* The demo reel.
+
+     Six beats over ~27s, looping. Each beat names a screenshot, where the
+     camera should be looking, and where the cursor should go. Everything is a
+     CSS transition fired on a schedule — the only state is which beat we are
+     on, so it can be stopped and restarted cleanly when it leaves the screen.
+
+     Coordinates are percentages of the app window itself, which is why the
+     same numbers keep working across three different screenshots: it is the
+     same window every time. */
+  (function () {
+    var demo = document.getElementById('demo');
+    if (!demo) return;
+    var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    var cam = document.getElementById('cam');
+    var cursor = document.getElementById('cursor');
+    var ripple = document.getElementById('ripple');
+    var cap = document.getElementById('cap');
+    var dots = document.getElementById('dots');
+    var scenes = {
+      hero: document.getElementById('s-hero'),
+      browse: document.getElementById('s-browse'),
+      build: document.getElementById('s-build')
+    };
+    var flags = {
+      busy: document.getElementById('f-busy'),
+      dev: document.getElementById('f-dev'),
+      tap: document.getElementById('f-tap')
+    };
+    var note = document.getElementById('note');
+
+    var BEATS = [
+      ['You ask, in the chat.', 'One conversation per project, with a computer attached to it.'],
+      ['It opens the page itself.', 'A real browser, driven by the agent — on the sites you are already signed into.'],
+      ['It builds, and the page reloads.', 'Your dev server runs in the same window. No alt-tabbing to find out whether it worked.'],
+      ['Desktop and phone at once.', 'The same live page in a desktop card and an iPhone frame — one session, both live.'],
+      ['A real iPhone, in the window.', 'An iOS Simulator streamed from its own framebuffer. Tap it, type into it.'],
+      ['Then it leaves you alone.', 'It finishes quietly and notifies you. The window never comes forward on its own.']
+    ];
+
+    BEATS.forEach(function (b, i) {
+      var d = document.createElement('div');
+      d.innerHTML = '<b>' + b[0] + '</b> <span>' + b[1] + '</span>';
+      cap.appendChild(d);
+      dots.appendChild(document.createElement('i'));
+    });
+    var capEls = cap.children, dotEls = dots.children;
+
+    /* camera: bring the point (x%, y%) of the window to the middle at zoom z */
+    function look(x, y, z) {
+      cam.style.transform = 'scale(' + z + ') translate(' + (50 - x) + '%, ' + (50 - y) + '%)';
+      cam.style.setProperty('--cs', 1 / z);
+    }
+    function show(name) {
+      for (var k in scenes) scenes[k].classList.toggle('on', k === name);
+    }
+    function move(x, y) {
+      cursor.style.left = x + '%';
+      cursor.style.top = y + '%';
+    }
+    function click(x, y) {
+      cursor.classList.add('down');
+      setTimeout(function () { cursor.classList.remove('down'); }, 180);
+      ripple.style.left = x + '%';
+      ripple.style.top = y + '%';
+      ripple.classList.remove('go');
+      void ripple.offsetWidth;               // restart the animation
+      ripple.classList.add('go');
+    }
+    function flag(el, on) { el.classList.toggle('on', on); }
+    function beat(i) {
+      for (var k = 0; k < capEls.length; k++) {
+        capEls[k].classList.toggle('on', k === i);
+        dotEls[k].classList.toggle('on', k <= i);
+      }
+    }
+
+    /* the script — [ms, what happens] */
+    var TIMELINE = [
+      [0, function () {
+        beat(0); show('hero'); flag(note, false); flag(flags.busy, false);
+        flag(flags.dev, false); flag(flags.tap, false);
+        cursor.style.transition = 'none'; move(96, 104); void cursor.offsetWidth;
+        cursor.style.transition = '';
+        look(78, 74, 1.75);
+      }],
+      [500, function () { move(86, 92); }],
+      [1700, function () { click(86, 92); }],
+      [2600, function () { move(96.5, 91); }],
+      [3400, function () { click(96.5, 91); }],
+
+      [4200, function () { beat(1); show('browse'); look(50, 50, 1); move(70, 60); }],
+      [5200, function () { flag(flags.busy, true); }],
+      [6000, function () { look(46, 52, 1.35); move(40, 46); }],
+      [8200, function () { flag(flags.busy, false); }],
+
+      [8900, function () { beat(2); show('build'); look(50, 50, 1); move(30, 60); }],
+      [9900, function () { look(37, 55, 1.5); }],
+      [10600, function () { flag(flags.dev, true); }],
+      [13000, function () { flag(flags.dev, false); }],
+
+      [13600, function () { beat(3); show('hero'); look(50, 50, 1); move(55, 45); }],
+      [15400, function () { look(54, 55, 1.25); }],
+
+      [17600, function () { beat(4); look(68, 52, 2.5); move(68, 46); }],
+      [18900, function () { click(68, 46); flag(flags.tap, true); }],
+      [20200, function () { move(68, 62); }],
+      [20900, function () { click(68, 62); }],
+
+      [22600, function () { beat(5); flag(flags.tap, false); look(50, 50, 1); move(104, 104); }],
+      [23800, function () { flag(note, true); }],
+      [27000, function () { flag(note, false); }]
+    ];
+    var LOOP = 27600;
+
+    var timers = [], playing = false;
+    function play() {
+      if (playing) return;
+      playing = true;
+      var run = function () {
+        TIMELINE.forEach(function (step) {
+          timers.push(setTimeout(step[1], step[0]));
+        });
+        timers.push(setTimeout(function () { stopTimers(); run(); }, LOOP));
+      };
+      run();
+    }
+    function stopTimers() { timers.forEach(clearTimeout); timers = []; }
+    function stop() { playing = false; stopTimers(); }
+
+    if (reduced) { beat(0); return; }
+
+    /* it plays while you are looking at it, and not otherwise */
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (es) {
+        es.forEach(function (e) { e.isIntersecting ? play() : stop(); });
+      }, { threshold: 0.25 }).observe(demo);
+    } else {
+      play();
+    }
+  })();
+  </script>
 </body>
 </html>
