@@ -5184,7 +5184,10 @@ button {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-  padding: 8px 12px 0;
+  /* No horizontal padding: the scroller already insets 16px, and a second
+     inset here left the pills sitting short of the right edge the messages
+     line up on. Flush with them is what reads as aligned. */
+  padding: 8px 0 0;
   /* Pinned to the top of the transcript rather than sitting above it, so
      messages pass underneath instead of being cut off against its edge. It is
      inside the scroller, so it floats over the conversation only — the
