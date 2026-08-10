@@ -2996,6 +2996,33 @@ button {
   min-width: 0;
   flex: 1;
 }
+/* An item Claude is on right now. The dot keeps a soft pulse and the title
+   carries a quiet tag, so a glance at the list answers "is anything happening?"
+   without opening the chat. */
+.board-row.working .board-row-dot {
+  animation: board-working 1.9s ease-in-out infinite;
+}
+@keyframes board-working {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+.board-row-working {
+  margin-left: 7px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-row.working .board-row-dot { animation: none; opacity: 0.85; }
+}
+
 .board-row-title {
   font-size: 12.5px;
   line-height: 1.35;

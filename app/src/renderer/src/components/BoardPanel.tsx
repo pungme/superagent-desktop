@@ -45,6 +45,14 @@ export function BoardPanel({
   const inputRef = useRef<HTMLInputElement>(null)
   const chats = useStore((s) => s.chats[workspaceId])
   const selectChat = useStore((s) => s.selectChat)
+  /**
+   * Which conversations are mid-turn. An item handed to Claude sat in todo
+   * looking untouched while the agent worked on it — the chat knew, the list
+   * did not. A card carries the chat that raised it, so it can say so.
+   */
+  const busy = useStore((st) => st.busy)
+  const working = (chatId: string | null | undefined): boolean =>
+    !!chatId && !!busy[chatId]?.generating
   const chatTitle = (id: string | null): string | null =>
     (id && chats?.find((c) => c.id === id)?.title) || null
 
@@ -170,9 +178,9 @@ export function BoardPanel({
               {mine.map((c) => (
                 <article
                   key={c.id}
-                  className={`board-row s-${c.status} ${dragId === c.id ? 'dragging' : ''} ${
-                    overId === c.id && dragId && dragId !== c.id ? 'insert-above' : ''
-                  }`}
+                  className={`board-row s-${c.status} ${working(c.chatId) ? 'working' : ''} ${
+                    dragId === c.id ? 'dragging' : ''
+                  } ${overId === c.id && dragId && dragId !== c.id ? 'insert-above' : ''}`}
                   draggable={openId !== c.id}
                   onDragStart={() => setDragId(c.id)}
                   onDragEnd={endDrag}
@@ -191,7 +199,11 @@ export function BoardPanel({
                 >
                   <button
                     className="board-row-dot"
-                    title={`Move to ${STAGES.find((s) => s.key === nextStage(c.status))?.label}`}
+                    title={
+                      working(c.chatId)
+                        ? 'Claude is working on this now'
+                        : `Move to ${STAGES.find((s) => s.key === nextStage(c.status))?.label}`
+                    }
                     onClick={() => void cycle(c)}
                   />
                   <div
@@ -203,6 +215,11 @@ export function BoardPanel({
                     {openId !== c.id && (
                       <div className="board-row-title" title={c.title}>
                         {c.title}
+                        {working(c.chatId) && (
+                          <span className="board-row-working" title="Claude is working on this now">
+                            working
+                          </span>
+                        )}
                       </div>
                     )}
                     {openId !== c.id && (c.body || chatTitle(c.chatId) || c.branch) && (
