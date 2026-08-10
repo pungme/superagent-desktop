@@ -93,7 +93,15 @@ export function SimulatorPane({
     localStorage.getItem('cove.simMode') === 'attach' ? 'attach' : 'mirror'
   )
   const [attachError, setAttachError] = useState<string | null>(null)
-  /** Where the last touch landed, in % of the picture — drawn immediately. */
+  /**
+   * Where the last touch landed, in pixels within the stage — drawn at once.
+   *
+   * Pixels rather than a percentage of the picture: the picture is letterboxed
+   * inside the stage (max-width/height, centred), while the ripple is
+   * positioned against the stage. A percentage of one is not a percentage of
+   * the other, so on any pane wider or taller than the phone the circle
+   * appeared beside the finger rather than under it.
+   */
   const [ripple, setRipple] = useState<{ x: number; y: number; id: number } | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const shotRef = useRef<HTMLImageElement>(null)
@@ -295,14 +303,10 @@ export function SimulatorPane({
     // The next frame is up to a second away, so acknowledge the touch here.
     // Without this the mirror feels dead for the moment after a tap, however
     // fast the gesture actually reaches the device.
-    const box = shotRef.current
-    if (box && tappable) {
-      const r = box.getBoundingClientRect()
-      setRipple({
-        x: ((e.clientX - r.left) / r.width) * 100,
-        y: ((e.clientY - r.top) / r.height) * 100,
-        id: Date.now()
-      })
+    const stage = stageRef.current
+    if (stage && tappable) {
+      const r = stage.getBoundingClientRect()
+      setRipple({ x: e.clientX - r.left, y: e.clientY - r.top, id: Date.now() })
     }
   }
 
@@ -682,7 +686,7 @@ export function SimulatorPane({
           <span
             key={ripple.id}
             className="sim-ripple"
-            style={{ left: `${ripple.x}%`, top: `${ripple.y}%` }}
+            style={{ left: `${ripple.x}px`, top: `${ripple.y}px` }}
             onAnimationEnd={() => setRipple(null)}
           />
         )}
