@@ -6039,6 +6039,17 @@ button {
   white-space: nowrap;
   line-height: 1.25;
 }
+.computer-icon-rename {
+  width: 100%;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg-content);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: center;
+  padding: 1px 3px;
+  outline: none;
+}
 
 /* ── The dock ─────────────────────────────────────────────────────────
    Centred at the bottom, every app always present, and a light under the
