@@ -369,6 +369,10 @@ export const useStore = create<CoveState>((set, get) => ({
       // First time we see this port → surface a toast offering to open the preview.
       const ports = { ...s.ports, [workspaceId]: [...cur, port].slice(-5) }
       savePorts(ports) // persist so the chip survives an app restart
+      // A server takes a moment to bind, so the chip goes up on the agent's
+      // word and is checked shortly after — a port merely mentioned in passing
+      // then drops out rather than sitting there green forever.
+      window.setTimeout(() => void get().verifyPorts(), 4000)
       return { ports, toast: { workspaceId, port } }
     }),
   // After a restart, drop any persisted server that isn't actually listening
@@ -406,7 +410,13 @@ export const useStore = create<CoveState>((set, get) => ({
     }),
   setHooksEnabled: (v) => set({ hooksEnabled: v }),
 
-  openPreview: (workspaceId, port) =>
+  openPreview: (workspaceId, port) => {
+    // Check before opening: the chip is scraped from the agent's output, so it
+    // can name a server that has since stopped. Showing ERR_CONNECTION_REFUSED
+    // and leaving a green dot claiming it is running cannot both be right.
+    void window.cove.checkPort(port).then((alive) => {
+      if (!alive) void get().verifyPorts()
+    })
     set((s) => {
       localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
@@ -417,7 +427,8 @@ export const useStore = create<CoveState>((set, get) => ({
         previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
         toast: null
       }
-    }),
+    })
+  },
   openUrl: (workspaceId, url, focus = true) =>
     set((s) => {
       localStorage.setItem(`paneOpen:${workspaceId}`, '1')

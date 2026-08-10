@@ -206,14 +206,23 @@ function App(): React.JSX.Element {
     })
     startBrowsingListener()
     startRoutinesListener()
-    // Persisted dev-server chips: keep the ones still listening, drop the rest.
+    // Dev-server chips: keep the ones still listening, drop the rest. On a
+    // timer, not just at startup — a server that dies mid-session used to keep
+    // a green chip that opened onto a connection-refused page.
     useStore.getState().verifyPorts()
+    const portTimer = window.setInterval(() => void useStore.getState().verifyPorts(), 20000)
+    const onFocusCheckPorts = (): void => void useStore.getState().verifyPorts()
+    window.addEventListener('focus', onFocusCheckPorts)
     applyTheme()
     // Re-apply when the OS light/dark preference changes (matters for "System").
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = (): void => applyTheme()
     mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
+    return () => {
+      mq.removeEventListener('change', onChange)
+      window.clearInterval(portTimer)
+      window.removeEventListener('focus', onFocusCheckPorts)
+    }
   }, [startHookListener, startBrowsingListener, startRoutinesListener, applyTheme])
 
   useEffect(() => {
