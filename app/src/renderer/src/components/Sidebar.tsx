@@ -401,10 +401,19 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           ) : (
             <KindIcon kind={ws.kind} />
           )}
-          {serverPorts.length > 0 && (
+          {/* The dot means "something of this project's is live right now". A
+              dev server counted and an attached simulator did not, so a project
+              running a phone looked as idle as one running nothing. */}
+          {(serverPorts.length > 0 || simHere) && (
             <span
               className="sidebar-server-dot"
-              title={`Dev server on :${serverPorts.join(', :')}`}
+              title={
+                serverPorts.length > 0 && simHere
+                  ? `Simulator attached · dev server on :${serverPorts.join(', :')}`
+                  : simHere
+                    ? 'A simulator is attached to this project'
+                    : `Dev server on :${serverPorts.join(', :')}`
+              }
             />
           )}
           {/* A live page, when there is no dev server to report: the dot is the
