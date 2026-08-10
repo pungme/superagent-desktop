@@ -478,6 +478,12 @@ export function WorkspaceView({
                       localStorage.setItem(`simOpen:${ws.id}`, '0')
                       setSimOpen(false)
                     }}
+                    // No simulator of this project's own: forget that it ever
+                    // had a pane rather than reopening it on every visit.
+                    onNothingToShow={() => {
+                      localStorage.setItem(`simOpen:${ws.id}`, '0')
+                      setSimOpen(false)
+                    }}
                   />
                 </div>
               )}

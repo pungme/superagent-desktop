@@ -57,13 +57,22 @@ function cornerShareOfWidth(width: number, height: number): number {
 export function SimulatorPane({
   visible = true,
   workspaceId,
-  onClose
+  onClose,
+  onNothingToShow
 }: {
   visible?: boolean
   /** So the sidebar can say this project has a simulator attached. */
   workspaceId?: string
   /** Put the pane away. Nothing else could: there was no ✕ here at all. */
   onClose?: () => void
+  /**
+   * This project has no simulator of its own to show — either nothing is
+   * running, or what is running belongs to another session. The pane was
+   * remembered per project and never expired, so a project that saw one once
+   * reopened it forever and then adopted whichever device happened to be
+   * booted. Better to close than to show someone else's phone.
+   */
+  onNothingToShow?: () => void
 }): React.JSX.Element {
   const [devices, setDevices] = useState<Device[]>([])
   const [udid, setUdid] = useState<string | null>(null)
@@ -128,6 +137,15 @@ export function SimulatorPane({
       Number(b.state === 'Booted') - Number(a.state === 'Booted') || a.name.localeCompare(b.name)
   )
 
+  /** Remember the device for this project, and as the app-wide fallback. */
+  const rememberDevice = useCallback(
+    (udid: string): void => {
+      if (workspaceId) localStorage.setItem(`cove.simDevice:${workspaceId}`, udid)
+      localStorage.setItem('cove.simDevice', udid)
+    },
+    [workspaceId]
+  )
+
   const refresh = useCallback(async (): Promise<Device[]> => {
     const list = await window.cove.simList()
     setDevices(list)
@@ -140,10 +158,16 @@ export function SimulatorPane({
       const booted = list.filter((d) => d.state === 'Booted')
       // Whichever one you picked last, if it's still running — otherwise the
       // pane silently swaps devices under you on every restart.
-      const remembered = localStorage.getItem('cove.simDevice')
-      const best = booted.find((d) => d.udid === remembered) ?? booted[0]
+      // Only a device THIS project has a claim to — one the agent used here,
+      // or one you picked here. It used to fall back to "whatever is booted",
+      // which is how a project with nothing to do with iOS ended up showing
+      // the simulator belonging to the session you were actually working in.
+      const mine = localStorage.getItem(`cove.simDevice:${workspaceId}`)
+      const best = mine ? booted.find((d) => d.udid === mine) : undefined
       if (best) setUdid(best.udid)
-      else setPicking(true)
+      // No claim, or the claimed device is gone: there is nothing to show
+      // here. Say so rather than adopting someone else's phone.
+      else onNothingToShow?.()
     })
     void window.cove.simHasInput().then(setCanInput)
   }, [refresh])
@@ -159,7 +183,7 @@ export function SimulatorPane({
   useEffect(() => {
     return window.cove.onOpenSimulator?.((p) => {
       if (!p.udid || p.udid === udid) return
-      localStorage.setItem('cove.simDevice', p.udid)
+      rememberDevice(p.udid)
       setFrame(null)
       setGone(false)
       setUdid(p.udid)
@@ -180,6 +204,15 @@ export function SimulatorPane({
     reportSim(workspaceId, Boolean(udid) && !gone)
     return () => reportSim(workspaceId, false)
   }, [workspaceId, udid, gone, reportSim])
+
+  /**
+   * Whatever this pane ends up showing is this project's claim from now on.
+   * Set here rather than only where a device is chosen, so a pane that is
+   * already open records itself without waiting for the next agent action.
+   */
+  useEffect(() => {
+    if (udid && workspaceId) rememberDevice(udid)
+  }, [udid, workspaceId, rememberDevice])
 
   // Keep main pointed at whatever this pane is showing: the agent's simctl
   // tools said "booted", which with two simulators running would install and
@@ -431,7 +464,7 @@ export function SimulatorPane({
 
   const choose = async (d: Device): Promise<void> => {
     setPicking(false)
-    localStorage.setItem('cove.simDevice', d.udid)
+    rememberDevice(d.udid)
     setUdid(d.udid)
     setFrame(null)
     if (d.state !== 'Booted') {
@@ -468,8 +501,9 @@ export function SimulatorPane({
     setFrame(null)
     const next = list.find((x) => x.state === 'Booted' && x.udid !== d.udid)
     setUdid(next?.udid ?? null)
-    if (next) localStorage.setItem('cove.simDevice', next.udid)
+    if (next) rememberDevice(next.udid)
     else {
+      localStorage.removeItem(`cove.simDevice:${workspaceId}`)
       localStorage.removeItem('cove.simDevice')
       setPicking(true)
     }
