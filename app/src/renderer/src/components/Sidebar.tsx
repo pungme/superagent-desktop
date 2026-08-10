@@ -22,6 +22,55 @@ const STATUS_LABEL: Record<WorkspaceStatus, string> = {
 // reaped after sitting idle. The next message starts/resumes it.
 const DORMANT_LABEL = 'No live session — your next message starts one'
 
+/**
+ * What the pane is showing, as a badge.
+ *
+ * It is a browser either way, but "a globe" answers a question nobody asked —
+ * the useful thing is what you left open. A PDF and a picture are worth
+ * distinguishing; anything else is a page, and a globe says that best.
+ */
+function pageBadge(url: string): { icon: React.JSX.Element; title: string } {
+  const path = url.split(/[?#]/)[0].toLowerCase()
+  const name = decodeURIComponent(path.split('/').pop() || '')
+  const ext = name.slice(name.lastIndexOf('.') + 1)
+  const svg = (children: React.ReactNode): React.JSX.Element => (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+      {children}
+    </svg>
+  )
+  if (ext === 'pdf') {
+    return {
+      title: `PDF open in this project${name ? ` — ${name}` : ''}`,
+      icon: svg(
+        <>
+          <path d="M4 1.8h5l3 3v9.4H4z" />
+          <path d="M9 1.9V5h3" />
+        </>
+      )
+    }
+  }
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'bmp', 'heic'].includes(ext)) {
+    return {
+      title: `Image open in this project${name ? ` — ${name}` : ''}`,
+      icon: svg(
+        <>
+          <rect x="2" y="3.2" width="12" height="9.6" rx="1.4" />
+          <path d="M2.6 11l3.2-3.2 2.4 2.4 2-2 3.2 3.2" />
+        </>
+      )
+    }
+  }
+  return {
+    title: 'A page is open in this project',
+    icon: svg(
+      <>
+        <circle cx="8" cy="8" r="6" />
+        <path d="M2 8h12M8 2c3 3.2 3 8.8 0 12M8 2C5 5.2 5 10.8 8 14" />
+      </>
+    )
+  }
+}
+
 // Stable empty routine list so the selector doesn't return a fresh array each render.
 const EMPTY_ROUTINES: Routine[] = []
 const EMPTY_CHATS: Chat[] = []
@@ -296,7 +345,8 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    */
   // Live only, reported by the pane itself. What is remembered is "a page was
   // open here once", which is the same mistake the simulator badge made.
-  const pageHere = useStore((s) => ws.kind !== 'browser' && Boolean(s.pageUrl[ws.id]))
+  const pageUrl = useStore((s) => (ws.kind !== 'browser' ? (s.pageUrl[ws.id] ?? '') : ''))
+  const pageHere = Boolean(pageUrl)
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
   /**
@@ -431,11 +481,8 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           {/* A live page, when there is no dev server to report: the dot is the
               more specific claim, so it wins the corner. */}
           {pageHere && serverPorts.length === 0 && !simHere && (
-            <span className="sidebar-web-dot" title="A page is open in this project">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
-                <circle cx="8" cy="8" r="6" />
-                <path d="M2 8h12M8 2c3 3.2 3 8.8 0 12M8 2C5 5.2 5 10.8 8 14" />
-              </svg>
+            <span className="sidebar-web-dot" title={pageBadge(pageUrl).title}>
+              {pageBadge(pageUrl).icon}
             </span>
           )}
         </span>

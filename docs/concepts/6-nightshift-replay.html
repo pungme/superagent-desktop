@@ -15,14 +15,14 @@
     into space and accelerates. The interaction is the argument: you go
     somewhere, the page stays where it is.
 
-  · Replay (2) — the scrollbar is a transport control. You are not reading
-    about a session, you are scrubbing one.
+  · Replay (2) — a session, played back rather than described.
 
   What is new here is that the session is not a slideshow of screenshots. The
-  app is rebuilt in DOM — sidebar, chat, browser, phone, board — and it plays:
-  the message types itself, the omnibox fills, the plan grid actually reflows
-  when the agent fixes it, a card actually crosses the board. Every frame is
-  derived from scroll position, so scrubbing backwards rewinds it exactly.
+  app is rebuilt in DOM — sidebar, chat, browser, phone, files, board, routines,
+  dashboard — and it plays itself: the message types, the omnibox fills, the
+  plan grid actually reflows when the agent fixes it, a card actually crosses
+  the board. It runs on a clock like a video, with chapters you can jump to; it
+  starts when it comes into view and stops when it leaves.
 
   The join is the colour. One clock drives both: the same variables the warp
   interpolates also paint the mock window, so hovering Download drops the app
@@ -59,6 +59,7 @@ body {
 }
 a { color:inherit }
 img { max-width:100%; display:block; height:auto }
+button { font:inherit; color:inherit; background:none; border:0; cursor:pointer }
 
 /* The starfield sits behind everything and is invisible until it moves. */
 canvas#stars { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none }
@@ -95,13 +96,8 @@ body.warping .btn.ghost { box-shadow:none }
 .scrollcue::after { content:'↓'; display:block; margin-top:8px; animation:bob 2s ease-in-out infinite }
 @keyframes bob { 50% { transform:translateY(6px) } }
 
-/* ── the reel: a pinned stage over a long scroll ───────────────────────── */
-.track { position:fixed; left:0; right:0; top:0; height:2px; background:var(--line); z-index:30 }
-.track i { display:block; height:100%; width:0; background:var(--ink) }
-
-.reel { position:relative; height:700vh }
-.stage { position:sticky; top:0; height:100vh; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:22px }
+/* ── the player ───────────────────────────────────────────────────────── */
+.reel { padding:9vh 0 11vh; display:flex; flex-direction:column; align-items:center; gap:20px }
 
 /* The window is laid out at a fixed 1080×664 and scaled to fit — every
    proportion inside it is then predictable at any viewport. */
@@ -109,13 +105,12 @@ body.warping .btn.ghost { box-shadow:none }
 .win {
   width:1080px; height:664px; flex:0 0 auto; transform-origin:top center;
   display:grid; grid-template-columns:196px 1fr;
-  /* on a narrow screen the sidebar is the first thing to go — the work is
-     worth more of the scale than the furniture is */
   background:var(--win); color:var(--wink); border:1px solid var(--wline);
   border-radius:12px; overflow:hidden; box-shadow:0 30px 70px -30px rgba(10,12,18,.35);
   font-size:12px;
 }
-
+/* on a narrow screen the sidebar is the first thing to go — the work is worth
+   more of the scale than the furniture is */
 .win.slim { width:884px; grid-template-columns:1fr }
 .win.slim .side { display:none }
 
@@ -132,23 +127,21 @@ body.warping .btn.ghost { box-shadow:none }
 .s-row.on { background:var(--wfill) }
 .s-row .fav { width:13px; height:13px; border-radius:3px; background:#ff6600; color:#fff;
   font-size:8px; display:grid; place-items:center; font-weight:700; flex:0 0 auto }
-.s-row .fav.w { background:#3b5bdb } .s-row .fav.g { background:#4ea86b }
+.s-row .fav.w { background:#3b5bdb }
 .s-row .ico { color:var(--wmut); font-size:9px; width:9px }
-.s-row em { margin-left:auto; font-style:normal; font-family:var(--mono); font-size:8.5px;
-  color:var(--wmut); background:var(--wfill); padding:1px 5px; border-radius:5px }
-.s-chat { padding:4px 8px 4px 26px; color:var(--wmut); font-size:11px; border-radius:7px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; position:relative }
+.s-row em, .s-chat em { margin-left:auto; font-style:normal; font-family:var(--mono);
+  font-size:8.5px; color:var(--wmut); background:var(--wfill); padding:1px 5px; border-radius:5px }
+.s-chat { display:flex; align-items:center; gap:6px; padding:4px 8px 4px 26px; color:var(--wmut);
+  font-size:11px; border-radius:7px; white-space:nowrap; overflow:hidden; position:relative }
 .s-chat.on { background:var(--wfill); color:var(--wink) }
 .s-chat .spin { position:absolute; left:13px; top:8px; width:7px; height:7px; border-radius:50%;
   border:1.5px solid var(--wmut); border-top-color:transparent; animation:spin .9s linear infinite }
-.s-chat .dot { position:absolute; left:14px; top:9px; width:5px; height:5px; border-radius:50%;
-  background:#4ea86b }
 @keyframes spin { to { transform:rotate(360deg) } }
 .s-foot { margin-top:auto; display:flex; align-items:center; gap:6px; padding:8px;
   color:var(--wmut); font-size:11px }
 
 /* main column */
-.main { display:grid; grid-template-rows:38px 1fr; min-width:0 }
+.main { display:grid; grid-template-rows:38px 1fr; min-width:0; min-height:0 }
 .bar { display:flex; align-items:center; gap:10px; padding:0 12px;
   border-bottom:1px solid var(--wline); min-width:0 }
 .bar b { font-weight:600; font-size:12px; white-space:nowrap }
@@ -157,17 +150,19 @@ body.warping .btn.ghost { box-shadow:none }
 .pill { border:1px solid var(--wline); border-radius:7px; padding:4px 9px; font-size:10.5px;
   color:var(--wmut); white-space:nowrap; flex:0 0 auto }
 .pill.hot { color:var(--accent); border-color:currentColor }
+.branch { font-family:var(--mono); font-size:9.5px }
 
 .body { display:grid; grid-template-columns:1fr 320px; min-width:0; min-height:0 }
 
-/* the desk — the painted surface the browser and phone sit on */
+/* the desk — the surface every scene is laid on */
 .desk { position:relative; background:var(--desk); padding:12px; min-width:0; overflow:hidden }
 .dev { display:flex; align-items:center; gap:8px; height:22px; padding:0 9px; border-radius:6px;
   background:var(--win); border:1px solid var(--wline); font-family:var(--mono); font-size:9.5px;
   color:var(--wmut); white-space:nowrap }
 .dev i { width:5px; height:5px; border-radius:50%; background:#4ea86b; flex:0 0 auto }
 .dev .st { margin-left:auto }
-.surface { position:absolute; inset:46px 12px 12px; display:flex; gap:14px; align-items:flex-start }
+.surface { position:absolute; inset:46px 12px 12px }
+.scene { position:absolute; inset:0; display:flex; gap:14px; align-items:flex-start }
 
 /* browser card */
 .bcard { width:322px; flex:0 0 auto; background:var(--win); border:1px solid var(--wline);
@@ -177,7 +172,8 @@ body.warping .btn.ghost { box-shadow:none }
 .omni { flex:1; height:17px; border-radius:5px; background:var(--wfill); padding:0 7px;
   font-family:var(--mono); font-size:8.5px; color:var(--wmut); display:flex; align-items:center;
   overflow:hidden; white-space:nowrap }
-.omni .car { width:1px; height:9px; background:var(--wink); margin-left:1px; animation:blink 1s steps(1) infinite }
+.car { width:1px; height:9px; background:var(--wink); margin-left:1px; flex:0 0 auto;
+  animation:blink 1s steps(1) infinite }
 @keyframes blink { 50% { opacity:0 } }
 .bview { height:302px; position:relative; overflow:hidden; background:var(--win) }
 .blank { position:absolute; inset:0; display:grid; place-items:center; color:var(--wmut);
@@ -185,7 +181,7 @@ body.warping .btn.ghost { box-shadow:none }
 
 /* phone */
 .phone { width:150px; flex:0 0 auto; border-radius:18px; border:1px solid var(--wline);
-  background:var(--win); padding:4px; box-shadow:0 14px 30px -18px rgba(10,12,18,.5); position:relative }
+  background:var(--win); padding:4px; box-shadow:0 14px 30px -18px rgba(10,12,18,.5) }
 .pscreen { position:relative; height:296px; border-radius:14px; overflow:hidden; background:var(--win) }
 .pbar { position:absolute; left:50%; bottom:4px; transform:translateX(-50%); width:52px; height:3px;
   border-radius:2px; background:var(--wink); opacity:.35; z-index:6 }
@@ -205,10 +201,9 @@ body.warping .btn.ghost { box-shadow:none }
   background:var(--wfill); transition:flex-basis .45s cubic-bezier(.4,0,.2,1) }
 .plan b { display:block; font-size:8.5px }
 .plan em { display:block; font-style:normal; font-size:13px; font-weight:660; margin:3px 0 6px }
-.plan s { display:block; height:3px; border-radius:2px; background:var(--wline); margin-bottom:4px;
-  text-decoration:none }
+.plan s, .band s { display:block; height:3px; border-radius:2px; background:var(--wline);
+  margin-bottom:4px; text-decoration:none }
 .plan s.short { width:60% }
-/* the rest of the page, so the frame holds a page and not a header */
 .band { padding:4px 10px 0; display:flex; gap:7px; flex-wrap:wrap }
 .band div { flex:1 1 84px; height:34px; border-radius:5px; background:var(--wfill) }
 .site-f { margin-top:10px; padding:8px 10px; border-top:1px solid var(--wline); display:flex; gap:6px }
@@ -235,8 +230,27 @@ body.warping .btn.ghost { box-shadow:none }
 .tap { position:absolute; width:26px; height:26px; border-radius:50%; border:1.5px solid var(--accent);
   z-index:6; pointer-events:none }
 
+/* files and PDFs, beside the tree */
+.pane { background:var(--win); border:1px solid var(--wline); border-radius:9px; overflow:hidden;
+  box-shadow:0 14px 30px -18px rgba(10,12,18,.5) }
+.tree { width:126px; flex:0 0 auto; height:100%; padding:8px 6px; font-size:10px }
+.tree div { padding:3px 6px; border-radius:5px; color:var(--wmut); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis }
+.tree div.in { padding-left:15px }
+.tree div.sel { background:var(--wfill); color:var(--wink) }
+.doc { flex:1; height:100%; display:flex; flex-direction:column }
+.doc .dh { display:flex; align-items:center; gap:7px; padding:6px 9px; font-size:9.5px;
+  color:var(--wmut); border-bottom:1px solid var(--wline) }
+.sheet { flex:1; margin:10px 12px; background:var(--win); position:relative }
+.sheet h6 { font-size:11px; margin-bottom:7px }
+.sheet p { height:4px; border-radius:2px; background:var(--wline); margin-bottom:6px }
+.sheet p.s { width:72% } .sheet p.m { width:88% }
+.mark2 { background:rgba(255,201,120,.55); height:9px; border-radius:2px; margin:8px 0 10px; width:78% }
+.pnote { position:absolute; right:-4px; width:104px; border:1px solid var(--accent); border-radius:7px;
+  padding:6px 7px; background:var(--win); font-size:8.5px; line-height:1.35 }
+
 /* the board */
-.board { position:absolute; inset:0; display:grid; grid-template-columns:repeat(4,1fr); gap:8px }
+.board { display:grid; grid-template-columns:repeat(4,1fr); gap:8px }
 .col { background:var(--win); border:1px solid var(--wline); border-radius:8px; padding:7px 6px;
   display:flex; flex-direction:column; gap:6px }
 .col h6 { font-size:8.5px; letter-spacing:.08em; color:var(--wmut); font-weight:600 }
@@ -250,18 +264,55 @@ body.warping .btn.ghost { box-shadow:none }
 .flyer b { display:block; font-size:8.5px; margin-bottom:4px }
 .flyer s { display:block; height:3.5px; border-radius:2px; background:var(--wline); text-decoration:none }
 
+/* routines, worktrees, dashboard */
+.sheetpane { flex:1; height:100%; padding:14px 16px }
+.sheetpane h5 { font-size:12px; margin-bottom:12px }
+.rt { display:flex; align-items:center; gap:10px; border:1px solid var(--wline); border-radius:8px;
+  padding:9px 11px; margin-bottom:8px; background:var(--win) }
+.rt i { width:7px; height:7px; border-radius:50%; background:var(--wmut); flex:0 0 auto }
+.rt.live i { background:#4ea86b; box-shadow:0 0 0 3px rgba(78,168,107,.18) }
+.rt b { display:block; font-size:10.5px; font-weight:600 }
+.rt span { display:block; margin-top:2px; font-size:9.5px; color:var(--wmut); font-family:var(--mono) }
+.rt .when { margin-left:auto; text-align:right }
+.rt .found { color:var(--accent) }
+.lanes { position:relative; padding:10px 0 0 }
+.lane { display:flex; align-items:center; gap:9px; padding:9px 0 }
+.lane s { flex:1; height:2px; background:var(--wline); text-decoration:none; position:relative }
+.lane s::before { content:''; position:absolute; left:22%; top:-2.5px; width:7px; height:7px;
+  border-radius:50%; background:var(--wline) }
+.lane s::after { content:''; position:absolute; left:58%; top:-2.5px; width:7px; height:7px;
+  border-radius:50%; background:var(--wline) }
+.lane.wt s, .lane.wt s::before, .lane.wt s::after { background:var(--accent) }
+.lane b { width:76px; font-family:var(--mono); font-size:9.5px; font-weight:500 }
+.clean { margin-top:14px; font-size:10px; color:var(--wmut) }
+.clean em { font-style:normal; color:#2f7d4d }
+.bars { display:flex; align-items:flex-end; gap:9px; height:96px; margin:14px 0 10px }
+.bars div { flex:1; background:var(--wfill); border:1px solid var(--wline); border-bottom:0;
+  border-radius:4px 4px 0 0 }
+.bars div.hi { background:var(--accent); border-color:var(--accent) }
+.axis { display:flex; gap:9px; font-size:8.5px; color:var(--wmut); font-family:var(--mono) }
+.axis span { flex:1; text-align:center }
+.stats { display:flex; gap:26px; margin-top:16px }
+.stats div b { display:block; font-size:20px; font-weight:660; letter-spacing:-.02em }
+.stats div span { font-size:9.5px; color:var(--wmut) }
+
 /* chat */
 .chat { border-left:1px solid var(--wline); display:grid; grid-template-rows:1fr auto;
   min-height:0; overflow:hidden }
-.msgs { padding:12px; display:flex; flex-direction:column; gap:9px; overflow:hidden }
+/* min-height:0, or a long thread grows the row and shoves the composer out of
+   the pane instead of scrolling under it. justify-content:flex-end keeps the
+   newest turn pinned to the bottom and lets the old ones fall off the top —
+   the same thing a real thread does, without measuring anything. */
+.msgs { padding:12px; display:flex; flex-direction:column; justify-content:flex-end;
+  gap:9px; overflow:hidden; min-height:0 }
 .msg { max-width:88%; padding:8px 10px; border-radius:11px; font-size:11.5px; line-height:1.45 }
 .msg.me { align-self:flex-end; background:var(--wink); color:var(--win) }
 .msg.it { background:var(--wfill) }
+.msg .said { opacity:.6; font-size:9.5px; display:block; margin-bottom:2px }
 .tool { font-size:10px; color:var(--wmut); display:flex; align-items:center; gap:6px;
   font-family:var(--mono); min-width:0 }
 .tool .tl { flex:0 0 auto }
-.tool .tw { color:var(--wmut); opacity:.7; min-width:0; overflow:hidden; white-space:nowrap;
-  text-overflow:ellipsis }
+.tool .tw { opacity:.7; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis }
 .steps { padding-left:12px; display:grid; gap:4px; overflow:hidden; font-family:var(--mono);
   font-size:9.5px; color:var(--wmut) }
 .diff { border:1px solid var(--wline); border-radius:8px; overflow:hidden; font-family:var(--mono);
@@ -272,17 +323,23 @@ body.warping .btn.ghost { box-shadow:none }
 .diff .add { background:rgba(78,168,107,.12); color:#2f7d4d }
 .compose { border-top:1px solid var(--wline); padding:10px }
 .field { border:1px solid var(--wline); border-radius:9px; padding:8px 10px; min-height:32px;
-  display:flex; align-items:center; color:var(--wmut); font-size:11.5px }
-.field .car { width:1px; height:12px; background:var(--wink); margin-left:1px;
-  animation:blink 1s steps(1) infinite }
+  display:flex; align-items:center; gap:7px; color:var(--wmut); font-size:11.5px }
+.field.hot { border-color:var(--accent) }
+.wave { display:none; align-items:flex-end; gap:2px; height:13px; flex:0 0 auto }
+.field.hot .wave { display:flex }
+.wave i { width:2px; background:var(--accent); border-radius:1px; animation:vu .7s ease-in-out infinite }
+.wave i:nth-child(2){ animation-delay:.1s } .wave i:nth-child(3){ animation-delay:.22s }
+.wave i:nth-child(4){ animation-delay:.34s } .wave i:nth-child(5){ animation-delay:.46s }
+@keyframes vu { 0%,100% { height:3px } 50% { height:13px } }
 .crow { display:flex; align-items:center; gap:7px; margin-top:8px }
 .gauge { margin-left:auto; display:flex; align-items:center; gap:5px; color:var(--wmut); font-size:9.5px }
 .gauge s { display:block; width:38px; height:3px; border-radius:2px; background:var(--wline);
   text-decoration:none; position:relative; overflow:hidden }
 .gauge s::after { content:''; position:absolute; inset:0 auto 0 0; width:28%; background:var(--wmut) }
 
-/* the notification — it arrives, the window stays exactly where it is */
-.notif { position:absolute; top:2.5vh; right:2vw; width:300px; z-index:12;
+/* the notification — it arrives over everything, and the window underneath
+   does not move an inch */
+.notif { position:absolute; top:-16px; right:-6px; width:300px; z-index:12;
   background:var(--win); color:var(--wink); border:1px solid var(--wline); border-radius:13px;
   padding:11px 13px; box-shadow:0 22px 44px -18px rgba(10,12,18,.5); display:flex; gap:10px }
 .notif img { width:26px; height:26px; border-radius:7px }
@@ -290,14 +347,27 @@ body.warping .btn.ghost { box-shadow:none }
 .notif span { display:block; font-size:11.5px; color:var(--wmut); line-height:1.4; margin-top:1px }
 .notif time { position:absolute; top:11px; right:13px; font-size:10px; color:var(--wmut) }
 
-/* caption rail */
-.caption { position:relative; width:min(660px,88vw); height:70px }
+/* caption + transport */
+.caption { position:relative; width:min(660px,88vw); height:74px }
 .caption > div { position:absolute; inset:0; text-align:center }
 .caption b { display:block; font-size:clamp(17px,2.1vw,23px); letter-spacing:-.02em }
 .caption span { display:block; margin-top:7px; color:var(--muted); font-size:14px; line-height:1.5 }
 
+.transport { display:flex; align-items:center; gap:14px; width:min(760px,90vw) }
+.pp { width:26px; height:26px; border-radius:50%; border:1px solid var(--line); flex:0 0 auto;
+  display:grid; place-items:center; font-size:9px; color:var(--muted) }
+.pp:hover { color:var(--ink); border-color:var(--ink) }
+.ticks { flex:1; display:flex; gap:3px }
+.ticks button { flex:1; height:14px; display:flex; align-items:center; padding:0 }
+.ticks i { display:block; width:100%; height:2px; background:var(--line); border-radius:2px;
+  position:relative; overflow:hidden }
+.ticks i::after { content:''; position:absolute; inset:0 auto 0 0; width:var(--f,0%);
+  background:var(--ink) }
+.ticks button:hover i { height:4px }
+.clock { font-family:var(--mono); font-size:10.5px; color:var(--faint); flex:0 0 auto }
+
 /* ── the night's ledger ───────────────────────────────────────────────── */
-.night { padding:14vh 0 8vh }
+.night { padding:10vh 0 8vh }
 .night h2 { font-size:clamp(24px,3.4vw,38px); letter-spacing:-0.03em; text-align:center }
 .night .sub { text-align:center; color:var(--muted); margin-top:10px; font-size:15px }
 .log { margin-top:44px; border-top:1px solid var(--line) }
@@ -320,13 +390,13 @@ body.warping .btn.ghost { box-shadow:none }
 @media (max-width:820px) {
   .grid { grid-template-columns:1fr }
   .log div { grid-template-columns:64px 1fr } .log span { display:none }
-  .caption { height:96px }
+  .caption { height:100px }
 }
 @media (prefers-reduced-motion: reduce) {
   .log div { opacity:1; transform:none }
   .btn:hover { transform:none }
   body, .btn, canvas#stars { transition:none }
-  .s-chat .spin, .omni .car, .field .car, .scrollcue::after { animation:none }
+  .s-chat .spin, .car, .wave i, .scrollcue::after { animation:none }
 }
 </style>
 </head>
@@ -334,7 +404,6 @@ body.warping .btn.ghost { box-shadow:none }
 <!-- WarpSpeed.js — Federico Dossena, LGPL-3.0-or-later. See ../assets/warpspeed.README.txt -->
 <script src="../assets/warpspeed.js"></script>
 <canvas id="stars"></canvas>
-<div class="track"><i id="bar"></i></div>
 
 <div class="page">
   <section class="hero">
@@ -351,49 +420,50 @@ body.warping .btn.ghost { box-shadow:none }
       </div>
       <p class="note">free · open source · runs locally · notarized by Apple
         <span class="tip">hover the download</span></p>
-      <p class="scrollcue">SCRUB A SESSION</p>
+      <p class="scrollcue">ONE SESSION, START TO FINISH</p>
     </div>
   </section>
 
   <div class="reel" id="reel">
-    <div class="stage">
-      <div class="winbox" id="winbox">
-        <div class="win" id="win">
+    <div class="winbox" id="winbox">
+      <div class="win" id="win">
 
-          <aside class="side">
-            <div class="lights"><i></i><i></i><i></i></div>
-            <div class="s-lab">BROWSING</div>
-            <div class="s-row"><span class="fav">Y</span>news.ycombinator.com</div>
-            <div class="s-row"><span class="fav w">W</span>en.wikipedia.org</div>
-            <div class="s-lab">WORK</div>
-            <div class="s-row on"><span class="ico">▾</span>wepush<em>main</em></div>
-            <div class="s-chat on" id="sChat"><span class="spin" id="sSpin"></span>pricing on mobile</div>
-            <div class="s-chat">Nimbus landing page</div>
-            <div class="s-row"><span class="ico">▸</span>design-system<em>main</em></div>
-            <div class="s-row"><span class="ico">▸</span>notes-app<em>wt-4f2a</em></div>
-            <div class="s-lab">PERSONAL</div>
-            <div class="s-row"><span class="ico">▸</span>shop-web<em>main</em></div>
-            <div class="s-row"><span class="ico">▸</span>docs-site<em>main</em></div>
-            <div class="s-foot">+ New group</div>
-          </aside>
+        <aside class="side">
+          <div class="lights"><i></i><i></i><i></i></div>
+          <div class="s-lab">BROWSING</div>
+          <div class="s-row"><span class="fav">Y</span>news.ycombinator.com</div>
+          <div class="s-row"><span class="fav w">W</span>en.wikipedia.org</div>
+          <div class="s-lab">WORK</div>
+          <div class="s-row on"><span class="ico">▾</span>wepush<em id="sBranch">main</em></div>
+          <div class="s-chat on" id="sChat"><span class="spin" id="sSpin"></span>pricing on mobile<em id="sWt" style="display:none">wt-3f9a</em></div>
+          <div class="s-chat">Nimbus landing page</div>
+          <div class="s-row"><span class="ico">▸</span>design-system<em>main</em></div>
+          <div class="s-row"><span class="ico">▸</span>notes-app<em>main</em></div>
+          <div class="s-lab">PERSONAL</div>
+          <div class="s-row"><span class="ico">▸</span>shop-web<em>main</em></div>
+          <div class="s-row"><span class="ico">▸</span>docs-site<em>main</em></div>
+          <div class="s-foot">+ New group</div>
+        </aside>
 
-          <div class="main">
-            <div class="bar">
-              <b>wepush</b>
-              <span class="url" id="barUrl">~/work/wepush</span>
-              <span class="pill" id="pillRoutines">Routines</span>
-              <span class="pill">Skills</span>
-              <span class="pill">Hide preview</span>
-            </div>
+        <div class="main">
+          <div class="bar">
+            <b>wepush</b>
+            <span class="url" id="barUrl">~/work/wepush</span>
+            <span class="pill" id="pillRoutines">Routines</span>
+            <span class="pill">Skills</span>
+            <span class="pill branch" id="pillBranch">main</span>
+          </div>
 
-            <div class="body">
-              <div class="desk">
-                <div class="dev" id="dev">
-                  <i></i> vite <span>localhost:5173</span>
-                  <span class="st" id="devSt">ready in 214 ms</span>
-                </div>
+          <div class="body">
+            <div class="desk">
+              <div class="dev" id="dev">
+                <i></i> vite <span>localhost:5173</span>
+                <span class="st" id="devSt">ready in 214 ms</span>
+              </div>
 
-                <div class="surface">
+              <div class="surface">
+                <!-- scene 1 · the browser and the phone -->
+                <div class="scene" id="scWeb">
                   <div class="bcard" id="bcard">
                     <div class="omnirow">
                       <span class="nav">‹ ›</span>
@@ -404,10 +474,8 @@ body.warping .btn.ghost { box-shadow:none }
                       <div class="site" id="siteDesk"></div>
                     </div>
                   </div>
-
                   <div class="phone" id="phone">
                     <div class="pscreen">
-                      <div class="pnotch"></div>
                       <div class="site" id="sitePhone"></div>
                       <div class="cut" id="cut"></div>
                       <div class="simchrome" id="sim">
@@ -425,50 +493,125 @@ body.warping .btn.ghost { box-shadow:none }
                       <div class="pbar"></div>
                     </div>
                   </div>
+                </div>
 
-                  <div class="board" id="board">
-                    <div class="col"><h6>BACKLOG</h6>
-                      <div class="tick"><s></s><s class="short"></s></div>
-                      <div class="tick"><s></s><s class="short"></s></div>
+                <!-- scene 2 · files and PDFs -->
+                <div class="scene" id="scFiles">
+                  <div class="pane tree">
+                    <div>▾ src</div>
+                    <div class="in">routes</div>
+                    <div class="in sel" id="fSvelte">+page.svelte</div>
+                    <div>▾ docs</div>
+                    <div class="in" id="fPdf">brief.pdf</div>
+                    <div class="in">pricing.md</div>
+                    <div>README.md</div>
+                  </div>
+                  <div class="pane doc">
+                    <div class="dh">brief.pdf<span style="margin-left:auto">page 3 of 9</span></div>
+                    <div class="sheet">
+                      <h6>Plans &amp; limits</h6>
+                      <p></p><p class="m"></p><p class="s"></p>
+                      <div class="mark2" id="hl"></div>
+                      <p class="m"></p><p></p><p class="s"></p><p class="m"></p><p></p>
+                      <div class="pnote" id="pnote" style="top:64px">Studio caps at 20 seats — the pricing page says unlimited.</div>
                     </div>
-                    <div class="col"><h6>NEXT</h6>
-                      <div class="tick"><s></s><s class="short"></s></div>
-                      <div class="tick"><s></s><s class="short"></s></div>
-                    </div>
-                    <div class="col"><h6>DOING</h6>
-                      <div class="slot" id="slotFrom"></div>
-                      <div class="tick"><s></s><s class="short"></s></div>
-                    </div>
-                    <div class="col"><h6>DONE</h6>
-                      <div class="slot" id="slotTo"></div>
-                      <div class="tick"><s></s><s class="short"></s></div>
-                    </div>
-                    <div class="flyer" id="flyer"><b>mobile pricing</b><s></s></div>
                   </div>
                 </div>
-              </div>
 
-              <div class="chat">
-                <div class="msgs" id="msgs"></div>
-                <div class="compose">
-                  <div class="field"><span id="draft"></span><i class="car" id="draftCar"></i></div>
-                  <div class="crow">
-                    <span class="pill">Model Default</span>
-                    <span class="pill">Mode Full</span>
-                    <span class="gauge">28%<s></s></span>
+                <!-- scene 3 · the board -->
+                <div class="scene board" id="scBoard">
+                  <div class="col"><h6>BACKLOG</h6>
+                    <div class="tick"><s></s><s class="short"></s></div>
+                    <div class="tick"><s></s><s class="short"></s></div>
+                  </div>
+                  <div class="col"><h6>NEXT</h6>
+                    <div class="tick"><s></s><s class="short"></s></div>
+                    <div class="tick"><s></s><s class="short"></s></div>
+                  </div>
+                  <div class="col"><h6>DOING</h6>
+                    <div class="slot" id="slotFrom"></div>
+                    <div class="tick"><s></s><s class="short"></s></div>
+                  </div>
+                  <div class="col"><h6>DONE</h6>
+                    <div class="slot" id="slotTo"></div>
+                    <div class="tick"><s></s><s class="short"></s></div>
+                  </div>
+                  <div class="flyer" id="flyer"><b>mobile pricing</b><s></s></div>
+                </div>
+
+                <!-- scene 4 · routines -->
+                <div class="scene" id="scRoutines">
+                  <div class="pane sheetpane">
+                    <h5>Routines</h5>
+                    <div class="rt live"><i></i>
+                      <div><b>Check the pricing page</b><span>every hour · plain language</span></div>
+                      <div class="when"><b class="found">2 changes</b><span>ran 6 min ago</span></div>
+                    </div>
+                    <div class="rt"><i></i>
+                      <div><b>Morning digest of the repo</b><span>weekdays at 08:30</span></div>
+                      <div class="when"><b>next</b><span>in 9h 12m</span></div>
+                    </div>
+                    <div class="rt"><i></i>
+                      <div><b>Watch competitor changelog</b><span>daily · tell me what changed</span></div>
+                      <div class="when"><b>next</b><span>in 4h 40m</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- scene 5 · worktree chats -->
+                <div class="scene" id="scTree">
+                  <div class="pane sheetpane">
+                    <h5>This chat has its own worktree</h5>
+                    <div class="lanes">
+                      <div class="lane"><b>main</b><s></s></div>
+                      <div class="lane wt"><b>wt-3f9a</b><s></s></div>
+                    </div>
+                    <p class="clean">Your checkout: <em>clean</em> — nothing in the working tree moved while
+                    the agent worked. Merge it when you're happy, or throw the branch away.</p>
+                  </div>
+                </div>
+
+                <!-- scene 6 · the dashboard -->
+                <div class="scene" id="scDash">
+                  <div class="pane sheetpane">
+                    <h5>Dashboard</h5>
+                    <div class="bars">
+                      <div style="height:38%"></div><div style="height:62%"></div>
+                      <div style="height:44%"></div><div style="height:81%"></div>
+                      <div style="height:56%"></div><div style="height:70%"></div>
+                      <div class="hi" style="height:96%"></div>
+                    </div>
+                    <div class="axis"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+                    <div class="stats">
+                      <div><b>142</b><span>turns this week</span></div>
+                      <div><b>19</b><span>tasks done</span></div>
+                      <div><b>6</b><span>day streak</span></div>
+                      <div><b>wepush</b><span>most of your time</span></div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+
+            <div class="chat">
+              <div class="msgs" id="msgs"></div>
+              <div class="compose">
+                <div class="field" id="field">
+                  <span class="wave"><i></i><i></i><i></i><i></i><i></i></span>
+                  <span id="draft"></span><i class="car" id="draftCar"></i>
+                </div>
+                <div class="crow">
+                  <span class="pill">Model Default</span>
+                  <span class="pill">Mode Full</span>
+                  <span class="gauge">28%<s></s></span>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
 
-        </div><!-- /win -->
-      </div>
+      </div><!-- /win -->
 
-      <div class="caption" id="caption"></div>
-
-      <!-- it arrives over everything, the way a notification does, and the
-           window underneath does not move an inch -->
       <div class="notif" id="notif">
         <img src="../logo.png" alt="" />
         <div>
@@ -477,6 +620,14 @@ body.warping .btn.ghost { box-shadow:none }
         </div>
         <time>now</time>
       </div>
+    </div>
+
+    <div class="caption" id="caption"></div>
+
+    <div class="transport">
+      <button class="pp" id="pp" aria-label="Pause">❚❚</button>
+      <div class="ticks" id="ticks"></div>
+      <span class="clock" id="clock">0:00</span>
     </div>
   </div>
 
@@ -487,8 +638,9 @@ body.warping .btn.ghost { box-shadow:none }
       <div><time>23:14</time><b>Opened the pricing page and found the overflow</b><span>browser</span></div>
       <div><time>23:16</time><b>Collapsed the plan grid below 380px</b><span>edit</span></div>
       <div><time>23:22</time><b>Installed the build on iPhone 17 Pro and checked it</b><span>simulator</span></div>
-      <div><time>23:24</time><b>Moved “mobile pricing” to done</b><span>board</span></div>
-      <div><time>23:25</time><b>Notified you — and stayed where it was</b><span>quiet</span></div>
+      <div><time>23:26</time><b>Read the brief and flagged the seat limit</b><span>files</span></div>
+      <div><time>23:31</time><b>Moved “mobile pricing” to done</b><span>board</span></div>
+      <div><time>23:32</time><b>Notified you — and stayed where it was</b><span>quiet</span></div>
     </div>
   </section>
 
@@ -497,8 +649,8 @@ body.warping .btn.ghost { box-shadow:none }
       <div class="card"><b>Never steals focus</b><p>The one rule the whole app is built around: it asks with a notification, and comes forward only when you say so.</p></div>
       <div class="card"><b>Survives restarts</b><p>Panes, open files, the active chat — exactly where you left them, even through an update.</p></div>
       <div class="card"><b>Light on memory</b><p>Sessions start on your first message and wind down when they go idle. Nothing runs for the sake of running.</p></div>
-      <div class="card"><b>Worktree chats</b><p>A conversation on its own git branch, in its own worktree. Your checkout stays clean.</p></div>
-      <div class="card"><b>Routines</b><p>“Check this page every hour,” in plain language, on a timer — and it tells you what changed.</p></div>
+      <div class="card"><b>Interject mid-turn</b><p>Type while it is working and it sees your message before it finishes — the way the terminal does.</p></div>
+      <div class="card"><b>Browse first, ask later</b><p>Plain tabs sit above your projects. Read something, then summon the agent into it.</p></div>
       <div class="card"><b>Light and dark</b><p>It follows the system. You just saw it: the page went dark and the app went with it.</p></div>
     </div>
   </section>
@@ -522,10 +674,10 @@ body.warping .btn.ghost { box-shadow:none }
    easing) and TARGET_SPEED is set every frame from a cubic that starts nearly
    flat.
 
-   Two clocks, not one. The lights go out almost immediately (DARK_MS) so the
-   gesture answers at once; the speed keeps its long build (IN_MS) underneath.
-   The stars ride between them — they arrive with the dark, but stay dim until
-   the speed is actually up, so the field fills in as the acceleration does. */
+   Two clocks, not one. The lights go out first (DARK_MS) so the gesture
+   answers early; the speed keeps its long build (IN_MS) underneath. The stars
+   ride between them — they arrive with the dark, but stay dim until the speed
+   is up, so the field fills in as the acceleration does. */
 const PAPER = [246, 245, 241], VOID = [4, 5, 10]
 const INK_D = [20, 21, 26],   INK_L = [242, 244, 248]
 const MUT_D = [93, 96, 104],  MUT_L = [153, 160, 173]
@@ -610,38 +762,46 @@ document.querySelectorAll('.warp-trigger').forEach(b => {
   b.addEventListener('touchend', leave)
 })
 
-/* ── the reel ──────────────────────────────────────────────────────────────
-   Scroll position is the only state. Every frame recomputes the whole session
-   from a single number, so dragging the scrollbar backwards un-types the
-   message, un-fixes the grid and walks the card back across the board — which
-   a sequence of timers could never do.
-
-   `t` is measured in beats: t = 3.5 means half way through the fourth. Each
-   piece of the app reads the slice of that timeline it cares about. */
+/* ── the player ────────────────────────────────────────────────────────────
+   A clock, not a scrollbar. `t` is measured in beats — t = 3.5 is half way
+   through the fourth — and every piece of the app reads the slice of that
+   timeline it cares about, so the whole window is a pure function of t. That
+   means chapters can be jumped to, and the thing can loop, without any of it
+   having to be undone by hand. */
+const BEAT_MS = 3900
 const BEATS = [
   ['One chat, and a computer to go with it',
-   'A conversation per project — with a browser, a phone and a desk attached to it, not a terminal pretending to be a workspace.'],
+   'A conversation per project — with a browser, a phone, files and a board attached to it, not a terminal pretending to be a workspace.'],
   ['It drives a real browser',
    'The one on your screen, signed into the sites you are already signed into. Not a hidden headless one it describes to you afterwards.'],
   ['Desktop and phone at once',
    'The same live page in a desktop card and an iPhone frame. Here the plan cards run straight off the edge — which is the bug it was sent to find.'],
   ['It edits, the page reloads, you watch',
    'Your dev server runs in a strip above the work. The agent changes the file, Vite reloads, and the grid collapses in front of you.'],
-  ['A real iPhone in the window',
-   'An iOS Simulator streamed inside the app from its own framebuffer. Tap it, type into it — it is the device, at the rate it renders.'],
+  ['A real iPhone, inside the window',
+   'An iOS Simulator streamed from its own framebuffer — tap it, type into it. No permission to grant, and Apple’s own window stays shut.'],
+  ['Files and PDFs, beside the chat',
+   'Click any file to read it — source, markdown, images, PDFs. Annotate the PDF in place and the agent reads what you marked.'],
+  ['Talk instead of typing',
+   'Hold ⌥Space, say it, let go. The transcription happens on your own Mac and never leaves it.'],
   ['A board it keeps for you',
    'Backlog, next, doing, done. The agent moves the cards as the work lands, and every card remembers the conversation that raised it.'],
+  ['Routines, in plain language',
+   '“Check this page every hour.” It runs on a timer whether the app is in front of you or not, and tells you what changed.'],
+  ['A chat on its own branch',
+   'Worktree chats give the agent an isolated branch and directory. Your checkout never moves while it works.'],
+  ['And a dashboard that counts it up',
+   'Turns per day, tasks done, a streak, and which projects actually got your time — computed locally, from your own history.'],
   ['Then it leaves you alone',
    'It finishes quietly and sends a notification with what it actually said. The window never once comes forward on its own.']
 ]
 
 const $ = id => document.getElementById(id)
-const reel = $('reel'), winbox = $('winbox'), win = $('win'), bar = $('bar')
-const caption = $('caption'), msgs = $('msgs')
+const msgs = $('msgs'), caption = $('caption'), ticks = $('ticks')
 
 /* the site under test — one function, rendered into both frames, so the fix
    has to reflow rather than being two drawings of two states */
-const site = plan => `
+const site = () => `
   <div class="site-nav"><b>wepush</b><s></s><s></s><s class="r"></s></div>
   <div class="site-h">Simple pricing</div>
   <div class="site-s">Three plans. No seats, no per-message billing.</div>
@@ -660,20 +820,26 @@ const caps = BEATS.map(([h, s]) => {
   return el
 })
 
-/* the chat, in order, with the beat each one lands on */
+/* the chat, in order, with the beat each turn lands on */
 const THREAD = [
   { at: 0.95, cls: 'me',   text: 'the pricing page looks wrong on mobile — can you check?' },
   { at: 1.15, cls: 'it',   text: "I'll open it in the browser." },
   { at: 1.45, cls: 'tool', text: '› 3 steps', wing: 'navigate · read page · screenshot' },
-  { at: 2.15, cls: 'it',   text: 'The plan cards overflow below 380px — the grid never drops to one column.' },
+  { at: 2.20, cls: 'it',   text: 'The plan cards overflow below 380px — the grid never drops to one column.' },
   { at: 2.95, cls: 'me',   text: 'fix it and check it on the phone' },
   { at: 3.15, cls: 'diff', file: 'src/routes/pricing/+page.svelte',
     del: '- .plans { grid-template-columns: repeat(3,1fr) }',
     add: '+ .plans { grid-template-columns: 1fr }' },
   { at: 4.05, cls: 'tool', text: '› 2 steps · 1 edit', wing: 'build · simulator',
     steps: ['npm run build → 1.9s', 'sim_boot → iPhone 17 Pro', 'sim_install_and_launch → wepush'] },
-  { at: 4.75, cls: 'it',   text: 'Done — it collapses at 380px now. Checked on iPhone 17 Pro too, clean at 375pt.' },
-  { at: 5.45, cls: 'tool', text: '› board_move', wing: '“mobile pricing” → done' }
+  { at: 4.60, cls: 'it',   text: 'Done — it collapses at 380px now. Checked on the simulator too, clean at 375pt.' },
+  { at: 5.15, cls: 'me',   text: 'the brief is in docs — does it agree with the studio tier?' },
+  { at: 5.70, cls: 'it',   text: 'No. Page 3 caps Studio at 20 seats; the page still says unlimited. I highlighted it.' },
+  { at: 6.90, cls: 'me',   said: 'spoken · ⌥Space', text: 'move the card when you’re done, and keep an eye on that page' },
+  { at: 7.30, cls: 'tool', text: '› board_move', wing: '“mobile pricing” → done' },
+  { at: 8.35, cls: 'tool', text: '› routine_create', wing: 'every hour · pricing page' },
+  { at: 9.30, cls: 'tool', text: '› worktree', wing: 'wt-3f9a · branch created' },
+  { at: 11.20, cls: 'it',  text: 'All done. Card moved, routine running hourly, work is on wt-3f9a when you want it.' }
 ]
 
 const nodes = THREAD.map(m => {
@@ -687,140 +853,202 @@ const nodes = THREAD.map(m => {
       (m.steps ? `<div class="steps">${m.steps.map(s => `<div>${s}</div>`).join('')}</div>` : '')
   } else {
     el.className = 'msg ' + m.cls
-    el.textContent = m.text
+    el.innerHTML = (m.said ? `<span class="said">${m.said}</span>` : '') + m.text
   }
   msgs.appendChild(el)
   return el
 })
 
-const DRAFT = THREAD[0].text
 const els = {
-  draft: $('draft'), draftCar: $('draftCar'), omni: $('omniText'), omniCar: $('omniCar'),
-  siteD: $('siteDesk'), siteP: $('sitePhone'), cut: $('cut'), phone: $('phone'),
-  bcard: $('bcard'), sim: $('sim'), tap: $('tap'), board: $('board'), flyer: $('flyer'),
-  slotFrom: $('slotFrom'), slotTo: $('slotTo'), dev: $('devSt'), notif: $('notif'), blank: $('blank'),
-  url: $('barUrl'), routines: $('pillRoutines'), spin: $('sSpin')
+  draft: $('draft'), draftCar: $('draftCar'), field: $('field'),
+  omni: $('omniText'), omniCar: $('omniCar'), blank: $('blank'),
+  siteD: $('siteDesk'), siteP: $('sitePhone'), cut: $('cut'), phone: $('phone'), bcard: $('bcard'),
+  sim: $('sim'), tap: $('tap'), hl: $('hl'), pnote: $('pnote'),
+  fPdf: $('fPdf'), fSvelte: $('fSvelte'),
+  flyer: $('flyer'), slotFrom: $('slotFrom'), slotTo: $('slotTo'),
+  dev: $('devSt'), notif: $('notif'), url: $('barUrl'), routines: $('pillRoutines'),
+  branch: $('pillBranch'), sBranch: $('sBranch'), sWt: $('sWt'), spin: $('sSpin'),
+  web: $('scWeb'), files: $('scFiles'), board: $('scBoard'),
+  rout: $('scRoutines'), tree: $('scTree'), dash: $('scDash')
 }
 const URL_TEXT = 'wepush.app/pricing'
+const DRAFT = THREAD[0].text
+const SPOKEN = THREAD[10].text
 
 const clamp = v => v < 0 ? 0 : v > 1 ? 1 : v
 /* progress through one slice of the timeline, 0 before it, 1 after */
 const seg = (t, a, b) => clamp((t - a) / (b - a))
+/* a scene is up between a and b, with a fade at each end */
+const scene = (el, t, a, b) => {
+  const v = Math.min(seg(t, a - 0.15, a + 0.15), 1 - seg(t, b - 0.15, b + 0.15))
+  el.style.opacity = v
+  el.style.pointerEvents = v > .5 ? 'auto' : 'none'
+  return v
+}
 const show = (el, v, dy = 8) => {
   el.style.opacity = v
   el.style.transform = v === 1 ? 'none' : `translateY(${(1 - v) * dy}px)`
 }
 
-let queued = 0
-function draw() {
-  queued = 0
-  const span = reel.offsetHeight - innerHeight
-  const p = clamp(-reel.getBoundingClientRect().top / span)
-  bar.style.width = (p * 100).toFixed(2) + '%'
-  const t = p * BEATS.length
-
+function frame(t) {
   // composer: the message types itself, then leaves as a bubble
   const typed = seg(t, 0.15, 0.85)
-  const sent = t >= 0.95
-  els.draft.textContent = sent ? '' : DRAFT.slice(0, Math.round(typed * DRAFT.length))
-  els.draft.style.color = 'var(--wink)'
-  els.draftCar.style.opacity = sent || typed === 0 ? 0 : 1
-  if (sent) { els.draft.textContent = 'Message Claude…'; els.draft.style.color = 'var(--wmut)' }
+  const spoke = seg(t, 6.15, 6.80)                 // the second one is dictated
+  const talking = t >= 6.10 && t < 6.90
+  let text = 'Message Claude…', muted = true, caret = false
+  if (t < 0.95) { text = DRAFT.slice(0, Math.round(typed * DRAFT.length)); muted = !typed; caret = typed > 0 }
+  else if (talking) { text = SPOKEN.slice(0, Math.round(spoke * SPOKEN.length)); muted = false }
+  els.draft.textContent = text
+  els.draft.style.color = muted ? 'var(--wmut)' : 'var(--wink)'
+  els.draftCar.style.opacity = caret ? 1 : 0
+  els.field.classList.toggle('hot', talking)
 
   // chat
   nodes.forEach((el, i) => {
     const m = THREAD[i]
     show(el, seg(t, m.at, m.at + 0.22))
-    if (m.steps) {
-      const open = seg(t, 5.15, 5.4)          // the folded burst, opened
+    if (m.steps) {                                  // the folded burst, opened
+      const open = seg(t, 4.35, 4.55)
       const rows = el.querySelector('.steps')
       rows.style.height = (open * 42) + 'px'
       rows.style.opacity = open
-      el.querySelector('.tool').firstChild.textContent = open > .5 ? '⌄ 2 steps · 1 edit' : '› 2 steps · 1 edit'
+      el.querySelector('.tl').textContent = open > .5 ? '⌄ 2 steps · 1 edit' : '› 2 steps · 1 edit'
     }
   })
-  // keep the newest turn in view without a scrollbar of its own
-  const over = Math.max(0, msgs.scrollHeight - msgs.clientHeight)
-  msgs.style.transform = `translateY(${-over}px)`
 
-  // the browser: the omnibox fills, then the page arrives
+  // scene 1 — the browser: the omnibox fills, then the page arrives
+  const web = scene(els.web, t, 0, 5)
   const typing = seg(t, 1.05, 1.55)
   els.omni.textContent = URL_TEXT.slice(0, Math.round(typing * URL_TEXT.length))
   els.omniCar.style.opacity = typing > 0 && typing < 1 ? 1 : 0
-  els.url.textContent = t > 1.5 ? 'wepush.app/pricing' : '~/work/wepush'
+  els.url.textContent = t > 1.5 && t < 5 ? 'wepush.app/pricing' : '~/work/wepush'
 
   const loaded = seg(t, 1.45, 1.85)
-  // the reload dip: the same page, served again after the edit
-  const reload = 1 - 0.85 * Math.sin(Math.PI * seg(t, 3.45, 3.75))
+  const reload = 1 - 0.85 * Math.sin(Math.PI * seg(t, 3.45, 3.75))   // served again after the edit
   els.siteD.style.opacity = loaded * reload
   els.siteP.style.opacity = loaded * reload
   els.blank.style.opacity = (1 - loaded) * 0.6
 
-  // the phone arrives beside it, and shows the bug
   const phoneIn = seg(t, 2.05, 2.5)
   els.phone.style.opacity = phoneIn
   els.phone.style.transform = `translateX(${(1 - phoneIn) * 26}px)`
   els.cut.style.opacity = clamp(seg(t, 2.35, 2.6) - seg(t, 3.5, 3.62))
+  els.siteP.classList.toggle('fixed', t > 3.55)     // a real reflow, where the bug was
 
-  // the fix — a real reflow, in the frame that had the problem
-  els.siteP.classList.toggle('fixed', t > 3.55)
-
-  // the dev strip
   const rebuilding = t > 3.35 && t < 3.7
   els.dev.textContent = rebuilding ? 'reloading…' : (t > 3.7 ? 'ready in 118 ms' : 'ready in 214 ms')
 
-  // the phone stops being a preview and becomes the device
-  const simIn = seg(t, 4.15, 4.5)
+  const simIn = seg(t, 4.15, 4.5)                   // preview becomes device
   els.sim.style.opacity = simIn
-  const tapP = seg(t, 4.55, 4.95)
+  const tapP = seg(t, 4.6, 4.95)
   els.tap.style.opacity = simIn * (tapP > 0 && tapP < 1 ? 1 - tapP : 0)
   els.tap.style.transform = `translate(46px, ${150 - tapP * 8}px) scale(${0.6 + tapP * 0.9})`
 
-  // the desk turns over to the board
-  const boardIn = seg(t, 5.0, 5.35)
-  els.board.style.opacity = boardIn
-  els.board.style.pointerEvents = boardIn > .5 ? 'auto' : 'none'
-  els.bcard.style.opacity = 1 - boardIn
-  els.phone.style.opacity = phoneIn * (1 - boardIn)
+  // scene 2 — files and PDFs
+  scene(els.files, t, 5, 7)
+  const readP = seg(t, 5.35, 5.6)
+  els.hl.style.opacity = readP
+  els.hl.style.width = (78 * readP) + '%'
+  show(els.pnote, seg(t, 5.65, 5.9), 6)
+  els.fPdf.classList.toggle('sel', t > 5.2)         // one file open at a time
+  els.fSvelte.classList.toggle('sel', t <= 5.2)
 
-  // and the card crosses it, measured from the real slots so it lands square
+  // scene 3 — the board, and the card crossing it
+  const board = scene(els.board, t, 7, 8)
   const a = els.slotFrom.getBoundingClientRect(), b = els.slotTo.getBoundingClientRect()
   const o = els.board.getBoundingClientRect(), k = scaleNow || 1
-  const move = seg(t, 5.45, 5.9)
+  const move = seg(t, 7.35, 7.8)
   const ease = move < .5 ? 2 * move * move : 1 - Math.pow(-2 * move + 2, 2) / 2
   els.flyer.style.width = (a.width / k) + 'px'
   els.flyer.style.left = ((a.left - o.left) / k + ease * (b.left - a.left) / k) + 'px'
   els.flyer.style.top = ((a.top - o.top) / k + ease * (b.top - a.top) / k) + 'px'
-  els.flyer.style.opacity = boardIn
+  els.flyer.style.opacity = board
 
-  // routines glow just before the hand-off, then the notification
-  els.routines.classList.toggle('hot', t > 6.05)
-  const nIn = seg(t, 6.15, 6.5)
+  // scene 4 — routines
+  scene(els.rout, t, 8, 9)
+  els.routines.classList.toggle('hot', t > 8 && t < 9)
+
+  // scene 5 — the worktree, which the branch chips follow
+  scene(els.tree, t, 9, 10)
+  const onBranch = t > 9.3
+  els.branch.textContent = onBranch ? 'wt-3f9a' : 'main'
+  els.branch.classList.toggle('hot', onBranch)
+  els.sWt.style.display = onBranch ? '' : 'none'
+  els.sBranch.style.opacity = onBranch ? .35 : 1
+
+  // scene 6 — the dashboard, still up when the notification lands
+  scene(els.dash, t, 10, 12.4)
+
+  // and the hand-off
+  const nIn = seg(t, 11.5, 11.8)
   els.notif.style.opacity = nIn
   els.notif.style.transform = `translateY(${(1 - nIn) * -14}px)`
-  // the spinner runs only while the turn does
-  els.spin.style.opacity = t > 1.0 && t < 6.1 ? 1 : 0
+  els.spin.style.opacity = t > 1.0 && t < 11.4 ? 1 : 0   // it spins only while the turn runs
 
   const ci = Math.min(BEATS.length - 1, Math.floor(t))
-  caps.forEach((c, i) => show(c, i === ci ? seg(t, i + 0.02, i + 0.22) : 0, 8))
+  caps.forEach((c, i) => show(c, i === ci ? seg(t, i + 0.02, i + 0.2) : 0))
+  return ci
 }
+
+/* transport: chapters, and a fill that tracks the beat you are in */
+const chips = BEATS.map(([h], i) => {
+  const b = document.createElement('button')
+  b.innerHTML = '<i></i>'
+  b.title = h
+  // land just inside the beat, so a jump never shows the gap before it starts
+  b.addEventListener('click', () => { at = (i + 0.05) * BEAT_MS; if (!playing) render() })
+  ticks.appendChild(b)
+  return b.firstChild
+})
+
+let at = 0, playing = false, prev = 0, scaleNow = 1
+const TOTAL = BEATS.length * BEAT_MS
+const mmss = ms => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`
+
+function render() {
+  const t = at / BEAT_MS
+  const ci = frame(t)
+  chips.forEach((c, i) => c.style.setProperty('--f', (clamp(t - i) * 100) + '%'))
+  $('clock').textContent = `${mmss(at)} / ${mmss(TOTAL)}`
+}
+function loop(now) {
+  if (!playing) return
+  at = (at + Math.min(64, now - prev)) % TOTAL
+  prev = now
+  render()
+  requestAnimationFrame(loop)
+}
+function play() {
+  if (playing) return
+  playing = true; prev = performance.now(); $('pp').textContent = '❚❚'
+  requestAnimationFrame(loop)
+}
+function pause() { playing = false; $('pp').textContent = '▶' }
+$('pp').addEventListener('click', () => playing ? pause() : play())
+
+/* it plays when you are looking at it, and stops when you are not */
+new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting && !still && !manual) play(); else pause()
+}), { threshold: 0.35 }).observe($('reel'))
+let manual = false
+$('pp').addEventListener('click', () => { manual = !playing })
 
 /* The window is drawn at a fixed 1080×664 and scaled to whatever room there
    is, so nothing inside it reflows between a laptop and a phone. */
-let scaleNow = 1
+const win = $('win'), winbox = $('winbox')
 function fit() {
   const slim = innerWidth < 760
   win.classList.toggle('slim', slim)
   const design = slim ? 884 : 1080
-  const w = Math.min(innerWidth - (slim ? 16 : 32), 1180), h = innerHeight * (slim ? 0.78 : 0.70)
+  const w = Math.min(innerWidth - (slim ? 16 : 32), 1180), h = innerHeight * (slim ? 0.72 : 0.68)
   scaleNow = Math.min(w / design, h / 664)
   win.style.transform = `scale(${scaleNow})`
   winbox.style.height = (664 * scaleNow) + 'px'
-  draw()
+  render()
 }
-addEventListener('scroll', () => { if (!queued) queued = requestAnimationFrame(draw) }, { passive: true })
 addEventListener('resize', fit)
 fit()
+if (still) { at = 3 * BEAT_MS; render(); pause() }   // no autoplay; chapters still work
 
 /* ── the rest of the page ─────────────────────────────────────────────── */
 const kicker = $('kicker')
