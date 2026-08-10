@@ -822,10 +822,10 @@ export function registerBrowserIpc(): void {
   ipcMain.handle('browser:freeze', async (_e, id: string) => {
     const pane = panes.get(id)
     if (!pane || pane.window.isDestroyed() || !pane.visible) return null
+    let buf: Buffer | null = null
+    const t0 = Date.now()
     try {
-      const t0 = Date.now()
       const img = await pane.view.webContents.capturePage()
-      if (img.isEmpty()) return null
       // A JPEG Buffer, not a full-resolution PNG data URL: toDataURL() encodes
       // PNG synchronously on the main thread and hands back multiple MB of
       // base64, enough to stall the UI for a second or more on a big pane.
@@ -833,30 +833,33 @@ export function registerBrowserIpc(): void {
       // At full resolution, though. This used to halve the width as well, which
       // on a Retina display throws away three quarters of the pixels and then
       // shows the result back at full pane size — the page visibly pixelating
-      // whenever you left the app. The base64 tax that justified that is
-      // already gone with the Buffer; the encode is milliseconds (see the log
-      // line below), so there is room to simply keep the pixels.
-      const buf = img.toJPEG(88)
+      // whenever you left the app.
+      if (!img.isEmpty()) buf = img.toJPEG(88)
+    } catch {
+      // No still. The detach below matters more than the picture.
+    }
+    /**
+     * Detach whatever happened to the photograph.
+     *
+     * This used to return early when the capture came back empty, leaving the
+     * view attached — and an attached view paints above all HTML, so a pane
+     * that failed to photograph became a rectangle sitting on top of the app
+     * with nothing to explain it. A lone image is exactly the kind of page
+     * that captures empty, which is how a file window ended up floating over
+     * the browser. Getting out of the way is the job here; the still is the
+     * bonus.
+     */
+    try {
       pane.window.contentView.removeChildView(pane.view)
       if (twin?.forPane === id) destroyTwin(pane.window)
       pane.visible = false
-      const { width: fw, height: fh } = img.getSize()
-      console.log(`[freeze] total=${Date.now() - t0}ms bytes=${buf.length} ${fw}x${fh}`)
-      return buf
     } catch {
-      return null
+      // Window torn down mid-freeze; nothing left to detach from.
     }
+    paneLog('freeze', id, `${buf ? `still ${buf.length}b` : 'no still'} in ${Date.now() - t0}ms`)
+    return buf
   })
 
-  /**
-   * Average colour of the page's two top-corner pixel patches. The renderer
-   * paints matching DOM backfills UNDER the native view: the page is rounded on
-   * all four corners (Electron's radius is uniform), the bottom arcs show the
-   * card and stay round, and the top arcs reveal these page-coloured fills — so
-   * the top reads as square under the docked omnibar on any site. DOM is the
-   * right layer: everything composites below the native view anyway, so this
-   * needs no native masks, no extra processes, and eats no clicks.
-   */
   ipcMain.handle('browser:sample-corners', async (_e, id: string) => {
     const pane = panes.get(id)
     if (!pane || !pane.visible || pane.window.isDestroyed()) return null
