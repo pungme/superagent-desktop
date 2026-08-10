@@ -48,9 +48,12 @@ function labelFor(url: string): string {
  * everywhere.
  */
 export function DesktopBrowser({
+  visible = true,
   occluded,
   positionKey
 }: {
+  /** False while the Computer is mounted but not on screen. */
+  visible?: boolean
   occluded?: boolean
   positionKey?: string
 }): React.JSX.Element {
@@ -167,7 +170,7 @@ export function DesktopBrowser({
               paneId={t.id}
               partition="persist:browser"
               initialUrl={t.initialUrl}
-              visible={t.id === activeId}
+              visible={visible && t.id === activeId}
               fill
               occluded={occluded}
               positionKey={positionKey}

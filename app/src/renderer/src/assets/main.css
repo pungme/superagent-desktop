@@ -2668,6 +2668,15 @@ button {
 
 /* Your computer: a surface with a picture on it and whatever you've dropped
    there. Deliberately plain — it is not a file manager. */
+/* Hidden, not unmounted — the desktop keeps running behind whatever you
+   stepped out to, so its chat's agent and its browser tabs survive. */
+.computer-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
 .computer-view {
   flex: 1;
   min-height: 0;

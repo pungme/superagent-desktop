@@ -137,6 +137,9 @@ function App(): React.JSX.Element {
   const overlay = useStore((s) => s.overlay)
   const setOverlay = useStore((s) => s.setOverlay)
   const computerOpen = overlay === 'computer'
+  // Once opened it stays in the tree; before that there is nothing to keep.
+  const [computerEverOpened, setComputerEverOpened] = useState(false)
+  if (computerOpen && !computerEverOpened) setComputerEverOpened(true)
   /** Any full-window section — all four cover the projects the same way. */
   const sectionOpen = overlay !== null
   useEffect(() => {
@@ -303,7 +306,18 @@ function App(): React.JSX.Element {
             </div>
           ))
         )}
-        {computerOpen && <ComputerPanel onClose={() => setOverlay(null)} />}
+        {/* Mounted from the first time it is opened and hidden thereafter, the
+            same as a workspace: unmounting it stopped the desktop chat's agent
+            and tore down its browser tabs, so stepping out of the Computer for
+            a moment threw away whatever was running in it. */}
+        {computerEverOpened && (
+          <div
+            className="computer-host"
+            style={{ display: computerOpen ? 'flex' : 'none' }}
+          >
+            <ComputerPanel visible={computerOpen} onClose={() => setOverlay(null)} />
+          </div>
+        )}
 
       </main>
       <PreviewToast />

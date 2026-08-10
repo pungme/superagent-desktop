@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — ten landing pages, pick one</title>
+<style>
+:root { --ink:#16181c; --mut:#666c77; --line:#e4e3df; --acc:#b4551e; --bg:#f4f3f0;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace }
+* { margin:0; padding:0; box-sizing:border-box }
+body { background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,sans-serif }
+img { max-width:100%; display:block }
+.wrap { max-width:1240px; margin:0 auto; padding:0 26px }
+header { padding:64px 0 34px; max-width:660px }
+h1 { font-size:34px; letter-spacing:-.032em; font-weight:660; line-height:1.1 }
+header p { margin-top:12px; color:var(--mut) }
+.grid { display:grid; grid-template-columns:repeat(2,1fr); gap:26px; padding-bottom:90px }
+a.card { text-decoration:none; color:inherit; display:block }
+a.card .pic { border:1px solid var(--line); border-radius:11px; overflow:hidden; background:#fff;
+  aspect-ratio:1280/820; transition:box-shadow .2s ease, transform .2s ease }
+a.card:hover .pic { box-shadow:0 22px 44px -26px rgba(16,18,22,.45); transform:translateY(-2px) }
+a.card .pic img { width:100%; height:100%; object-fit:cover; object-position:top center }
+.meta { display:flex; gap:12px; align-items:baseline; margin-top:12px }
+.meta i { font-style:normal; font-family:var(--mono); font-size:11.5px; color:var(--acc); flex:0 0 22px }
+.meta b { font-size:16px; font-weight:620; letter-spacing:-.015em }
+.meta span { color:var(--mut); font-size:14px }
+.note { margin-left:34px; margin-top:4px; color:var(--mut); font-size:14px; max-width:52ch }
+footer { padding:0 0 90px; color:var(--mut); font-size:13.5px }
+@media (max-width:820px){ .grid{ grid-template-columns:1fr } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Ten landing pages.</h1>
+    <p>All real pages using the real screenshots — no mock-ups, no animation to sit through. Click a
+    thumbnail to open the full page. Tell me which one to take forward and I'll build it out properly.</p>
+  </header>
+
+  <div class="grid">
+    <a class="card" href="01-plain.html">
+      <div class="pic"><img src="thumbs/01-plain.png" alt="" /></div>
+      <div class="meta"><i>01</i><b>Plain</b><span>a README that happens to be a landing page</span></div>
+      <p class="note">One column, left aligned, no decoration. Bets everything on the copy. Fastest to read, hardest to fake.</p>
+    </a>
+    <a class="card" href="02-showcase.html">
+      <div class="pic"><img src="thumbs/02-showcase.png" alt="" /></div>
+      <div class="meta"><i>02</i><b>Showcase</b><span>big type, big pictures, lots of air</span></div>
+      <p class="note">The safe Apple-shaped version: huge headline, one enormous product shot, alternating feature rows.</p>
+    </a>
+    <a class="card" href="03-terminal.html">
+      <div class="pic"><img src="thumbs/03-terminal.png" alt="" /></div>
+      <div class="meta"><i>03</i><b>Terminal</b><span>monospace, dark, for developers</span></div>
+      <p class="note">Reads like a man page that became an app. No image above the fold; features as flags you would have wanted.</p>
+    </a>
+    <a class="card" href="04-catalogue.html">
+      <div class="pic"><img src="thumbs/04-catalogue.png" alt="" /></div>
+      <div class="meta"><i>04</i><b>Catalogue</b><span>the whole feature list, one screen</span></div>
+      <p class="note">Dense and scannable, for people who want to know exactly what they're getting before they scroll.</p>
+    </a>
+    <a class="card" href="05-sticky.html">
+      <div class="pic"><img src="thumbs/05-sticky.png" alt="" /></div>
+      <div class="meta"><i>05</i><b>Sticky</b><span>text scrolls, the screenshot swaps</span></div>
+      <p class="note">Five sections on the left; one held screenshot on the right that changes as each arrives. Section-based, not scrubbed.</p>
+    </a>
+    <a class="card" href="06-framed.html">
+      <div class="pic"><img src="thumbs/06-framed.png" alt="" /></div>
+      <div class="meta"><i>06</i><b>Framed</b><span>the page lives inside a Mac window</span></div>
+      <p class="note">One idea carried the whole way: this is an app, not a tab. Traffic lights pinned to the top as you scroll.</p>
+    </a>
+    <a class="card" href="07-editorial.html">
+      <div class="pic"><img src="thumbs/07-editorial.png" alt="" /></div>
+      <div class="meta"><i>07</i><b>Editorial</b><span>serif, wide margins, pull quotes</span></div>
+      <p class="note">Reads like a considered write-up rather than a pitch. Drop cap, captioned figures, an argument in prose.</p>
+    </a>
+    <a class="card" href="08-dark.html">
+      <div class="pic"><img src="thumbs/08-dark.png" alt="" /></div>
+      <div class="meta"><i>08</i><b>Dark</b><span>the modern dev-tool look</span></div>
+      <p class="note">Hairline grid, one cool accent, a glowing product shot. Familiar on purpose — it looks like what it is.</p>
+    </a>
+    <a class="card" href="09-contrast.html">
+      <div class="pic"><img src="thumbs/09-contrast.png" alt="" /></div>
+      <div class="meta"><i>09</i><b>Contrast</b><span>in a terminal / in SuperAgent</span></div>
+      <p class="note">Built as an argument: six rows of the same agent, before and after it gets a screen. No adjectives needed.</p>
+    </a>
+    <a class="card" href="10-poster.html">
+      <div class="pic"><img src="thumbs/10-poster.png" alt="" /></div>
+      <div class="meta"><i>10</i><b>Poster</b><span>everything on one screen, no scrolling</span></div>
+      <p class="note">A single sheet: headline, eight numbered lines, the shot, the button. There is no below the fold.</p>
+    </a>
+  </div>
+
+  <footer>Same copy and the same five screenshots in every one, so the only difference is the shape.</footer>
+</div>
+</body>
+</html>

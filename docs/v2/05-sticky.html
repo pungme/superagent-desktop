@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — the window, and what happens in it</title>
+<style>
+/* 05 · STICKY — text scrolls on the left, one screenshot holds the right and
+   swaps as each section arrives. Section-based, not scrubbed. */
+:root { --ink:#141519; --mut:#616773; --line:#e7e6e2; --acc:#0f766e; --bg:#faf9f7 }
+* { margin:0; padding:0; box-sizing:border-box }
+body { background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
+  font:16px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,sans-serif }
+img { max-width:100%; display:block }
+.wrap { max-width:1180px; margin:0 auto; padding:0 30px }
+header { padding:110px 0 90px; max-width:760px }
+header img.mark { width:46px; height:46px; border-radius:12px; margin-bottom:26px }
+h1 { font-size:clamp(36px,5.6vw,66px); line-height:1.05; letter-spacing:-.04em; font-weight:650 }
+h1 span { color:#9ba1ab }
+.lede { margin-top:20px; font-size:19px; color:var(--mut); max-width:52ch }
+.cta { margin-top:30px; display:flex; gap:11px; flex-wrap:wrap }
+.btn { padding:12px 22px; border-radius:9px; background:var(--ink); color:#fff; text-decoration:none;
+  font-size:14.5px; font-weight:600 }
+.btn.g { background:none; color:var(--ink); border:1px solid var(--line) }
+.fine { margin-top:16px; font-size:13px; color:#9ba1ab }
+
+.split { display:grid; grid-template-columns:minmax(0,420px) minmax(0,1fr); gap:80px; align-items:start }
+.steps section { padding:34vh 0 }
+.steps section:first-child { padding-top:6vh }
+.n { font-size:12px; letter-spacing:.14em; color:var(--acc); font-weight:600 }
+h2 { margin-top:12px; font-size:clamp(24px,2.6vw,34px); line-height:1.15; letter-spacing:-.028em; font-weight:640 }
+.steps p { margin-top:14px; color:var(--mut) }
+.stick { position:sticky; top:12vh; height:76vh; display:flex; align-items:center }
+.frame { position:relative; width:100%; aspect-ratio:16/10; border-radius:14px; overflow:hidden;
+  border:1px solid var(--line); background:#fff; box-shadow:0 30px 70px -40px rgba(15,17,21,.4) }
+.frame img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top left;
+  opacity:0; transition:opacity .5s ease }
+.frame img.on { opacity:1 }
+footer { padding:20vh 0 18vh; text-align:center }
+footer h2 { font-size:clamp(28px,4vw,50px) }
+footer .cta { justify-content:center }
+@media (max-width:900px){
+  .split{ grid-template-columns:1fr; gap:24px }
+  .stick{ position:static; height:auto; order:-1 }
+  .steps section{ padding:44px 0 }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img class="mark" src="../logo.png" alt="" />
+    <h1>The window your agent<br /><span>actually works in.</span></h1>
+    <p class="lede">A chat per project, next to a real browser, a real iPhone and the files it is
+    editing. On your Mac, on your subscription.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+      <a class="btn g" href="https://github.com/pungme/superagent-desktop">Source</a>
+    </div>
+    <p class="fine">Free · open source · Apple Silicon · notarized by Apple</p>
+  </header>
+
+  <div class="split">
+    <div class="steps">
+      <section data-shot="0">
+        <p class="n">01 — SIDE BY SIDE</p>
+        <h2>Ask for a change, watch the page change.</h2>
+        <p>The chat sits next to a real browser. No alt-tabbing to find out whether it worked: the
+        page reloads in the same window, in front of you, while the conversation carries on.</p>
+      </section>
+      <section data-shot="1">
+        <p class="n">02 — THE BROWSER</p>
+        <h2>It drives the browser you are logged into.</h2>
+        <p>Open a page, click, type, read it back. Not a hidden headless browser it describes to you
+        second-hand — the one on your screen, with your sessions. Take the mouse back whenever you like.</p>
+      </section>
+      <section data-shot="2">
+        <p class="n">03 — THE FILES</p>
+        <h2>The tree, the diff and the chat, together.</h2>
+        <p>Click any file to read it beside the conversation — source, markdown, images, PDFs. Every
+        edit shows up the moment it happens, with just the change highlighted.</p>
+      </section>
+      <section data-shot="3">
+        <p class="n">04 — EVERYTHING IN ITS PLACE</p>
+        <h2>Projects the way you think about them.</h2>
+        <p>Plain browser tabs on top, projects below, each conversation nested underneath — with a
+        spinner while it works, a dot when it needs you, and the branch where you would expect it.</p>
+      </section>
+      <section data-shot="4">
+        <p class="n">05 — AND IT LEAVES YOU ALONE</p>
+        <h2>Short settings, quiet behaviour.</h2>
+        <p>Including how much the agent may do without asking. It finishes in the background and
+        sends a notification; the window comes forward only when you say so.</p>
+      </section>
+    </div>
+
+    <div class="stick">
+      <div class="frame" id="frame">
+        <img class="on" src="../hero.png" alt="A live browser and an iPhone beside the chat" />
+        <img src="../browser-view.png" alt="The agent mid-navigation in the browser pane" />
+        <img src="../chat.png" alt="The chat next to the file tree and its edits" />
+        <img src="../sidebar.png" alt="The sidebar of grouped projects and nested chats" />
+        <img src="../settings.png" alt="Settings: appearance, agent permissions, developer mode" />
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <h2>Give your agent a screen.</h2>
+    <div class="cta">
+      <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+      <a class="btn g" href="https://github.com/pungme/superagent-desktop">GitHub</a>
+    </div>
+    <p class="fine">Runs locally. No middleman server. Open source, so you can read how it touches your browser.</p>
+  </footer>
+</div>
+
+<script>
+const shots = [...document.querySelectorAll('#frame img')]
+const io = new IntersectionObserver(es => {
+  es.forEach(e => {
+    if (!e.isIntersecting) return
+    const i = +e.target.dataset.shot
+    shots.forEach((s, k) => s.classList.toggle('on', k === i))
+  })
+}, { rootMargin: '-45% 0px -45% 0px' })
+document.querySelectorAll('.steps section').forEach(s => io.observe(s))
+</script>
+</body>
+</html>
