@@ -79,112 +79,144 @@
     .shot figcaption { margin-top: 12px; font-size: 0.8rem; color: var(--faint); }
 
     /* ── the demo ──────────────────────────────────────────────────────────
-       An abstract silhouette of the app rather than a screenshot: the window,
-       the panes and everything in them are plain shapes, so the eye reads the
-       arrangement and not the pixels. Each beat swaps what is on the desk, a
-       cursor goes and does the work, and CSS transitions do the morphing. */
+       The app drawn rather than screenshotted: real labels, real panes, one
+       red site and one amber highlight, so it reads as the thing itself and
+       not as a wireframe. Text is sized in cqw so every part of it scales with
+       the stage. A beat is an attribute on the stage; CSS does the morphing. */
     .demo { margin: 60px 0 0; }
     .stage {
-      --sil:  #e8e7e3;  --sil2: #dcdbd6;  --sil3: #cfcec9;
-      --live: #4ea86b;
+      --sil: #eceae6; --sil2: #dedcd7; --sil3: #cbc9c3;
+      --live: #4ea86b; --red: #c0392b; --amber: #f7e08a;
+      container-type: inline-size;
       position: relative; aspect-ratio: 16 / 10; overflow: hidden;
-      border: 1px solid var(--line); border-radius: 12px; background: var(--paper);
+      border: 1px solid var(--line); border-radius: 12px; background: #fff;
       box-shadow: 0 1px 3px rgba(26,27,30,0.06), 0 26px 60px -22px rgba(26,27,30,0.22);
-      transition: filter 0.6s ease;
+      font-size: 1.12cqw; line-height: 1.4; transition: filter 0.6s ease;
     }
-    .stage.dim { filter: brightness(0.985) saturate(0.9); }
-    .win { position: absolute; inset: 0; display: grid; grid-template-columns: 19% 1fr 27%; }
+    .stage.dim { filter: brightness(0.985) saturate(0.92); }
+    .win { position: absolute; inset: 0; display: grid; grid-template-columns: 20% 1fr 27%; }
 
     /* sidebar */
-    .side { border-right: 1px solid var(--line); background: rgba(26,27,30,0.022); padding: 4.4% 6%; }
-    .lights { display: flex; gap: 5%; margin-bottom: 12%; }
-    .lights i { width: 8.5%; aspect-ratio: 1; border-radius: 50%; background: var(--sil2); }
-    .lab { display: block; height: 3.6%; width: 42%; border-radius: 2px; background: var(--sil2); margin: 11% 0 6%; }
-    .row { display: flex; align-items: center; gap: 8%; height: 8.2%; padding: 0 6%; border-radius: 4px; margin-bottom: 2%; }
-    .row i { width: 11%; aspect-ratio: 1; border-radius: 2px; background: var(--sil2); flex: 0 0 auto; }
-    .row s { flex: 1; height: 26%; border-radius: 2px; background: var(--sil2); }
+    .side { border-right: 1px solid var(--line); background: #f7f6f4; padding: 1.6cqw 1cqw; overflow: hidden; }
+    .lights { display: flex; gap: 0.5cqw; padding: 0 0.5cqw 1.4cqw; }
+    .lights i { width: 0.72cqw; aspect-ratio: 1; border-radius: 50%; background: #dcdad5; }
+    .lab { display: block; font-size: 0.72cqw; letter-spacing: 0.1em; color: #a7a49d; padding: 1.1cqw 0.6cqw 0.35cqw; }
+    .row { display: flex; align-items: center; gap: 0.6cqw; padding: 0.42cqw 0.6cqw; border-radius: 0.5cqw;
+           color: #33352f; white-space: nowrap; overflow: hidden; }
+    .row i { width: 0.95cqw; aspect-ratio: 1; border-radius: 0.2cqw; background: var(--sil2); flex: 0 0 auto; }
+    .row i.y { background: #ff6600; } .row i.w { background: #3b5bdb; }
     .row.on { background: rgba(26,27,30,0.06); }
-    .row.on s, .row.on i { background: var(--sil3); }
-    .row.sub { padding-left: 22%; }
-    .row.sub s { max-width: 74%; }
-    .row .live { width: 11%; aspect-ratio: 1; border-radius: 50%; background: var(--live); flex: 0 0 auto; opacity: 0; transition: opacity 0.4s ease; }
+    .row em { margin-left: auto; font-style: normal; font-size: 0.66cqw; color: #a7a49d;
+              background: rgba(26,27,30,0.05); padding: 0.1cqw 0.4cqw; border-radius: 0.35cqw; }
+    .row.sub { padding-left: 2.2cqw; color: #8d8b84; }
+    .row .live { width: 0.6cqw; aspect-ratio: 1; border-radius: 50%; background: var(--live); flex: 0 0 auto;
+                 opacity: 0; transition: opacity 0.4s ease; margin-left: auto; }
     .stage[data-beat="1"] .row .live, .stage[data-beat="2"] .row .live,
-    .stage[data-beat="3"] .row .live, .stage[data-beat="4"] .row .live { opacity: 1; }
+    .stage[data-beat="3"] .row .live, .stage[data-beat="4"] .row .live,
+    .stage[data-beat="5"] .row .live { opacity: 1; }
 
-    /* middle column: a toolbar and the surface everything sits on */
-    .mid { display: grid; grid-template-rows: 9% 1fr; min-width: 0; }
-    .bar { display: flex; align-items: center; gap: 2.4%; padding: 0 3.4%; border-bottom: 1px solid var(--line); }
-    .bar s { height: 22%; border-radius: 3px; background: var(--sil2); }
-    .bar s.t { width: 26%; } .bar s.u { width: 18%; background: var(--sil); }
-    .bar .pill { margin-left: auto; width: 12%; height: 46%; border-radius: 5px; border: 1px solid var(--line); }
-    .bar .pill.hot { border-color: var(--ink); background: rgba(26,27,30,0.05); }
-    .surface { position: relative; margin: 3%; border-radius: 8px; background: rgba(26,27,30,0.035); overflow: hidden; }
-    .layer { position: absolute; inset: 4%; opacity: 0; transition: opacity 0.55s ease, transform 0.75s cubic-bezier(0.4,0,0.15,1); }
+    /* toolbar + the surface everything sits on */
+    .mid { display: grid; grid-template-rows: 3.4cqw 1fr; min-width: 0; }
+    .bar { display: flex; align-items: center; gap: 0.8cqw; padding: 0 1.2cqw; border-bottom: 1px solid var(--line); }
+    .bar b { font-size: 0.95cqw; font-weight: 600; }
+    .bar span { font-size: 0.85cqw; color: #96938c; }
+    .bar .pill { border: 1px solid var(--line); border-radius: 0.45cqw; padding: 0.28cqw 0.7cqw;
+                 font-size: 0.75cqw; color: #7c7a73; }
+    .bar .pill:first-of-type { margin-left: auto; }
+    .bar .pill.hot { border-color: var(--ink); color: var(--ink); }
+    .surface { position: relative; margin: 1.1cqw; border-radius: 0.7cqw; background: #f1efec; overflow: hidden; }
+    .layer { position: absolute; inset: 1.1cqw; opacity: 0;
+             transition: opacity 0.5s ease, transform 0.75s cubic-bezier(0.4,0,0.15,1),
+                         right 0.75s cubic-bezier(0.4,0,0.15,1), width 0.75s cubic-bezier(0.4,0,0.15,1); }
     .layer.on { opacity: 1; }
 
-    /* the page in the browser */
-    .page { right: 4%; background: var(--paper); border-radius: 6px; box-shadow: 0 6px 18px -10px rgba(26,27,30,0.4);
-            transform: translateX(0) scaleX(1); transform-origin: left center; overflow: hidden; }
-    .page .nav { height: 9%; background: var(--sil3); }
-    .page .body { padding: 6%; display: flex; flex-direction: column; gap: 5%; }
-    .page .body s { height: 5%; border-radius: 3px; background: var(--sil); display: block; }
-    .page .body s.w { width: 62%; } .page .body s.h { height: 24%; background: var(--sil2); }
-    .page .tri { display: flex; gap: 4%; height: 22%; }
-    .page .tri span { flex: 1; border-radius: 4px; background: var(--sil); }
-    .stage[data-beat="2"] .page, .stage[data-beat="3"] .page { right: 34%; }
+    /* the site in the browser */
+    .page { background: #fff; border-radius: 0.5cqw; box-shadow: 0 0.5cqw 1.4cqw -0.8cqw rgba(26,27,30,0.4);
+            overflow: hidden; display: flex; flex-direction: column; }
+    .page .nav { background: var(--red); color: #fff; display: flex; align-items: center; gap: 0.7cqw;
+                 padding: 0.55cqw 0.9cqw; font-size: 0.78cqw; font-weight: 600; }
+    .page .nav s { height: 0.2cqw; width: 1.4cqw; background: rgba(255,255,255,0.55); border-radius: 0.1cqw; }
+    .page .in { padding: 1cqw 1.1cqw; }
+    .page h6 { font-size: 1.1cqw; font-weight: 640; letter-spacing: -0.01em; }
+    .page p { font-size: 0.72cqw; color: #96938c; margin-top: 0.2cqw; }
+    .plans { display: flex; gap: 0.7cqw; margin-top: 0.9cqw; }
+    .plan { flex: 1; border: 1px solid var(--line); border-radius: 0.4cqw; padding: 0.7cqw 0.6cqw; background: #fafaf9; }
+    .plan b { display: block; font-size: 0.68cqw; color: #7c7a73; }
+    .plan em { display: block; font-style: normal; font-size: 1.15cqw; font-weight: 660; margin: 0.15cqw 0 0.5cqw; }
+    .plan s { display: block; height: 0.2cqw; background: var(--sil2); border-radius: 0.1cqw; margin-bottom: 0.3cqw; }
+    .plan s.w { width: 62%; }
+    .stage[data-beat="2"] .page, .stage[data-beat="3"] .page { right: 32%; }
 
     /* the phone beside it */
-    .phone { left: auto; right: 4%; width: 24%; background: var(--paper); border-radius: 10px;
-             box-shadow: 0 6px 18px -10px rgba(26,27,30,0.4); transform: translateX(14%);
-             display: flex; flex-direction: column; overflow: hidden; }
-    .phone .nav { height: 7%; background: var(--sil3); }
-    .phone .body { padding: 9%; display: flex; flex-direction: column; gap: 7%; flex: 1; }
-    .phone .body s { height: 4%; border-radius: 2px; background: var(--sil); }
-    .phone .body s.h { height: 22%; background: var(--sil2); }
-    .phone .home { height: 2.4%; width: 34%; margin: 0 auto 4%; border-radius: 2px; background: var(--sil3); opacity: 0; transition: opacity 0.5s ease; }
+    .phone { left: auto; right: 1.1cqw; width: 22%; background: #fff; border-radius: 1cqw;
+             box-shadow: 0 0.5cqw 1.4cqw -0.8cqw rgba(26,27,30,0.4); transform: translateX(16%);
+             overflow: hidden; display: flex; flex-direction: column; }
+    .phone .nav { background: var(--red); padding: 0.4cqw 0.6cqw; font-size: 0.6cqw; color: #fff; font-weight: 600; }
+    .phone .in { padding: 0.7cqw; }
+    .phone h6 { font-size: 0.78cqw; font-weight: 640; }
+    .phone .plans { flex-direction: column; gap: 0.5cqw; margin-top: 0.6cqw; }
+    .phone .plan em { font-size: 0.85cqw; }
+    .phone .home { margin: auto auto 0.5cqw; width: 32%; height: 0.22cqw; border-radius: 0.15cqw;
+                   background: #cbc9c3; opacity: 0; transition: opacity 0.5s ease; }
+    .phone .sim { position: absolute; inset: 0; background: #fff; opacity: 0; transition: opacity 0.5s ease;
+                  padding: 0.8cqw; display: flex; flex-direction: column; gap: 0.55cqw; }
+    .phone .sim .st { display: flex; justify-content: space-between; font-size: 0.6cqw; font-weight: 600; }
+    .phone .sim h6 { font-size: 0.9cqw; margin-bottom: 0.2cqw; }
+    .phone .sim .r { display: flex; align-items: center; gap: 0.5cqw; border-top: 1px solid var(--line); padding-top: 0.45cqw; }
+    .phone .sim .r i { width: 1.1cqw; aspect-ratio: 1; border-radius: 0.25cqw; background: var(--sil); }
+    .phone .sim .r s { flex: 1; height: 0.22cqw; background: var(--sil2); border-radius: 0.1cqw; }
     .stage[data-beat="2"] .phone, .stage[data-beat="3"] .phone { transform: none; }
-    .stage[data-beat="3"] .phone { width: 30%; right: 34%; }
-    .stage[data-beat="3"] .phone .home { opacity: 1; }
-    .stage[data-beat="3"] .phone .nav { background: var(--ink); opacity: 0.75; }
+    .stage[data-beat="3"] .phone { width: 28%; right: 32%; }
+    .stage[data-beat="3"] .phone .home, .stage[data-beat="3"] .phone .sim { opacity: 1; }
 
     /* the board */
-    .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3%; }
-    .col { background: var(--paper); border-radius: 6px; padding: 5% 4%; display: flex; flex-direction: column; gap: 6%; }
-    .col > s { height: 4%; width: 54%; border-radius: 2px; background: var(--sil2); }
-    .card { height: 15%; border-radius: 4px; background: var(--sil); }
-    .slot { height: 15%; }
-    .flyer { position: absolute; border-radius: 4px; background: var(--paper); border: 1px solid var(--ink);
-             box-shadow: 0 6px 14px -6px rgba(26,27,30,0.5); opacity: 0;
+    .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8cqw; }
+    .col { background: #fff; border-radius: 0.5cqw; padding: 0.7cqw 0.6cqw; display: flex; flex-direction: column; gap: 0.5cqw; }
+    .col h6 { font-size: 0.62cqw; letter-spacing: 0.09em; color: #a7a49d; font-weight: 600; }
+    .card { border: 1px solid var(--line); border-radius: 0.4cqw; padding: 0.5cqw; background: #fafaf9; font-size: 0.68cqw; }
+    .card s { display: block; height: 0.2cqw; background: var(--sil2); border-radius: 0.1cqw; margin-top: 0.3cqw; width: 70%; }
+    .slot { height: 2.4cqw; }
+    .flyer { position: absolute; border: 1px solid var(--ink); border-radius: 0.4cqw; background: #fff;
+             padding: 0.5cqw; font-size: 0.68cqw; font-weight: 560; opacity: 0;
+             box-shadow: 0 0.4cqw 1cqw -0.4cqw rgba(26,27,30,0.5);
              transition: transform 0.85s cubic-bezier(0.4,0,0.15,1), opacity 0.4s ease; }
     .stage[data-beat="4"] .flyer { opacity: 1; }
     .stage[data-beat="4"].moved .flyer { transform: translateX(var(--dx, 0px)); }
 
     /* files and a document */
-    .files { display: grid; grid-template-columns: 26% 1fr; gap: 3%; }
-    .tree { background: var(--paper); border-radius: 6px; padding: 6% 5%; display: flex; flex-direction: column; gap: 8%; }
-    .tree s { height: 4.4%; border-radius: 2px; background: var(--sil2); }
-    .tree s.w { width: 62%; } .tree s.on { background: var(--sil3); }
-    .doc { background: var(--paper); border-radius: 6px; padding: 7% 8%; display: flex; flex-direction: column; gap: 4.5%; }
-    .doc s { height: 3.4%; border-radius: 2px; background: var(--sil); }
-    .doc s.w { width: 70%; }
-    .doc s.mark { background: #f6dd8e; transform: scaleX(0); transform-origin: left; transition: transform 0.6s cubic-bezier(0.4,0,0.15,1); }
-    .stage[data-beat="5"] .doc s.mark { transform: scaleX(1); }
+    .files { display: grid; grid-template-columns: 27% 1fr; gap: 0.8cqw; }
+    .tree { background: #fff; border-radius: 0.5cqw; padding: 0.8cqw 0.6cqw; font-size: 0.7cqw; color: #8d8b84; }
+    .tree div { padding: 0.25cqw 0.45cqw; border-radius: 0.35cqw; white-space: nowrap; overflow: hidden; }
+    .tree div.in { padding-left: 1.2cqw; }
+    .tree div.sel { background: rgba(26,27,30,0.06); color: var(--ink); }
+    .doc { background: #fff; border-radius: 0.5cqw; padding: 1cqw 1.2cqw; }
+    .doc h6 { font-size: 0.85cqw; font-weight: 640; margin-bottom: 0.6cqw; }
+    .doc s { display: block; height: 0.24cqw; background: var(--sil); border-radius: 0.12cqw; margin-bottom: 0.45cqw; }
+    .doc s.w { width: 72%; }
+    .doc .mark { display: block; height: 0.72cqw; width: 64%; border-radius: 0.12cqw; background: var(--amber);
+                 margin: 0.6cqw 0; transform: scaleX(0); transform-origin: left;
+                 transition: transform 0.6s cubic-bezier(0.4,0,0.15,1); }
+    .stage[data-beat="5"] .doc .mark { transform: scaleX(1); }
 
     /* the chat */
-    .chat { border-left: 1px solid var(--line); display: grid; grid-template-rows: 1fr auto auto; padding: 4% 5%; min-height: 0; }
-    .thread { display: flex; flex-direction: column; gap: 5%; align-content: flex-start; }
-    .bub { border-radius: 7px; background: var(--sil); opacity: 0; transform: translateY(6px);
+    .chat { border-left: 1px solid var(--line); display: grid; grid-template-rows: 1fr auto auto;
+            padding: 1.1cqw 1cqw; min-height: 0; overflow: hidden; }
+    .thread { display: flex; flex-direction: column; justify-content: flex-end; gap: 0.6cqw; overflow: hidden; }
+    .bub { border-radius: 0.7cqw; padding: 0.5cqw 0.65cqw; font-size: 0.78cqw; line-height: 1.45;
+           background: rgba(26,27,30,0.045); opacity: 0; transform: translateY(0.4cqw);
            transition: opacity 0.45s ease, transform 0.45s ease; }
     .bub.on { opacity: 1; transform: none; }
-    .bub.me { align-self: flex-end; background: var(--ink); width: 74%; height: 8%; }
-    .bub.it { width: 88%; height: 11%; }
-    .bub.tool { width: 60%; height: 3.4%; background: var(--sil2); border-radius: 3px; }
-    .composer { border: 1px solid var(--line); border-radius: 7px; display: flex; align-items: center; padding: 6% 6%; }
-    .composer s { height: 5px; border-radius: 2px; background: var(--sil2); width: 44%; transition: width 0.35s ease; }
+    .bub.me { align-self: flex-end; background: var(--ink); color: #fff; max-width: 88%; }
+    .bub.tool { background: none; padding: 0 0.2cqw; font-size: 0.7cqw; color: #96938c; font-family: var(--mono); }
+    .composer { border: 1px solid var(--line); border-radius: 0.55cqw; padding: 0.55cqw 0.7cqw;
+                font-size: 0.78cqw; color: #a7a49d; white-space: nowrap; overflow: hidden; }
+    .composer .tx { display: none; color: var(--ink); }
     .stage.typing .composer { border-color: var(--ink); }
-    .stage.typing .composer s { width: 78%; background: var(--sil3); }
-    .crow { display: flex; gap: 5%; margin-top: 7%; }
-    .crow s { width: 22%; padding: 4% 0; border-radius: 4px; border: 1px solid var(--line); }
+    .stage.typing .composer .ph { display: none; }
+    .stage.typing .composer .tx { display: inline; }
+    .crow { display: flex; gap: 0.5cqw; margin-top: 0.6cqw; }
+    .crow span { border: 1px solid var(--line); border-radius: 0.4cqw; padding: 0.2cqw 0.5cqw;
+                 font-size: 0.66cqw; color: #96938c; }
 
     /* the cursor, and what it leaves behind */
     .cursor { position: absolute; left: 50%; top: 50%; width: 20px; z-index: 8;
@@ -196,17 +228,15 @@
     .ripple.go { animation: rip 0.65s ease-out; }
     @keyframes rip { from { opacity: 0.85; transform: scale(0.35); } to { opacity: 0; transform: scale(2.3); } }
 
-    /* the notification, which is the only thing that ever comes forward */
-    .note { position: absolute; right: 3%; top: 5%; width: 30%; z-index: 9;
-      background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 3.4% 3.4%;
-      display: flex; gap: 7%; align-items: center;
-      box-shadow: 0 16px 34px -14px rgba(26,27,30,0.42);
+    /* the notification, the only thing that ever comes forward */
+    .note { position: absolute; right: 1.4cqw; top: 1.6cqw; width: 32%; z-index: 9;
+      background: #fff; border: 1px solid var(--line); border-radius: 0.8cqw; padding: 0.75cqw 0.85cqw;
+      display: flex; gap: 0.6cqw; box-shadow: 0 1.2cqw 2.6cqw -1cqw rgba(26,27,30,0.42);
       opacity: 0; transform: translateY(-10px); transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2,0.9,0.3,1); }
     .note.on { opacity: 1; transform: none; }
-    .note i { width: 13%; aspect-ratio: 1; border-radius: 4px; background: var(--ink); flex: 0 0 auto; }
-    .note div { flex: 1; display: flex; flex-direction: column; gap: 14%; }
-    .note s { height: 5px; border-radius: 2px; background: var(--sil2); }
-    .note s.w { width: 62%; background: var(--sil3); }
+    .note i { width: 1.7cqw; aspect-ratio: 1; border-radius: 0.4cqw; background: var(--ink); flex: 0 0 auto; }
+    .note b { display: block; font-size: 0.78cqw; }
+    .note span { display: block; font-size: 0.74cqw; color: #8d8b84; line-height: 1.4; }
 
     .demo-bar { display: flex; align-items: baseline; gap: 18px; margin-top: 14px; }
     .demo-cap { flex: 1; min-height: 40px; position: relative; }
@@ -220,7 +250,7 @@
 
     @media (max-width: 640px) { .demo-cap span { display: none; } .demo-cap { min-height: 24px; } }
     @media (prefers-reduced-motion: reduce) {
-      .layer, .bub, .cursor, .note, .demo-cap div, .flyer, .page, .phone, .doc s.mark { transition: none; }
+      .layer, .bub, .cursor, .note, .demo-cap div, .flyer, .page, .phone, .doc .mark { transition: none; }
       .cursor, .ripple { display: none; }
     }
 
@@ -300,60 +330,108 @@
           <div class="win">
             <aside class="side">
               <span class="lights"><i></i><i></i><i></i></span>
-              <span class="lab"></span>
-              <span class="row"><i></i><s></s></span>
-              <span class="row"><i></i><s></s></span>
-              <span class="lab"></span>
-              <span class="row on"><i></i><s></s><b class="live"></b></span>
-              <span class="row sub"><s></s></span>
-              <span class="row sub"><s></s></span>
-              <span class="row"><i></i><s></s></span>
+              <span class="lab">BROWSING</span>
+              <div class="row"><i class="y"></i>news.ycombinator.com</div>
+              <div class="row"><i class="w"></i>en.wikipedia.org</div>
+              <span class="lab">WORK</span>
+              <div class="row on"><i></i>wepush<b class="live"></b></div>
+              <div class="row sub">pricing on mobile</div>
+              <div class="row sub">Nimbus landing page</div>
+              <div class="row"><i></i>design-system<em>main</em></div>
+              <div class="row"><i></i>notes-app<em>main</em></div>
+              <span class="lab">PERSONAL</span>
+              <div class="row"><i></i>shop-web<em>main</em></div>
             </aside>
 
             <div class="mid">
               <div class="bar">
-                <s class="t"></s><s class="u"></s>
-                <span class="pill" id="pill"></span>
+                <b>wepush</b><span>wepush.app/pricing</span>
+                <span class="pill" id="pill">Routines</span>
+                <span class="pill">Skills</span>
               </div>
               <div class="surface" id="surface">
                 <div class="layer page" id="l-page">
-                  <div class="nav"></div>
-                  <div class="body"><s class="h"></s><s></s><s class="w"></s><div class="tri"><span></span><span></span><span></span></div><s></s><s class="w"></s></div>
+                  <div class="nav">wepush<s></s><s></s></div>
+                  <div class="in">
+                    <h6>Simple pricing</h6>
+                    <p>Three plans. No seats, no per-message billing.</p>
+                    <div class="plans">
+                      <div class="plan"><b>Starter</b><em>$0</em><s></s><s class="w"></s></div>
+                      <div class="plan"><b>Team</b><em>$12</em><s></s><s class="w"></s></div>
+                      <div class="plan"><b>Studio</b><em>$49</em><s></s><s class="w"></s></div>
+                    </div>
+                  </div>
                 </div>
                 <div class="layer phone" id="l-phone">
-                  <div class="nav"></div>
-                  <div class="body"><s class="h"></s><s></s><s></s><s></s></div>
+                  <div class="nav">wepush</div>
+                  <div class="in">
+                    <h6>Simple pricing</h6>
+                    <div class="plans">
+                      <div class="plan"><b>Starter</b><em>$0</em><s></s></div>
+                      <div class="plan"><b>Team</b><em>$12</em><s></s></div>
+                    </div>
+                  </div>
                   <div class="home"></div>
+                  <div class="sim">
+                    <div class="st"><span>9:41</span><span>􀛨</span></div>
+                    <h6>wepush</h6>
+                    <div class="r"><i></i><s></s></div>
+                    <div class="r"><i></i><s></s></div>
+                    <div class="r"><i></i><s></s></div>
+                    <div class="r"><i></i><s></s></div>
+                  </div>
                 </div>
                 <div class="layer board" id="l-board">
-                  <div class="col"><s></s><span class="card"></span><span class="card"></span></div>
-                  <div class="col"><s></s><span class="card"></span></div>
-                  <div class="col"><s></s><span class="slot" id="from"></span></div>
-                  <div class="col"><s></s><span class="slot" id="to"></span><span class="card"></span></div>
-                  <span class="flyer" id="flyer"></span>
+                  <div class="col"><h6>BACKLOG</h6>
+                    <div class="card">empty states<s></s></div>
+                    <div class="card">sitemap<s></s></div>
+                  </div>
+                  <div class="col"><h6>NEXT</h6><div class="card">seat limits<s></s></div></div>
+                  <div class="col"><h6>DOING</h6><span class="slot" id="from"></span></div>
+                  <div class="col"><h6>DONE</h6><span class="slot" id="to"></span>
+                    <div class="card">og image<s></s></div>
+                  </div>
+                  <span class="flyer" id="flyer">mobile pricing</span>
                 </div>
                 <div class="layer files" id="l-files">
-                  <div class="tree"><s class="w"></s><s></s><s class="on"></s><s class="w"></s><s></s></div>
-                  <div class="doc"><s class="w"></s><s></s><s class="mark"></s><s></s><s class="w"></s><s></s></div>
+                  <div class="tree">
+                    <div>▾ src</div>
+                    <div class="in">+page.svelte</div>
+                    <div>▾ docs</div>
+                    <div class="in sel">brief.pdf</div>
+                    <div class="in">pricing.md</div>
+                    <div>README.md</div>
+                  </div>
+                  <div class="doc">
+                    <h6>Plans &amp; limits — page 3</h6>
+                    <s></s><s class="w"></s>
+                    <span class="mark"></span>
+                    <s></s><s class="w"></s><s></s>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div class="chat">
               <div class="thread" id="thread">
-                <span class="bub me"></span>
-                <span class="bub it"></span>
-                <span class="bub tool"></span>
-                <span class="bub it"></span>
-                <span class="bub me"></span>
-                <span class="bub tool"></span>
+                <span class="bub me">check the pricing page on mobile</span>
+                <span class="bub it">Opening it in the browser.</span>
+                <span class="bub tool">› 3 steps · navigate · read page</span>
+                <span class="bub it">The plan cards overflow below 380px — the grid never drops to one column.</span>
+                <span class="bub me">fix it and check the brief</span>
+                <span class="bub tool">› 2 steps · 1 edit · simulator</span>
               </div>
-              <div class="composer" id="composer"><s></s></div>
-              <div class="crow"><s></s><s></s></div>
+              <div class="composer" id="composer">
+                <span class="ph">Message Claude…</span><span class="tx">check the pricing page on mobile</span>
+              </div>
+              <div class="crow"><span>Model Default</span><span>Mode Full</span></div>
             </div>
           </div>
 
-          <div class="note" id="note"><i></i><div><s class="w"></s><s></s></div></div>
+          <div class="note" id="note">
+            <i></i>
+            <div><b>SuperAgent</b><span>Done — the plan grid collapses at 380px. Checked on iPhone 17 Pro too.</span></div>
+          </div>
           <span class="ripple" id="ripple"></span>
           <svg class="cursor" id="cursor" viewBox="0 0 21 21" fill="none" aria-hidden="true">
             <path d="M2 1.5 L2 17 L6.2 13.2 L9 19.4 L11.9 18 L9.1 12 L14.6 12 Z" fill="#fff" stroke="#1a1b1e" stroke-width="1.4" stroke-linejoin="round" />
@@ -549,7 +627,7 @@
       [18600, function () { click(30, 45); }],
       [19400, function () { move(52, 52); }],
 
-      [21000, function () { beat(6); layer(); pill.classList.add('hot'); move(103, 103); }],
+      [21000, function () { beat(6); layer('page', 'phone'); pill.classList.add('hot'); move(103, 103); }],
       [22000, function () { note.classList.add('on'); stage.classList.add('dim'); }],
       [25200, function () { note.classList.remove('on'); stage.classList.remove('dim'); }]
     ];

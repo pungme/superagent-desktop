@@ -1965,9 +1965,21 @@ export function EasyChat({
     applyRespawn()
   }
   const modelLabel = MODEL_OPTIONS.find((m) => m.value === model)?.label ?? 'Default'
-  // How much of Claude's memory this conversation fills. The window depends on
-  // the model actually running — the 1M variants advertise themselves in the id.
-  const ctxWindow = activeModel && /\[?1m\]?/i.test(activeModel) ? 1_000_000 : 200_000
+  /**
+   * How much of Claude's memory this conversation fills. The window depends on
+   * the model running — read from the id it reports at startup.
+   *
+   * Opus 5 is a 1M-context model whether or not the id carries the [1m] tag:
+   * a session was measured working with 376K tokens in it, which cannot fit a
+   * 200K window and still run, so plain claude-opus-5 was under-reported as
+   * 200K and the gauge sat pinned at 100% on a conversation using a third of
+   * its room. The [1m] tag still forces 1M for the models that offer it as a
+   * choice (Sonnet), and everything else is the 200K baseline.
+   */
+  const ctxWindow =
+    activeModel && (/\[1m\]/i.test(activeModel) || /opus-?5|opus\b/i.test(activeModel))
+      ? 1_000_000
+      : 200_000
   const ctxPercent = Math.min(100, Math.round(((ctxTokens ?? 0) / ctxWindow) * 100))
   const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
 
