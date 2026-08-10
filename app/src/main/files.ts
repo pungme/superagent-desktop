@@ -33,35 +33,57 @@ const SKIP_DIRS = new Set([
 
 const MAX_DEPTH = 12
 
-export function listProjectFiles(root: string, max = 1000): string[] {
+/**
+ * Every path under a project, shallowest first, up to a budget.
+ *
+ * Breadth-first, which matters more than it sounds: depth-first spent the
+ * whole budget inside the first big sub-repo it walked into and returned
+ * before it had even finished listing the top level — a monorepo showed nine
+ * of its twenty-one entries and simply omitted the rest, with nothing to say
+ * so. Level by level, the top of the tree is always complete and it is the
+ * deepest, least-looked-at corners that get cut.
+ *
+ * Directories are named in their own right (a trailing "/") rather than being
+ * inferred from the files inside them, so a directory whose contents fell
+ * outside the budget still appears — and can still be opened.
+ */
+export function listProjectFiles(root: string, max = 8000): string[] {
   const out: string[] = []
-  const walk = (dir: string, depth: number): void => {
-    if (out.length >= max || depth > MAX_DEPTH) return
-    let entries: string[]
-    try {
-      entries = readdirSync(dir)
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (out.length >= max) return
-      if (SKIP_DIRS.has(entry)) continue
-      const full = join(dir, entry)
-      let st: ReturnType<typeof lstatSync>
+  let level: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }]
+  while (level.length && out.length < max) {
+    const next: { dir: string; depth: number }[] = []
+    for (const { dir, depth } of level) {
+      if (out.length >= max) break
+      let entries: string[]
       try {
-        // lstat (not stat) so we can see symlinks without following them — never
-        // descend into a symlinked dir, which is how directory cycles would recurse
-        // forever.
-        st = lstatSync(full)
+        entries = readdirSync(dir)
       } catch {
         continue
       }
-      if (st.isSymbolicLink()) continue
-      if (st.isDirectory()) walk(full, depth + 1)
-      else if (st.isFile()) out.push(relative(root, full))
+      for (const entry of entries) {
+        if (out.length >= max) break
+        if (SKIP_DIRS.has(entry)) continue
+        const full = join(dir, entry)
+        let st: ReturnType<typeof lstatSync>
+        try {
+          // lstat (not stat) so we can see symlinks without following them — never
+          // descend into a symlinked dir, which is how directory cycles would recurse
+          // forever.
+          st = lstatSync(full)
+        } catch {
+          continue
+        }
+        if (st.isSymbolicLink()) continue
+        if (st.isDirectory()) {
+          out.push(relative(root, full) + '/')
+          if (depth + 1 <= MAX_DEPTH) next.push({ dir: full, depth: depth + 1 })
+        } else if (st.isFile()) {
+          out.push(relative(root, full))
+        }
+      }
     }
+    level = next
   }
-  walk(root, 0)
   return out.sort()
 }
 
