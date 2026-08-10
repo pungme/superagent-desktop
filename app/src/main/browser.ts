@@ -137,6 +137,76 @@ function applyBrowserIdentity(wc: Electron.WebContents): void {
         wow64: false
       }
     })
+    // addScriptToEvaluateOnNewDocument is a Page-domain command and does
+    // nothing until the domain is enabled — which it silently was not.
+    void wc.debugger.sendCommand('Page.enable')
+    // Chrome's own branding layer adds window.chrome.csi and .loadTimes.
+    // Electron's Chromium has the object but not those two, and "window.chrome
+    // exists but is missing its methods" is one of the oldest tells there is —
+    // the very thing a challenge looks for after the UA says Chrome. Defined
+    // before any page script runs, so a page never sees the gap.
+    wc.debugger
+      .sendCommand('Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        (() => {
+          const c = window.chrome
+          if (!c || typeof c.csi === 'function') return
+          const start = Date.now()
+          // A shim that answers "function () { … }" to toString is no better
+          // than not being there: that is the next thing checked after the
+          // method is found. Chrome's own report [native code], so these say
+          // the same — including toString about itself, or the patch would be
+          // the thing that stood out.
+          const native = Function.prototype.toString
+          const asNative = new WeakMap()
+          Function.prototype.toString = new Proxy(native, {
+            apply(target, self, args) {
+              const faked = asNative.get(self)
+              return faked ?? Reflect.apply(target, self, args)
+            }
+          })
+          asNative.set(Function.prototype.toString, 'function toString() { [native code] }')
+          Object.defineProperty(c, 'csi', {
+            value: () => ({
+              onloadT: start,
+              startE: start,
+              pageT: performance.now(),
+              tran: 15
+            }),
+            writable: true,
+            enumerable: false,
+            configurable: true
+          })
+          Object.defineProperty(c, 'loadTimes', {
+            value: () => {
+              const t = performance.timing || {}
+              const s = (t.navigationStart || start) / 1000
+              return {
+                requestTime: s,
+                startLoadTime: s,
+                commitLoadTime: (t.responseStart || start) / 1000,
+                finishDocumentLoadTime: (t.domContentLoadedEventEnd || start) / 1000,
+                finishLoadTime: (t.loadEventEnd || start) / 1000,
+                firstPaintTime: (t.responseEnd || start) / 1000,
+                firstPaintAfterLoadTime: 0,
+                navigationType: 'Other',
+                wasFetchedViaSpdy: true,
+                wasNpnNegotiated: true,
+                npnNegotiatedProtocol: 'h2',
+                wasAlternateProtocolAvailable: false,
+                connectionInfo: 'h2'
+              }
+            },
+            writable: true,
+            enumerable: false,
+            configurable: true
+          })
+          asNative.set(c.csi, 'function () { [native code] }')
+          asNative.set(c.loadTimes, 'function () { [native code] }')
+        })()
+      `
+      })
+      .catch((e) => console.warn('[identity] chrome shims not installed:', e?.message))
   } catch {
     // Without it the pane still works; it just answers the older way.
   }
