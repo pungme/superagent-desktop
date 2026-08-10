@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 
 /** The applications that live on the Computer desktop. */
-export type AppId = 'chat' | 'browser' | 'dashboard' | 'skills' | 'routines'
+export type AppId = 'chat' | 'browser' | 'dashboard' | 'skills' | 'routines' | 'file'
 
 export interface DesktopApp {
   id: AppId
@@ -78,5 +78,22 @@ export const DESKTOP_APPS: DesktopApp[] = [
   }
 ]
 
+/**
+ * A file opened from the desktop. Deliberately not in DESKTOP_APPS: there is
+ * nothing to launch from the dock — a window of this kind only exists because
+ * you opened a particular file.
+ */
+export const FILE_APP: DesktopApp = {
+  id: 'file',
+  name: 'File',
+  initial: { w: 760, h: 560 },
+  icon: (
+    <svg viewBox="0 0 24 24" {...stroke}>
+      <path d="M13.5 3.2H7a1.8 1.8 0 00-1.8 1.8v14a1.8 1.8 0 001.8 1.8h10a1.8 1.8 0 001.8-1.8V8.5z" />
+      <path d="M13.4 3.3v5.2h5.3" />
+    </svg>
+  )
+}
+
 export const appById = (id: AppId): DesktopApp =>
-  DESKTOP_APPS.find((a) => a.id === id) ?? DESKTOP_APPS[0]
+  id === 'file' ? FILE_APP : (DESKTOP_APPS.find((a) => a.id === id) ?? DESKTOP_APPS[0])

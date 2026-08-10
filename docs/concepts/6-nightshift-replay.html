@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — it works while you don't</title>
+<meta name="description" content="A Mac app that gives your agent a computer." />
+<style>
+/*
+  CONCEPT 6 — "Nightshift × Replay".
+
+  Two ideas from the earlier concepts, joined at the palette:
+
+  · Nightshift (4) — the page is paper at rest. Reach for Download and it drops
+    into space and accelerates. The interaction is the argument: you go
+    somewhere, the page stays where it is.
+
+  · Replay (2) — the scrollbar is a transport control. You are not reading
+    about a session, you are scrubbing one.
+
+  What is new here is that the session is not a slideshow of screenshots. The
+  app is rebuilt in DOM — sidebar, chat, browser, phone, board — and it plays:
+  the message types itself, the omnibox fills, the plan grid actually reflows
+  when the agent fixes it, a card actually crosses the board. Every frame is
+  derived from scroll position, so scrubbing backwards rewinds it exactly.
+
+  The join is the colour. One clock drives both: the same variables the warp
+  interpolates also paint the mock window, so hovering Download drops the app
+  into dark mode along with everything else — which is what it does anyway.
+*/
+:root {
+  /* Paper, at rest. Every one of these is re-set per frame while the warp
+     runs, so the page changes state on the same clock as the starfield
+     rather than on a transition of its own. */
+  --paper: #f6f5f1;
+  --ink: #14151a;
+  --muted: #5d6068;
+  --faint: #92959d;
+  --line: rgba(20,21,26,0.12);
+  --card: rgba(20,21,26,0.02);
+  --accent: #b4551e;
+
+  /* the mock window's own tokens — interpolated on the same clock */
+  --win: #ffffff;
+  --side: #f1f0ec;
+  --desk: #e9e8e3;
+  --wink: #1d1f24;
+  --wmut: #7c828c;
+  --wline: rgba(20,21,26,0.10);
+  --wfill: rgba(20,21,26,0.045);
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --swap: 400ms cubic-bezier(.4,0,.2,1);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--paper); color: var(--ink); -webkit-font-smoothing:antialiased;
+  font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+}
+a { color:inherit }
+img { max-width:100%; display:block; height:auto }
+
+/* The starfield sits behind everything and is invisible until it moves. */
+canvas#stars { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none }
+
+.page { position:relative; z-index:2 }
+.wrap { max-width:1020px; margin:0 auto; padding:0 26px }
+
+/* ── hero ─────────────────────────────────────────────────────────────── */
+.hero { min-height:100vh; display:grid; align-content:center; text-align:center }
+.hero img.mark { width:46px; height:46px; border-radius:12px; margin:0 auto 26px;
+  transition: box-shadow var(--swap), transform var(--swap); }
+body.warping .hero img.mark { box-shadow:0 0 46px rgba(255,201,120,.4); transform:scale(1.06) }
+.kicker { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; color:var(--accent);
+  text-transform:uppercase }
+h1 { margin-top:18px; font-size:clamp(36px,7vw,86px); line-height:1.0;
+  letter-spacing:-0.042em; font-weight:660 }
+h1 span { display:block; color:var(--faint) }
+.lede { margin:22px auto 0; max-width:52ch; color:var(--muted); font-size:clamp(15px,1.7vw,18px);
+  line-height:1.6 }
+.ctas { display:flex; gap:12px; justify-content:center; margin-top:34px; flex-wrap:wrap }
+.btn { position:relative; padding:13px 26px; border-radius:999px; text-decoration:none;
+  font-weight:640; font-size:14.5px; background:var(--ink); color:var(--paper);
+  transition: transform .35s cubic-bezier(.2,1.2,.4,1), box-shadow .45s ease }
+.btn:hover { transform:translateY(-2px) scale(1.02) }
+body.warping .btn { box-shadow:0 0 0 1px rgba(255,201,120,.5), 0 0 44px rgba(255,201,120,.35) }
+.btn.ghost { background:none; color:var(--ink); border:1px solid var(--line) }
+body.warping .btn.ghost { box-shadow:none }
+.note { margin-top:18px; font-family:var(--mono); font-size:11.5px; color:var(--faint);
+  letter-spacing:0.04em }
+.tip { display:block; margin-top:10px; font-family:var(--mono); font-size:11px; color:var(--faint);
+  opacity:.75 }
+.scrollcue { margin-top:44px; font-family:var(--mono); font-size:11px; color:var(--faint);
+  letter-spacing:0.14em }
+.scrollcue::after { content:'↓'; display:block; margin-top:8px; animation:bob 2s ease-in-out infinite }
+@keyframes bob { 50% { transform:translateY(6px) } }
+
+/* ── the reel: a pinned stage over a long scroll ───────────────────────── */
+.track { position:fixed; left:0; right:0; top:0; height:2px; background:var(--line); z-index:30 }
+.track i { display:block; height:100%; width:0; background:var(--ink) }
+
+.reel { position:relative; height:700vh }
+.stage { position:sticky; top:0; height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:22px }
+
+/* The window is laid out at a fixed 1080×664 and scaled to fit — every
+   proportion inside it is then predictable at any viewport. */
+.winbox { position:relative; width:100%; display:flex; justify-content:center }
+.win {
+  width:1080px; height:664px; flex:0 0 auto; transform-origin:top center;
+  display:grid; grid-template-columns:196px 1fr;
+  background:var(--win); color:var(--wink); border:1px solid var(--wline);
+  border-radius:12px; overflow:hidden; box-shadow:0 30px 70px -30px rgba(10,12,18,.35);
+  font-size:12px;
+}
+
+/* sidebar */
+.side { background:var(--side); border-right:1px solid var(--wline); padding:0 8px 8px;
+  display:flex; flex-direction:column; gap:1px; overflow:hidden }
+.lights { display:flex; gap:6px; padding:12px 6px 14px }
+.lights i { width:10px; height:10px; border-radius:50% }
+.lights i:nth-child(1){ background:#ff5f57 } .lights i:nth-child(2){ background:#febc2e }
+.lights i:nth-child(3){ background:#28c840 }
+.s-lab { font-size:9.5px; letter-spacing:.1em; color:var(--wmut); padding:12px 8px 4px }
+.s-row { display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:7px;
+  color:var(--wink); white-space:nowrap; overflow:hidden }
+.s-row.on { background:var(--wfill) }
+.s-row .fav { width:13px; height:13px; border-radius:3px; background:#ff6600; color:#fff;
+  font-size:8px; display:grid; place-items:center; font-weight:700; flex:0 0 auto }
+.s-row .fav.w { background:#3b5bdb } .s-row .fav.g { background:#4ea86b }
+.s-row .ico { color:var(--wmut); font-size:9px; width:9px }
+.s-row em { margin-left:auto; font-style:normal; font-family:var(--mono); font-size:8.5px;
+  color:var(--wmut); background:var(--wfill); padding:1px 5px; border-radius:5px }
+.s-chat { padding:4px 8px 4px 26px; color:var(--wmut); font-size:11px; border-radius:7px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; position:relative }
+.s-chat.on { background:var(--wfill); color:var(--wink) }
+.s-chat .spin { position:absolute; left:13px; top:8px; width:7px; height:7px; border-radius:50%;
+  border:1.5px solid var(--wmut); border-top-color:transparent; animation:spin .9s linear infinite }
+.s-chat .dot { position:absolute; left:14px; top:9px; width:5px; height:5px; border-radius:50%;
+  background:#4ea86b }
+@keyframes spin { to { transform:rotate(360deg) } }
+.s-foot { margin-top:auto; display:flex; align-items:center; gap:6px; padding:8px;
+  color:var(--wmut); font-size:11px }
+
+/* main column */
+.main { display:grid; grid-template-rows:38px 1fr; min-width:0 }
+.bar { display:flex; align-items:center; gap:10px; padding:0 12px;
+  border-bottom:1px solid var(--wline); min-width:0 }
+.bar b { font-weight:600; font-size:12px; white-space:nowrap }
+.bar .url { color:var(--wmut); font-size:11px; overflow:hidden; white-space:nowrap;
+  text-overflow:ellipsis; min-width:0; flex:1 }
+.pill { border:1px solid var(--wline); border-radius:7px; padding:4px 9px; font-size:10.5px;
+  color:var(--wmut); white-space:nowrap; flex:0 0 auto }
+.pill.hot { color:var(--accent); border-color:currentColor }
+
+.body { display:grid; grid-template-columns:1fr 320px; min-width:0; min-height:0 }
+
+/* the desk — the painted surface the browser and phone sit on */
+.desk { position:relative; background:var(--desk); padding:12px; min-width:0; overflow:hidden }
+.dev { display:flex; align-items:center; gap:8px; height:22px; padding:0 9px; border-radius:6px;
+  background:var(--win); border:1px solid var(--wline); font-family:var(--mono); font-size:9.5px;
+  color:var(--wmut); white-space:nowrap }
+.dev i { width:5px; height:5px; border-radius:50%; background:#4ea86b; flex:0 0 auto }
+.dev .st { margin-left:auto }
+.surface { position:absolute; inset:46px 12px 12px; display:flex; gap:14px; align-items:flex-start }
+
+/* browser card */
+.bcard { width:322px; flex:0 0 auto; background:var(--win); border:1px solid var(--wline);
+  border-radius:9px; overflow:hidden; box-shadow:0 14px 30px -18px rgba(10,12,18,.5) }
+.omnirow { display:flex; align-items:center; gap:6px; padding:6px 7px; border-bottom:1px solid var(--wline) }
+.omnirow .nav { color:var(--wmut); font-size:9px; letter-spacing:2px }
+.omni { flex:1; height:17px; border-radius:5px; background:var(--wfill); padding:0 7px;
+  font-family:var(--mono); font-size:8.5px; color:var(--wmut); display:flex; align-items:center;
+  overflow:hidden; white-space:nowrap }
+.omni .car { width:1px; height:9px; background:var(--wink); margin-left:1px; animation:blink 1s steps(1) infinite }
+@keyframes blink { 50% { opacity:0 } }
+.bview { height:302px; position:relative; overflow:hidden; background:var(--win) }
+
+/* phone */
+.phone { width:150px; flex:0 0 auto; border-radius:18px; border:1px solid var(--wline);
+  background:var(--win); padding:4px; box-shadow:0 14px 30px -18px rgba(10,12,18,.5); position:relative }
+.pscreen { position:relative; height:296px; border-radius:14px; overflow:hidden; background:var(--win) }
+.pbar { position:absolute; left:50%; bottom:4px; transform:translateX(-50%); width:52px; height:3px;
+  border-radius:2px; background:var(--wink); opacity:.35; z-index:6 }
+
+/* the site the agent is working on — the same markup in both frames, so the
+   fix has to actually reflow rather than being drawn twice */
+.site { position:absolute; inset:0; overflow:hidden; background:var(--win) }
+.site-nav { display:flex; align-items:center; gap:6px; padding:7px 9px; background:#c0392b }
+.site-nav b { color:#fff; font-size:8.5px; letter-spacing:.02em }
+.site-nav s { flex:0 0 14px; height:3px; border-radius:2px; background:rgba(255,255,255,.5);
+  text-decoration:none }
+.site-nav s.r { margin-left:auto; flex-basis:20px }
+.site-h { padding:12px 10px 2px; font-size:11px; font-weight:640; letter-spacing:-.01em }
+.site-s { padding:0 10px 10px; font-size:8px; color:var(--wmut) }
+.plans { display:flex; gap:7px; padding:0 10px 10px; align-items:flex-start }
+.plan { flex:0 0 92px; border:1px solid var(--wline); border-radius:6px; padding:8px 7px;
+  background:var(--wfill); transition:flex-basis .45s cubic-bezier(.4,0,.2,1) }
+.plan b { display:block; font-size:8.5px }
+.plan em { display:block; font-style:normal; font-size:13px; font-weight:660; margin:3px 0 6px }
+.plan s { display:block; height:3px; border-radius:2px; background:var(--wline); margin-bottom:4px;
+  text-decoration:none }
+.plan s.short { width:60% }
+/* the rest of the page, so the frame holds a page and not a header */
+.band { padding:4px 10px 0; display:flex; gap:7px; flex-wrap:wrap }
+.band div { flex:1 1 84px; height:34px; border-radius:5px; background:var(--wfill) }
+.site-f { margin-top:10px; padding:8px 10px; border-top:1px solid var(--wline); display:flex; gap:6px }
+.site-f s { height:3px; flex:0 0 26px; border-radius:2px; background:var(--wline); text-decoration:none }
+/* the bug, and only where the bug is: at phone width the row never wraps */
+.pscreen .plans { flex-wrap:nowrap }
+.pscreen .plan { flex-basis:88px }
+.pscreen .site.fixed .plans { flex-wrap:wrap }
+.pscreen .site.fixed .plan { flex-basis:100% }
+.cut { position:absolute; top:0; right:0; bottom:0; width:26px; z-index:3;
+  background:linear-gradient(90deg, rgba(200,60,40,0), rgba(200,60,40,.22)) }
+
+/* the simulator, when the phone stops being a preview and becomes a device */
+.simchrome { position:absolute; inset:0; background:var(--win); z-index:5 }
+.simbar { display:flex; align-items:center; justify-content:space-between; padding:6px 10px 4px;
+  font-size:8px; font-weight:600 }
+.simbar s { width:16px; height:6px; border:1px solid currentColor; border-radius:2px;
+  opacity:.6; text-decoration:none }
+.simapp { padding:8px 10px }
+.simapp h6 { font-size:12px; font-weight:660; letter-spacing:-.01em; margin-bottom:8px }
+.simrow { display:flex; align-items:center; gap:7px; padding:6px 0; border-top:1px solid var(--wline) }
+.simrow i { width:18px; height:18px; border-radius:5px; background:var(--wfill); flex:0 0 auto }
+.simrow s { flex:1; height:4px; border-radius:2px; background:var(--wline); text-decoration:none }
+.tap { position:absolute; width:26px; height:26px; border-radius:50%; border:1.5px solid var(--accent);
+  z-index:6; pointer-events:none }
+
+/* the board */
+.board { position:absolute; inset:0; display:grid; grid-template-columns:repeat(4,1fr); gap:8px }
+.col { background:var(--win); border:1px solid var(--wline); border-radius:8px; padding:7px 6px;
+  display:flex; flex-direction:column; gap:6px }
+.col h6 { font-size:8.5px; letter-spacing:.08em; color:var(--wmut); font-weight:600 }
+.tick { border:1px solid var(--wline); border-radius:6px; padding:6px; background:var(--wfill) }
+.tick s { display:block; height:3.5px; border-radius:2px; background:var(--wline); margin-bottom:4px;
+  text-decoration:none }
+.tick s.short { width:55% }
+.slot { height:38px; border-radius:6px }
+.flyer { position:absolute; width:0; border:1px solid var(--accent); border-radius:6px; padding:6px;
+  background:var(--win); z-index:3; box-shadow:0 8px 20px -10px rgba(10,12,18,.5) }
+.flyer b { display:block; font-size:8.5px; margin-bottom:4px }
+.flyer s { display:block; height:3.5px; border-radius:2px; background:var(--wline); text-decoration:none }
+
+/* chat */
+.chat { border-left:1px solid var(--wline); display:grid; grid-template-rows:1fr auto;
+  min-height:0; overflow:hidden }
+.msgs { padding:12px; display:flex; flex-direction:column; gap:9px; overflow:hidden }
+.msg { max-width:88%; padding:8px 10px; border-radius:11px; font-size:11.5px; line-height:1.45 }
+.msg.me { align-self:flex-end; background:var(--wink); color:var(--win) }
+.msg.it { background:var(--wfill) }
+.tool { font-size:10px; color:var(--wmut); display:flex; align-items:center; gap:6px;
+  font-family:var(--mono); min-width:0 }
+.tool span:first-child { flex:0 0 auto }
+.tool .tw { color:var(--wmut); opacity:.7; min-width:0; overflow:hidden; white-space:nowrap;
+  text-overflow:ellipsis }
+.steps { padding-left:12px; display:grid; gap:4px; overflow:hidden; font-family:var(--mono);
+  font-size:9.5px; color:var(--wmut) }
+.diff { border:1px solid var(--wline); border-radius:8px; overflow:hidden; font-family:var(--mono);
+  font-size:9px }
+.diff .fn { padding:5px 7px; background:var(--wfill); color:var(--wmut) }
+.diff div { padding:3px 7px; white-space:nowrap; overflow:hidden }
+.diff .del { background:rgba(200,60,40,.10); color:#b0392b }
+.diff .add { background:rgba(78,168,107,.12); color:#2f7d4d }
+.compose { border-top:1px solid var(--wline); padding:10px }
+.field { border:1px solid var(--wline); border-radius:9px; padding:8px 10px; min-height:32px;
+  display:flex; align-items:center; color:var(--wmut); font-size:11.5px }
+.field .car { width:1px; height:12px; background:var(--wink); margin-left:1px;
+  animation:blink 1s steps(1) infinite }
+.crow { display:flex; align-items:center; gap:7px; margin-top:8px }
+.gauge { margin-left:auto; display:flex; align-items:center; gap:5px; color:var(--wmut); font-size:9.5px }
+.gauge s { display:block; width:38px; height:3px; border-radius:2px; background:var(--wline);
+  text-decoration:none; position:relative; overflow:hidden }
+.gauge s::after { content:''; position:absolute; inset:0 auto 0 0; width:28%; background:var(--wmut) }
+
+/* the notification — it arrives, the window stays exactly where it is */
+.notif { position:absolute; top:26px; right:4vw; width:300px; z-index:12;
+  background:var(--win); color:var(--wink); border:1px solid var(--wline); border-radius:13px;
+  padding:11px 13px; box-shadow:0 22px 44px -18px rgba(10,12,18,.5); display:flex; gap:10px }
+.notif img { width:26px; height:26px; border-radius:7px }
+.notif b { display:block; font-size:12px }
+.notif span { display:block; font-size:11.5px; color:var(--wmut); line-height:1.4; margin-top:1px }
+.notif time { position:absolute; top:11px; right:13px; font-size:10px; color:var(--wmut) }
+
+/* caption rail */
+.caption { position:relative; width:min(660px,88vw); height:70px }
+.caption > div { position:absolute; inset:0; text-align:center }
+.caption b { display:block; font-size:clamp(17px,2.1vw,23px); letter-spacing:-.02em }
+.caption span { display:block; margin-top:7px; color:var(--muted); font-size:14px; line-height:1.5 }
+
+/* ── the night's ledger ───────────────────────────────────────────────── */
+.night { padding:14vh 0 8vh }
+.night h2 { font-size:clamp(24px,3.4vw,38px); letter-spacing:-0.03em; text-align:center }
+.night .sub { text-align:center; color:var(--muted); margin-top:10px; font-size:15px }
+.log { margin-top:44px; border-top:1px solid var(--line) }
+.log div { display:grid; grid-template-columns:76px 1fr auto; gap:18px; align-items:center;
+  padding:15px 4px; border-bottom:1px solid var(--line); opacity:0; transform:translateY(10px) }
+.log div.on { opacity:1; transform:none; transition:opacity .6s ease, transform .6s ease }
+.log time { font-family:var(--mono); font-size:12px; color:var(--accent) }
+.log b { font-weight:560; font-size:14.5px }
+.log span { font-size:12.5px; color:var(--faint); font-family:var(--mono) }
+
+.grid { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; padding:8vh 0 12vh }
+.card { border:1px solid var(--line); border-radius:14px; padding:22px 20px; background:var(--card);
+  transition:border-color var(--swap), background var(--swap) }
+.card b { display:block; font-size:15px; margin-bottom:8px }
+.card p { font-size:13.5px; color:var(--muted); line-height:1.6 }
+
+.tail { padding:4vh 0 16vh; text-align:center }
+.tail h2 { font-size:clamp(28px,4.8vw,56px); letter-spacing:-0.035em }
+
+@media (max-width:820px) {
+  .grid { grid-template-columns:1fr }
+  .log div { grid-template-columns:64px 1fr } .log span { display:none }
+  .caption { height:96px }
+}
+@media (prefers-reduced-motion: reduce) {
+  .log div { opacity:1; transform:none }
+  .btn:hover { transform:none }
+  body, .btn, canvas#stars { transition:none }
+  .s-chat .spin, .omni .car, .field .car, .scrollcue::after { animation:none }
+}
+</style>
+</head>
+<body>
+<!-- WarpSpeed.js — Federico Dossena, LGPL-3.0-or-later. See ../assets/warpspeed.README.txt -->
+<script src="../assets/warpspeed.js"></script>
+<canvas id="stars"></canvas>
+<div class="track"><i id="bar"></i></div>
+
+<div class="page">
+  <section class="hero">
+    <div class="wrap">
+      <img class="mark" src="../logo.png" alt="" />
+      <p class="kicker" id="kicker">01:14 · still working</p>
+      <h1>It works.<br /><span>You don't have to watch.</span></h1>
+      <p class="lede">SuperAgent gives Claude Code a computer of its own — a real browser, a real
+      iPhone, a desk it keeps its work on. It runs on your Mac, on your subscription, and it
+      never once pulls the window in front of what you were doing.</p>
+      <div class="ctas">
+        <a class="btn warp-trigger" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+        <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">Source</a>
+      </div>
+      <p class="note">free · open source · runs locally · notarized by Apple
+        <span class="tip">hover the download</span></p>
+      <p class="scrollcue">SCRUB A SESSION</p>
+    </div>
+  </section>
+
+  <div class="reel" id="reel">
+    <div class="stage">
+      <div class="winbox" id="winbox">
+        <div class="win" id="win">
+
+          <aside class="side">
+            <div class="lights"><i></i><i></i><i></i></div>
+            <div class="s-lab">BROWSING</div>
+            <div class="s-row"><span class="fav">Y</span>news.ycombinator.com</div>
+            <div class="s-row"><span class="fav w">W</span>en.wikipedia.org</div>
+            <div class="s-lab">WORK</div>
+            <div class="s-row on"><span class="ico">▾</span>wepush<em>main</em></div>
+            <div class="s-chat on" id="sChat"><span class="spin" id="sSpin"></span>pricing on mobile</div>
+            <div class="s-chat">Nimbus landing page</div>
+            <div class="s-row"><span class="ico">▸</span>design-system<em>main</em></div>
+            <div class="s-row"><span class="ico">▸</span>notes-app<em>wt-4f2a</em></div>
+            <div class="s-lab">PERSONAL</div>
+            <div class="s-row"><span class="ico">▸</span>shop-web<em>main</em></div>
+            <div class="s-row"><span class="ico">▸</span>docs-site<em>main</em></div>
+            <div class="s-foot">+ New group</div>
+          </aside>
+
+          <div class="main">
+            <div class="bar">
+              <b>wepush</b>
+              <span class="url" id="barUrl">~/work/wepush</span>
+              <span class="pill" id="pillRoutines">Routines</span>
+              <span class="pill">Skills</span>
+              <span class="pill">Hide preview</span>
+            </div>
+
+            <div class="body">
+              <div class="desk">
+                <div class="dev" id="dev">
+                  <i></i> vite <span>localhost:5173</span>
+                  <span class="st" id="devSt">ready in 214 ms</span>
+                </div>
+
+                <div class="surface">
+                  <div class="bcard" id="bcard">
+                    <div class="omnirow">
+                      <span class="nav">‹ ›</span>
+                      <span class="omni"><span id="omniText"></span><i class="car" id="omniCar"></i></span>
+                    </div>
+                    <div class="bview">
+                      <div class="site" id="siteDesk"></div>
+                    </div>
+                  </div>
+
+                  <div class="phone" id="phone">
+                    <div class="pscreen">
+                      <div class="pnotch"></div>
+                      <div class="site" id="sitePhone"></div>
+                      <div class="cut" id="cut"></div>
+                      <div class="simchrome" id="sim">
+                        <div class="simbar"><span>9:41</span><s></s></div>
+                        <div class="simapp">
+                          <h6>wepush</h6>
+                          <div class="simrow"><i></i><s></s></div>
+                          <div class="simrow"><i></i><s></s></div>
+                          <div class="simrow"><i></i><s></s></div>
+                          <div class="simrow"><i></i><s></s></div>
+                          <div class="simrow"><i></i><s></s></div>
+                        </div>
+                      </div>
+                      <div class="tap" id="tap"></div>
+                      <div class="pbar"></div>
+                    </div>
+                  </div>
+
+                  <div class="board" id="board">
+                    <div class="col"><h6>BACKLOG</h6>
+                      <div class="tick"><s></s><s class="short"></s></div>
+                      <div class="tick"><s></s><s class="short"></s></div>
+                    </div>
+                    <div class="col"><h6>NEXT</h6>
+                      <div class="tick"><s></s><s class="short"></s></div>
+                    </div>
+                    <div class="col"><h6>DOING</h6>
+                      <div class="slot" id="slotFrom"></div>
+                    </div>
+                    <div class="col"><h6>DONE</h6>
+                      <div class="slot" id="slotTo"></div>
+                      <div class="tick"><s></s><s class="short"></s></div>
+                    </div>
+                    <div class="flyer" id="flyer"><b>mobile pricing</b><s></s></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="chat">
+                <div class="msgs" id="msgs"></div>
+                <div class="compose">
+                  <div class="field"><span id="draft"></span><i class="car" id="draftCar"></i></div>
+                  <div class="crow">
+                    <span class="pill">Model Default</span>
+                    <span class="pill">Mode Full</span>
+                    <span class="gauge">28%<s></s></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /win -->
+
+        <div class="notif" id="notif">
+          <img src="../logo.png" alt="" />
+          <div>
+            <b>SuperAgent</b>
+            <span>Done — the plan grid collapses at 380px. Checked on iPhone 17 Pro, clean at 375pt.</span>
+          </div>
+          <time>now</time>
+        </div>
+      </div>
+
+      <div class="caption" id="caption"></div>
+    </div>
+  </div>
+
+  <section class="night wrap">
+    <h2>What happened while you were away.</h2>
+    <p class="sub">Every turn is recorded, summarised and left where you'll find it.</p>
+    <div class="log" id="log">
+      <div><time>23:14</time><b>Opened the pricing page and found the overflow</b><span>browser</span></div>
+      <div><time>23:16</time><b>Collapsed the plan grid below 380px</b><span>edit</span></div>
+      <div><time>23:22</time><b>Installed the build on iPhone 17 Pro and checked it</b><span>simulator</span></div>
+      <div><time>23:24</time><b>Moved “mobile pricing” to done</b><span>board</span></div>
+      <div><time>23:25</time><b>Notified you — and stayed where it was</b><span>quiet</span></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="grid">
+      <div class="card"><b>Never steals focus</b><p>The one rule the whole app is built around: it asks with a notification, and comes forward only when you say so.</p></div>
+      <div class="card"><b>Survives restarts</b><p>Panes, open files, the active chat — exactly where you left them, even through an update.</p></div>
+      <div class="card"><b>Light on memory</b><p>Sessions start on your first message and wind down when they go idle. Nothing runs for the sake of running.</p></div>
+      <div class="card"><b>Worktree chats</b><p>A conversation on its own git branch, in its own worktree. Your checkout stays clean.</p></div>
+      <div class="card"><b>Routines</b><p>“Check this page every hour,” in plain language, on a timer — and it tells you what changed.</p></div>
+      <div class="card"><b>Light and dark</b><p>It follows the system. You just saw it: the page went dark and the app went with it.</p></div>
+    </div>
+  </section>
+
+  <section class="tail wrap">
+    <h2>Give your agent a screen.</h2>
+    <div class="ctas">
+      <a class="btn warp-trigger" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+      <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">GitHub</a>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ── the warp ──────────────────────────────────────────────────────────────
+   WarpSpeed.js draws the field (Federico Dossena, LGPL); the pacing is ours.
+
+   Its own easing approaches the target speed fastest at the start and coasts
+   in — which is exactly backwards for this. Leaving a station should creep,
+   then build, then run. So speedAdjFactor is pinned to 1 (the library stops
+   easing) and TARGET_SPEED is set every frame from a cubic that starts nearly
+   flat.
+
+   Two clocks, not one. The lights go out almost immediately (DARK_MS) so the
+   gesture answers at once; the speed keeps its long build (IN_MS) underneath.
+   The stars ride between them — they arrive with the dark, but stay dim until
+   the speed is actually up, so the field fills in as the acceleration does. */
+const PAPER = [246, 245, 241], VOID = [4, 5, 10]
+const INK_D = [20, 21, 26],   INK_L = [242, 244, 248]
+const MUT_D = [93, 96, 104],  MUT_L = [153, 160, 173]
+const FNT_D = [146, 149, 157], FNT_L = [92, 100, 114]
+const ACC_D = [180, 85, 30],  ACC_L = [255, 201, 120]
+const STAR_D = [20, 21, 26],  STAR_L = [255, 255, 255]
+
+/* The mock window's tokens, [at rest, at speed]. The app follows the system;
+   here the system is the warp. */
+const APP = {
+  '--win':  [[255,255,255], [22,24,29]],
+  '--side': [[241,240,236], [14,16,20]],
+  '--desk': [[233,232,227], [9,10,14]],
+  '--wink': [[29,31,36],    [236,238,242]],
+  '--wmut': [[124,130,140], [146,152,162]]
+}
+
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+const IDLE = 0.10, TOP = 24
+const IN_MS = 2400, OUT_MS = 950      // speed: the long build
+const DARK_MS = 380, LIGHT_MS = 520   // colour: out fast, back a touch softer
+
+const ws = new WarpSpeed('stars', {
+  speed: IDLE,
+  targetSpeed: IDLE,
+  speedAdjFactor: 1,       // we do the easing; the library must not fight it
+  density: 0.85,
+  shape: 'circle',
+  warpEffect: true,
+  warpEffectLength: 6,
+  depthFade: true,
+  starSize: 3.4,
+  backgroundColor: `rgb(${PAPER})`,
+  starColor: `rgba(${STAR_D}, 0.10)`
+})
+
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t))
+const root = document.documentElement.style
+let warp = 0, night = 0, dir = -1, last = performance.now()
+
+function tick(now) {
+  const dt = Math.min(64, now - last); last = now
+  warp  = Math.max(0, Math.min(1, warp  + (dir > 0 ? dt / IN_MS   : -dt / OUT_MS)))
+  night = Math.max(0, Math.min(1, night + (dir > 0 ? dt / DARK_MS : -dt / LIGHT_MS)))
+
+  // Nearly flat to begin with: the first half of the gesture barely moves.
+  const e = warp * warp * warp
+  // The dark, meanwhile, is most of the way there before the speed has begun.
+  const c = 1 - (1 - night) * (1 - night)
+  // Stars land with the dark but hold back their brightness for the speed.
+  const s = c * (0.22 + 0.78 * e)
+
+  ws.TARGET_SPEED = IDLE + (TOP - IDLE) * e
+  ws.BACKGROUND_COLOR = `rgb(${mix(PAPER, VOID, c)})`
+  ws.STAR_COLOR = `rgba(${mix(STAR_D, STAR_L, c)}, ${0.10 + 0.90 * s})`
+
+  root.setProperty('--paper', `rgb(${mix(PAPER, VOID, c)})`)
+  root.setProperty('--ink', `rgb(${mix(INK_D, INK_L, c)})`)
+  root.setProperty('--muted', `rgb(${mix(MUT_D, MUT_L, c)})`)
+  root.setProperty('--faint', `rgb(${mix(FNT_D, FNT_L, c)})`)
+  root.setProperty('--accent', `rgb(${mix(ACC_D, ACC_L, c)})`)
+  root.setProperty('--line', `rgba(${mix(INK_D, INK_L, c)}, ${0.12 + 0.02 * c})`)
+  root.setProperty('--card', `rgba(${mix(INK_D, INK_L, c)}, ${0.02 + 0.01 * c})`)
+
+  for (const k in APP) root.setProperty(k, `rgb(${mix(APP[k][0], APP[k][1], c)})`)
+  root.setProperty('--wline', `rgba(${mix(INK_D, INK_L, c)}, ${0.10 + 0.02 * c})`)
+  root.setProperty('--wfill', `rgba(${mix(INK_D, INK_L, c)}, ${0.045 + 0.02 * c})`)
+
+  document.body.classList.toggle('warping', c > 0.5)
+  requestAnimationFrame(tick)
+}
+if (!still) requestAnimationFrame(tick)
+
+const enter = () => { if (!still) dir = 1 }
+const leave = () => { dir = -1 }
+document.querySelectorAll('.warp-trigger').forEach(b => {
+  b.addEventListener('pointerenter', enter)
+  b.addEventListener('pointerleave', leave)
+  b.addEventListener('focus', enter)   // keyboard reaches it too
+  b.addEventListener('blur', leave)
+  b.addEventListener('touchstart', enter, { passive: true })  // hold, on touch
+  b.addEventListener('touchend', leave)
+})
+
+/* ── the reel ──────────────────────────────────────────────────────────────
+   Scroll position is the only state. Every frame recomputes the whole session
+   from a single number, so dragging the scrollbar backwards un-types the
+   message, un-fixes the grid and walks the card back across the board — which
+   a sequence of timers could never do.
+
+   `t` is measured in beats: t = 3.5 means half way through the fourth. Each
+   piece of the app reads the slice of that timeline it cares about. */
+const BEATS = [
+  ['One chat, and a computer to go with it',
+   'A conversation per project — with a browser, a phone and a desk attached to it, not a terminal pretending to be a workspace.'],
+  ['It drives a real browser',
+   'The one on your screen, signed into the sites you are already signed into. Not a hidden headless one it describes to you afterwards.'],
+  ['Desktop and phone at once',
+   'The same live page in a desktop card and an iPhone frame. Here the plan cards run straight off the edge — which is the bug it was sent to find.'],
+  ['It edits, the page reloads, you watch',
+   'Your dev server runs in a strip above the work. The agent changes the file, Vite reloads, and the grid collapses in front of you.'],
+  ['A real iPhone in the window',
+   'An iOS Simulator streamed inside the app from its own framebuffer. Tap it, type into it — it is the device, at the rate it renders.'],
+  ['A board it keeps for you',
+   'Backlog, next, doing, done. The agent moves the cards as the work lands, and every card remembers the conversation that raised it.'],
+  ['Then it leaves you alone',
+   'It finishes quietly and sends a notification with what it actually said. The window never once comes forward on its own.']
+]
+
+const $ = id => document.getElementById(id)
+const reel = $('reel'), winbox = $('winbox'), win = $('win'), bar = $('bar')
+const caption = $('caption'), msgs = $('msgs')
+
+/* the site under test — one function, rendered into both frames, so the fix
+   has to reflow rather than being two drawings of two states */
+const site = plan => `
+  <div class="site-nav"><b>wepush</b><s></s><s></s><s class="r"></s></div>
+  <div class="site-h">Simple pricing</div>
+  <div class="site-s">Three plans. No seats, no per-message billing.</div>
+  <div class="plans">${['Starter','Team','Studio'].map((n, i) => `
+    <div class="plan"><b>${n}</b><em>$${[0,12,49][i]}</em><s></s><s></s><s class="short"></s></div>`).join('')}
+  </div>
+  <div class="band"><div></div><div></div><div></div></div>
+  <div class="site-f"><s></s><s></s><s></s></div>`
+$('siteDesk').innerHTML = site()
+$('sitePhone').innerHTML = site()
+
+const caps = BEATS.map(([h, s]) => {
+  const el = document.createElement('div')
+  el.innerHTML = `<b>${h}</b><span>${s}</span>`
+  caption.appendChild(el)
+  return el
+})
+
+/* the chat, in order, with the beat each one lands on */
+const THREAD = [
+  { at: 0.95, cls: 'me',   text: 'the pricing page looks wrong on mobile — can you check?' },
+  { at: 1.15, cls: 'it',   text: "I'll open it in the browser." },
+  { at: 1.45, cls: 'tool', text: '› 3 steps', wing: 'navigate · read page · screenshot' },
+  { at: 2.15, cls: 'it',   text: 'The plan cards overflow below 380px — the grid never drops to one column.' },
+  { at: 2.95, cls: 'me',   text: 'fix it and check it on the phone' },
+  { at: 3.15, cls: 'diff', file: 'src/routes/pricing/+page.svelte',
+    del: '- grid-template-columns: repeat(3, 1fr);',
+    add: '+ grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));' },
+  { at: 4.05, cls: 'tool', text: '› 2 steps · 1 edit', wing: 'build · sim_install_and_launch',
+    steps: ['npm run build → 1.9s', 'sim_boot → iPhone 17 Pro', 'sim_install_and_launch → wepush'] },
+  { at: 4.75, cls: 'it',   text: 'Done — it collapses at 380px now. Checked on iPhone 17 Pro too, clean at 375pt.' },
+  { at: 5.45, cls: 'tool', text: '› board_move', wing: '“mobile pricing” → done' }
+]
+
+const nodes = THREAD.map(m => {
+  const el = document.createElement('div')
+  if (m.cls === 'diff') {
+    el.className = 'diff'
+    el.innerHTML = `<div class="fn">${m.file}</div><div class="del">${m.del}</div><div class="add">${m.add}</div>`
+  } else if (m.cls === 'tool') {
+    el.className = 'tool-wrap'
+    el.innerHTML = `<div class="tool">${m.text}<span class="tw">${m.wing}</span></div>` +
+      (m.steps ? `<div class="steps">${m.steps.map(s => `<div>${s}</div>`).join('')}</div>` : '')
+  } else {
+    el.className = 'msg ' + m.cls
+    el.textContent = m.text
+  }
+  msgs.appendChild(el)
+  return el
+})
+
+const DRAFT = THREAD[0].text
+const els = {
+  draft: $('draft'), draftCar: $('draftCar'), omni: $('omniText'), omniCar: $('omniCar'),
+  siteD: $('siteDesk'), siteP: $('sitePhone'), cut: $('cut'), phone: $('phone'),
+  bcard: $('bcard'), sim: $('sim'), tap: $('tap'), board: $('board'), flyer: $('flyer'),
+  slotFrom: $('slotFrom'), slotTo: $('slotTo'), dev: $('devSt'), notif: $('notif'),
+  url: $('barUrl'), routines: $('pillRoutines'), spin: $('sSpin')
+}
+const URL_TEXT = 'wepush.app/pricing'
+
+const clamp = v => v < 0 ? 0 : v > 1 ? 1 : v
+/* progress through one slice of the timeline, 0 before it, 1 after */
+const seg = (t, a, b) => clamp((t - a) / (b - a))
+const show = (el, v, dy = 8) => {
+  el.style.opacity = v
+  el.style.transform = v === 1 ? 'none' : `translateY(${(1 - v) * dy}px)`
+}
+
+let queued = 0
+function draw() {
+  queued = 0
+  const span = reel.offsetHeight - innerHeight
+  const p = clamp(-reel.getBoundingClientRect().top / span)
+  bar.style.width = (p * 100).toFixed(2) + '%'
+  const t = p * BEATS.length
+
+  // composer: the message types itself, then leaves as a bubble
+  const typed = seg(t, 0.15, 0.85)
+  const sent = t >= 0.95
+  els.draft.textContent = sent ? '' : DRAFT.slice(0, Math.round(typed * DRAFT.length))
+  els.draft.style.color = 'var(--wink)'
+  els.draftCar.style.opacity = sent || typed === 0 ? 0 : 1
+  if (sent) { els.draft.textContent = 'Message Claude…'; els.draft.style.color = 'var(--wmut)' }
+
+  // chat
+  nodes.forEach((el, i) => {
+    const m = THREAD[i]
+    show(el, seg(t, m.at, m.at + 0.22))
+    if (m.steps) {
+      const open = seg(t, 5.15, 5.4)          // the folded burst, opened
+      const rows = el.querySelector('.steps')
+      rows.style.height = (open * 42) + 'px'
+      rows.style.opacity = open
+      el.querySelector('.tool').firstChild.textContent = open > .5 ? '⌄ 2 steps · 1 edit' : '› 2 steps · 1 edit'
+    }
+  })
+  // keep the newest turn in view without a scrollbar of its own
+  const over = Math.max(0, msgs.scrollHeight - msgs.clientHeight)
+  msgs.style.transform = `translateY(${-over}px)`
+
+  // the browser: the omnibox fills, then the page arrives
+  const typing = seg(t, 1.05, 1.55)
+  els.omni.textContent = URL_TEXT.slice(0, Math.round(typing * URL_TEXT.length))
+  els.omniCar.style.opacity = typing > 0 && typing < 1 ? 1 : 0
+  els.url.textContent = t > 1.5 ? 'wepush.app/pricing' : '~/work/wepush'
+
+  const loaded = seg(t, 1.45, 1.85)
+  // the reload dip: the same page, served again after the edit
+  const reload = 1 - 0.85 * Math.sin(Math.PI * seg(t, 3.45, 3.75))
+  els.siteD.style.opacity = loaded * reload
+  els.siteP.style.opacity = loaded * reload
+
+  // the phone arrives beside it, and shows the bug
+  const phoneIn = seg(t, 2.05, 2.5)
+  els.phone.style.opacity = phoneIn
+  els.phone.style.transform = `translateX(${(1 - phoneIn) * 26}px)`
+  els.cut.style.opacity = clamp(seg(t, 2.35, 2.6) - seg(t, 3.5, 3.62))
+
+  // the fix — a real reflow, in the frame that had the problem
+  els.siteP.classList.toggle('fixed', t > 3.55)
+
+  // the dev strip
+  const rebuilding = t > 3.35 && t < 3.7
+  els.dev.textContent = rebuilding ? 'reloading…' : (t > 3.7 ? 'ready in 118 ms' : 'ready in 214 ms')
+
+  // the phone stops being a preview and becomes the device
+  const simIn = seg(t, 4.15, 4.5)
+  els.sim.style.opacity = simIn
+  const tapP = seg(t, 4.55, 4.95)
+  els.tap.style.opacity = simIn * (tapP > 0 && tapP < 1 ? 1 - tapP : 0)
+  els.tap.style.transform = `translate(46px, ${150 - tapP * 8}px) scale(${0.6 + tapP * 0.9})`
+
+  // the desk turns over to the board
+  const boardIn = seg(t, 5.0, 5.35)
+  els.board.style.opacity = boardIn
+  els.board.style.pointerEvents = boardIn > .5 ? 'auto' : 'none'
+  els.bcard.style.opacity = 1 - boardIn
+  els.phone.style.opacity = phoneIn * (1 - boardIn)
+
+  // and the card crosses it, measured from the real slots so it lands square
+  const a = els.slotFrom.getBoundingClientRect(), b = els.slotTo.getBoundingClientRect()
+  const o = els.board.getBoundingClientRect(), k = scaleNow || 1
+  const move = seg(t, 5.45, 5.9)
+  const ease = move < .5 ? 2 * move * move : 1 - Math.pow(-2 * move + 2, 2) / 2
+  els.flyer.style.width = (a.width / k) + 'px'
+  els.flyer.style.left = ((a.left - o.left) / k + ease * (b.left - a.left) / k) + 'px'
+  els.flyer.style.top = ((a.top - o.top) / k + ease * (b.top - a.top) / k) + 'px'
+  els.flyer.style.opacity = boardIn
+
+  // routines glow just before the hand-off, then the notification
+  els.routines.classList.toggle('hot', t > 6.05)
+  const nIn = seg(t, 6.15, 6.5)
+  els.notif.style.opacity = nIn
+  els.notif.style.transform = `translateY(${(1 - nIn) * -14}px)`
+  // the spinner stops when the work does
+  els.spin.style.opacity = t > 6.1 ? 0 : 1
+
+  const ci = Math.min(BEATS.length - 1, Math.floor(t))
+  caps.forEach((c, i) => show(c, i === ci ? seg(t, i + 0.02, i + 0.22) : 0, 8))
+}
+
+/* The window is drawn at a fixed 1080×664 and scaled to whatever room there
+   is, so nothing inside it reflows between a laptop and a phone. */
+let scaleNow = 1
+function fit() {
+  const w = Math.min(innerWidth - 32, 1180), h = innerHeight * 0.70
+  scaleNow = Math.min(w / 1080, h / 664)
+  win.style.transform = `scale(${scaleNow})`
+  winbox.style.height = (664 * scaleNow) + 'px'
+  draw()
+}
+addEventListener('scroll', () => { if (!queued) queued = requestAnimationFrame(draw) }, { passive: true })
+addEventListener('resize', fit)
+fit()
+
+/* ── the rest of the page ─────────────────────────────────────────────── */
+const kicker = $('kicker')
+const showTime = () => kicker.textContent =
+  new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · still working'
+showTime(); setInterval(showTime, 20000)
+
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('on')), { threshold: .4 })
+document.querySelectorAll('#log div').forEach((el, i) => { el.style.transitionDelay = (i * 70) + 'ms'; io.observe(el) })
+</script>
+</body>
+</html>

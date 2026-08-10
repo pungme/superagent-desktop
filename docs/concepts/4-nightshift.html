@@ -29,7 +29,7 @@
   --card: rgba(20,21,26,0.02);
   --accent: #b4551e;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
-  --swap: 620ms cubic-bezier(.4,0,.2,1);
+  --swap: 400ms cubic-bezier(.4,0,.2,1);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -183,9 +183,10 @@ figcaption { margin-top:12px; text-align:center; font-size:12.5px; color:var(--f
    easing) and TARGET_SPEED is set every frame from a cubic that starts nearly
    flat.
 
-   The page's colours are interpolated on the same clock rather than switched
-   with a class, so the paper darkens *with* the acceleration instead of
-   arriving on its own schedule. */
+   Two clocks, not one. The lights go out almost immediately (DARK_MS) so the
+   gesture answers at once; the speed keeps its long build (IN_MS) underneath.
+   The stars ride between them — they arrive with the dark, but stay dim until
+   the speed is actually up, so the field fills in as the acceleration does. */
 const PAPER = [246, 245, 241], VOID = [4, 5, 10]
 const INK_D = [20, 21, 26],   INK_L = [242, 244, 248]
 const MUT_D = [93, 96, 104],  MUT_L = [153, 160, 173]
@@ -195,7 +196,8 @@ const STAR_D = [20, 21, 26],  STAR_L = [255, 255, 255]
 
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches
 const IDLE = 0.10, TOP = 24
-const IN_MS = 2100, OUT_MS = 950
+const IN_MS = 2400, OUT_MS = 950      // speed: the long build
+const DARK_MS = 380, LIGHT_MS = 520   // colour: out fast, back a touch softer
 
 const ws = new WarpSpeed('stars', {
   speed: IDLE,
@@ -213,21 +215,23 @@ const ws = new WarpSpeed('stars', {
 
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t))
 const root = document.documentElement.style
-let warp = 0, dir = -1, last = performance.now()
+let warp = 0, night = 0, dir = -1, last = performance.now()
 
 function tick(now) {
   const dt = Math.min(64, now - last); last = now
-  warp = Math.max(0, Math.min(1, warp + (dir > 0 ? dt / IN_MS : -dt / OUT_MS)))
+  warp  = Math.max(0, Math.min(1, warp  + (dir > 0 ? dt / IN_MS   : -dt / OUT_MS)))
+  night = Math.max(0, Math.min(1, night + (dir > 0 ? dt / DARK_MS : -dt / LIGHT_MS)))
 
   // Nearly flat to begin with: the first half of the gesture barely moves.
   const e = warp * warp * warp
-  // Light leaves sooner than speed arrives, so the change reads as departure
-  // rather than as a lamp being switched off.
-  const c = Math.pow(e, 0.45)
+  // The dark, meanwhile, is most of the way there before the speed has begun.
+  const c = 1 - (1 - night) * (1 - night)
+  // Stars land with the dark but hold back their brightness for the speed.
+  const s = c * (0.22 + 0.78 * e)
 
   ws.TARGET_SPEED = IDLE + (TOP - IDLE) * e
   ws.BACKGROUND_COLOR = `rgb(${mix(PAPER, VOID, c)})`
-  ws.STAR_COLOR = `rgba(${mix(STAR_D, STAR_L, c)}, ${0.10 + 0.90 * c})`
+  ws.STAR_COLOR = `rgba(${mix(STAR_D, STAR_L, c)}, ${0.10 + 0.90 * s})`
 
   root.setProperty('--paper', `rgb(${mix(PAPER, VOID, c)})`)
   root.setProperty('--ink', `rgb(${mix(INK_D, INK_L, c)})`)
