@@ -78,6 +78,15 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
   const [sort, setSort] = useState<'name' | 'kind'>('name')
   const [windows, setWindows] = useState<OpenWindow[]>(loadWindows)
   const [selected, setSelected] = useState<string | null>(null)
+  /**
+   * The dock gets out of the way of a window that fills the desk.
+   *
+   * While something is maximised the strip it holds is the difference between
+   * "nearly full screen" and full screen, so it hides and the window takes the
+   * height — then comes back when the pointer goes looking for it near the
+   * bottom edge, which is where you would reach for it anyway.
+   */
+  const [nearBottom, setNearBottom] = useState(false)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState({ w: 1200, h: 800 })
   /**
@@ -94,6 +103,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
   })
 
   const top = windows.filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0]
+  const dockAuto = windows.some((w) => w.maximized && !w.minimized)
   // Escape peels one layer at a time: a menu, then the front window, then the
   // desktop itself — never closing more than you were looking at.
   useEscapeClose(
@@ -483,7 +493,17 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
 
   return (
     <div
-      className={`computer-view ${over ? 'over' : ''}`}
+      className={`computer-view ${over ? 'over' : ''} ${dockAuto ? 'dock-auto' : ''} ${
+        dockAuto && nearBottom ? 'dock-peek' : ''
+      }`}
+      onPointerMove={(e) => {
+        if (!dockAuto) return
+        // The reveal strip is deeper than the dock is tall, so the dock is
+        // already there by the time the pointer arrives at it.
+        const near = e.clientY > e.currentTarget.getBoundingClientRect().bottom - 96
+        setNearBottom((cur) => (cur === near ? cur : near))
+      }}
+      onPointerLeave={() => setNearBottom(false)}
       onDragOver={(e) => {
         e.preventDefault()
         setOver(true)

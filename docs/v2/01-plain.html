@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — a computer for your coding agent</title>
+<style>
+/* 01 · PLAIN — a README that happens to be a landing page. One column,
+   left aligned, no decoration. Bets everything on the copy and the shots. */
+:root { --ink:#16181c; --mut:#5f6570; --line:#e3e2de; --acc:#a8471a;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace }
+* { margin:0; padding:0; box-sizing:border-box }
+body { background:#fbfaf8; color:var(--ink); font:400 17px/1.65 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,sans-serif;
+  -webkit-font-smoothing:antialiased }
+main { max-width:660px; margin:0 auto; padding:80px 24px 140px }
+img { max-width:100%; display:block; border:1px solid var(--line); border-radius:6px }
+a { color:var(--acc) }
+.mark { width:40px; height:40px; border:0; border-radius:10px; margin-bottom:28px }
+h1 { font-size:32px; line-height:1.2; letter-spacing:-.022em; font-weight:640 }
+.sub { margin-top:12px; font-size:18px; color:var(--mut) }
+.meta { margin-top:20px; font-family:var(--mono); font-size:12.5px; color:var(--mut) }
+.cta { margin:26px 0 0; display:flex; gap:10px; flex-wrap:wrap }
+.btn { padding:9px 16px; border-radius:7px; background:var(--ink); color:#fbfaf8; text-decoration:none;
+  font-size:14.5px; font-weight:560 }
+.btn.g { background:none; color:var(--ink); border:1px solid var(--line) }
+hr { border:0; border-top:1px solid var(--line); margin:48px 0 }
+h2 { font-size:14px; font-weight:600; letter-spacing:.02em; margin-bottom:10px }
+h2 span { font-family:var(--mono); font-size:12px; color:var(--acc); margin-right:8px }
+p + p { margin-top:14px }
+figure { margin:26px 0 0 }
+figcaption { margin-top:9px; font-size:13px; color:var(--mut) }
+ul { list-style:none; margin-top:8px }
+li { padding:9px 0; border-bottom:1px solid var(--line); font-size:15.5px; display:flex; gap:14px }
+li b { font-weight:560; flex:0 0 168px }
+li span { color:var(--mut); font-size:14.5px }
+footer { margin-top:56px; font-size:14px; color:var(--mut) }
+@media (max-width:620px){ li{ display:block } li b{ display:block } }
+</style>
+</head>
+<body>
+<main>
+  <img class="mark" src="../logo.png" alt="" />
+  <h1>SuperAgent gives Claude Code a computer.</h1>
+  <p class="sub">A real browser it can drive, a real iPhone, files and a board — all on your Mac,
+  on your own Claude subscription.</p>
+  <div class="cta">
+    <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+    <a class="btn g" href="https://github.com/pungme/superagent-desktop">Source</a>
+  </div>
+  <p class="meta">free · open source · Apple Silicon · notarized · nothing leaves your machine</p>
+
+  <hr />
+
+  <h2><span>01</span>Build it and watch it, side by side</h2>
+  <p>The chat sits next to a real browser. Ask for a change and watch the page update in the same
+  window — no alt-tabbing to find out whether it worked. Point it at a local dev server or any
+  live site.</p>
+  <figure>
+    <img src="../hero.png" alt="The chat beside a live browser showing a page as a desktop site and on an iPhone" />
+    <figcaption>One window: the conversation on the right, the thing it is working on on the left.</figcaption>
+  </figure>
+
+  <hr />
+
+  <h2><span>02</span>An agent that can use the browser</h2>
+  <p>Claude drives that same browser: open a page, click, type, read it back. Not a hidden headless
+  browser it describes to you second-hand — the one on your screen, with the sessions you are
+  already logged into. You watch it work, and you can take over at any time.</p>
+
+  <hr />
+
+  <h2><span>03</span>Everything in its place</h2>
+  <p>Plain browser tabs sit at the top of the sidebar — browse first, summon the agent when you
+  need it. Below them, projects group the way you think about them, with each conversation nested
+  underneath. A spinner while the agent works, a dot when it needs you, the git branch where you
+  would expect it.</p>
+  <figure>
+    <img src="../chat.png" alt="The chat next to the file tree, with grouped steps and edits" />
+    <figcaption>Click any file to read it — source, markdown, images, PDFs — right beside the tree.</figcaption>
+  </figure>
+
+  <hr />
+
+  <h2><span>04</span>The bigger things</h2>
+  <ul>
+    <li><b>Desktop &amp; phone at once</b><span>The same page in a desktop card and an iPhone frame — same session, both live.</span></li>
+    <li><b>An iPhone in the window</b><span>An iOS Simulator streamed inside the app from its own framebuffer. Tap it, type into it.</span></li>
+    <li><b>A board it keeps</b><span>Backlog, next, doing, done — per project, and Claude moves the cards as it works.</span></li>
+    <li><b>Worktree chats</b><span>A conversation on its own git branch, in its own worktree. Your checkout stays clean.</span></li>
+    <li><b>Routines</b><span>“Check this site every hour,” in plain language, on a timer.</span></li>
+    <li><b>Dev server strip</b><span>It starts your dev server and iterates while you watch the page change.</span></li>
+  </ul>
+
+  <hr />
+
+  <h2><span>05</span>The small things</h2>
+  <ul>
+    <li><b>Never steals focus</b><span>Agents finish quietly in the background. The window comes forward only when you ask.</span></li>
+    <li><b>Survives restarts</b><span>Panes, open files, the active chat — even through an update.</span></li>
+    <li><b>Light on memory</b><span>Sessions start on your first message and wind down when they go idle.</span></li>
+    <li><b>Interject mid-turn</b><span>Type while it works and it sees your message before it finishes.</span></li>
+    <li><b>Talk instead of typing</b><span>Hold ⌥Space and speak. Transcribed on your Mac, never sent anywhere.</span></li>
+    <li><b>Notifications that say something</b><span>Done, or has a question — with a summary of what it actually said.</span></li>
+  </ul>
+
+  <hr />
+
+  <div class="cta">
+    <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+    <a class="btn g" href="https://github.com/pungme/superagent-desktop">Read the source</a>
+  </div>
+  <footer>Runs locally on your own Claude subscription. No middleman server, no telemetry, and the
+  whole app is open source — so you can read exactly how it touches your browser.</footer>
+</main>
+</body>
+</html>
