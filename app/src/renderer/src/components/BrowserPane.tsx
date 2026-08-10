@@ -35,6 +35,12 @@ interface BrowserPaneProps {
    */
   radius?: number
   /**
+   * The colour of the page's own edge, as it is sampled. Whatever frames this
+   * pane can then match it, so the page appears to run to the frame instead of
+   * stopping short of it against a band of window.
+   */
+  onEdgeColour?: (colour: string) => void
+  /**
    * Fill the pane rather than simulating a desktop screen. A project preview
    * wants the simulated viewport — it is showing you a site as a visitor sees
    * it. A browser tab is not a preview of anything: it should fill its window.
@@ -99,7 +105,8 @@ export function BrowserPane({
   fill = false,
   occluded = false,
   positionKey,
-  radius = 0
+  radius = 0,
+  onEdgeColour
 }: BrowserPaneProps): React.JSX.Element {
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const previewUrl = useStore((s) => s.previewUrls[paneId])
@@ -350,6 +357,10 @@ export function BrowserPane({
   useEffect(() => {
     return window.cove.onAppFocus?.((focused) => setAway(!focused))
   }, [])
+
+  useEffect(() => {
+    if (cornerFill?.bottom) onEdgeColour?.(cornerFill.bottom)
+  }, [cornerFill?.bottom, onEdgeColour])
 
   const paneCovered = overlayOpen || suggestOpen || away || occluded
 
@@ -676,6 +687,10 @@ export function BrowserPane({
             </div>
           )}
         </div>
+        {/* Simulated screen sizes are for looking at a site you are building.
+            A browser window is not previewing anything — it fills, and the
+            switcher there is four buttons that only ever undo themselves. */}
+        {!fill && (
         <div className="browser-viewport" role="group" title="Simulated screen size">
           <button
             className={`browser-vp-btn ${viewport === 'desktop' ? 'on' : ''}`}
@@ -706,6 +721,7 @@ export function BrowserPane({
             <FitIcon />
           </button>
         </div>
+        )}
         {/* Manual zoom only applies when not simulating a device (the sim owns zoom). */}
         {viewport === 'none' && (
           <div className="browser-zoom">

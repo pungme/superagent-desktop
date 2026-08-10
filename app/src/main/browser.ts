@@ -449,23 +449,22 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
 
 
 /**
- * Hold the focus guard for a moment because a pane is about to do something
- * that can raise the app.
+ * A note on where the focus guard belongs.
  *
- * withoutStealingFocus wraps the agent's own tool calls, which is why the
- * browser tools never stole focus — but a pane is driven from the renderer too,
- * and those paths went straight past it. Opening a PDF was the case that showed
- * it: the tool only broadcasts, the renderer navigates, and by the time
- * Chromium's viewer asked for focus there was no guard anywhere near it.
+ * It works by flipping the app's activation policy to 'prohibited', which is
+ * the only thing that actually stops a page load from raising the window — but
+ * a prohibited app is also delisted from the Dock and cannot be activated at
+ * all until the policy comes back. That is fine for the second or two an agent
+ * takes to drive something. It is not fine as an ambient condition.
  *
- * So the guard is engaged here instead, at the point where the pane is touched,
- * whoever asked for it. It costs nothing when the user is in the app — the
- * guard declines to engage — and it is ref-counted, so overlapping work
- * extends it rather than cutting it short.
+ * It was briefly applied to every pane touch — navigate, reload, attach, back,
+ * forward — to cover "the app must never come forward". That made it fire
+ * hundreds of times a day, and each firing is a window in which the app
+ * disappears from the Dock. So it stays where the agent is: the automation
+ * tools and open_file wrap themselves in it, and a renderer-driven load only
+ * happens when the user is in the app, where the guard declines to engage
+ * anyway.
  */
-function guardWhileAway(ms = 1200): void {
-  void withoutStealingFocus(() => new Promise<void>((r) => setTimeout(r, ms)))
-}
 
 /**
  * When the agent opens a pane that was closed, the renderer mounts it and
@@ -665,15 +664,12 @@ export function registerBrowserIpc(): void {
     const wc = getPaneWebContents(id)
     paneLog('show-empty', id, wc ? `over=${wc.getURL().slice(0, 80)}` : 'NO-PANE')
     if (!wc) return
-    guardWhileAway()
     emptyPanes.add(id)
     wc.loadURL(emptyStateUrl(getRecentHistory(6)))
   })
   ipcMain.on('browser:set-bounds', (_e, id: string, bounds: BrowserBounds) => {
     const pane = panes.get(id)
     if (!pane || pane.window.isDestroyed()) return
-    // Attaching a view is one of the two moments it asks for focus.
-    if (!pane.visible) guardWhileAway()
     if (!pane.visible) {
       if (focusGuardActive || detachedWhileAway.size > 0) {
         // Away: keep it out of the window until the user returns.
@@ -837,8 +833,6 @@ export function registerBrowserIpc(): void {
         twin = { view, forPane: id, offNav: () => wc.removeListener('did-navigate', sync) }
         sync()
       }
-      // A second view, attached and loading — the same grab as the first.
-      guardWhileAway()
       pane.window.contentView.addChildView(twin.view)
       twin.view.setBounds(bounds)
       twin.view.webContents.setZoomFactor(Math.max(0.2, zoom))
@@ -850,9 +844,6 @@ export function registerBrowserIpc(): void {
     if (pane) hidePane(pane)
   })
   ipcMain.on('browser:navigate', (_e, id: string, rawUrl: string) => {
-    // The other moment: a page taking focus as it finishes loading. A user
-    // typing in the omnibox is in the app, so the guard will decline anyway.
-    guardWhileAway(2000)
     const wc = getPaneWebContents(id)
     const url = normalizeUrl(rawUrl)
     // The mount's URL restore, arriving after the agent already loaded a page
@@ -867,18 +858,15 @@ export function registerBrowserIpc(): void {
     if (ok) wc.loadURL(url)
   })
   ipcMain.on('browser:back', (_e, id: string) => {
-    guardWhileAway()
     getPaneWebContents(id)?.navigationHistory.goBack()
   })
   ipcMain.on('browser:forward', (_e, id: string) => {
-    guardWhileAway()
     getPaneWebContents(id)?.navigationHistory.goForward()
   })
   ipcMain.on('browser:stop', (_e, id: string) => {
     getPaneWebContents(id)?.stop()
   })
   ipcMain.on('browser:reload', (_e, id: string) => {
-    guardWhileAway()
     getPaneWebContents(id)?.reload()
   })
   ipcMain.handle('browser:zoom', (_e, id: string, action: 'in' | 'out' | 'reset') =>
