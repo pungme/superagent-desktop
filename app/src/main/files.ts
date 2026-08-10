@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron'
+import { ipcMain, shell, nativeImage } from 'electron'
 import { execFile } from 'child_process'
 import {
   readdirSync,
@@ -221,6 +221,27 @@ export function registerFilesIpc(): void {
     return imported
   })
   // Fallback for types the in-app browser can't render (.docx, .xlsx, …).
+  /**
+   * A thumbnail for a desktop icon, as a data URI.
+   *
+   * The renderer is served over http in development, so it cannot load a
+   * file:// image at all — main reads it instead, and downscales it here so a
+   * desk full of screenshots costs a few KB rather than a few MB.
+   */
+  ipcMain.handle('files:thumb', (_e, path: string): string | null => {
+    try {
+      if (statSync(path).size > 40 * 1024 * 1024) return null
+      const img = nativeImage.createFromPath(path)
+      if (img.isEmpty()) return null
+      const { width, height } = img.getSize()
+      const side = 128
+      const small = width >= height ? img.resize({ width: side }) : img.resize({ height: side })
+      return small.toDataURL()
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.handle('files:openExternal', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
   ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))
