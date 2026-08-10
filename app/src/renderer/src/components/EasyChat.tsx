@@ -1524,6 +1524,34 @@ export function EasyChat({
     return () => window.clearTimeout(timer)
   }, [visible, suspended, generating, thinking, bgTasks.length])
 
+  /**
+   * A turn that finished while you were elsewhere leaves something to read.
+   *
+   * "Elsewhere" is either another conversation or another app — a reply that
+   * lands while you are watching it arrive is not unread. The notification
+   * already tells you it finished; this is what is still true tomorrow morning.
+   */
+  const markUnread = useStore((s) => s.markUnread)
+  const markRead = useStore((s) => s.markRead)
+  const wasWorking = useRef(false)
+  useEffect(() => {
+    const working = generating || thinking
+    if (wasWorking.current && !working) {
+      if (!visible || !document.hasFocus()) markUnread(chatId)
+    }
+    wasWorking.current = working
+  }, [generating, thinking, visible, chatId, markUnread])
+  // Looking at it is reading it — including coming back to the window.
+  useEffect(() => {
+    if (!visible) return
+    const clear = (): void => {
+      if (document.hasFocus()) markRead(chatId)
+    }
+    clear()
+    window.addEventListener('focus', clear)
+    return () => window.removeEventListener('focus', clear)
+  }, [visible, chatId, markRead])
+
   // Publish what this chat has in flight, so an app-wide action (installing an
   // update quits the app, which kills every agent) can warn before discarding it.
   const setBusy = useStore((s) => s.setBusy)
