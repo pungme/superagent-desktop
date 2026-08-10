@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 
 /** The applications that live on the Computer desktop. */
-export type AppId = 'chat' | 'browser' | 'dashboard' | 'skills' | 'routines' | 'file'
+export type AppId = 'chat' | 'browser' | 'dashboard' | 'skills' | 'routines' | 'file' | 'folder'
 
 export interface DesktopApp {
   id: AppId
@@ -95,5 +95,21 @@ export const FILE_APP: DesktopApp = {
   )
 }
 
+/** A folder opened from the desk. Like FILE_APP, it exists only once opened. */
+export const FOLDER_APP: DesktopApp = {
+  id: 'folder',
+  name: 'Folder',
+  initial: { w: 560, h: 460 },
+  icon: (
+    <svg viewBox="0 0 24 24" {...stroke}>
+      <path d="M3 6.5A1.5 1.5 0 014.5 5h4l2 2.2h7A1.5 1.5 0 0119 8.7v9.3a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 013 18z" />
+    </svg>
+  )
+}
+
 export const appById = (id: AppId): DesktopApp =>
-  id === 'file' ? FILE_APP : (DESKTOP_APPS.find((a) => a.id === id) ?? DESKTOP_APPS[0])
+  id === 'file'
+    ? FILE_APP
+    : id === 'folder'
+      ? FOLDER_APP
+      : (DESKTOP_APPS.find((a) => a.id === id) ?? DESKTOP_APPS[0])

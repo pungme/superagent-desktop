@@ -79,73 +79,134 @@
     .shot figcaption { margin-top: 12px; font-size: 0.8rem; color: var(--faint); }
 
     /* ── the demo ──────────────────────────────────────────────────────────
-       Not a video and not a mock-up: the real screenshots, with a camera that
-       pushes into whichever part of the window is being talked about and a
-       cursor that goes and does the work. Plays when it scrolls into view. */
+       An abstract silhouette of the app rather than a screenshot: the window,
+       the panes and everything in them are plain shapes, so the eye reads the
+       arrangement and not the pixels. Each beat swaps what is on the desk, a
+       cursor goes and does the work, and CSS transitions do the morphing. */
     .demo { margin: 60px 0 0; }
     .stage {
+      --sil:  #e8e7e3;  --sil2: #dcdbd6;  --sil3: #cfcec9;
+      --live: #4ea86b;
       position: relative; aspect-ratio: 16 / 10; overflow: hidden;
-      border: 1px solid var(--line); border-radius: 12px; background: #edecea;
-      box-shadow: 0 1px 3px rgba(26,27,30,0.06), 0 26px 60px -22px rgba(26,27,30,0.28);
+      border: 1px solid var(--line); border-radius: 12px; background: var(--paper);
+      box-shadow: 0 1px 3px rgba(26,27,30,0.06), 0 26px 60px -22px rgba(26,27,30,0.22);
+      transition: filter 0.6s ease;
     }
-    .cam {
-      position: absolute; inset: 0; will-change: transform;
-      transition: transform 1.4s cubic-bezier(0.45, 0.05, 0.15, 1);
-    }
-    .cam img {
-      position: absolute; inset: 0; width: 100%; height: 100%;
-      object-fit: cover; object-position: top left;
-      opacity: 0; transition: opacity 0.65s ease;
-    }
-    .cam img.on { opacity: 1; }
+    .stage.dim { filter: brightness(0.985) saturate(0.9); }
+    .win { position: absolute; inset: 0; display: grid; grid-template-columns: 19% 1fr 27%; }
 
-    .cursor {
-      position: absolute; left: 50%; top: 50%; width: 21px; z-index: 6;
-      transform-origin: top left; transform: scale(var(--cs, 1));
-      filter: drop-shadow(0 2px 5px rgba(20, 22, 26, 0.4));
-      transition: left 1s cubic-bezier(0.4, 0, 0.12, 1), top 1s cubic-bezier(0.4, 0, 0.12, 1), transform 0.18s ease;
-    }
-    .cursor.down { transform: scale(calc(var(--cs, 1) * 0.82)); }
-    .ripple {
-      position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px;
-      border-radius: 50%; border: 2px solid rgba(26, 27, 30, 0.55);
-      opacity: 0; z-index: 5; pointer-events: none;
-    }
+    /* sidebar */
+    .side { border-right: 1px solid var(--line); background: rgba(26,27,30,0.022); padding: 4.4% 6%; }
+    .lights { display: flex; gap: 5%; margin-bottom: 12%; }
+    .lights i { width: 8.5%; aspect-ratio: 1; border-radius: 50%; background: var(--sil2); }
+    .lab { display: block; height: 3.6%; width: 42%; border-radius: 2px; background: var(--sil2); margin: 11% 0 6%; }
+    .row { display: flex; align-items: center; gap: 8%; height: 8.2%; padding: 0 6%; border-radius: 4px; margin-bottom: 2%; }
+    .row i { width: 11%; aspect-ratio: 1; border-radius: 2px; background: var(--sil2); flex: 0 0 auto; }
+    .row s { flex: 1; height: 26%; border-radius: 2px; background: var(--sil2); }
+    .row.on { background: rgba(26,27,30,0.06); }
+    .row.on s, .row.on i { background: var(--sil3); }
+    .row.sub { padding-left: 22%; }
+    .row.sub s { max-width: 74%; }
+    .row .live { width: 11%; aspect-ratio: 1; border-radius: 50%; background: var(--live); flex: 0 0 auto; opacity: 0; transition: opacity 0.4s ease; }
+    .stage[data-beat="1"] .row .live, .stage[data-beat="2"] .row .live,
+    .stage[data-beat="3"] .row .live, .stage[data-beat="4"] .row .live { opacity: 1; }
+
+    /* middle column: a toolbar and the surface everything sits on */
+    .mid { display: grid; grid-template-rows: 9% 1fr; min-width: 0; }
+    .bar { display: flex; align-items: center; gap: 2.4%; padding: 0 3.4%; border-bottom: 1px solid var(--line); }
+    .bar s { height: 22%; border-radius: 3px; background: var(--sil2); }
+    .bar s.t { width: 26%; } .bar s.u { width: 18%; background: var(--sil); }
+    .bar .pill { margin-left: auto; width: 12%; height: 46%; border-radius: 5px; border: 1px solid var(--line); }
+    .bar .pill.hot { border-color: var(--ink); background: rgba(26,27,30,0.05); }
+    .surface { position: relative; margin: 3%; border-radius: 8px; background: rgba(26,27,30,0.035); overflow: hidden; }
+    .layer { position: absolute; inset: 4%; opacity: 0; transition: opacity 0.55s ease, transform 0.75s cubic-bezier(0.4,0,0.15,1); }
+    .layer.on { opacity: 1; }
+
+    /* the page in the browser */
+    .page { right: 4%; background: var(--paper); border-radius: 6px; box-shadow: 0 6px 18px -10px rgba(26,27,30,0.4);
+            transform: translateX(0) scaleX(1); transform-origin: left center; overflow: hidden; }
+    .page .nav { height: 9%; background: var(--sil3); }
+    .page .body { padding: 6%; display: flex; flex-direction: column; gap: 5%; }
+    .page .body s { height: 5%; border-radius: 3px; background: var(--sil); display: block; }
+    .page .body s.w { width: 62%; } .page .body s.h { height: 24%; background: var(--sil2); }
+    .page .tri { display: flex; gap: 4%; height: 22%; }
+    .page .tri span { flex: 1; border-radius: 4px; background: var(--sil); }
+    .stage[data-beat="2"] .page, .stage[data-beat="3"] .page { right: 34%; }
+
+    /* the phone beside it */
+    .phone { left: auto; right: 4%; width: 24%; background: var(--paper); border-radius: 10px;
+             box-shadow: 0 6px 18px -10px rgba(26,27,30,0.4); transform: translateX(14%);
+             display: flex; flex-direction: column; overflow: hidden; }
+    .phone .nav { height: 7%; background: var(--sil3); }
+    .phone .body { padding: 9%; display: flex; flex-direction: column; gap: 7%; flex: 1; }
+    .phone .body s { height: 4%; border-radius: 2px; background: var(--sil); }
+    .phone .body s.h { height: 22%; background: var(--sil2); }
+    .phone .home { height: 2.4%; width: 34%; margin: 0 auto 4%; border-radius: 2px; background: var(--sil3); opacity: 0; transition: opacity 0.5s ease; }
+    .stage[data-beat="2"] .phone, .stage[data-beat="3"] .phone { transform: none; }
+    .stage[data-beat="3"] .phone { width: 30%; right: 34%; }
+    .stage[data-beat="3"] .phone .home { opacity: 1; }
+    .stage[data-beat="3"] .phone .nav { background: var(--ink); opacity: 0.75; }
+
+    /* the board */
+    .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3%; }
+    .col { background: var(--paper); border-radius: 6px; padding: 5% 4%; display: flex; flex-direction: column; gap: 6%; }
+    .col > s { height: 4%; width: 54%; border-radius: 2px; background: var(--sil2); }
+    .card { height: 15%; border-radius: 4px; background: var(--sil); }
+    .slot { height: 15%; }
+    .flyer { position: absolute; border-radius: 4px; background: var(--paper); border: 1px solid var(--ink);
+             box-shadow: 0 6px 14px -6px rgba(26,27,30,0.5); opacity: 0;
+             transition: transform 0.85s cubic-bezier(0.4,0,0.15,1), opacity 0.4s ease; }
+    .stage[data-beat="4"] .flyer { opacity: 1; }
+    .stage[data-beat="4"].moved .flyer { transform: translateX(var(--dx, 0px)); }
+
+    /* files and a document */
+    .files { display: grid; grid-template-columns: 26% 1fr; gap: 3%; }
+    .tree { background: var(--paper); border-radius: 6px; padding: 6% 5%; display: flex; flex-direction: column; gap: 8%; }
+    .tree s { height: 4.4%; border-radius: 2px; background: var(--sil2); }
+    .tree s.w { width: 62%; } .tree s.on { background: var(--sil3); }
+    .doc { background: var(--paper); border-radius: 6px; padding: 7% 8%; display: flex; flex-direction: column; gap: 4.5%; }
+    .doc s { height: 3.4%; border-radius: 2px; background: var(--sil); }
+    .doc s.w { width: 70%; }
+    .doc s.mark { background: #f6dd8e; transform: scaleX(0); transform-origin: left; transition: transform 0.6s cubic-bezier(0.4,0,0.15,1); }
+    .stage[data-beat="5"] .doc s.mark { transform: scaleX(1); }
+
+    /* the chat */
+    .chat { border-left: 1px solid var(--line); display: grid; grid-template-rows: 1fr auto auto; padding: 4% 5%; min-height: 0; }
+    .thread { display: flex; flex-direction: column; gap: 5%; align-content: flex-start; }
+    .bub { border-radius: 7px; background: var(--sil); opacity: 0; transform: translateY(6px);
+           transition: opacity 0.45s ease, transform 0.45s ease; }
+    .bub.on { opacity: 1; transform: none; }
+    .bub.me { align-self: flex-end; background: var(--ink); width: 74%; height: 8%; }
+    .bub.it { width: 88%; height: 11%; }
+    .bub.tool { width: 60%; height: 3.4%; background: var(--sil2); border-radius: 3px; }
+    .composer { border: 1px solid var(--line); border-radius: 7px; display: flex; align-items: center; padding: 6% 6%; }
+    .composer s { height: 5px; border-radius: 2px; background: var(--sil2); width: 44%; transition: width 0.35s ease; }
+    .stage.typing .composer { border-color: var(--ink); }
+    .stage.typing .composer s { width: 78%; background: var(--sil3); }
+    .crow { display: flex; gap: 5%; margin-top: 7%; }
+    .crow s { width: 22%; padding: 4% 0; border-radius: 4px; border: 1px solid var(--line); }
+
+    /* the cursor, and what it leaves behind */
+    .cursor { position: absolute; left: 50%; top: 50%; width: 20px; z-index: 8;
+      filter: drop-shadow(0 2px 5px rgba(20,22,26,0.35));
+      transition: left 0.95s cubic-bezier(0.4,0,0.12,1), top 0.95s cubic-bezier(0.4,0,0.12,1), transform 0.18s ease; }
+    .cursor.down { transform: scale(0.82); }
+    .ripple { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+      border: 2px solid rgba(26,27,30,0.5); opacity: 0; z-index: 7; pointer-events: none; }
     .ripple.go { animation: rip 0.65s ease-out; }
-    @keyframes rip {
-      from { opacity: 0.85; transform: scale(calc(var(--cs, 1) * 0.35)); }
-      to   { opacity: 0;    transform: scale(calc(var(--cs, 1) * 2.4)); }
-    }
+    @keyframes rip { from { opacity: 0.85; transform: scale(0.35); } to { opacity: 0; transform: scale(2.3); } }
 
-    /* things the screenshots cannot say for themselves */
-    .flag {
-      position: absolute; z-index: 7; opacity: 0; transform: translateY(6px);
-      transition: opacity 0.4s ease, transform 0.4s ease;
-      font-size: 12px; font-weight: 560; letter-spacing: -0.01em;
-      background: rgba(20, 22, 26, 0.9); color: #fff; padding: 7px 12px; border-radius: 999px;
-      backdrop-filter: blur(8px); white-space: nowrap;
-      box-shadow: 0 8px 20px -8px rgba(20, 22, 26, 0.6);
-    }
-    .flag.on { opacity: 1; transform: none; }
-    .flag i { font-style: normal; color: #78d39a; margin-right: 7px; }
-    .flag.busy { left: 50%; top: 16px; transform: translate(-50%, 6px); }
-    .flag.busy.on { transform: translate(-50%, 0); }
-    .flag.build { left: 4%; bottom: 6%; font-family: var(--mono); font-size: 11px; }
-    .flag.dev  { left: 50%; bottom: 8%; transform: translate(-50%, 6px); font-family: var(--mono); font-size: 11px; }
-    .flag.dev.on { transform: translate(-50%, 0); }
-
-    .note {
-      position: absolute; right: 14px; top: 14px; width: 60%; max-width: 296px; z-index: 8;
-      background: rgba(252, 252, 250, 0.94); backdrop-filter: blur(14px);
-      border: 1px solid rgba(26, 27, 30, 0.12); border-radius: 13px; padding: 11px 13px;
-      display: flex; gap: 10px; text-align: left;
-      box-shadow: 0 18px 40px -14px rgba(26, 27, 30, 0.5);
-      opacity: 0; transform: translateY(-12px); transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
-    }
+    /* the notification, which is the only thing that ever comes forward */
+    .note { position: absolute; right: 3%; top: 5%; width: 30%; z-index: 9;
+      background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 3.4% 3.4%;
+      display: flex; gap: 7%; align-items: center;
+      box-shadow: 0 16px 34px -14px rgba(26,27,30,0.42);
+      opacity: 0; transform: translateY(-10px); transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2,0.9,0.3,1); }
     .note.on { opacity: 1; transform: none; }
-    .note img { width: 26px; height: 26px; border-radius: 7px; }
-    .note b { display: block; font-size: 12.5px; }
-    .note span { display: block; font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 1px; }
+    .note i { width: 13%; aspect-ratio: 1; border-radius: 4px; background: var(--ink); flex: 0 0 auto; }
+    .note div { flex: 1; display: flex; flex-direction: column; gap: 14%; }
+    .note s { height: 5px; border-radius: 2px; background: var(--sil2); }
+    .note s.w { width: 62%; background: var(--sil3); }
 
     .demo-bar { display: flex; align-items: baseline; gap: 18px; margin-top: 14px; }
     .demo-cap { flex: 1; min-height: 40px; position: relative; }
@@ -157,10 +218,10 @@
     .demo-dots i { width: 16px; height: 3px; border-radius: 2px; background: var(--line); display: block; transition: background 0.3s ease; }
     .demo-dots i.on { background: var(--ink); }
 
-    @media (max-width: 640px) { .demo-cap span { display: none; } .note { width: 74%; } }
+    @media (max-width: 640px) { .demo-cap span { display: none; } .demo-cap { min-height: 24px; } }
     @media (prefers-reduced-motion: reduce) {
-      .cam, .cam img, .cursor, .flag, .note, .demo-cap div { transition: none; }
-      .cursor, .ripple, .flag, .note { display: none; }
+      .layer, .bub, .cursor, .note, .demo-cap div, .flyer, .page, .phone, .doc s.mark { transition: none; }
+      .cursor, .ripple { display: none; }
     }
 
     /* sections */
@@ -235,26 +296,68 @@
       </div>
       <p class="hero-note">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription</p>
       <div class="demo" id="demo">
-        <div class="stage">
-          <div class="cam" id="cam">
-            <img id="s-hero" src="hero.png" class="on" alt="SuperAgent: a chat with Claude Code beside a live browser showing the same page as a desktop site and on an iPhone" width="2560" height="1600" />
-            <img id="s-browse" src="browser-view.png" alt="The agent opening a site in the browser pane and summarising it in the chat" />
-            <img id="s-build" src="build.png" alt="The agent building a landing page and previewing it live in the same window" />
-            <svg class="cursor" id="cursor" viewBox="0 0 21 21" fill="none" aria-hidden="true">
-              <path d="M2 1.5 L2 17 L6.2 13.2 L9 19.4 L11.9 18 L9.1 12 L14.6 12 Z" fill="#fff" stroke="#1a1b1e" stroke-width="1.4" stroke-linejoin="round" />
-            </svg>
-            <span class="ripple" id="ripple"></span>
-            <span class="flag busy" id="f-busy"><i>●</i>Claude is browsing — news.ycombinator.com</span>
-            <span class="flag dev" id="f-dev">vite · reloaded in 118 ms</span>
-            <span class="flag build" id="f-tap">iPhone 17 Pro · simulator · live</span>
-          </div>
-          <div class="note" id="note">
-            <img src="logo.png" alt="" />
-            <div>
-              <b>SuperAgent</b>
-              <span>Done — the plan grid collapses at 380px. Checked on iPhone 17 Pro too.</span>
+        <div class="stage" id="stage" data-beat="0">
+          <div class="win">
+            <aside class="side">
+              <span class="lights"><i></i><i></i><i></i></span>
+              <span class="lab"></span>
+              <span class="row"><i></i><s></s></span>
+              <span class="row"><i></i><s></s></span>
+              <span class="lab"></span>
+              <span class="row on"><i></i><s></s><b class="live"></b></span>
+              <span class="row sub"><s></s></span>
+              <span class="row sub"><s></s></span>
+              <span class="row"><i></i><s></s></span>
+            </aside>
+
+            <div class="mid">
+              <div class="bar">
+                <s class="t"></s><s class="u"></s>
+                <span class="pill" id="pill"></span>
+              </div>
+              <div class="surface" id="surface">
+                <div class="layer page" id="l-page">
+                  <div class="nav"></div>
+                  <div class="body"><s class="h"></s><s></s><s class="w"></s><div class="tri"><span></span><span></span><span></span></div><s></s><s class="w"></s></div>
+                </div>
+                <div class="layer phone" id="l-phone">
+                  <div class="nav"></div>
+                  <div class="body"><s class="h"></s><s></s><s></s><s></s></div>
+                  <div class="home"></div>
+                </div>
+                <div class="layer board" id="l-board">
+                  <div class="col"><s></s><span class="card"></span><span class="card"></span></div>
+                  <div class="col"><s></s><span class="card"></span></div>
+                  <div class="col"><s></s><span class="slot" id="from"></span></div>
+                  <div class="col"><s></s><span class="slot" id="to"></span><span class="card"></span></div>
+                  <span class="flyer" id="flyer"></span>
+                </div>
+                <div class="layer files" id="l-files">
+                  <div class="tree"><s class="w"></s><s></s><s class="on"></s><s class="w"></s><s></s></div>
+                  <div class="doc"><s class="w"></s><s></s><s class="mark"></s><s></s><s class="w"></s><s></s></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat">
+              <div class="thread" id="thread">
+                <span class="bub me"></span>
+                <span class="bub it"></span>
+                <span class="bub tool"></span>
+                <span class="bub it"></span>
+                <span class="bub me"></span>
+                <span class="bub tool"></span>
+              </div>
+              <div class="composer" id="composer"><s></s></div>
+              <div class="crow"><s></s><s></s></div>
             </div>
           </div>
+
+          <div class="note" id="note"><i></i><div><s class="w"></s><s></s></div></div>
+          <span class="ripple" id="ripple"></span>
+          <svg class="cursor" id="cursor" viewBox="0 0 21 21" fill="none" aria-hidden="true">
+            <path d="M2 1.5 L2 17 L6.2 13.2 L9 19.4 L11.9 18 L9.1 12 L14.6 12 Z" fill="#fff" stroke="#1a1b1e" stroke-width="1.4" stroke-linejoin="round" />
+          </svg>
         </div>
         <div class="demo-bar">
           <div class="demo-cap" id="cap"></div>
@@ -341,46 +444,41 @@
   <script>
   /* The demo reel.
 
-     Six beats over ~27s, looping. Each beat names a screenshot, where the
-     camera should be looking, and where the cursor should go. Everything is a
-     CSS transition fired on a schedule — the only state is which beat we are
-     on, so it can be stopped and restarted cleanly when it leaves the screen.
+     Six beats over ~24s, looping. Everything you see is a shape — the point is
+     the arrangement, not the pixels — so a beat is just an attribute on the
+     stage and CSS does the morphing. The cursor is moved in stage percentages,
+     and the board card is measured from its two real slots so it lands square.
 
-     Coordinates are percentages of the app window itself, which is why the
-     same numbers keep working across three different screenshots: it is the
-     same window every time. */
+     Nothing here runs unless the demo is on screen. */
   (function () {
-    var demo = document.getElementById('demo');
-    if (!demo) return;
+    var stage = document.getElementById('stage');
+    if (!stage) return;
     var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    var cam = document.getElementById('cam');
     var cursor = document.getElementById('cursor');
     var ripple = document.getElementById('ripple');
-    var cap = document.getElementById('cap');
-    var dots = document.getElementById('dots');
-    var scenes = {
-      hero: document.getElementById('s-hero'),
-      browse: document.getElementById('s-browse'),
-      build: document.getElementById('s-build')
-    };
-    var flags = {
-      busy: document.getElementById('f-busy'),
-      dev: document.getElementById('f-dev'),
-      tap: document.getElementById('f-tap')
-    };
     var note = document.getElementById('note');
+    var pill = document.getElementById('pill');
+    var flyer = document.getElementById('flyer');
+    var bubbles = document.querySelectorAll('#thread .bub');
+    var layers = {
+      page: document.getElementById('l-page'),
+      phone: document.getElementById('l-phone'),
+      board: document.getElementById('l-board'),
+      files: document.getElementById('l-files')
+    };
+    var cap = document.getElementById('cap'), dots = document.getElementById('dots');
 
     var BEATS = [
-      ['You ask, in the chat.', 'One conversation per project, with a computer attached to it.'],
-      ['It opens the page itself.', 'A real browser, driven by the agent — on the sites you are already signed into.'],
-      ['It builds, and the page reloads.', 'Your dev server runs in the same window. No alt-tabbing to find out whether it worked.'],
-      ['Desktop and phone at once.', 'The same live page in a desktop card and an iPhone frame — one session, both live.'],
-      ['A real iPhone, in the window.', 'An iOS Simulator streamed from its own framebuffer. Tap it, type into it.'],
+      ['You ask, in the chat.', 'One conversation per project — with a computer attached to it, not a scrollback buffer.'],
+      ['It opens the page itself.', 'A real browser it drives: navigate, click, type, read back — on the sites you are already signed into.'],
+      ['Desktop and phone at once.', 'The same live page in a desktop card and an iPhone frame. One session, both live.'],
+      ['A real iPhone, in the window.', 'An iOS Simulator streamed from its own framebuffer. Tap it, type into it — it is the device.'],
+      ['A board it keeps for you.', 'Backlog, next, doing, done. Claude moves the cards as the work lands, while you watch.'],
+      ['Files and PDFs, beside the chat.', 'Click any file to read it. Annotate a PDF in place and the agent reads what you marked.'],
       ['Then it leaves you alone.', 'It finishes quietly and notifies you. The window never comes forward on its own.']
     ];
-
-    BEATS.forEach(function (b, i) {
+    BEATS.forEach(function (b) {
       var d = document.createElement('div');
       d.innerHTML = '<b>' + b[0] + '</b> <span>' + b[1] + '</span>';
       cap.appendChild(d);
@@ -388,98 +486,92 @@
     });
     var capEls = cap.children, dotEls = dots.children;
 
-    /* camera: bring the point (x%, y%) of the window to the middle at zoom z */
-    function look(x, y, z) {
-      cam.style.transform = 'scale(' + z + ') translate(' + (50 - x) + '%, ' + (50 - y) + '%)';
-      cam.style.setProperty('--cs', 1 / z);
-    }
-    function show(name) {
-      for (var k in scenes) scenes[k].classList.toggle('on', k === name);
-    }
-    function move(x, y) {
-      cursor.style.left = x + '%';
-      cursor.style.top = y + '%';
-    }
-    function click(x, y) {
-      cursor.classList.add('down');
-      setTimeout(function () { cursor.classList.remove('down'); }, 180);
-      ripple.style.left = x + '%';
-      ripple.style.top = y + '%';
-      ripple.classList.remove('go');
-      void ripple.offsetWidth;               // restart the animation
-      ripple.classList.add('go');
-    }
-    function flag(el, on) { el.classList.toggle('on', on); }
     function beat(i) {
+      stage.dataset.beat = i;
       for (var k = 0; k < capEls.length; k++) {
         capEls[k].classList.toggle('on', k === i);
         dotEls[k].classList.toggle('on', k <= i);
       }
     }
+    function layer() {
+      var want = [].slice.call(arguments);
+      for (var k in layers) layers[k].classList.toggle('on', want.indexOf(k) >= 0);
+    }
+    function bubs(n) {
+      for (var i = 0; i < bubbles.length; i++) bubbles[i].classList.toggle('on', i < n);
+    }
+    function move(x, y) { cursor.style.left = x + '%'; cursor.style.top = y + '%'; }
+    function click(x, y) {
+      cursor.classList.add('down');
+      setTimeout(function () { cursor.classList.remove('down'); }, 170);
+      ripple.style.left = x + '%'; ripple.style.top = y + '%';
+      ripple.classList.remove('go'); void ripple.offsetWidth; ripple.classList.add('go');
+    }
+    /* the card crosses the board by the real distance between its two slots */
+    function armFlyer() {
+      var a = document.getElementById('from').getBoundingClientRect();
+      var b = document.getElementById('to').getBoundingClientRect();
+      var o = document.getElementById('l-board').getBoundingClientRect();
+      flyer.style.left = (a.left - o.left) + 'px';
+      flyer.style.top = (a.top - o.top) + 'px';
+      flyer.style.width = a.width + 'px';
+      flyer.style.height = a.height + 'px';
+      flyer.style.setProperty('--dx', (b.left - a.left) + 'px');
+    }
 
-    /* the script — [ms, what happens] */
     var TIMELINE = [
       [0, function () {
-        beat(0); show('hero'); flag(note, false); flag(flags.busy, false);
-        flag(flags.dev, false); flag(flags.tap, false);
-        cursor.style.transition = 'none'; move(96, 104); void cursor.offsetWidth;
+        beat(0); layer(); bubs(0); armFlyer();
+        stage.classList.remove('typing', 'dim', 'moved');
+        note.classList.remove('on'); pill.classList.remove('hot');
+        cursor.style.transition = 'none'; move(101, 103); void cursor.offsetWidth;
         cursor.style.transition = '';
-        look(78, 74, 1.75);
       }],
-      [500, function () { move(86, 92); }],
-      [1700, function () { click(86, 92); }],
-      [2600, function () { move(96.5, 91); }],
-      [3400, function () { click(96.5, 91); }],
+      [400, function () { move(84, 88); }],
+      [1400, function () { click(84, 88); stage.classList.add('typing'); }],
+      [2600, function () { bubs(1); stage.classList.remove('typing'); }],
+      [3100, function () { bubs(2); }],
 
-      [4200, function () { beat(1); show('browse'); look(50, 50, 1); move(70, 60); }],
-      [5200, function () { flag(flags.busy, true); }],
-      [6000, function () { look(46, 52, 1.35); move(40, 46); }],
-      [8200, function () { flag(flags.busy, false); }],
+      [3900, function () { beat(1); layer('page'); bubs(3); move(45, 50); }],
+      [5400, function () { move(38, 62); }],
 
-      [8900, function () { beat(2); show('build'); look(50, 50, 1); move(30, 60); }],
-      [9900, function () { look(37, 55, 1.5); }],
-      [10600, function () { flag(flags.dev, true); }],
-      [13000, function () { flag(flags.dev, false); }],
+      [7000, function () { beat(2); layer('page', 'phone'); bubs(4); move(62, 55); }],
 
-      [13600, function () { beat(3); show('hero'); look(50, 50, 1); move(55, 45); }],
-      [15400, function () { look(54, 55, 1.25); }],
+      [10100, function () { beat(3); bubs(5); move(58, 46); }],
+      [11000, function () { click(58, 46); }],
+      [12000, function () { move(58, 62); }],
+      [12600, function () { click(58, 62); }],
 
-      [17600, function () { beat(4); look(68, 52, 2.5); move(68, 46); }],
-      [18900, function () { click(68, 46); flag(flags.tap, true); }],
-      [20200, function () { move(68, 62); }],
-      [20900, function () { click(68, 62); }],
+      [13800, function () { beat(4); layer('board'); bubs(6); armFlyer(); move(46, 40); }],
+      [15000, function () { stage.classList.add('moved'); move(58, 40); }],
 
-      [22600, function () { beat(5); flag(flags.tap, false); look(50, 50, 1); move(104, 104); }],
-      [23800, function () { flag(note, true); }],
-      [27000, function () { flag(note, false); }]
+      [17400, function () { beat(5); stage.classList.remove('moved'); layer('files'); move(30, 45); }],
+      [18600, function () { click(30, 45); }],
+      [19400, function () { move(52, 52); }],
+
+      [21000, function () { beat(6); layer(); pill.classList.add('hot'); move(103, 103); }],
+      [22000, function () { note.classList.add('on'); stage.classList.add('dim'); }],
+      [25200, function () { note.classList.remove('on'); stage.classList.remove('dim'); }]
     ];
-    var LOOP = 27600;
+    var LOOP = 25800;
 
     var timers = [], playing = false;
-    function play() {
-      if (playing) return;
-      playing = true;
-      var run = function () {
-        TIMELINE.forEach(function (step) {
-          timers.push(setTimeout(step[1], step[0]));
-        });
-        timers.push(setTimeout(function () { stopTimers(); run(); }, LOOP));
-      };
-      run();
+    function run() {
+      TIMELINE.forEach(function (step) { timers.push(setTimeout(step[1], step[0])); });
+      timers.push(setTimeout(function () { clear(); run(); }, LOOP));
     }
-    function stopTimers() { timers.forEach(clearTimeout); timers = []; }
-    function stop() { playing = false; stopTimers(); }
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function play() { if (!playing) { playing = true; run(); } }
+    function stop() { playing = false; clear(); }
 
-    if (reduced) { beat(0); return; }
+    if (reduced) { beat(2); layer('page', 'phone'); bubs(4); return; }
+    addEventListener('resize', armFlyer);
 
-    /* it plays while you are looking at it, and not otherwise */
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(function (es) {
         es.forEach(function (e) { e.isIntersecting ? play() : stop(); });
-      }, { threshold: 0.25 }).observe(demo);
-    } else {
-      play();
-    }
+      }, { threshold: 0.25 }).observe(stage);
+    } else { play(); }
   })();
   </script>
 </body>
