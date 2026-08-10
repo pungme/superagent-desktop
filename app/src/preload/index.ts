@@ -342,6 +342,8 @@ export interface CoveApi {
   }>
   envVersion: () => Promise<{ claudeInstalled: boolean; claudeVersion: string | null }>
   filesList: (root: string) => Promise<string[]>
+  /** A downscaled data URI for an image on disk, or null if it isn't one. */
+  filesThumb: (path: string) => Promise<string | null>
   filesOpenExternal: (path: string) => Promise<string>
   fileRead: (path: string) => Promise<string | null>
   fileWrite: (path: string, content: string) => Promise<boolean>
@@ -550,6 +552,7 @@ const cove: CoveApi = {
   envDetect: () => ipcRenderer.invoke('env:detect'),
   envVersion: () => ipcRenderer.invoke('env:version'),
   filesList: (root) => ipcRenderer.invoke('files:list', root),
+  filesThumb: (path) => ipcRenderer.invoke('files:thumb', path),
   filesOpenExternal: (path) => ipcRenderer.invoke('files:openExternal', path),
   fileRead: (path) => ipcRenderer.invoke('files:read', path),
   fileWrite: (path, content) => ipcRenderer.invoke('files:write', path, content),

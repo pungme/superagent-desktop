@@ -49,6 +49,10 @@ function loadWindows(): OpenWindow[] {
   }
 }
 
+const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'bmp', 'avif', 'tiff']
+const isImage = (name: string): boolean =>
+  IMAGE_EXT.includes(name.split('.').pop()?.toLowerCase() ?? '')
+
 function iconFor(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'svg'].includes(ext)) return '🖼'
@@ -93,6 +97,12 @@ export function ComputerPanel({
   const anchorRef = useRef<string | null>(null)
   /** The rubber band, in desk coordinates, while one is being dragged. */
   const [band, setBand] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  /**
+   * Thumbnails for the pictures on the desk, by path. A screenshot should look
+   * like the screenshot — a generic frame emoji tells you nothing about which
+   * of five screenshots you are about to open.
+   */
+  const [thumbs, setThumbs] = useState<Record<string, string>>({})
   /**
    * The dock gets out of the way of a window that fills the desk.
    *
@@ -284,6 +294,25 @@ export function ComputerPanel({
     [bounds.w, bounds.h]
   )
 
+  useEffect(() => {
+    let alive = true
+    const wanted = files.filter((f) => isImage(f.name) && !(f.path in thumbs))
+    if (!wanted.length) return
+    void Promise.all(
+      wanted.map(async (f) => [f.path, await window.cove.filesThumb?.(f.path)] as const)
+    ).then((pairs) => {
+      if (!alive) return
+      const next: Record<string, string> = {}
+      // A file that has no thumbnail is remembered as empty, so it is asked
+      // for once rather than on every render.
+      for (const [path, uri] of pairs) next[path] = uri ?? ''
+      setThumbs((cur) => ({ ...cur, ...next }))
+    })
+    return () => {
+      alive = false
+    }
+  }, [files, thumbs])
+
   const add = useCallback((paths: string[]): void => {
     setFiles((cur) => {
       const seen = new Set(cur.map((f) => f.path))
@@ -459,6 +488,10 @@ export function ComputerPanel({
   }, [openApp])
 
   const onDrop = (e: React.DragEvent): void => {
+    // A file dropped into a window is that window's — an image meant for the
+    // chat was landing in the chat AND being left on the desktop, because the
+    // drop bubbled out here afterwards.
+    if ((e.target as HTMLElement).closest('.dw')) return
     e.preventDefault()
     setOver(false)
     // Electron gives the real filesystem path via webUtils, not File.path.
@@ -603,6 +636,7 @@ export function ComputerPanel({
       }}
       onPointerLeave={() => setNearBottom(false)}
       onDragOver={(e) => {
+        if ((e.target as HTMLElement).closest('.dw')) return
         e.preventDefault()
         setOver(true)
       }}
@@ -697,6 +731,8 @@ export function ComputerPanel({
           // Only from bare desk: a drag that starts on an icon or a window is
           // that thing's drag, not a selection.
           if (e.button !== 0 || (e.target as HTMLElement).closest('.computer-file, .dw')) return
+          // Stop the drag becoming a text selection before it starts.
+          e.preventDefault()
           setMenu(null)
           if (!e.shiftKey && !e.metaKey && !e.ctrlKey) setSelected([])
           const desk = surfaceRef.current?.getBoundingClientRect()
@@ -741,7 +777,13 @@ export function ComputerPanel({
               }}
               onDoubleClick={() => openFile(f.path)}
             >
-              <span className="computer-file-icon">{iconFor(f.name)}</span>
+              <span className="computer-file-icon">
+                {thumbs[f.path] ? (
+                  <img className="computer-file-thumb" src={thumbs[f.path]} alt="" />
+                ) : (
+                  iconFor(f.name)
+                )}
+              </span>
               <span className="computer-icon-name">{f.name}</span>
               <span
                 className="computer-file-x"

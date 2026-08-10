@@ -5929,6 +5929,10 @@ button {
 }
 
 .computer-icons {
+  /* Icons are things you pick, not text you select — dragging a band across
+     them was highlighting their names as if the desk were a document. Windows
+     keep their own text selectable; this is only the desk's own furniture. */
+  user-select: none;
   display: flex;
   flex-direction: column;
   flex-wrap: wrap;
@@ -5936,6 +5940,16 @@ button {
   gap: 4px;
   padding: 14px;
   max-height: 100%;
+}
+
+/* A picture shows itself. Fitted rather than filled, so a wide screenshot and
+   a tall one both sit on the same baseline as the emoji they replace. */
+.computer-file-thumb {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px var(--shadow);
 }
 
 /* The rubber band. Drawn over the icons but never in the way of the pointer —
