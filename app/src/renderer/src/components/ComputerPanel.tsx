@@ -178,12 +178,9 @@ export function ComputerPanel({
         : onClose
   )
 
-  // What is on the desktop is what the chat can see. The desk is a real folder
-  // now, so what it hands over is what is actually in it — links resolved to
-  // whatever they point at, so Claude reads the file rather than the link.
-  useEffect(() => {
-    void window.cove.desktopSyncFiles?.(files.filter((f) => !f.dir).map((f) => f.target || f.path))
-  }, [files])
+  // The chat reads the desktop through a symlink to the desk folder (set up in
+  // desktop:chat-home), so there is nothing to push here — what is on the desk
+  // is what the agent sees, folders and all, whichever folder is on screen.
 
   // Prepare the chat's home the first time the desktop is opened.
   useEffect(() => {

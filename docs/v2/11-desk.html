@@ -95,15 +95,17 @@ h2 { font-size:clamp(24px,3vw,36px); line-height:1.12; letter-spacing:-.032em; f
 .tile p { font-size:14.5px; color:var(--mut); line-height:1.55 }
 .tile:nth-child(3n+1){ transform:rotate(-.4deg) } .tile:nth-child(3n+3){ transform:rotate(.5deg) }
 
-.pair { display:grid; grid-template-columns:1fr 1fr; gap:34px; margin-top:34px; align-items:start }
-.pair .shot { border-radius:8px; overflow:hidden; background:var(--card) }
-.pair .shot:first-child { transform:rotate(-.7deg) } .pair .shot:last-child { transform:rotate(.8deg) }
+.pair { margin-top:34px }
+.pair .shot { border-radius:8px; overflow:hidden; background:var(--card); transform:rotate(-.7deg) }
+/* two narrow standing objects, sized like each other on purpose */
+.tall { display:grid; grid-template-columns:1fr .78fr; gap:26px; align-items:start; margin-top:26px }
+.tall .shot { border-radius:8px; overflow:hidden; background:var(--card); transform:rotate(1deg) }
 
 footer { margin:130px 0 120px; background:var(--card); border-radius:10px; padding:52px 46px;
   display:flex; gap:30px; align-items:center; flex-wrap:wrap; transform:rotate(-.25deg) }
 footer h2 { flex:1 1 340px }
 @media (max-width:880px){
-  .spread,.cards,.pair { grid-template-columns:1fr; gap:30px }
+  .spread,.cards,.tall { grid-template-columns:1fr; gap:30px }
   .brief,.stick,.receipt,.tile,.laid .shot,footer { transform:none !important }
 }
 @media (prefers-reduced-motion: reduce){ .obj { transition:none } }
@@ -134,9 +136,8 @@ footer h2 { flex:1 1 340px }
       <h2>It reads what you put in front of it.</h2>
       <p>Click any file to open it beside the chat — source, markdown, images, PDFs. Mark up the PDF
       and the agent reads what you marked, then goes and checks the page against it.</p>
-      <div class="pair">
+      <div class="pair one">
         <div class="shot obj"><img src="../chat.png" alt="The chat beside the file tree and its edits" /></div>
-        <div class="shot obj"><img src="../sidebar.png" alt="Grouped projects with nested chats" /></div>
       </div>
     </div>
     <div class="brief obj">
@@ -160,7 +161,8 @@ footer h2 { flex:1 1 340px }
       <p>Sessions start on your first message and wind down when they go idle. Panes, open files and
       the active chat survive a restart, and an update. Routines keep watching a page on a timer
       whether the window is in front of you or not.</p>
-      <div class="receipt obj" style="margin-top:26px">
+      <div class="tall">
+      <div class="receipt obj">
         <h6>SUPERAGENT</h6>
         <p class="sm">one night · wepush · main</p>
         <div class="r"><b>23:14</b> opened the pricing page <span>browser</span></div>
@@ -170,6 +172,8 @@ footer h2 { flex:1 1 340px }
         <div class="r"><b>23:26</b> read brief.pdf, flagged the seat cap <span>files</span></div>
         <div class="r"><b>23:31</b> moved “mobile pricing” to done <span>board</span></div>
         <div class="tot"><b>total</b> <span>14 turns · 1 edit · 0 interruptions</span></div>
+      </div>
+      <div class="shot obj col"><img src="../sidebar.png" alt="Grouped projects with nested chats" /></div>
       </div>
     </div>
   </div>

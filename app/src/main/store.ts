@@ -6,14 +6,15 @@ import {
   unlinkSync,
   readFileSync,
   existsSync,
-  readdirSync,
   lstatSync,
   symlinkSync,
-  readlinkSync
+  rmSync,
+  realpathSync
 } from 'fs'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import { broadcastToWindows } from './util'
+import { deskRoot } from './desk'
 
 /**
  * SuperAgent persistence: groups → workspaces → tabs.
@@ -230,15 +231,6 @@ export interface TreeGroup extends Group {
  */
 export const DESKTOP_GROUP_ID = '__desktop__'
 export const DESKTOP_WORKSPACE_ID = '__desktop_chat__'
-
-/** Where a symlink points, or '' if it is not one (or has gone). */
-function readlinkSafe(p: string): string {
-  try {
-    return readlinkSync(p)
-  } catch {
-    return ''
-  }
-}
 
 export function getTree(): TreeGroup[] {
   const groups = (
@@ -912,6 +904,25 @@ export function registerStoreIpc(): void {
   ipcMain.handle('desktop:chat-home', () => {
     const cwd = join(app.getPath('userData'), 'desktop-chat')
     mkdirSync(cwd, { recursive: true })
+    // The chat reads the desktop through ./files. The desk is a real folder
+    // now, so this is one symlink to it rather than a mirror of per-file links
+    // rebuilt on every change — the agent sees the whole desk, folders and
+    // all, always current, and browsing into a folder no longer changes what
+    // it can read. Replaces the old files/ directory of individual links.
+    try {
+      const files = join(cwd, 'files')
+      const root = deskRoot()
+      const linksTo = existsSync(files) && lstatSync(files).isSymbolicLink() && realpathSync(files)
+      if (linksTo !== root) {
+        if (existsSync(files) || lstatSync(files, { throwIfNoEntry: false })) {
+          rmSync(files, { recursive: true, force: true })
+        }
+        symlinkSync(root, files)
+      }
+    } catch {
+      // A desk the agent cannot reach is worse degraded than fatal; the chat
+      // still runs, just without ./files.
+    }
     const has = db.prepare('SELECT id FROM workspaces WHERE id = ?').get(DESKTOP_WORKSPACE_ID)
     if (!has) {
       db.prepare(
@@ -927,47 +938,10 @@ export function registerStoreIpc(): void {
     return { workspaceId: DESKTOP_WORKSPACE_ID, cwd }
   })
 
-  /**
-   * Mirror the desktop's files into the chat's working directory as symlinks.
-   *
-   * The point is that dropping a file on the desktop is enough — no attaching,
-   * no pasting a path. The chat runs in this folder, so `files/` simply
-   * contains what the desktop holds and Claude reads it with ordinary tools.
-   * Links rather than copies: a dropped video should not be duplicated into
-   * application support, and edits belong to the original.
-   */
-  ipcMain.handle('desktop:sync-files', (_e, paths: string[]) => {
-    const dir = join(app.getPath('userData'), 'desktop-chat', 'files')
-    mkdirSync(dir, { recursive: true })
-    const wanted = new Map<string, string>()
-    for (const p of paths) {
-      if (!p || !existsSync(p)) continue
-      // Collisions are possible — two files of the same name from different
-      // folders — so the second one keeps its parent folder in the link name.
-      let name = p.split('/').pop() || 'file'
-      if (wanted.has(name)) {
-        const parent = p.split('/').slice(-2, -1)[0] ?? ''
-        name = parent ? `${parent} — ${name}` : `${Date.now()}-${name}`
-      }
-      wanted.set(name, p)
-    }
-    // Anything no longer on the desktop stops being here too.
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry)
-      const stale = !wanted.has(entry) || wanted.get(entry) !== readlinkSafe(full)
-      if (stale && lstatSync(full).isSymbolicLink()) unlinkSync(full)
-    }
-    for (const [name, target] of wanted) {
-      const link = join(dir, name)
-      if (existsSync(link)) continue
-      try {
-        symlinkSync(target, link)
-      } catch {
-        /* a name we cannot create is not worth failing the whole sync for */
-      }
-    }
-    return dir
-  })
+  // The desk is a real folder and ./files links straight to it (see chat-home),
+  // so there is nothing per-file to sync. Kept as a no-op because the renderer
+  // still calls it after the one-time migration; it simply confirms the link.
+  ipcMain.handle('desktop:sync-files', () => join(app.getPath('userData'), 'desktop-chat', 'files'))
 
   ipcMain.handle('store:createWorkspace', (_e, groupId: string, name: string, path: string) => {
     const id = randomUUID()
