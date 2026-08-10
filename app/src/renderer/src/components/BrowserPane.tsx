@@ -228,10 +228,24 @@ export function BrowserPane({
     radiusRef.current = radius
   }, [radius])
 
+  /**
+   * Whether something is covering this pane. Declared here because syncBounds
+   * reads it, and kept in step with paneCovered further down.
+   */
+  const coveredRef = useRef(false)
+
   const syncBounds = useCallback((): void => {
     // Don't position the native view while this workspace is hidden (it would
-    // overlay the active one) or while an HTML overlay is open (it would cover it).
-    if (!visibleRef.current || overlayRef.current) return
+    // overlay the active one), while an HTML overlay is open (it would cover
+    // it), or while the pane is covered by something else.
+    //
+    // That last one is what made every stacking fix temporary. Pushing bounds
+    // re-attaches a detached view — that is how a pane comes back when you
+    // return to it — so a covered pane that pushed bounds for any reason (a
+    // resize tick, a window being dragged, a resync) undid its own freeze and
+    // reappeared on top, at whatever bounds it last worked out. The freeze
+    // must therefore hold the position too, not just the picture.
+    if (!visibleRef.current || overlayRef.current || coveredRef.current) return
     const host = hostRef.current
     if (!host) return
     const r = host.getBoundingClientRect()
@@ -363,6 +377,9 @@ export function BrowserPane({
   }, [cornerFill?.bottom, onEdgeColour])
 
   const paneCovered = overlayOpen || suggestOpen || away || occluded
+  useEffect(() => {
+    coveredRef.current = paneCovered
+  }, [paneCovered])
 
   // Follow the page's corner colour: once immediately, then a lazy tick — catches
   // navigations, theme flips and repaints without chasing every frame.
