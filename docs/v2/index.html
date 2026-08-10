@@ -15,7 +15,9 @@ img { max-width:100%; display:block }
 header { padding:64px 0 34px; max-width:660px }
 h1 { font-size:34px; letter-spacing:-.032em; font-weight:660; line-height:1.1 }
 header p { margin-top:12px; color:var(--mut) }
-.grid { display:grid; grid-template-columns:repeat(2,1fr); gap:26px; padding-bottom:90px }
+.grid { display:grid; grid-template-columns:repeat(2,1fr); gap:26px; padding-bottom:56px }
+.sec { font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--acc); padding:22px 0 18px; border-top:1px solid var(--line); margin-bottom:8px }
 a.card { text-decoration:none; color:inherit; display:block }
 a.card .pic { border:1px solid var(--line); border-radius:11px; overflow:hidden; background:#fff;
   aspect-ratio:1280/820; transition:box-shadow .2s ease, transform .2s ease }
@@ -33,11 +35,42 @@ footer { padding:0 0 90px; color:var(--mut); font-size:13.5px }
 <body>
 <div class="wrap">
   <header>
-    <h1>Ten landing pages.</h1>
-    <p>All real pages using the real screenshots — no mock-ups, no animation to sit through. Click a
-    thumbnail to open the full page. Tell me which one to take forward and I'll build it out properly.</p>
+    <h1>Fifteen landing pages.</h1>
+    <p>The first five have an idea in them. The ten below are the conventional shapes — competent,
+    but you could find them anywhere. All of them are real pages using the real screenshots. Click a
+    thumbnail to open it.</p>
   </header>
 
+  <h2 class="sec">With an actual idea</h2>
+  <div class="grid">
+    <a class="card" href="12-ledger.html">
+      <div class="pic"><img src="thumbs/12-ledger.png" alt="" /></div>
+      <div class="meta"><i>12</i><b>The Ledger</b><span>the page is a printout of one night's work</span></div>
+      <p class="note">No hero, no feature grid — an itemised receipt of what it did between 23:14 and 06:02, ending on the only number that matters: interruptions, 0.</p>
+    </a>
+    <a class="card" href="15-behind.html">
+      <div class="pic"><img src="thumbs/15-behind.png" alt="" /></div>
+      <div class="meta"><i>15</i><b>Behind</b><span>the window that never comes forward</span></div>
+      <p class="note">The app sits fixed behind the page, dimmed, the whole way down — then at the last screen you ask it to come forward, and it does. One move, earned.</p>
+    </a>
+    <a class="card" href="13-manifesto.html">
+      <div class="pic"><img src="thumbs/13-manifesto.png" alt="" /></div>
+      <div class="meta"><i>13</i><b>Manifesto</b><span>one sentence at a time, at 120px</span></div>
+      <p class="note">“Your agent writes the code. It has never seen the page. So give it a computer.” Each line carries a small factual footnote so it never becomes empty swagger.</p>
+    </a>
+    <a class="card" href="14-spec.html">
+      <div class="pic"><img src="thumbs/14-spec.png" alt="" /></div>
+      <div class="meta"><i>14</i><b>Spec sheet</b><span>an industrial datasheet, not a landing page</span></div>
+      <p class="note">Numbered callouts key out to the margins of the real screenshot; below it, capabilities and a behaviour table. Braun manual energy.</p>
+    </a>
+    <a class="card" href="11-desk.html">
+      <div class="pic"><img src="thumbs/11-desk.png" alt="" /></div>
+      <div class="meta"><i>11</i><b>The Desk</b><span>the product's metaphor, taken literally</span></div>
+      <p class="note">A desk seen from above: the window, a marked-up brief, a sticky note with the one rule, the night's receipt. Nothing animates; the objects just have weight.</p>
+    </a>
+  </div>
+
+  <h2 class="sec">The conventional shapes</h2>
   <div class="grid">
     <a class="card" href="01-plain.html">
       <div class="pic"><img src="thumbs/01-plain.png" alt="" /></div>
