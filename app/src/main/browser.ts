@@ -64,7 +64,13 @@ const faviconByPane = new Map<string, string>()
 async function fetchFavicon(id: string, url: string, onReady: () => void): Promise<void> {
   if (!/^https?:\/\//i.test(url)) return
   try {
-    const res = await net.fetch(url)
+    // Main's own fetch announces itself as Electron. A site that has just
+    // served a page to "Chrome" then sees a favicon request from Electron on
+    // the same connection — which is worse than either alone, and is the kind
+    // of contradiction bot detection is built to spot.
+    const res = await net.fetch(url, {
+      headers: { 'User-Agent': chromeUserAgent(app.userAgentFallback) }
+    })
     if (!res.ok) return
     const buf = Buffer.from(await res.arrayBuffer())
     if (buf.length === 0 || buf.length > 200_000) return // skip empty/absurd
@@ -83,6 +89,57 @@ function chromeUserAgent(defaultUA: string): string {
   return defaultUA
     .replace(new RegExp(` ${app.getName()}/[^ ]+`, 'i'), '')
     .replace(/ Electron\/[^ ]+/i, '')
+}
+
+
+/**
+ * Give a pane one consistent browser identity.
+ *
+ * A browser states who it is in three places: the User-Agent string, the
+ * Sec-CH-UA headers, and navigator.userAgentData in JavaScript. Chrome derives
+ * all three from the same metadata, so they always agree. We were setting them
+ * separately — the UA string was rewritten to say Chrome, the headers were
+ * rewritten to add the Google Chrome brand, and the JS API was left reporting
+ * Chromium only. Anything that reads more than one of them sees a browser
+ * disagreeing with itself, which is exactly the shape of a spoof: hence
+ * Cloudflare's challenge looping even when a person ticks the box by hand.
+ *
+ * setUserAgentOverride is how DevTools does device emulation: hand it the
+ * metadata once and Chromium regenerates all three from it, consistently.
+ */
+function applyBrowserIdentity(wc: Electron.WebContents): void {
+  const ua = chromeUserAgent(wc.getUserAgent())
+  wc.setUserAgent(ua)
+  const m = ua.match(/Chrome\/(\d+)(\.[\d.]+)?/)
+  if (!m) return
+  const major = m[1]
+  const full = `${m[1]}${m[2] ?? '.0.0.0'}`
+  const brands = (v: string): { brand: string; version: string }[] => [
+    // The GREASE entry is part of a real Chrome's list, not noise to drop.
+    { brand: 'Not_A Brand', version: v === major ? '99' : '99.0.0.0' },
+    { brand: 'Google Chrome', version: v },
+    { brand: 'Chromium', version: v }
+  ]
+  try {
+    if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
+    void wc.debugger.sendCommand('Emulation.setUserAgentOverride', {
+      userAgent: ua,
+      userAgentMetadata: {
+        brands: brands(major),
+        fullVersionList: brands(full),
+        fullVersion: full,
+        platform: 'macOS',
+        platformVersion: process.getSystemVersion(),
+        architecture: process.arch === 'arm64' ? 'arm' : 'x86',
+        bitness: '64',
+        model: '',
+        mobile: false,
+        wow64: false
+      }
+    })
+  } catch {
+    // Without it the pane still works; it just answers the older way.
+  }
 }
 
 export interface BrowserBounds {
@@ -514,7 +571,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   panes.set(id, pane)
 
   const wc = view.webContents
-  wc.setUserAgent(chromeUserAgent(wc.getUserAgent()))
+  applyBrowserIdentity(wc)
   const sendState = (): void => {
     if (window.isDestroyed()) return
     const empty = emptyPanes.has(id)
@@ -624,7 +681,7 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
   wirePdfSaveBack(view.webContents.session)
   view.setBackgroundColor('#ffffff')
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
-  view.webContents.setUserAgent(chromeUserAgent(view.webContents.getUserAgent()))
+  applyBrowserIdentity(view.webContents)
   panes.set(id, { id, view, window, visible: false, partition, radius: 0 })
 }
 
