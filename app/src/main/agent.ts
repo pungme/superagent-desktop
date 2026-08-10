@@ -141,8 +141,14 @@ const FILE_OPEN_PROMPT =
 // this chat. Apple's Simulator app is a separate window they did not ask for.
 const SIMULATOR_PROMPT =
   "SuperAgent shows a live iOS Simulator in a pane next to this chat, and the user is " +
-  'watching THAT. Use the sim_* tools (sim_list_devices, sim_boot, sim_install_and_launch, ' +
-  'sim_screenshot, sim_open_url) for anything simulator-related. Two rules follow from this:\n' +
+  'watching THAT. Use the sim_* tools for anything simulator-related: sim_list_devices, ' +
+  'sim_boot, sim_install_and_launch and sim_open_url to set it up, then drive it like a ' +
+  'device — sim_screen to SEE it (it returns the screen as an image; there is no DOM, so ' +
+  'look at the picture and read coordinates off it), sim_tap and sim_swipe to touch it (in ' +
+  "sim_screen's pixels), sim_type to type into a focused field, sim_press for the home/lock/" +
+  'side buttons, and sim_wait_stable to let a load or animation settle before the next step. ' +
+  'The loop is the same as the browser: sim_screen, act, sim_screen again to check. Two rules ' +
+  'follow from the pane:\n' +
   "1. Do NOT run `open -a Simulator`, `xcrun simctl boot` followed by opening Apple's " +
   'Simulator app, or otherwise launch the Simulator application — it puts a second window ' +
   'on screen, usually showing a different device from the one in the pane, and the user ' +
