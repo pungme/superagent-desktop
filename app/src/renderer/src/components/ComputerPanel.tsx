@@ -263,6 +263,52 @@ export function ComputerPanel({
   }, [])
 
   /**
+   * Keep a window inside the desktop it is being drawn on.
+   *
+   * Geometry is remembered, so a window saved on a large desktop could come
+   * back onto a small one — 900x620 at (700,420) on a 421x448 desktop, with its
+   * title bar off the edge and no way to drag it back. The drag itself clamps,
+   * but nothing did on restore or when the app window shrank. Clamping here
+   * rather than rewriting the stored rect means growing the window back returns
+   * it to the size you left it at.
+   */
+  const clampToDesk = (r: WindowRect): WindowRect => {
+    const w = Math.min(r.w, Math.max(320, bounds.w - 16))
+    const h = Math.min(r.h, Math.max(220, bounds.h - 16))
+    return {
+      w,
+      h,
+      x: Math.min(Math.max(r.x, -w + 90), Math.max(0, bounds.w - 90)),
+      y: Math.min(Math.max(r.y, 0), Math.max(0, bounds.h - 34))
+    }
+  }
+
+  /**
+   * Is anything stacked on top of this window?
+   *
+   * Only the Browser cares, and it cares a great deal: its page is a real
+   * Chromium view, a native layer that paints above every piece of HTML in the
+   * app. Stack the Chat window over it and the page carries on covering the
+   * chat — the window is in front by every rule the DOM knows and behind by the
+   * only one the screen obeys. So the browser is told when it is covered, and
+   * stands its page down in favour of a still of itself.
+   *
+   * An open menu counts too: the drop-down is HTML, and the desktop's menu bar
+   * sits exactly where a window's top-left corner tends to be.
+   */
+  const coveredBy = (win: OpenWindow): boolean => {
+    if (menu) return true
+    const rect = (w: OpenWindow): WindowRect =>
+      w.maximized ? { x: 0, y: 0, w: bounds.w, h: bounds.h } : clampToDesk(w.rect)
+    const a = rect(win)
+    return windows.some((o) => {
+      if (o.id === win.id || o.minimized || o.z <= win.z) return false
+      const b = rect(o)
+      return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+    })
+  }
+
+  /**
    * Tell the main process what the desktop looks like.
    *
    * The desktop chat's agent runs out there, and "which window is in front" is
@@ -385,52 +431,6 @@ export function ComputerPanel({
       : (a.name.split('.').pop() ?? '').localeCompare(b.name.split('.').pop() ?? '') ||
         a.name.localeCompare(b.name)
   )
-
-  /**
-   * Keep a window inside the desktop it is being drawn on.
-   *
-   * Geometry is remembered, so a window saved on a large desktop could come
-   * back onto a small one — 900x620 at (700,420) on a 421x448 desktop, with its
-   * title bar off the edge and no way to drag it back. The drag itself clamps,
-   * but nothing did on restore or when the app window shrank. Clamping here
-   * rather than rewriting the stored rect means growing the window back returns
-   * it to the size you left it at.
-   */
-  const clampToDesk = (r: WindowRect): WindowRect => {
-    const w = Math.min(r.w, Math.max(320, bounds.w - 16))
-    const h = Math.min(r.h, Math.max(220, bounds.h - 16))
-    return {
-      w,
-      h,
-      x: Math.min(Math.max(r.x, -w + 90), Math.max(0, bounds.w - 90)),
-      y: Math.min(Math.max(r.y, 0), Math.max(0, bounds.h - 34))
-    }
-  }
-
-  /**
-   * Is anything stacked on top of this window?
-   *
-   * Only the Browser cares, and it cares a great deal: its page is a real
-   * Chromium view, a native layer that paints above every piece of HTML in the
-   * app. Stack the Chat window over it and the page carries on covering the
-   * chat — the window is in front by every rule the DOM knows and behind by the
-   * only one the screen obeys. So the browser is told when it is covered, and
-   * stands its page down in favour of a still of itself.
-   *
-   * An open menu counts too: the drop-down is HTML, and the desktop's menu bar
-   * sits exactly where a window's top-left corner tends to be.
-   */
-  const coveredBy = (win: OpenWindow): boolean => {
-    if (menu) return true
-    const rect = (w: OpenWindow): WindowRect =>
-      w.maximized ? { x: 0, y: 0, w: bounds.w, h: bounds.h } : clampToDesk(w.rect)
-    const a = rect(win)
-    return windows.some((o) => {
-      if (o.id === win.id || o.minimized || o.z <= win.z) return false
-      const b = rect(o)
-      return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
-    })
-  }
 
   const renderApp = (win: OpenWindow): React.JSX.Element => {
     const app = win.app
