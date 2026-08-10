@@ -5355,6 +5355,51 @@ button {
   white-space: nowrap;
   flex-shrink: 0;
 }
+/* A tooltip of our own: the native one waits ~1s, wraps where it likes and
+   cannot give the numbers any weight. This one appears at once. */
+.easy-ctx {
+  position: relative;
+}
+.easy-ctx-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 10px 30px var(--shadow);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-align: left;
+  /* The gauge itself is nowrap so its label and percentage stay on one line;
+     the tooltip is prose and must wrap. */
+  white-space: normal;
+  z-index: 30;
+  opacity: 0;
+  transform: translateY(3px);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.easy-ctx-tip b {
+  font-size: 12.5px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.easy-ctx:hover .easy-ctx-tip,
+.easy-ctx:focus-within .easy-ctx-tip {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .easy-ctx-tip { transition: none; }
+}
+
 .easy-ctx-label {
   font-weight: 600;
 }

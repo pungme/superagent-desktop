@@ -2329,7 +2329,7 @@ export function EasyChat({
           >
             <span className="easy-control-key">Model</span>
             <span className="easy-control-val">
-              {model === '' && activeModel ? shortModel(activeModel) : modelLabel}
+              {modelLabel}
             </span>
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -2344,7 +2344,14 @@ export function EasyChat({
                   onClick={() => pickModel(o.value)}
                 >
                   <span className="easy-control-item-label">{o.label}</span>
-                  <span className="easy-control-item-hint">{o.hint}</span>
+                  <span className="easy-control-item-hint">
+                    {/* Naming the resolution here rather than on the pill: the
+                        pill showing "Opus 5" while the menu said Default read
+                        as though Opus had been picked. */}
+                    {o.value === '' && activeModel
+                      ? `${o.hint} — right now ${shortModel(activeModel)}`
+                      : o.hint}
+                  </span>
                 </button>
               ))}
             </div>
@@ -2423,10 +2430,22 @@ export function EasyChat({
           )
         })}
         {ctxTokens !== null && (
-          <span
-            className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}
-            title={`This conversation is using about ${ctxTokens.toLocaleString()} of ${ctxWindow.toLocaleString()} tokens of Claude's memory. When it fills up, older turns are summarised automatically — nothing is lost, but detail fades.`}
-          >
+          <span className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}>
+            {/* Our own tooltip rather than title=""; the native one waits about
+                a second and cannot show the numbers as numbers. */}
+            <span className="easy-ctx-tip" role="tooltip">
+              <b>
+                {ctxTokens.toLocaleString()} of {ctxWindow.toLocaleString()} tokens
+              </b>
+              <span>
+                {activeModel ? `${shortModel(activeModel)} · ` : ''}
+                {ctxWindow >= 1_000_000 ? '1M context window' : '200K context window'}
+              </span>
+              <span>
+                When it fills, older turns are summarised automatically — nothing is lost,
+                but detail fades. /compact does it now, on your terms.
+              </span>
+            </span>
             <span className="easy-ctx-label">Memory</span>
             <span className="easy-ctx-track">
               <span className="easy-ctx-fill" style={{ width: `${Math.min(100, ctxPercent)}%` }} />
