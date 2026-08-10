@@ -109,10 +109,15 @@ body.warping .btn.ghost { box-shadow:none }
 .win {
   width:1080px; height:664px; flex:0 0 auto; transform-origin:top center;
   display:grid; grid-template-columns:196px 1fr;
+  /* on a narrow screen the sidebar is the first thing to go — the work is
+     worth more of the scale than the furniture is */
   background:var(--win); color:var(--wink); border:1px solid var(--wline);
   border-radius:12px; overflow:hidden; box-shadow:0 30px 70px -30px rgba(10,12,18,.35);
   font-size:12px;
 }
+
+.win.slim { width:884px; grid-template-columns:1fr }
+.win.slim .side { display:none }
 
 /* sidebar */
 .side { background:var(--side); border-right:1px solid var(--wline); padding:0 8px 8px;
@@ -175,6 +180,8 @@ body.warping .btn.ghost { box-shadow:none }
 .omni .car { width:1px; height:9px; background:var(--wink); margin-left:1px; animation:blink 1s steps(1) infinite }
 @keyframes blink { 50% { opacity:0 } }
 .bview { height:302px; position:relative; overflow:hidden; background:var(--win) }
+.blank { position:absolute; inset:0; display:grid; place-items:center; color:var(--wmut);
+  font-size:10px; opacity:.6 }
 
 /* phone */
 .phone { width:150px; flex:0 0 auto; border-radius:18px; border:1px solid var(--wline);
@@ -252,7 +259,7 @@ body.warping .btn.ghost { box-shadow:none }
 .msg.it { background:var(--wfill) }
 .tool { font-size:10px; color:var(--wmut); display:flex; align-items:center; gap:6px;
   font-family:var(--mono); min-width:0 }
-.tool span:first-child { flex:0 0 auto }
+.tool .tl { flex:0 0 auto }
 .tool .tw { color:var(--wmut); opacity:.7; min-width:0; overflow:hidden; white-space:nowrap;
   text-overflow:ellipsis }
 .steps { padding-left:12px; display:grid; gap:4px; overflow:hidden; font-family:var(--mono);
@@ -275,7 +282,7 @@ body.warping .btn.ghost { box-shadow:none }
 .gauge s::after { content:''; position:absolute; inset:0 auto 0 0; width:28%; background:var(--wmut) }
 
 /* the notification — it arrives, the window stays exactly where it is */
-.notif { position:absolute; top:26px; right:4vw; width:300px; z-index:12;
+.notif { position:absolute; top:2.5vh; right:2vw; width:300px; z-index:12;
   background:var(--win); color:var(--wink); border:1px solid var(--wline); border-radius:13px;
   padding:11px 13px; box-shadow:0 22px 44px -18px rgba(10,12,18,.5); display:flex; gap:10px }
 .notif img { width:26px; height:26px; border-radius:7px }
@@ -393,6 +400,7 @@ body.warping .btn.ghost { box-shadow:none }
                       <span class="omni"><span id="omniText"></span><i class="car" id="omniCar"></i></span>
                     </div>
                     <div class="bview">
+                      <div class="blank" id="blank">nothing open yet</div>
                       <div class="site" id="siteDesk"></div>
                     </div>
                   </div>
@@ -425,9 +433,11 @@ body.warping .btn.ghost { box-shadow:none }
                     </div>
                     <div class="col"><h6>NEXT</h6>
                       <div class="tick"><s></s><s class="short"></s></div>
+                      <div class="tick"><s></s><s class="short"></s></div>
                     </div>
                     <div class="col"><h6>DOING</h6>
                       <div class="slot" id="slotFrom"></div>
+                      <div class="tick"><s></s><s class="short"></s></div>
                     </div>
                     <div class="col"><h6>DONE</h6>
                       <div class="slot" id="slotTo"></div>
@@ -453,18 +463,20 @@ body.warping .btn.ghost { box-shadow:none }
           </div>
 
         </div><!-- /win -->
-
-        <div class="notif" id="notif">
-          <img src="../logo.png" alt="" />
-          <div>
-            <b>SuperAgent</b>
-            <span>Done — the plan grid collapses at 380px. Checked on iPhone 17 Pro, clean at 375pt.</span>
-          </div>
-          <time>now</time>
-        </div>
       </div>
 
       <div class="caption" id="caption"></div>
+
+      <!-- it arrives over everything, the way a notification does, and the
+           window underneath does not move an inch -->
+      <div class="notif" id="notif">
+        <img src="../logo.png" alt="" />
+        <div>
+          <b>SuperAgent</b>
+          <span>Done — the plan grid collapses at 380px. Checked on iPhone 17 Pro, clean at 375pt.</span>
+        </div>
+        <time>now</time>
+      </div>
     </div>
   </div>
 
@@ -534,7 +546,7 @@ const APP = {
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches
 const IDLE = 0.10, TOP = 24
 const IN_MS = 2400, OUT_MS = 950      // speed: the long build
-const DARK_MS = 380, LIGHT_MS = 520   // colour: out fast, back a touch softer
+const DARK_MS = 700, LIGHT_MS = 620   // colour: quick, but not a light switch
 
 const ws = new WarpSpeed('stars', {
   speed: IDLE,
@@ -656,9 +668,9 @@ const THREAD = [
   { at: 2.15, cls: 'it',   text: 'The plan cards overflow below 380px — the grid never drops to one column.' },
   { at: 2.95, cls: 'me',   text: 'fix it and check it on the phone' },
   { at: 3.15, cls: 'diff', file: 'src/routes/pricing/+page.svelte',
-    del: '- grid-template-columns: repeat(3, 1fr);',
-    add: '+ grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));' },
-  { at: 4.05, cls: 'tool', text: '› 2 steps · 1 edit', wing: 'build · sim_install_and_launch',
+    del: '- .plans { grid-template-columns: repeat(3,1fr) }',
+    add: '+ .plans { grid-template-columns: 1fr }' },
+  { at: 4.05, cls: 'tool', text: '› 2 steps · 1 edit', wing: 'build · simulator',
     steps: ['npm run build → 1.9s', 'sim_boot → iPhone 17 Pro', 'sim_install_and_launch → wepush'] },
   { at: 4.75, cls: 'it',   text: 'Done — it collapses at 380px now. Checked on iPhone 17 Pro too, clean at 375pt.' },
   { at: 5.45, cls: 'tool', text: '› board_move', wing: '“mobile pricing” → done' }
@@ -671,7 +683,7 @@ const nodes = THREAD.map(m => {
     el.innerHTML = `<div class="fn">${m.file}</div><div class="del">${m.del}</div><div class="add">${m.add}</div>`
   } else if (m.cls === 'tool') {
     el.className = 'tool-wrap'
-    el.innerHTML = `<div class="tool">${m.text}<span class="tw">${m.wing}</span></div>` +
+    el.innerHTML = `<div class="tool"><span class="tl">${m.text}</span><span class="tw">${m.wing}</span></div>` +
       (m.steps ? `<div class="steps">${m.steps.map(s => `<div>${s}</div>`).join('')}</div>` : '')
   } else {
     el.className = 'msg ' + m.cls
@@ -686,7 +698,7 @@ const els = {
   draft: $('draft'), draftCar: $('draftCar'), omni: $('omniText'), omniCar: $('omniCar'),
   siteD: $('siteDesk'), siteP: $('sitePhone'), cut: $('cut'), phone: $('phone'),
   bcard: $('bcard'), sim: $('sim'), tap: $('tap'), board: $('board'), flyer: $('flyer'),
-  slotFrom: $('slotFrom'), slotTo: $('slotTo'), dev: $('devSt'), notif: $('notif'),
+  slotFrom: $('slotFrom'), slotTo: $('slotTo'), dev: $('devSt'), notif: $('notif'), blank: $('blank'),
   url: $('barUrl'), routines: $('pillRoutines'), spin: $('sSpin')
 }
 const URL_TEXT = 'wepush.app/pricing'
@@ -742,6 +754,7 @@ function draw() {
   const reload = 1 - 0.85 * Math.sin(Math.PI * seg(t, 3.45, 3.75))
   els.siteD.style.opacity = loaded * reload
   els.siteP.style.opacity = loaded * reload
+  els.blank.style.opacity = (1 - loaded) * 0.6
 
   // the phone arrives beside it, and shows the bug
   const phoneIn = seg(t, 2.05, 2.5)
@@ -785,8 +798,8 @@ function draw() {
   const nIn = seg(t, 6.15, 6.5)
   els.notif.style.opacity = nIn
   els.notif.style.transform = `translateY(${(1 - nIn) * -14}px)`
-  // the spinner stops when the work does
-  els.spin.style.opacity = t > 6.1 ? 0 : 1
+  // the spinner runs only while the turn does
+  els.spin.style.opacity = t > 1.0 && t < 6.1 ? 1 : 0
 
   const ci = Math.min(BEATS.length - 1, Math.floor(t))
   caps.forEach((c, i) => show(c, i === ci ? seg(t, i + 0.02, i + 0.22) : 0, 8))
@@ -796,8 +809,11 @@ function draw() {
    is, so nothing inside it reflows between a laptop and a phone. */
 let scaleNow = 1
 function fit() {
-  const w = Math.min(innerWidth - 32, 1180), h = innerHeight * 0.70
-  scaleNow = Math.min(w / 1080, h / 664)
+  const slim = innerWidth < 760
+  win.classList.toggle('slim', slim)
+  const design = slim ? 884 : 1080
+  const w = Math.min(innerWidth - (slim ? 16 : 32), 1180), h = innerHeight * (slim ? 0.78 : 0.70)
+  scaleNow = Math.min(w / design, h / 664)
   win.style.transform = `scale(${scaleNow})`
   winbox.style.height = (664 * scaleNow) + 'px'
   draw()
