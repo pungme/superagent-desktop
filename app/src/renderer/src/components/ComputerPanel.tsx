@@ -70,7 +70,14 @@ function iconFor(name: string): string {
  * sections a moment ago; a window is what they actually are — you want to read
  * the dashboard *while* editing a routine, which a section can never allow.
  */
-export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
+export function ComputerPanel({
+  visible = true,
+  onClose
+}: {
+  /** False while the Computer is mounted but not on screen. */
+  visible?: boolean
+  onClose: () => void
+}): React.JSX.Element {
   const [files, setFiles] = useState<DeskFile[]>(load)
   const [over, setOver] = useState(false)
   /** Which menu-bar title is open, if any. */
@@ -145,6 +152,9 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
     if (!el) return
     const measure = (): void => {
       const r = el.getBoundingClientRect()
+      // A hidden desktop measures 0x0, and laying windows out against that
+      // would leave them clamped to nothing when it comes back.
+      if (r.width < 1 || r.height < 1) return
       setBounds({ w: Math.round(r.width), h: Math.round(r.height) })
     }
     measure()
@@ -277,7 +287,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
       }),
       files: files.map((f) => ({ name: f.name, path: f.path })),
       bounds,
-      open: true
+      open: visible
     }
     // Dragging a window renders on every pointer move; sending an identical
     // snapshot down the wire sixty times a second helps nobody.
@@ -437,7 +447,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
             paneId={`dfile-${win.id}`}
             partition="persist:browser"
             initialUrl={`file://${encodeURI(win.file)}`}
-            visible
+            visible={visible}
             fill
             radius={4}
             occluded={coveredBy(win)}
@@ -464,6 +474,7 @@ export function ComputerPanel({ onClose }: { onClose: () => void }): React.JSX.E
       const r = win.maximized ? { x: 0, y: 0, w: bounds.w, h: bounds.h } : clampToDesk(win.rect)
       return (
         <DesktopBrowser
+          visible={visible}
           occluded={coveredBy(win)}
           // Moving a window does not resize its contents, so nothing else tells
           // the native view its coordinates changed.

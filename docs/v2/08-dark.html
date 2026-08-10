@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — the desktop home for Claude Code</title>
+<style>
+/* 08 · DARK — the modern dev-tool look. Hairlines, a single cool accent, one
+   glowing product shot. Familiar on purpose. */
+:root { --bg:#08090b; --panel:#0e1013; --ink:#e9ecf1; --mut:#8b93a1; --line:#1b1f26;
+  --acc:#7c9cff; --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace }
+* { margin:0; padding:0; box-sizing:border-box }
+body { background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
+  font:16px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,sans-serif;
+  background-image:radial-gradient(80% 50% at 50% -10%, rgba(124,156,255,.16), transparent 70%) }
+img { max-width:100%; display:block }
+a { color:inherit }
+.wrap { max-width:1120px; margin:0 auto; padding:0 26px }
+nav { display:flex; align-items:center; gap:12px; padding:22px 0; font-size:13.5px; color:var(--mut) }
+nav img { width:24px; height:24px; border-radius:6px }
+nav b { color:var(--ink); font-size:14px }
+nav a { margin-left:auto; text-decoration:none; border:1px solid var(--line); border-radius:8px;
+  padding:7px 13px; font-size:13px }
+header { padding:78px 0 0; text-align:center }
+.chip { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:999px;
+  padding:5px 13px; font-size:12.5px; color:var(--mut); font-family:var(--mono) }
+.chip i { width:6px; height:6px; border-radius:50%; background:#4ea86b }
+h1 { margin-top:24px; font-size:clamp(38px,6.2vw,76px); line-height:1.03; letter-spacing:-.045em; font-weight:660 }
+h1 span { background:linear-gradient(180deg,#fff,#7f8794); -webkit-background-clip:text; background-clip:text; color:transparent }
+.lede { margin:22px auto 0; max-width:50ch; font-size:18px; color:var(--mut) }
+.cta { margin-top:32px; display:flex; gap:11px; justify-content:center; flex-wrap:wrap }
+.btn { padding:13px 24px; border-radius:10px; background:var(--ink); color:#0b0d10; text-decoration:none;
+  font-size:14.5px; font-weight:640 }
+.btn.g { background:none; color:var(--ink); border:1px solid var(--line) }
+.fine { margin-top:16px; font-family:var(--mono); font-size:11.5px; color:#5b626e }
+.shot { margin:64px auto 0; max-width:1180px; padding:0 20px }
+.shot div { border-radius:14px; padding:1px; background:linear-gradient(180deg, rgba(124,156,255,.5), rgba(124,156,255,0) 60%) }
+.shot img { width:100%; border-radius:13px; display:block }
+section { padding:110px 0 }
+.eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:.12em; color:var(--acc); text-transform:uppercase }
+h2 { margin-top:12px; font-size:clamp(26px,3.2vw,40px); line-height:1.12; letter-spacing:-.033em; font-weight:640 }
+.sub { margin-top:14px; color:var(--mut); max-width:60ch }
+.cards { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin-top:44px;
+  background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden }
+.cards div { background:var(--panel); padding:24px 22px 26px }
+.cards b { display:block; font-size:15.5px; margin-bottom:7px }
+.cards p { font-size:14px; line-height:1.55; color:var(--mut) }
+.two { display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center; margin-top:64px }
+.two img { border-radius:12px; border:1px solid var(--line) }
+footer { padding:120px 0 140px; text-align:center; border-top:1px solid var(--line) }
+@media (max-width:900px){ .cards,.two{ grid-template-columns:1fr } .two{ gap:30px } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <img src="../logo.png" alt="" /><b>SuperAgent</b>
+    <a href="https://github.com/pungme/superagent-desktop">GitHub</a>
+  </nav>
+</div>
+
+<header class="wrap">
+  <span class="chip"><i></i> free · open source · Apple Silicon</span>
+  <h1><span>The desktop home<br />for Claude Code.</span></h1>
+  <p class="lede">One chat per project, a real browser it can drive, an iPhone in the window, and
+  routines that keep running. Local, on your own subscription.</p>
+  <div class="cta">
+    <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+    <a class="btn g" href="https://github.com/pungme/superagent-desktop">Source</a>
+  </div>
+  <p class="fine">notarized by apple · updates itself · nothing leaves your machine</p>
+</header>
+
+<div class="shot"><div><img src="../hero.png" alt="A live browser and an iPhone beside the chat driving them" /></div></div>
+
+<section class="wrap">
+  <p class="eyebrow">The screen it gets</p>
+  <h2>Not a log of what happened.<br />The thing itself, while it happens.</h2>
+  <p class="sub">Claude drives the browser on your screen — the one with your sessions in it — and
+  you watch. Ask for a change and the page reloads beside the chat, with your dev server running in
+  a strip above the work.</p>
+  <div class="cards">
+    <div><b>A real browser</b><p>Navigate, click, type, read back. Your logged-in session, not a headless copy of it.</p></div>
+    <div><b>Desktop &amp; phone at once</b><p>The same live page in a desktop card and an iPhone frame, in one session.</p></div>
+    <div><b>An iPhone in the window</b><p>An iOS Simulator streamed from its own framebuffer. Tap it, type into it.</p></div>
+    <div><b>Files &amp; PDFs</b><p>Click any file to read it beside the tree; drag files in and annotate PDFs in place.</p></div>
+    <div><b>A board it keeps</b><p>Backlog → done, moved by the agent as the work lands, per project.</p></div>
+    <div><b>Worktree chats</b><p>A chat on its own git branch and directory. Your checkout stays clean.</p></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="two">
+    <div>
+      <p class="eyebrow">How it behaves</p>
+      <h2>Quiet, and hard to lose.</h2>
+      <p class="sub">It never steals focus: agents finish in the background and send a notification
+      with what they actually said. Panes, open files and the active chat survive restarts and
+      updates. Sessions wind down when idle, so nothing runs for the sake of running.</p>
+    </div>
+    <img src="../settings.png" alt="Settings: appearance, agent permissions, developer mode" />
+  </div>
+</section>
+
+<footer class="wrap">
+  <h2>Give your agent a screen.</h2>
+  <div class="cta">
+    <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+    <a class="btn g" href="https://github.com/pungme/superagent-desktop">Read the source</a>
+  </div>
+  <p class="fine">no middleman server · your keys · your machine</p>
+</footer>
+</body>
+</html>
