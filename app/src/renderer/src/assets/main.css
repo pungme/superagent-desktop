@@ -5608,28 +5608,41 @@ button {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 6px 8px;
   flex-shrink: 0;
-  /* On the desk the simulator can be a narrow card beside your work, so the
-     toolbar has to fold rather than run off the edge of it, and drop what it
-     can't fit — hence the container, which .sim-runtime queries. */
-  flex-wrap: wrap;
+  /* Stays on ONE row on any card width: the device picker shrinks (its name
+     truncates) so the small hardware/open/close buttons never get pushed onto
+     their own lines — that stack of rows was the "too tall" complaint. */
+  flex-wrap: nowrap;
   container: sim-toolbar / inline-size;
 }
 .sim-device {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
+  /* Takes the slack and gives it back: grows to fill, shrinks past its content
+     so the buttons beside it always fit. */
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
+  overflow: hidden;
   border: 1px solid var(--border);
   background: var(--bg-panel);
   color: var(--text-primary);
   border-radius: 8px;
-  padding: 5px 10px;
+  padding: 4px 8px;
   font-size: 12px;
   font-weight: 600;
+}
+.sim-device-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sim-device .sim-dot,
+.sim-device .sim-caret {
+  flex-shrink: 0;
 }
 .sim-runtime {
   font-size: 10.5px;
@@ -5649,10 +5662,14 @@ button {
   border: 1px solid var(--border);
   background: var(--bg-panel);
   color: var(--text-secondary);
-  border-radius: 8px;
-  width: 28px;
-  height: 26px;
-  font-size: 12px;
+  border-radius: 7px;
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .sim-btn:hover {
   color: var(--text-primary);
