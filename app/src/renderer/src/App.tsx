@@ -252,6 +252,14 @@ function App(): React.JSX.Element {
       else if (action === 'new-project') {
         const firstGroup = useStore.getState().tree[0]
         if (firstGroup) addWorkspace(firstGroup.id)
+      } else if (action === 'close-tab') {
+        // Cmd+W. Closes the active browser tab — that's what it means in a
+        // browser. On anything else it does nothing: it must never close the
+        // window (which is what the old `close` role did, losing the whole app).
+        const s = useStore.getState()
+        const id = s.activeWorkspaceId
+        const ws = id ? s.tree.flatMap((g) => g.workspaces).find((w) => w.id === id) : undefined
+        if (ws?.kind === 'browser') void s.removeWorkspace(ws.id)
       } else {
         // skills / routines / toggle-preview are workspace-scoped; forward via window event
         window.dispatchEvent(new CustomEvent(`cove:menu-${action}`))
