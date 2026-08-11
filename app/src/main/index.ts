@@ -1,4 +1,14 @@
-import { app, shell, BrowserWindow, Menu, clipboard, nativeTheme, ipcMain, dialog, session } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  Menu,
+  clipboard,
+  nativeTheme,
+  ipcMain,
+  dialog,
+  session
+} from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -178,10 +188,39 @@ app.whenReady().then(() => {
   ipcMain.handle('app:version', () => app.getVersion())
 
   // Right-click a chat row: clear (wipe transcript + session, keep the row) or delete.
-  ipcMain.on('chat:menu', (e, chatId: string, workspaceId: string) => {
+  ipcMain.on('chat:menu', (e, chatId: string, workspaceId: string, cwd?: string | null) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return
-    const menu = Menu.buildFromTemplate([
+    const template: Electron.MenuItemConstructorOptions[] = []
+    // A worktree chat can be folded back into the project when you're done.
+    if (cwd && cwd.includes('/.worktrees/')) {
+      const projectPath = cwd.split('/.worktrees/')[0]
+      template.push(
+        {
+          label: 'Merge & finish…',
+          click: async () => {
+            const { response } = await dialog.showMessageBox(win, {
+              type: 'question',
+              buttons: ['Merge & finish', 'Cancel'],
+              defaultId: 1,
+              message: 'Merge this worktree back into the project?',
+              detail:
+                'Its changes are squashed into a single commit on the current branch, then the worktree and its branch are removed. Nothing happens if there are conflicts.'
+            })
+            if (response === 0) {
+              win.webContents.send('chat:merge-worktree', {
+                chatId,
+                workspaceId,
+                projectPath,
+                wtPath: cwd
+              })
+            }
+          }
+        },
+        { type: 'separator' }
+      )
+    }
+    template.push(
       {
         label: 'Clear chat…',
         click: async () => {
@@ -200,8 +239,8 @@ app.whenReady().then(() => {
         label: 'Delete chat',
         click: () => win.webContents.send('chat:delete', { chatId, workspaceId })
       }
-    ])
-    menu.popup({ window: win })
+    )
+    Menu.buildFromTemplate(template).popup({ window: win })
   })
 
   // Right-click a project row in the sidebar. Worktree chats are the point —
