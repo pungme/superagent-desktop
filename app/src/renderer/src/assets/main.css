@@ -470,17 +470,34 @@ button {
   text-overflow: ellipsis;
 }
 /* The per-chat working spinner sits inline before the title, where the unread
-   dot would otherwise be. Small and thin so it reads as a quiet "working"
-   rather than a heavy ring: a hairline border at dot size. */
+   dot would otherwise be. A border-ring looks faceted and jagged this small, so
+   it's a conic-gradient comet masked into a smooth ring instead — crisp at 8px,
+   no aliased corners. */
 .chat-tree-spinner {
-  width: 6px;
-  height: 6px;
-  margin: 0 5px 0 0;
-  border-width: 1px;
-  border-color: var(--border);
-  border-top-color: var(--text-secondary);
+  width: 8px;
+  height: 8px;
+  margin: 0 6px 0 0;
+  border-radius: 50%;
   display: inline-block;
   vertical-align: middle;
+  flex-shrink: 0;
+  background: conic-gradient(from 0deg, transparent 8%, var(--text-secondary));
+  -webkit-mask: radial-gradient(closest-side, transparent 62%, #000 64%);
+  mask: radial-gradient(closest-side, transparent 62%, #000 64%);
+  animation: chat-tree-spin 0.75s linear infinite;
+}
+@keyframes chat-tree-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-tree-spinner {
+    animation: none;
+    background: var(--text-tertiary);
+    -webkit-mask: none;
+    mask: none;
+  }
 }
 
 .chat-tree-remove {

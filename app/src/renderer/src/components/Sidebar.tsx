@@ -276,7 +276,7 @@ function ChatRow({
       onClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault()
-        window.cove.chatMenu(chat.id, workspaceId)
+        window.cove.chatMenu(chat.id, workspaceId, chat.cwd)
       }}
       onDoubleClick={() => {
         setDraft(label)
@@ -306,7 +306,7 @@ function ChatRow({
       ) : (
         <span className="chat-tree-title">
           {running ? (
-            <span className="status-spinner chat-tree-spinner" title="Working…" />
+            <span className="chat-tree-spinner" title="Working…" />
           ) : (
             unread && (
               <span className="sidebar-unread" title="Claude finished — you haven't read this" />
