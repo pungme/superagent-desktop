@@ -257,12 +257,12 @@ function ChatRow({
   const renameChat = useStore((s) => s.renameChat)
   const removeChat = useStore((s) => s.removeChat)
   const unread = useStore((st) => Boolean(st.unread[chat.id]))
-  // Each chat runs its own session, so the spinner is per-chat: a turn (or a
-  // background command) in flight on this conversation, whether or not it's the
-  // one on screen. That's why a busy chat stays mounted even in the background.
-  const running = useStore(
-    (st) => Boolean(st.busy[chat.id]?.generating) || (st.busy[chat.id]?.background ?? 0) > 0
-  )
+  // The spinner means "this conversation's turn is running", per chat, on screen
+  // or not. Deliberately NOT keyed on background commands: a lingering `xcodebuild`
+  // shows as its own pill, and letting it spin the sidebar made a finished chat
+  // look like it was still thinking. (Background tasks still keep the chat mounted
+  // — that's a separate concern in WorkspaceView.)
+  const running = useStore((st) => Boolean(st.busy[chat.id]?.generating))
   const [editing, setEditing] = useState(false)
   const label = chat.title ?? 'New chat'
   const [draft, setDraft] = useState(label)
