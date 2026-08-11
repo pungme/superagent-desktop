@@ -164,24 +164,39 @@ export function ComputerPanel({
       void refreshDesk()
     })
   }
-  // Enter renames the one selected icon, the way a desktop does. Guarded so it
-  // never fires while a field is being typed into (including the rename box).
+  // Keyboard on the desk, the way a desktop behaves: Enter renames the one
+  // selected icon, Backspace/Delete removes whatever's selected (links come off
+  // the desk, real files go to the Trash — same as each icon's ✕). Guarded so
+  // neither fires while a field is being typed into (including the rename box).
   useEffect(() => {
     if (!visible) return
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'Enter' || renaming) return
+      if (renaming) return
       const el = document.activeElement
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return
-      if (selected.length !== 1) return
-      const f = files.find((x) => x.path === selected[0])
-      if (f) {
+      if (e.key === 'Enter') {
+        if (selected.length !== 1) return
+        const f = files.find((x) => x.path === selected[0])
+        if (f) {
+          e.preventDefault()
+          startRename(f.path, f.name)
+        }
+        return
+      }
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (selected.length === 0) return
         e.preventDefault()
-        startRename(f.path, f.name)
+        const paths = [...selected]
+        setSelected([])
+        void Promise.all(paths.map((p) => window.cove.deskRemove?.(p))).then(() => {
+          announceDeskChange()
+          void refreshDesk()
+        })
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visible, renaming, selected, files])
+  }, [visible, renaming, selected, files, refreshDesk])
   /**
    * The dock gets out of the way of a window that fills the desk.
    *
