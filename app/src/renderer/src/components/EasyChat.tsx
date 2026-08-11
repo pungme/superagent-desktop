@@ -563,6 +563,12 @@ export function EasyChat({
   visible = true
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
+  // Armed when a turn is about to run on a session that has lost the earlier
+  // conversation (a resume that failed, or a fresh process started under an
+  // existing transcript). The next message out carries a recap so the agent
+  // isn't answering "continue" blind. (itemsRef, the live transcript it reads,
+  // is declared further down where the autosave also uses it.)
+  const contextLostRef = useRef(false)
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
@@ -1421,6 +1427,47 @@ export function EasyChat({
     [workspaceId, chatId, nameConversation, syncTasks]
   )
 
+  // A compact recap of the conversation so far, to re-seed a session that lost
+  // its memory. Recent turns only, each clipped — enough for "continue" to mean
+  // something without blowing the context window.
+  const buildRecap = (): string => {
+    const lines: string[] = []
+    for (const it of itemsRef.current) {
+      if (it.kind !== 'msg') continue
+      const m = it.msg
+      if (m.system || !m.text || !m.text.trim()) continue
+      lines.push(
+        `${m.role === 'user' ? 'User' : 'Claude'}: ${m.text.replace(/\s+/g, ' ').trim().slice(0, 700)}`
+      )
+    }
+    if (lines.length === 0) return ''
+    return lines.slice(-24).join('\n')
+  }
+
+  // Send to the agent, transparently prepending a recap the first time we send
+  // after context was lost — so a resumed-but-empty session answers with the
+  // conversation in hand instead of "I don't have prior context".
+  const sendToAgent = (
+    id: string,
+    text: string,
+    images: { mediaType: string; data: string }[]
+  ): void => {
+    if (contextLostRef.current) {
+      contextLostRef.current = false
+      const recap = buildRecap()
+      if (recap) {
+        text =
+          '[The earlier session for this conversation was lost, so you have no memory of ' +
+          'it. Here is a recap of what was said before — treat it as the conversation so ' +
+          'far and continue from it.]\n\n' +
+          recap +
+          '\n\n---\n\n' +
+          text
+      }
+    }
+    window.cove.agentSend(id, text, images)
+  }
+
   // The agent's lifecycle must not be tied to this callback's identity: the effect
   // below stops the claude process on teardown, so a re-created handleEvent (which
   // is what Fast Refresh hands us on every edit) would kill a generation mid-turn.
@@ -1437,6 +1484,13 @@ export function EasyChat({
     let offEvent: (() => void) | undefined
     let offExit: (() => void) | undefined
     let offResumeLost: (() => void) | undefined
+
+    // No session id to resume but a transcript already on screen → this process
+    // starts blank under an existing conversation. That's the silent context
+    // loss; arm a recap so the first message carries what came before.
+    if (!resumeIdRef.current && itemsRef.current.some((it) => it.kind === 'msg')) {
+      contextLostRef.current = true
+    }
 
     window.cove
       .agentStart({
@@ -1458,8 +1512,9 @@ export function EasyChat({
         // Ready as soon as the process is up — in stream-json input mode claude
         // waits for the first user message before it emits anything.
         setReady(true)
-        // Anything sent while there was no process goes out now.
-        for (const q of pendingSendsRef.current.splice(0)) window.cove.agentSend(id, q.text, q.images)
+        // Anything sent while there was no process goes out now (the first of
+        // them carries the recap if this session came up without its memory).
+        for (const q of pendingSendsRef.current.splice(0)) sendToAgent(id, q.text, q.images)
         offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
         // main only emits agent:exit on a genuine unexpected exit (deliberate
         // stops and the resume→fresh retry are suppressed), so surface it.
@@ -1473,6 +1528,10 @@ export function EasyChat({
         // transcript above goes on implying a memory that is no longer there.
         offResumeLost = window.cove.onAgentResumeLost?.(id, () => {
           if (disposed) return
+          // The resume failed and a fresh process took its place — arm the recap
+          // so the next message carries the conversation, and say so plainly
+          // (a recap is not the same as Claude actually remembering).
+          contextLostRef.current = true
           setItems((prev) => [
             ...prev,
             {
@@ -1482,8 +1541,9 @@ export function EasyChat({
                 at: Date.now(),
                 role: 'assistant',
                 text:
-                  '⚠ The earlier session could not be resumed, so this one starts fresh — ' +
-                  'Claude cannot see the conversation above. Paste anything it still needs.',
+                  '⚠ The earlier session could not be resumed, so this one starts fresh. ' +
+                  'Your next message includes a short recap of the conversation above so ' +
+                  'Claude can keep going — but details beyond that recap are gone.',
                 system: true
               }
             }
@@ -1743,7 +1803,7 @@ export function EasyChat({
       retriedEmptyTurnRef.current = false
     }
     if (id) {
-      window.cove.agentSend(id, agentText, payload)
+      sendToAgent(id, agentText, payload)
     } else {
       // First message of a dormant chat: this is the moment the session starts.
       pendingSendsRef.current.push({ text: agentText, images: payload })
