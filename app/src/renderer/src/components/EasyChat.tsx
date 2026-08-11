@@ -1396,31 +1396,43 @@ export function EasyChat({
           streamedThisTurnRef.current = false
           return
         }
-        // Nothing at all came back — no text, no tools, no error detail. Send it
-        // again once rather than making the user do it; only when the turn was
-        // completely empty, so a partially-completed turn is never repeated.
+        const sub = event.subtype as string | undefined
+        const agentId = agentIdRef.current
+        // Nothing at all came back — no text, no tools, no error detail. Send the
+        // message again once rather than making the user do it; only when the turn
+        // was completely empty, so a partially-completed turn is never repeated.
         const emptyTurn = !streamedThisTurnRef.current && !event.is_error
-        if (emptyTurn && !retriedEmptyTurnRef.current && inFlightSendRef.current) {
+        if (emptyTurn && !retriedEmptyTurnRef.current && inFlightSendRef.current && agentId) {
           const again = inFlightSendRef.current
           retriedEmptyTurnRef.current = true
-          const agentId = agentIdRef.current
-          if (agentId) {
-            window.cove.agentSend(agentId, again.text, again.images)
-            setGenerating(true)
-            setThinking(true)
-            return
-          }
+          window.cove.agentSend(agentId, again.text, again.images)
+          setGenerating(true)
+          setThinking(true)
+          return
+        }
+        // A turn that errored mid-tool (stop_reason=tool_use, no result) is a
+        // transient CLI hiccup — it shows up more when two sessions in one folder
+        // run at once. "continue" recovers it, so do that once automatically
+        // instead of dropping a jargon-filled error on the user; if it happens
+        // again this turn, fall through and actually say something.
+        if (sub === 'error_during_execution' && !retriedEmptyTurnRef.current && agentId) {
+          retriedEmptyTurnRef.current = true
+          window.cove.agentSend(agentId, 'continue', [])
+          setGenerating(true)
+          setThinking(true)
+          return
         }
         if (isError || !streamedThisTurnRef.current) {
-          const sub = event.subtype as string | undefined
           let note = 'Claude ended the turn without a response. Try sending your message again.'
           if (sub === 'error_max_turns')
             note = 'Claude reached its step limit for this turn. Send “continue” to let it keep going.'
           else if (sub === 'error_during_execution')
             note = 'Claude hit an error partway through this turn. Send “continue” to retry.'
           const errs = event.errors as unknown[] | undefined
+          // The CLI's internal diagnostics ([ede_diagnostic] …) mean nothing to
+          // the user; only attach error detail for cases where it's actionable.
           const detail =
-            Array.isArray(errs) && errs.length
+            sub !== 'error_during_execution' && Array.isArray(errs) && errs.length
               ? ' (' +
                 errs
                   .map((e) => (typeof e === 'string' ? e : JSON.stringify(e)))
