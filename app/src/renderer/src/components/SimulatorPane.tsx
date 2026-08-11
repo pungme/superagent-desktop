@@ -454,7 +454,7 @@ export function SimulatorPane({
       <div className="sim-toolbar">
         <button className="sim-device" onClick={() => setPicking((v) => !v)}>
           <span className={`sim-dot ${device?.state === 'Booted' ? 'on' : ''}`} />
-          {device ? device.name : 'Choose a simulator'}
+          <span className="sim-device-name">{device ? device.name : 'Choose a simulator'}</span>
           <span className="sim-runtime">{device?.runtime ?? ''}</span>
           {/* Drawn, not typed: ⌄ (U+2304) sits high off the baseline and thins
               out at this size, which read as a stray mark rather than a menu. */}
