@@ -4379,6 +4379,34 @@ button {
   padding: 0 14px 10px;
 }
 
+/* Running work — background commands and live sub-agents — on its own row under
+   the controls, so a pile of xcodebuild pills wraps here instead of pushing the
+   Model/Mode/Memory line around. A hair of top offset lifts it off the controls'
+   bottom padding; a top border sets it apart as its own strip. */
+.easy-runs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 10px;
+  margin-top: -4px;
+  border-top: 1px solid var(--border-subtle, var(--border));
+}
+.easy-runs-clear {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.easy-runs-clear:hover {
+  color: var(--text-secondary);
+  background: var(--hover, rgba(127, 127, 127, 0.12));
+}
+
 .easy-control {
   position: relative;
 }

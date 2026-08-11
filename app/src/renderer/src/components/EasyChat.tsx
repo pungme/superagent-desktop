@@ -2551,61 +2551,6 @@ export function EasyChat({
           open={controlMenu === 'server'}
           onToggle={() => setControlMenu((m) => (m === 'server' ? null : 'server'))}
         />
-        {/* One pill per thing the agent left running. A count in a band told
-            you a number; a pill each tells you which, and opens onto what it
-            is actually doing. */}
-        {bgTasks.map((t) => {
-          const key = `bg-${t.toolUseId}`
-          const name = t.command.trim().split(/\s+/)[0].split('/').pop() || 'job'
-          return (
-            <div className="easy-control" key={t.toolUseId}>
-              <button
-                className={`easy-control-btn ${controlMenu === key ? 'open' : ''}`}
-                onClick={() => setControlMenu((m) => (m === key ? null : key))}
-                title={t.command}
-              >
-                <span className="easy-run-dot" />
-                <span className="easy-control-val">{name}</span>
-              </button>
-              {controlMenu === key && (
-                <div className="easy-control-menu easy-run-menu">
-                  <div className="easy-run-head">
-                    <code>{t.command}</code>
-                    <span className="easy-run-age">
-                      {Math.max(1, Math.round((now - t.startedAt) / 1000))}s
-                    </span>
-                  </div>
-                  <pre className="easy-run-out">{t.output?.trim() || 'Waiting for output…'}</pre>
-                  <button
-                    className="easy-control-item"
-                    onClick={() => {
-                      setControlMenu(null)
-                      setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
-                    }}
-                  >
-                    <span className="easy-control-item-label">Hide</span>
-                    <span className="easy-control-item-hint">This doesn&rsquo;t stop it</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )
-        })}
-        {/* One pill per running sub-agent (the Task tool). We can't show its
-            internal steps — they never cross the stream — but we can show that a
-            second agent is working, which is what "spinning out a research agent"
-            looks like from here. */}
-        {runningAgents.map((a) => (
-          <div className="easy-control" key={a.toolUseId}>
-            <span
-              className="easy-control-btn easy-run-agent"
-              title={`Sub-agent working · ${a.label} · ${Math.max(1, Math.round((now - a.startedAt) / 1000))}s`}
-            >
-              <span className="status-spinner easy-run-agent-spin" />
-              <span className="easy-control-val">🤖 {a.label}</span>
-            </span>
-          </div>
-        ))}
         {ctxTokens !== null && (
           <span className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}>
             {/* Our own tooltip rather than title=""; the native one waits about
@@ -2649,6 +2594,74 @@ export function EasyChat({
           </span>
         )}
       </div>
+      {/* Running work lives on its own row under the controls, not crammed into
+          the Model/Mode line where a handful of jobs would wrap and shove the
+          memory gauge around. Background commands the agent left running, plus
+          any live sub-agent. Only present when there's something running. */}
+      {(bgTasks.length > 0 || runningAgents.length > 0) && (
+        <div className="easy-runs">
+          {bgTasks.map((t) => {
+            const key = `bg-${t.toolUseId}`
+            const name = t.command.trim().split(/\s+/)[0].split('/').pop() || 'job'
+            return (
+              <div className="easy-control" key={t.toolUseId}>
+                <button
+                  className={`easy-control-btn ${controlMenu === key ? 'open' : ''}`}
+                  onClick={() => setControlMenu((m) => (m === key ? null : key))}
+                  title={t.command}
+                >
+                  <span className="easy-run-dot" />
+                  <span className="easy-control-val">{name}</span>
+                </button>
+                {controlMenu === key && (
+                  <div className="easy-control-menu easy-run-menu">
+                    <div className="easy-run-head">
+                      <code>{t.command}</code>
+                      <span className="easy-run-age">
+                        {Math.max(1, Math.round((now - t.startedAt) / 1000))}s
+                      </span>
+                    </div>
+                    <pre className="easy-run-out">{t.output?.trim() || 'Waiting for output…'}</pre>
+                    <button
+                      className="easy-control-item"
+                      onClick={() => {
+                        setControlMenu(null)
+                        setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
+                      }}
+                    >
+                      <span className="easy-control-item-label">Hide</span>
+                      <span className="easy-control-item-hint">This doesn&rsquo;t stop it</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {runningAgents.map((a) => (
+            <div className="easy-control" key={a.toolUseId}>
+              <span
+                className="easy-control-btn easy-run-agent"
+                title={`Sub-agent working · ${a.label} · ${Math.max(1, Math.round((now - a.startedAt) / 1000))}s`}
+              >
+                <span className="status-spinner easy-run-agent-spin" />
+                <span className="easy-control-val">🤖 {a.label}</span>
+              </span>
+            </div>
+          ))}
+          {/* Clear the whole strip in one go — these are the agent's shells, and
+              once a build has finished the pill is just clutter. Doesn't stop
+              anything still live; it just stops tracking it here. */}
+          {bgTasks.length > 1 && (
+            <button
+              className="easy-runs-clear"
+              title="Hide all — this doesn't stop anything still running"
+              onClick={() => setBgTasks([])}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
       {lightbox && (
         <div className="easy-lightbox" onClick={() => setLightbox(null)}>
           <img src={lightbox} alt="attachment" />
