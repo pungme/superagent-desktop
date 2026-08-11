@@ -4448,6 +4448,18 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .easy-run-dot { animation: none; opacity: 0.8; }
 }
+/* A running sub-agent: a pill like the background jobs, but with a live spinner
+   instead of a dot and no menu (its steps never reach us). Not clickable. */
+.easy-run-agent {
+  cursor: default;
+  gap: 5px;
+}
+.easy-run-agent-spin {
+  width: 9px;
+  height: 9px;
+  margin: 0;
+  border-width: 1.25px;
+}
 /* Wider than the model list: this one holds a command and its output. */
 .easy-run-menu {
   min-width: 340px;

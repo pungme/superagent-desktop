@@ -615,6 +615,12 @@ export function EasyChat({
   const [controlMenu, setControlMenu] = useState<string | null>(null)
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
   const bgTasksRef = useRef<BackgroundTask[]>([])
+  // Sub-agents (the Task tool) currently running. They live inside the same
+  // claude process — we can't see their internal steps, but we can show that one
+  // is working: a pill appears when Task starts and clears when its result lands.
+  const [runningAgents, setRunningAgents] = useState<
+    { toolUseId: string; label: string; startedAt: number }[]
+  >([])
   // Tail each job's output while one of their pills is open, so you watch it
   // happen rather than waiting for the agent to check on it.
   const bgOpen = controlMenu?.startsWith('bg-') ?? false
@@ -1225,6 +1231,16 @@ export function EasyChat({
             } else if (name === 'KillShell' && typeof inp.shell_id === 'string') {
               const killed = inp.shell_id
               setBgTasks((prev) => prev.filter((t) => t.shellId !== killed))
+            } else if (name === 'Task') {
+              // A sub-agent just started. Its result block clears the pill.
+              const label =
+                (typeof inp.description === 'string' && inp.description.trim()) ||
+                (typeof inp.subagent_type === 'string' && inp.subagent_type) ||
+                'sub-agent'
+              setRunningAgents((prev) => [
+                ...prev,
+                { toolUseId: id, label: String(label), startedAt: Date.now() }
+              ])
             }
             const diff = toolDiff(name, id, block.input)
             setItems((prev) => [
@@ -1273,6 +1289,8 @@ export function EasyChat({
             // says whether it has finished.
             const resultFor = typeof block.tool_use_id === 'string' ? block.tool_use_id : null
             if (resultFor) {
+              // A sub-agent finished — drop its pill.
+              setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== resultFor))
               // TaskCreate's result carries the assigned id ("Task #7 created…").
               // Re-key our provisional entry to it so later TaskUpdates land.
               const provisional = taskCreates.current.get(resultFor)
@@ -1362,6 +1380,9 @@ export function EasyChat({
         // fresh turn on its own.
         setThinking(false)
         setGenerating(false)
+        // The turn is over, so no sub-agent is still running — sweep any pill a
+        // missed result block would otherwise strand.
+        setRunningAgents([])
         // Surface a failed or empty turn. Without this the app silently swallows an
         // error result (usage limit, max turns, an execution/auth error) — so a
         // message like "continue" looks like it did nothing at all.
@@ -1522,6 +1543,7 @@ export function EasyChat({
           setReady(false)
           setGenerating(false)
           setThinking(false)
+          setRunningAgents([])
           setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
         }
         // Resuming failed and a fresh session took its place: say so, or the
@@ -1827,6 +1849,7 @@ export function EasyChat({
       interruptedRef.current = true
       setThinking(false)
       setGenerating(false)
+      setRunningAgents([])
       await window.cove.agentHardInterrupt?.(id)
       agentIdRef.current = null
       setReady(false)
@@ -2556,6 +2579,21 @@ export function EasyChat({
             </div>
           )
         })}
+        {/* One pill per running sub-agent (the Task tool). We can't show its
+            internal steps — they never cross the stream — but we can show that a
+            second agent is working, which is what "spinning out a research agent"
+            looks like from here. */}
+        {runningAgents.map((a) => (
+          <div className="easy-control" key={a.toolUseId}>
+            <span
+              className="easy-control-btn easy-run-agent"
+              title={`Sub-agent working · ${a.label} · ${Math.max(1, Math.round((now - a.startedAt) / 1000))}s`}
+            >
+              <span className="status-spinner easy-run-agent-spin" />
+              <span className="easy-control-val">🤖 {a.label}</span>
+            </span>
+          </div>
+        ))}
         {ctxTokens !== null && (
           <span className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}>
             {/* Our own tooltip rather than title=""; the native one waits about
