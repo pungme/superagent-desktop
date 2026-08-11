@@ -50,7 +50,19 @@ export function buildMenu(): void {
           click: () => send('menu:new-group')
         },
         { type: 'separator' },
-        isMac ? { role: 'close' } : { role: 'quit' }
+        // Cmd+W means "close the tab" in every browser, and this is a browser —
+        // so it must NOT be the window's `close` role. That role (its default
+        // Cmd+W) quietly closed the whole window: on macOS the app then sat
+        // windowless in the Dock ("it closed itself, I had to click the icon to
+        // get it back"), and on Windows/Linux it quit outright. Route it to the
+        // renderer instead, which closes the active browser tab (or does nothing
+        // rather than killing the window). The red traffic light / Cmd+Q still
+        // close the window and quit.
+        {
+          label: 'Close Tab',
+          accelerator: 'CmdOrCtrl+W',
+          click: () => send('menu:close-tab')
+        }
       ]
     },
     {

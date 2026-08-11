@@ -558,7 +558,8 @@ const cove: CoveApi = {
       'menu:skills',
       'menu:routines',
       'menu:reload-page',
-      'menu:toggle-preview'
+      'menu:toggle-preview',
+      'menu:close-tab'
     ]
     const listeners = actions.map((action) => {
       const l = (): void => cb(action.replace('menu:', ''))
