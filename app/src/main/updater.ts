@@ -23,6 +23,34 @@ export function isUpdateDownloaded(): boolean {
   return updateDownloaded
 }
 
+// "Couldn't reach the server" is not "the update failed". A background check runs
+// every couple of hours; being offline, on a VPN, or behind a flaky DNS at that
+// moment (net::ERR_NAME_NOT_RESOLVED, ENOTFOUND, timeouts) is routine and retries
+// on its own — surfacing it as a red "Update failed" banner is just noise. These
+// markers cover Chromium net errors and Node dns/socket errors alike.
+const OFFLINE_MARKERS = [
+  'ERR_NAME_NOT_RESOLVED',
+  'ERR_INTERNET_DISCONNECTED',
+  'ERR_NETWORK_CHANGED',
+  'ERR_PROXY_CONNECTION_FAILED',
+  'ERR_CONNECTION_',
+  'ERR_ADDRESS_UNREACHABLE',
+  'ERR_TIMED_OUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENETUNREACH',
+  'ENETDOWN',
+  'getaddrinfo',
+  'network timeout',
+  'net::'
+]
+function isOfflineError(message: string): boolean {
+  return OFFLINE_MARKERS.some((m) => message.includes(m))
+}
+
 export function startAutoUpdate(): void {
   // Manual "check now" from Settings. Registered before the dev bail-out so the
   // invoke never dangles in dev — it just reports the current version. If a
@@ -34,10 +62,13 @@ export function startAutoUpdate(): void {
       const r = await autoUpdater.checkForUpdates()
       return { current: app.getVersion(), latest: r?.updateInfo?.version ?? null }
     } catch (err) {
+      const msg = String((err as Error)?.message ?? err)
       return {
         current: app.getVersion(),
         latest: null,
-        error: String((err as Error)?.message ?? err)
+        error: isOfflineError(msg)
+          ? "Couldn't reach the update server — check your connection."
+          : msg
       }
     }
   })
@@ -106,11 +137,17 @@ export function startAutoUpdate(): void {
   })
 
   autoUpdater.on('error', (err) => {
-    console.error('[updater]', err?.message ??  err)
-    // A silent failure looks like "downloading forever" — the restart pill never
-    // arrives and nothing says why. Tell the UI so Settings can show the failure
-    // and re-enable the check button as the retry.
-    broadcast('update:error', String(err?.message ?? err).slice(0, 200))
+    const msg = String(err?.message ?? err)
+    console.error('[updater]', msg)
+    logLine('error', msg)
+    // Offline / DNS hiccup on a routine background check: log it, but don't paint
+    // a red "Update failed" banner the user can't act on — it retries on its own,
+    // and a manual "Check for updates" still reports the friendly version.
+    if (isOfflineError(msg)) return
+    // A real failure (download/signature/install) looks like "downloading forever"
+    // otherwise — the restart pill never arrives and nothing says why. Surface it
+    // so Settings can show it and the check button becomes the retry.
+    broadcast('update:error', msg.slice(0, 200))
   })
 
   // Renderer can trigger the install immediately (quit + relaunch into the update).

@@ -40,10 +40,15 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
     setUpdateMsg(null)
     const r = await window.cove.updateCheck()
     setChecking(false)
-    if (r.error) setUpdateMsg(`Couldn't check: ${r.error}`)
-    else if (r.latest && r.latest !== r.current)
-      setUpdateMsg(`${r.latest} is downloading — you'll get a restart prompt when it's ready.`)
-    else setUpdateMsg(`You're on the latest version.`)
+    if (r.error) setUpdateMsg(r.error)
+    else {
+      // A clean check clears any stale failure banner, which otherwise takes
+      // precedence over this result and keeps saying "Update failed".
+      useStore.setState({ updateError: null })
+      if (r.latest && r.latest !== r.current)
+        setUpdateMsg(`${r.latest} is downloading — you'll get a restart prompt when it's ready.`)
+      else setUpdateMsg(`You're on the latest version.`)
+    }
   }
 
   useEffect(() => {
