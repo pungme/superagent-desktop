@@ -446,6 +446,14 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
           setActive(ws.id)
         }}
+        onContextMenu={(e) => {
+          // Browser tabs have no folder to branch; the menu is a code-project thing.
+          if (ws.kind === 'browser') return
+          e.preventDefault()
+          // selfBranch !== null means the folder is itself a git repo → worktree
+          // chats are possible.
+          window.cove.workspaceMenu({ id: ws.id, path: ws.path, isRepo: selfBranch !== null })
+        }}
         {...attributes}
         {...listeners}
       >
