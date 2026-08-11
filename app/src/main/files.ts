@@ -185,24 +185,97 @@ export function registerFilesIpc(): void {
       } catch {
         // exclusion is best-effort
       }
-      execFile(
-        'git',
-        ['worktree', 'add', dir, '-b', branch],
-        { cwd: projectPath },
-        (err) => resolve(err ? null : { path: dir, branch })
+      execFile('git', ['worktree', 'add', dir, '-b', branch], { cwd: projectPath }, (err) =>
+        resolve(err ? null : { path: dir, branch })
       )
     })
   })
   ipcMain.handle('worktree:remove', (_e, projectPath: string, wtPath: string) => {
     return new Promise((resolve) => {
-      execFile(
-        'git',
-        ['worktree', 'remove', '--force', wtPath],
-        { cwd: projectPath },
-        (err) => resolve(!err)
+      execFile('git', ['worktree', 'remove', '--force', wtPath], { cwd: projectPath }, (err) =>
+        resolve(!err)
       )
     })
   })
+
+  // Fold a worktree chat's work back into the project and tidy up: commit
+  // whatever the agent left in the worktree, squash it into ONE commit on the
+  // project's current branch, then remove the worktree and delete its branch.
+  // Every failure mode leaves the repo exactly as it was — a half-merged tree is
+  // worse than no button.
+  ipcMain.handle(
+    'worktree:merge',
+    async (_e, projectPath: string, wtPath: string, message: string) => {
+      const git = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
+        new Promise((resolve) =>
+          execFile('git', args, { cwd, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) =>
+            resolve({
+              code: err ? ((err as { code?: number }).code ?? 1) : 0,
+              out: (stdout || '') + (stderr || '')
+            })
+          )
+        )
+      type R =
+        | { ok: true; committed: boolean }
+        | {
+            ok: false
+            reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'
+            detail?: string
+          }
+
+      // The branch checked out IN the worktree is what we merge.
+      const head = await git(['rev-parse', '--abbrev-ref', 'HEAD'], wtPath)
+      const branch = head.out.trim()
+      if (head.code !== 0 || !branch || branch === 'HEAD') {
+        return { ok: false, reason: 'not-worktree', detail: head.out.trim() } as R
+      }
+
+      // Commit anything the agent left uncommitted in the worktree, so the
+      // squash actually captures it.
+      const wtStatus = await git(['status', '--porcelain'], wtPath)
+      if (wtStatus.out.trim()) {
+        await git(['add', '-A'], wtPath)
+        const c = await git(['commit', '-m', message || 'Worktree changes'], wtPath)
+        if (c.code !== 0) return { ok: false, reason: 'error', detail: c.out.trim() } as R
+      }
+
+      // Refuse if the project's own working tree is dirty — a squash merge writes
+      // into it, and mixing the user's in-progress edits with the merge is the
+      // kind of surprise that loses work.
+      const baseStatus = await git(['status', '--porcelain'], projectPath)
+      if (baseStatus.out.trim()) {
+        return { ok: false, reason: 'base-dirty' } as R
+      }
+
+      // Nothing to bring over (branch identical to base) → say so, don't make an
+      // empty commit.
+      const ahead = await git(['rev-list', '--count', `HEAD..${branch}`], projectPath)
+      if (ahead.out.trim() === '0') {
+        return { ok: false, reason: 'nothing' } as R
+      }
+
+      // The squash: stages the branch's net change onto the base without a merge
+      // commit. On conflict, undo cleanly (base was verified clean above) and
+      // leave everything — including the worktree — untouched to resolve by hand.
+      const sq = await git(['merge', '--squash', branch], projectPath)
+      if (sq.code !== 0) {
+        await git(['reset', '--hard', 'HEAD'], projectPath)
+        return { ok: false, reason: 'conflict', detail: sq.out.trim().slice(0, 300) } as R
+      }
+      const commit = await git(['commit', '-m', message || `Merge ${branch}`], projectPath)
+      if (commit.code !== 0) {
+        // e.g. the squash produced no staged change after all.
+        await git(['reset', '--hard', 'HEAD'], projectPath)
+        return { ok: false, reason: 'nothing', detail: commit.out.trim() } as R
+      }
+
+      // Merged — now tidy up. Best-effort: the merge already succeeded, so even
+      // if cleanup hiccups the work is safe.
+      await git(['worktree', 'remove', '--force', wtPath], projectPath)
+      await git(['branch', '-D', branch], projectPath)
+      return { ok: true, committed: true } as R
+    }
+  )
 
   ipcMain.handle('files:import', (_e, destDir: string, sources: string[]) => {
     const imported: string[] = []

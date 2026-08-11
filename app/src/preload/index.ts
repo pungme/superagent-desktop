@@ -119,7 +119,11 @@ export interface CoveApi {
   browserShootTwin: () => Promise<Uint8Array | null>
   /** Native context menu for a file-tree row (Reveal in Finder, Copy Path…). */
   filesMenu: (absPath: string) => void
-  chatMenu: (chatId: string, workspaceId: string) => void
+  chatMenu: (chatId: string, workspaceId: string, cwd?: string | null) => void
+  /** A worktree chat asked to be merged back and finished. */
+  onChatMergeWorktree: (
+    cb: (p: { chatId: string; workspaceId: string; projectPath: string; wtPath: string }) => void
+  ) => () => void
   onChatCleared: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
   onChatDeleteRequest: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
   /** Right-click a project row: native menu (new chat, new worktree chat, reveal). */
@@ -169,6 +173,15 @@ export interface CoveApi {
   /** New git worktree under <project>/.worktrees; null if git refused. */
   worktreeCreate: (projectPath: string) => Promise<{ path: string; branch: string } | null>
   worktreeRemove: (projectPath: string, wtPath: string) => Promise<boolean>
+  /** Squash-merge a worktree back into the project's branch, then remove it. */
+  worktreeMerge: (
+    projectPath: string,
+    wtPath: string,
+    message: string
+  ) => Promise<
+    | { ok: true; committed: boolean }
+    | { ok: false; reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'; detail?: string }
+  >
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
@@ -444,7 +457,11 @@ const cove: CoveApi = {
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   browserShootTwin: () => ipcRenderer.invoke('browser:shoot-twin'),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
-  chatMenu: (chatId, workspaceId) => ipcRenderer.send('chat:menu', chatId, workspaceId),
+  chatMenu: (chatId, workspaceId, cwd) => ipcRenderer.send('chat:menu', chatId, workspaceId, cwd),
+  onChatMergeWorktree: (cb) =>
+    subscribe('chat:merge-worktree', (p) =>
+      cb(p as { chatId: string; workspaceId: string; projectPath: string; wtPath: string })
+    ),
   onChatCleared: (cb) =>
     subscribe('chat:cleared', (p) => cb(p as { chatId: string; workspaceId: string })),
   onChatDeleteRequest: (cb) =>
@@ -464,6 +481,8 @@ const cove: CoveApi = {
   eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
   worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
   worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
+  worktreeMerge: (projectPath, wtPath, message) =>
+    ipcRenderer.invoke('worktree:merge', projectPath, wtPath, message),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),

@@ -121,6 +121,35 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  // A worktree chat asked to be merged back (already confirmed in the native
+  // dialog). Squash it in, then clean up the chat that pointed at the worktree.
+  useEffect(() => {
+    return window.cove.onChatMergeWorktree(async ({ chatId, workspaceId, projectPath, wtPath }) => {
+      const chat = useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)
+      const title = chat?.title?.trim()
+      const message =
+        title && title !== 'New chat' ? title : `Merge worktree ${wtPath.split('/').pop()}`
+      const res = await window.cove.worktreeMerge(projectPath, wtPath, message)
+      if (res.ok) {
+        // The worktree folder is gone now, so the chat that lived in it can't
+        // resume — remove it and land the user on the project.
+        await useStore.getState().removeChat(workspaceId, chatId)
+        useStore.getState().setActive(workspaceId)
+      } else {
+        const why: Record<string, string> = {
+          'base-dirty':
+            'The project has uncommitted changes — commit or stash them first, then merge.',
+          conflict:
+            'Merge conflict — resolve it in this chat, then try again. Nothing was changed.',
+          nothing: 'Nothing to merge — this worktree has no new commits.',
+          'not-worktree': "This chat isn't in a worktree.",
+          error: res.detail || 'git failed.'
+        }
+        window.alert(why[res.reason] ?? 'Could not merge the worktree.')
+      }
+    })
+  }, [])
+
   // Right-click actions on a project row (native menu built in main).
   useEffect(() => {
     return window.cove.onWorkspaceMenuAction(async ({ action, id, path }) => {
@@ -347,14 +376,10 @@ function App(): React.JSX.Element {
             and tore down its browser tabs, so stepping out of the Computer for
             a moment threw away whatever was running in it. */}
         {computerEverOpened && (
-          <div
-            className="computer-host"
-            style={{ display: computerOpen ? 'flex' : 'none' }}
-          >
+          <div className="computer-host" style={{ display: computerOpen ? 'flex' : 'none' }}>
             <ComputerPanel visible={computerOpen} onClose={() => setOverlay(null)} />
           </div>
         )}
-
       </main>
       <PreviewToast />
       <UpdateBanner />
