@@ -683,6 +683,13 @@ export function EasyChat({
   const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
+  // Whether a turn is in flight, tracked as a ref so it's correct SYNCHRONOUSLY.
+  // The `generating` state lags a render behind, so firing several messages in
+  // quick succession made each one read `generating` as still false — so they
+  // were treated as brand-new turns instead of interjections, clobbering the
+  // in-flight payload and losing messages. The ref is set the instant a send
+  // commits and cleared when the turn ends.
+  const turnInFlightRef = useRef(false)
   // Whether this turn produced any assistant text/tool activity, so a `result`
   // that yielded nothing visible can be flagged instead of vanishing.
   const streamedThisTurnRef = useRef(false)
@@ -698,6 +705,13 @@ export function EasyChat({
     images: { mediaType: string; data: string }[]
   } | null>(null)
   const retriedEmptyTurnRef = useRef(false)
+  // Keep the synchronous turn-in-flight ref in step with the real state: a turn
+  // ending (result), being stopped, or crashing all flip `generating` to false,
+  // and this clears the ref so the next message is a fresh turn, not a phantom
+  // interjection. The submit path still sets it true synchronously for rapid fire.
+  useEffect(() => {
+    turnInFlightRef.current = generating
+  }, [generating])
   /** We stopped it on purpose — the turn's error result isn't news. */
   const interruptedRef = useRef(false)
   const thinkingIdRef = useRef<string | null>(null)
@@ -1771,7 +1785,11 @@ export function EasyChat({
     if (id && !ready) return
     if (!id && !suspendedRef.current) return // already spawning; drop rather than double-send
     // Sent while a turn is already running — this is a mid-task interjection.
-    const interjecting = generating
+    // Read the ref, not `generating`: two messages fired in the same tick would
+    // both see the stale state and race. Mark a turn in flight right now so the
+    // next one this tick is correctly treated as an interjection.
+    const interjecting = turnInFlightRef.current
+    turnInFlightRef.current = true
     const reply = replyTarget
     setReplyTarget(null)
     // Name an untitled chat after its opening message, so the sidebar list is
