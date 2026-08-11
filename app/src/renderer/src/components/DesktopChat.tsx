@@ -57,8 +57,14 @@ export function DesktopChat({
     return () => ro.disconnect()
   }, [])
 
-  const active = chats?.find((c) => c.id === activeChatId)
   const ordered = [...(chats ?? [])].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+  // Same rule as the project chats: keep the active conversation mounted plus any
+  // still-busy sibling, so switching Computer chats never tears down a running
+  // turn. Only the active one is shown.
+  const busy = useStore((s) => s.busy)
+  const mountedChats = (chats ?? []).filter(
+    (c) => c.id === activeChatId || busy[c.id]?.generating || (busy[c.id]?.background ?? 0) > 0
+  )
 
   const openChat = (id: string): void => {
     selectChat(workspaceId, id)
@@ -142,14 +148,25 @@ export function DesktopChat({
           </button>
         )}
         {activeChatId ? (
-          <EasyChat
-            key={activeChatId}
-            cwd={active?.cwd || cwd}
-            workspaceId={workspaceId}
-            chatId={activeChatId}
-            initialSessionId={active?.claudeSessionId ?? null}
-            hideNewChat
-          />
+          mountedChats.map((c) => {
+            const onScreen = c.id === activeChatId
+            return (
+              <div
+                key={c.id}
+                className="chat-mount"
+                style={{ display: onScreen ? 'flex' : 'none' }}
+              >
+                <EasyChat
+                  cwd={c.cwd || cwd}
+                  workspaceId={workspaceId}
+                  chatId={c.id}
+                  initialSessionId={c.claudeSessionId ?? null}
+                  visible={onScreen}
+                  hideNewChat
+                />
+              </div>
+            )
+          })
         ) : (
           <div className="desktop-app-empty">Starting…</div>
         )}

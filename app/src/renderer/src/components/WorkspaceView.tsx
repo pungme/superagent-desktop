@@ -48,19 +48,14 @@ export function WorkspaceView({
   // A text file open in the in-app viewer takes the content pane over the browser.
   // undefined = untouched this run (fall back to what was open last run);
   // null = explicitly closed.
-  const openFilePath = useStore(
-    (s) =>
-      s.openFile[ws.id] === undefined
-        ? localStorage.getItem(`openFile:${ws.id}`)
-        : s.openFile[ws.id]
+  const openFilePath = useStore((s) =>
+    s.openFile[ws.id] === undefined ? localStorage.getItem(`openFile:${ws.id}`) : s.openFile[ws.id]
   )
   const closeFile = useStore((s) => s.closeFile)
   // The simulator is a card on the desk, not a replacement for what's already
   // there: open it next to the page or the file you're working on, which is how
   // you actually build an iOS app. Remembered per project.
-  const [simOpen, setSimOpen] = useState(
-    () => localStorage.getItem(`simOpen:${ws.id}`) === '1'
-  )
+  const [simOpen, setSimOpen] = useState(() => localStorage.getItem(`simOpen:${ws.id}`) === '1')
   /** The working surface's share of the desk when the simulator sits beside it. */
   const [deskRatio, setDeskRatio] = useState(() => {
     const saved = Number(localStorage.getItem(`desk:${ws.id}`))
@@ -130,7 +125,14 @@ export function WorkspaceView({
   const chats = useStore((s) => s.chats[ws.id])
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const loadChats = useStore((s) => s.loadChats)
-  const activeChat = chats?.find((c) => c.id === activeChatId)
+  // A chat with a turn (or a background command) in flight has to keep its
+  // `claude` process alive even when you switch to a sibling — its agent lives
+  // inside the mounted <EasyChat>, so unmounting it on switch would kill the
+  // work mid-stream. Keep the on-screen chat mounted plus any that's still busy.
+  const busy = useStore((s) => s.busy)
+  const mountedChats = (chats ?? []).filter(
+    (c) => c.id === activeChatId || busy[c.id]?.generating || (busy[c.id]?.background ?? 0) > 0
+  )
   useEffect(() => {
     loadChats(ws.id)
   }, [ws.id, loadChats])
@@ -330,7 +332,10 @@ export function WorkspaceView({
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
         setRatio((r) => {
-          localStorage.setItem(layout === 'bottom' ? `splitv:${ws.id}` : `split:${ws.id}`, String(r))
+          localStorage.setItem(
+            layout === 'bottom' ? `splitv:${ws.id}` : `split:${ws.id}`,
+            String(r)
+          )
           return r
         })
       }
@@ -442,83 +447,94 @@ export function WorkspaceView({
         {/* Sits between the tree and the chat: a file you click on the left opens
             next to it, rather than across the window. Chat keeps the far side. */}
         <div className={`split-main ${layout === 'bottom' ? 'vert' : ''}`}>
-        {paneOpen && (
-          <>
-            {/* The desk. One card is the working surface — the page you're on or
+          {paneOpen && (
+            <>
+              {/* The desk. One card is the working surface — the page you're on or
                 the file you opened — and the simulator is a second card beside
                 it rather than something that pushes the first one out. The
                 painting behind them shows wherever a card doesn't reach. */}
-            <div className="split-side desk" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
-              {surface && (
-                <div
-                  className="desk-card"
-                  style={{ flexBasis: simOpen && !boardOpen ? `${deskRatio * 100}%` : '100%' }}
-                >
-                  {surface}
-                </div>
-              )}
-              {surface && simOpen && !boardOpen && (
-                <div
-                  className={`desk-divider ${dragging ? 'dragging' : ''}`}
-                  onPointerDown={onDeskDividerDown}
-                  role="separator"
-                />
-              )}
-              {/* The list takes the whole desk while it's open. Sharing it with
+              <div className="split-side desk" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
+                {surface && (
+                  <div
+                    className="desk-card"
+                    style={{ flexBasis: simOpen && !boardOpen ? `${deskRatio * 100}%` : '100%' }}
+                  >
+                    {surface}
+                  </div>
+                )}
+                {surface && simOpen && !boardOpen && (
+                  <div
+                    className={`desk-divider ${dragging ? 'dragging' : ''}`}
+                    onPointerDown={onDeskDividerDown}
+                    role="separator"
+                  />
+                )}
+                {/* The list takes the whole desk while it's open. Sharing it with
                   the simulator squeezed the list to ~200px, which is too narrow
                   to read an item in, let alone open one. */}
-              {simOpen && !boardOpen && (
+                {simOpen && !boardOpen && (
+                  <div
+                    className="desk-card desk-card-sim"
+                    style={{ flexBasis: surface ? `${(1 - deskRatio) * 100}%` : '100%' }}
+                  >
+                    <SimulatorPane
+                      visible={visible}
+                      workspaceId={ws.id}
+                      onClose={() => {
+                        localStorage.setItem(`simOpen:${ws.id}`, '0')
+                        setSimOpen(false)
+                      }}
+                      // No simulator of this project's own: forget that it ever
+                      // had a pane rather than reopening it on every visit.
+                      onNothingToShow={() => {
+                        localStorage.setItem(`simOpen:${ws.id}`, '0')
+                        setSimOpen(false)
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div
+                className={`split-divider ${layout === 'bottom' ? 'horiz' : ''} ${dragging ? 'dragging' : ''}`}
+                onPointerDown={onDividerDown}
+                role="separator"
+              />
+            </>
+          )}
+          <div
+            className="split-side split-side-chat"
+            style={{ flexBasis: paneOpen ? `${ratio * 100}%` : '100%' }}
+          >
+            {/* Each chat keeps its own mounted <EasyChat> (and its agent). Only the
+              active one is shown; busy siblings stay mounted but hidden so their
+              turn keeps streaming. Stable key per chat → switching never remounts,
+              so it never tears down a running session. */}
+            {mountedChats.map((c) => {
+              const onScreen = c.id === activeChatId
+              return (
                 <div
-                  className="desk-card desk-card-sim"
-                  style={{ flexBasis: surface ? `${(1 - deskRatio) * 100}%` : '100%' }}
+                  key={c.id}
+                  className="chat-mount"
+                  style={{ display: onScreen ? 'flex' : 'none' }}
                 >
-                  <SimulatorPane
-                    visible={visible}
+                  <EasyChat
+                    cwd={c.cwd ?? ws.path}
                     workspaceId={ws.id}
-                    onClose={() => {
-                      localStorage.setItem(`simOpen:${ws.id}`, '0')
-                      setSimOpen(false)
-                    }}
-                    // No simulator of this project's own: forget that it ever
-                    // had a pane rather than reopening it on every visit.
-                    onNothingToShow={() => {
-                      localStorage.setItem(`simOpen:${ws.id}`, '0')
-                      setSimOpen(false)
-                    }}
+                    chatId={c.id}
+                    initialSessionId={c.claudeSessionId}
+                    browserProject={ws.kind === 'browser'}
+                    isRepo={branch !== null}
+                    visible={visible && onScreen}
                   />
                 </div>
-              )}
-            </div>
-            <div
-              className={`split-divider ${layout === 'bottom' ? 'horiz' : ''} ${dragging ? 'dragging' : ''}`}
-              onPointerDown={onDividerDown}
-              role="separator"
-            />
-          </>
-        )}
-        <div
-          className="split-side split-side-chat"
-          style={{ flexBasis: paneOpen ? `${ratio * 100}%` : '100%' }}
-        >
-          {activeChat && (
-            <EasyChat
-              // Remount on switch so no state leaks between conversations.
-              key={activeChat.id}
-              cwd={activeChat.cwd ?? ws.path}
-              workspaceId={ws.id}
-              chatId={activeChat.id}
-              initialSessionId={activeChat.claudeSessionId}
-              browserProject={ws.kind === 'browser'}
-              isRepo={branch !== null}
-              visible={visible}
-            />
-          )}
-          {activeRun && visible && <RoutineRunView routine={activeRun} />}
-        </div>
+              )
+            })}
+            {activeRun && visible && <RoutineRunView routine={activeRun} />}
+          </div>
         </div>
       </div>
       {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
           mounted, or its overlay lock would blank the active workspace's preview. */}
-          </div>
+    </div>
   )
 }
