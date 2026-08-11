@@ -14,8 +14,6 @@ interface Frame {
   height: number
 }
 
-type Mode = 'mirror' | 'attach'
-
 /**
  * How long each streamed drag segment takes on the device. Short enough that
  * the picture keeps up with the pointer; not zero, because a swipe with no
@@ -92,16 +90,9 @@ export function SimulatorPane({
   const [shuttingDown, setShuttingDown] = useState<string | null>(null)
   const [picking, setPicking] = useState(false)
   const [typing, setTyping] = useState(false)
-  /**
-   * 'attach' parks Apple's own Simulator window over this pane: nothing is
-   * streamed, so it is the real device at native speed. 'mirror' streams
-   * frames and works with no permissions. Remembered, because whichever one
-   * suits your machine suits it every time.
-   */
-  const [mode, setMode] = useState<Mode>(() =>
-    localStorage.getItem('cove.simMode') === 'attach' ? 'attach' : 'mirror'
-  )
-  const [attachError, setAttachError] = useState<string | null>(null)
+  // The pane always mirrors: it streams the framebuffer straight out of
+  // CoreSimulator, needs no permissions, and doesn't fight for the real window.
+  // When you actually want Apple's Simulator, the ↗ button opens it.
   /**
    * Where the last touch landed, in pixels within the stage — drawn at once.
    *
@@ -224,7 +215,7 @@ export function SimulatorPane({
   // Frames only while this pane is on screen — a background stream would keep
   // shelling out to simctl for a picture nobody is looking at.
   useEffect(() => {
-    if (!udid || !visible || mode !== 'mirror') return
+    if (!udid || !visible) return
     setGone(false)
     const offFrame = window.cove.onSimFrame(udid, (f) => {
       setFrame(f)
@@ -237,69 +228,7 @@ export function SimulatorPane({
       offFrame()
       offGone()
     }
-  }, [udid, visible, mode, reload])
-
-  /**
-   * Keep the real Simulator window sitting exactly on this pane. There is no
-   * DOM event for the app window being dragged, so the rectangle is re-sent on
-   * a slow tick — cheap, and it means the device never drifts off the pane.
-   */
-  useEffect(() => {
-    if (mode !== 'attach' || !udid) return
-    let alive = true
-    let last = ''
-    const rectNow = (): { x: number; y: number; width: number; height: number } | null => {
-      const el = stageRef.current
-      if (!el) return null
-      const r = el.getBoundingClientRect()
-      if (r.width < 40 || r.height < 40) return null
-      return {
-        x: Math.round(window.screenX + r.left),
-        y: Math.round(window.screenY + r.top),
-        width: Math.round(r.width),
-        height: Math.round(r.height)
-      }
-    }
-    const first = rectNow()
-    if (first) {
-      void window.cove.simAttach(udid, first).then((res) => {
-        if (!alive) return
-        setAttachError(res.ok ? null : (res.error ?? 'failed'))
-      })
-    }
-    const iv = setInterval(() => {
-      if (!visible) return
-      const r = rectNow()
-      if (!r) return
-      const key = `${r.x},${r.y},${r.width},${r.height}`
-      if (key === last) return
-      last = key
-      void window.cove.simAttachMove(r)
-    }, 400)
-    return () => {
-      alive = false
-      clearInterval(iv)
-      void window.cove.simAttachHide()
-    }
-  }, [mode, udid, visible])
-
-  /**
-   * The attached window is pinned on top so that clicking back into the chat
-   * doesn't send the device behind us. That pin has to be undone the moment
-   * SuperAgent isn't frontmost, or the simulator would float over whatever the
-   * user switched to — so hide it on blur and bring it back on focus.
-   */
-  useEffect(() => {
-    if (mode !== 'attach' || !udid) return
-    if (!visible) {
-      void window.cove.simAttachHide()
-      return
-    }
-    return window.cove.onAppFocus?.((focused) => {
-      if (focused) void window.cove.simAttachShow()
-      else void window.cove.simAttachHide()
-    })
-  }, [mode, visible, udid])
+  }, [udid, visible, reload])
 
   // Anything baguette can drive is tappable. There used to be an iOS 26+ gate
   // here, on the belief that older runtimes silently ignored input — measured
@@ -548,34 +477,6 @@ export function SimulatorPane({
         {hardware('lock', 'Lock', '⏻')}
         {hardware('app-switcher', 'App switcher', '▤')}
         {typing && <span className="sim-typing">typing…</span>}
-        <div className="sim-mode">
-          <button
-            className={`sim-mode-btn ${mode === 'mirror' ? 'on' : ''}`}
-            onClick={() => {
-              localStorage.setItem('cove.simMode', 'mirror')
-              setMode('mirror')
-              // Stop Apple's window floating over everything once we are done
-              // with it — the pin outlives attach mode otherwise.
-              void window.cove.simAttachRelease?.()
-            }}
-            title="Show the device here, streamed into the pane"
-          >
-            In the app
-          </button>
-          <button
-            className={`sim-mode-btn ${mode === 'attach' ? 'on' : ''}`}
-            onClick={async () => {
-              const { trusted } = await window.cove.simAttachReady()
-              if (!trusted) await window.cove.simAttachRequest()
-              localStorage.setItem('cove.simMode', 'attach')
-              setAttachError(null)
-              setMode('attach')
-            }}
-            title="Put the real Simulator window here — native speed, real touch"
-          >
-            Real device
-          </button>
-        </div>
         {/* The escape hatch: Apple's own window, only when asked for. Until
             then it is kept out of sight, because a build opens it uninvited. */}
         <button
@@ -649,34 +550,7 @@ export function SimulatorPane({
       </div>
 
       <div className="sim-stage" ref={stageRef}>
-        {mode === 'attach' ? (
-          attachError ? (
-            <div className="sim-attach-msg">
-              {attachError === 'no-accessibility' ? (
-                <>
-                  <p>
-                    Parking the real Simulator here needs Accessibility permission — the same one
-                    window managers ask for.
-                  </p>
-                  <button className="sim-retry" onClick={() => void window.cove.simAttachSettings()}>
-                    Open System Settings
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p>Couldn’t place the Simulator window ({attachError}).</p>
-                  <button className="sim-retry" onClick={() => setMode('mirror')}>
-                    Use the mirror instead
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="sim-attach-msg subtle">
-              The real Simulator is parked here — tap it like a device.
-            </div>
-          )
-        ) : frame ? (
+        {frame ? (
           <img
             ref={shotRef}
             className={`sim-screen ${tappable ? 'live' : ''}`}
@@ -716,7 +590,7 @@ export function SimulatorPane({
           </div>
         )}
         {busy && frame && <div className="sim-status">{busy}</div>}
-        {mode !== 'attach' && ripple && (
+        {ripple && (
           <span
             key={ripple.id}
             className="sim-ripple"
