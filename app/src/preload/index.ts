@@ -122,6 +122,11 @@ export interface CoveApi {
   chatMenu: (chatId: string, workspaceId: string) => void
   onChatCleared: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
   onChatDeleteRequest: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
+  /** Right-click a project row: native menu (new chat, new worktree chat, reveal). */
+  workspaceMenu: (ws: { id: string; path: string; isRepo: boolean }) => void
+  onWorkspaceMenuAction: (
+    cb: (p: { action: string; id: string; path: string }) => void
+  ) => () => void
   /** Which agent events raise a native banner. */
   setNotifyPrefs: (prefs: { done?: boolean; needsYou?: boolean }) => void
   /** Copy dropped files/folders into a project directory; returns created paths. */
@@ -444,6 +449,11 @@ const cove: CoveApi = {
     subscribe('chat:cleared', (p) => cb(p as { chatId: string; workspaceId: string })),
   onChatDeleteRequest: (cb) =>
     subscribe('chat:delete', (p) => cb(p as { chatId: string; workspaceId: string })),
+  workspaceMenu: (ws) => ipcRenderer.send('workspace:menu', ws),
+  onWorkspaceMenuAction: (cb) =>
+    subscribe('workspace:menu-action', (p) =>
+      cb(p as { action: string; id: string; path: string })
+    ),
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),

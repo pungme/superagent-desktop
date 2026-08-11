@@ -121,6 +121,25 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  // Right-click actions on a project row (native menu built in main).
+  useEffect(() => {
+    return window.cove.onWorkspaceMenuAction(async ({ action, id, path }) => {
+      const s = useStore.getState()
+      if (action === 'new-chat') {
+        s.setActive(id)
+        await s.newChat(id)
+      } else if (action === 'new-worktree') {
+        s.setActive(id)
+        const ok = await s.newChatInWorktree(id, path)
+        // Only offered for repos, so this is the rare "git refused" case (e.g. no
+        // commits yet, or a dirty index git won't branch from).
+        if (!ok) {
+          window.alert("Couldn't create a worktree — git refused (needs ≥1 commit).")
+        }
+      }
+    })
+  }, [])
+
   // Keep every opened workspace mounted so switching tabs never restarts its
   // session — only the active one is shown; the rest run hidden in the background.
   const [opened, setOpened] = useState<string[]>([])

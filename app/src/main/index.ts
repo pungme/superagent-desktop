@@ -204,6 +204,31 @@ app.whenReady().then(() => {
     menu.popup({ window: win })
   })
 
+  // Right-click a project row in the sidebar. Worktree chats are the point —
+  // a sibling conversation on a fresh git worktree of the project, so two lines
+  // of work don't step on each other's files. Only offered for a real repo.
+  ipcMain.on('workspace:menu', (e, ws: { id: string; path: string; isRepo: boolean }) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win) return
+    const send = (action: string): void =>
+      win.webContents.send('workspace:menu-action', { action, id: ws.id, path: ws.path })
+    const template: Electron.MenuItemConstructorOptions[] = [
+      { label: 'New Chat', click: () => send('new-chat') }
+    ]
+    if (ws.isRepo) {
+      template.push({
+        label: 'New Chat in a Worktree',
+        click: () => send('new-worktree')
+      })
+    }
+    template.push(
+      { type: 'separator' },
+      { label: 'Reveal in Finder', click: () => shell.showItemInFolder(ws.path) },
+      { label: 'Copy Path', click: () => clipboard.writeText(ws.path) }
+    )
+    Menu.buildFromTemplate(template).popup({ window: win })
+  })
+
   // Right-click on a file-tree row: the little things a real file browser owes you.
   ipcMain.on('files:menu', (e, absPath: string) => {
     const menu = Menu.buildFromTemplate([
