@@ -251,6 +251,18 @@ export function getWorkspaceKind(id: string): WorkspaceKind | undefined {
   return row?.kind
 }
 
+/**
+ * The workspace a chat belongs to. Per-chat browser panes are keyed by chat id,
+ * so main needs this to derive a chat pane's session partition (which stays
+ * per-project, so logins are shared across a project's chats).
+ */
+export function getChatWorkspace(chatId: string): string | undefined {
+  const row = db.prepare('SELECT workspaceId FROM chats WHERE id = ?').get(chatId) as
+    | { workspaceId: string }
+    | undefined
+  return row?.workspaceId
+}
+
 /** A workspace's project path, for resolving a relative file path the agent passes. */
 export function getWorkspacePath(id: string): string | undefined {
   const row = db.prepare('SELECT path FROM workspaces WHERE id = ?').get(id) as

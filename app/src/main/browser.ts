@@ -4,8 +4,8 @@ import { fileURLToPath } from 'url'
 import { basename, join } from 'path'
 import { appendFileSync, renameSync, statSync } from 'fs'
 import { execFile } from 'child_process'
-import { normalizeUrl, broadcastToWindows } from './util'
-import { getRecentHistory } from './store'
+import { normalizeUrl, broadcastToWindows, workspaceIdFromPane } from './util'
+import { getRecentHistory, getChatWorkspace, getWorkspaceKind } from './store'
 
 // Lightweight pane-lifecycle trail for the "agent-opened pane is blank" reports —
 // the bug has never reproduced on demand, so leave breadcrumbs where it happens.
@@ -639,6 +639,36 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
   applyBrowserIdentity(view.webContents)
   panes.set(id, { id, view, window, visible: false, partition, radius: 0 })
+}
+
+/**
+ * The session partition for a pane, resolved from its id — which may now be a
+ * CHAT id (per-chat browser panes) rather than a workspace id. Partitions stay
+ * per-PROJECT so all of a project's chats share one login: browser projects use
+ * the shared 'persist:browser', code projects their own 'persist:ws-<id>'. This
+ * must match exactly what the renderer's BrowserPane passes, or an adopted pane
+ * would come up logged out.
+ */
+export function partitionForPane(paneId: string): string {
+  let wsId = workspaceIdFromPane(paneId)
+  // A chat id won't resolve as a workspace kind; map it to its project.
+  if (!getWorkspaceKind(wsId)) {
+    const owner = getChatWorkspace(wsId)
+    if (owner) wsId = owner
+  }
+  return getWorkspaceKind(wsId) === 'browser' ? 'persist:browser' : `persist:ws-${wsId}`
+}
+
+/**
+ * Ensure a live-but-hidden pane exists for a chat whose desk isn't on screen —
+ * so a background chat's agent can drive its own browser (navigate, read, click)
+ * before the user ever switches to it. Same offscreen technique as routine
+ * panes; when the user opens that chat, the renderer's BrowserPane adopts this
+ * exact WebContents (createBrowserPane no-ops on an existing id) and attaches it.
+ */
+export function ensureBackgroundPane(window: BrowserWindow, paneId: string): void {
+  if (panes.has(paneId)) return
+  ensureOffscreenPane(window, paneId, partitionForPane(paneId))
 }
 
 export function destroyBrowserPane(id: string): void {

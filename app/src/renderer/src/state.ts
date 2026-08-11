@@ -111,6 +111,14 @@ interface CoveState {
 
   refresh: () => Promise<void>
   setActive: (id: string) => void
+  /**
+   * Map a desk id (which may be a chat id, now that each chat has its own desk)
+   * back to the workspace that owns it. Returns the id unchanged if it's already
+   * a workspace, the owning workspace if it's a chat, or null if neither — so
+   * `activeWorkspaceId` is NEVER set to a chat id (which would select a
+   * non-existent project and blank the screen).
+   */
+  resolveWorkspace: (deskId: string) => string | null
   setStatus: (workspaceId: string, status: WorkspaceStatus) => void
   addPort: (workspaceId: string, port: number) => void
   verifyPorts: () => Promise<void>
@@ -262,11 +270,14 @@ export const useStore = create<CoveState>((set, get) => ({
   // cover the viewer, and remember which file is showing.
   openFileInViewer: (workspaceId, path, focus = true) => {
     localStorage.setItem(`openFile:${workspaceId}`, path)
+    // Focus follows the WORKSPACE, but the file (desk state) is keyed by the id
+    // we were given — a chat id, once desks are per-chat.
+    const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => ({
       // Only a USER action may move the user. The agent opening its results must
       // land in its own project quietly — yanking the active workspace mid-typing
       // is the "app hijacks my work" bug.
-      ...(focus ? { activeWorkspaceId: workspaceId } : {}),
+      ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
       openFile: { ...s.openFile, [workspaceId]: path }
     }))
   },
@@ -368,6 +379,14 @@ export const useStore = create<CoveState>((set, get) => ({
     localStorage.setItem('activeWorkspace', id)
     set({ activeWorkspaceId: id, coldStart: false })
   },
+  resolveWorkspace: (deskId) => {
+    const s = get()
+    if (s.tree.some((g) => g.workspaces.some((w) => w.id === deskId))) return deskId
+    for (const [wsId, chats] of Object.entries(s.chats)) {
+      if (chats.some((c) => c.id === deskId)) return wsId
+    }
+    return null
+  },
   setStatus: (workspaceId, status) =>
     set((s) => ({ statuses: { ...s.statuses, [workspaceId]: status } })),
   addPort: (workspaceId, port) =>
@@ -425,11 +444,12 @@ export const useStore = create<CoveState>((set, get) => ({
     void window.cove.checkPort(port).then((alive) => {
       if (!alive) void get().verifyPorts()
     })
+    const focusWs = get().resolveWorkspace(workspaceId)
     set((s) => {
       localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
       return {
-        activeWorkspaceId: workspaceId,
+        ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
         browserOpen,
         coldStart: false,
         previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
@@ -437,7 +457,8 @@ export const useStore = create<CoveState>((set, get) => ({
       }
     })
   },
-  openUrl: (workspaceId, url, focus = true) =>
+  openUrl: (workspaceId, url, focus = true) => {
+    const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => {
       localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
@@ -447,14 +468,15 @@ export const useStore = create<CoveState>((set, get) => ({
       // on screen. Whatever was asked for last is what you want to see.
       localStorage.removeItem(`openFile:${workspaceId}`)
       return {
-        ...(focus ? { activeWorkspaceId: workspaceId } : {}),
+        ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
         browserOpen,
         coldStart: false,
         openFile: { ...s.openFile, [workspaceId]: null },
         previewUrls: { ...s.previewUrls, [workspaceId]: url },
         toast: null
       }
-    }),
+    })
+  },
   dismissToast: () => set({ toast: null }),
   setReloadOnIdle: (workspaceId, v) =>
     set((s) => ({ reloadOnIdle: { ...s.reloadOnIdle, [workspaceId]: v } })),
