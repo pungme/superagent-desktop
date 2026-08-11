@@ -469,6 +469,15 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The per-chat working spinner sits inline before the title, where the unread
+   dot would otherwise be. Sized down and given the same 6px gap. */
+.chat-tree-spinner {
+  width: 8px;
+  height: 8px;
+  margin: 0 6px 0 0;
+  display: inline-block;
+  vertical-align: middle;
+}
 
 .chat-tree-remove {
   font-size: 14px;
@@ -3326,6 +3335,16 @@ button {
 /* Anchor the docked routine-run panel to the chat column. */
 .split-side-chat {
   position: relative;
+}
+
+/* One per conversation: the active chat plus any busy sibling kept mounted so
+   its turn keeps streaming. Only the active one is display:flex (set inline);
+   the rest are display:none but still running. Fills the chat column. */
+.chat-mount {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .split-divider {

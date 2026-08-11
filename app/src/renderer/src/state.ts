@@ -84,10 +84,12 @@ interface CoveState {
   openRoutineRun: (id: string) => void
   closeRoutineRun: () => void
   statuses: Record<string, WorkspaceStatus>
-  // Claude's current task list per workspace, from TodoWrite (live in the chat).
+  // Claude's current task list from TodoWrite (live in the chat), keyed by chat
+  // id — each conversation keeps its own list, so two chats in one project don't
+  // overwrite each other's checklist.
   todos: Record<string, TodoItem[]>
-  setTodos: (workspaceId: string, todos: TodoItem[]) => void
-  clearTodos: (workspaceId: string) => void
+  setTodos: (chatId: string, todos: TodoItem[]) => void
+  clearTodos: (chatId: string) => void
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
   coldStart: boolean
@@ -178,7 +180,12 @@ interface CoveState {
    * here once its chat's agent is actually up.
    */
   agentLive: Record<string, boolean>
-  setAgentLive: (workspaceId: string, value: boolean) => void
+  /** Which chats are live right now, per chat id → its workspace. A workspace can
+      have several chats mounted at once (busy siblings kept alive in the
+      background), so its dot has to be the union — one finishing chat must not
+      clear it while another is still running. */
+  agentLiveChats: Record<string, string>
+  setAgentLive: (workspaceId: string, chatId: string, value: boolean) => void
 
   /** An update downloading in the background: version + percent. Store-backed so
       Settings shows it even when reopened mid-download. */
@@ -235,12 +242,12 @@ export const useStore = create<CoveState>((set, get) => ({
   openRoutineRunId: null,
   statuses: {},
   todos: {},
-  setTodos: (workspaceId, todos) => set((s) => ({ todos: { ...s.todos, [workspaceId]: todos } })),
-  clearTodos: (workspaceId) =>
+  setTodos: (chatId, todos) => set((s) => ({ todos: { ...s.todos, [chatId]: todos } })),
+  clearTodos: (chatId) =>
     set((s) => {
-      if (!s.todos[workspaceId]) return s
+      if (!s.todos[chatId]) return s
       const next = { ...s.todos }
-      delete next[workspaceId]
+      delete next[chatId]
       return { todos: next }
     }),
   ports: loadPorts(),
@@ -293,6 +300,7 @@ export const useStore = create<CoveState>((set, get) => ({
   busy: {},
   unread: {},
   agentLive: {},
+  agentLiveChats: {},
   updateProgress: null,
   updateError: null,
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
@@ -645,12 +653,19 @@ export const useStore = create<CoveState>((set, get) => ({
       return { busy: next }
     }),
 
-  setAgentLive: (workspaceId, value) =>
-    set((s) =>
-      Boolean(s.agentLive[workspaceId]) === value
-        ? s
-        : { agentLive: { ...s.agentLive, [workspaceId]: value } }
-    ),
+  setAgentLive: (workspaceId, chatId, value) =>
+    set((s) => {
+      const wasLive = chatId in s.agentLiveChats
+      if (wasLive === value) return s
+      const liveChats = { ...s.agentLiveChats }
+      if (value) liveChats[chatId] = workspaceId
+      else delete liveChats[chatId]
+      // The workspace dot is the union: live if any of its chats still is.
+      const anyLive = Object.values(liveChats).includes(workspaceId)
+      return Boolean(s.agentLive[workspaceId]) === anyLive
+        ? { agentLiveChats: liveChats }
+        : { agentLiveChats: liveChats, agentLive: { ...s.agentLive, [workspaceId]: anyLive } }
+    }),
   sendToClaude: (workspaceId, text) => {
     // Send as a chat message to the streaming agent (the single Chat mode). The
     // chat itself does the delivering: it knows which of the project's

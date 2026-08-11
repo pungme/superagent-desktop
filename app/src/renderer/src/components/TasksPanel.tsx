@@ -15,8 +15,8 @@ function statusIcon(status: TodoItem['status']): string {
  * surfaces the list Claude already maintains; it's not a separate task manager.
  * Hidden entirely when there are no todos.
  */
-export function TasksPanel({ workspaceId }: { workspaceId: string }): React.JSX.Element | null {
-  const todos = useStore((s) => s.todos[workspaceId] ?? EMPTY)
+export function TasksPanel({ chatId }: { chatId: string }): React.JSX.Element | null {
+  const todos = useStore((s) => s.todos[chatId] ?? EMPTY)
   const [collapsed, setCollapsed] = useState(false)
 
   if (todos.length === 0) return null

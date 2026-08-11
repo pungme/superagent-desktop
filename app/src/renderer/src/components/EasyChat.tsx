@@ -814,7 +814,9 @@ export function EasyChat({
   // Cmd+V an image anywhere in the active chat (not only when the input is
   // focused) — a document-level listener, scoped to the visible workspace.
   useEffect(() => {
-    if (!isActive) return
+    // Only the on-screen chat captures document-level paste/dictation/inject
+    // events — busy siblings stay mounted but hidden, and must not react.
+    if (!isActive || !visible) return
     const onDocPaste = (e: ClipboardEvent): void => {
       const imgItems = [...(e.clipboardData?.items ?? [])].filter((it) =>
         it.type.startsWith('image/')
@@ -830,7 +832,7 @@ export function EasyChat({
     return () => document.removeEventListener('paste', onDocPaste)
     // attachImage only closes over stable setState, so re-subscribing per render is unnecessary.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive])
+  }, [isActive, visible])
 
   // Drag a file onto the chat: images attach (like a paste); other files insert
   // their absolute path so Claude can read them.
@@ -889,7 +891,7 @@ export function EasyChat({
   useEffect(() => {
     const onInsert = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId) return
+      if (detail.workspaceId !== workspaceId || !visible) return
       setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + detail.text)
       const el = inputRef.current
       if (el) {
@@ -902,7 +904,7 @@ export function EasyChat({
     }
     window.addEventListener('cove:insert-reference', onInsert)
     return () => window.removeEventListener('cove:insert-reference', onInsert)
-  }, [workspaceId])
+  }, [workspaceId, visible])
 
   /**
    * "Work on this" from the list: send the item straight through as the prompt.
@@ -913,12 +915,12 @@ export function EasyChat({
   useEffect(() => {
     const onWorkOn = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId) return
+      if (detail.workspaceId !== workspaceId || !visible) return
       submitRef.current?.(detail.text)
     }
     window.addEventListener('cove:work-on', onWorkOn)
     return () => window.removeEventListener('cove:work-on', onWorkOn)
-  }, [workspaceId])
+  }, [workspaceId, visible])
 
   // Detect a "/command" at the start, or an "@file" at the caret, for the dropdown.
   const updateMention = (value: string): void => {
@@ -1014,10 +1016,10 @@ export function EasyChat({
   const taskCreates = useRef(new Map<string, string>())
   const syncTasks = useCallback((): void => {
     useStore.getState().setTodos(
-      workspaceId,
+      chatId,
       [...tasks.current.values()].map((t) => ({ ...t }))
     )
-  }, [workspaceId])
+  }, [chatId])
 
   const handleEvent = useCallback(
     (event: Record<string, unknown>) => {
@@ -1580,9 +1582,12 @@ export function EasyChat({
   // half once it doesn't (reaped while idle, or torn down when the chat closes).
   const setAgentLive = useStore((s) => s.setAgentLive)
   useEffect(() => {
-    setAgentLive(workspaceId, ready && !suspended)
-  }, [workspaceId, ready, suspended, setAgentLive])
-  useEffect(() => () => setAgentLive(workspaceId, false), [workspaceId, setAgentLive])
+    setAgentLive(workspaceId, chatId, ready && !suspended)
+  }, [workspaceId, chatId, ready, suspended, setAgentLive])
+  useEffect(
+    () => () => setAgentLive(workspaceId, chatId, false),
+    [workspaceId, chatId, setAgentLive]
+  )
 
   // Auto-scroll only when the user is already near the bottom, so scrolling up
   // to read scrollback isn't interrupted.
@@ -1629,7 +1634,7 @@ export function EasyChat({
       }
       setItems([])
       tasks.current.clear()
-      useStore.getState().clearTodos(workspaceId)
+      useStore.getState().clearTodos(chatId)
       resumeIdRef.current = null
       setReady(false)
       suspendedRef.current = true
@@ -1643,7 +1648,7 @@ export function EasyChat({
   useEffect(() => {
     const onInjected = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId) return
+      if (detail.workspaceId !== workspaceId || !visible) return
       // The chat owns its agent process — and may have reaped it while it sat in
       // the background — so delivery happens here rather than through a cached id.
       if (agentIdRef.current) window.cove.agentSend(agentIdRef.current, detail.text)
@@ -1660,7 +1665,7 @@ export function EasyChat({
     }
     window.addEventListener('cove:easy-user-message', onInjected)
     return () => window.removeEventListener('cove:easy-user-message', onInjected)
-  }, [workspaceId, wake])
+  }, [workspaceId, wake, visible])
 
   const submitRef = useRef<((t: string) => void) | null>(null)
 
@@ -1888,15 +1893,18 @@ export function EasyChat({
   // The window going away mid-hold means no keyup and no pointerup is ever
   // coming: transcribe what we have rather than recording into the void.
   useEffect(() => {
+    if (!visible) return
     const onBlur = (): void => {
       if (dictation.state === 'recording') finishDictation()
     }
     window.addEventListener('blur', onBlur)
     return () => window.removeEventListener('blur', onBlur)
-  }, [dictation.state, finishDictation])
+  }, [dictation.state, finishDictation, visible])
 
   // Hold ⌥Space to dictate from anywhere in the window; release to transcribe.
+  // Only the on-screen chat listens — a hidden busy sibling must not grab the mic.
   useEffect(() => {
+    if (!visible) return
     const down = (e: KeyboardEvent): void => {
       if (e.altKey && e.code === 'Space' && !e.repeat) {
         const now = Date.now()
@@ -1919,7 +1927,7 @@ export function EasyChat({
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [startDictation, finishDictation])
+  }, [startDictation, finishDictation, visible])
 
   // Adds a sibling conversation rather than wiping this one — the previous chat
   // keeps its transcript and stays resumable from the sidebar.
@@ -1928,7 +1936,8 @@ export function EasyChat({
     setPendingImages([])
     setMentionQuery(null)
     tasks.current.clear()
-    useStore.getState().clearTodos(workspaceId)
+    // No clearTodos here: todos are per-chat now, so the new chat already starts
+    // empty and the previous one keeps its list along with its transcript.
     useStore.getState().newChat(workspaceId)
   }
 
@@ -2011,7 +2020,7 @@ export function EasyChat({
           transcript below, pinned to its top, so they float over the messages
           and nothing else. */}
       <div className="easy-topstack">
-        <TasksPanel workspaceId={workspaceId} />
+        <TasksPanel chatId={chatId} />
       </div>
       <div
         className="easy-scroll"
