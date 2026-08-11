@@ -764,10 +764,24 @@ export function registerSimulatorIpc(): void {
   })
   /** The user explicitly asked for Apple's Simulator — stand aside and show it. */
   ipcMain.handle('sim:open-app', async (_e, udid: string) => {
+    // Stop the mirror's keep-hidden logic from putting it away again.
     simulatorWindowAllowed = true
+    // Boot first, or Simulator comes up on "No devices" — ignore "already booted".
+    await run('xcrun', ['simctl', 'boot', udid], { timeout: 30_000 }).catch(() => {})
+    // Launch (or focus) Apple's Simulator pointed at this device. --args only
+    // takes on a cold launch, but a warm Simulator still gets activated below.
     await run('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
       timeout: 20_000
     }).catch(() => {})
+    // The whole reason it "did nothing": while mirroring we set the Simulator
+    // process invisible, and SuperAgent fills the screen — so a plain `open`
+    // left the window hidden behind us. Make it visible and bring it forward.
+    await run('osascript', [
+      '-e',
+      'tell application "System Events" to if exists process "Simulator" then set visible of process "Simulator" to true',
+      '-e',
+      'tell application "Simulator" to activate'
+    ]).catch(() => {})
     return true
   })
   ipcMain.handle('sim:attach-show', async () => {
