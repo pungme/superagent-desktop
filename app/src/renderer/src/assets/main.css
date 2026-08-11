@@ -470,11 +470,15 @@ button {
   text-overflow: ellipsis;
 }
 /* The per-chat working spinner sits inline before the title, where the unread
-   dot would otherwise be. Sized down and given the same 6px gap. */
+   dot would otherwise be. Small and thin so it reads as a quiet "working"
+   rather than a heavy ring: a hairline border at dot size. */
 .chat-tree-spinner {
-  width: 8px;
-  height: 8px;
-  margin: 0 6px 0 0;
+  width: 6px;
+  height: 6px;
+  margin: 0 5px 0 0;
+  border-width: 1px;
+  border-color: var(--border);
+  border-top-color: var(--text-secondary);
   display: inline-block;
   vertical-align: middle;
 }
