@@ -121,6 +121,15 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  // The agent added a project (e.g. cloned a repo) — pull in the new tree and,
+  // if it named one to activate, jump to it so it's ready to use.
+  useEffect(() => {
+    return window.cove.onProjectsChanged(async ({ activate }) => {
+      await useStore.getState().refresh()
+      if (activate) useStore.getState().setActive(activate)
+    })
+  }, [])
+
   // A worktree chat asked to be merged back (already confirmed in the native
   // dialog). Squash it in, then clean up the chat that pointed at the worktree.
   useEffect(() => {

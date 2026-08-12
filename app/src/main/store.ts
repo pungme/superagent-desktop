@@ -233,9 +233,9 @@ export const DESKTOP_GROUP_ID = '__desktop__'
 export const DESKTOP_WORKSPACE_ID = '__desktop_chat__'
 
 export function getTree(): TreeGroup[] {
-  const groups = (
-    db.prepare('SELECT * FROM groups ORDER BY position').all() as Group[]
-  ).filter((g) => g.id !== DESKTOP_GROUP_ID)
+  const groups = (db.prepare('SELECT * FROM groups ORDER BY position').all() as Group[]).filter(
+    (g) => g.id !== DESKTOP_GROUP_ID
+  )
   const workspaces = db.prepare('SELECT * FROM workspaces ORDER BY position').all() as Workspace[]
   return groups.map((g) => ({
     ...g,
@@ -243,11 +243,28 @@ export function getTree(): TreeGroup[] {
   }))
 }
 
+/**
+ * Register a folder as a project, callable from anywhere in main (the agent's
+ * clone tool, not just the create-workspace IPC). Lands it in the first real
+ * group. Returns the new workspace id; the caller broadcasts so the sidebar
+ * refreshes and can jump to it.
+ */
+export function addProjectWorkspace(name: string, path: string): string {
+  const group = db
+    .prepare('SELECT id FROM groups WHERE id != ? ORDER BY position LIMIT 1')
+    .get(DESKTOP_GROUP_ID) as { id: string } | undefined
+  if (!group) throw new Error('no group to add the project to')
+  const id = randomUUID()
+  db.prepare(
+    "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, ?, ?, ?, NULL, NULL, 'app')"
+  ).run(id, group.id, name, path, nextPosition('workspaces', ['groupId', group.id]))
+  return id
+}
+
 /** A workspace's kind ('browser' | 'app'), for picking its session partition. */
 export function getWorkspaceKind(id: string): WorkspaceKind | undefined {
   const row = db.prepare('SELECT kind FROM workspaces WHERE id = ?').get(id) as
-    | { kind: WorkspaceKind }
-    | undefined
+    { kind: WorkspaceKind } | undefined
   return row?.kind
 }
 
@@ -258,16 +275,14 @@ export function getWorkspaceKind(id: string): WorkspaceKind | undefined {
  */
 export function getChatWorkspace(chatId: string): string | undefined {
   const row = db.prepare('SELECT workspaceId FROM chats WHERE id = ?').get(chatId) as
-    | { workspaceId: string }
-    | undefined
+    { workspaceId: string } | undefined
   return row?.workspaceId
 }
 
 /** A workspace's project path, for resolving a relative file path the agent passes. */
 export function getWorkspacePath(id: string): string | undefined {
   const row = db.prepare('SELECT path FROM workspaces WHERE id = ?').get(id) as
-    | { path: string }
-    | undefined
+    { path: string } | undefined
   return row?.path
 }
 
@@ -279,8 +294,7 @@ export function getRecentHistory(limit = 6): { url: string; title: string }[] {
 
 export function getWorkspaceName(id: string): string | undefined {
   const row = db.prepare('SELECT name FROM workspaces WHERE id = ?').get(id) as
-    | { name: string }
-    | undefined
+    { name: string } | undefined
   return row?.name
 }
 
@@ -292,8 +306,7 @@ export function getWorkspaceName(id: string): string | undefined {
  */
 export function getChatTitleBySession(sessionId: string): string | undefined {
   const row = db.prepare('SELECT title FROM chats WHERE claudeSessionId = ?').get(sessionId) as
-    | { title: string | null }
-    | undefined
+    { title: string | null } | undefined
   return row?.title ?? undefined
 }
 
@@ -582,7 +595,10 @@ export interface Card {
 
 /** Anything unrecognised lands in Todo rather than vanishing from the list. */
 export function normalizeStatus(raw: unknown): CardStatus {
-  const s = String(raw ?? '').toLowerCase().trim().replace(/[\s-]+/g, '_')
+  const s = String(raw ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, '_')
   const alias: Record<string, CardStatus> = {
     todo: 'todo',
     to_do: 'todo',
@@ -746,19 +762,22 @@ export function moveCard(id: string, status: unknown, beforeId: string | null): 
   const idx = beforeId
     ? (
         db.prepare('SELECT position FROM cards WHERE id = ?').get(beforeId) as
-          | { position: number }
-          | undefined
+          { position: number } | undefined
       )?.position
     : undefined
   const i = insertIndex(column, idx)
-  const position = positionBetween(i > 0 ? column[i - 1] : null, i < column.length ? column[i] : null)
+  const position = positionBetween(
+    i > 0 ? column[i - 1] : null,
+    i < column.length ? column[i] : null
+  )
   db.prepare('UPDATE cards SET status=?, position=?, updatedAt=? WHERE id=?').run(
     target,
     position,
     Date.now(),
     id
   )
-  if (target === 'done' && existing.status !== 'done') recordEvent('task-done', existing.workspaceId)
+  if (target === 'done' && existing.status !== 'done')
+    recordEvent('task-done', existing.workspaceId)
   return hydrate(db.prepare('SELECT * FROM cards WHERE id = ?').get(id))
 }
 
@@ -807,9 +826,10 @@ export function registerStoreIpc(): void {
     if (workspaceId) broadcastToWindows('board:changed', { workspaceId })
   }
   const ownerOf = (id: string): string | undefined =>
-    (db.prepare('SELECT workspaceId FROM cards WHERE id = ?').get(id) as
-      | { workspaceId: string }
-      | undefined)?.workspaceId
+    (
+      db.prepare('SELECT workspaceId FROM cards WHERE id = ?').get(id) as
+        { workspaceId: string } | undefined
+    )?.workspaceId
 
   ipcMain.handle('board:list', (_e, workspaceId: string) => listCards(workspaceId))
   ipcMain.handle(
@@ -833,14 +853,11 @@ export function registerStoreIpc(): void {
     announce(card?.workspaceId)
     return card
   })
-  ipcMain.handle(
-    'board:addImage',
-    (_e, cardId: string, name: string, bytes: Uint8Array) => {
-      const path = saveCardImage(cardId, name, bytes)
-      announce(ownerOf(cardId))
-      return path
-    }
-  )
+  ipcMain.handle('board:addImage', (_e, cardId: string, name: string, bytes: Uint8Array) => {
+    const path = saveCardImage(cardId, name, bytes)
+    announce(ownerOf(cardId))
+    return path
+  })
   ipcMain.handle('board:removeImage', (_e, cardId: string, path: string) => {
     const ws = ownerOf(cardId)
     removeCardImage(cardId, path)
