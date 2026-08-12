@@ -209,6 +209,19 @@ function markDead(id: string, code: number, reason?: string): void {
   setTimeout(() => deadSessions.delete(id), 60_000)
 }
 
+/**
+ * Same race as deadSessions, for resume-lost: the resume proc can fail before
+ * the renderer has subscribed to agent:resume-lost:<id>, dropping the event — so
+ * the chat silently continues context-blind with no recap and no notice. Record
+ * it so the renderer can ask, exactly like it already asks agent:died.
+ */
+const resumeLostSessions = new Set<string>()
+
+function markResumeLost(id: string): void {
+  resumeLostSessions.add(id)
+  setTimeout(() => resumeLostSessions.delete(id), 60_000)
+}
+
 /** Renderers we've already wired the teardown handlers onto. */
 const watchedOwners = new WeakSet<WebContents>()
 
@@ -421,6 +434,7 @@ function saveImageForAgent(im: AgentImage): string | null {
  * remember?" has a surprising answer, and nothing said so.
  */
 function notifyResumeLost(owner: WebContents, id: string): void {
+  markResumeLost(id)
   if (!owner.isDestroyed()) owner.send(`agent:resume-lost:${id}`)
 }
 
@@ -577,6 +591,13 @@ export function registerAgentIpc(): void {
   // Asked once, right after the renderer subscribes: did this session already
   // die in the gap? Returns the exit code, or null if it's alive.
   ipcMain.handle('agent:died', (_e, id: string) => deadSessions.get(id) ?? null)
+  // Same catch-up question for a resume that failed before the renderer could
+  // subscribe: consume it (delete) so a later re-query doesn't re-fire it.
+  ipcMain.handle('agent:resume-lost-check', (_e, id: string) => {
+    const lost = resumeLostSessions.has(id)
+    resumeLostSessions.delete(id)
+    return lost
+  })
   ipcMain.on('agent:send', (_e, id: string, text: string, images?: AgentImage[]) =>
     sendToAgent(id, text, images ?? [])
   )

@@ -419,6 +419,8 @@ export interface CoveApi {
   onAgentResumeLost: (id: string, cb: () => void) => () => void
   /** Non-null if the session already exited before we were listening. */
   agentDied: (id: string) => Promise<{ code: number; reason?: string } | null>
+  /** Catch-up: did a resume fail before we subscribed? Consumes the flag. */
+  agentResumeLostCheck: (id: string) => Promise<boolean>
 
   onHookEvent: (cb: (e: HookEvent) => void) => () => void
   onFocusWorkspace: (cb: (workspaceId: string) => void) => () => void
@@ -629,6 +631,7 @@ const cove: CoveApi = {
   onAgentExit: (id, cb) => subscribe(`agent:exit:${id}`, (code) => cb(code as number)),
   onAgentResumeLost: (id, cb) => subscribe(`agent:resume-lost:${id}`, () => cb()),
   agentDied: (id) => ipcRenderer.invoke('agent:died', id),
+  agentResumeLostCheck: (id) => ipcRenderer.invoke('agent:resume-lost-check', id),
 
   onHookEvent: (cb) => subscribe('hook:event', (ev) => cb(ev as HookEvent)),
   onFocusWorkspace: (cb) => subscribe('hook:focus-workspace', (id) => cb(id as string)),
