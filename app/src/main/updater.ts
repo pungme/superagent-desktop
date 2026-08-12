@@ -44,8 +44,11 @@ const OFFLINE_MARKERS = [
   'ENETUNREACH',
   'ENETDOWN',
   'getaddrinfo',
-  'network timeout',
-  'net::'
+  'network timeout'
+  // Deliberately NOT a bare 'net::' catch-all: the specific connectivity codes
+  // above already cover offline/DNS, and 'net::' would also swallow genuinely
+  // actionable errors (ERR_CERT_*, ERR_SSL_*, ERR_BLOCKED_BY_CLIENT) that a
+  // manual "Check for updates" should actually report.
 ]
 function isOfflineError(message: string): boolean {
   return OFFLINE_MARKERS.some((m) => message.includes(m))
