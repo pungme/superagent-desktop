@@ -19,12 +19,13 @@ import { tmpdir } from 'os'
  */
 
 import { app } from 'electron'
-import { existsSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, writeFileSync, mkdirSync } from 'fs'
+import { join, basename } from 'path'
 import { createRoutineForWorkspace, listRoutines, deleteRoutine } from './routines'
 import {
   DESKTOP_WORKSPACE_ID,
   getWorkspacePath,
+  addProjectWorkspace,
   listCards,
   addCard,
   updateCard,
@@ -470,6 +471,66 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       }
       await openFileInApp(ws, abs)
       return { content: [{ type: 'text', text: `Opened ${abs} in SuperAgent.` }] }
+    }
+  )
+
+  server.registerTool(
+    'clone_repo',
+    {
+      description:
+        "Clone a git repository and add it to SuperAgent as a project, so it appears in the sidebar and the user can chat with it immediately. Use this when the user asks to clone / pull / open a repo (e.g. a GitHub URL). Prefer this over a bare `git clone` in the shell — that leaves files on disk that never become a project. Private repos need the user's git credentials to already be set up; if the clone fails for auth, say so.",
+      inputSchema: {
+        url: z
+          .string()
+          .describe('The repository URL (https or ssh), e.g. https://github.com/owner/repo'),
+        name: z
+          .string()
+          .optional()
+          .describe('Project name to show in the sidebar; defaults to the repo name')
+      }
+    },
+    async ({ url, name }) => {
+      // A predictable home for cloned projects, created on first use.
+      const base = join(homedir(), 'SuperAgent Projects')
+      mkdirSync(base, { recursive: true })
+      // Folder name from the repo, de-duped so a second clone doesn't collide.
+      const repo = (basename(url).replace(/\.git$/i, '') || 'repo').replace(/[^\w.-]/g, '-')
+      let dir = join(base, repo)
+      for (let i = 2; existsSync(dir); i++) dir = join(base, `${repo}-${i}`)
+      const clone = await new Promise<{ ok: boolean; out: string }>((res) =>
+        execFile(
+          'git',
+          ['clone', '--progress', url, dir],
+          { timeout: 300_000, maxBuffer: 10 * 1024 * 1024 },
+          (err, stdout, stderr) => res({ ok: !err, out: (stdout || '') + (stderr || '') })
+        )
+      )
+      if (!clone.ok) {
+        const auth = /authentication|permission denied|could not read|403|fatal: repository/i.test(
+          clone.out
+        )
+        return {
+          content: [
+            {
+              type: 'text',
+              text: auth
+                ? `Clone failed — this looks like an auth/access problem (private repo or no git credentials): ${clone.out.trim().slice(-300)}`
+                : `Clone failed: ${clone.out.trim().slice(-300)}`
+            }
+          ]
+        }
+      }
+      const wsId = addProjectWorkspace(name?.trim() || repo, dir)
+      // Refresh the sidebar and jump to the new project so it's ready to use.
+      broadcastToWindows('projects:changed', { activate: wsId })
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Cloned into ${dir} and added it as a project. It's open in the sidebar now.`
+          }
+        ]
+      }
     }
   )
 
