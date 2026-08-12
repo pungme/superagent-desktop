@@ -113,6 +113,35 @@ function hostOfUrl(url: string): string {
   }
 }
 
+/**
+ * The branch chip, truncated in the row but shown in full on hover. The sidebar
+ * scroller clips horizontally, so the tooltip is position:fixed (viewport-
+ * relative) to escape it — a plain CSS ::after would be cut off. Anchored just
+ * under the chip.
+ */
+function BranchChip({ branch }: { branch: string }): React.JSX.Element {
+  const [tip, setTip] = useState<{ x: number; y: number } | null>(null)
+  return (
+    <>
+      <span
+        className="sidebar-item-branch"
+        onMouseEnter={(e) => {
+          const r = e.currentTarget.getBoundingClientRect()
+          setTip({ x: r.left, y: r.bottom + 4 })
+        }}
+        onMouseLeave={() => setTip(null)}
+      >
+        ⎇ {branch}
+      </span>
+      {tip && (
+        <span className="branch-tip" style={{ left: tip.x, top: tip.y }} role="tooltip">
+          {branch}
+        </span>
+      )}
+    </>
+  )
+}
+
 function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.JSX.Element {
   const common = {
     width: size,
@@ -512,11 +541,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         {unreadHere && !active && (
           <span className="sidebar-unread" title="Claude finished something you haven't read" />
         )}
-        {selfBranch && (
-          <span className="sidebar-item-branch" title={`On git branch ${selfBranch}`}>
-            ⎇ {selfBranch}
-          </span>
-        )}
+        {selfBranch && <BranchChip branch={selfBranch} />}
         {/* The running-server chip lives in the workspace toolbar now (more room);
             the sidebar row was too cramped next to the branch + close button. */}
         <button
