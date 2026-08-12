@@ -28,17 +28,31 @@ Everything below serves that line.
 **Name:** `SuperAgent`
 
 **Tagline** (PH limit ~60 chars — pick one, A/B in your head):
-- `An AI agent that lives on your Mac and uses it for you` ✅ recommended
-- `Give an AI agent your Mac — and watch it work`
-- `Claude Code with a computer: your browser, your apps, your files`
+- `An AI agent that builds your app — and tests it for real` ✅ recommended
+- `It builds your web + iOS app, then clicks through to test it`
+- `Give an AI agent your Mac — and watch it build, run, and test`
+- `Claude Code with a computer: build, run, and test your app`
 
-**Recommended:** the first — normie-legible, and "lives on your Mac / uses it" carries local + agency.
+**Recommended:** the first — "builds AND tests" is the concrete, demoable hook nobody else can show, and "for real" implies a real browser/simulator, not a sandbox.
 
 ---
 
 ## 3. Description (the ~260-char blurb under the tagline)
 
-> SuperAgent is an AI agent that runs on your own Mac — it browses the web signed in as you, builds and runs real apps (live preview + an iOS simulator), and works on a schedule. Local, on your own Claude subscription, open source. You watch it work instead of reading a terminal.
+> SuperAgent is an AI agent that runs on your own Mac — it builds and **tests** your web app in a real browser and your iOS app in a real simulator, browses the web signed in as you, and works on a schedule. Local, on your own Claude subscription, open source. Watch it work instead of reading a terminal.
+
+## 3a. The killer demo: "it builds AND tests, end to end"
+
+This is the most *differentiated, demoable* thing SuperAgent does, and neither camp can match it:
+
+- **Cloud agents (Manus/Operator)** can't build or run your code — they're browser sandboxes.
+- **Claude Code GUIs (Conductor/Crystal)** can write code, but they can't *drive* a browser or *tap through* an iOS simulator to test it.
+
+**SuperAgent does the whole loop on your machine:** write the code → run it → **open the web app in a real browser and click through it** / **launch the iOS app in a real simulator and tap through it** → see what broke → fix → repeat. Lead the launch with this — it's the "wait, it actually *tests* it?" moment.
+
+Suggested framing for the tagline/first-line if you want to lead with it:
+- **"An AI agent that builds your app — and tests it, in a real browser and iOS simulator."**
+- **"It writes your app, then clicks through it to make sure it works."**
 
 ---
 
@@ -54,11 +68,11 @@ Everything below serves that line.
 
 Order matters; the first image is the thumbnail in the feed.
 
-1. **Thumbnail / hero (image 1):** the agent driving a **real, logged-in website** in the browser pane while explaining what it's doing in the chat beside it. Caption: _"It uses your browser, signed in as you — and tells you what it's doing."_
-2. **iOS simulator (image 2):** the agent building + running an app and tapping through it live. Caption: _"Ask it to build an app. Watch it run on a real simulator."_
-3. **Schedule / routines (image 3):** a routine set up. Caption: _"Give it a job on a schedule — it works while you don't."_
-4. **Projects / sidebar (image 4):** many projects at once. Caption: _"All your projects and logins, one agent."_
-5. **Optional GIF (image 5):** a 5–10s screen recording of one real task start-to-finish. A short video massively lifts conversion — make it the 2nd asset if you have one.
+1. **Thumbnail / hero (image 1):** the agent running a **web app it built** in the browser pane and clicking through it, explaining what it's checking in the chat beside it. Caption: _"It builds your web app — then opens it in a real browser and tests it."_
+2. **iOS simulator (image 2):** the agent launching the app in a real simulator and **tapping through the flow**. Caption: _"Same for iOS: it runs your app in a real simulator and taps through it."_
+3. **Logged-in browser (image 3):** the agent on a real, signed-in site. Caption: _"It uses your browser, signed in as you — real accounts, real data."_
+4. **Schedule / routines (image 4):** a routine set up. Caption: _"Give it a job on a schedule — it works while you don't."_
+5. **GIF (make this #2 if you can):** a 5–10s recording of the **build → run → click-through → fix** loop on a web or iOS app. This is the money shot — a short video massively lifts conversion.
 
 _Keep captions short. Show it *doing*, never a settings screen._
 
@@ -68,9 +82,9 @@ _Keep captions short. Show it *doing*, never a settings screen._
 
 > Hey Product Hunt 👋 I'm [name], I built SuperAgent.
 >
-> Every AI agent today is one of two things: a **cloud sandbox** that can't touch your real accounts or files, or a **coding tool trapped in a terminal**. I kept wanting one that just… uses my computer.
+> Every AI agent today is one of two things: a **cloud sandbox** that can't touch your real accounts or files, or a **coding tool trapped in a terminal** that writes code but can't *run* it. I wanted one that builds something and then actually checks that it works.
 >
-> So SuperAgent runs **locally on your Mac**. It drives a real browser signed in as **you** — so it can actually check your dashboards, pull your data, fill things in — builds and runs real apps (with a live preview and an iOS simulator), and can work on a **schedule**. And you **watch the whole thing happen** instead of reading a terminal.
+> So SuperAgent runs **locally on your Mac**. It builds your web app and **opens it in a real browser to click through and test it** — and builds your iOS app and **runs it in a real simulator, tapping through the flow**. It also drives a real browser signed in as **you** (check your dashboards, pull your data), and can work on a **schedule**. You **watch the whole thing happen** instead of reading a terminal.
 >
 > It runs on your **own Claude subscription**, so nothing leaves your machine and there's no new bill. It's **open source**.
 >
