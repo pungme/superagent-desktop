@@ -363,7 +363,17 @@ export function SimulatorPane({
 
   const onKeyDown = (e: React.KeyboardEvent): void => {
     if (!udid || !tappable) return
-    if (e.metaKey || e.ctrlKey) return // leave app shortcuts alone
+    // Cmd/Ctrl+V pastes the Mac clipboard into the focused field on the device
+    // — typed through as text, since the mirror has no real pasteboard bridge.
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
+      e.preventDefault()
+      flushTyping()
+      void navigator.clipboard.readText().then((text) => {
+        if (text && udid) window.cove.simInput(udid, { type: 'text', text })
+      })
+      return
+    }
+    if (e.metaKey || e.ctrlKey) return // leave other app shortcuts alone
     const named: Record<string, string> = {
       Enter: 'Enter',
       Backspace: 'Backspace',
