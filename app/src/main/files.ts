@@ -108,6 +108,29 @@ export function gitBranch(cwd: string): string | null {
   }
 }
 
+/**
+ * How far the branch is ahead of / behind its upstream — so the sidebar can say
+ * "there's something to pull". Uses git's LOCAL tracking refs only (no network
+ * fetch, which could hang or prompt for credentials on a private repo), so the
+ * count is accurate as of the last fetch/pull. null when there's no upstream or
+ * it isn't a repo.
+ */
+export function gitAheadBehind(cwd: string): Promise<{ ahead: number; behind: number } | null> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
+      { cwd, timeout: 5000 },
+      (err, stdout) => {
+        if (err) return resolve(null) // no upstream, detached, or not a repo
+        const m = stdout.trim().match(/^(\d+)\s+(\d+)$/)
+        // left = upstream-only (behind), right = HEAD-only (ahead).
+        resolve(m ? { behind: Number(m[1]), ahead: Number(m[2]) } : null)
+      }
+    )
+  })
+}
+
 export interface SubRepo {
   name: string
   path: string
@@ -323,6 +346,7 @@ export function registerFilesIpc(): void {
 
   ipcMain.handle('files:openExternal', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
+  ipcMain.handle('git:aheadBehind', (_e, cwd: string) => gitAheadBehind(cwd))
   ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))
   // Read a text file for the in-app viewer/editor. Returns null if it's missing,
   // too large, or not decodable as UTF-8 text (so the caller can fall back to the OS).
