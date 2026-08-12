@@ -639,10 +639,11 @@ export function ComputerPanel({
   }, [openApp])
 
   const onDrop = (e: React.DragEvent): void => {
-    // A file dropped into a window is that window's — an image meant for the
-    // chat was landing in the chat AND being left on the desktop, because the
-    // drop bubbled out here afterwards.
-    if ((e.target as HTMLElement).closest('.dw')) return
+    // A file dropped into a window, a chat, or a text field is THAT thing's —
+    // it must not also be left on the desktop. This bubble-out was landing an
+    // image both in the chat AND as a desk icon. Guard every surface that owns
+    // its own drop, not just windows.
+    if ((e.target as HTMLElement).closest('.dw, .dchat, .easy-chat, input, textarea')) return
     e.preventDefault()
     setOver(false)
     // Electron gives the real filesystem path via webUtils, not File.path.
