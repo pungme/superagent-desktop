@@ -270,15 +270,11 @@ export function BrowserPane({
       // layout fits the pane width (not a cramped 1:1 render). A manual zoom
       // (autoFit off) is respected instead.
       if (autoFitRef.current && W > 0) window.cove.browserSetZoom?.(paneId, W / 1280)
-      window.cove.browserSetRadius?.(paneId, radiusRef.current)
-      // A native view is a rectangle and stays one — Electron's border radius
-      // does not clip a WebContentsView here, so the page's square bottom
-      // corners sat inside the window's arcs. Stop the view short of the bottom
-      // and let DOM draw those last few pixels, rounded, in the page's own
-      // colour. It costs the bottom `r` pixels of the page, which for any
-      // ordinary page is its background.
-      const r = radiusRef.current
-      emit({ x: x0, y: y0, width: W, height: Math.max(1, H - r) })
+      // The page fills the pane edge to edge: square (Electron can't reliably
+      // round a WebContentsView's bottom) and to the full height — no radius, and
+      // no bottom inset, which used to leave a strip of backdrop under the page.
+      window.cove.browserSetRadius?.(paneId, 0)
+      emit({ x: x0, y: y0, width: W, height: H })
       return
     }
     // Zooming out widens the page's layout viewport (window.innerWidth = px / zoom).
