@@ -712,6 +712,24 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Full branch name on hover. position:fixed so the sidebar's overflow clip
+   doesn't cut it off; anchored under the chip by inline left/top. */
+.branch-tip {
+  position: fixed;
+  z-index: 200;
+  max-width: 340px;
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 8px 24px var(--shadow);
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
 
 .routine-tree-run {
   flex: 0 0 auto;
