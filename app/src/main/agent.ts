@@ -2,8 +2,11 @@ import { ipcMain, WebContents } from 'electron'
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process'
 import { randomUUID } from 'crypto'
 import os from 'os'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { join } from 'path'
 import { getHookUrl } from './hooks'
 import { getMcpUrl, writeWorkspaceMcpConfig } from './mcp'
+import { DESKTOP_WORKSPACE_ID } from './store'
 import { findClaude } from './claude-cli'
 
 /**
@@ -28,6 +31,8 @@ const sessions = new Map<string, AgentSession>()
 export interface AgentStartOptions {
   cwd?: string
   workspaceId?: string
+  /** The conversation this session belongs to — stamped onto board cards. */
+  chatId?: string
   mcpConfigPath?: string
   /** Resume a prior conversation by session id (so history/context persists). */
   resumeSessionId?: string | null
@@ -60,6 +65,32 @@ const TODO_PROMPT =
   'step and TaskUpdate to move it through in_progress → completed. SuperAgent shows that list to ' +
   'the user live in its Tasks panel, so create the tasks up front and keep their status current as ' +
   'you work.'
+
+// The board outlives the conversation, so it is where work that isn't happening
+// right now belongs — the todo list above is per-turn and disappears with it.
+const BOARD_PROMPT =
+  "This project keeps a list that persists across conversations: stages todo, " +
+  'doing, testing and done, kept with board_list, board_add, board_move and ' +
+  'board_update. It is yours to maintain, not just to append to.\n' +
+  'ADD work that outlives this turn — something the user asked for and you ' +
+  'deferred, a follow-up your change made necessary, a bug you noticed while ' +
+  'doing something else. Call board_list first so you do not duplicate one. Do ' +
+  'not add an item for work you are finishing in this same turn, and do not use ' +
+  'the list as a scratchpad for the steps of one task — your task-tracking tools ' +
+  'already do that.\n' +
+  'MOVE an item to doing when you start it and done when you finish, so the list ' +
+  'records what happened rather than what was intended. Use testing for work that ' +
+  'is written but unverified.\n' +
+  'TIDY as you go, with board_update. A title should say what to do specifically ' +
+  'enough that someone else could pick it up: rewrite "fix the header" into "Stop ' +
+  'the header collapsing below 400px". Put a short specification in the body — ' +
+  'what done means, where to start, which files — when the item is worth more ' +
+  'than its title. Merge duplicates, and remove items that turned out to be ' +
+  'unnecessary.\n' +
+  'Two limits on tidying. Do not rewrite an item just to reword it — only when it ' +
+  'is genuinely unclear or you learned something that makes it clearer. And when ' +
+  'the user wrote the item themselves, sharpen it rather than replacing what they ' +
+  'meant; if you would be changing the intent, ask instead.'
 
 // Scheduling MUST go through SuperAgent's own routines — cloud/loop schedulers run
 // elsewhere and can't reach this browser or the user's logged-in session.
@@ -106,6 +137,48 @@ const FILE_OPEN_PROMPT =
   'command to launch a file in an external app when open_file can show it in-app; only ' +
   'fall back to the shell for file types SuperAgent cannot display (e.g. .docx, .xlsx, archives).'
 
+// The simulator the user is watching lives INSIDE SuperAgent, in a pane beside
+// this chat. Apple's Simulator app is a separate window they did not ask for.
+const SIMULATOR_PROMPT =
+  "SuperAgent shows a live iOS Simulator in a pane next to this chat, and the user is " +
+  'watching THAT. Use the sim_* tools for anything simulator-related: sim_list_devices, ' +
+  'sim_boot, sim_install_and_launch and sim_open_url to set it up, then drive it like a ' +
+  'device — sim_screen to SEE it (it returns the screen as an image; there is no DOM, so ' +
+  'look at the picture and read coordinates off it), sim_tap and sim_swipe to touch it (in ' +
+  "sim_screen's pixels), sim_type to type into a focused field, sim_press for the home/lock/" +
+  'side buttons, and sim_wait_stable to let a load or animation settle before the next step. ' +
+  'The loop is the same as the browser: sim_screen, act, sim_screen again to check. Two rules ' +
+  'follow from the pane:\n' +
+  "1. Do NOT run `open -a Simulator`, `xcrun simctl boot` followed by opening Apple's " +
+  'Simulator app, or otherwise launch the Simulator application — it puts a second window ' +
+  'on screen, usually showing a different device from the one in the pane, and the user ' +
+  'ends up watching the wrong thing. Only do it if they explicitly ask for Apple\'s ' +
+  'Simulator app by name.\n' +
+  '2. Build, install and launch onto the device the pane is showing — sim_list_devices ' +
+  'marks it. If you run simctl directly, pass that UDID rather than the word `booted`, ' +
+  'which picks an arbitrary device when several are running.'
+
+// The desktop chat is not a project's agent: it is the computer's own, and the
+// computer is the thing it is being asked about.
+const DESKTOP_PROMPT =
+  'You are the agent of this computer. Not a project — the desktop itself: a surface with ' +
+  'windows on it (Chat, which is this conversation, Browser, Dashboard, Skills, Routines), ' +
+  'files the user has dropped on it, and a tabbed web browser.\n' +
+  'You can see it and you can drive it. computer_state tells you what is open, where each ' +
+  'window is, which one is in front, what the browser is showing and which files are on the ' +
+  'desktop — read it whenever the user says "this window", "the browser" or "that file", ' +
+  'because it is what is in front of them. computer_open_app, computer_close_app and ' +
+  'computer_arrange open, close and lay out windows; computer_desktop_file puts a file on the ' +
+  'desktop or takes it off; computer_browser_open opens a page, after which the browser_* ' +
+  'tools drive the tab that is showing.\n' +
+  'Arrange the desktop when it would help rather than describing what the user should click: ' +
+  'if they ask to compare two things, tile them; if they ask about their usage, open the ' +
+  'Dashboard. Say what you did in a line — do not narrate every window move.\n' +
+  'Files dropped on the desktop are linked into ./files/ inside your working directory, so ' +
+  'read them with ordinary file tools; nothing needs attaching. Your working directory is ' +
+  'scratch space of the app\'s, not a project — write throwaway files there freely, and when ' +
+  'the user should be able to get at something you made, put it on the desktop.'
+
 /**
  * Kill every session a renderer owns. A reload tears the page down without running
  * React's effect cleanups, so the chats never get to call agent:stop and their
@@ -117,6 +190,36 @@ function killSessionsOwnedBy(owner: WebContents): void {
   for (const [id, session] of [...sessions]) {
     if (session.owner === owner) stopAgent(id)
   }
+}
+
+/**
+ * Sessions that died before anyone could hear about it.
+ *
+ * startAgent returns the id over IPC and the renderer subscribes to
+ * agent:exit:<id> only once that round trip lands — but a spawn failure
+ * (missing binary, a project folder that no longer exists) arrives on the very
+ * next tick, before the subscription exists, so the event went nowhere and the
+ * chat span forever saying "Working". Record it here and let the renderer ask.
+ */
+const deadSessions = new Map<string, { code: number; reason?: string }>()
+
+function markDead(id: string, code: number, reason?: string): void {
+  deadSessions.set(id, { code, reason })
+  // Long enough for the renderer to ask, short enough not to be a leak.
+  setTimeout(() => deadSessions.delete(id), 60_000)
+}
+
+/**
+ * Same race as deadSessions, for resume-lost: the resume proc can fail before
+ * the renderer has subscribed to agent:resume-lost:<id>, dropping the event — so
+ * the chat silently continues context-blind with no recap and no notice. Record
+ * it so the renderer can ask, exactly like it already asks agent:died.
+ */
+const resumeLostSessions = new Set<string>()
+
+function markResumeLost(id: string): void {
+  resumeLostSessions.add(id)
+  setTimeout(() => resumeLostSessions.delete(id), 60_000)
 }
 
 /** Renderers we've already wired the teardown handlers onto. */
@@ -134,11 +237,78 @@ function watchOwner(owner: WebContents): void {
   owner.on('destroyed', () => killSessionsOwnedBy(owner))
 }
 
+/**
+ * The exact command line a chat session runs on.
+ *
+ * Pulled out as a pure function for two reasons. It is the only place the
+ * agent's reach is decided — the permission mode and the tools it may never
+ * call — so it is worth testing rather than reading. And it is the seam a
+ * second agent backend would sit behind: everything above it is "start a
+ * conversation", everything below is "how this particular CLI is invoked".
+ */
+export function buildAgentArgs(
+  opts: AgentStartOptions,
+  ctx: { resume?: string | null; mcpConfig?: string } = {}
+): string[] {
+  const args = [
+    '-p',
+    '--output-format',
+    'stream-json',
+    '--input-format',
+    'stream-json',
+    '--include-partial-messages',
+    '--verbose',
+    // Under -p there is no interactive prompt, so anything needing approval is
+    // auto-denied — Edit/Write silently fail while reads succeed. The default
+    // gives the agent the same reach it has in a terminal session where the
+    // user approves prompts themselves. --disallowedTools below still applies.
+    '--permission-mode',
+    opts.permissionMode ?? 'bypassPermissions'
+  ]
+  // Pin the model when the user picked one; otherwise Claude's default applies.
+  if (opts.model) args.push('--model', opts.model)
+  if (ctx.resume) args.unshift('--resume', ctx.resume)
+  if (ctx.mcpConfig) args.push('--mcp-config', ctx.mcpConfig)
+  const appended = [
+    TODO_PROMPT,
+    BOARD_PROMPT,
+    SCHEDULING_PROMPT,
+    CHOICES_PROMPT,
+    FILE_OPEN_PROMPT,
+    SIMULATOR_PROMPT,
+    opts.browserProject ? BROWSER_SYSTEM_PROMPT : '',
+    // The desktop chat has no project, no board and no repository — it has a
+    // computer, and a different set of tools for driving it.
+    opts.workspaceId === DESKTOP_WORKSPACE_ID ? DESKTOP_PROMPT : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+  args.push('--append-system-prompt', appended)
+  // Hard stops: cloud/loop schedulers can't reach SuperAgent's browser (scheduling
+  // must use create_routine). The Task* tools are Claude's task-tracking surface
+  // that the Tasks panel now reads, so they're allowed. Unknown names are no-ops.
+  // Variadic, so this must stay last — it would otherwise swallow whatever
+  // follows as tool names.
+  args.push('--disallowedTools', 'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup')
+  return args
+}
+
 export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
   watchOwner(owner)
   const id = randomUUID()
+  // A project folder that has been moved or deleted fails as a spawn ENOENT
+  // naming the *binary*, which reads as "Claude Code is broken" when it isn't.
+  // Catch it here so the chat can say what actually happened.
+  if (opts.cwd && !existsSync(opts.cwd)) {
+    markDead(id, 1, 'missing-cwd')
+    setTimeout(() => {
+      if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, 1)
+    }, 0)
+    return id
+  }
   const mcpConfig =
-    opts.mcpConfigPath || (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId) : undefined)
+    opts.mcpConfigPath ||
+    (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId, opts.chatId) : undefined)
 
   // A valid resume emits a `system/init` event; a missing session makes claude
   // exit having only emitted SessionStart *hook* events (which fire before the
@@ -148,45 +318,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
   let sawInit = false
 
   const spawnProc = (resume: string | null): void => {
-    const args = [
-      '-p',
-      '--output-format',
-      'stream-json',
-      '--input-format',
-      'stream-json',
-      '--include-partial-messages',
-      '--verbose',
-      // Under -p there is no interactive prompt, so anything needing approval is
-      // auto-denied — Edit/Write silently fail while reads succeed. The default
-      // gives the agent the same reach it has in a terminal session where the
-      // user approves prompts themselves. --disallowedTools below still applies.
-      '--permission-mode',
-      opts.permissionMode ?? 'bypassPermissions'
-    ]
-    // Pin the model when the user picked one; otherwise Claude's default applies.
-    if (opts.model) args.push('--model', opts.model)
-    if (resume) args.unshift('--resume', resume)
-    if (mcpConfig) args.push('--mcp-config', mcpConfig)
-    const appended = [
-      TODO_PROMPT,
-      SCHEDULING_PROMPT,
-      CHOICES_PROMPT,
-      FILE_OPEN_PROMPT,
-      opts.browserProject ? BROWSER_SYSTEM_PROMPT : ''
-    ]
-      .filter(Boolean)
-      .join(' ')
-    args.push('--append-system-prompt', appended)
-    // Hard stops: cloud/loop schedulers can't reach SuperAgent's browser (scheduling
-    // must use create_routine). The Task* tools are Claude's task-tracking surface
-    // that the Tasks panel now reads, so they're allowed. Unknown names are no-ops.
-    args.push(
-      '--disallowedTools',
-      'CronCreate',
-      'CronDelete',
-      'CronList',
-      'ScheduleWakeup'
-    )
+    const args = buildAgentArgs(opts, { resume, mcpConfig })
 
     const proc = spawn(findClaude(), args, {
       cwd: opts.cwd || os.homedir(),
@@ -237,9 +369,11 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       sessions.delete(id)
       if (session.killed) return
       if (resume && !sawInit) {
+        notifyResumeLost(owner, id)
         spawnProc(null)
         return
       }
+      markDead(id, 1)
       if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, 1)
     })
 
@@ -250,9 +384,11 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       if (resume && !sawInit) {
         // The resume target was unavailable (claude exited before emitting
         // anything) — retry once with a fresh session.
+        notifyResumeLost(owner, id)
         spawnProc(null)
         return
       }
+      markDead(id, code ?? 0)
       if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, code ?? 0)
     })
   }
@@ -266,9 +402,59 @@ export interface AgentImage {
   data: string // base64
 }
 
+/**
+ * Put a pasted image on disk and hand back the path.
+ *
+ * The image also travels inline, which is the fast path and normally all that
+ * is needed. But an inline image is attached to one message: if that message
+ * arrives mid-turn, or the session is later resumed, the agent can end up
+ * unable to see the picture the user is plainly talking about — it went
+ * looking for "wherever the app saved it" and there was nothing there. Now
+ * there is, and the path travels as text, which nothing drops.
+ */
+function saveImageForAgent(im: AgentImage): string | null {
+  try {
+    const dir = join(os.tmpdir(), 'superagent-pasted')
+    mkdirSync(dir, { recursive: true })
+    const ext = (im.mediaType.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '')
+    const file = join(dir, `paste-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`)
+    writeFileSync(file, Buffer.from(im.data, 'base64'))
+    return file
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Say when a conversation could not be resumed.
+ *
+ * Falling back to a fresh session is the right move — better than a dead chat —
+ * but it happened silently, so the window went on showing a conversation the
+ * model behind it no longer had any of. The one case where "does it still
+ * remember?" has a surprising answer, and nothing said so.
+ */
+function notifyResumeLost(owner: WebContents, id: string): void {
+  markResumeLost(id)
+  if (!owner.isDestroyed()) owner.send(`agent:resume-lost:${id}`)
+}
+
 export function sendToAgent(id: string, text: string, images: AgentImage[] = []): void {
   const session = sessions.get(id)
   if (!session || !session.proc.stdin.writable) return
+  if (images.length > 0) {
+    const paths = images.map((im) => saveImageForAgent(im)).filter(Boolean)
+    if (paths.length > 0) {
+      const many = paths.length > 1
+      // The inline image below is the fast path, but it does NOT survive a
+      // mid-turn message or a resumed session (see saveImageForAgent) — which is
+      // when the model would otherwise say "the image didn't come through". So
+      // the saved copy is authoritative: instruct a Read, not a maybe-read.
+      text =
+        `${text}${text ? '\n\n' : ''}[The user attached ${many ? 'images' : 'an image'}, ` +
+        `saved to disk. If you cannot see ${many ? 'them' : 'it'} inline, Read ${many ? 'these paths' : 'this path'} ` +
+        `now to see what the user is referring to — do not say the image didn't come through:\n${paths.join('\n')}]`
+    }
+  }
   const content = [
     ...images.map((im) => ({
       type: 'image',
@@ -407,6 +593,16 @@ export function registerAgentIpc(): void {
     suggestTitle(cwd, excerpt)
   )
   ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => startAgent(e.sender, opts))
+  // Asked once, right after the renderer subscribes: did this session already
+  // die in the gap? Returns the exit code, or null if it's alive.
+  ipcMain.handle('agent:died', (_e, id: string) => deadSessions.get(id) ?? null)
+  // Same catch-up question for a resume that failed before the renderer could
+  // subscribe: consume it (delete) so a later re-query doesn't re-fire it.
+  ipcMain.handle('agent:resume-lost-check', (_e, id: string) => {
+    const lost = resumeLostSessions.has(id)
+    resumeLostSessions.delete(id)
+    return lost
+  })
   ipcMain.on('agent:send', (_e, id: string, text: string, images?: AgentImage[]) =>
     sendToAgent(id, text, images ?? [])
   )

@@ -5,7 +5,7 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
-import { DashboardPanel } from './components/DashboardPanel'
+import { ComputerPanel } from './components/ComputerPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { useStore } from './state'
@@ -121,6 +121,63 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  // The agent added a project (e.g. cloned a repo) — pull in the new tree and,
+  // if it named one to activate, jump to it so it's ready to use.
+  useEffect(() => {
+    return window.cove.onProjectsChanged(async ({ activate }) => {
+      await useStore.getState().refresh()
+      if (activate) useStore.getState().setActive(activate)
+    })
+  }, [])
+
+  // A worktree chat asked to be merged back (already confirmed in the native
+  // dialog). Squash it in, then clean up the chat that pointed at the worktree.
+  useEffect(() => {
+    return window.cove.onChatMergeWorktree(async ({ chatId, workspaceId, projectPath, wtPath }) => {
+      const chat = useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)
+      const title = chat?.title?.trim()
+      const message =
+        title && title !== 'New chat' ? title : `Merge worktree ${wtPath.split('/').pop()}`
+      const res = await window.cove.worktreeMerge(projectPath, wtPath, message)
+      if (res.ok) {
+        // The worktree folder is gone now, so the chat that lived in it can't
+        // resume — remove it and land the user on the project.
+        await useStore.getState().removeChat(workspaceId, chatId)
+        useStore.getState().setActive(workspaceId)
+      } else {
+        const why: Record<string, string> = {
+          'base-dirty':
+            'The project has uncommitted changes — commit or stash them first, then merge.',
+          conflict:
+            'Merge conflict — resolve it in this chat, then try again. Nothing was changed.',
+          nothing: 'Nothing to merge — this worktree has no new commits.',
+          'not-worktree': "This chat isn't in a worktree.",
+          error: res.detail || 'git failed.'
+        }
+        window.alert(why[res.reason] ?? 'Could not merge the worktree.')
+      }
+    })
+  }, [])
+
+  // Right-click actions on a project row (native menu built in main).
+  useEffect(() => {
+    return window.cove.onWorkspaceMenuAction(async ({ action, id, path }) => {
+      const s = useStore.getState()
+      if (action === 'new-chat') {
+        s.setActive(id)
+        await s.newChat(id)
+      } else if (action === 'new-worktree') {
+        s.setActive(id)
+        const ok = await s.newChatInWorktree(id, path)
+        // Only offered for repos, so this is the rare "git refused" case (e.g. no
+        // commits yet, or a dirty index git won't branch from).
+        if (!ok) {
+          window.alert("Couldn't create a worktree — git refused (needs ≥1 commit).")
+        }
+      }
+    })
+  }, [])
+
   // Keep every opened workspace mounted so switching tabs never restarts its
   // session — only the active one is shown; the rest run hidden in the background.
   const [opened, setOpened] = useState<string[]>([])
@@ -133,15 +190,42 @@ function App(): React.JSX.Element {
     .map((id) => allWorkspaces.find((w) => w.id === id))
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [dashOpen, setDashOpen] = useState(false)
+  // One source of truth: the sidebar highlights whichever of these is showing.
+  const overlay = useStore((s) => s.overlay)
+  const setOverlay = useStore((s) => s.setOverlay)
+  const computerOpen = overlay === 'computer'
+  // Once opened it stays in the tree; before that there is nothing to keep.
+  const [computerEverOpened, setComputerEverOpened] = useState(false)
+  if (computerOpen && !computerEverOpened) setComputerEverOpened(true)
+  /** Any full-window section — all four cover the projects the same way. */
+  const sectionOpen = overlay !== null
   useEffect(() => {
-    const open = (): void => setDashOpen(true)
-    const close = (): void => setDashOpen(false)
+    // One value, so opening either inherently closes the other.
+    const openComputer = (): void => setOverlay('computer')
+    // These live on the desktop now. Show it, then let it raise the window —
+    // after a tick, so a freshly mounted desktop is listening by then.
+    const openOnDesktop = (app: 'dashboard' | 'skills' | 'routines') => (): void => {
+      setOverlay('computer')
+      setTimeout(
+        () => window.dispatchEvent(new CustomEvent('cove:open-desktop-app', { detail: { app } })),
+        60
+      )
+    }
+    const open = openOnDesktop('dashboard')
+    const openSkills = openOnDesktop('skills')
+    const openRoutines = openOnDesktop('routines')
+    // Picking anything in the sidebar leaves both.
+    const close = (): void => setOverlay(null)
     window.addEventListener('cove:open-dashboard', open)
-    // Picking anything in the sidebar leaves the dashboard.
+    window.addEventListener('cove:open-computer', openComputer)
+    window.addEventListener('cove:open-skills', openSkills)
+    window.addEventListener('cove:open-routines', openRoutines)
     window.addEventListener('cove:close-dashboard', close)
     return () => {
+      window.removeEventListener('cove:open-skills', openSkills)
+      window.removeEventListener('cove:open-routines', openRoutines)
       window.removeEventListener('cove:open-dashboard', open)
+      window.removeEventListener('cove:open-computer', openComputer)
       window.removeEventListener('cove:close-dashboard', close)
     }
   }, [])
@@ -179,14 +263,23 @@ function App(): React.JSX.Element {
     })
     startBrowsingListener()
     startRoutinesListener()
-    // Persisted dev-server chips: keep the ones still listening, drop the rest.
+    // Dev-server chips: keep the ones still listening, drop the rest. On a
+    // timer, not just at startup — a server that dies mid-session used to keep
+    // a green chip that opened onto a connection-refused page.
     useStore.getState().verifyPorts()
+    const portTimer = window.setInterval(() => void useStore.getState().verifyPorts(), 20000)
+    const onFocusCheckPorts = (): void => void useStore.getState().verifyPorts()
+    window.addEventListener('focus', onFocusCheckPorts)
     applyTheme()
     // Re-apply when the OS light/dark preference changes (matters for "System").
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = (): void => applyTheme()
     mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
+    return () => {
+      mq.removeEventListener('change', onChange)
+      window.clearInterval(portTimer)
+      window.removeEventListener('focus', onFocusCheckPorts)
+    }
   }, [startHookListener, startBrowsingListener, startRoutinesListener, applyTheme])
 
   useEffect(() => {
@@ -216,6 +309,14 @@ function App(): React.JSX.Element {
       else if (action === 'new-project') {
         const firstGroup = useStore.getState().tree[0]
         if (firstGroup) addWorkspace(firstGroup.id)
+      } else if (action === 'close-tab') {
+        // Cmd+W. Closes the active browser tab — that's what it means in a
+        // browser. On anything else it does nothing: it must never close the
+        // window (which is what the old `close` role did, losing the whole app).
+        const s = useStore.getState()
+        const id = s.activeWorkspaceId
+        const ws = id ? s.tree.flatMap((g) => g.workspaces).find((w) => w.id === id) : undefined
+        if (ws?.kind === 'browser') void s.removeWorkspace(ws.id)
       } else {
         // skills / routines / toggle-preview are workspace-scoped; forward via window event
         window.dispatchEvent(new CustomEvent(`cove:menu-${action}`))
@@ -243,7 +344,9 @@ function App(): React.JSX.Element {
           doesn't rebuild its expansion state on every toggle). */}
       <Sidebar />
       <SidebarResizer onCollapse={collapseSidebar} />
-      <main className="content">
+      {/* The Computer's own menubar is its top chrome and takes the drag
+          region with it, so the 8px title strip would read as a gap above it. */}
+      <main className={`content ${computerOpen ? 'computer' : ''}`}>
         {/* When the sidebar is hidden this strip grows to clear the traffic
             lights, which would otherwise sit on top of the content. */}
         <div className="content-titlebar">
@@ -254,7 +357,7 @@ function App(): React.JSX.Element {
           )}
         </div>
         <HookConsent />
-        {openedWorkspaces.length === 0 && !dashOpen ? (
+        {openedWorkspaces.length === 0 && !sectionOpen ? (
           <div className="empty-state">
             <div className="empty-state-inner">
               <h1>Welcome to SuperAgent</h1>
@@ -269,15 +372,23 @@ function App(): React.JSX.Element {
             <div
               key={ws.id}
               className="workspace-host"
-              style={{ display: ws.id === activeId && !dashOpen ? 'flex' : 'none' }}
+              style={{ display: ws.id === activeId && !sectionOpen ? 'flex' : 'none' }}
             >
               {/* visible also detaches the native browser view — it would
                   composite above the dashboard otherwise. */}
-              <WorkspaceView ws={ws} visible={ws.id === activeId && !dashOpen} />
+              <WorkspaceView ws={ws} visible={ws.id === activeId && !sectionOpen} />
             </div>
           ))
         )}
-        {dashOpen && <DashboardPanel onClose={() => setDashOpen(false)} />}
+        {/* Mounted from the first time it is opened and hidden thereafter, the
+            same as a workspace: unmounting it stopped the desktop chat's agent
+            and tore down its browser tabs, so stepping out of the Computer for
+            a moment threw away whatever was running in it. */}
+        {computerEverOpened && (
+          <div className="computer-host" style={{ display: computerOpen ? 'flex' : 'none' }}>
+            <ComputerPanel visible={computerOpen} onClose={() => setOverlay(null)} />
+          </div>
+        )}
       </main>
       <PreviewToast />
       <UpdateBanner />

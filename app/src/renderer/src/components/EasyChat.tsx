@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
-import { Choices, splitAssistant } from './Choices'
+import { Choices } from './Choices'
+import { splitAssistant } from './assistantSegments'
 import { useDictation } from '../lib/dictation'
 
 interface ChatMessage {
@@ -46,10 +47,22 @@ type Item =
   | { kind: 'thinking'; id: string; text: string }
 
 /**
- * Sticky one-liner when a dev server is running for this project and the
- * preview isn't showing it — one click to open, without hunting the toolbar.
+ * A dev server, as one of the pills that sit beside Model and Mode.
+ *
+ * It used to be a band floating over the transcript, which covered the last
+ * messages and shouted about something you mostly want to glance at. The row
+ * under the composer is already where this chat says what it is running on;
+ * something the project is running belongs in the same row.
  */
-function DevServerStrip({ workspaceId }: { workspaceId: string }): React.JSX.Element | null {
+function DevServerPill({
+  workspaceId,
+  open,
+  onToggle
+}: {
+  workspaceId: string
+  open: boolean
+  onToggle: () => void
+}): React.JSX.Element | null {
   const ports = useStore((s) => s.ports[workspaceId])
   const paneOpen = useStore((s) => s.browserOpen[workspaceId] === true)
   const openPreview = useStore((s) => s.openPreview)
@@ -57,30 +70,40 @@ function DevServerStrip({ workspaceId }: { workspaceId: string }): React.JSX.Ele
   const port = ports?.[0]
   if (!port || paneOpen || dismissed) return null
   return (
-    <div
-      className="easy-devserver"
-      role="button"
-      tabIndex={0}
-      title="Open this in the browser pane"
-      onClick={() => openPreview(workspaceId, port)}
-    >
-      <span className="easy-devserver-dot" />
-      <span className="easy-devserver-label">
-        Dev server running at <b>localhost:{port}</b>
-      </span>
-      <span className="easy-devserver-open">Open preview</span>
-      <span
-        className="easy-devserver-x"
-        role="button"
-        tabIndex={0}
-        onClick={(e) => {
-          e.stopPropagation()
-          setDismissed(true)
-        }}
-        title="Hide"
+    <div className="easy-control">
+      <button
+        className={`easy-control-btn ${open ? 'open' : ''}`}
+        onClick={onToggle}
+        title={`Dev server on localhost:${port}`}
       >
-        ×
-      </span>
+        <span className="easy-run-dot live" />
+        <span className="easy-control-key">Server</span>
+        <span className="easy-control-val">:{port}</span>
+      </button>
+      {open && (
+        <div className="easy-control-menu">
+          <button
+            className="easy-control-item"
+            onClick={() => {
+              onToggle()
+              openPreview(workspaceId, port)
+            }}
+          >
+            <span className="easy-control-item-label">Open preview</span>
+            <span className="easy-control-item-hint">Show localhost:{port} in the pane</span>
+          </button>
+          <button
+            className="easy-control-item"
+            onClick={() => {
+              onToggle()
+              setDismissed(true)
+            }}
+          >
+            <span className="easy-control-item-label">Hide</span>
+            <span className="easy-control-item-hint">This doesn&rsquo;t stop the server</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -92,12 +115,19 @@ interface EasyChatProps {
   chatId: string
   initialSessionId?: string | null
   browserProject?: boolean
+  /**
+   * Suppress the floating "New chat" pill. The desktop Chat app keeps a list of
+   * conversations with its own button, and two of them a few inches apart doing
+   * the same thing is one too many.
+   */
+  hideNewChat?: boolean
   /** The project is a git repo — enables the "New worktree" chat button. */
   isRepo?: boolean
   /** Whether this chat's workspace is the one on screen. Background chats stay
       mounted (so switching back is instant) but get their claude process reaped
       once they've been idle a while — see IDLE_REAP_MS. */
   visible?: boolean
+  /** Where the chat sits relative to the pane, and how to flip it. */
 }
 
 // Drop lines shared by the start/end of both sides so only the real change shows.
@@ -348,8 +378,12 @@ function extractPorts(text: string): number[] {
 // CLI is configured to use); the rest are passed as --model at spawn.
 const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: '', label: 'Default', hint: 'Whatever your Claude account defaults to' },
-  { value: 'opus', label: 'Opus', hint: 'Most capable' },
-  { value: 'sonnet', label: 'Sonnet', hint: 'Balanced' },
+  // The 1M variants, deliberately. Plain `opus` runs the 200K model: picking
+  // Opus from this menu quietly gave you a fifth of the window your own default
+  // already had (the CLI resolves that to claude-opus-5[1m]), and the memory
+  // gauge then read full on a conversation that had barely started.
+  { value: 'opus[1m]', label: 'Opus', hint: 'Most capable · 1M context' },
+  { value: 'sonnet[1m]', label: 'Sonnet', hint: 'Balanced · 1M context' },
   { value: 'haiku', label: 'Haiku', hint: 'Fastest, lightest' },
   { value: 'fable', label: 'Fable', hint: 'Fast, for quick edits' }
 ]
@@ -523,15 +557,22 @@ export function EasyChat({
   workspaceId,
   chatId,
   initialSessionId,
+  hideNewChat,
   browserProject,
   isRepo = false,
   visible = true
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
+  // Armed when a turn is about to run on a session that has lost the earlier
+  // conversation (a resume that failed, or a fresh process started under an
+  // existing transcript). The next message out carries a recap so the agent
+  // isn't answering "continue" blind. (itemsRef, the live transcript it reads,
+  // is declared further down where the autosave also uses it.)
+  const contextLostRef = useRef(false)
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
-  const [agentFailed, setAgentFailed] = useState(false)
+  const [agentFailed, setAgentFailed] = useState<boolean | 'missing-cwd'>(false)
   const [generating, setGenerating] = useState(false)
   const [resetKey, setResetKey] = useState(0)
   // No live claude process. Chats START here — opening a project must not cost
@@ -541,9 +582,22 @@ export function EasyChat({
   const [suspended, setSuspended] = useState(true)
   const suspendedRef = useRef(true)
   const [files, setFiles] = useState<string[]>([])
-  const [commands, setCommands] = useState<string[]>([])
+  /**
+   * Seeded with Claude's built-ins rather than starting empty.
+   *
+   * The list used to be filled from two places only: this project's skill
+   * folders, and the running session's init event. With no project skills and
+   * no session started yet — a fresh chat, or one whose process was reaped —
+   * typing "/" offered nothing at all, which reads as the feature being gone.
+   * The session's own list still arrives and merges over this.
+   */
+  const [commands, setCommands] = useState<string[]>(() =>
+    Object.keys(BUILTIN_COMMAND_DESCRIPTIONS).sort()
+  )
   // name → one-line description, shown beside each "/" command in the menu.
-  const [commandDescs, setCommandDescs] = useState<Record<string, string>>({})
+  const [commandDescs, setCommandDescs] = useState<Record<string, string>>(
+    () => ({ ...BUILTIN_COMMAND_DESCRIPTIONS })
+  )
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
@@ -557,11 +611,32 @@ export function EasyChat({
   // Commands the agent left running in the background. Claude mentions them in
   // prose and then moves on, so without this the only sign a deploy/build/server
   // is still going is a sentence that scrolls away.
+  /** Which pill's menu is open — 'model', 'mode', 'server', or `bg-<id>`. */
+  const [controlMenu, setControlMenu] = useState<string | null>(null)
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
   const bgTasksRef = useRef<BackgroundTask[]>([])
-  const [bgOpen, setBgOpen] = useState(false)
-  // While the panel is open, tail each job's output file so the user watches it
+  // Sub-agents (the Task tool) currently running. They live inside the same
+  // claude process — we can't see their internal steps, but we can show that one
+  // is working: a pill appears when Task starts and clears when its result lands.
+  const [runningAgents, setRunningAgents] = useState<
+    { toolUseId: string; label: string; startedAt: number }[]
+  >([])
+  // Tail each job's output while one of their pills is open, so you watch it
   // happen rather than waiting for the agent to check on it.
+  const bgOpen = controlMenu?.startsWith('bg-') ?? false
+  /**
+   * A clock for the "53s" in an open job's menu. Read from state rather than
+   * called during render: Date.now() in the middle of rendering is impure, and
+   * it also meant the age froze at whatever it was when the menu opened.
+   */
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!bgOpen) return
+    // No synchronous set on open: the first tick is a second away and the age
+    // is already right to the second from the initial value.
+    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [bgOpen])
   useEffect(() => {
     if (!bgOpen) return
     let alive = true
@@ -608,6 +683,13 @@ export function EasyChat({
   const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
+  // Whether a turn is in flight, tracked as a ref so it's correct SYNCHRONOUSLY.
+  // The `generating` state lags a render behind, so firing several messages in
+  // quick succession made each one read `generating` as still false — so they
+  // were treated as brand-new turns instead of interjections, clobbering the
+  // in-flight payload and losing messages. The ref is set the instant a send
+  // commits and cleared when the turn ends.
+  const turnInFlightRef = useRef(false)
   // Whether this turn produced any assistant text/tool activity, so a `result`
   // that yielded nothing visible can be flagged instead of vanishing.
   const streamedThisTurnRef = useRef(false)
@@ -623,6 +705,13 @@ export function EasyChat({
     images: { mediaType: string; data: string }[]
   } | null>(null)
   const retriedEmptyTurnRef = useRef(false)
+  // Keep the synchronous turn-in-flight ref in step with the real state: a turn
+  // ending (result), being stopped, or crashing all flip `generating` to false,
+  // and this clears the ref so the next message is a fresh turn, not a phantom
+  // interjection. The submit path still sets it true synchronously for rapid fire.
+  useEffect(() => {
+    turnInFlightRef.current = generating
+  }, [generating])
   /** We stopped it on purpose — the turn's error result isn't news. */
   const interruptedRef = useRef(false)
   const thinkingIdRef = useRef<string | null>(null)
@@ -651,15 +740,20 @@ export function EasyChat({
   const setModel = useStore((s) => s.setModel)
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
-  const [controlMenu, setControlMenu] = useState<'model' | 'mode' | null>(null)
   /** The model the running session reports (from claude's init event). */
   const [activeModel, setActiveModel] = useState<string | null>(null)
 
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
-    window.cove.filesList(cwd).then(setFiles)
+    // Directories come back too (trailing '/'), but you mention a file.
+    window.cove.filesList(cwd).then((fs) => setFiles(fs.filter((f) => !f.endsWith('/'))))
     window.cove.skillsList(cwd).then((list) => {
-      setCommands(list.map((s) => s.name))
+      // Merge, never replace: this used to overwrite the pool with the project's
+      // own skills, so a project with none — which is most of them — wiped the
+      // built-ins straight back out and "/" offered nothing at all.
+      setCommands((prev) =>
+        Array.from(new Set([...prev, ...list.map((s) => s.name)])).sort()
+      )
       setCommandDescs((prev) => {
         const next = { ...prev }
         for (const s of list) if (s.description) next[s.name] = s.description
@@ -746,7 +840,9 @@ export function EasyChat({
   // Cmd+V an image anywhere in the active chat (not only when the input is
   // focused) — a document-level listener, scoped to the visible workspace.
   useEffect(() => {
-    if (!isActive) return
+    // Only the on-screen chat captures document-level paste/dictation/inject
+    // events — busy siblings stay mounted but hidden, and must not react.
+    if (!isActive || !visible) return
     const onDocPaste = (e: ClipboardEvent): void => {
       const imgItems = [...(e.clipboardData?.items ?? [])].filter((it) =>
         it.type.startsWith('image/')
@@ -762,26 +858,31 @@ export function EasyChat({
     return () => document.removeEventListener('paste', onDocPaste)
     // attachImage only closes over stable setState, so re-subscribing per render is unnecessary.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive])
+  }, [isActive, visible])
 
-  // Drag a file onto the chat: images attach (like a paste); other files insert
-  // their absolute path so Claude can read them.
+  // Drag a file onto the chat: images attach (like a paste); other files become
+  // a file chip in the composer — the same 📎 chip a file dropped from the tree
+  // gets — rather than dumping a raw path into the text you're writing.
   const onDrop = (e: React.DragEvent): void => {
     const files = [...(e.dataTransfer?.files ?? [])]
     if (files.length === 0) return
     e.preventDefault()
     setDragOver(false)
-    const paths: string[] = []
+    const dropped: { path: string; name: string }[] = []
     for (const file of files) {
       if (file.type.startsWith('image/')) attachImage(file)
       else {
         const p = window.cove.getPathForFile?.(file)
-        if (p) paths.push(p)
+        if (p) dropped.push({ path: p, name: file.name || p.split('/').pop() || p })
       }
     }
-    if (paths.length > 0) {
-      setInput((prev) => (prev ? prev.trimEnd() + ' ' : '') + paths.join(' ') + ' ')
-      requestAnimationFrame(autoResize)
+    if (dropped.length > 0) {
+      // Dedupe against what's already staged, so dropping the same file twice
+      // doesn't chip it twice.
+      setPendingFiles((prev) => {
+        const have = new Set(prev.map((f) => f.path))
+        return [...prev, ...dropped.filter((f) => !have.has(f.path))]
+      })
       inputRef.current?.focus()
     }
   }
@@ -821,7 +922,7 @@ export function EasyChat({
   useEffect(() => {
     const onInsert = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId) return
+      if (detail.workspaceId !== workspaceId || !visible) return
       setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + detail.text)
       const el = inputRef.current
       if (el) {
@@ -834,7 +935,23 @@ export function EasyChat({
     }
     window.addEventListener('cove:insert-reference', onInsert)
     return () => window.removeEventListener('cove:insert-reference', onInsert)
-  }, [workspaceId])
+  }, [workspaceId, visible])
+
+  /**
+   * "Work on this" from the list: send the item straight through as the prompt.
+   * Unlike a file reference this does submit — the button says it will, and a
+   * prefilled composer you then have to press Enter on is a worse version of
+   * the same thing.
+   */
+  useEffect(() => {
+    const onWorkOn = (e: Event): void => {
+      const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
+      if (detail.workspaceId !== workspaceId || !visible) return
+      submitRef.current?.(detail.text)
+    }
+    window.addEventListener('cove:work-on', onWorkOn)
+    return () => window.removeEventListener('cove:work-on', onWorkOn)
+  }, [workspaceId, visible])
 
   // Detect a "/command" at the start, or an "@file" at the caret, for the dropdown.
   const updateMention = (value: string): void => {
@@ -930,10 +1047,10 @@ export function EasyChat({
   const taskCreates = useRef(new Map<string, string>())
   const syncTasks = useCallback((): void => {
     useStore.getState().setTodos(
-      workspaceId,
+      chatId,
       [...tasks.current.values()].map((t) => ({ ...t }))
     )
-  }, [workspaceId])
+  }, [chatId])
 
   const handleEvent = useCallback(
     (event: Record<string, unknown>) => {
@@ -1133,6 +1250,16 @@ export function EasyChat({
             } else if (name === 'KillShell' && typeof inp.shell_id === 'string') {
               const killed = inp.shell_id
               setBgTasks((prev) => prev.filter((t) => t.shellId !== killed))
+            } else if (name === 'Task') {
+              // A sub-agent just started. Its result block clears the pill.
+              const label =
+                (typeof inp.description === 'string' && inp.description.trim()) ||
+                (typeof inp.subagent_type === 'string' && inp.subagent_type) ||
+                'sub-agent'
+              setRunningAgents((prev) => [
+                ...prev,
+                { toolUseId: id, label: String(label), startedAt: Date.now() }
+              ])
             }
             const diff = toolDiff(name, id, block.input)
             setItems((prev) => [
@@ -1181,6 +1308,8 @@ export function EasyChat({
             // says whether it has finished.
             const resultFor = typeof block.tool_use_id === 'string' ? block.tool_use_id : null
             if (resultFor) {
+              // A sub-agent finished — drop its pill.
+              setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== resultFor))
               // TaskCreate's result carries the assigned id ("Task #7 created…").
               // Re-key our provisional entry to it so later TaskUpdates land.
               const provisional = taskCreates.current.get(resultFor)
@@ -1270,6 +1399,9 @@ export function EasyChat({
         // fresh turn on its own.
         setThinking(false)
         setGenerating(false)
+        // The turn is over, so no sub-agent is still running — sweep any pill a
+        // missed result block would otherwise strand.
+        setRunningAgents([])
         // Surface a failed or empty turn. Without this the app silently swallows an
         // error result (usage limit, max turns, an execution/auth error) — so a
         // message like "continue" looks like it did nothing at all.
@@ -1283,31 +1415,43 @@ export function EasyChat({
           streamedThisTurnRef.current = false
           return
         }
-        // Nothing at all came back — no text, no tools, no error detail. Send it
-        // again once rather than making the user do it; only when the turn was
-        // completely empty, so a partially-completed turn is never repeated.
+        const sub = event.subtype as string | undefined
+        const agentId = agentIdRef.current
+        // Nothing at all came back — no text, no tools, no error detail. Send the
+        // message again once rather than making the user do it; only when the turn
+        // was completely empty, so a partially-completed turn is never repeated.
         const emptyTurn = !streamedThisTurnRef.current && !event.is_error
-        if (emptyTurn && !retriedEmptyTurnRef.current && inFlightSendRef.current) {
+        if (emptyTurn && !retriedEmptyTurnRef.current && inFlightSendRef.current && agentId) {
           const again = inFlightSendRef.current
           retriedEmptyTurnRef.current = true
-          const agentId = agentIdRef.current
-          if (agentId) {
-            window.cove.agentSend(agentId, again.text, again.images)
-            setGenerating(true)
-            setThinking(true)
-            return
-          }
+          window.cove.agentSend(agentId, again.text, again.images)
+          setGenerating(true)
+          setThinking(true)
+          return
+        }
+        // A turn that errored mid-tool (stop_reason=tool_use, no result) is a
+        // transient CLI hiccup — it shows up more when two sessions in one folder
+        // run at once. "continue" recovers it, so do that once automatically
+        // instead of dropping a jargon-filled error on the user; if it happens
+        // again this turn, fall through and actually say something.
+        if (sub === 'error_during_execution' && !retriedEmptyTurnRef.current && agentId) {
+          retriedEmptyTurnRef.current = true
+          window.cove.agentSend(agentId, 'continue', [])
+          setGenerating(true)
+          setThinking(true)
+          return
         }
         if (isError || !streamedThisTurnRef.current) {
-          const sub = event.subtype as string | undefined
           let note = 'Claude ended the turn without a response. Try sending your message again.'
           if (sub === 'error_max_turns')
             note = 'Claude reached its step limit for this turn. Send “continue” to let it keep going.'
           else if (sub === 'error_during_execution')
             note = 'Claude hit an error partway through this turn. Send “continue” to retry.'
           const errs = event.errors as unknown[] | undefined
+          // The CLI's internal diagnostics ([ede_diagnostic] …) mean nothing to
+          // the user; only attach error detail for cases where it's actionable.
           const detail =
-            Array.isArray(errs) && errs.length
+            sub !== 'error_during_execution' && Array.isArray(errs) && errs.length
               ? ' (' +
                 errs
                   .map((e) => (typeof e === 'string' ? e : JSON.stringify(e)))
@@ -1335,6 +1479,47 @@ export function EasyChat({
     [workspaceId, chatId, nameConversation, syncTasks]
   )
 
+  // A compact recap of the conversation so far, to re-seed a session that lost
+  // its memory. Recent turns only, each clipped — enough for "continue" to mean
+  // something without blowing the context window.
+  const buildRecap = (): string => {
+    const lines: string[] = []
+    for (const it of itemsRef.current) {
+      if (it.kind !== 'msg') continue
+      const m = it.msg
+      if (m.system || !m.text || !m.text.trim()) continue
+      lines.push(
+        `${m.role === 'user' ? 'User' : 'Claude'}: ${m.text.replace(/\s+/g, ' ').trim().slice(0, 700)}`
+      )
+    }
+    if (lines.length === 0) return ''
+    return lines.slice(-24).join('\n')
+  }
+
+  // Send to the agent, transparently prepending a recap the first time we send
+  // after context was lost — so a resumed-but-empty session answers with the
+  // conversation in hand instead of "I don't have prior context".
+  const sendToAgent = (
+    id: string,
+    text: string,
+    images: { mediaType: string; data: string }[]
+  ): void => {
+    if (contextLostRef.current) {
+      contextLostRef.current = false
+      const recap = buildRecap()
+      if (recap) {
+        text =
+          '[The earlier session for this conversation was lost, so you have no memory of ' +
+          'it. Here is a recap of what was said before — treat it as the conversation so ' +
+          'far and continue from it.]\n\n' +
+          recap +
+          '\n\n---\n\n' +
+          text
+      }
+    }
+    window.cove.agentSend(id, text, images)
+  }
+
   // The agent's lifecycle must not be tied to this callback's identity: the effect
   // below stops the claude process on teardown, so a re-created handleEvent (which
   // is what Fast Refresh hands us on every edit) would kill a generation mid-turn.
@@ -1350,11 +1535,27 @@ export function EasyChat({
     let disposed = false
     let offEvent: (() => void) | undefined
     let offExit: (() => void) | undefined
+    let offResumeLost: (() => void) | undefined
+
+    // No session id to resume but a real prior conversation already on screen →
+    // this process starts blank under an existing exchange. That's the silent
+    // context loss; arm a recap so the first message carries what came before.
+    // Gate on a prior ASSISTANT reply, not just any message: a brand-new chat's
+    // first send has already put the user message into the transcript by now, so
+    // "some message exists" is true on every new chat — which falsely armed the
+    // recap (and duplicated the message) on the most common path of all.
+    if (
+      !resumeIdRef.current &&
+      itemsRef.current.some((it) => it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system)
+    ) {
+      contextLostRef.current = true
+    }
 
     window.cove
       .agentStart({
         cwd,
         workspaceId,
+        chatId,
         resumeSessionId: resumeIdRef.current,
         browserProject,
         permissionMode: useStore.getState().permissionMode,
@@ -1370,21 +1571,66 @@ export function EasyChat({
         // Ready as soon as the process is up — in stream-json input mode claude
         // waits for the first user message before it emits anything.
         setReady(true)
-        // Anything sent while there was no process goes out now.
-        for (const q of pendingSendsRef.current.splice(0)) window.cove.agentSend(id, q.text, q.images)
+        // Anything sent while there was no process goes out now (the first of
+        // them carries the recap if this session came up without its memory).
+        for (const q of pendingSendsRef.current.splice(0)) sendToAgent(id, q.text, q.images)
         offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
         // main only emits agent:exit on a genuine unexpected exit (deliberate
         // stops and the resume→fresh retry are suppressed), so surface it.
-        offExit = window.cove.onAgentExit(id, () => {
+        const died = (reason?: string): void => {
           setReady(false)
           setGenerating(false)
           setThinking(false)
-          setAgentFailed(true)
+          setRunningAgents([])
+          setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
+        }
+        // Resuming failed and a fresh session took its place: arm the recap so
+        // the next message carries the conversation, and say so plainly (a recap
+        // is not the same as Claude actually remembering).
+        const resumeLost = (): void => {
+          if (disposed) return
+          contextLostRef.current = true
+          setItems((prev) =>
+            // Guard against a double notice (event + catch-up both firing).
+            prev.some((it) => it.kind === 'msg' && it.msg.id.startsWith('sys-resume-'))
+              ? prev
+              : [
+                  ...prev,
+                  {
+                    kind: 'msg',
+                    msg: {
+                      id: `sys-resume-${Date.now()}`,
+                      at: Date.now(),
+                      role: 'assistant',
+                      text:
+                        '⚠ The earlier session could not be resumed, so this one starts fresh. ' +
+                        'Your next message includes a short recap of the conversation above so ' +
+                        'Claude can keep going — but details beyond that recap are gone.',
+                      system: true
+                    }
+                  }
+                ]
+          )
+        }
+        offResumeLost = window.cove.onAgentResumeLost?.(id, resumeLost)
+        offExit = window.cove.onAgentExit(id, () => {
+          // The exit event carries no reason; main still knows one.
+          void window.cove.agentDied?.(id).then((d) => died(d?.reason))
+        })
+        // A spawn failure — or a resume that was lost — can land before these
+        // subscriptions exist. Ask whether we already missed either, or the chat
+        // sits on "Working"/context-blind with no notice.
+        void window.cove.agentDied?.(id).then((d) => {
+          if (!disposed && d) died(d.reason)
+        })
+        void window.cove.agentResumeLostCheck?.(id).then((lost) => {
+          if (!disposed && lost) resumeLost()
         })
       })
 
     return () => {
       disposed = true
+      offResumeLost?.()
       offEvent?.()
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
@@ -1418,9 +1664,42 @@ export function EasyChat({
       setReady(false)
       suspendedRef.current = true
       setSuspended(true)
+      // The reaped process is the only thing that could ever poll a backgrounded
+      // shell to "done", so its pills can never clear on their own now. Drop them
+      // — otherwise busy.background stays > 0, which pins this chat mounted for
+      // the life of the app with a pill stuck on "running" forever.
+      setBgTasks([])
     }, IDLE_REAP_MS)
     return () => window.clearTimeout(timer)
   }, [visible, suspended, generating, thinking, bgTasks.length])
+
+  /**
+   * A turn that finished while you were elsewhere leaves something to read.
+   *
+   * "Elsewhere" is either another conversation or another app — a reply that
+   * lands while you are watching it arrive is not unread. The notification
+   * already tells you it finished; this is what is still true tomorrow morning.
+   */
+  const markUnread = useStore((s) => s.markUnread)
+  const markRead = useStore((s) => s.markRead)
+  const wasWorking = useRef(false)
+  useEffect(() => {
+    const working = generating || thinking
+    if (wasWorking.current && !working) {
+      if (!visible || !document.hasFocus()) markUnread(chatId)
+    }
+    wasWorking.current = working
+  }, [generating, thinking, visible, chatId, markUnread])
+  // Looking at it is reading it — including coming back to the window.
+  useEffect(() => {
+    if (!visible) return
+    const clear = (): void => {
+      if (document.hasFocus()) markRead(chatId)
+    }
+    clear()
+    window.addEventListener('focus', clear)
+    return () => window.removeEventListener('focus', clear)
+  }, [visible, chatId, markRead])
 
   // Publish what this chat has in flight, so an app-wide action (installing an
   // update quits the app, which kills every agent) can warn before discarding it.
@@ -1436,9 +1715,12 @@ export function EasyChat({
   // half once it doesn't (reaped while idle, or torn down when the chat closes).
   const setAgentLive = useStore((s) => s.setAgentLive)
   useEffect(() => {
-    setAgentLive(workspaceId, ready && !suspended)
-  }, [workspaceId, ready, suspended, setAgentLive])
-  useEffect(() => () => setAgentLive(workspaceId, false), [workspaceId, setAgentLive])
+    setAgentLive(workspaceId, chatId, ready && !suspended)
+  }, [workspaceId, chatId, ready, suspended, setAgentLive])
+  useEffect(
+    () => () => setAgentLive(workspaceId, chatId, false),
+    [workspaceId, chatId, setAgentLive]
+  )
 
   // Auto-scroll only when the user is already near the bottom, so scrolling up
   // to read scrollback isn't interrupted.
@@ -1485,7 +1767,7 @@ export function EasyChat({
       }
       setItems([])
       tasks.current.clear()
-      useStore.getState().clearTodos(workspaceId)
+      useStore.getState().clearTodos(chatId)
       resumeIdRef.current = null
       setReady(false)
       suspendedRef.current = true
@@ -1499,7 +1781,7 @@ export function EasyChat({
   useEffect(() => {
     const onInjected = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId) return
+      if (detail.workspaceId !== workspaceId || !visible) return
       // The chat owns its agent process — and may have reaped it while it sat in
       // the background — so delivery happens here rather than through a cached id.
       if (agentIdRef.current) window.cove.agentSend(agentIdRef.current, detail.text)
@@ -1516,7 +1798,9 @@ export function EasyChat({
     }
     window.addEventListener('cove:easy-user-message', onInjected)
     return () => window.removeEventListener('cove:easy-user-message', onInjected)
-  }, [workspaceId, wake])
+  }, [workspaceId, wake, visible])
+
+  const submitRef = useRef<((t: string) => void) | null>(null)
 
   const submit = (text: string, images: PendingImage[] = []): void => {
     const id = agentIdRef.current
@@ -1526,7 +1810,11 @@ export function EasyChat({
     if (id && !ready) return
     if (!id && !suspendedRef.current) return // already spawning; drop rather than double-send
     // Sent while a turn is already running — this is a mid-task interjection.
-    const interjecting = generating
+    // Read the ref, not `generating`: two messages fired in the same tick would
+    // both see the stale state and race. Mark a turn in flight right now so the
+    // next one this tick is correctly treated as an interjection.
+    const interjecting = turnInFlightRef.current
+    turnInFlightRef.current = true
     const reply = replyTarget
     setReplyTarget(null)
     // Name an untitled chat after its opening message, so the sidebar list is
@@ -1592,7 +1880,7 @@ export function EasyChat({
       retriedEmptyTurnRef.current = false
     }
     if (id) {
-      window.cove.agentSend(id, agentText, payload)
+      sendToAgent(id, agentText, payload)
     } else {
       // First message of a dormant chat: this is the moment the session starts.
       pendingSendsRef.current.push({ text: agentText, images: payload })
@@ -1616,6 +1904,7 @@ export function EasyChat({
       interruptedRef.current = true
       setThinking(false)
       setGenerating(false)
+      setRunningAgents([])
       await window.cove.agentHardInterrupt?.(id)
       agentIdRef.current = null
       setReady(false)
@@ -1646,6 +1935,7 @@ export function EasyChat({
   )
 
   const send = (): void => submit(input.trim(), pendingImages)
+  submitRef.current = (t: string) => submit(t)
 
   const beginReply = (msg: ChatMessage): void => {
     setReplyTarget({ role: msg.role, text: msg.text })
@@ -1741,15 +2031,18 @@ export function EasyChat({
   // The window going away mid-hold means no keyup and no pointerup is ever
   // coming: transcribe what we have rather than recording into the void.
   useEffect(() => {
+    if (!visible) return
     const onBlur = (): void => {
       if (dictation.state === 'recording') finishDictation()
     }
     window.addEventListener('blur', onBlur)
     return () => window.removeEventListener('blur', onBlur)
-  }, [dictation.state, finishDictation])
+  }, [dictation.state, finishDictation, visible])
 
   // Hold ⌥Space to dictate from anywhere in the window; release to transcribe.
+  // Only the on-screen chat listens — a hidden busy sibling must not grab the mic.
   useEffect(() => {
+    if (!visible) return
     const down = (e: KeyboardEvent): void => {
       if (e.altKey && e.code === 'Space' && !e.repeat) {
         const now = Date.now()
@@ -1772,7 +2065,7 @@ export function EasyChat({
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [startDictation, finishDictation])
+  }, [startDictation, finishDictation, visible])
 
   // Adds a sibling conversation rather than wiping this one — the previous chat
   // keeps its transcript and stays resumable from the sidebar.
@@ -1781,7 +2074,8 @@ export function EasyChat({
     setPendingImages([])
     setMentionQuery(null)
     tasks.current.clear()
-    useStore.getState().clearTodos(workspaceId)
+    // No clearTodos here: todos are per-chat now, so the new chat already starts
+    // empty and the previous one keeps its list along with its transcript.
     useStore.getState().newChat(workspaceId)
   }
 
@@ -1818,9 +2112,21 @@ export function EasyChat({
     applyRespawn()
   }
   const modelLabel = MODEL_OPTIONS.find((m) => m.value === model)?.label ?? 'Default'
-  // How much of Claude's memory this conversation fills. The window depends on
-  // the model actually running — the 1M variants advertise themselves in the id.
-  const ctxWindow = activeModel && /\[?1m\]?/i.test(activeModel) ? 1_000_000 : 200_000
+  /**
+   * How much of Claude's memory this conversation fills. The window depends on
+   * the model running — read from the id it reports at startup.
+   *
+   * Opus 5 is a 1M-context model whether or not the id carries the [1m] tag:
+   * a session was measured working with 376K tokens in it, which cannot fit a
+   * 200K window and still run, so plain claude-opus-5 was under-reported as
+   * 200K and the gauge sat pinned at 100% on a conversation using a third of
+   * its room. The [1m] tag still forces 1M for the models that offer it as a
+   * choice (Sonnet), and everything else is the 200K baseline.
+   */
+  const ctxWindow =
+    activeModel && (/\[1m\]/i.test(activeModel) || /opus-?5|opus\b/i.test(activeModel))
+      ? 1_000_000
+      : 200_000
   const ctxPercent = Math.min(100, Math.round(((ctxTokens ?? 0) / ctxWindow) * 100))
   const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
 
@@ -1838,16 +2144,28 @@ export function EasyChat({
       {agentFailed && (
         <div className="easy-error">
           <span>
-            ⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.
+            {agentFailed === 'missing-cwd' ? (
+              <>⚠ This project&rsquo;s folder isn&rsquo;t there any more — it was moved or deleted.</>
+            ) : (
+              <>⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.</>
+            )}
           </span>
           <button onClick={retry}>Retry</button>
         </div>
       )}
-      {/* Everything pinned above the transcript, in normal flow: the New chat /
-          New worktree pills used to float over the top-right corner, which put
-          them on top of the dev-server strip. */}
+      {/* The tasks/dev-server strip stays in normal flow — floating the pills
+          over it is the old bug. The pills themselves live inside the
+          transcript below, pinned to its top, so they float over the messages
+          and nothing else. */}
       <div className="easy-topstack">
-        {items.length > 0 && (
+        <TasksPanel chatId={chatId} />
+      </div>
+      <div
+        className="easy-scroll"
+        ref={scrollRef}
+        onScroll={onScroll}
+      >
+        {items.length > 0 && !hideNewChat && (
           <div className="easy-newchat-group">
           <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
             ✎ New chat
@@ -1870,11 +2188,8 @@ export function EasyChat({
               ⎇ New worktree
             </button>
           )}
-        </div>
-      )}
-        <TasksPanel workspaceId={workspaceId} />
-      </div>
-      <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
+          </div>
+        )}
         {items.length === 0 && (ready || suspended) && (
           <div className="easy-empty">
             <p>Tell Claude what you&rsquo;d like to build or change.</p>
@@ -1994,54 +2309,6 @@ export function EasyChat({
         </div>
       )}
       <div className="easy-input-row">
-        <div className="easy-abovebar">
-        <DevServerStrip workspaceId={workspaceId} />
-        {bgTasks.length > 0 && (
-          <div className={`easy-bg ${bgOpen ? 'open' : ''}`}>
-            <button
-              className="easy-bg-bar"
-              onClick={() => setBgOpen((v) => !v)}
-              title={bgOpen ? 'Hide details' : 'Show what these are doing'}
-            >
-              <span className="easy-bg-pulse" />
-              <span className="easy-bg-label">
-                {bgTasks.length === 1
-                  ? 'Running in the background'
-                  : `${bgTasks.length} running in the background`}
-              </span>
-              <span className="easy-bg-cmd">{bgTasks.map((t) => t.command).join(' · ')}</span>
-              <span className="easy-bg-caret">{bgOpen ? '⌄' : '›'}</span>
-              <span
-                className="easy-bg-dismiss"
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setBgTasks([])
-                }}
-                title="Hide — this doesn't stop anything"
-              >
-                ✕
-              </span>
-            </button>
-            {bgOpen && (
-              <div className="easy-bg-panel">
-                {bgTasks.map((t) => (
-                  <div key={t.toolUseId} className="easy-bg-item">
-                    <div className="easy-bg-item-head">
-                      <code>{t.command}</code>
-                      <span className="easy-bg-age">{Math.max(1, Math.round((Date.now() - t.startedAt) / 1000))}s</span>
-                    </div>
-                    <pre className="easy-bg-out">
-                      {t.output?.trim() || 'Waiting for output…'}
-                    </pre>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        </div>
         {replyTarget && (
           <div className="easy-reply-bar">
             <span className="easy-reply-bar-icon">↩</span>
@@ -2267,7 +2534,7 @@ export function EasyChat({
           >
             <span className="easy-control-key">Model</span>
             <span className="easy-control-val">
-              {model === '' && activeModel ? shortModel(activeModel) : modelLabel}
+              {modelLabel}
             </span>
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -2282,7 +2549,14 @@ export function EasyChat({
                   onClick={() => pickModel(o.value)}
                 >
                   <span className="easy-control-item-label">{o.label}</span>
-                  <span className="easy-control-item-hint">{o.hint}</span>
+                  <span className="easy-control-item-hint">
+                    {/* Naming the resolution here rather than on the pill: the
+                        pill showing "Opus 5" while the menu said Default read
+                        as though Opus had been picked. */}
+                    {o.value === '' && activeModel
+                      ? `${o.hint} — right now ${shortModel(activeModel)}`
+                      : o.hint}
+                  </span>
                 </button>
               ))}
             </div>
@@ -2315,19 +2589,122 @@ export function EasyChat({
             </div>
           )}
         </div>
+        <DevServerPill
+          workspaceId={workspaceId}
+          open={controlMenu === 'server'}
+          onToggle={() => setControlMenu((m) => (m === 'server' ? null : 'server'))}
+        />
         {ctxTokens !== null && (
-          <span
-            className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}
-            title={`This conversation is using about ${ctxTokens.toLocaleString()} of ${ctxWindow.toLocaleString()} tokens of Claude's memory. When it fills up, older turns are summarised automatically — nothing is lost, but detail fades.`}
-          >
+          <span className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}>
+            {/* Our own tooltip rather than title=""; the native one waits about
+                a second and cannot show the numbers as numbers. */}
+            <span className="easy-ctx-tip" role="tooltip">
+              <b>
+                {ctxTokens.toLocaleString()} of {ctxWindow.toLocaleString()} tokens
+              </b>
+              <span>
+                {activeModel ? `${shortModel(activeModel)} · ` : ''}
+                {ctxWindow >= 1_000_000 ? '1M context window' : '200K context window'}
+              </span>
+              <span>
+                When it fills, older turns are summarised automatically — nothing is lost,
+                but detail fades. /compact does it now, on your terms.
+              </span>
+            </span>
             <span className="easy-ctx-label">Memory</span>
             <span className="easy-ctx-track">
               <span className="easy-ctx-fill" style={{ width: `${Math.min(100, ctxPercent)}%` }} />
             </span>
             <span className="easy-ctx-pct">{ctxPercent}%</span>
+            {/* The bar only ever reported the problem. Past three quarters it
+                offers the fix too — /compact summarises the conversation and
+                hands the room back, which is otherwise something you have to
+                know to type. */}
+            {ctxPercent >= 75 && (
+              <button
+                className="easy-ctx-compact"
+                disabled={generating || thinking}
+                title={
+                  generating || thinking
+                    ? 'Wait for Claude to finish, then compact'
+                    : 'Summarise the conversation so far to free up memory (/compact)'
+                }
+                onClick={() => submitRef.current?.('/compact')}
+              >
+                Compact
+              </button>
+            )}
           </span>
         )}
       </div>
+      {/* Running work lives on its own row under the controls, not crammed into
+          the Model/Mode line where a handful of jobs would wrap and shove the
+          memory gauge around. Background commands the agent left running, plus
+          any live sub-agent. Only present when there's something running. */}
+      {(bgTasks.length > 0 || runningAgents.length > 0) && (
+        <div className="easy-runs">
+          {bgTasks.map((t) => {
+            const key = `bg-${t.toolUseId}`
+            const name = t.command.trim().split(/\s+/)[0].split('/').pop() || 'job'
+            return (
+              <div className="easy-control" key={t.toolUseId}>
+                <button
+                  className={`easy-control-btn ${controlMenu === key ? 'open' : ''}`}
+                  onClick={() => setControlMenu((m) => (m === key ? null : key))}
+                  title={t.command}
+                >
+                  <span className="easy-run-dot" />
+                  <span className="easy-control-val">{name}</span>
+                </button>
+                {controlMenu === key && (
+                  <div className="easy-control-menu easy-run-menu">
+                    <div className="easy-run-head">
+                      <code>{t.command}</code>
+                      <span className="easy-run-age">
+                        {Math.max(1, Math.round((now - t.startedAt) / 1000))}s
+                      </span>
+                    </div>
+                    <pre className="easy-run-out">{t.output?.trim() || 'Waiting for output…'}</pre>
+                    <button
+                      className="easy-control-item"
+                      onClick={() => {
+                        setControlMenu(null)
+                        setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
+                      }}
+                    >
+                      <span className="easy-control-item-label">Hide</span>
+                      <span className="easy-control-item-hint">This doesn&rsquo;t stop it</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {runningAgents.map((a) => (
+            <div className="easy-control" key={a.toolUseId}>
+              <span
+                className="easy-control-btn easy-run-agent"
+                title={`Sub-agent working · ${a.label} · ${Math.max(1, Math.round((now - a.startedAt) / 1000))}s`}
+              >
+                <span className="status-spinner easy-run-agent-spin" />
+                <span className="easy-control-val">🤖 {a.label}</span>
+              </span>
+            </div>
+          ))}
+          {/* Clear the whole strip in one go — these are the agent's shells, and
+              once a build has finished the pill is just clutter. Doesn't stop
+              anything still live; it just stops tracking it here. */}
+          {bgTasks.length > 1 && (
+            <button
+              className="easy-runs-clear"
+              title="Hide all — this doesn't stop anything still running"
+              onClick={() => setBgTasks([])}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
       {lightbox && (
         <div className="easy-lightbox" onClick={() => setLightbox(null)}>
           <img src={lightbox} alt="attachment" />

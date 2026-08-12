@@ -10,6 +10,42 @@ interface BrowserPaneProps {
   visible?: boolean
   /** Code projects can dismiss the pane; a browser project *is* the pane. */
   closable?: boolean
+  /**
+   * Something is on top of this pane that the pane itself cannot know about —
+   * on the desktop, a window stacked over the browser's. A native view paints
+   * above all HTML, so the page has to stand down and let its still stand in.
+   */
+  occluded?: boolean
+  /**
+   * Changes whenever the pane may have MOVED rather than resized.
+   *
+   * The native view is positioned in window coordinates, and the only things
+   * that re-push those coordinates are a ResizeObserver on the host and the
+   * window's own resize event. Neither fires when a surface merely moves — drag
+   * a desktop window and the page stayed behind at the old coordinates. There
+   * is no position observer in the platform, so whoever moves the pane says so.
+   */
+  positionKey?: string
+  /**
+   * Corner radius for a pane that fills a rounded window. A native view is not
+   * clipped by anything's CSS, so square corners sat inside the window's arcs
+   * with a wedge of frame showing through each one. Electron's radius is
+   * uniform, so the top arcs are backfilled to read square — the page meets a
+   * toolbar up there, not a corner.
+   */
+  radius?: number
+  /**
+   * The colour of the page's own edge, as it is sampled. Whatever frames this
+   * pane can then match it, so the page appears to run to the frame instead of
+   * stopping short of it against a band of window.
+   */
+  onEdgeColour?: (colour: string) => void
+  /**
+   * Fill the pane rather than simulating a desktop screen. A project preview
+   * wants the simulated viewport — it is showing you a site as a visitor sees
+   * it. A browser tab is not a preview of anything: it should fill its window.
+   */
+  fill?: boolean
 }
 
 interface Suggestion {
@@ -65,10 +101,23 @@ export function BrowserPane({
   partition,
   initialUrl,
   visible = true,
-  closable = false
+  closable = false,
+  fill = false,
+  occluded = false,
+  positionKey,
+  radius = 0,
+  onEdgeColour
 }: BrowserPaneProps): React.JSX.Element {
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const previewUrl = useStore((s) => s.previewUrls[paneId])
+  /**
+   * The latest requested URL, for the create callback below. `initialUrl` is
+   * whatever this pane had last run; when the pane is re-mounted (leaving the
+   * file viewer, say) that value is stale, and because browserCreate resolves
+   * after the previewUrl effect has already navigated, it would clobber the
+   * page you just asked for with the one before it.
+   */
+  const previewUrlRef = useRef<string | undefined>(previewUrl)
   const reloadOnIdle = useStore((s) => s.reloadOnIdle[paneId] ?? true)
   const setReloadOnIdle = useStore((s) => s.setReloadOnIdle)
   const browsing = useStore((s) => s.browsingWorkspaceId === paneId)
@@ -82,6 +131,13 @@ export function BrowserPane({
     canGoForward: false,
     loading: false
   })
+  // Tell the sidebar this project has a page on screen — whoever opened it,
+  // and whether or not anything of ours started a server for it.
+  const setPageUrl = useStore((s) => s.setPageUrl)
+  useEffect(() => {
+    setPageUrl(paneId, state.url || '')
+    return () => setPageUrl(paneId, '')
+  }, [paneId, state.url, setPageUrl])
   const [crashed, setCrashed] = useState(false)
   const [zoom, setZoom] = useState(1)
   // Host-relative rect of the simulated device screen, so an HTML card can sit
@@ -101,7 +157,7 @@ export function BrowserPane({
   const [viewport, setViewport] = useState<'none' | 'desktop' | 'mobile' | 'both'>(
     () =>
       (localStorage.getItem(`viewport:${paneId}`) as 'none' | 'desktop' | 'mobile' | 'both') ||
-      'desktop'
+      (fill ? 'none' : 'desktop')
   )
   // syncBounds reads the mode through this ref so it can stay stable (deps: paneId
   // only) — otherwise recreating it on every mode change would re-run the pane's
@@ -134,7 +190,11 @@ export function BrowserPane({
   const [frozen, setFrozen] = useState<string | null>(null)
   // Page-coloured DOM backfills for the top corners (desktop mode): the rounded
   // top arcs reveal these instead of the grey card, so the top reads square.
-  const [cornerFill, setCornerFill] = useState<{ left: string; right: string } | null>(null)
+  const [cornerFill, setCornerFill] = useState<{
+    left: string
+    right: string
+    bottom: string
+  } | null>(null)
   // Phone card of the side-by-side mode.
   const [twinFrame, setTwinFrame] = useState<{
     left: number
@@ -161,10 +221,31 @@ export function BrowserPane({
     overlayRef.current = overlayOpen
   }, [overlayOpen])
 
+  // Read through a ref: syncBounds is a dependency of half the effects in here,
+  // and rebuilding it on a prop that only ever changes once is not worth it.
+  const radiusRef = useRef(radius)
+  useEffect(() => {
+    radiusRef.current = radius
+  }, [radius])
+
+  /**
+   * Whether something is covering this pane. Declared here because syncBounds
+   * reads it, and kept in step with paneCovered further down.
+   */
+  const coveredRef = useRef(false)
+
   const syncBounds = useCallback((): void => {
     // Don't position the native view while this workspace is hidden (it would
-    // overlay the active one) or while an HTML overlay is open (it would cover it).
-    if (!visibleRef.current || overlayRef.current) return
+    // overlay the active one), while an HTML overlay is open (it would cover
+    // it), or while the pane is covered by something else.
+    //
+    // That last one is what made every stacking fix temporary. Pushing bounds
+    // re-attaches a detached view — that is how a pane comes back when you
+    // return to it — so a covered pane that pushed bounds for any reason (a
+    // resize tick, a window being dragged, a resync) undid its own freeze and
+    // reappeared on top, at whatever bounds it last worked out. The freeze
+    // must therefore hold the position too, not just the picture.
+    if (!visibleRef.current || overlayRef.current || coveredRef.current) return
     const host = hostRef.current
     if (!host) return
     const r = host.getBoundingClientRect()
@@ -189,6 +270,9 @@ export function BrowserPane({
       // layout fits the pane width (not a cramped 1:1 render). A manual zoom
       // (autoFit off) is respected instead.
       if (autoFitRef.current && W > 0) window.cove.browserSetZoom?.(paneId, W / 1280)
+      // The page fills the pane edge to edge: square (Electron can't reliably
+      // round a WebContentsView's bottom) and to the full height — no radius, and
+      // no bottom inset, which used to leave a strip of backdrop under the page.
       window.cove.browserSetRadius?.(paneId, 0)
       emit({ x: x0, y: y0, width: W, height: H })
       return
@@ -284,12 +368,19 @@ export function BrowserPane({
     return window.cove.onAppFocus?.((focused) => setAway(!focused))
   }, [])
 
-  const paneCovered = overlayOpen || suggestOpen || away
+  useEffect(() => {
+    if (cornerFill?.bottom) onEdgeColour?.(cornerFill.bottom)
+  }, [cornerFill?.bottom, onEdgeColour])
+
+  const paneCovered = overlayOpen || suggestOpen || away || occluded
+  useEffect(() => {
+    coveredRef.current = paneCovered
+  }, [paneCovered])
 
   // Follow the page's corner colour: once immediately, then a lazy tick — catches
   // navigations, theme flips and repaints without chasing every frame.
   useEffect(() => {
-    if (!visible || paneCovered || viewport === 'none') return
+    if (!visible || paneCovered || (viewport === 'none' && !radius)) return
     let alive = true
     const tick = async (): Promise<void> => {
       const c = await window.cove.browserSampleCorners?.(paneId)
@@ -307,7 +398,7 @@ export function BrowserPane({
       window.clearInterval(t)
       offState?.()
     }
-  }, [visible, paneCovered, viewport, paneId])
+  }, [visible, paneCovered, viewport, paneId, radius])
 
   // Show/hide the native view as this workspace becomes active/inactive or as an
   // HTML overlay opens/closes over it; re-sync when the dropdown opens/closes so
@@ -316,7 +407,7 @@ export function BrowserPane({
     if (visible && !paneCovered) syncBounds()
     else if (!visible) window.cove.browserHide(paneId)
     // The covered case is handled below, so the page can be frozen before it goes.
-  }, [visible, paneCovered, paneId, syncBounds])
+  }, [visible, paneCovered, paneId, syncBounds, positionKey])
 
   // Overlay opening: one IPC — main photographs the page and detaches the view
   // in the same handler, then the still stands in (~20 ms later). Detaching must
@@ -387,7 +478,8 @@ export function BrowserPane({
       // A URL to load, or the themed "new tab" empty state — but only for browser
       // projects. A code preview with no URL stays blank (as before) so it never
       // renders an out-of-place "type a URL" page floating over the chat.
-      if (initialUrl) window.cove.browserNavigate(paneId, initialUrl)
+      const target = previewUrlRef.current ?? initialUrl
+      if (target) window.cove.browserNavigate(paneId, target)
       else if (!closable) window.cove.browserShowEmpty(paneId)
     })
 
@@ -418,6 +510,10 @@ export function BrowserPane({
   useEffect(() => {
     if (previewUrl) window.cove.browserNavigate(paneId, previewUrl)
   }, [paneId, previewUrl])
+
+  useEffect(() => {
+    previewUrlRef.current = previewUrl
+  })
 
   // Mirror the real page URL into the bar — but only on an actual URL change and
   // only while the user isn't editing, so typed text never flickers to a stale value.
@@ -498,6 +594,8 @@ export function BrowserPane({
       const picked = suggestIndex >= 0 ? suggestions[suggestIndex] : interpretOmnibox(addressInput)
       if (picked) go(picked.target)
     } else if (e.key === 'Escape') {
+      // Claim it, so dismissing the omnibox does not also close a panel behind.
+      e.preventDefault()
       setShowSuggest(false)
       inputRef.current?.blur()
     }
@@ -545,13 +643,17 @@ export function BrowserPane({
           ›
         </button>
         <button
-          className={`browser-nav-btn ${state.loading ? 'loading' : ''}`}
+          className={`browser-nav-btn browser-reload-btn ${state.loading ? 'loading' : ''}`}
           onClick={() =>
             state.loading ? window.cove.browserStop?.(paneId) : window.cove.browserReload(paneId)
           }
           title={state.loading ? 'Stop loading' : 'Reload'}
         >
-          {state.loading ? '×' : '⟳'}
+          {/* The reload glyph spins while the page loads — the unmistakable "it's
+              working" signal even for a fast reload; on hover it becomes × to
+              stop. Idle: a plain reload arrow. */}
+          <span className="browser-reload-glyph">⟳</span>
+          <span className="browser-reload-stop">×</span>
         </button>
         <div className="browser-omnibox">
           <input
@@ -602,6 +704,10 @@ export function BrowserPane({
             </div>
           )}
         </div>
+        {/* Simulated screen sizes are for looking at a site you are building.
+            A browser window is not previewing anything — it fills, and the
+            switcher there is four buttons that only ever undo themselves. */}
+        {!fill && (
         <div className="browser-viewport" role="group" title="Simulated screen size">
           <button
             className={`browser-vp-btn ${viewport === 'desktop' ? 'on' : ''}`}
@@ -632,6 +738,7 @@ export function BrowserPane({
             <FitIcon />
           </button>
         </div>
+        )}
         {/* Manual zoom only applies when not simulating a device (the sim owns zoom). */}
         {viewport === 'none' && (
           <div className="browser-zoom">
@@ -666,9 +773,13 @@ export function BrowserPane({
         </button>
         {closable && (
           <button
-            className="browser-nav-btn"
-            onClick={() => toggleBrowser(paneId)}
-            title="Close preview"
+            // Set apart from the navigation buttons: as one more identical
+            // glyph at the end of ten, nobody read this as the way out.
+            className="browser-nav-btn browser-close-btn"
+            // This button only exists while the pane is on screen, so the
+            // current state is not in doubt: it is open, and this closes it.
+            onClick={() => toggleBrowser(paneId, true)}
+            title="Close this preview pane"
           >
             ✕
           </button>
@@ -723,6 +834,21 @@ export function BrowserPane({
             />
           </>
         )}
+        {viewport === 'none' && radius > 0 && visible && viewRect && (
+          /* The page's rounded bottom: the strip the view was held back from,
+             filled with the colour of the page's own bottom edge. */
+          <div
+            className="browser-bottom-round"
+            style={{
+              left: viewRect.left,
+              top: viewRect.top + viewRect.height,
+              width: viewRect.width,
+              height: radius,
+              borderRadius: `0 0 ${radius}px ${radius}px`,
+              background: cornerFill?.bottom ?? 'var(--bg-content)'
+            }}
+          />
+        )}
         {frozen && viewRect && (
           // Stand-in for the native view while an overlay is up. Corners match
           // what the compositor draws: square under the docked omnibar, rounded
@@ -736,6 +862,8 @@ export function BrowserPane({
               top: viewRect.top,
               width: viewRect.width,
               height: viewRect.height,
+              // Square in fill mode: the still stops where the view does, and
+              // the strip below it is what carries the curve.
               borderRadius:
                 viewport === 'desktop' ? '0 0 10px 10px' : viewport === 'mobile' ? '10px' : '0'
             }}

@@ -171,7 +171,11 @@ function ensureDebugger(paneId: string): WebContents {
     })
     contents.debugger.sendCommand('Runtime.enable').catch(() => {})
     contents.debugger.sendCommand('Network.enable').catch(() => {})
-    // Hide the automation tell for future navigations + the current page.
+    // The one thing this session must undo: attaching the debugger flips
+    // navigator.webdriver true, so mask it back to false. Nothing else is
+    // spoofed — the pane presents as the honest Chromium it is, the same
+    // whether the agent is driving or you are (see the note by
+    // applyBrowserIdentity), so its story never changes mid-session.
     contents.debugger
       .sendCommand('Page.enable')
       .then(() =>

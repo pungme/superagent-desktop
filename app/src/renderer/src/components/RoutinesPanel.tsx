@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { Routine, Workspace } from '../../../preload'
 import { useStore } from '../state'
-import { SlideOverPanel } from './SlideOverPanel'
+import { SectionView } from './SectionView'
 
 interface RoutinesPanelProps {
   ws: Workspace
   onClose: () => void
+  /** Rendered inside a desktop window, which supplies the frame. */
+  embedded?: boolean
 }
 
 function relativeInterval(ms: number): string {
@@ -24,7 +26,7 @@ function statusLabel(r: Routine): string {
   return 'Not run yet'
 }
 
-export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.Element {
+export function RoutinesPanel({ ws, onClose, embedded = false }: RoutinesPanelProps): React.JSX.Element {
   const [routines, setRoutines] = useState<Routine[]>([])
   const [prompt, setPrompt] = useState('')
   const [hours, setHours] = useState(1)
@@ -49,7 +51,7 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
   }
 
   return (
-    <SlideOverPanel title="Routines" onClose={onClose}>
+    <SectionView title="Routines" onClose={onClose} embedded={embedded}>
       <div className="routine-new">
         <textarea
           className="routine-prompt"
@@ -123,6 +125,6 @@ export function RoutinesPanel({ ws, onClose }: RoutinesPanelProps): React.JSX.El
       <div className="skills-footer">
         <span className="routine-note">Routines run only while SuperAgent is open.</span>
       </div>
-    </SlideOverPanel>
+    </SectionView>
   )
 }

@@ -1,4 +1,14 @@
-import { app, shell, BrowserWindow, Menu, clipboard, nativeTheme, ipcMain, dialog, session } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  Menu,
+  clipboard,
+  nativeTheme,
+  ipcMain,
+  dialog,
+  session
+} from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -13,6 +23,8 @@ import {
 } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
+import { registerDesktopIpc } from './desktop'
+import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
@@ -20,6 +32,7 @@ import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerFilesIpc } from './files'
+import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded } from './updater'
 
@@ -155,6 +168,8 @@ app.whenReady().then(() => {
 
   registerBrowserIpc()
   registerStoreIpc()
+  registerDesktopIpc()
+  registerDeskIpc()
   registerHookIpc()
   registerAutomationIpc()
   registerAgentIpc()
@@ -162,6 +177,7 @@ app.whenReady().then(() => {
   registerRoutinesIpc()
   registerEnvironmentIpc()
   registerFilesIpc()
+  registerSimulatorIpc()
   buildMenu()
   startHookServer()
   startRoutines()
@@ -172,10 +188,39 @@ app.whenReady().then(() => {
   ipcMain.handle('app:version', () => app.getVersion())
 
   // Right-click a chat row: clear (wipe transcript + session, keep the row) or delete.
-  ipcMain.on('chat:menu', (e, chatId: string, workspaceId: string) => {
+  ipcMain.on('chat:menu', (e, chatId: string, workspaceId: string, cwd?: string | null) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return
-    const menu = Menu.buildFromTemplate([
+    const template: Electron.MenuItemConstructorOptions[] = []
+    // A worktree chat can be folded back into the project when you're done.
+    if (cwd && cwd.includes('/.worktrees/')) {
+      const projectPath = cwd.split('/.worktrees/')[0]
+      template.push(
+        {
+          label: 'Merge & finish…',
+          click: async () => {
+            const { response } = await dialog.showMessageBox(win, {
+              type: 'question',
+              buttons: ['Merge & finish', 'Cancel'],
+              defaultId: 1,
+              message: 'Merge this worktree back into the project?',
+              detail:
+                'Its changes are squashed into a single commit on the current branch, then the worktree and its branch are removed. Nothing happens if there are conflicts.'
+            })
+            if (response === 0) {
+              win.webContents.send('chat:merge-worktree', {
+                chatId,
+                workspaceId,
+                projectPath,
+                wtPath: cwd
+              })
+            }
+          }
+        },
+        { type: 'separator' }
+      )
+    }
+    template.push(
       {
         label: 'Clear chat…',
         click: async () => {
@@ -194,9 +239,66 @@ app.whenReady().then(() => {
         label: 'Delete chat',
         click: () => win.webContents.send('chat:delete', { chatId, workspaceId })
       }
-    ])
-    menu.popup({ window: win })
+    )
+    Menu.buildFromTemplate(template).popup({ window: win })
   })
+
+  // Right-click a project row in the sidebar. Worktree chats are the point —
+  // a sibling conversation on a fresh git worktree of the project, so two lines
+  // of work don't step on each other's files. Only offered for a real repo.
+  ipcMain.on('workspace:menu', (e, ws: { id: string; path: string; isRepo: boolean }) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win) return
+    const send = (action: string): void =>
+      win.webContents.send('workspace:menu-action', { action, id: ws.id, path: ws.path })
+    const template: Electron.MenuItemConstructorOptions[] = [
+      { label: 'New Chat', click: () => send('new-chat') }
+    ]
+    if (ws.isRepo) {
+      template.push({
+        label: 'New Chat in a Worktree',
+        click: () => send('new-worktree')
+      })
+    }
+    template.push(
+      { type: 'separator' },
+      { label: 'Reveal in Finder', click: () => shell.showItemInFolder(ws.path) },
+      { label: 'Copy Path', click: () => clipboard.writeText(ws.path) }
+    )
+    Menu.buildFromTemplate(template).popup({ window: win })
+  })
+
+  // Right-click a desktop icon (or a multi-selection). The renderer owns the
+  // actual actions (it has the desk state), so this native menu just routes the
+  // chosen verb back with the paths it applies to.
+  ipcMain.on(
+    'desk:menu',
+    (e, info: { paths: string[]; single: boolean; isLink: boolean; isDir: boolean }) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      const send = (action: string): void =>
+        win.webContents.send('desk:menu-action', { action, paths: info.paths })
+      const template: Electron.MenuItemConstructorOptions[] = []
+      if (info.single) {
+        template.push(
+          { label: 'Open', click: () => send('open') },
+          { label: 'Rename', click: () => send('rename') }
+        )
+      }
+      // A link just comes off the desk; a real file goes to the Trash.
+      const del = info.isLink
+        ? 'Remove from Desktop'
+        : info.paths.length > 1
+          ? `Move ${info.paths.length} Items to Trash`
+          : 'Move to Trash'
+      template.push(
+        { label: 'Reveal in Finder', click: () => send('reveal') },
+        { type: 'separator' },
+        { label: del, click: () => send('delete') }
+      )
+      Menu.buildFromTemplate(template).popup({ window: win })
+    }
+  )
 
   // Right-click on a file-tree row: the little things a real file browser owes you.
   ipcMain.on('files:menu', (e, absPath: string) => {
@@ -237,6 +339,8 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   killAllAgents()
   stopRoutines()
+  stopAllSimStreams()
+  stopAllSimInput()
 })
 
 app.on('window-all-closed', () => {

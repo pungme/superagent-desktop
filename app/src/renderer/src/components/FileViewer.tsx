@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { useEscapeClose } from '../hooks/useEscapeClose'
 import { Markdown } from './Markdown'
 
 interface FileViewerProps {
   path: string
   onClose: () => void
+  /**
+   * Inside a desktop window the frame already carries the filename and a close
+   * button, so the viewer drops its own rather than showing each of them twice.
+   */
+  embedded?: boolean
 }
 
 const basename = (p: string): string => p.slice(p.lastIndexOf('/') + 1)
@@ -16,7 +22,7 @@ const isMarkdown = (p: string): boolean => extOf(p) === 'md' || extOf(p) === 'ma
  * the browser preview would go — so binary previews (PDF/images) still use the
  * native pane, but text no longer shows as Chromium's raw text/plain.
  */
-export function FileViewer({ path, onClose }: FileViewerProps): React.JSX.Element {
+export function FileViewer({ path, onClose, embedded }: FileViewerProps): React.JSX.Element {
   // null = still loading; false = unreadable (too large / binary → offer the OS).
   const [content, setContent] = useState<string | null | false>(null)
   const [draft, setDraft] = useState('')
@@ -53,6 +59,8 @@ export function FileViewer({ path, onClose }: FileViewerProps): React.JSX.Elemen
   }, [path])
 
   const dirty = editing && draft !== savedRef.current
+  // Not while there are unsaved edits — Escape must not be how you lose them.
+  useEscapeClose(onClose, !dirty)
 
   const save = async (): Promise<void> => {
     setSaving(true)
@@ -67,9 +75,11 @@ export function FileViewer({ path, onClose }: FileViewerProps): React.JSX.Elemen
   return (
     <div className="file-viewer">
       <div className="file-viewer-bar">
-        <span className="file-viewer-name" title={path}>
-          {basename(path)}
-        </span>
+        {!embedded && (
+          <span className="file-viewer-name" title={path}>
+            {basename(path)}
+          </span>
+        )}
         {dirty && <span className="file-viewer-dot" title="Unsaved changes" />}
         <div className="file-viewer-spacer" />
         {content !== false && (
@@ -93,9 +103,11 @@ export function FileViewer({ path, onClose }: FileViewerProps): React.JSX.Elemen
             {saving ? 'Saving…' : 'Save'}
           </button>
         )}
-        <button className="file-viewer-close" onClick={onClose} title="Close">
-          ✕
-        </button>
+        {!embedded && (
+          <button className="file-viewer-close" onClick={onClose} title="Close">
+            ✕
+          </button>
+        )}
       </div>
       <div className="file-viewer-body">
         {content === null && <div className="file-viewer-msg">Loading…</div>}

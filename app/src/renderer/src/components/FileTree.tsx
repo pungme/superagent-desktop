@@ -17,10 +17,14 @@ interface TreeNode {
 function buildTree(paths: string[]): TreeNode[] {
   const root: TreeNode = { name: '', path: '', dir: true, children: [] }
   for (const p of paths) {
-    const parts = p.split('/')
+    // A trailing slash means the listing named this directory itself, rather
+    // than us inferring it from a file inside — which is what lets a folder
+    // whose contents were beyond the listing's budget still show up.
+    const isDirEntry = p.endsWith('/')
+    const parts = (isDirEntry ? p.slice(0, -1) : p).split('/')
     let node = root
     parts.forEach((part, i) => {
-      const isFile = i === parts.length - 1
+      const isFile = !isDirEntry && i === parts.length - 1
       let child = node.children.find((c) => c.name === part && c.dir === !isFile)
       if (!child) {
         child = { name: part, path: parts.slice(0, i + 1).join('/'), dir: !isFile, children: [] }

@@ -58,12 +58,19 @@ allowed to do without asking.
 
 - **Desktop & phone at once.** One click shows the same page in a desktop card
   and an iPhone frame — same session, both live.
+- **A desk, not a slot.** The page you're on and an iOS Simulator sit side by
+  side on the same surface, over a Monet you can switch off.
+- **A board the agent keeps.** Backlog, next, doing, done — per project, and
+  Claude moves the cards as it works. Watch them move while you talk to it.
 - **Worktree chats.** Start a chat on its own git worktree; the agent works on
   an isolated branch while your checkout stays clean.
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
   actually got your time. Computed locally.
-- **Files, PDFs & simulators.** Drag files into the chat, annotate PDFs in
-  place, boot an iOS Simulator with a sentence.
+- **An iPhone in the window.** An iOS Simulator streamed *inside* the app from
+  its own framebuffer — the real device, live at the rate it renders, tap and
+  type included. No permission to grant, and Apple's own window stays shut.
+- **Files & PDFs.** Drag files into the chat and annotate PDFs in place, right
+  beside the tree.
 - **Context gauge.** Every conversation shows how much of the context window
   it has used.
 - **Dev server strip.** The agent starts your dev server and iterates while
@@ -97,8 +104,6 @@ allowed to do without asking.
 
 ## Roadmap
 
-- **Embedded iOS Simulator** — the live simulator streaming inside the app,
-  not just driven by it.
 - **Other agents.** SuperAgent wraps Claude Code today, but in the end it's an
   LLM driving a home — the plan is an agent layer that other CLIs and local
   models can plug into.
@@ -119,21 +124,22 @@ allowed to do without asking.
   worktree or PR that did the work, and you can ask what's left.
 
 <!--
-  Maintainer note — how the embedded iOS Simulator should be built. Not
-  user-facing; kept here so the research isn't redone from scratch.
+  Maintainer note — how the embedded iOS Simulator works, and every route that
+  turned out to be a dead end. Not user-facing; kept here so the research isn't
+  redone from scratch.
 
   WHERE WE ARE. Phase 1 shipped in 1.1: `sim_list_devices`, `sim_boot`,
-  `sim_screenshot`, `sim_open_url`, `sim_install_and_launch` in
-  src/main/mcp.ts — all `xcrun simctl`, public APIs only, no private
-  frameworks. The agent boots a device, drives it, and screenshots land in the
-  in-app viewer via the `app:open-file` broadcast. What's missing is only the
-  LIVE view: today Apple's Simulator.app is a separate window the user has to
-  look at themselves.
+  `sim_screenshot`, `sim_open_url`, `sim_install_and_launch` in src/main/mcp.ts
+  — all `xcrun simctl`, public APIs only. Phase 2 shipped in 1.2: the device
+  streamed into the pane from its own framebuffer, via native/simfb. Two modes
+  in src/renderer/src/components/SimulatorPane.tsx — "In the app" (the stream)
+  and "Real device" (park Apple's window on the pane). The pane has no toolbar
+  button: it reveals itself when the agent boots or launches something, the
+  way the browser pane does.
 
   WHY IT ISN'T JUST "EMBED THE WINDOW". macOS gives no supported way to
   reparent another application's window into ours. Anything that looks like
-  embedding is really capture + input forwarding. Two consequences: we need a
-  frame source, and we need a way to send taps/keys back.
+  embedding is really capture + input forwarding.
 
   OPTION A — baguette (the candidate). Open source, Apache-2.0, brew
   installable; runs a local server that streams the booted simulator over a
@@ -161,34 +167,75 @@ allowed to do without asking.
       is not a live view but is honest and works today; (3) OPTION C (idb),
       which has its own video stream.
 
-  OPTION B — ScreenCaptureKit on Simulator.app's window + CGEvent taps for
-  input. No third-party dependency, but it needs Screen Recording AND
-  Accessibility permissions, breaks the moment the window is occluded or
-  moved, and synthesising touches from CGEvent into another app is fragile.
-  Fallback only.
+    dlopen /Library/Developer/PrivateFrameworks/CoreSimulator.framework
+    dlopen <Xcode>/Contents/Developer/Library/PrivateFrameworks/SimulatorKit.framework
+    SimServiceContext sharedServiceContextForDeveloperDir:error:
+      -> defaultDeviceSetWithError: -> devices -> the one with state == 3
+    device.io.ioPorts -> the descriptor conforming to SimDisplayIOSurfaceRenderable
+      -framebufferSurface                              -> IOSurface, BGRA, native res
+      -registerCallbackWithUUID:ioSurfacesChangeCallback:
+      -registerCallbackWithUUID:damageRectanglesCallback:   (from SimDisplayRenderable)
 
-  OPTION C — idb (Meta). Has video streaming and HID commands, so it would
-  also work, but it is a heavier install (python + companion) and less
-  maintained than it was. Keep as plan C.
+    Gotchas, all hit for real:
+      * Only the FIRST display port returns a surface; the other two are nil.
+      * The descriptors are ROCKRemoteProxy objects. KVC throws
+        (NSUnknownKeyException) — use performSelector / NSInvocation.
+      * SimulatorKit.SimDisplayView is an NSView with -setDevice: and it accepts
+        a SimDevice happily, but on its own it renders nothing: intrinsicContentSize
+        stays 0x0 and its layer has no contents. The display port still has to be
+        attached. Grabbing the IOSurface directly is the simpler path.
 
-  HOW IT SLOTS IN. Render it in the SAME pane slot the browser uses, not a new
-  window: a WebContentsView loading a tiny local page that paints the incoming
-  frames onto a canvas and posts pointer/key events back over the socket. That
-  buys the existing geometry work for free — bounds sync, freeze-on-overlay
-  (`browser:freeze`), the phone-frame chrome from the mobile viewport, and the
-  corner treatment. Reuse `browser:twin-bounds`-style layout so a simulator can
-  sit beside the desktop page the way the phone twin does.
-    Pane lifecycle should mirror browser.ts: create on demand, destroy on
-    hide, never leave a live socket behind a hidden view.
+  WHY THE EXISTING TOOLS FAIL, and why that misled us. idb_companion 1.1.8 from
+  brew reports a build date of AUG 2022 and baguette is 0.1.88; both mount a
+  surface and emit zero frames on Xcode 26.5. The earlier conclusion here — that
+  Apple had broken framebuffer streaming — was wrong. Simulator.app renders fine,
+  so the API works; those clients simply predate the current ROCK remoting layer.
+  Two old tools failing the same way is evidence they are both old, not that the
+  platform is shut.
 
-  AGENT SURFACE. Once frames exist, add `sim_tap`, `sim_type`, `sim_swipe`
-  alongside the phase-1 tools, and let `sim_screenshot` read from the live
-  stream instead of shelling out — cheaper, and it matches what the user sees.
+  WHAT SHIPS. native/simfb — a small compiled helper, not a Node addon, so
+  there is no node-gyp and nothing to rebuild against Electron's Node ABI. It
+  takes the IOSurface, encodes JPEG on the damage callback and writes frames on
+  stdout (4-byte big-endian length, then the bytes). Measured in the pane: 22fps
+  while scrolling, ~1fps on a still screen because a quiet screen sends no
+  damage. `simctl io screenshot` survives only as the fallback.
 
-  ROUGH SIZE: ~1 week. Split it: (1) spike baguette against a booted device
-  from the terminal and measure, (2) main-process supervisor for the binary
-  (spawn, health, teardown) + IPC, (3) the canvas page + input forwarding,
-  (4) pane integration and the missing agent tools.
+  FALLING BACK, which matters because this is private API. main treats the
+  helper as best-effort: missing binary, won't start, or started-but-never-sent-
+  a-frame all drop to the screenshot mirror. That last case is what a future
+  macOS moving these symbols would look like, so it is the one worth keeping.
+
+  THINGS THAT BIT, all found by breaking it rather than reading it:
+    * A shut-down device keeps its last surface, so nothing fails — the helper
+      has to check the device is still booted on its heartbeat and exit.
+    * When it exits, the pane needs telling (sim:gone), or it sits on a frozen
+      picture for ever.
+    * And "Boot it again" then has to actually restart the stream: the helper is
+      gone and nothing else in the effect's inputs changes on the way back.
+    * Flipping modes quickly leaked a helper per flip — start must stop whatever
+      is already running for that device, of either kind.
+    * build:mac did not run build:native, so a release from a clean checkout
+      would have bundled a binary nothing had built.
+
+  INPUT. baguette's gesture side works, on every runtime — CORRECTED 2026-08-08.
+  This note used to claim iOS 26+ only, and the pane shipped a version gate that
+  disabled tapping on anything older. Both were wrong: the original measurement
+  aimed at empty space, so of course nothing changed. Re-measured against real
+  controls — a Continue button on 26.5, a banner dismiss and Safari's tab button
+  on 18.6 — and every tap registered, including one dispatched through the pane.
+    Watch for this shape of mistake: a tap that changes nothing is not evidence
+    of a broken injector. Aim at something that must react.
+    idb's `hid` rpc remains an alternative (13ms warm vs baguette's 56ms) but
+    there is no longer a correctness reason to take on idb_companion and a gRPC
+    client for it.
+
+  WINDOW MENU, still useful for the attach mode. Simulator's Window menu
+  exposes checkbox state through AXMenuItemMarkChar (a ✓ when on, `missing
+  value` when off), so "Show Device Bezels" and "Stay On Top" are readable and
+  not just settable.
+
+  AGENT SURFACE. Still to do: `sim_tap`, `sim_type`, `sim_swipe` alongside the
+  phase-1 tools, so the agent drives the device the same way the user does.
 -->
 
 
@@ -240,3 +287,6 @@ npm run dev
 ## License
 
 [MIT](LICENSE)
+
+The desk background is Claude Monet, *Water Lilies* (1906), from the Art
+Institute of Chicago's open-access collection — public domain (CC0).
