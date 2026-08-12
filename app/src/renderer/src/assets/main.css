@@ -3353,6 +3353,25 @@ button {
   flex-direction: column;
   flex-grow: 0;
   flex-shrink: 1;
+  /* A soft "it opened" on the surface (page, file, board) and — for the
+     HTML-rendered simulator — the whole card. The native browser view can't
+     fade with CSS, but its card chrome/shadow easing in still reads as opening. */
+  animation: desk-card-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes desk-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-card {
+    animation: none;
+  }
 }
 /* The simulator centres a portrait device in its card, so this is where the
    painting actually shows — let it through, and lean the phone's shadow a
@@ -6068,6 +6087,24 @@ button {
   user-select: none;
   -webkit-user-drag: none;
   cursor: default;
+  /* The device rises into place when the mirror first appears (HTML img, so this
+     really animates). */
+  animation: sim-screen-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes sim-screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sim-screen {
+    animation: none;
+  }
 }
 .sim-empty {
   color: var(--text-tertiary);
@@ -6942,6 +6979,25 @@ button {
     0 4px 14px -6px rgba(0, 0, 0, 0.22);
   pointer-events: none;
   z-index: 0;
+  /* Re-keyed by viewport in the JSX, so switching desktop/mobile/both replays
+     this — the device card eases into its new size. (The native page on top
+     snaps; this is the shadow/card reforming around it.) */
+  animation: browser-frame-in 0.24s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes browser-frame-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .browser-sim-frame {
+    animation: none;
+  }
 }
 
 .browser-zoom-level {
