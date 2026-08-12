@@ -422,6 +422,28 @@ export function ComputerPanel({
     [bounds.w, bounds.h]
   )
 
+  // Right-click menu actions (menu built natively in main; see desk:menu).
+  useEffect(() => {
+    return window.cove.onDeskMenuAction?.(({ action, paths }) => {
+      const first = paths[0]
+      const f = files.find((x) => x.path === first)
+      if (action === 'open' && f) {
+        if (f.dir) openFolder(f.path)
+        else openFile(f.target || f.path)
+      } else if (action === 'rename' && f) {
+        startRename(f.path, f.name)
+      } else if (action === 'reveal' && first) {
+        void window.cove.deskReveal?.(first)
+      } else if (action === 'delete') {
+        setSelected([])
+        void Promise.all(paths.map((p) => window.cove.deskRemove?.(p))).then(() => {
+          announceDeskChange()
+          void refreshDesk()
+        })
+      }
+    })
+  }, [files, openFolder, openFile, refreshDesk])
+
   useEffect(() => {
     let alive = true
     const wanted = files.filter((f) => !f.dir && isImage(f.name) && !(f.path in thumbs))
@@ -920,6 +942,20 @@ export function ComputerPanel({
               onClick={(e) => {
                 e.stopPropagation()
                 pickIcon(f.path, e)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                // Operate on the selection if this icon is part of it; otherwise
+                // select just this one first, the way a desktop does.
+                const targets = selected.includes(f.path) ? selected : [f.path]
+                if (!selected.includes(f.path)) setSelected([f.path])
+                window.cove.deskMenu?.({
+                  paths: targets,
+                  single: targets.length === 1,
+                  isLink: !!f.link,
+                  isDir: !!f.dir
+                })
               }}
               onDoubleClick={() => {
                 // A folder opens as its own window, the way a desktop does; a
