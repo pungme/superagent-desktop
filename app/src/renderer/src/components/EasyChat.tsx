@@ -265,7 +265,8 @@ const BG_SHELL_ID_RE = /(?:ID|bash_id|shell)[:\s]+([A-Za-z0-9_-]+)/i
 // "Output is being written to: /…/tasks/<id>.output" — reading that file is how
 // the strip shows live output without waiting for the agent to poll the shell.
 const BG_OUTFILE_RE = /written to:\s*(\S+\.output)/i
-const BG_DONE_RE = /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b/i
+const BG_DONE_RE =
+  /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b/i
 
 /**
  * When a message arrived. Transcripts saved before this field existed have no
@@ -290,9 +291,12 @@ function msgTime(ms: number): string {
   if (d.getTime() >= midnight.getTime()) return `Today ${time}`
   if (daysAgo === 1) return `Yesterday ${time}`
   const sameYear = d.getFullYear() === new Date().getFullYear()
-  const date = d.toLocaleDateString([], sameYear
-    ? { day: 'numeric', month: 'short' }
-    : { day: 'numeric', month: 'short', year: 'numeric' })
+  const date = d.toLocaleDateString(
+    [],
+    sameYear
+      ? { day: 'numeric', month: 'short' }
+      : { day: 'numeric', month: 'short', year: 'numeric' }
+  )
   return `${date} ${time}`
 }
 
@@ -335,7 +339,7 @@ const BUILTIN_COMMAND_DESCRIPTIONS: Record<string, string> = {
   review: 'Review the current diff for bugs and improvements',
   simplify: 'Clean up changed code — reuse, simplify, efficiency',
   batch: 'Orchestrate large-scale changes across the codebase',
-  loop: 'Repeat a prompt on a schedule — SuperAgent runs this as a Routine',
+  loop: 'Repeat a prompt in this chat until you stop — /loop [5m] <prompt>',
   goal: 'Set a goal condition for the session to work toward',
   btw: 'Ask a quick side question without adding it to history',
   model: 'Switch the AI model for this and future sessions',
@@ -357,6 +361,42 @@ const BUILTIN_COMMAND_DESCRIPTIONS: Record<string, string> = {
   rewind: 'Roll code and conversation back to a checkpoint',
   'design-sync': 'Upload your React design system to Claude Design',
   help: 'Show all available commands'
+}
+
+/** Safety cap so a loop can't run away forever. */
+const LOOP_CAP = 100
+const UNIT_MS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }
+
+/**
+ * Parse a `/loop` command like the terminal's: `/loop <prompt>` runs the prompt
+ * again each time the turn finishes; `/loop 5m <prompt>` (or `<prompt> every 5
+ * minutes`) runs it on that interval. Returns null if it isn't a /loop command;
+ * an empty prompt tells the caller to show usage.
+ */
+function parseLoopCmd(raw: string): { intervalMs: number | null; prompt: string } | null {
+  const m = /^\/loop\b\s*(.*)$/is.exec(raw.trim())
+  if (!m) return null
+  const body = m[1].trim()
+  if (!body) return { intervalMs: null, prompt: '' }
+  const lead = /^(\d+)\s*([smhd])\s+(.+)$/is.exec(body)
+  if (lead)
+    return { intervalMs: Number(lead[1]) * UNIT_MS[lead[2].toLowerCase()], prompt: lead[3].trim() }
+  const trail =
+    /^(.+?)\s+every\s+(\d+)\s*(s|m|h|d|sec|secs|second|seconds|min|mins|minute|minutes|hour|hours|day|days)$/is.exec(
+      body
+    )
+  if (trail) {
+    const u = trail[3].toLowerCase()[0] as 's' | 'm' | 'h' | 'd'
+    return { intervalMs: Number(trail[2]) * UNIT_MS[u], prompt: trail[1].trim() }
+  }
+  return { intervalMs: null, prompt: body }
+}
+
+function humanInterval(ms: number): string {
+  if (ms % UNIT_MS.d === 0) return `${ms / UNIT_MS.d}d`
+  if (ms % UNIT_MS.h === 0) return `${ms / UNIT_MS.h}h`
+  if (ms % UNIT_MS.m === 0) return `${ms / UNIT_MS.m}m`
+  return `${Math.round(ms / 1000)}s`
 }
 
 // Pull dev-server ports out of a tool's output — "Local: http://localhost:3000",
@@ -401,12 +441,23 @@ function shortModel(id: string): string {
 }
 
 // Agent modes (permission-mode). Plan = read-only planning, no changes made.
-const MODE_OPTIONS: { value: 'bypassPermissions' | 'acceptEdits' | 'plan'; label: string; hint: string }[] =
-  [
-    { value: 'bypassPermissions', label: 'Full', hint: 'Runs commands and edits, like your terminal' },
-    { value: 'acceptEdits', label: 'Edits', hint: 'Applies file edits; some commands may be refused' },
-    { value: 'plan', label: 'Plan', hint: 'Read-only — plans without changing anything' }
-  ]
+const MODE_OPTIONS: {
+  value: 'bypassPermissions' | 'acceptEdits' | 'plan'
+  label: string
+  hint: string
+}[] = [
+  {
+    value: 'bypassPermissions',
+    label: 'Full',
+    hint: 'Runs commands and edits, like your terminal'
+  },
+  {
+    value: 'acceptEdits',
+    label: 'Edits',
+    hint: 'Applies file edits; some commands may be refused'
+  },
+  { value: 'plan', label: 'Plan', hint: 'Read-only — plans without changing anything' }
+]
 
 // "Running ×9 · Reading ×6" — distinct verbs in first-seen order, so the collapsed
 // row still says what the agent actually did.
@@ -541,7 +592,8 @@ function toRows(items: Item[]): Row[] {
   }
   for (const it of items) {
     if (it.kind === 'tool' || it.kind === 'diff') {
-      const entry: Activity = it.kind === 'tool' ? { kind: 'tool', tool: it.tool } : { kind: 'diff', diff: it.diff }
+      const entry: Activity =
+        it.kind === 'tool' ? { kind: 'tool', tool: it.tool } : { kind: 'diff', diff: it.diff }
       const target = runTarget()
       if (target && target.kind === 'activity') target.entries.push(entry)
       else rows.push({ kind: 'activity', entries: [entry] })
@@ -595,9 +647,9 @@ export function EasyChat({
     Object.keys(BUILTIN_COMMAND_DESCRIPTIONS).sort()
   )
   // name → one-line description, shown beside each "/" command in the menu.
-  const [commandDescs, setCommandDescs] = useState<Record<string, string>>(
-    () => ({ ...BUILTIN_COMMAND_DESCRIPTIONS })
-  )
+  const [commandDescs, setCommandDescs] = useState<Record<string, string>>(() => ({
+    ...BUILTIN_COMMAND_DESCRIPTIONS
+  }))
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
@@ -621,6 +673,28 @@ export function EasyChat({
   const [runningAgents, setRunningAgents] = useState<
     { toolUseId: string; label: string; startedAt: number }[]
   >([])
+  // The in-chat /loop: re-runs a prompt in THIS conversation until stopped —
+  // continuously (re-fire when the turn ends) or on an interval. loopRef mirrors
+  // it so the ref-held event handler can read the live value without a stale
+  // closure; loopTimerRef holds the pending re-fire so Stop can cancel it.
+  const [loop, setLoop] = useState<{
+    prompt: string
+    intervalMs: number | null
+    count: number
+  } | null>(null)
+  const loopRef = useRef<typeof loop>(null)
+  useEffect(() => {
+    loopRef.current = loop
+  }, [loop])
+  const loopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopLoop = useCallback((): void => {
+    if (loopTimerRef.current) {
+      clearTimeout(loopTimerRef.current)
+      loopTimerRef.current = null
+    }
+    loopRef.current = null
+    setLoop(null)
+  }, [])
   // Tail each job's output while one of their pills is open, so you watch it
   // happen rather than waiting for the agent to check on it.
   const bgOpen = controlMenu?.startsWith('bg-') ?? false
@@ -672,9 +746,10 @@ export function EasyChat({
   const [lightbox, setLightbox] = useState<string | null>(null)
   useOverlayLock(lightbox !== null)
   // WhatsApp-style quote-reply: the message the next send will reply to.
-  const [replyTarget, setReplyTarget] = useState<{ role: 'user' | 'assistant'; text: string } | null>(
-    null
-  )
+  const [replyTarget, setReplyTarget] = useState<{
+    role: 'user' | 'assistant'
+    text: string
+  } | null>(null)
   // Accumulated horizontal wheel delta for the in-progress swipe-to-reply gesture.
   const swipeRef = useRef<{ dx: number; fired: boolean; el: HTMLElement } | null>(null)
   const swipeTimer = useRef<number | null>(null)
@@ -719,7 +794,9 @@ export function EasyChat({
   const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
   // Messages sent while no process exists (a chat's first message, or anything
   // arriving while reaped); flushed the moment the session is up.
-  const pendingSendsRef = useRef<{ text: string; images: { mediaType: string; data: string }[] }[]>([])
+  const pendingSendsRef = useRef<{ text: string; images: { mediaType: string; data: string }[] }[]>(
+    []
+  )
   // True once a resume-based retry has already failed, so the next retry drops the
   // resume and starts fresh (a crashed session can leave a stale lock that keeps
   // failing to resume, which would otherwise loop the Retry button).
@@ -751,9 +828,7 @@ export function EasyChat({
       // Merge, never replace: this used to overwrite the pool with the project's
       // own skills, so a project with none — which is most of them — wiped the
       // built-ins straight back out and "/" offered nothing at all.
-      setCommands((prev) =>
-        Array.from(new Set([...prev, ...list.map((s) => s.name)])).sort()
-      )
+      setCommands((prev) => Array.from(new Set([...prev, ...list.map((s) => s.name)])).sort())
       setCommandDescs((prev) => {
         const next = { ...prev }
         for (const s of list) if (s.description) next[s.name] = s.description
@@ -1103,7 +1178,10 @@ export function EasyChat({
             setThinking(false)
             setItems((prev) => [
               ...prev,
-              { kind: 'msg', msg: { id, role: 'assistant', text: '', streaming: true, at: Date.now() } }
+              {
+                kind: 'msg',
+                msg: { id, role: 'assistant', text: '', streaming: true, at: Date.now() }
+              }
             ])
           } else if (block?.type === 'thinking') {
             const id = `t-${Date.now()}-${Math.random()}`
@@ -1170,7 +1248,11 @@ export function EasyChat({
             if (!isApiError && wholeText.trim()) {
               // First non-empty line of the reply — the "what finished" for the
               // done notification.
-              const line = wholeText.trim().split('\n').find((l) => l.trim()) ?? ''
+              const line =
+                wholeText
+                  .trim()
+                  .split('\n')
+                  .find((l) => l.trim()) ?? ''
               window.cove.chatLastReply(workspaceId, line.replace(/[#*_`>]/g, '').trim())
             }
             setItems((prev) => [
@@ -1346,7 +1428,12 @@ export function EasyChat({
                             ? { ...t, output: tail, outputAt: Date.now() }
                             : t
                           : prev.length === 1
-                            ? { ...t, shellId: t.shellId ?? polled, output: tail, outputAt: Date.now() }
+                            ? {
+                                ...t,
+                                shellId: t.shellId ?? polled,
+                                output: tail,
+                                outputAt: Date.now()
+                              }
                             : t
                       )
                     })
@@ -1402,6 +1489,36 @@ export function EasyChat({
         // The turn is over, so no sub-agent is still running — sweep any pill a
         // missed result block would otherwise strand.
         setRunningAgents([])
+        // /loop (continuous): the turn finished, so run the prompt again — unless
+        // the user stopped it, we hit the safety cap, or the turn was interrupted.
+        const lp = loopRef.current
+        if (lp && lp.intervalMs === null && !interruptedRef.current) {
+          if (lp.count >= LOOP_CAP) {
+            loopRef.current = null
+            setLoop(null)
+            setItems((prev) => [
+              ...prev,
+              {
+                kind: 'msg',
+                msg: {
+                  id: `sys-${Date.now()}`,
+                  at: Date.now(),
+                  role: 'assistant',
+                  text: `⏹ Loop stopped after ${LOOP_CAP} runs (safety cap).`,
+                  system: true
+                }
+              }
+            ])
+          } else {
+            const next = { ...lp, count: lp.count + 1 }
+            loopRef.current = next
+            setLoop(next)
+            if (loopTimerRef.current) clearTimeout(loopTimerRef.current)
+            loopTimerRef.current = setTimeout(() => {
+              if (loopRef.current) submitRef.current?.(next.prompt)
+            }, 900)
+          }
+        }
         // Surface a failed or empty turn. Without this the app silently swallows an
         // error result (usage limit, max turns, an execution/auth error) — so a
         // message like "continue" looks like it did nothing at all.
@@ -1444,7 +1561,8 @@ export function EasyChat({
         if (isError || !streamedThisTurnRef.current) {
           let note = 'Claude ended the turn without a response. Try sending your message again.'
           if (sub === 'error_max_turns')
-            note = 'Claude reached its step limit for this turn. Send “continue” to let it keep going.'
+            note =
+              'Claude reached its step limit for this turn. Send “continue” to let it keep going.'
           else if (sub === 'error_during_execution')
             note = 'Claude hit an error partway through this turn. Send “continue” to retry.'
           const errs = event.errors as unknown[] | undefined
@@ -1546,7 +1664,9 @@ export function EasyChat({
     // recap (and duplicated the message) on the most common path of all.
     if (
       !resumeIdRef.current &&
-      itemsRef.current.some((it) => it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system)
+      itemsRef.current.some(
+        (it) => it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system
+      )
     ) {
       contextLostRef.current = true
     }
@@ -1711,6 +1831,30 @@ export function EasyChat({
   }, [chatId, generating, thinking, bgTasks.length, setBusy])
   useEffect(() => () => clearBusy(chatId), [chatId, clearBusy])
 
+  // Interval /loop: fire the prompt every N ms while idle (skip a tick if a turn
+  // is still running, so runs don't pile up). Keyed on interval+prompt only, so
+  // the per-run count bump doesn't restart the timer. Continuous loops (null
+  // interval) re-fire from the turn-end handler instead, not here.
+  const loopIntervalMs = loop?.intervalMs ?? null
+  const loopPrompt = loop?.prompt ?? ''
+  useEffect(() => {
+    if (loopIntervalMs === null || !loopPrompt) return
+    const iv = setInterval(() => {
+      const lp = loopRef.current
+      if (!lp || turnInFlightRef.current) return
+      if (lp.count >= LOOP_CAP) {
+        stopLoop()
+        return
+      }
+      loopRef.current = { ...lp, count: lp.count + 1 }
+      setLoop(loopRef.current)
+      submitRef.current?.(loopPrompt)
+    }, loopIntervalMs)
+    return () => clearInterval(iv)
+  }, [loopIntervalMs, loopPrompt, stopLoop])
+  // Stop any loop when the chat unmounts, so a re-fire never lands in a torn-down chat.
+  useEffect(() => () => stopLoop(), [stopLoop])
+
   // Drives the sidebar dot: full while this project has a live claude process,
   // half once it doesn't (reaped while idle, or torn down when the chat closes).
   const setAgentLive = useStore((s) => s.setAgentLive)
@@ -1765,6 +1909,7 @@ export function EasyChat({
         window.cove.agentStop(agentIdRef.current)
         agentIdRef.current = null
       }
+      stopLoop()
       setItems([])
       tasks.current.clear()
       useStore.getState().clearTodos(chatId)
@@ -1791,7 +1936,10 @@ export function EasyChat({
       }
       setItems((prev) => [
         ...prev,
-        { kind: 'msg', msg: { id: `u-${Date.now()}`, at: Date.now(), role: 'user', text: detail.text } }
+        {
+          kind: 'msg',
+          msg: { id: `u-${Date.now()}`, at: Date.now(), role: 'user', text: detail.text }
+        }
       ])
       setThinking(true)
       setGenerating(true)
@@ -1809,6 +1957,50 @@ export function EasyChat({
     // A process exists but isn't accepting (crash) — the Retry UI owns that.
     if (id && !ready) return
     if (!id && !suspendedRef.current) return // already spawning; drop rather than double-send
+    // /loop — SuperAgent's in-chat loop, like the terminal: re-run this prompt in
+    // this conversation until you stop. Intercept it here so the literal command
+    // is never sent to Claude as a message.
+    const loopCmd = /^\/loop(\s|$)/i.test(text.trim()) ? parseLoopCmd(text) : null
+    if (loopCmd !== null) {
+      const sys = (t: string): void =>
+        setItems((prev) => [
+          ...prev,
+          {
+            kind: 'msg',
+            msg: {
+              id: `sys-${Date.now()}`,
+              at: Date.now(),
+              role: 'assistant',
+              text: t,
+              system: true
+            }
+          }
+        ])
+      if (/^\/loop\s+stop\s*$/i.test(text.trim())) {
+        stopLoop()
+        sys('⏹ Loop stopped.')
+        setInput('')
+        return
+      }
+      if (!loopCmd.prompt) {
+        sys(
+          'Usage: /loop [5m·2h·…] <prompt> — repeats the prompt in this chat until you Stop it. `/loop stop` ends it.'
+        )
+        return
+      }
+      const { prompt, intervalMs } = loopCmd
+      loopRef.current = { prompt, intervalMs, count: 1 }
+      setLoop(loopRef.current)
+      sys(
+        intervalMs
+          ? `🔁 Looping every ${humanInterval(intervalMs)}: “${prompt}”. Stop anytime.`
+          : `🔁 Looping: “${prompt}” — re-runs when each turn finishes. Stop anytime.`
+      )
+      setInput('')
+      // Kick off the first iteration now.
+      submit(prompt)
+      return
+    }
     // Sent while a turn is already running — this is a mid-task interjection.
     // Read the ref, not `generating`: two messages fired in the same tick would
     // both see the stale state and race. Mark a turn in flight right now so the
@@ -1837,7 +2029,9 @@ export function EasyChat({
           id: `u-${Date.now()}-${Math.random()}`,
           at: Date.now(),
           role: 'user',
-          text: files.length ? `${text}${text ? '\n' : ''}📎 ${files.map((f) => f.name).join(' · ')}` : text,
+          text: files.length
+            ? `${text}${text ? '\n' : ''}📎 ${files.map((f) => f.name).join(' · ')}`
+            : text,
           images: images.length ? images.map((im) => im.url) : undefined,
           replyTo: reply ?? undefined
         }
@@ -1898,7 +2092,10 @@ export function EasyChat({
    * nothing about the conversation is lost.
    */
   const interruptNow = useCallback(
-    async (thenSend?: { text: string; images: { mediaType: string; data: string }[] }): Promise<void> => {
+    async (thenSend?: {
+      text: string
+      images: { mediaType: string; data: string }[]
+    }): Promise<void> => {
       const id = agentIdRef.current
       if (!id) return
       interruptedRef.current = true
@@ -2145,7 +2342,9 @@ export function EasyChat({
         <div className="easy-error">
           <span>
             {agentFailed === 'missing-cwd' ? (
-              <>⚠ This project&rsquo;s folder isn&rsquo;t there any more — it was moved or deleted.</>
+              <>
+                ⚠ This project&rsquo;s folder isn&rsquo;t there any more — it was moved or deleted.
+              </>
             ) : (
               <>⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.</>
             )}
@@ -2158,36 +2357,48 @@ export function EasyChat({
           transcript below, pinned to its top, so they float over the messages
           and nothing else. */}
       <div className="easy-topstack">
+        {loop && (
+          <div className="easy-loop-bar">
+            <span className="easy-loop-spin" />
+            <span className="easy-loop-text">
+              Looping{loop.intervalMs ? ` every ${humanInterval(loop.intervalMs)}` : ''} · run{' '}
+              {loop.count}
+              <span className="easy-loop-prompt"> — “{loop.prompt}”</span>
+            </span>
+            <button className="easy-loop-stop" onClick={stopLoop}>
+              Stop
+            </button>
+          </div>
+        )}
         <TasksPanel chatId={chatId} />
       </div>
-      <div
-        className="easy-scroll"
-        ref={scrollRef}
-        onScroll={onScroll}
-      >
+      <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
         {items.length > 0 && !hideNewChat && (
           <div className="easy-newchat-group">
-          <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
-            ✎ New chat
-          </button>
-          {isRepo && (
-            <button
-              className="easy-newchat"
-              onClick={() => {
-                // The chat gets an isolated git worktree on its own branch, so
-                // parallel agents stop fighting over one checkout.
-                void useStore
-                  .getState()
-                  .newChatInWorktree(workspaceId, cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd)
-                  .then((ok) => {
-                    if (!ok) window.alert('Could not create a worktree here — git refused.')
-                  })
-              }}
-              title="New chat on its own git branch — isolated worktree, your checkout stays clean"
-            >
-              ⎇ New worktree
+            <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
+              ✎ New chat
             </button>
-          )}
+            {isRepo && (
+              <button
+                className="easy-newchat"
+                onClick={() => {
+                  // The chat gets an isolated git worktree on its own branch, so
+                  // parallel agents stop fighting over one checkout.
+                  void useStore
+                    .getState()
+                    .newChatInWorktree(
+                      workspaceId,
+                      cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd
+                    )
+                    .then((ok) => {
+                      if (!ok) window.alert('Could not create a worktree here — git refused.')
+                    })
+                }}
+                title="New chat on its own git branch — isolated worktree, your checkout stays clean"
+              >
+                ⎇ New worktree
+              </button>
+            )}
           </div>
         )}
         {items.length === 0 && (ready || suspended) && (
@@ -2221,12 +2432,7 @@ export function EasyChat({
                 {row.msg.images && row.msg.images.length > 0 && (
                   <div className="easy-msg-images">
                     {row.msg.images.map((src, ii) => (
-                      <img
-                        key={ii}
-                        src={src}
-                        alt="attachment"
-                        onClick={() => setLightbox(src)}
-                      />
+                      <img key={ii} src={src} alt="attachment" onClick={() => setLightbox(src)} />
                     ))}
                   </div>
                 )}
@@ -2400,91 +2606,91 @@ export function EasyChat({
               updateMention(e.target.value)
             }}
             onKeyDown={(e) => {
-            if (mentionMatches.length > 0) {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault()
-                setMentionIndex((i) => (i + 1) % mentionMatches.length)
-                return
-              }
-              if (e.key === 'ArrowUp') {
-                e.preventDefault()
-                setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length)
-                return
-              }
-              if (e.key === 'Enter' || e.key === 'Tab') {
-                e.preventDefault()
-                pickMention(mentionMatches[mentionIndex])
-                return
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault()
-                setMentionQuery(null)
-                return
-              }
-            }
-            // Esc drops a recording first: if the mic is open that's what the
-            // user means by "stop".
-            if (e.key === 'Escape' && dictation.state === 'recording') {
-              e.preventDefault()
-              handsFreeRef.current = false
-              dictation.cancel()
-              return
-            }
-            // Esc stops the agent where it is — the terminal's Ctrl-C, and the
-            // only thing that reaches it inside a long tool call.
-            if (e.key === 'Escape' && (generating || thinking)) {
-              e.preventDefault()
-              void interruptNow()
-              return
-            }
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              // ⌘⏎ (or ⌥⏎) while it's working: stop what it's doing and take
-              // this message now, instead of queueing it behind the current step.
-              if ((e.metaKey || e.altKey) && (generating || thinking)) {
-                const text = input.trim()
-                if (text) {
-                  setItems((prev) => [
-                    ...prev,
-                    {
-                      kind: 'msg',
-                      msg: { id: `u-${Date.now()}`, at: Date.now(), role: 'user', text }
-                    }
-                  ])
-                  setInput('')
-                  void interruptNow({ text, images: [] })
+              if (mentionMatches.length > 0) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setMentionIndex((i) => (i + 1) % mentionMatches.length)
+                  return
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length)
+                  return
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault()
+                  pickMention(mentionMatches[mentionIndex])
+                  return
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setMentionQuery(null)
                   return
                 }
               }
-              send()
-            }
-          }}
-        />
-        <button
-          className={`easy-mic ${dictation.state === 'recording' ? 'recording' : ''}`}
-          // Hold to talk, or tap for hands-free — the shape Wispr Flow settled
-          // on, and the reason a stuck mic used to have no way out.
-          onPointerDown={() => {
-            if (dictation.state === 'recording') {
+              // Esc drops a recording first: if the mic is open that's what the
+              // user means by "stop".
+              if (e.key === 'Escape' && dictation.state === 'recording') {
+                e.preventDefault()
+                handsFreeRef.current = false
+                dictation.cancel()
+                return
+              }
+              // Esc stops the agent where it is — the terminal's Ctrl-C, and the
+              // only thing that reaches it inside a long tool call.
+              if (e.key === 'Escape' && (generating || thinking)) {
+                e.preventDefault()
+                void interruptNow()
+                return
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                // ⌘⏎ (or ⌥⏎) while it's working: stop what it's doing and take
+                // this message now, instead of queueing it behind the current step.
+                if ((e.metaKey || e.altKey) && (generating || thinking)) {
+                  const text = input.trim()
+                  if (text) {
+                    setItems((prev) => [
+                      ...prev,
+                      {
+                        kind: 'msg',
+                        msg: { id: `u-${Date.now()}`, at: Date.now(), role: 'user', text }
+                      }
+                    ])
+                    setInput('')
+                    void interruptNow({ text, images: [] })
+                    return
+                  }
+                }
+                send()
+              }
+            }}
+          />
+          <button
+            className={`easy-mic ${dictation.state === 'recording' ? 'recording' : ''}`}
+            // Hold to talk, or tap for hands-free — the shape Wispr Flow settled
+            // on, and the reason a stuck mic used to have no way out.
+            onPointerDown={() => {
+              if (dictation.state === 'recording') {
+                finishDictation()
+                return
+              }
+              micDownAtRef.current = Date.now()
+              handsFreeRef.current = false
+              startDictation()
+            }}
+            onPointerUp={() => {
+              // A tap (rather than a hold) means "keep listening until I say stop".
+              if (Date.now() - micDownAtRef.current < 350) {
+                handsFreeRef.current = true
+                return
+              }
               finishDictation()
-              return
-            }
-            micDownAtRef.current = Date.now()
-            handsFreeRef.current = false
-            startDictation()
-          }}
-          onPointerUp={() => {
-            // A tap (rather than a hold) means "keep listening until I say stop".
-            if (Date.now() - micDownAtRef.current < 350) {
-              handsFreeRef.current = true
-              return
-            }
-            finishDictation()
-          }}
-          disabled={dictation.state === 'transcribing' || dictation.state === 'loading-model'}
-          title={micTitle}
-          aria-label={micTitle}
-        >
+            }}
+            disabled={dictation.state === 'transcribing' || dictation.state === 'loading-model'}
+            title={micTitle}
+            aria-label={micTitle}
+          >
             {dictation.state === 'recording' ? (
               // Bars that move with your voice: the one affordance that answers
               // "is it hearing me?" without a word of explanation. Clicking
@@ -2517,7 +2723,10 @@ export function EasyChat({
           <button
             className="easy-send"
             onClick={send}
-            disabled={(!ready && !suspended) || (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)}
+            disabled={
+              (!ready && !suspended) ||
+              (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)
+            }
             title="Send message"
             aria-label="Send message"
           >
@@ -2533,11 +2742,16 @@ export function EasyChat({
             title="Model"
           >
             <span className="easy-control-key">Model</span>
-            <span className="easy-control-val">
-              {modelLabel}
-            </span>
+            <span className="easy-control-val">{modelLabel}</span>
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
-              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M2 3.5L5 6.5L8 3.5"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
           {controlMenu === 'model' && (
@@ -2571,7 +2785,14 @@ export function EasyChat({
             <span className="easy-control-key">Mode</span>
             <span className="easy-control-val">{modeLabel}</span>
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
-              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M2 3.5L5 6.5L8 3.5"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
           {controlMenu === 'mode' && (
@@ -2607,8 +2828,8 @@ export function EasyChat({
                 {ctxWindow >= 1_000_000 ? '1M context window' : '200K context window'}
               </span>
               <span>
-                When it fills, older turns are summarised automatically — nothing is lost,
-                but detail fades. /compact does it now, on your terms.
+                When it fills, older turns are summarised automatically — nothing is lost, but
+                detail fades. /compact does it now, on your terms.
               </span>
             </span>
             <span className="easy-ctx-label">Memory</span>
