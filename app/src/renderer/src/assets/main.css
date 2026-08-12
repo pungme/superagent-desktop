@@ -4961,6 +4961,15 @@ button {
 .desk .browser-pane:has(.browser-host:not(.sim)) {
   background: var(--bg-content);
 }
+/* A filling browser is a real WebContentsView, and Electron won't reliably round
+   its bottom corners — so the page's square bottom sat inside the card's rounded
+   arc while the HTML toolbar rounded the top: the broken bottom corner. The page
+   fills the pane, so square it: match the card and pane to the native view (no
+   rounding) instead of fighting it. Sim/file/board cards stay rounded. */
+.desk-card:has(.browser-host:not(.sim)),
+.desk .browser-pane:has(.browser-host:not(.sim)) {
+  border-radius: 0;
+}
 
 /* Sits behind the native device view so the simulated screen reads as a separate,
    floating surface — the native view draws on top, so only this card's shadow and
