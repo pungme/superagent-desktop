@@ -382,6 +382,8 @@ export interface CoveApi {
   fileRead: (path: string) => Promise<string | null>
   fileWrite: (path: string, content: string) => Promise<boolean>
   gitBranch: (cwd: string) => Promise<string | null>
+  /** Ahead/behind vs upstream from local refs (no fetch); null if no upstream. */
+  gitAheadBehind: (cwd: string) => Promise<{ ahead: number; behind: number } | null>
   gitSubrepos: (root: string) => Promise<{ name: string; path: string; branch: string | null }[]>
 
   routinesList: (workspaceId?: string) => Promise<Routine[]>
@@ -617,6 +619,7 @@ const cove: CoveApi = {
   fileRead: (path) => ipcRenderer.invoke('files:read', path),
   fileWrite: (path, content) => ipcRenderer.invoke('files:write', path, content),
   gitBranch: (cwd) => ipcRenderer.invoke('git:branch', cwd),
+  gitAheadBehind: (cwd) => ipcRenderer.invoke('git:aheadBehind', cwd),
   gitSubrepos: (root) => ipcRenderer.invoke('git:subrepos', root),
 
   routinesList: (workspaceId) => ipcRenderer.invoke('routines:list', workspaceId),

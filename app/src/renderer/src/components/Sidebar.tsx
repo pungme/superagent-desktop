@@ -406,6 +406,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     []
   )
   const [selfBranch, setSelfBranch] = useState<string | null>(null) // branch if the project folder is itself a repo
+  const [aheadBehind, setAheadBehind] = useState<{ ahead: number; behind: number } | null>(null)
   const [reposOpen, setReposOpen] = useState(false) // collapsed by default
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
   const openFolderAsProject = useStore((s) => s.openFolderAsProject)
@@ -441,6 +442,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       })
       window.cove.gitBranch(ws.path).then((b) => {
         if (alive) setSelfBranch(b)
+      })
+      window.cove.gitAheadBehind?.(ws.path).then((ab) => {
+        if (alive) setAheadBehind(ab)
       })
     }
     refresh()
@@ -542,6 +546,24 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           <span className="sidebar-unread" title="Claude finished something you haven't read" />
         )}
         {selfBranch && <BranchChip branch={selfBranch} />}
+        {/* Something to pull (behind upstream) and/or push (ahead), from the last
+            fetch — a quiet ↓/↑ badge so you know the branch has drifted. */}
+        {aheadBehind && aheadBehind.behind > 0 && (
+          <span
+            className="sidebar-item-git behind"
+            title={`${aheadBehind.behind} commit${aheadBehind.behind === 1 ? '' : 's'} to pull (behind upstream, as of last fetch)`}
+          >
+            ↓{aheadBehind.behind}
+          </span>
+        )}
+        {aheadBehind && aheadBehind.ahead > 0 && (
+          <span
+            className="sidebar-item-git ahead"
+            title={`${aheadBehind.ahead} commit${aheadBehind.ahead === 1 ? '' : 's'} to push (ahead of upstream)`}
+          >
+            ↑{aheadBehind.ahead}
+          </span>
+        )}
         {/* The running-server chip lives in the workspace toolbar now (more room);
             the sidebar row was too cramped next to the branch + close button. */}
         <button

@@ -712,6 +712,26 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "Something to pull/push" badge next to the branch: ↓N behind (accent, the one
+   that matters), ↑N ahead (muted). Small and quiet — a status, not a button. */
+.sidebar-item-git {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.sidebar-item-git.behind {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.sidebar-item-git.ahead {
+  color: var(--text-tertiary);
+  background: var(--hover);
+}
+
 /* Full branch name on hover. position:fixed so the sidebar's overflow clip
    doesn't cut it off; anchored under the chip by inline left/top. */
 .branch-tip {
