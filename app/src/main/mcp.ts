@@ -7,7 +7,7 @@ import * as auto from './automation'
 import { simTarget, isMirroring, keepSimulatorHidden, sendSimInput } from './simulator'
 import { withoutStealingFocus } from './browser'
 import { nativeImage } from 'electron'
-import { readFileSync } from 'fs'
+import { readFileSync, unlinkSync } from 'fs'
 import { execFile } from 'child_process'
 import { tmpdir } from 'os'
 
@@ -100,14 +100,14 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     },
     async () => {
       const out = await simctl(['list', 'devices', 'available', '--json'])
-      const data = JSON.parse(out) as { devices: Record<string, { name: string; udid: string; state: string }[]> }
+      const data = JSON.parse(out) as {
+        devices: Record<string, { name: string; udid: string; state: string }[]>
+      }
       const lines: string[] = []
       for (const [runtime, devs] of Object.entries(data.devices)) {
         for (const d of devs) {
           const watched = d.udid === simTarget() ? '  <-- SHOWN IN THE PANE' : ''
-          lines.push(
-            `${d.name} — ${d.state} — ${d.udid} (${runtime.split('.').pop()})${watched}`
-          )
+          lines.push(`${d.name} — ${d.state} — ${d.udid} (${runtime.split('.').pop()})${watched}`)
         }
       }
       // More than one booted device is exactly when `simctl ... booted` picks
@@ -152,7 +152,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'sim_screenshot',
     {
       description:
-        "Screenshot the iOS Simulator the user is watching and return the PNG path. If the pane is already mirroring that device live, the still is not opened — the user can see it already.",
+        'Screenshot the iOS Simulator the user is watching and return the PNG path. If the pane is already mirroring that device live, the still is not opened — the user can see it already.',
       inputSchema: {}
     },
     async () => {
@@ -194,7 +194,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'sim_install_and_launch',
     {
       description:
-        "Install a .app bundle and launch it by bundle id on the simulator the user is watching in the pane. Prefer this over running `simctl install/launch` yourself — a bare `booted` picks an arbitrary device when several are running, and the app then opens where nobody can see it.",
+        'Install a .app bundle and launch it by bundle id on the simulator the user is watching in the pane. Prefer this over running `simctl install/launch` yourself — a bare `booted` picks an arbitrary device when several are running, and the app then opens where nobody can see it.',
       inputSchema: { appPath: z.string(), bundleId: z.string() }
     },
     async ({ appPath, bundleId }) => {
@@ -234,19 +234,32 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       .flat()
       .filter((d) => d.state === 'Booted')
     if (booted.length === 1) return { udid: booted[0].udid }
-    if (booted.length === 0) return { error: 'No simulator is booted. Boot one with sim_boot first.' }
+    if (booted.length === 0)
+      return { error: 'No simulator is booted. Boot one with sim_boot first.' }
     return {
-      error: 'Several simulators are booted — open the one you mean in the pane (sim_boot) so it is the target.'
+      error:
+        'Several simulators are booted — open the one you mean in the pane (sim_boot) so it is the target.'
     }
   }
 
   const grabScreen = async (): Promise<{ buf: Buffer; w: number; h: number }> => {
     const file = `${tmpdir()}/sim-${Date.now()}.png`
     await simctl(['io', simTarget(), 'screenshot', file])
-    const buf = readFileSync(file)
-    const size = nativeImage.createFromPath(file).getSize()
-    screenSize.set(simTarget(), { w: size.width, h: size.height })
-    return { buf, w: size.width, h: size.height }
+    try {
+      const buf = readFileSync(file)
+      const size = nativeImage.createFromPath(file).getSize()
+      screenSize.set(simTarget(), { w: size.width, h: size.height })
+      return { buf, w: size.width, h: size.height }
+    } finally {
+      // A throwaway — the bytes are returned inline. Without this, every screen
+      // read (each sim_tap/swipe via sizeFor, and sim_wait_stable's poll loop)
+      // left a multi-hundred-KB PNG in /tmp for the life of the run.
+      try {
+        unlinkSync(file)
+      } catch {
+        /* already gone / never written */
+      }
+    }
   }
 
   const sizeFor = async (): Promise<{ w: number; h: number }> => {
@@ -267,7 +280,10 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const { buf, w, h } = await grabScreen()
       return {
         content: [
-          { type: 'text', text: `iOS Simulator screen — ${w}x${h} pixels. Tap/swipe in these coordinates.` },
+          {
+            type: 'text',
+            text: `iOS Simulator screen — ${w}x${h} pixels. Tap/swipe in these coordinates.`
+          },
           { type: 'image', data: buf.toString('base64'), mimeType: 'image/png' }
         ]
       }
@@ -442,7 +458,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'open_file',
     {
       description:
-        "Show a file to the user inside SuperAgent — text/markdown/code open in the in-app viewer, PDFs and images preview in the pane. ALWAYS prefer this over the shell `open`/`xdg-open` command for any file the user should see; it keeps them in the app instead of a separate OS window.",
+        'Show a file to the user inside SuperAgent — text/markdown/code open in the in-app viewer, PDFs and images preview in the pane. ALWAYS prefer this over the shell `open`/`xdg-open` command for any file the user should see; it keeps them in the app instead of a separate OS window.',
       inputSchema: { path: z.string().describe('Absolute or workspace-relative path to the file') }
     },
     async ({ path }) => {
@@ -487,7 +503,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       description: 'Type text into the focused element (click an input first).',
       inputSchema: { text: z.string() }
     },
-    async ({ text }) => ({ content: [{ type: 'text', text: await auto.typeText(browserPane(), text) }] })
+    async ({ text }) => ({
+      content: [{ type: 'text', text: await auto.typeText(browserPane(), text) }]
+    })
   )
 
   server.registerTool(
@@ -496,7 +514,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       description: 'Press a key: Enter, Tab, Escape, Backspace, ArrowUp, ArrowDown.',
       inputSchema: { key: z.string() }
     },
-    async ({ key }) => ({ content: [{ type: 'text', text: await auto.pressKey(browserPane(), key) }] })
+    async ({ key }) => ({
+      content: [{ type: 'text', text: await auto.pressKey(browserPane(), key) }]
+    })
   )
 
   server.registerTool(
@@ -507,7 +527,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: {}
     },
     async () => ({
-      content: [{ type: 'image', data: await auto.screenshot(browserPane()), mimeType: 'image/png' }]
+      content: [
+        { type: 'image', data: await auto.screenshot(browserPane()), mimeType: 'image/png' }
+      ]
     })
   )
 
@@ -636,7 +658,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       }
       const card = addCard(ws, title, { body, status, ...stamp(ws) })
       broadcastToWindows('board:changed', { workspaceId: ws })
-      return { content: [{ type: 'text', text: `Added "${card.title}" to ${card.status} (${card.id}).` }] }
+      return {
+        content: [{ type: 'text', text: `Added "${card.title}" to ${card.status} (${card.id}).` }]
+      }
     }
   )
 
@@ -644,7 +668,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'board_move',
     {
       description:
-        "Move a card to another column (get ids from board_list). Move a card to doing when you start it and done when you finish, so the board reflects what actually happened rather than what was planned.",
+        'Move a card to another column (get ids from board_list). Move a card to doing when you start it and done when you finish, so the board reflects what actually happened rather than what was planned.',
       inputSchema: {
         id: z.string().describe('The card id, as returned by board_list'),
         status: z
@@ -730,7 +754,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'delete_routine',
     {
       description:
-        'Delete one of this project\'s routines by id (get ids from list_routines). Use this to remove a routine the user no longer wants, or to replace an old routine before creating a new one.',
+        "Delete one of this project's routines by id (get ids from list_routines). Use this to remove a routine the user no longer wants, or to replace an old routine before creating a new one.",
       inputSchema: {
         id: z.string().describe('The routine id, as returned by list_routines')
       }
@@ -825,19 +849,23 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         const open = desktopState().windows.some((w) => w.app === app)
         if (!open) {
           return {
-            content: [
-              { type: 'text', text: `${app} is not open — call computer_open_app first.` }
-            ]
+            content: [{ type: 'text', text: `${app} is not open — call computer_open_app first.` }]
           }
         }
-        if (!position && x === undefined && y === undefined && width === undefined && height === undefined) {
-          return { content: [{ type: 'text', text: 'Give a position, or a rectangle to move it to.' }] }
+        if (
+          !position &&
+          x === undefined &&
+          y === undefined &&
+          width === undefined &&
+          height === undefined
+        ) {
+          return {
+            content: [{ type: 'text', text: 'Give a position, or a rectangle to move it to.' }]
+          }
         }
         command('arrange', { app, position, x, y, width, height })
         return {
-          content: [
-            { type: 'text', text: `Moved ${app}${position ? ` to the ${position}` : ''}.` }
-          ]
+          content: [{ type: 'text', text: `Moved ${app}${position ? ` to the ${position}` : ''}.` }]
         }
       }
     )
@@ -846,7 +874,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       'computer_desktop_file',
       {
         description:
-          "Put a file on the desktop, or take one off it. Files on the desktop are linked into your working directory under ./files/, so putting one there is how you hand the user something they can double-click — and how anything they dropped became readable to you.",
+          'Put a file on the desktop, or take one off it. Files on the desktop are linked into your working directory under ./files/, so putting one there is how you hand the user something they can double-click — and how anything they dropped became readable to you.',
         inputSchema: {
           path: z.string().describe('Absolute path to the file'),
           remove: z.boolean().optional().describe('Take it off the desktop instead of adding it')
@@ -862,7 +890,10 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         command(remove ? 'remove-file' : 'add-file', { path: abs })
         return {
           content: [
-            { type: 'text', text: remove ? `Took ${abs} off the desktop.` : `Put ${abs} on the desktop.` }
+            {
+              type: 'text',
+              text: remove ? `Took ${abs} off the desktop.` : `Put ${abs} on the desktop.`
+            }
           ]
         }
       }
@@ -872,10 +903,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       'computer_browser_open',
       {
         description:
-          "Open a URL in the desktop Browser — in the tab in front, or in a new one. This opens the Browser app if it is closed. Afterwards the browser_* tools (browser_read_page, browser_click, browser_type, …) act on the tab that is showing.",
+          'Open a URL in the desktop Browser — in the tab in front, or in a new one. This opens the Browser app if it is closed. Afterwards the browser_* tools (browser_read_page, browser_click, browser_type, …) act on the tab that is showing.',
         inputSchema: {
           url: z.string(),
-          newTab: z.boolean().optional().describe('Open it in a new tab rather than the current one')
+          newTab: z
+            .boolean()
+            .optional()
+            .describe('Open it in a new tab rather than the current one')
         }
       },
       async ({ url, newTab }) => {

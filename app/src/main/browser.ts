@@ -84,7 +84,6 @@ function chromeUserAgent(defaultUA: string): string {
     .replace(/ Electron\/[^ ]+/i, '')
 }
 
-
 /**
  * The pane's only identity change: strip "Electron" from the UA string.
  *
@@ -293,6 +292,10 @@ h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
  * never leave the window permanently unclickable.
  */
 let guardDepth = 0
+// Bumped on every hard release (e.g. the user clicking the app), so the finally
+// blocks of withoutStealingFocus calls that were in flight BEFORE that release
+// don't decrement the fresh count a later call has since built up.
+let guardGen = 0
 let guardTimer: ReturnType<typeof setTimeout> | null = null
 let focusGuardActive = false
 
@@ -412,6 +415,9 @@ export function releaseFocusGuard(): void {
   if (!focusGuardActive) return
   focusGuardActive = false
   guardDepth = 0
+  // Any in-flight call's finally now belongs to a bygone guard — invalidate them
+  // so they can't decrement a count a later engage rebuilt.
+  guardGen += 1
   if (guardTimer) {
     clearTimeout(guardTimer)
     guardTimer = null
@@ -431,6 +437,10 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
   const win = BrowserWindow.getAllWindows()[0]
   // The user is looking right at the app — let it behave normally.
   const engage = !!win && !win.isDestroyed() && !win.isFocused()
+  // The generation this call belongs to. If a hard release bumps it before our
+  // finally runs, our decrement would corrupt a count a later call rebuilt — so
+  // skip it in that case.
+  const myGen = guardGen
   if (engage) {
     if (guardDepth === 0) {
       focusGuardActive = true
@@ -447,19 +457,18 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
   try {
     return await fn()
   } finally {
-    if (engage) {
+    if (engage && myGen === guardGen) {
       guardDepth = Math.max(0, guardDepth - 1)
       if (guardDepth === 0) {
         // The grab lands ~100ms after the load settles; a short tail covers it
         // without leaving the app un-clickable between chained calls.
         setTimeout(() => {
-          if (guardDepth === 0) releaseFocusGuard()
+          if (guardDepth === 0 && myGen === guardGen) releaseFocusGuard()
         }, 500)
       }
     }
   }
 }
-
 
 /**
  * A note on where the focus guard belongs.
@@ -561,7 +570,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     if (isMainFrame && !url.startsWith('data:text/html')) {
       emptyPanes.delete(id)
       errorUrlByPane.delete(id)
-  detachedWhileAway.delete(id)
+      detachedWhileAway.delete(id)
     }
   })
   wc.on('page-favicon-updated', (_e, favicons) => {
