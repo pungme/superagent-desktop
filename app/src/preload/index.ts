@@ -131,6 +131,9 @@ export interface CoveApi {
   onWorkspaceMenuAction: (
     cb: (p: { action: string; id: string; path: string }) => void
   ) => () => void
+  /** Right-click a desktop icon (or selection): native menu (open/rename/reveal/delete). */
+  deskMenu: (info: { paths: string[]; single: boolean; isLink: boolean; isDir: boolean }) => void
+  onDeskMenuAction: (cb: (p: { action: string; paths: string[] }) => void) => () => void
   /** Which agent events raise a native banner. */
   setNotifyPrefs: (prefs: { done?: boolean; needsYou?: boolean }) => void
   /** Copy dropped files/folders into a project directory; returns created paths. */
@@ -473,6 +476,9 @@ const cove: CoveApi = {
     subscribe('workspace:menu-action', (p) =>
       cb(p as { action: string; id: string; path: string })
     ),
+  deskMenu: (info) => ipcRenderer.send('desk:menu', info),
+  onDeskMenuAction: (cb) =>
+    subscribe('desk:menu-action', (p) => cb(p as { action: string; paths: string[] })),
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),

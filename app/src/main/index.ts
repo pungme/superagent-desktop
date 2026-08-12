@@ -268,6 +268,38 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: win })
   })
 
+  // Right-click a desktop icon (or a multi-selection). The renderer owns the
+  // actual actions (it has the desk state), so this native menu just routes the
+  // chosen verb back with the paths it applies to.
+  ipcMain.on(
+    'desk:menu',
+    (e, info: { paths: string[]; single: boolean; isLink: boolean; isDir: boolean }) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      const send = (action: string): void =>
+        win.webContents.send('desk:menu-action', { action, paths: info.paths })
+      const template: Electron.MenuItemConstructorOptions[] = []
+      if (info.single) {
+        template.push(
+          { label: 'Open', click: () => send('open') },
+          { label: 'Rename', click: () => send('rename') }
+        )
+      }
+      // A link just comes off the desk; a real file goes to the Trash.
+      const del = info.isLink
+        ? 'Remove from Desktop'
+        : info.paths.length > 1
+          ? `Move ${info.paths.length} Items to Trash`
+          : 'Move to Trash'
+      template.push(
+        { label: 'Reveal in Finder', click: () => send('reveal') },
+        { type: 'separator' },
+        { label: del, click: () => send('delete') }
+      )
+      Menu.buildFromTemplate(template).popup({ window: win })
+    }
+  )
+
   // Right-click on a file-tree row: the little things a real file browser owes you.
   ipcMain.on('files:menu', (e, absPath: string) => {
     const menu = Menu.buildFromTemplate([
