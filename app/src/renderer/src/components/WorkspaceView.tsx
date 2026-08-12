@@ -408,8 +408,21 @@ export function WorkspaceView({
         >
           ▤ List
         </button>
-        {/* No manual toggle for code projects: the pane reveals itself when the
-            agent navigates or you open a file, and closes from its own ✕. */}
+        {/* A code project's preview reveals itself when the agent navigates, and
+            normally closes from the pane's own ✕. But the native page paints
+            ABOVE all HTML, so a mis-bounded agent-opened view can cover its own
+            toolbar — leaving no way to close it. This close lives up here in the
+            workspace toolbar, which the native view can never reach, so there is
+            always a way out. Shown only when the browser is the visible surface. */}
+        {ws.kind !== 'browser' && browserOpen && !openFilePath && !boardOpen && (
+          <button
+            className="toolbar-btn on"
+            onClick={() => toggleBrowser(ws.id, true)}
+            title="Close the preview pane"
+          >
+            Hide preview
+          </button>
+        )}
         {ws.kind === 'browser' && (
           <button
             className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
