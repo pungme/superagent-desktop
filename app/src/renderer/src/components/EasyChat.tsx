@@ -1532,10 +1532,17 @@ export function EasyChat({
     let offExit: (() => void) | undefined
     let offResumeLost: (() => void) | undefined
 
-    // No session id to resume but a transcript already on screen → this process
-    // starts blank under an existing conversation. That's the silent context
-    // loss; arm a recap so the first message carries what came before.
-    if (!resumeIdRef.current && itemsRef.current.some((it) => it.kind === 'msg')) {
+    // No session id to resume but a real prior conversation already on screen →
+    // this process starts blank under an existing exchange. That's the silent
+    // context loss; arm a recap so the first message carries what came before.
+    // Gate on a prior ASSISTANT reply, not just any message: a brand-new chat's
+    // first send has already put the user message into the transcript by now, so
+    // "some message exists" is true on every new chat — which falsely armed the
+    // recap (and duplicated the message) on the most common path of all.
+    if (
+      !resumeIdRef.current &&
+      itemsRef.current.some((it) => it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system)
+    ) {
       contextLostRef.current = true
     }
 
@@ -1572,39 +1579,47 @@ export function EasyChat({
           setRunningAgents([])
           setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
         }
-        // Resuming failed and a fresh session took its place: say so, or the
-        // transcript above goes on implying a memory that is no longer there.
-        offResumeLost = window.cove.onAgentResumeLost?.(id, () => {
+        // Resuming failed and a fresh session took its place: arm the recap so
+        // the next message carries the conversation, and say so plainly (a recap
+        // is not the same as Claude actually remembering).
+        const resumeLost = (): void => {
           if (disposed) return
-          // The resume failed and a fresh process took its place — arm the recap
-          // so the next message carries the conversation, and say so plainly
-          // (a recap is not the same as Claude actually remembering).
           contextLostRef.current = true
-          setItems((prev) => [
-            ...prev,
-            {
-              kind: 'msg',
-              msg: {
-                id: `sys-resume-${Date.now()}`,
-                at: Date.now(),
-                role: 'assistant',
-                text:
-                  '⚠ The earlier session could not be resumed, so this one starts fresh. ' +
-                  'Your next message includes a short recap of the conversation above so ' +
-                  'Claude can keep going — but details beyond that recap are gone.',
-                system: true
-              }
-            }
-          ])
-        })
+          setItems((prev) =>
+            // Guard against a double notice (event + catch-up both firing).
+            prev.some((it) => it.kind === 'msg' && it.msg.id.startsWith('sys-resume-'))
+              ? prev
+              : [
+                  ...prev,
+                  {
+                    kind: 'msg',
+                    msg: {
+                      id: `sys-resume-${Date.now()}`,
+                      at: Date.now(),
+                      role: 'assistant',
+                      text:
+                        '⚠ The earlier session could not be resumed, so this one starts fresh. ' +
+                        'Your next message includes a short recap of the conversation above so ' +
+                        'Claude can keep going — but details beyond that recap are gone.',
+                      system: true
+                    }
+                  }
+                ]
+          )
+        }
+        offResumeLost = window.cove.onAgentResumeLost?.(id, resumeLost)
         offExit = window.cove.onAgentExit(id, () => {
           // The exit event carries no reason; main still knows one.
           void window.cove.agentDied?.(id).then((d) => died(d?.reason))
         })
-        // A spawn failure lands before this subscription exists — ask whether we
-        // already missed it, or the chat sits on "Working" with nothing coming.
+        // A spawn failure — or a resume that was lost — can land before these
+        // subscriptions exist. Ask whether we already missed either, or the chat
+        // sits on "Working"/context-blind with no notice.
         void window.cove.agentDied?.(id).then((d) => {
           if (!disposed && d) died(d.reason)
+        })
+        void window.cove.agentResumeLostCheck?.(id).then((lost) => {
+          if (!disposed && lost) resumeLost()
         })
       })
 
@@ -1644,6 +1659,11 @@ export function EasyChat({
       setReady(false)
       suspendedRef.current = true
       setSuspended(true)
+      // The reaped process is the only thing that could ever poll a backgrounded
+      // shell to "done", so its pills can never clear on their own now. Drop them
+      // — otherwise busy.background stays > 0, which pins this chat mounted for
+      // the life of the app with a pill stuck on "running" forever.
+      setBgTasks([])
     }, IDLE_REAP_MS)
     return () => window.clearTimeout(timer)
   }, [visible, suspended, generating, thinking, bgTasks.length])
