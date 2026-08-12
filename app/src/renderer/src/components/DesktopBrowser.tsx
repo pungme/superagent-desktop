@@ -65,13 +65,6 @@ export function DesktopBrowser({
    * also covers the active one being closed.
    */
   const [chosenId, setActiveId] = useState<string | null>(null)
-  /**
-   * The colour of the visible page's bottom edge. The pane is inset from the
-   * window so its edges can be grabbed, and rounded at the bottom — which left
-   * a band of window under every page, reading as a cut-off footer. Painted in
-   * the page's own colour it reads as the page ending in the window's curve.
-   */
-  const [edge, setEdge] = useState('')
   const activeId = chosenId && tabs.some((t) => t.id === chosenId) ? chosenId : (tabs[0]?.id ?? '')
   const pageUrls = useStore((s) => s.pageUrl)
 
@@ -163,7 +156,7 @@ export function DesktopBrowser({
 
       {/* Every tab stays mounted; only the active one is on screen. Unmounting
           would tear the page down and reload it on the way back. */}
-      <div className="dbrowser-panes" style={edge ? { background: edge } : undefined}>
+      <div className="dbrowser-panes">
         {tabs.map((t) => (
           <div key={t.id} className={`dbrowser-pane ${t.id === activeId ? 'on' : ''}`}>
             <BrowserPane
@@ -174,10 +167,6 @@ export function DesktopBrowser({
               fill
               occluded={occluded}
               positionKey={positionKey}
-              // Concentric with the window: its inner edge is rounded 10px and
-              // the page sits 6px inside that (--dw-grab), so 4px matches.
-              radius={4}
-              onEdgeColour={t.id === activeId ? setEdge : undefined}
             />
           </div>
         ))}
