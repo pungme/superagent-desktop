@@ -44,11 +44,23 @@ const OFFLINE_MARKERS = [
   'ENETUNREACH',
   'ENETDOWN',
   'getaddrinfo',
-  'network timeout'
-  // Deliberately NOT a bare 'net::' catch-all: the specific connectivity codes
-  // above already cover offline/DNS, and 'net::' would also swallow genuinely
-  // actionable errors (ERR_CERT_*, ERR_SSL_*, ERR_BLOCKED_BY_CLIENT) that a
-  // manual "Check for updates" should actually report.
+  'network timeout',
+  // Transient "couldn't reach GitHub cleanly" errors — GitHub's CDN throws HTTP/2
+  // and QUIC protocol hiccups intermittently, and the feed fetch can come back
+  // empty or reset mid-flight. These are retry-next-time blips, not "the update
+  // failed"; without them electron-updater wraps the net error in its scary
+  // "Cannot parse releases feed — please ensure a production release exists",
+  // which alarms the user even though the release is perfectly fine.
+  'ERR_HTTP2_PROTOCOL_ERROR',
+  'ERR_QUIC_PROTOCOL_ERROR',
+  'ERR_HTTP_RESPONSE_CODE_FAILURE',
+  'ERR_EMPTY_RESPONSE',
+  'ERR_RESPONSE_HEADERS_TRUNCATED',
+  'ERR_CONTENT_LENGTH_MISMATCH',
+  'ERR_SOCKET_NOT_CONNECTED'
+  // Still deliberately NOT a bare 'net::' catch-all: genuinely actionable errors
+  // (ERR_CERT_*, ERR_SSL_*, ERR_BLOCKED_BY_CLIENT) must still surface on a manual
+  // "Check for updates".
 ]
 function isOfflineError(message: string): boolean {
   return OFFLINE_MARKERS.some((m) => message.includes(m))
