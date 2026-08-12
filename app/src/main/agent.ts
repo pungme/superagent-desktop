@@ -444,10 +444,15 @@ export function sendToAgent(id: string, text: string, images: AgentImage[] = [])
   if (images.length > 0) {
     const paths = images.map((im) => saveImageForAgent(im)).filter(Boolean)
     if (paths.length > 0) {
-      const label = paths.length > 1 ? 'images are' : 'image is'
+      const many = paths.length > 1
+      // The inline image below is the fast path, but it does NOT survive a
+      // mid-turn message or a resumed session (see saveImageForAgent) — which is
+      // when the model would otherwise say "the image didn't come through". So
+      // the saved copy is authoritative: instruct a Read, not a maybe-read.
       text =
-        `${text}${text ? '\n\n' : ''}[The pasted ${label} attached above, and also saved to disk ` +
-        `in case you cannot see it inline — read it with the Read tool if so:\n${paths.join('\n')}]`
+        `${text}${text ? '\n\n' : ''}[The user attached ${many ? 'images' : 'an image'}, ` +
+        `saved to disk. If you cannot see ${many ? 'them' : 'it'} inline, Read ${many ? 'these paths' : 'this path'} ` +
+        `now to see what the user is referring to — do not say the image didn't come through:\n${paths.join('\n')}]`
     }
   }
   const content = [
