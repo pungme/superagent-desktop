@@ -1,17 +1,5 @@
-import {
-  app,
-  ipcMain,
-  BrowserWindow,
-  nativeImage,
-  systemPreferences,
-  shell
-} from 'electron'
-import {
-  execFile,
-  spawn,
-  ChildProcessWithoutNullStreams,
-  ChildProcessByStdio
-} from 'child_process'
+import { app, ipcMain, BrowserWindow, nativeImage, systemPreferences, shell } from 'electron'
+import { execFile, spawn, ChildProcessWithoutNullStreams, ChildProcessByStdio } from 'child_process'
 import type { Readable } from 'stream'
 import { promisify } from 'util'
 import { tmpdir } from 'os'
@@ -122,7 +110,10 @@ async function frontmostApp(): Promise<string> {
   try {
     const { stdout } = await run(
       'osascript',
-      ['-e', 'tell application "System Events" to get name of first process whose frontmost is true'],
+      [
+        '-e',
+        'tell application "System Events" to get name of first process whose frontmost is true'
+      ],
       { timeout: 4000 }
     )
     return stdout.trim()
@@ -235,12 +226,13 @@ function sendGesture(
   payload: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
-    // A gesture that never gets acked must not wedge the queue behind it.
-    const timer = setTimeout(() => {
-      const i = session.pending.indexOf(done)
-      if (i >= 0) session.pending.splice(i, 1)
-      resolve({ ok: false, error: 'timeout' })
-    }, 5000)
+    // A gesture that never gets acked must not wedge the caller behind it — but
+    // do NOT splice our resolver out of `pending` on timeout. baguette acks in
+    // FIFO order; removing our slot would make its (merely late) ack pop the
+    // NEXT gesture's resolver, desyncing every gesture after by one. Leave the
+    // slot: the late ack consumes it as a harmless no-op (the Promise already
+    // settled) and alignment holds. We just report it un-acked to the caller.
+    const timer = setTimeout(() => resolve({ ok: false, error: 'timeout' }), 5000)
     const done = (res: { ok: boolean; error?: string }): void => {
       clearTimeout(timer)
       resolve(res)
@@ -326,7 +318,9 @@ async function grabFrame(
 ): Promise<{ url: string; width: number; height: number; hash: string } | null> {
   const file = join(tmpdir(), `sa-sim-${udid.slice(0, 8)}.jpg`)
   try {
-    await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], { timeout: 15_000 })
+    await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], {
+      timeout: 15_000
+    })
     const img = nativeImage.createFromBuffer(readFileSync(file))
     if (img.isEmpty()) return null
     const { width: pxW, height: pxH } = img.getSize()
@@ -645,7 +639,9 @@ async function moveSimulatorWindow(rect: {
       'tell application "System Events" to if exists process "Simulator" then return "y"'
     )
     if (exists !== 'y') return { ok: false, error: 'no-process' }
-    await osa(`${win} set size of window 1 to {${Math.round(rect.width)}, ${Math.round(rect.height)}}`)
+    await osa(
+      `${win} set size of window 1 to {${Math.round(rect.width)}, ${Math.round(rect.height)}}`
+    )
     // The resize settles a beat after the call returns; reading immediately
     // gives back the size we asked for rather than the one it took.
     await new Promise((r) => setTimeout(r, 250))
@@ -698,19 +694,19 @@ export function registerSimulatorIpc(): void {
       // every attach would toggle it back off half the time.
       if (!pinnedOnce) {
         pinnedOnce = true
-      // Two Simulator settings make an attached window behave: "Stay On Top"
-      // (otherwise clicking back into SuperAgent to type sends the device
-      // behind our window and the pane looks empty) and bezels off.
-      await run('osascript', [
-        '-e',
-        `tell application "System Events" to tell process "Simulator"
+        // Two Simulator settings make an attached window behave: "Stay On Top"
+        // (otherwise clicking back into SuperAgent to type sends the device
+        // behind our window and the pane looks empty) and bezels off.
+        await run('osascript', [
+          '-e',
+          `tell application "System Events" to tell process "Simulator"
            try
              set mi to menu item "Stay On Top" of menu 1 of menu bar item "Window" of menu bar 1
              set mark to value of attribute "AXMenuItemMarkChar" of mi
              if mark is missing value or mark is "" then click mi
            end try
          end tell`
-      ]).catch(() => {})
+        ]).catch(() => {})
       }
       // Device bezels carry a large minimum window size — with them on, the
       // window refuses to shrink into a pane (measured: 972px tall against a
@@ -849,72 +845,110 @@ export interface SimInputResult {
  * just passes the screenshot's pixel size as width/height.
  */
 export async function sendSimInput(udid: string, action: SimAction): Promise<SimInputResult> {
-      const bin = await findBaguette()
-      if (!bin) return { ok: false, error: 'baguette-not-installed' }
+  const bin = await findBaguette()
+  if (!bin) return { ok: false, error: 'baguette-not-installed' }
 
-      // Fast path: tap/swipe/key go down the open session — no process to
-      // start, so the device feels the gesture almost immediately.
-      if (SESSION_KINDS.has(action.type)) {
-        const session = await inputSession(udid)
-        if (session) {
-          const payload: Record<string, unknown> =
-            action.type === 'swipe'
-              ? {
-                  type: 'swipe',
-                  startX: action.x,
-                  startY: action.y,
-                  endX: action.toX,
-                  endY: action.toY,
-                  width: action.width,
-                  height: action.height,
-                  // baguette's default is 0.25s per swipe. That is right for a
-                  // one-shot flick and far too slow for a drag, where it is the
-                  // whole of the lag between the finger and the screen — the
-                  // pane sends a short duration for each segment it streams.
-                  ...(action.duration ? { duration: action.duration } : {})
-                }
-              : action.type === 'key'
-                ? { type: 'key', code: action.code, ...(action.modifiers ? { modifiers: action.modifiers } : {}) }
-                : {
-                    type: 'tap',
-                    x: action.x,
-                    y: action.y,
-                    width: action.width,
-                    height: action.height,
-                    ...(action.duration ? { duration: action.duration } : {})
-                  }
-          const res = await sendGesture(session, payload)
-          if (res.ok) {
-            nudge(udid)
-            return { ok: true }
-          }
-          // Session refused it — fall through to the one-shot command rather
-          // than dropping the gesture.
-        }
+  // Fast path: tap/swipe/key go down the open session — no process to
+  // start, so the device feels the gesture almost immediately.
+  if (SESSION_KINDS.has(action.type)) {
+    const session = await inputSession(udid)
+    if (session) {
+      const payload: Record<string, unknown> =
+        action.type === 'swipe'
+          ? {
+              type: 'swipe',
+              startX: action.x,
+              startY: action.y,
+              endX: action.toX,
+              endY: action.toY,
+              width: action.width,
+              height: action.height,
+              // baguette's default is 0.25s per swipe. That is right for a
+              // one-shot flick and far too slow for a drag, where it is the
+              // whole of the lag between the finger and the screen — the
+              // pane sends a short duration for each segment it streams.
+              ...(action.duration ? { duration: action.duration } : {})
+            }
+          : action.type === 'key'
+            ? {
+                type: 'key',
+                code: action.code,
+                ...(action.modifiers ? { modifiers: action.modifiers } : {})
+              }
+            : {
+                type: 'tap',
+                x: action.x,
+                y: action.y,
+                width: action.width,
+                height: action.height,
+                ...(action.duration ? { duration: action.duration } : {})
+              }
+      const res = await sendGesture(session, payload)
+      if (res.ok) {
+        nudge(udid)
+        return { ok: true }
       }
+      // A slow/absent ack (timeout) does NOT mean the gesture didn't run:
+      // baguette executes, THEN acks, so re-dispatching via the one-shot
+      // command would double-fire it — a double tap on a destructive control.
+      // Treat a timeout as "probably landed" and stop; only a genuine session
+      // failure (ended/refused) falls through to retry via the one-shot.
+      if (res.error === 'timeout') {
+        nudge(udid)
+        return { ok: true }
+      }
+      // Session refused it — fall through to the one-shot command rather
+      // than dropping the gesture.
+    }
+  }
 
-      const args: string[] = []
-      if (action.type === 'key') {
-        args.push('key', '--udid', udid, '--code', String(action.code))
-        if (action.modifiers) args.push('--modifiers', String(action.modifiers))
-      } else if (action.type === 'tap') {
-        args.push('tap', '--udid', udid, '--x', String(action.x), '--y', String(action.y),
-          '--width', String(action.width), '--height', String(action.height))
-      } else if (action.type === 'swipe') {
-        args.push('swipe', '--udid', udid, '--start-x', String(action.x), '--start-y', String(action.y),
-          '--end-x', String(action.toX), '--end-y', String(action.toY),
-          '--width', String(action.width), '--height', String(action.height))
-        if (action.duration) args.push('--duration', String(action.duration))
-      } else if (action.type === 'press') {
-        args.push('press', '--udid', udid, '--button', String(action.button))
-      } else {
-        args.push('type', '--udid', udid, '--text', String(action.text))
-      }
-      try {
-        const { stdout } = await run(bin, args, { timeout: 20_000 })
-        nudge(udid) // show the result of the tap immediately
-        return { ok: true, out: stdout.trim().slice(0, 200) }
-      } catch (err) {
-        return { ok: false, error: String(err).slice(0, 200) }
-      }
+  const args: string[] = []
+  if (action.type === 'key') {
+    args.push('key', '--udid', udid, '--code', String(action.code))
+    if (action.modifiers) args.push('--modifiers', String(action.modifiers))
+  } else if (action.type === 'tap') {
+    args.push(
+      'tap',
+      '--udid',
+      udid,
+      '--x',
+      String(action.x),
+      '--y',
+      String(action.y),
+      '--width',
+      String(action.width),
+      '--height',
+      String(action.height)
+    )
+  } else if (action.type === 'swipe') {
+    args.push(
+      'swipe',
+      '--udid',
+      udid,
+      '--start-x',
+      String(action.x),
+      '--start-y',
+      String(action.y),
+      '--end-x',
+      String(action.toX),
+      '--end-y',
+      String(action.toY),
+      '--width',
+      String(action.width),
+      '--height',
+      String(action.height)
+    )
+    if (action.duration) args.push('--duration', String(action.duration))
+  } else if (action.type === 'press') {
+    args.push('press', '--udid', udid, '--button', String(action.button))
+  } else {
+    args.push('type', '--udid', udid, '--text', String(action.text))
+  }
+  try {
+    const { stdout } = await run(bin, args, { timeout: 20_000 })
+    nudge(udid) // show the result of the tap immediately
+    return { ok: true, out: stdout.trim().slice(0, 200) }
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 200) }
+  }
 }
