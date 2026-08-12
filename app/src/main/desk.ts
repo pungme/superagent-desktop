@@ -132,8 +132,11 @@ export function registerDeskIpc(): void {
   })
 
   ipcMain.handle('desk:rename', (_e, path: string, name: string) => {
-    if (!inDesk(path) || !name.trim() || name.includes('/')) return null
-    const next = join(dirname(path), freeName(dirname(path), name.trim()))
+    // '.' and '..' are path traversal, not names — Finder rejects them and so do
+    // we (otherwise freeName turns them into stray ". 2" / ".. 2" entries).
+    const clean = name.trim()
+    if (!inDesk(path) || !clean || clean === '.' || clean === '..' || clean.includes('/')) return null
+    const next = join(dirname(path), freeName(dirname(path), clean))
     renameSync(path, next)
     return next
   })
