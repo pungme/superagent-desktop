@@ -781,6 +781,10 @@ export function BrowserPane({
       >
         {simFrame && visible && (
           <div
+            // Keyed by mode so switching desktop/mobile/both replays the frame's
+            // ease-in (see .browser-sim-frame). Pure HTML — never touches the
+            // native view.
+            key={`simframe-${viewport}`}
             className="browser-sim-frame"
             style={{
               left: simFrame.left,
@@ -792,6 +796,7 @@ export function BrowserPane({
         )}
         {twinFrame && visible && (
           <div
+            key={`twinframe-${viewport}`}
             className="browser-sim-frame"
             style={{
               left: twinFrame.left,
