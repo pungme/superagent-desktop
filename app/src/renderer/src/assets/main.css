@@ -4890,6 +4890,36 @@ button {
   line-height: 1;
 }
 
+/* Reload feedback: the arrow spins while the page loads (clear even for a fast
+   reload); hovering the spinning button swaps it for × to stop. Idle shows a
+   plain reload arrow. Exactly one glyph is visible at a time. */
+.browser-reload-glyph {
+  display: inline-flex;
+}
+.browser-reload-stop {
+  display: none;
+}
+.browser-reload-btn.loading .browser-reload-glyph {
+  animation: browser-reload-spin 0.7s linear infinite;
+}
+.browser-reload-btn.loading:hover .browser-reload-glyph {
+  display: none;
+}
+.browser-reload-btn.loading:hover .browser-reload-stop {
+  display: inline-flex;
+}
+@keyframes browser-reload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .browser-reload-btn.loading .browser-reload-glyph {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
 /* Closing the pane is not navigation. A hairline and a little air separate it
    from the arrows, and it reddens on hover so it reads as "this puts it away". */
 .browser-close-btn {
