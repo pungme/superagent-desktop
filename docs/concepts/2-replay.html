@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — watch it work</title>
+<meta name="description" content="A Mac app that gives your agent a computer." />
+<style>
+/*
+  CONCEPT 2 — "Replay".
+  The scrollbar is a transport control. You are not reading about a session,
+  you are scrubbing one: the chat types, the browser navigates, a card moves.
+  Scroll drives a timeline rather than moving a page, so the motion carries the
+  argument instead of decorating it.
+*/
+:root {
+  --paper: #0b0c0e;
+  --panel: #131519;
+  --ink: #f4f5f7;
+  --muted: #9aa0aa;
+  --faint: #5f656f;
+  --line: rgba(255,255,255,0.08);
+  --live: #4ea86b;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+  background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+img { max-width:100%; display:block; }
+
+.intro { min-height: 88vh; display:grid; place-items:center; text-align:center; padding: 0 24px; }
+.intro img.mark { width:52px; height:52px; border-radius:13px; margin:0 auto 24px; }
+h1 { font-size: clamp(34px, 6vw, 74px); line-height:1.02; letter-spacing:-0.04em; font-weight:680; }
+h1 span { color: var(--faint); }
+.lede { margin: 18px auto 0; max-width: 50ch; color: var(--muted); font-size: clamp(15px,1.6vw,18px); line-height:1.55; }
+.scrollcue { margin-top:40px; font-family:var(--mono); font-size:12px; color:var(--faint); letter-spacing:0.08em; }
+.scrollcue::after { content:'↓'; display:block; margin-top:8px; animation: bob 2s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(6px); } }
+
+/* The stage pins while the timeline underneath it scrolls. */
+.reel { position: relative; height: 520vh; }
+.stage {
+  position: sticky; top: 0; height: 100vh;
+  display: grid; grid-template-columns: 340px 1fr; gap: 0;
+  align-items: stretch; padding: 7vh 5vw 9vh;
+}
+.pane {
+  background: var(--panel); border:1px solid var(--line); border-radius:14px;
+  overflow:hidden; display:flex; flex-direction:column; min-width:0;
+}
+.pane.left { border-right:0; border-radius:14px 0 0 14px; }
+.pane.right { border-radius:0 14px 14px 0; position:relative; }
+.pane-head {
+  height:38px; flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:0 14px;
+  border-bottom:1px solid var(--line); font-size:12.5px; color:var(--muted);
+}
+.dot { width:7px; height:7px; border-radius:50%; background: var(--live); box-shadow:0 0 0 3px rgba(78,168,107,0.15); }
+
+/* chat */
+.thread { padding:16px; display:flex; flex-direction:column; gap:12px; overflow:hidden; }
+.msg { max-width:92%; padding:10px 13px; border-radius:12px; font-size:13.5px; line-height:1.5; opacity:0; transform: translateY(8px); }
+.msg.on { opacity:1; transform:none; transition: opacity .4s ease, transform .4s ease; }
+.msg.me { align-self:flex-end; background:#2b2f37; }
+.msg.it { background:#1b1e24; color: var(--muted); }
+.msg.tool { font-family:var(--mono); font-size:11.5px; color:var(--faint); background:none; padding:2px 4px; }
+
+/* the pane's content swaps as the story advances */
+.frame { position:absolute; inset:38px 0 0; opacity:0; transition: opacity .5s ease; }
+.frame.on { opacity:1; }
+.frame img { width:100%; height:100%; object-fit: cover; object-position: top left; }
+.frame.url { inset:38px 0 0; display:flex; flex-direction:column; }
+.omni {
+  margin:12px; padding:8px 12px; border-radius:9px; background:#0d0f12; border:1px solid var(--line);
+  font-family:var(--mono); font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden;
+}
+
+/* the caption rail */
+.caption {
+  position: fixed; left:50%; bottom:5vh; transform:translateX(-50%); z-index:5;
+  text-align:center; pointer-events:none; width: min(620px, 88vw);
+}
+.caption b { display:block; font-size: clamp(17px,2.2vw,24px); letter-spacing:-0.02em; }
+.caption span { display:block; margin-top:6px; color:var(--muted); font-size:14px; line-height:1.5; }
+.caption > div { opacity:0; transform: translateY(8px); transition: opacity .35s ease, transform .35s ease; position:absolute; inset:0; }
+.caption > div.on { opacity:1; transform:none; }
+
+/* progress */
+.track { position:fixed; left:0; right:0; top:0; height:2px; background:rgba(255,255,255,0.06); z-index:20; }
+.track i { display:block; height:100%; background: var(--ink); width:0; }
+
+.outro { padding: 16vh 24px 18vh; text-align:center; }
+.ctas { display:flex; gap:12px; justify-content:center; margin-top:26px; flex-wrap:wrap; }
+.btn { padding:12px 22px; border-radius:10px; background:var(--ink); color:#111; text-decoration:none; font-weight:640; font-size:14px; }
+.btn.ghost { background:none; color:var(--ink); border:1px solid var(--line); }
+.note { margin-top:16px; font-family:var(--mono); font-size:12px; color:var(--faint); }
+
+@media (max-width: 900px) {
+  .reel { height:auto; }
+  .stage { position:static; height:auto; grid-template-columns:1fr; gap:12px; padding: 6vh 5vw; }
+  .pane.left, .pane.right { border-radius:14px; border-right:1px solid var(--line); }
+  .pane.right { height: 44vh; }
+  .caption { position:static; transform:none; width:auto; margin: 24px auto 0; }
+  .caption > div { position:static; opacity:1; transform:none; }
+  .msg { opacity:1; transform:none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg, .frame, .caption > div { transition:none; opacity:1; transform:none; }
+  .scrollcue::after { animation:none; }
+}
+</style>
+</head>
+<body>
+<div class="track"><i id="bar"></i></div>
+
+<section class="intro">
+  <div>
+    <img class="mark" src="../logo.png" alt="" />
+    <h1>Watch it work.<br /><span>Not a log. A window.</span></h1>
+    <p class="lede">SuperAgent gives Claude Code a real browser, a real iPhone and a desk to keep its
+    work on — so the part you usually take on trust happens in front of you.</p>
+    <p class="scrollcue">SCRUB THE SESSION</p>
+  </div>
+</section>
+
+<div class="reel" id="reel">
+  <div class="stage">
+    <div class="pane left">
+      <div class="pane-head"><span class="dot"></span> wepush · chat</div>
+      <div class="thread" id="thread"></div>
+    </div>
+    <div class="pane right">
+      <div class="pane-head" id="paneHead">browser</div>
+      <div class="frame url" data-step="0"><div class="omni">about:blank</div></div>
+      <div class="frame" data-step="1"><img src="../browser-view.png" alt="" loading="lazy" /></div>
+      <div class="frame" data-step="2"><img src="../build.png" alt="" loading="lazy" /></div>
+      <div class="frame" data-step="3"><img src="../hero.png" alt="" loading="lazy" /></div>
+    </div>
+  </div>
+</div>
+
+<div class="caption" id="caption"></div>
+
+<section class="outro">
+  <h1 style="font-size:clamp(28px,4.6vw,52px)">Give your agent a screen.</h1>
+  <div class="ctas">
+    <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+    <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">Source</a>
+  </div>
+  <p class="note">free · open source · runs locally · notarized · your Claude subscription</p>
+</section>
+
+<script>
+const SCRIPT = [
+  { msg: ['me', 'the pricing page looks wrong on mobile — can you check?'],
+    cap: ['It opens the page itself', 'No screenshot service, no description of a page. A real Chromium view, driven by the agent and visible to you.'] },
+  { msg: ['tool', 'browser_navigate → wepush.app/pricing'], step: 1 },
+  { msg: ['it', "Opened it. The plan cards overflow below 380px — the grid never drops to one column."],
+    cap: ['It reads what it sees', 'The agent gets the page structure and a numbered list of what it can click — cheaper than screenshots, and clickable.'] },
+  { msg: ['me', 'fix it and show me'] },
+  { msg: ['tool', 'Edit → src/routes/pricing/+page.svelte'], step: 2,
+    cap: ['It builds beside the page', 'Your dev server runs in a strip at the top of the chat. The agent edits, the page reloads, you watch it change.'] },
+  { msg: ['it', 'Done — the grid collapses at 380px now. Reloading the preview.'] },
+  { msg: ['tool', 'sim_install_and_launch → iPhone 17 Pro'], step: 3,
+    cap: ['And on the actual phone', 'A real iOS Simulator streamed inside the window from its own framebuffer. Tap it, type into it — it is the device, not a picture of one.'] },
+  { msg: ['it', 'Checked on the simulator too. Card stack is clean at 375pt.'],
+    cap: ['Then it leaves you alone', 'It finishes quietly in the background and sends a notification. The window never shoves itself in front of what you were doing.'] }
+]
+
+const thread = document.getElementById('thread')
+const caption = document.getElementById('caption')
+const frames = [...document.querySelectorAll('.frame')]
+const bar = document.getElementById('bar')
+const reel = document.getElementById('reel')
+
+const msgs = SCRIPT.map(s => {
+  const el = document.createElement('div')
+  el.className = 'msg ' + s.msg[0]
+  el.textContent = s.msg[1]
+  thread.appendChild(el)
+  return el
+})
+const caps = SCRIPT.map(s => {
+  if (!s.cap) return null
+  const el = document.createElement('div')
+  el.innerHTML = `<b>${s.cap[0]}</b><span>${s.cap[1]}</span>`
+  caption.appendChild(el)
+  return el
+})
+
+let raf = 0
+function draw() {
+  raf = 0
+  const r = reel.getBoundingClientRect()
+  const span = reel.offsetHeight - window.innerHeight
+  const p = Math.min(Math.max(-r.top / span, 0), 1)
+  bar.style.width = (p * 100).toFixed(1) + '%'
+
+  // Which beat of the script are we on.
+  const i = Math.min(SCRIPT.length - 1, Math.floor(p * SCRIPT.length))
+  msgs.forEach((m, k) => m.classList.toggle('on', k <= i))
+  // Keep the newest message in view without a scrollbar of its own.
+  const over = Math.max(0, thread.scrollHeight - thread.clientHeight)
+  thread.style.transform = `translateY(${-over}px)`
+
+  let step = 0
+  for (let k = 0; k <= i; k++) if (SCRIPT[k].step !== undefined) step = SCRIPT[k].step
+  frames.forEach(f => f.classList.toggle('on', +f.dataset.step === step))
+
+  let capIndex = -1
+  for (let k = 0; k <= i; k++) if (caps[k]) capIndex = k
+  caps.forEach((c, k) => c && c.classList.toggle('on', k === capIndex))
+}
+addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(draw) }, { passive: true })
+addEventListener('resize', draw)
+draw()
+</script>
+</body>
+</html>

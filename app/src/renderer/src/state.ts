@@ -56,6 +56,25 @@ export interface TodoItem {
 interface CoveState {
   tree: TreeGroup[]
   activeWorkspaceId: string | null
+  /**
+   * The full-window view sitting over the projects, if any — just Computer
+   * now that Dashboard, Skills and Routines are applications inside it. The
+   * sidebar marks it, and a project row must not keep looking selected while
+   * it is covered up.
+   */
+  /**
+   * Projects whose pane currently has a page on it, reported by the pane
+   * itself. previewUrls only records navigations *we* asked for, so a pane
+   * restored at startup has none — and the sidebar could not tell a project
+   * sitting on a live site from one with nothing open.
+   */
+  pageUrl: Record<string, string>
+  setPageUrl: (workspaceId: string, url: string) => void
+  /** Projects with the simulator pane open, so the sidebar can say so. */
+  simOpen: Record<string, boolean>
+  setSimOpen: (workspaceId: string, open: boolean) => void
+  overlay: 'computer' | null
+  setOverlay: (o: 'computer' | null) => void
   // Routines grouped by workspace id, shown nested under each project in the sidebar.
   routines: Record<string, Routine[]>
   refreshRoutines: () => Promise<void>
@@ -65,10 +84,12 @@ interface CoveState {
   openRoutineRun: (id: string) => void
   closeRoutineRun: () => void
   statuses: Record<string, WorkspaceStatus>
-  // Claude's current task list per workspace, from TodoWrite (live in the chat).
+  // Claude's current task list from TodoWrite (live in the chat), keyed by chat
+  // id — each conversation keeps its own list, so two chats in one project don't
+  // overwrite each other's checklist.
   todos: Record<string, TodoItem[]>
-  setTodos: (workspaceId: string, todos: TodoItem[]) => void
-  clearTodos: (workspaceId: string) => void
+  setTodos: (chatId: string, todos: TodoItem[]) => void
+  clearTodos: (chatId: string) => void
   ports: Record<string, number[]>
   browserOpen: Record<string, boolean>
   coldStart: boolean
@@ -90,10 +111,24 @@ interface CoveState {
 
   refresh: () => Promise<void>
   setActive: (id: string) => void
+  /**
+   * Map a desk id (which may be a chat id, now that each chat has its own desk)
+   * back to the workspace that owns it. Returns the id unchanged if it's already
+   * a workspace, the owning workspace if it's a chat, or null if neither — so
+   * `activeWorkspaceId` is NEVER set to a chat id (which would select a
+   * non-existent project and blank the screen).
+   */
+  resolveWorkspace: (deskId: string) => string | null
   setStatus: (workspaceId: string, status: WorkspaceStatus) => void
   addPort: (workspaceId: string, port: number) => void
   verifyPorts: () => Promise<void>
-  toggleBrowser: (workspaceId: string) => void
+  /**
+   * `current` is the pane's *effective* open state, which the component has
+   * already resolved. Without it this toggled `browserOpen[id]` raw — and a
+   * pane restored from localStorage has no entry there, so `!undefined` was
+   * `true` and the first click on ✕ re-opened what was already open.
+   */
+  toggleBrowser: (workspaceId: string, current?: boolean) => void
   toggleFiles: (workspaceId: string) => void
   hooksEnabled: boolean
   setHooksEnabled: (v: boolean) => void
@@ -136,6 +171,13 @@ interface CoveState {
    * the banner needs to be able to ask before it throws work away.
    */
   busy: Record<string, { generating: boolean; background: number }>
+  /**
+   * Conversations that finished a turn while you were looking elsewhere.
+   * Keyed by chat id; cleared the moment you actually read it.
+   */
+  unread: Record<string, boolean>
+  markUnread: (chatId: string) => void
+  markRead: (chatId: string) => void
   setBusy: (chatId: string, state: { generating: boolean; background: number }) => void
   clearBusy: (chatId: string) => void
 
@@ -146,7 +188,12 @@ interface CoveState {
    * here once its chat's agent is actually up.
    */
   agentLive: Record<string, boolean>
-  setAgentLive: (workspaceId: string, value: boolean) => void
+  /** Which chats are live right now, per chat id → its workspace. A workspace can
+      have several chats mounted at once (busy siblings kept alive in the
+      background), so its dot has to be the union — one finishing chat must not
+      clear it while another is still running. */
+  agentLiveChats: Record<string, string>
+  setAgentLive: (workspaceId: string, chatId: string, value: boolean) => void
 
   /** An update downloading in the background: version + percent. Store-backed so
       Settings shows it even when reopened mid-download. */
@@ -191,16 +238,24 @@ const chatLoadInflight = new Map<string, Promise<Chat[]>>()
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
+  pageUrl: {},
+  setPageUrl: (workspaceId, url) =>
+    set((s) => (s.pageUrl[workspaceId] === url ? s : { pageUrl: { ...s.pageUrl, [workspaceId]: url } })),
+  simOpen: {},
+  setSimOpen: (workspaceId, open) =>
+    set((s) => ({ simOpen: { ...s.simOpen, [workspaceId]: open } })),
+  overlay: null,
+  setOverlay: (o) => set({ overlay: o }),
   routines: {},
   openRoutineRunId: null,
   statuses: {},
   todos: {},
-  setTodos: (workspaceId, todos) => set((s) => ({ todos: { ...s.todos, [workspaceId]: todos } })),
-  clearTodos: (workspaceId) =>
+  setTodos: (chatId, todos) => set((s) => ({ todos: { ...s.todos, [chatId]: todos } })),
+  clearTodos: (chatId) =>
     set((s) => {
-      if (!s.todos[workspaceId]) return s
+      if (!s.todos[chatId]) return s
       const next = { ...s.todos }
-      delete next[workspaceId]
+      delete next[chatId]
       return { todos: next }
     }),
   ports: loadPorts(),
@@ -215,11 +270,14 @@ export const useStore = create<CoveState>((set, get) => ({
   // cover the viewer, and remember which file is showing.
   openFileInViewer: (workspaceId, path, focus = true) => {
     localStorage.setItem(`openFile:${workspaceId}`, path)
+    // Focus follows the WORKSPACE, but the file (desk state) is keyed by the id
+    // we were given — a chat id, once desks are per-chat.
+    const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => ({
       // Only a USER action may move the user. The agent opening its results must
       // land in its own project quietly — yanking the active workspace mid-typing
       // is the "app hijacks my work" bug.
-      ...(focus ? { activeWorkspaceId: workspaceId } : {}),
+      ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
       openFile: { ...s.openFile, [workspaceId]: path }
     }))
   },
@@ -251,7 +309,9 @@ export const useStore = create<CoveState>((set, get) => ({
   activeChatId: {},
   agentIds: {},
   busy: {},
+  unread: {},
   agentLive: {},
+  agentLiveChats: {},
   updateProgress: null,
   updateError: null,
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
@@ -261,7 +321,14 @@ export const useStore = create<CoveState>((set, get) => ({
     localStorage.setItem('cove.permissionMode', m)
     set({ permissionMode: m })
   },
-  model: localStorage.getItem('cove.model') || '',
+  // A preference saved before the picker moved to the 1M variants would name a
+  // model the menu no longer lists — it would still run, but the pill would
+  // label it "Default" and it would quietly be the 200K window.
+  model: ((): string => {
+    const saved = localStorage.getItem('cove.model') || ''
+    const moved: Record<string, string> = { opus: 'opus[1m]', sonnet: 'sonnet[1m]' }
+    return moved[saved] ?? saved
+  })(),
   setModel: (m) => {
     localStorage.setItem('cove.model', m)
     set({ model: m })
@@ -312,6 +379,14 @@ export const useStore = create<CoveState>((set, get) => ({
     localStorage.setItem('activeWorkspace', id)
     set({ activeWorkspaceId: id, coldStart: false })
   },
+  resolveWorkspace: (deskId) => {
+    const s = get()
+    if (s.tree.some((g) => g.workspaces.some((w) => w.id === deskId))) return deskId
+    for (const [wsId, chats] of Object.entries(s.chats)) {
+      if (chats.some((c) => c.id === deskId)) return wsId
+    }
+    return null
+  },
   setStatus: (workspaceId, status) =>
     set((s) => ({ statuses: { ...s.statuses, [workspaceId]: status } })),
   addPort: (workspaceId, port) =>
@@ -321,6 +396,10 @@ export const useStore = create<CoveState>((set, get) => ({
       // First time we see this port → surface a toast offering to open the preview.
       const ports = { ...s.ports, [workspaceId]: [...cur, port].slice(-5) }
       savePorts(ports) // persist so the chip survives an app restart
+      // A server takes a moment to bind, so the chip goes up on the agent's
+      // word and is checked shortly after — a port merely mentioned in passing
+      // then drops out rather than sitting there green forever.
+      window.setTimeout(() => void get().verifyPorts(), 4000)
       return { ports, toast: { workspaceId, port } }
     }),
   // After a restart, drop any persisted server that isn't actually listening
@@ -343,9 +422,12 @@ export const useStore = create<CoveState>((set, get) => ({
       return { filesOpen: { ...s.filesOpen, [workspaceId]: next } }
     }),
 
-  toggleBrowser: (workspaceId) =>
+  toggleBrowser: (workspaceId, current) =>
     set((s) => {
-      const next = !s.browserOpen[workspaceId]
+      const saved = localStorage.getItem(`paneOpen:${workspaceId}`)
+      const effective =
+        current ?? s.browserOpen[workspaceId] ?? (saved !== null ? saved === '1' : false)
+      const next = !effective
       // Remembered so a code project's preview survives an app restart. Browser
       // projects deliberately don't restore (a cold start must not land on a
       // reloaded, often logged-out live page) — see the coldStart flag.
@@ -355,30 +437,46 @@ export const useStore = create<CoveState>((set, get) => ({
     }),
   setHooksEnabled: (v) => set({ hooksEnabled: v }),
 
-  openPreview: (workspaceId, port) =>
+  openPreview: (workspaceId, port) => {
+    // Check before opening: the chip is scraped from the agent's output, so it
+    // can name a server that has since stopped. Showing ERR_CONNECTION_REFUSED
+    // and leaving a green dot claiming it is running cannot both be right.
+    void window.cove.checkPort(port).then((alive) => {
+      if (!alive) void get().verifyPorts()
+    })
+    const focusWs = get().resolveWorkspace(workspaceId)
     set((s) => {
       localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
       return {
-        activeWorkspaceId: workspaceId,
+        ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
         browserOpen,
         coldStart: false,
         previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
         toast: null
       }
-    }),
-  openUrl: (workspaceId, url, focus = true) =>
+    })
+  },
+  openUrl: (workspaceId, url, focus = true) => {
+    const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => {
       localStorage.setItem(`paneOpen:${workspaceId}`, '1')
       const browserOpen = { ...s.browserOpen, [workspaceId]: true }
+      // The viewer and the pane are the same slot, and the viewer wins it. A
+      // text file left open therefore swallowed every PDF and image opened
+      // afterwards: the row highlighted, the page loaded, and nothing changed
+      // on screen. Whatever was asked for last is what you want to see.
+      localStorage.removeItem(`openFile:${workspaceId}`)
       return {
-        ...(focus ? { activeWorkspaceId: workspaceId } : {}),
+        ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
         browserOpen,
         coldStart: false,
+        openFile: { ...s.openFile, [workspaceId]: null },
         previewUrls: { ...s.previewUrls, [workspaceId]: url },
         toast: null
       }
-    }),
+    })
+  },
   dismissToast: () => set({ toast: null }),
   setReloadOnIdle: (workspaceId, v) =>
     set((s) => ({ reloadOnIdle: { ...s.reloadOnIdle, [workspaceId]: v } })),
@@ -464,7 +562,11 @@ export const useStore = create<CoveState>((set, get) => ({
         activeChatId: {
           ...s.activeChatId,
           [workspaceId]:
-            s.activeChatId[workspaceId] ??
+            // `||`, not `??`: removeChat writes '' when it deletes the last
+            // chat, and ?? kept that empty string — so the replacement chat was
+            // created and then never selected, leaving the pane on "Starting…"
+            // with no way back.
+            s.activeChatId[workspaceId] ||
             // Prefer the chat that was on screen last run, if it still exists.
             (() => {
               const saved = localStorage.getItem(`activeChat:${workspaceId}`)
@@ -503,6 +605,8 @@ export const useStore = create<CoveState>((set, get) => ({
     return true
   },
   selectChat: (workspaceId, chatId) => {
+    // Opening a conversation is reading it.
+    get().markRead(chatId)
     localStorage.setItem(`activeChat:${workspaceId}`, chatId)
     set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } }))
   },
@@ -544,6 +648,15 @@ export const useStore = create<CoveState>((set, get) => ({
   registerAgent: (workspaceId, agentId) =>
     set((s) => ({ agentIds: { ...s.agentIds, [workspaceId]: agentId } })),
 
+  markUnread: (chatId) =>
+    set((s) => (s.unread[chatId] ? s : { unread: { ...s.unread, [chatId]: true } })),
+  markRead: (chatId) =>
+    set((s) => {
+      if (!s.unread[chatId]) return s
+      const next = { ...s.unread }
+      delete next[chatId]
+      return { unread: next }
+    }),
   setBusy: (chatId, state) =>
     set((s) => {
       const prev = s.busy[chatId]
@@ -562,12 +675,19 @@ export const useStore = create<CoveState>((set, get) => ({
       return { busy: next }
     }),
 
-  setAgentLive: (workspaceId, value) =>
-    set((s) =>
-      Boolean(s.agentLive[workspaceId]) === value
-        ? s
-        : { agentLive: { ...s.agentLive, [workspaceId]: value } }
-    ),
+  setAgentLive: (workspaceId, chatId, value) =>
+    set((s) => {
+      const wasLive = chatId in s.agentLiveChats
+      if (wasLive === value) return s
+      const liveChats = { ...s.agentLiveChats }
+      if (value) liveChats[chatId] = workspaceId
+      else delete liveChats[chatId]
+      // The workspace dot is the union: live if any of its chats still is.
+      const anyLive = Object.values(liveChats).includes(workspaceId)
+      return Boolean(s.agentLive[workspaceId]) === anyLive
+        ? { agentLiveChats: liveChats }
+        : { agentLiveChats: liveChats, agentLive: { ...s.agentLive, [workspaceId]: anyLive } }
+    }),
   sendToClaude: (workspaceId, text) => {
     // Send as a chat message to the streaming agent (the single Chat mode). The
     // chat itself does the delivering: it knows which of the project's

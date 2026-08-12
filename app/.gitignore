@@ -14,3 +14,6 @@ src/renderer/public/ort/
 
 # Apple notarization credentials for release builds — never commit
 .env
+
+# compiled by native/build.sh
+native/simfb

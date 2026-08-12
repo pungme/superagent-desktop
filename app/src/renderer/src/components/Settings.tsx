@@ -40,10 +40,15 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
     setUpdateMsg(null)
     const r = await window.cove.updateCheck()
     setChecking(false)
-    if (r.error) setUpdateMsg(`Couldn't check: ${r.error}`)
-    else if (r.latest && r.latest !== r.current)
-      setUpdateMsg(`${r.latest} is downloading — you'll get a restart prompt when it's ready.`)
-    else setUpdateMsg(`You're on the latest version.`)
+    if (r.error) setUpdateMsg(r.error)
+    else {
+      // A clean check clears any stale failure banner, which otherwise takes
+      // precedence over this result and keeps saying "Update failed".
+      useStore.setState({ updateError: null })
+      if (r.latest && r.latest !== r.current)
+        setUpdateMsg(`${r.latest} is downloading — you'll get a restart prompt when it's ready.`)
+      else setUpdateMsg(`You're on the latest version.`)
+    }
   }
 
   useEffect(() => {
@@ -56,6 +61,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
     localStorage.setItem('cove.devMode', v ? '1' : '0')
     setDevMode(v)
   }
+
 
   return (
     <SlideOverPanel title="Settings" onClose={onClose} variant="center">
@@ -106,7 +112,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
         <div className="settings-row">
           <div className="settings-label">
             <strong>Notify when Claude finishes</strong>
-            <span>A banner when a turn completes while you're in another app.</span>
+            <span>A banner when a turn completes while you&rsquo;re in another app.</span>
           </div>
           <label className="switch">
             <input

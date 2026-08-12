@@ -2,10 +2,10 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
+import { SimulatorPane } from './SimulatorPane'
+import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
 import { FileViewer } from './FileViewer'
-import { SkillsPanel } from './SkillsPanel'
-import { RoutinesPanel } from './RoutinesPanel'
 import { RoutineRunView } from './RoutineRunView'
 import type { Workspace, Routine } from '../../../preload'
 
@@ -48,14 +48,72 @@ export function WorkspaceView({
   // A text file open in the in-app viewer takes the content pane over the browser.
   // undefined = untouched this run (fall back to what was open last run);
   // null = explicitly closed.
-  const openFilePath = useStore(
-    (s) =>
-      s.openFile[ws.id] === undefined
-        ? localStorage.getItem(`openFile:${ws.id}`)
-        : s.openFile[ws.id]
+  const openFilePath = useStore((s) =>
+    s.openFile[ws.id] === undefined ? localStorage.getItem(`openFile:${ws.id}`) : s.openFile[ws.id]
   )
   const closeFile = useStore((s) => s.closeFile)
-  const paneOpen = browserOpen || !!openFilePath
+  // The simulator is a card on the desk, not a replacement for what's already
+  // there: open it next to the page or the file you're working on, which is how
+  // you actually build an iOS app. Remembered per project.
+  const [simOpen, setSimOpen] = useState(() => localStorage.getItem(`simOpen:${ws.id}`) === '1')
+  /** The working surface's share of the desk when the simulator sits beside it. */
+  const [deskRatio, setDeskRatio] = useState(() => {
+    const saved = Number(localStorage.getItem(`desk:${ws.id}`))
+    return Number.isFinite(saved) && saved > 0.2 && saved < 0.85 ? saved : 0.62
+  })
+  // Remembered like the other surfaces: leaving the board up and restarting
+  // should put you back on the board, not silently on the chat.
+  const [boardOpen, setBoardOpen] = useState(
+    () => localStorage.getItem(`boardOpen:${ws.id}`) === '1'
+  )
+  /**
+   * Four columns need about 620px to be worth looking at, and the pane half is
+   * usually narrower than that. Opening the board widens it just enough —
+   * never narrows it, and never past two thirds, so the chat stays usable and
+   * the divider you drag afterwards wins.
+   */
+
+  // The desk's working surface: a file you opened wins over the page, and a
+  // code project with neither simply has no surface — the simulator gets the
+  // whole desk.
+  const surface = boardOpen ? (
+    <BoardPanel
+      workspaceId={ws.id}
+      onClose={() => {
+        localStorage.setItem(`boardOpen:${ws.id}`, '0')
+        setBoardOpen(false)
+      }}
+    />
+  ) : openFilePath ? (
+    <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
+  ) : browserOpen ? (
+    <BrowserPane
+      paneId={ws.id}
+      // Browser projects share one session so a manual login carries across all
+      // of them; code previews stay isolated per workspace.
+      partition={ws.kind === 'browser' ? 'persist:browser' : `persist:ws-${ws.id}`}
+      initialUrl={
+        ws.browserUrl ??
+        (ws.kind !== 'browser'
+          ? (localStorage.getItem(`paneUrl:${ws.id}`) ?? undefined)
+          : undefined)
+      }
+      visible={visible}
+      closable={ws.kind !== 'browser'}
+    />
+  ) : null
+
+  const paneOpen = browserOpen || !!openFilePath || simOpen || boardOpen
+
+  // No manual toggle, same as the browser: the pane appears when the agent
+  // boots or launches something on a simulator, and closes from its own ✕.
+  useEffect(() => {
+    return window.cove.onOpenSimulator?.((p) => {
+      if (p.workspaceId !== ws.id) return
+      localStorage.setItem(`simOpen:${ws.id}`, '1')
+      setSimOpen(true)
+    })
+  }, [ws.id])
   // Belt-and-suspenders: when neither the browser preview nor a file viewer is
   // open, make sure the pane's native WebContentsView is detached from the window.
   // Otherwise a pane opened transiently (e.g. the agent browsing) can linger,
@@ -67,7 +125,14 @@ export function WorkspaceView({
   const chats = useStore((s) => s.chats[ws.id])
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const loadChats = useStore((s) => s.loadChats)
-  const activeChat = chats?.find((c) => c.id === activeChatId)
+  // A chat with a turn (or a background command) in flight has to keep its
+  // `claude` process alive even when you switch to a sibling — its agent lives
+  // inside the mounted <EasyChat>, so unmounting it on switch would kill the
+  // work mid-stream. Keep the on-screen chat mounted plus any that's still busy.
+  const busy = useStore((s) => s.busy)
+  const mountedChats = (chats ?? []).filter(
+    (c) => c.id === activeChatId || busy[c.id]?.generating || (busy[c.id]?.background ?? 0) > 0
+  )
   useEffect(() => {
     loadChats(ws.id)
   }, [ws.id, loadChats])
@@ -76,8 +141,8 @@ export function WorkspaceView({
   // toolbar — there's room here, unlike the cramped sidebar row.
   const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
   const openPreview = useStore((s) => s.openPreview)
-  const [skillsOpen, setSkillsOpen] = useState(false)
-  const [routinesOpen, setRoutinesOpen] = useState(false)
+  /** The page this project currently has on its pane, whoever opened it. */
+  const attachedUrl = useStore((s) => s.pageUrl[ws.id] ?? '')
   // Current git branch, for code projects only (browser projects have no repo).
   const [branch, setBranch] = useState<string | null>(null)
   useEffect(() => {
@@ -119,9 +184,14 @@ export function WorkspaceView({
   // workspaces stay mounted for keep-alive).
   useEffect(() => {
     if (!visible) return
-    const onSkills = (): void => setSkillsOpen(true)
-    const onRoutines = (): void => setRoutinesOpen(true)
-    const onToggle = (): void => toggleBrowser(ws.id)
+    // These are full sections now, owned by the app rather than this project.
+    const onSkills = (): void => {
+      window.dispatchEvent(new CustomEvent('cove:open-skills'))
+    }
+    const onRoutines = (): void => {
+      window.dispatchEvent(new CustomEvent('cove:open-routines'))
+    }
+    const onToggle = (): void => toggleBrowser(ws.id, browserOpen)
     // Cmd+R: reload the page when the browser pane is on screen; otherwise a
     // no-op rather than surprising the user with an app reload.
     const onReload = (): void => {
@@ -147,6 +217,19 @@ export function WorkspaceView({
     const fallback = ws.kind === 'browser' ? 0.22 : 0.55
     return saved ? Math.min(0.8, Math.max(0.2, Number(saved))) : fallback
   })
+
+  const widenForBoard = useCallback((): void => {
+    const wrap = containerRef.current?.querySelector('.split-main')
+    const total = wrap?.getBoundingClientRect().width ?? 0
+    if (!total) return
+    setRatio((r) => {
+      const paneNow = total * (1 - r)
+      if (paneNow >= 620) return r
+      const next = Math.max(0.2, Math.min(r, 1 - Math.min(620, total * 0.66) / total))
+      localStorage.setItem(`split:${ws.id}`, String(next))
+      return next
+    })
+  }, [ws.id])
   const [dragging, setDragging] = useState(false)
   // Where the chat sits relative to the pane: beside it (default) or below it,
   // for when a wide page matters more than a tall transcript. Per project.
@@ -197,6 +280,33 @@ export function WorkspaceView({
     [ws.id, filesWidth]
   )
 
+  const onDeskDividerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      setDragging(true)
+      const move = (ev: PointerEvent): void => {
+        const desk = containerRef.current?.querySelector('.desk')
+        if (!desk) return
+        const rect = desk.getBoundingClientRect()
+        const frac = (ev.clientX - rect.left) / rect.width
+        if (!Number.isFinite(frac)) return
+        setDeskRatio(Math.min(0.85, Math.max(0.25, frac)))
+      }
+      const up = (): void => {
+        setDragging(false)
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+        setDeskRatio((r) => {
+          localStorage.setItem(`desk:${ws.id}`, String(r))
+          return r
+        })
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+    },
+    [ws.id]
+  )
+
   const onDividerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault()
@@ -222,7 +332,10 @@ export function WorkspaceView({
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
         setRatio((r) => {
-          localStorage.setItem(layout === 'bottom' ? `splitv:${ws.id}` : `split:${ws.id}`, String(r))
+          localStorage.setItem(
+            layout === 'bottom' ? `splitv:${ws.id}` : `split:${ws.id}`,
+            String(r)
+          )
           return r
         })
       }
@@ -261,6 +374,15 @@ export function WorkspaceView({
             )}
           </>
         )}
+        {/* A site attached to this project that is not one of our dev servers —
+            the chip was only ever about localhost, so a project sitting on a
+            real site said nothing at all up here. */}
+        {ws.kind !== 'browser' && ports.length === 0 && attachedUrl && (
+          <span className="workspace-server attached" title={attachedUrl}>
+            <span className="workspace-server-dot" />
+            {hostOf(attachedUrl) || 'page'}
+          </span>
+        )}
         {ws.kind !== 'browser' && ports.length > 0 && (
           <button
             className="workspace-server"
@@ -274,20 +396,47 @@ export function WorkspaceView({
         )}
         <div className="workspace-toolbar-spacer" />
         <button
-          className="toolbar-btn"
-          onClick={() => setRoutinesOpen(true)}
-          title="Scheduled tasks"
+          className={`toolbar-btn ${boardOpen ? 'on' : ''}`}
+          onClick={() =>
+            setBoardOpen((v) => {
+              if (!v) widenForBoard()
+              localStorage.setItem(`boardOpen:${ws.id}`, v ? '0' : '1')
+              return !v
+            })
+          }
+          title="This project's list — what's left, and what Claude finished"
         >
-          ⏱ Routines
+          ▤ List
         </button>
-        <button className="toolbar-btn" onClick={() => setSkillsOpen(true)} title="Your skills">
-          ✦ Skills
-        </button>
-        {/* No manual toggle for code projects: the pane reveals itself when the
-            agent navigates or you open a file, and closes from its own ✕. */}
+        {/* A code project's preview reveals itself when the agent navigates, and
+            normally closes from the pane's own ✕. But the native page paints
+            ABOVE all HTML, so a mis-bounded agent-opened view can cover its own
+            toolbar — leaving no way to close it. This close lives up here in the
+            workspace toolbar, which the native view can never reach, so there is
+            always a way out. Shown only when the browser is the visible surface. */}
+        {ws.kind !== 'browser' && browserOpen && !openFilePath && !boardOpen && (
+          <button
+            className="toolbar-btn on"
+            onClick={() => toggleBrowser(ws.id, true)}
+            title="Close the preview pane"
+          >
+            Hide preview
+          </button>
+        )}
+        {ws.kind === 'browser' && (
+          <button
+            className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
+            onClick={() => toggleBrowser(ws.id, browserOpen)}
+          >
+            {browserOpen ? 'Hide preview' : 'Show preview'}
+          </button>
+        )}
+        {/* Where the chat sits is a view control, so it belongs here with the
+            others rather than among the New chat pills. The glyph shows the
+            arrangement you would move to; no label, it is not worth a word. */}
         {paneOpen && (
           <button
-            className="toolbar-btn"
+            className="toolbar-btn toolbar-icon"
             onClick={toggleLayout}
             title={
               layout === 'side'
@@ -295,15 +444,7 @@ export function WorkspaceView({
                 : 'Move the chat beside the page'
             }
           >
-            {layout === 'side' ? '⬓ Chat below' : '◨ Chat right'}
-          </button>
-        )}
-        {ws.kind === 'browser' && (
-          <button
-            className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
-            onClick={() => toggleBrowser(ws.id)}
-          >
-            {browserOpen ? 'Hide preview' : 'Show preview'}
+            {layout === 'side' ? '⬓' : '◨'}
           </button>
         )}
       </div>
@@ -319,66 +460,94 @@ export function WorkspaceView({
         {/* Sits between the tree and the chat: a file you click on the left opens
             next to it, rather than across the window. Chat keeps the far side. */}
         <div className={`split-main ${layout === 'bottom' ? 'vert' : ''}`}>
-        {paneOpen && (
-          <>
-            <div className="split-side" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
-              {openFilePath ? (
-                <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
-              ) : (
-                <BrowserPane
-                  paneId={ws.id}
-                  // Browser projects share one session so a manual login carries
-                  // across all of them; code previews stay isolated per workspace.
-                  partition={ws.kind === 'browser' ? 'persist:browser' : `persist:ws-${ws.id}`}
-                  initialUrl={
-                    ws.browserUrl ??
-                    (ws.kind !== 'browser'
-                      ? (localStorage.getItem(`paneUrl:${ws.id}`) ?? undefined)
-                      : undefined)
-                  }
-                  visible={visible}
-                  closable={ws.kind !== 'browser'}
-                />
-              )}
-            </div>
-            <div
-              className={`split-divider ${layout === 'bottom' ? 'horiz' : ''} ${dragging ? 'dragging' : ''}`}
-              onPointerDown={onDividerDown}
-              role="separator"
-            />
-          </>
-        )}
-        <div
-          className="split-side split-side-chat"
-          style={{ flexBasis: paneOpen ? `${ratio * 100}%` : '100%' }}
-        >
-          {activeChat && (
-            <EasyChat
-              // Remount on switch so no state leaks between conversations.
-              key={activeChat.id}
-              cwd={activeChat.cwd ?? ws.path}
-              workspaceId={ws.id}
-              chatId={activeChat.id}
-              initialSessionId={activeChat.claudeSessionId}
-              browserProject={ws.kind === 'browser'}
-              isRepo={branch !== null}
-              visible={visible}
-            />
+          {paneOpen && (
+            <>
+              {/* The desk. One card is the working surface — the page you're on or
+                the file you opened — and the simulator is a second card beside
+                it rather than something that pushes the first one out. The
+                painting behind them shows wherever a card doesn't reach. */}
+              <div className="split-side desk" style={{ flexBasis: `${(1 - ratio) * 100}%` }}>
+                {surface && (
+                  <div
+                    className="desk-card"
+                    style={{ flexBasis: simOpen && !boardOpen ? `${deskRatio * 100}%` : '100%' }}
+                  >
+                    {surface}
+                  </div>
+                )}
+                {surface && simOpen && !boardOpen && (
+                  <div
+                    className={`desk-divider ${dragging ? 'dragging' : ''}`}
+                    onPointerDown={onDeskDividerDown}
+                    role="separator"
+                  />
+                )}
+                {/* The list takes the whole desk while it's open. Sharing it with
+                  the simulator squeezed the list to ~200px, which is too narrow
+                  to read an item in, let alone open one. */}
+                {simOpen && !boardOpen && (
+                  <div
+                    className="desk-card desk-card-sim"
+                    style={{ flexBasis: surface ? `${(1 - deskRatio) * 100}%` : '100%' }}
+                  >
+                    <SimulatorPane
+                      visible={visible}
+                      workspaceId={ws.id}
+                      onClose={() => {
+                        localStorage.setItem(`simOpen:${ws.id}`, '0')
+                        setSimOpen(false)
+                      }}
+                      // No simulator of this project's own: forget that it ever
+                      // had a pane rather than reopening it on every visit.
+                      onNothingToShow={() => {
+                        localStorage.setItem(`simOpen:${ws.id}`, '0')
+                        setSimOpen(false)
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div
+                className={`split-divider ${layout === 'bottom' ? 'horiz' : ''} ${dragging ? 'dragging' : ''}`}
+                onPointerDown={onDividerDown}
+                role="separator"
+              />
+            </>
           )}
-          {activeRun && visible && <RoutineRunView routine={activeRun} />}
-        </div>
+          <div
+            className="split-side split-side-chat"
+            style={{ flexBasis: paneOpen ? `${ratio * 100}%` : '100%' }}
+          >
+            {/* Each chat keeps its own mounted <EasyChat> (and its agent). Only the
+              active one is shown; busy siblings stay mounted but hidden so their
+              turn keeps streaming. Stable key per chat → switching never remounts,
+              so it never tears down a running session. */}
+            {mountedChats.map((c) => {
+              const onScreen = c.id === activeChatId
+              return (
+                <div
+                  key={c.id}
+                  className="chat-mount"
+                  style={{ display: onScreen ? 'flex' : 'none' }}
+                >
+                  <EasyChat
+                    cwd={c.cwd ?? ws.path}
+                    workspaceId={ws.id}
+                    chatId={c.id}
+                    initialSessionId={c.claudeSessionId}
+                    browserProject={ws.kind === 'browser'}
+                    isRepo={branch !== null}
+                    visible={visible && onScreen}
+                  />
+                </div>
+              )
+            })}
+            {activeRun && visible && <RoutineRunView routine={activeRun} />}
+          </div>
         </div>
       </div>
       {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
           mounted, or its overlay lock would blank the active workspace's preview. */}
-      {skillsOpen && visible && (
-        <SkillsPanel
-          workspaceId={ws.id}
-          projectPath={ws.path}
-          onClose={() => setSkillsOpen(false)}
-        />
-      )}
-      {routinesOpen && visible && <RoutinesPanel ws={ws} onClose={() => setRoutinesOpen(false)} />}
     </div>
   )
 }

@@ -1,11 +1,11 @@
-import { BrowserWindow, WebContentsView, Notification, ipcMain, shell, app, net, session } from 'electron'
+import { BrowserWindow, WebContentsView, Notification, ipcMain, shell, app, net } from 'electron'
 import { connect as tcpConnect } from 'net'
 import { fileURLToPath } from 'url'
 import { basename, join } from 'path'
 import { appendFileSync, renameSync, statSync } from 'fs'
 import { execFile } from 'child_process'
-import { normalizeUrl, broadcastToWindows } from './util'
-import { getRecentHistory } from './store'
+import { normalizeUrl, broadcastToWindows, workspaceIdFromPane } from './util'
+import { getRecentHistory, getChatWorkspace, getWorkspaceKind } from './store'
 
 // Lightweight pane-lifecycle trail for the "agent-opened pane is blank" reports —
 // the bug has never reproduced on demand, so leave breadcrumbs where it happens.
@@ -28,34 +28,27 @@ export function paneLog(event: string, id: string, detail = ''): void {
   }
 }
 
-// Electron's setUserAgent rewrites the UA *string* to look like Chrome, but not the
-// User-Agent Client Hints: the Sec-CH-UA header still advertises bare "Chromium",
-// never "Google Chrome". Bot-detection (Cloudflare) cross-checks the two, and that
-// UA-says-Chrome / hints-say-Chromium mismatch is a reliable automation tell — it's
-// why real, human clicks still get challenged. Add the "Google Chrome" brand (kept
-// in sync with the actual Chromium major) so the hints agree with the UA string.
-const partitionsHardened = new Set<string>()
-
-function addChromeBrand(value: string): string {
-  if (!value || /Google Chrome/i.test(value)) return value
-  // Mirror the "Chromium";v="…" entry as a "Google Chrome" entry (same version),
-  // leaving the GREASE brand ("Not_A Brand";v="99") untouched — real Chrome has all three.
-  return value.replace(/"Chromium";v="([^"]+)"/i, '"Google Chrome";v="$1", "Chromium";v="$1"')
-}
-
-function hardenClientHints(partition: string): void {
-  if (partitionsHardened.has(partition)) return
-  partitionsHardened.add(partition)
-  const ses = session.fromPartition(partition)
-  ses.webRequest.onBeforeSendHeaders((details, cb) => {
-    const h = details.requestHeaders
-    for (const k of Object.keys(h)) {
-      const lk = k.toLowerCase()
-      if (lk === 'sec-ch-ua' || lk === 'sec-ch-ua-full-version-list') h[k] = addChromeBrand(h[k])
-    }
-    cb({ requestHeaders: h })
-  })
-}
+// A browser must tell one story about who it is. Its identity shows up in three
+// places — the UA string, the Sec-CH-UA request headers, and
+// navigator.userAgentData in JavaScript — and a challenge (Cloudflare Turnstile)
+// cross-checks them; any disagreement reads as a browser lying about itself, and
+// it refuses to issue the pass, so the "verify you are human" checkbox loops
+// forever even under a real human click.
+//
+// We used to rewrite the Sec-CH-UA header to claim "Google Chrome" — but the
+// JavaScript, which we cannot change without a debugger attached, still said
+// plain "Chromium". Header said Chrome, JS said Chromium: exactly the
+// contradiction the check is built to catch. Measured out-of-band on a
+// hand-browsed pane, that mismatch was real.
+//
+// So we no longer touch any of it beyond stripping "Electron" from the UA
+// string. Electron IS Chromium, and left alone it says so honestly and
+// consistently in all three places — a real Chromium browser, which challenges
+// pass. It presents the same whether the agent is driving or you are, so its
+// story never changes mid-session. Presenting an honest Chromium beats an
+// inconsistent fake Chrome — and a fully consistent Chrome is out of reach
+// anyway: Electron's TLS handshake lacks three post-quantum signature
+// algorithms Chrome's has compiled in, which is not fixable from here.
 
 // Latest favicon per pane, inlined as a data: URI (the app CSP allows data: but
 // not remote https: images, so we fetch the bytes here rather than in the renderer).
@@ -64,7 +57,13 @@ const faviconByPane = new Map<string, string>()
 async function fetchFavicon(id: string, url: string, onReady: () => void): Promise<void> {
   if (!/^https?:\/\//i.test(url)) return
   try {
-    const res = await net.fetch(url)
+    // Main's own fetch announces itself as Electron. A site that has just
+    // served a page to "Chrome" then sees a favicon request from Electron on
+    // the same connection — which is worse than either alone, and is the kind
+    // of contradiction bot detection is built to spot.
+    const res = await net.fetch(url, {
+      headers: { 'User-Agent': chromeUserAgent(app.userAgentFallback) }
+    })
     if (!res.ok) return
     const buf = Buffer.from(await res.arrayBuffer())
     if (buf.length === 0 || buf.length > 200_000) return // skip empty/absurd
@@ -85,6 +84,19 @@ function chromeUserAgent(defaultUA: string): string {
     .replace(/ Electron\/[^ ]+/i, '')
 }
 
+/**
+ * The pane's only identity change: strip "Electron" from the UA string.
+ *
+ * Everything else is left exactly as Chromium reports it, so the UA, the
+ * Sec-CH-UA headers and navigator.userAgentData all agree on their own (see the
+ * note above). No debugger is attached for identity — attaching one flips
+ * navigator.webdriver true and is a bot tell in itself, and a permanent one
+ * also blocked the automation tools from attaching their own.
+ */
+function applyBrowserIdentity(wc: Electron.WebContents): void {
+  wc.setUserAgent(chromeUserAgent(wc.getUserAgent()))
+}
+
 export interface BrowserBounds {
   x: number
   y: number
@@ -99,6 +111,16 @@ interface BrowserPane {
   visible: boolean
   /** Session partition, kept so the mobile twin can share logins. */
   partition: string
+  /**
+   * The corner radius this pane should have.
+   *
+   * Kept here rather than set once and forgotten: the radius is a property of
+   * the native layer, and the layer is rebuilt when the view is detached and
+   * re-attached (which happens whenever the pane is hidden and shown, or the
+   * user leaves the app and comes back). Setting it and walking away left
+   * square corners inside a rounded window.
+   */
+  radius: number
 }
 
 const panes = new Map<string, BrowserPane>()
@@ -270,6 +292,10 @@ h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
  * never leave the window permanently unclickable.
  */
 let guardDepth = 0
+// Bumped on every hard release (e.g. the user clicking the app), so the finally
+// blocks of withoutStealingFocus calls that were in flight BEFORE that release
+// don't decrement the fresh count a later call has since built up.
+let guardGen = 0
 let guardTimer: ReturnType<typeof setTimeout> | null = null
 let focusGuardActive = false
 
@@ -389,6 +415,9 @@ export function releaseFocusGuard(): void {
   if (!focusGuardActive) return
   focusGuardActive = false
   guardDepth = 0
+  // Any in-flight call's finally now belongs to a bygone guard — invalidate them
+  // so they can't decrement a count a later engage rebuilt.
+  guardGen += 1
   if (guardTimer) {
     clearTimeout(guardTimer)
     guardTimer = null
@@ -408,6 +437,10 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
   const win = BrowserWindow.getAllWindows()[0]
   // The user is looking right at the app — let it behave normally.
   const engage = !!win && !win.isDestroyed() && !win.isFocused()
+  // The generation this call belongs to. If a hard release bumps it before our
+  // finally runs, our decrement would corrupt a count a later call rebuilt — so
+  // skip it in that case.
+  const myGen = guardGen
   if (engage) {
     if (guardDepth === 0) {
       focusGuardActive = true
@@ -424,18 +457,36 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
   try {
     return await fn()
   } finally {
-    if (engage) {
+    if (engage && myGen === guardGen) {
       guardDepth = Math.max(0, guardDepth - 1)
       if (guardDepth === 0) {
         // The grab lands ~100ms after the load settles; a short tail covers it
         // without leaving the app un-clickable between chained calls.
         setTimeout(() => {
-          if (guardDepth === 0) releaseFocusGuard()
+          if (guardDepth === 0 && myGen === guardGen) releaseFocusGuard()
         }, 500)
       }
     }
   }
 }
+
+/**
+ * A note on where the focus guard belongs.
+ *
+ * It works by flipping the app's activation policy to 'prohibited', which is
+ * the only thing that actually stops a page load from raising the window — but
+ * a prohibited app is also delisted from the Dock and cannot be activated at
+ * all until the policy comes back. That is fine for the second or two an agent
+ * takes to drive something. It is not fine as an ambient condition.
+ *
+ * It was briefly applied to every pane touch — navigate, reload, attach, back,
+ * forward — to cover "the app must never come forward". That made it fire
+ * hundreds of times a day, and each firing is a window in which the app
+ * disappears from the Dock. So it stays where the agent is: the automation
+ * tools and open_file wrap themselves in it, and a renderer-driven load only
+ * happens when the user is in the app, where the guard declines to engage
+ * anyway.
+ */
 
 /**
  * When the agent opens a pane that was closed, the renderer mounts it and
@@ -461,7 +512,7 @@ function attachPaneView(pane: BrowserPane): void {
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
   paneLog('create', id, partition)
-  hardenClientHints(partition)
+  // Identity is left honest (see the note by applyBrowserIdentity) — no header rewrite.
 
   const view = new WebContentsView({
     webPreferences: {
@@ -481,11 +532,11 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // renderer sets the real value on the first bounds sync.
   view.setBorderRadius?.(0)
 
-  const pane: BrowserPane = { id, view, window, visible: false, partition }
+  const pane: BrowserPane = { id, view, window, visible: false, partition, radius: 0 }
   panes.set(id, pane)
 
   const wc = view.webContents
-  wc.setUserAgent(chromeUserAgent(wc.getUserAgent()))
+  applyBrowserIdentity(wc)
   const sendState = (): void => {
     if (window.isDestroyed()) return
     const empty = emptyPanes.has(id)
@@ -519,7 +570,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     if (isMainFrame && !url.startsWith('data:text/html')) {
       emptyPanes.delete(id)
       errorUrlByPane.delete(id)
-  detachedWhileAway.delete(id)
+      detachedWhileAway.delete(id)
     }
   })
   wc.on('page-favicon-updated', (_e, favicons) => {
@@ -588,15 +639,45 @@ export function applyZoom(id: string, action: 'in' | 'out' | 'reset'): number {
  */
 export function ensureOffscreenPane(window: BrowserWindow, id: string, partition: string): void {
   if (panes.has(id)) return
-  hardenClientHints(partition)
+  // Identity is left honest (see the note by applyBrowserIdentity) — no header rewrite.
   const view = new WebContentsView({
     webPreferences: { partition, contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
   wirePdfSaveBack(view.webContents.session)
   view.setBackgroundColor('#ffffff')
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
-  view.webContents.setUserAgent(chromeUserAgent(view.webContents.getUserAgent()))
-  panes.set(id, { id, view, window, visible: false, partition })
+  applyBrowserIdentity(view.webContents)
+  panes.set(id, { id, view, window, visible: false, partition, radius: 0 })
+}
+
+/**
+ * The session partition for a pane, resolved from its id — which may now be a
+ * CHAT id (per-chat browser panes) rather than a workspace id. Partitions stay
+ * per-PROJECT so all of a project's chats share one login: browser projects use
+ * the shared 'persist:browser', code projects their own 'persist:ws-<id>'. This
+ * must match exactly what the renderer's BrowserPane passes, or an adopted pane
+ * would come up logged out.
+ */
+export function partitionForPane(paneId: string): string {
+  let wsId = workspaceIdFromPane(paneId)
+  // A chat id won't resolve as a workspace kind; map it to its project.
+  if (!getWorkspaceKind(wsId)) {
+    const owner = getChatWorkspace(wsId)
+    if (owner) wsId = owner
+  }
+  return getWorkspaceKind(wsId) === 'browser' ? 'persist:browser' : `persist:ws-${wsId}`
+}
+
+/**
+ * Ensure a live-but-hidden pane exists for a chat whose desk isn't on screen —
+ * so a background chat's agent can drive its own browser (navigate, read, click)
+ * before the user ever switches to it. Same offscreen technique as routine
+ * panes; when the user opens that chat, the renderer's BrowserPane adopts this
+ * exact WebContents (createBrowserPane no-ops on an existing id) and attaches it.
+ */
+export function ensureBackgroundPane(window: BrowserWindow, paneId: string): void {
+  if (panes.has(paneId)) return
+  ensureOffscreenPane(window, paneId, partitionForPane(paneId))
 }
 
 export function destroyBrowserPane(id: string): void {
@@ -650,6 +731,10 @@ export function registerBrowserIpc(): void {
       }
     }
     pane.view.setBounds(bounds)
+    // After the bounds, and after any re-attach above: both rebuild the layer
+    // this is a property of, so applying it earlier is applying it to a layer
+    // that is about to be thrown away.
+    pane.view.setBorderRadius?.(pane.radius)
   })
 
   /**
@@ -662,37 +747,44 @@ export function registerBrowserIpc(): void {
   ipcMain.handle('browser:freeze', async (_e, id: string) => {
     const pane = panes.get(id)
     if (!pane || pane.window.isDestroyed() || !pane.visible) return null
+    let buf: Buffer | null = null
+    const t0 = Date.now()
     try {
-      const t0 = Date.now()
       const img = await pane.view.webContents.capturePage()
-      if (img.isEmpty()) return null
-      // Half-size JPEG, not a full-resolution PNG data URL. toDataURL() encodes
-      // PNG synchronously on the main thread and then hands back multiple MB of
-      // base64 — enough to stall the UI for a second or more on a big pane. This
-      // is a dimmed backdrop still, so quality barely matters; a Buffer also
-      // crosses IPC without the base64 tax.
-      const { width } = img.getSize()
-      const small = width > 2 ? img.resize({ width: Math.round(width / 2) }) : img
-      const buf = small.toJPEG(70)
+      // A JPEG Buffer, not a full-resolution PNG data URL: toDataURL() encodes
+      // PNG synchronously on the main thread and hands back multiple MB of
+      // base64, enough to stall the UI for a second or more on a big pane.
+      //
+      // At full resolution, though. This used to halve the width as well, which
+      // on a Retina display throws away three quarters of the pixels and then
+      // shows the result back at full pane size — the page visibly pixelating
+      // whenever you left the app.
+      if (!img.isEmpty()) buf = img.toJPEG(88)
+    } catch {
+      // No still. The detach below matters more than the picture.
+    }
+    /**
+     * Detach whatever happened to the photograph.
+     *
+     * This used to return early when the capture came back empty, leaving the
+     * view attached — and an attached view paints above all HTML, so a pane
+     * that failed to photograph became a rectangle sitting on top of the app
+     * with nothing to explain it. A lone image is exactly the kind of page
+     * that captures empty, which is how a file window ended up floating over
+     * the browser. Getting out of the way is the job here; the still is the
+     * bonus.
+     */
+    try {
       pane.window.contentView.removeChildView(pane.view)
       if (twin?.forPane === id) destroyTwin(pane.window)
       pane.visible = false
-      console.log(`[freeze] total=${Date.now() - t0}ms bytes=${buf.length}`)
-      return buf
     } catch {
-      return null
+      // Window torn down mid-freeze; nothing left to detach from.
     }
+    paneLog('freeze', id, `${buf ? `still ${buf.length}b` : 'no still'} in ${Date.now() - t0}ms`)
+    return buf
   })
 
-  /**
-   * Average colour of the page's two top-corner pixel patches. The renderer
-   * paints matching DOM backfills UNDER the native view: the page is rounded on
-   * all four corners (Electron's radius is uniform), the bottom arcs show the
-   * card and stay round, and the top arcs reveal these page-coloured fills — so
-   * the top reads as square under the docked omnibar on any site. DOM is the
-   * right layer: everything composites below the native view anyway, so this
-   * needs no native masks, no extra processes, and eats no clicks.
-   */
   ipcMain.handle('browser:sample-corners', async (_e, id: string) => {
     const pane = panes.get(id)
     if (!pane || !pane.visible || pane.window.isDestroyed()) return null
@@ -708,12 +800,12 @@ export function registerBrowserIpc(): void {
       const { width: tw, height: th } = thumb.getSize()
       const buf = thumb.toBitmap() // BGRA
       if (!buf.length || tw < 8 || th < 3) return null
-      const win = (x0: number): string => {
+      const win = (x0: number, y0 = 0): string => {
         let r = 0
         let g = 0
         let bl = 0
         let n = 0
-        for (let y = 0; y < 3; y++) {
+        for (let y = y0; y < y0 + 3; y++) {
           for (let x = x0; x < x0 + 3; x++) {
             const i = (y * tw + x) * 4
             bl += buf[i]
@@ -728,7 +820,10 @@ export function registerBrowserIpc(): void {
             .padStart(2, '0')
         return `#${h(r)}${h(g)}${h(bl)}`
       }
-      return { left: win(2), right: win(tw - 5) }
+      // The bottom edge too: a pane filling a rounded window hides its last few
+      // pixels behind a strip of this colour, which is what gives the page a
+      // rounded bottom the compositor would not.
+      return { left: win(2), right: win(tw - 5), bottom: win(Math.floor(tw / 2) - 1, th - 3) }
     } catch {
       return null
     }
@@ -838,7 +933,8 @@ export function registerBrowserIpc(): void {
   ipcMain.on('browser:set-radius', (_e, id: string, radius: number) => {
     const pane = panes.get(id)
     if (!pane) return
-    pane.view.setBorderRadius?.(Math.max(0, Math.round(radius)))
+    pane.radius = Math.max(0, Math.round(radius))
+    pane.view.setBorderRadius?.(pane.radius)
   })
 
   ipcMain.on('browser:set-zoom-factor', (_e, id: string, factor: number) => {

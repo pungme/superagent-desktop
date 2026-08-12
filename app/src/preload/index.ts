@@ -71,6 +71,20 @@ export interface HookEvent {
   body: Record<string, unknown>
 }
 
+export interface BoardCard {
+  id: string
+  workspaceId: string
+  title: string
+  body: string
+  status: 'todo' | 'doing' | 'testing' | 'done'
+  chatId: string | null
+  branch: string | null
+  images: string[]
+  position: number
+  createdAt: number
+  updatedAt: number
+}
+
 export interface CoveApi {
   browserCreate: (id: string, partition: string) => Promise<void>
   browserSetBounds: (id: string, b: { x: number; y: number; width: number; height: number }) => void
@@ -96,16 +110,30 @@ export interface CoveApi {
     zoom: number
   ) => void
   /** Sampled colours of the page's top corners, for the DOM backfills. */
-  browserSampleCorners: (id: string) => Promise<{ left: string; right: string } | null>
+  browserSampleCorners: (
+    id: string
+  ) => Promise<{ left: string; right: string; bottom: string } | null>
   /** Full-res PNG bytes of the pane (screenshot tooling). */
   browserShoot: (id: string) => Promise<Uint8Array | null>
   /** PNG of the side-by-side phone twin, if one is on screen. */
   browserShootTwin: () => Promise<Uint8Array | null>
   /** Native context menu for a file-tree row (Reveal in Finder, Copy Path…). */
   filesMenu: (absPath: string) => void
-  chatMenu: (chatId: string, workspaceId: string) => void
+  chatMenu: (chatId: string, workspaceId: string, cwd?: string | null) => void
+  /** A worktree chat asked to be merged back and finished. */
+  onChatMergeWorktree: (
+    cb: (p: { chatId: string; workspaceId: string; projectPath: string; wtPath: string }) => void
+  ) => () => void
   onChatCleared: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
   onChatDeleteRequest: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
+  /** Right-click a project row: native menu (new chat, new worktree chat, reveal). */
+  workspaceMenu: (ws: { id: string; path: string; isRepo: boolean }) => void
+  onWorkspaceMenuAction: (
+    cb: (p: { action: string; id: string; path: string }) => void
+  ) => () => void
+  /** Right-click a desktop icon (or selection): native menu (open/rename/reveal/delete). */
+  deskMenu: (info: { paths: string[]; single: boolean; isLink: boolean; isDir: boolean }) => void
+  onDeskMenuAction: (cb: (p: { action: string; paths: string[] }) => void) => () => void
   /** Which agent events raise a native banner. */
   setNotifyPrefs: (prefs: { done?: boolean; needsYou?: boolean }) => void
   /** Copy dropped files/folders into a project directory; returns created paths. */
@@ -123,7 +151,7 @@ export interface CoveApi {
     tasksToday: number
     streak: number
     longestStreak: number
-    spark: { day: string; turns: number; tokens: number }[]
+    spark: { day: string; date: string; turns: number; tokens: number }[]
     attention: { name: string; turns: number }[]
     attentionAll: { name: string; turns: number }[]
     hours: number[]
@@ -148,18 +176,87 @@ export interface CoveApi {
   /** New git worktree under <project>/.worktrees; null if git refused. */
   worktreeCreate: (projectPath: string) => Promise<{ path: string; branch: string } | null>
   worktreeRemove: (projectPath: string, wtPath: string) => Promise<boolean>
+  /** Squash-merge a worktree back into the project's branch, then remove it. */
+  worktreeMerge: (
+    projectPath: string,
+    wtPath: string,
+    message: string
+  ) => Promise<
+    | { ok: true; committed: boolean }
+    | { ok: false; reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'; detail?: string }
+  >
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
   onBrowserZoom: (id: string, cb: (factor: number) => void) => () => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
   onOpenFile: (cb: (p: { workspaceId: string; path: string }) => void) => () => void
+  /** The project list changed in main (e.g. the agent cloned a repo) — refresh. */
+  onProjectsChanged: (cb: (p: { activate?: string }) => void) => () => void
+  /** The agent booted or launched something on a simulator — reveal the pane. */
+  onOpenSimulator: (cb: (p: { workspaceId: string; udid?: string }) => void) => () => void
   onBrowserCrashed: (id: string, cb: () => void) => () => void
   browserStopAutomation: (id: string) => void
   /** Stop a page that is still loading (the reload button becomes ×). */
   browserStop: (id: string) => void
   /** Tail a background shell's output file (the Bash result says where it is). */
   bgTail: (path: string, maxBytes?: number) => Promise<string | null>
+  /** The project's board — the same cards the board_* agent tools write. */
+  boardList: (workspaceId: string) => Promise<BoardCard[]>
+  boardAdd: (
+    workspaceId: string,
+    title: string,
+    opts?: { body?: string; status?: string }
+  ) => Promise<BoardCard>
+  boardUpdate: (
+    id: string,
+    patch: { title?: string; body?: string; status?: string }
+  ) => Promise<BoardCard | undefined>
+  boardMove: (id: string, status: string, beforeId: string | null) => Promise<BoardCard | undefined>
+  boardRemove: (id: string) => Promise<boolean>
+  boardAddImage: (cardId: string, name: string, bytes: Uint8Array) => Promise<string | null>
+  boardRemoveImage: (cardId: string, path: string) => Promise<boolean>
+  boardImageData: (path: string) => Promise<string | null>
+  onBoardChanged: (cb: (p: { workspaceId: string }) => void) => () => void
+  /** iOS Simulator: devices, lifecycle, a frame stream, and input. */
+  simList: () => Promise<{ udid: string; name: string; state: string; runtime: string }[]>
+  simBoot: (udid: string) => Promise<boolean>
+  simShutdown: (udid: string) => Promise<boolean>
+  simStreamStart: (udid: string, fps?: number) => void
+  /** Tell main which device the pane is on, so the agent's tools aim there. */
+  simSetCurrent: (udid: string | null) => Promise<boolean>
+  simStreamStop: (udid: string) => void
+  simInput: (
+    udid: string,
+    action: Record<string, unknown>
+  ) => Promise<{ ok: boolean; error?: string }>
+  simHasInput: () => Promise<boolean>
+  onSimFrame: (
+    udid: string,
+    cb: (f: { url: string; width: number; height: number }) => void
+  ) => () => void
+  /** The device stopped answering (shut down, or wedged). */
+  onSimGone: (udid: string, cb: () => void) => () => void
+  /** Attach mode: park Apple's real Simulator window over the pane. */
+  simAttachReady: () => Promise<{ trusted: boolean }>
+  simAttachRequest: () => Promise<{ trusted: boolean }>
+  simAttachSettings: () => Promise<boolean>
+  /** Leaving attach for good: unpin the window so it stops floating on top. */
+  simAttachRelease: () => Promise<boolean>
+  /** The user asked for Apple's Simulator window — open it and stop hiding it. */
+  simOpenApp: (udid: string) => Promise<boolean>
+  simAttach: (
+    udid: string,
+    rect: { x: number; y: number; width: number; height: number }
+  ) => Promise<{ ok: boolean; error?: string }>
+  simAttachMove: (rect: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }) => Promise<{ ok: boolean; error?: string }>
+  simAttachHide: () => Promise<boolean>
+  simAttachShow: () => Promise<boolean>
   /** Interrupt even mid-tool-call (signal, not stdin). Resolves when it's stopped. */
   agentHardInterrupt: (id: string) => Promise<boolean>
   onBrowserActivity: (cb: (workspaceId: string) => void) => () => void
@@ -202,6 +299,59 @@ export interface CoveApi {
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
   chatCreate: (workspaceId: string, cwd?: string) => Promise<string>
+  /** The desktop's own chat: a workspace that belongs to no project. */
+  desktopChatHome: () => Promise<{ workspaceId: string; cwd: string }>
+  /** Mirror the desktop's files into that chat's working directory. */
+  desktopSyncFiles: (paths: string[]) => Promise<string>
+  /**
+   * Tell the main process what is on the desktop, so the desktop chat's agent
+   * can see the computer it is being asked about. Partial: the desktop reports
+   * its windows and files, the Browser app reports its tabs.
+   */
+  desktopReport: (patch: {
+    windows?: {
+      app: string
+      x: number
+      y: number
+      w: number
+      h: number
+      minimized: boolean
+      maximized: boolean
+      focused: boolean
+    }[]
+    files?: { name: string; path: string }[]
+    tabs?: { id: string; url: string; active: boolean }[]
+    bounds?: { w: number; h: number }
+    open?: boolean
+  }) => void
+  /** The Computer closed — nothing on the desktop is on screen any more. */
+  desktopGone: () => void
+  /** The desktop as a real folder: its entries, and what you can do to them. */
+  deskRoot: () => Promise<string>
+  deskList: (dir?: string) => Promise<
+    { name: string; path: string; target: string; dir: boolean; link: boolean }[]
+  >
+  deskNewFolder: (dir?: string, name?: string) => Promise<string | null>
+  deskLink: (target: string, dir?: string) => Promise<string | null>
+  deskMove: (from: string, toDir: string) => Promise<string | null>
+  deskRename: (path: string, name: string) => Promise<string | null>
+  deskRemove: (path: string) => Promise<boolean>
+  deskReveal: (path: string) => Promise<void>
+  /** The desktop chat's agent driving the desktop (the computer_* tools). */
+  onDesktopCommand: (
+    cb: (c: {
+      kind: string
+      app?: string
+      path?: string
+      url?: string
+      newTab?: boolean
+      position?: string
+      x?: number
+      y?: number
+      width?: number
+      height?: number
+    }) => void
+  ) => () => void
   chatDelete: (id: string) => Promise<void>
   chatUpdate: (
     id: string,
@@ -226,6 +376,8 @@ export interface CoveApi {
   }>
   envVersion: () => Promise<{ claudeInstalled: boolean; claudeVersion: string | null }>
   filesList: (root: string) => Promise<string[]>
+  /** A downscaled data URI for an image on disk, or null if it isn't one. */
+  filesThumb: (path: string) => Promise<string | null>
   filesOpenExternal: (path: string) => Promise<string>
   fileRead: (path: string) => Promise<string | null>
   fileWrite: (path: string, content: string) => Promise<boolean>
@@ -256,6 +408,7 @@ export interface CoveApi {
   agentStart: (opts: {
     cwd?: string
     workspaceId?: string
+    chatId?: string
     resumeSessionId?: string | null
     browserProject?: boolean
     permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'
@@ -267,6 +420,12 @@ export interface CoveApi {
   agentStop: (id: string) => void
   onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
   onAgentExit: (id: string, cb: (code: number) => void) => () => void
+  /** The previous session could not be resumed; this one starts with no history. */
+  onAgentResumeLost: (id: string, cb: () => void) => () => void
+  /** Non-null if the session already exited before we were listening. */
+  agentDied: (id: string) => Promise<{ code: number; reason?: string } | null>
+  /** Catch-up: did a resume fail before we subscribed? Consumes the flag. */
+  agentResumeLostCheck: (id: string) => Promise<boolean>
 
   onHookEvent: (cb: (e: HookEvent) => void) => () => void
   onFocusWorkspace: (cb: (workspaceId: string) => void) => () => void
@@ -305,11 +464,23 @@ const cove: CoveApi = {
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   browserShootTwin: () => ipcRenderer.invoke('browser:shoot-twin'),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
-  chatMenu: (chatId, workspaceId) => ipcRenderer.send('chat:menu', chatId, workspaceId),
+  chatMenu: (chatId, workspaceId, cwd) => ipcRenderer.send('chat:menu', chatId, workspaceId, cwd),
+  onChatMergeWorktree: (cb) =>
+    subscribe('chat:merge-worktree', (p) =>
+      cb(p as { chatId: string; workspaceId: string; projectPath: string; wtPath: string })
+    ),
   onChatCleared: (cb) =>
     subscribe('chat:cleared', (p) => cb(p as { chatId: string; workspaceId: string })),
   onChatDeleteRequest: (cb) =>
     subscribe('chat:delete', (p) => cb(p as { chatId: string; workspaceId: string })),
+  workspaceMenu: (ws) => ipcRenderer.send('workspace:menu', ws),
+  onWorkspaceMenuAction: (cb) =>
+    subscribe('workspace:menu-action', (p) =>
+      cb(p as { action: string; id: string; path: string })
+    ),
+  deskMenu: (info) => ipcRenderer.send('desk:menu', info),
+  onDeskMenuAction: (cb) =>
+    subscribe('desk:menu-action', (p) => cb(p as { action: string; paths: string[] })),
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
   chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),
@@ -320,6 +491,8 @@ const cove: CoveApi = {
   eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
   worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
   worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
+  worktreeMerge: (projectPath, wtPath, message) =>
+    ipcRenderer.invoke('worktree:merge', projectPath, wtPath, message),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
@@ -329,6 +502,35 @@ const cove: CoveApi = {
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   browserStop: (id) => ipcRenderer.send('browser:stop', id),
   bgTail: (path, maxBytes) => ipcRenderer.invoke('bg:tail', path, maxBytes),
+  boardList: (workspaceId) => ipcRenderer.invoke('board:list', workspaceId),
+  boardAdd: (workspaceId, title, opts) => ipcRenderer.invoke('board:add', workspaceId, title, opts),
+  boardUpdate: (id, patch) => ipcRenderer.invoke('board:update', id, patch),
+  boardMove: (id, status, beforeId) => ipcRenderer.invoke('board:move', id, status, beforeId),
+  boardRemove: (id) => ipcRenderer.invoke('board:remove', id),
+  boardAddImage: (cardId, name, bytes) => ipcRenderer.invoke('board:addImage', cardId, name, bytes),
+  boardRemoveImage: (cardId, path) => ipcRenderer.invoke('board:removeImage', cardId, path),
+  boardImageData: (path) => ipcRenderer.invoke('board:imageData', path),
+  onBoardChanged: (cb) => subscribe('board:changed', (p) => cb(p as { workspaceId: string })),
+  simList: () => ipcRenderer.invoke('sim:list'),
+  simBoot: (udid) => ipcRenderer.invoke('sim:boot', udid),
+  simShutdown: (udid) => ipcRenderer.invoke('sim:shutdown', udid),
+  simStreamStart: (udid, fps) => ipcRenderer.send('sim:stream-start', udid, fps),
+  simSetCurrent: (udid) => ipcRenderer.invoke('sim:set-current', udid),
+  simStreamStop: (udid) => ipcRenderer.send('sim:stream-stop', udid),
+  simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
+  simHasInput: () => ipcRenderer.invoke('sim:has-input'),
+  onSimFrame: (udid, cb) =>
+    subscribe(`sim:frame:${udid}`, (f) => cb(f as { url: string; width: number; height: number })),
+  onSimGone: (udid, cb) => subscribe(`sim:gone:${udid}`, () => cb()),
+  simAttachReady: () => ipcRenderer.invoke('sim:attach-ready'),
+  simAttachRequest: () => ipcRenderer.invoke('sim:attach-request'),
+  simAttachSettings: () => ipcRenderer.invoke('sim:attach-settings'),
+  simAttachRelease: () => ipcRenderer.invoke('sim:attach-release'),
+  simOpenApp: (udid) => ipcRenderer.invoke('sim:open-app', udid),
+  simAttach: (udid, rect) => ipcRenderer.invoke('sim:attach', udid, rect),
+  simAttachMove: (rect) => ipcRenderer.invoke('sim:attach-move', rect),
+  simAttachHide: () => ipcRenderer.invoke('sim:attach-hide'),
+  simAttachShow: () => ipcRenderer.invoke('sim:attach-show'),
   agentHardInterrupt: (id) => ipcRenderer.invoke('agent:hard-interrupt', id),
   onBrowserActivity: (cb) => subscribe('browser:activity', (id) => cb(id as string)),
   onBrowserRequestOpen: (cb) => subscribe('browser:request-open', (id) => cb(id as string)),
@@ -339,8 +541,11 @@ const cove: CoveApi = {
   onUpdateError: (cb) => subscribe('update:error', (m) => cb(m as string)),
   installUpdate: () => ipcRenderer.send('update:install'),
   // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
+  onOpenSimulator: (cb) =>
+    subscribe('app:open-simulator', (p) => cb(p as { workspaceId: string; udid?: string })),
   onOpenFile: (cb) =>
     subscribe('app:open-file', (p) => cb(p as { workspaceId: string; path: string })),
+  onProjectsChanged: (cb) => subscribe('projects:changed', (p) => cb(p as { activate?: string })),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
   createGroup: (name) => ipcRenderer.invoke('store:createGroup', name),
@@ -360,6 +565,20 @@ const cove: CoveApi = {
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
   chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
+  desktopChatHome: () => ipcRenderer.invoke('desktop:chat-home'),
+  desktopSyncFiles: (paths) => ipcRenderer.invoke('desktop:sync-files', paths),
+  desktopReport: (patch) => ipcRenderer.send('desktop:report', patch),
+  desktopGone: () => ipcRenderer.send('desktop:gone'),
+  deskRoot: () => ipcRenderer.invoke('desk:root'),
+  deskList: (dir) => ipcRenderer.invoke('desk:list', dir),
+  deskNewFolder: (dir, name) => ipcRenderer.invoke('desk:newFolder', dir, name),
+  deskLink: (target, dir) => ipcRenderer.invoke('desk:link', target, dir),
+  deskMove: (from, toDir) => ipcRenderer.invoke('desk:move', from, toDir),
+  deskRename: (path, name) => ipcRenderer.invoke('desk:rename', path, name),
+  deskRemove: (path) => ipcRenderer.invoke('desk:remove', path),
+  deskReveal: (path) => ipcRenderer.invoke('desk:reveal', path),
+  onDesktopCommand: (cb) =>
+    subscribe('desktop:command', (c) => cb(c as Parameters<typeof cb>[0])),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
@@ -379,7 +598,8 @@ const cove: CoveApi = {
       'menu:skills',
       'menu:routines',
       'menu:reload-page',
-      'menu:toggle-preview'
+      'menu:toggle-preview',
+      'menu:close-tab'
     ]
     const listeners = actions.map((action) => {
       const l = (): void => cb(action.replace('menu:', ''))
@@ -392,6 +612,7 @@ const cove: CoveApi = {
   envDetect: () => ipcRenderer.invoke('env:detect'),
   envVersion: () => ipcRenderer.invoke('env:version'),
   filesList: (root) => ipcRenderer.invoke('files:list', root),
+  filesThumb: (path) => ipcRenderer.invoke('files:thumb', path),
   filesOpenExternal: (path) => ipcRenderer.invoke('files:openExternal', path),
   fileRead: (path) => ipcRenderer.invoke('files:read', path),
   fileWrite: (path, content) => ipcRenderer.invoke('files:write', path, content),
@@ -417,6 +638,9 @@ const cove: CoveApi = {
   onAgentEvent: (id, cb) =>
     subscribe(`agent:event:${id}`, (event) => cb(event as Record<string, unknown>)),
   onAgentExit: (id, cb) => subscribe(`agent:exit:${id}`, (code) => cb(code as number)),
+  onAgentResumeLost: (id, cb) => subscribe(`agent:resume-lost:${id}`, () => cb()),
+  agentDied: (id) => ipcRenderer.invoke('agent:died', id),
+  agentResumeLostCheck: (id) => ipcRenderer.invoke('agent:resume-lost-check', id),
 
   onHookEvent: (cb) => subscribe('hook:event', (ev) => cb(ev as HookEvent)),
   onFocusWorkspace: (cb) => subscribe('hook:focus-workspace', (id) => cb(id as string)),

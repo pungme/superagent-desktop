@@ -1,8 +1,20 @@
 import { app, ipcMain } from 'electron'
 import { join } from 'path'
-import { mkdirSync } from 'fs'
+import {
+  mkdirSync,
+  writeFileSync,
+  unlinkSync,
+  readFileSync,
+  existsSync,
+  lstatSync,
+  symlinkSync,
+  rmSync,
+  realpathSync
+} from 'fs'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
+import { broadcastToWindows } from './util'
+import { deskRoot } from './desk'
 
 /**
  * SuperAgent persistence: groups → workspaces → tabs.
@@ -85,7 +97,31 @@ export function initStore(): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    -- The project's board. Outlives any one conversation, which is the point:
+    -- a chat ends, the work it left behind doesn't.
+    CREATE TABLE IF NOT EXISTS cards (
+      id TEXT PRIMARY KEY,
+      workspaceId TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'todo',
+      -- The conversation that last touched this card, so a card can take you
+      -- back to the work rather than just describing it.
+      chatId TEXT,
+      branch TEXT,
+      position REAL NOT NULL DEFAULT 0,
+      images TEXT NOT NULL DEFAULT '[]',
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_cards_ws ON cards(workspaceId, status, position);
   `)
+
+  // Migration: pictures on a list item, for databases that predate them.
+  const cardCols = db.prepare('PRAGMA table_info(cards)').all() as { name: string }[]
+  if (cardCols.length && !cardCols.some((c) => c.name === 'images')) {
+    db.exec("ALTER TABLE cards ADD COLUMN images TEXT NOT NULL DEFAULT '[]'")
+  }
 
   // Migration: add the project-kind column to pre-existing databases.
   const cols = db.prepare('PRAGMA table_info(workspaces)').all() as { name: string }[]
@@ -185,8 +221,21 @@ export interface TreeGroup extends Group {
   workspaces: Workspace[]
 }
 
+/**
+ * Reserved ids for the desktop's own chat.
+ *
+ * A chat row must belong to a workspace (foreign key), and a workspace to a
+ * group — so a chat that belongs to no project still needs both to exist. They
+ * are filtered out of the tree, which is what every list of projects is built
+ * from, so this pair never appears anywhere as a project.
+ */
+export const DESKTOP_GROUP_ID = '__desktop__'
+export const DESKTOP_WORKSPACE_ID = '__desktop_chat__'
+
 export function getTree(): TreeGroup[] {
-  const groups = db.prepare('SELECT * FROM groups ORDER BY position').all() as Group[]
+  const groups = (db.prepare('SELECT * FROM groups ORDER BY position').all() as Group[]).filter(
+    (g) => g.id !== DESKTOP_GROUP_ID
+  )
   const workspaces = db.prepare('SELECT * FROM workspaces ORDER BY position').all() as Workspace[]
   return groups.map((g) => ({
     ...g,
@@ -194,19 +243,46 @@ export function getTree(): TreeGroup[] {
   }))
 }
 
+/**
+ * Register a folder as a project, callable from anywhere in main (the agent's
+ * clone tool, not just the create-workspace IPC). Lands it in the first real
+ * group. Returns the new workspace id; the caller broadcasts so the sidebar
+ * refreshes and can jump to it.
+ */
+export function addProjectWorkspace(name: string, path: string): string {
+  const group = db
+    .prepare('SELECT id FROM groups WHERE id != ? ORDER BY position LIMIT 1')
+    .get(DESKTOP_GROUP_ID) as { id: string } | undefined
+  if (!group) throw new Error('no group to add the project to')
+  const id = randomUUID()
+  db.prepare(
+    "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, ?, ?, ?, NULL, NULL, 'app')"
+  ).run(id, group.id, name, path, nextPosition('workspaces', ['groupId', group.id]))
+  return id
+}
+
 /** A workspace's kind ('browser' | 'app'), for picking its session partition. */
 export function getWorkspaceKind(id: string): WorkspaceKind | undefined {
   const row = db.prepare('SELECT kind FROM workspaces WHERE id = ?').get(id) as
-    | { kind: WorkspaceKind }
-    | undefined
+    { kind: WorkspaceKind } | undefined
   return row?.kind
+}
+
+/**
+ * The workspace a chat belongs to. Per-chat browser panes are keyed by chat id,
+ * so main needs this to derive a chat pane's session partition (which stays
+ * per-project, so logins are shared across a project's chats).
+ */
+export function getChatWorkspace(chatId: string): string | undefined {
+  const row = db.prepare('SELECT workspaceId FROM chats WHERE id = ?').get(chatId) as
+    { workspaceId: string } | undefined
+  return row?.workspaceId
 }
 
 /** A workspace's project path, for resolving a relative file path the agent passes. */
 export function getWorkspacePath(id: string): string | undefined {
   const row = db.prepare('SELECT path FROM workspaces WHERE id = ?').get(id) as
-    | { path: string }
-    | undefined
+    { path: string } | undefined
   return row?.path
 }
 
@@ -218,8 +294,7 @@ export function getRecentHistory(limit = 6): { url: string; title: string }[] {
 
 export function getWorkspaceName(id: string): string | undefined {
   const row = db.prepare('SELECT name FROM workspaces WHERE id = ?').get(id) as
-    | { name: string }
-    | undefined
+    { name: string } | undefined
   return row?.name
 }
 
@@ -231,8 +306,7 @@ export function getWorkspaceName(id: string): string | undefined {
  */
 export function getChatTitleBySession(sessionId: string): string | undefined {
   const row = db.prepare('SELECT title FROM chats WHERE claudeSessionId = ?').get(sessionId) as
-    | { title: string | null }
-    | undefined
+    { title: string | null } | undefined
   return row?.title ?? undefined
 }
 
@@ -353,7 +427,7 @@ export function getDashboard(rangeDays = 14): unknown {
   const tokRows = db
     .prepare("SELECT ts, n FROM events WHERE kind='tokens' AND ts >= ?")
     .all(startOfToday - range * dayMs) as { ts: number; n: number }[]
-  const spark: { day: string; turns: number; tokens: number }[] = []
+  const spark: { day: string; date: string; turns: number; tokens: number }[] = []
   for (let i = range - 1; i >= 0; i--) {
     const d = today - i
     const date = new Date((d + 1) * dayMs + tzOffMs - 1)
@@ -365,6 +439,13 @@ export function getDashboard(rangeDays = 14): unknown {
           : ''
     spark.push({
       day: label,
+      // The label is a single letter at 14 days and blank at 90 — the tooltip
+      // needs the actual day, not "S".
+      date: date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short'
+      }),
       turns: turns.filter((e) => dayOf(e.ts) === d).length,
       tokens: tokRows.filter((r) => dayOf(r.ts) === d).reduce((s, r) => s + r.n, 0)
     })
@@ -495,10 +576,312 @@ export function getDashboard(rangeDays = 14): unknown {
   }
 }
 
+export type CardStatus = 'todo' | 'doing' | 'testing' | 'done'
+
+export interface Card {
+  id: string
+  workspaceId: string
+  title: string
+  body: string
+  status: CardStatus
+  chatId: string | null
+  branch: string | null
+  /** Absolute paths of pictures attached to the item, oldest first. */
+  images: string[]
+  position: number
+  createdAt: number
+  updatedAt: number
+}
+
+/** Anything unrecognised lands in Todo rather than vanishing from the list. */
+export function normalizeStatus(raw: unknown): CardStatus {
+  const s = String(raw ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, '_')
+  const alias: Record<string, CardStatus> = {
+    todo: 'todo',
+    to_do: 'todo',
+    next: 'todo',
+    // Cards written before the columns changed.
+    backlog: 'todo',
+    doing: 'doing',
+    in_progress: 'doing',
+    inprogress: 'doing',
+    wip: 'doing',
+    testing: 'testing',
+    test: 'testing',
+    qa: 'testing',
+    review: 'testing',
+    in_review: 'testing',
+    done: 'done',
+    complete: 'done',
+    completed: 'done'
+  }
+  return alias[s] ?? 'todo'
+}
+
+/**
+ * Where a card dropped between two others should sit. Positions are floats and
+ * gaps are halved, so moving one card rewrites one row instead of renumbering
+ * the column — which matters when the agent is reordering while you're looking
+ * at it.
+ */
+export function positionBetween(before: number | null, after: number | null): number {
+  if (before === null && after === null) return 1000
+  if (before === null) return after! - 1000
+  if (after === null) return before + 1000
+  return (before + after) / 2
+}
+
+/**
+ * Where a card lands when dropped "before" another. `column` is the target
+ * column's positions in order, already excluding the card being moved; `before`
+ * is the position of the card it was dropped onto, or undefined to append.
+ *
+ * Pulled out because the off-by-one here is invisible: a wrong answer doesn't
+ * throw, it just quietly puts the card one slot away from where you dropped it.
+ */
+export function insertIndex(column: number[], before: number | undefined): number {
+  if (before === undefined) return column.length
+  const at = column.findIndex((p) => p >= before)
+  return at === -1 ? column.length : at
+}
+
+/** SQLite has no arrays, so images ride as JSON text and are parsed here. */
+function hydrate(row: unknown): Card {
+  const r = row as Card & { images: string | string[] }
+  let images: string[] = []
+  try {
+    images = typeof r.images === 'string' ? (JSON.parse(r.images) as string[]) : (r.images ?? [])
+  } catch {
+    images = []
+  }
+  return { ...r, images }
+}
+
+export function listCards(workspaceId: string): Card[] {
+  return (
+    db
+      .prepare('SELECT * FROM cards WHERE workspaceId = ? ORDER BY position ASC, createdAt ASC')
+      .all(workspaceId) as unknown[]
+  ).map(hydrate)
+}
+
+export function addCard(
+  workspaceId: string,
+  title: string,
+  opts: { body?: string; status?: unknown; chatId?: string | null; branch?: string | null } = {}
+): Card {
+  const status = normalizeStatus(opts.status ?? 'todo')
+  const last = db
+    .prepare('SELECT MAX(position) p FROM cards WHERE workspaceId = ? AND status = ?')
+    .get(workspaceId, status) as { p: number | null }
+  const now = Date.now()
+  const card: Card = {
+    id: randomUUID(),
+    workspaceId,
+    // Both callers refuse a blank title, but a card with none is invisible on
+    // the board with no way to say what it was — so the invariant lives here
+    // too, where it can't be bypassed.
+    title: title.trim().slice(0, 200) || 'Untitled',
+    body: (opts.body ?? '').slice(0, 4000),
+    status,
+    chatId: opts.chatId ?? null,
+    branch: opts.branch ?? null,
+    images: [],
+    position: positionBetween(last.p ?? null, null),
+    createdAt: now,
+    updatedAt: now
+  }
+  db.prepare(
+    `INSERT INTO cards (id, workspaceId, title, body, status, chatId, branch, images, position, createdAt, updatedAt)
+     VALUES (@id, @workspaceId, @title, @body, @status, @chatId, @branch, @images, @position, @createdAt, @updatedAt)`
+  ).run({ ...card, images: JSON.stringify(card.images) })
+  return card
+}
+
+export function updateCard(
+  id: string,
+  patch: {
+    title?: string
+    body?: string
+    status?: unknown
+    chatId?: string | null
+    branch?: string | null
+    images?: string[]
+  }
+): Card | undefined {
+  const row = db.prepare('SELECT * FROM cards WHERE id = ?').get(id)
+  if (!row) return undefined
+  const existing = hydrate(row)
+  const status = patch.status === undefined ? existing.status : normalizeStatus(patch.status)
+  // Moving to another column puts the card at the end of it; staying put keeps
+  // its place, so an edit doesn't reshuffle the board under you.
+  let position = existing.position
+  if (status !== existing.status) {
+    const last = db
+      .prepare('SELECT MAX(position) p FROM cards WHERE workspaceId = ? AND status = ?')
+      .get(existing.workspaceId, status) as { p: number | null }
+    position = positionBetween(last.p ?? null, null)
+  }
+  const next: Card = {
+    ...existing,
+    title: patch.title === undefined ? existing.title : patch.title.trim().slice(0, 200),
+    body: patch.body === undefined ? existing.body : patch.body.slice(0, 4000),
+    status,
+    chatId: patch.chatId === undefined ? existing.chatId : patch.chatId,
+    branch: patch.branch === undefined ? existing.branch : patch.branch,
+    images: patch.images === undefined ? existing.images : patch.images,
+    position,
+    updatedAt: Date.now()
+  }
+  db.prepare(
+    `UPDATE cards SET title=@title, body=@body, status=@status, chatId=@chatId,
+     branch=@branch, images=@images, position=@position, updatedAt=@updatedAt WHERE id=@id`
+  ).run({ ...next, images: JSON.stringify(next.images) })
+  if (status === 'done' && existing.status !== 'done') {
+    recordEvent('task-done', existing.workspaceId)
+  }
+  return next
+}
+
+/** Reorder within a column, or move to a specific slot in another one. */
+export function moveCard(id: string, status: unknown, beforeId: string | null): Card | undefined {
+  const row0 = db.prepare('SELECT * FROM cards WHERE id = ?').get(id)
+  if (!row0) return undefined
+  const existing = hydrate(row0)
+  const target = normalizeStatus(status)
+  const column = (
+    db
+      .prepare(
+        'SELECT * FROM cards WHERE workspaceId = ? AND status = ? AND id != ? ORDER BY position ASC'
+      )
+      .all(existing.workspaceId, target, id) as { position: number }[]
+  ).map((c) => c.position)
+  const idx = beforeId
+    ? (
+        db.prepare('SELECT position FROM cards WHERE id = ?').get(beforeId) as
+          { position: number } | undefined
+      )?.position
+    : undefined
+  const i = insertIndex(column, idx)
+  const position = positionBetween(
+    i > 0 ? column[i - 1] : null,
+    i < column.length ? column[i] : null
+  )
+  db.prepare('UPDATE cards SET status=?, position=?, updatedAt=? WHERE id=?').run(
+    target,
+    position,
+    Date.now(),
+    id
+  )
+  if (target === 'done' && existing.status !== 'done')
+    recordEvent('task-done', existing.workspaceId)
+  return hydrate(db.prepare('SELECT * FROM cards WHERE id = ?').get(id))
+}
+
+/**
+ * Save a picture attached to a list item. Files live on disk beside the
+ * database — a screenshot inlined into SQLite would bloat every read of the
+ * list for the sake of something shown in one detail view.
+ */
+export function saveCardImage(cardId: string, name: string, bytes: Uint8Array): string | null {
+  const row = db.prepare('SELECT id FROM cards WHERE id = ?').get(cardId)
+  if (!row) return null
+  const dir = join(app.getPath('userData'), 'card-images', cardId)
+  mkdirSync(dir, { recursive: true })
+  const safe = (name || 'image.png').replace(/[^\w.-]/g, '_').slice(-64)
+  const file = join(dir, `${Date.now()}-${safe}`)
+  writeFileSync(file, bytes)
+  const card = hydrate(db.prepare('SELECT * FROM cards WHERE id = ?').get(cardId))
+  updateCard(cardId, { images: [...card.images, file] })
+  return file
+}
+
+export function removeCardImage(cardId: string, path: string): void {
+  const row = db.prepare('SELECT * FROM cards WHERE id = ?').get(cardId)
+  if (!row) return
+  const card = hydrate(row)
+  updateCard(cardId, { images: card.images.filter((p) => p !== path) })
+  try {
+    unlinkSync(path)
+  } catch {
+    /* already gone, or never written */
+  }
+}
+
+export function removeCard(id: string): void {
+  db.prepare('DELETE FROM cards WHERE id = ?').run(id)
+}
+
 export function registerStoreIpc(): void {
   initStore()
 
   ipcMain.handle('store:tree', () => getTree())
+
+  // Every writer announces itself, so a board open in any window redraws no
+  // matter who moved the card — the agent, this window, or another one.
+  const announce = (workspaceId: string | undefined): void => {
+    if (workspaceId) broadcastToWindows('board:changed', { workspaceId })
+  }
+  const ownerOf = (id: string): string | undefined =>
+    (
+      db.prepare('SELECT workspaceId FROM cards WHERE id = ?').get(id) as
+        { workspaceId: string } | undefined
+    )?.workspaceId
+
+  ipcMain.handle('board:list', (_e, workspaceId: string) => listCards(workspaceId))
+  ipcMain.handle(
+    'board:add',
+    (_e, workspaceId: string, title: string, opts?: { body?: string; status?: string }) => {
+      const card = addCard(workspaceId, title, opts ?? {})
+      announce(workspaceId)
+      return card
+    }
+  )
+  ipcMain.handle(
+    'board:update',
+    (_e, id: string, patch: { title?: string; body?: string; status?: string }) => {
+      const card = updateCard(id, patch)
+      announce(card?.workspaceId)
+      return card
+    }
+  )
+  ipcMain.handle('board:move', (_e, id: string, status: string, beforeId: string | null) => {
+    const card = moveCard(id, status, beforeId)
+    announce(card?.workspaceId)
+    return card
+  })
+  ipcMain.handle('board:addImage', (_e, cardId: string, name: string, bytes: Uint8Array) => {
+    const path = saveCardImage(cardId, name, bytes)
+    announce(ownerOf(cardId))
+    return path
+  })
+  ipcMain.handle('board:removeImage', (_e, cardId: string, path: string) => {
+    const ws = ownerOf(cardId)
+    removeCardImage(cardId, path)
+    announce(ws)
+    return true
+  })
+  // Pictures live outside the app, so the renderer can't just point an <img> at
+  // them — hand back a data URI instead of loosening the file:// rules.
+  ipcMain.handle('board:imageData', (_e, path: string) => {
+    try {
+      const ext = path.split('.').pop()?.toLowerCase() ?? 'png'
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
+      return `data:${mime};base64,${readFileSync(path).toString('base64')}`
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('board:remove', (_e, id: string) => {
+    // Read the owner before the row goes away, or there is nothing left to name.
+    const ws = ownerOf(id)
+    removeCard(id)
+    announce(ws)
+    return true
+  })
 
   ipcMain.handle('store:createGroup', (_e, name: string) => {
     const id = randomUUID()
@@ -539,6 +922,55 @@ export function registerStoreIpc(): void {
     tx()
     return getTree()
   })
+
+  /**
+   * The desktop chat's home: a workspace that is not a project.
+   *
+   * Its working directory is a folder of ours under userData rather than the
+   * user's home — the agent has to run somewhere, and somewhere it can write
+   * scratch files without leaving them in the middle of anything.
+   */
+  ipcMain.handle('desktop:chat-home', () => {
+    const cwd = join(app.getPath('userData'), 'desktop-chat')
+    mkdirSync(cwd, { recursive: true })
+    // The chat reads the desktop through ./files. The desk is a real folder
+    // now, so this is one symlink to it rather than a mirror of per-file links
+    // rebuilt on every change — the agent sees the whole desk, folders and
+    // all, always current, and browsing into a folder no longer changes what
+    // it can read. Replaces the old files/ directory of individual links.
+    try {
+      const files = join(cwd, 'files')
+      const root = deskRoot()
+      const linksTo = existsSync(files) && lstatSync(files).isSymbolicLink() && realpathSync(files)
+      if (linksTo !== root) {
+        if (existsSync(files) || lstatSync(files, { throwIfNoEntry: false })) {
+          rmSync(files, { recursive: true, force: true })
+        }
+        symlinkSync(root, files)
+      }
+    } catch {
+      // A desk the agent cannot reach is worse degraded than fatal; the chat
+      // still runs, just without ./files.
+    }
+    const has = db.prepare('SELECT id FROM workspaces WHERE id = ?').get(DESKTOP_WORKSPACE_ID)
+    if (!has) {
+      db.prepare(
+        'INSERT OR IGNORE INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, -1)'
+      ).run(DESKTOP_GROUP_ID, 'Desktop', COLORS[0])
+      db.prepare(
+        "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, 'Chat', ?, 0, NULL, NULL, 'app')"
+      ).run(DESKTOP_WORKSPACE_ID, DESKTOP_GROUP_ID, cwd)
+    } else {
+      // Keep the path current if userData ever moves.
+      db.prepare('UPDATE workspaces SET path = ? WHERE id = ?').run(cwd, DESKTOP_WORKSPACE_ID)
+    }
+    return { workspaceId: DESKTOP_WORKSPACE_ID, cwd }
+  })
+
+  // The desk is a real folder and ./files links straight to it (see chat-home),
+  // so there is nothing per-file to sync. Kept as a no-op because the renderer
+  // still calls it after the one-time migration; it simply confirms the link.
+  ipcMain.handle('desktop:sync-files', () => join(app.getPath('userData'), 'desktop-chat', 'files'))
 
   ipcMain.handle('store:createWorkspace', (_e, groupId: string, name: string, path: string) => {
     const id = randomUUID()

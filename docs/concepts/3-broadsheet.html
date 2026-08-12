@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — a computer for your agent</title>
+<meta name="description" content="A Mac app that gives your agent a computer." />
+<style>
+/*
+  CONCEPT 3 — "Broadsheet".
+  Type-first, ink on paper, no chrome and no tricks: a specimen sheet for a
+  serious tool. The only motion is a headline that sets itself line by line and
+  rules that draw themselves. Everything else earns attention by being set
+  properly — the lane By-Kin wins in, and the one that ages best.
+*/
+:root {
+  --paper: #f7f5f0;
+  --ink: #15140f;
+  --muted: #5c594f;
+  --faint: #918d80;
+  --rule: #15140f;
+  --red: #b4321e;
+  --serif: "Times New Roman", Times, "Iowan Old Style", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width:100%; display:block; height:auto; }
+a { color: inherit; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+
+/* masthead */
+.masthead { border-bottom: 3px double var(--rule); }
+.masthead .wrap { display:flex; align-items:flex-end; gap:20px; padding-top:20px; padding-bottom:12px; }
+.masthead img { width:26px; height:26px; border-radius:7px; }
+.masthead b { font-family: var(--serif); font-size:26px; letter-spacing:-0.02em; font-weight:700; }
+.masthead .meta { margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint);
+  letter-spacing:0.06em; text-transform:uppercase; text-align:right; line-height:1.6; }
+
+/* headline */
+.lead { padding: 58px 0 40px; border-bottom:1px solid var(--rule); }
+h1 {
+  font-family: var(--serif); font-weight:700;
+  font-size: clamp(48px, 10.5vw, 148px); line-height:0.88; letter-spacing:-0.045em;
+  text-indent:-0.05em;
+}
+h1 .l { display:block; overflow:hidden; }
+h1 .l i { display:block; font-style:normal; transform: translateY(105%); animation: rise .9s cubic-bezier(.16,1,.3,1) forwards; }
+h1 .l:nth-child(2) i { animation-delay:.09s } h1 .l:nth-child(3) i { animation-delay:.18s }
+@keyframes rise { to { transform:none } }
+h1 em { font-style: italic; color: var(--red); }
+
+.standfirst {
+  display:grid; grid-template-columns: 1fr 1fr; gap:34px; margin-top:34px; align-items:start;
+}
+.standfirst p { font-family:var(--serif); font-size: clamp(17px,1.9vw,22px); line-height:1.45; }
+.standfirst p::first-letter { float:left; font-size:3.3em; line-height:0.82; padding:2px 8px 0 0; font-weight:700; }
+.standfirst aside { font-size:13.5px; color:var(--muted); line-height:1.6; border-left:1px solid var(--rule); padding-left:18px; }
+.ctas { display:flex; gap:10px; margin-top:22px; flex-wrap:wrap; }
+.btn { padding:11px 20px; border:1px solid var(--rule); background:var(--ink); color:var(--paper);
+  text-decoration:none; font-size:13.5px; font-weight:640; }
+.btn.ghost { background:none; color:var(--ink); }
+
+/* the plate */
+figure { margin: 0; border-bottom:1px solid var(--rule); }
+figure img { width:100%; border:1px solid var(--rule); }
+figcaption { font-family:var(--mono); font-size:11px; color:var(--faint); letter-spacing:0.05em;
+  text-transform:uppercase; padding:10px 0 26px; }
+.plate { padding: 34px 0 0; }
+
+/* columns */
+.cols { columns: 3; column-gap: 34px; column-rule: 1px solid rgba(21,20,15,0.18);
+  padding: 44px 0 20px; border-bottom:1px solid var(--rule); }
+.cols h2 { font-family:var(--serif); font-size:19px; letter-spacing:-0.01em; margin-bottom:4px; }
+.cols section { break-inside: avoid; margin-bottom: 24px; }
+.cols p { font-size:14px; line-height:1.62; color:var(--muted); }
+.cols .no { font-family:var(--mono); font-size:10.5px; color:var(--red); letter-spacing:0.1em; }
+
+/* ledger */
+.ledger { padding: 40px 0 8px; }
+.ledger h2 { font-family:var(--serif); font-size: clamp(26px,3.6vw,44px); letter-spacing:-0.03em; margin-bottom:18px; }
+.ledger dl { border-top:1px solid var(--rule); }
+.ledger div { display:grid; grid-template-columns: 46px 1fr 1.35fr; gap:20px; align-items:baseline;
+  padding:15px 0; border-bottom:1px solid rgba(21,20,15,0.16); }
+.ledger dt { font-weight:640; font-size:14.5px; }
+.ledger dd { font-size:14px; color:var(--muted); line-height:1.55; }
+.ledger .n { font-family:var(--mono); font-size:11px; color:var(--faint); }
+
+.tail { padding: 52px 0 70px; border-top:3px double var(--rule); margin-top:34px; text-align:center; }
+.tail h2 { font-family:var(--serif); font-size:clamp(30px,5vw,60px); letter-spacing:-0.035em; }
+.tail .note { margin-top:16px; font-family:var(--mono); font-size:11px; color:var(--faint);
+  letter-spacing:0.06em; text-transform:uppercase; }
+
+@media (max-width: 900px) {
+  .standfirst { grid-template-columns:1fr; gap:20px; }
+  .cols { columns:1; }
+  .ledger div { grid-template-columns: 34px 1fr; }
+  .ledger dd { grid-column: 2; }
+}
+@media (prefers-reduced-motion: reduce) { h1 .l i { animation:none; transform:none } }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap">
+    <img src="../logo.png" alt="" />
+    <b>SuperAgent</b>
+    <div class="meta">Version 1.2 · macOS<br />Free &amp; open source</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="lead">
+    <h1>
+      <span class="l"><i>Your agent</i></span>
+      <span class="l"><i>needs a</i></span>
+      <span class="l"><i><em>computer.</em></i></span>
+    </h1>
+    <div class="standfirst">
+      <p>Every coding agent on the market is a conversation in a terminal. It writes what it did,
+      and you take the rest on trust. This one gets a screen — a real browser it drives, an iPhone
+      it can tap, a desk it keeps its work on — and does it where you can see.</p>
+      <aside>
+        Runs on your machine, on your existing Claude subscription. Nothing is sent anywhere
+        it wasn't already going. Signed and notarized by Apple; updates itself in the background.
+        <div class="ctas">
+          <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+          <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">Read the source</a>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <div class="plate">
+    <figure>
+      <img src="../hero.png" alt="A chat beside a live browser showing the same page as a desktop site and on an iPhone" width="2560" height="1600" />
+      <figcaption>Fig. 1 — One page, two engines, one session. The conversation is on the left; the site it is working on is on the right, live.</figcaption>
+    </figure>
+  </div>
+
+  <section class="cols">
+    <section><span class="no">§ 01</span><h2>A real browser</h2>
+      <p>Not a screenshot service. A Chromium view the agent drives — it reads the page structure, clicks by name, fills forms, and you watch every step of it happen.</p></section>
+    <section><span class="no">§ 02</span><h2>An iPhone in the window</h2>
+      <p>A real iOS Simulator, streamed inside the app from its own framebuffer. Tap it, type into it, watch a build install. Nothing to grant, nothing to install.</p></section>
+    <section><span class="no">§ 03</span><h2>A desk, not a slot</h2>
+      <p>The page and the phone sit side by side on one surface you arrange yourself, over a Monet you can switch off.</p></section>
+    <section><span class="no">§ 04</span><h2>A board it keeps</h2>
+      <p>Backlog, next, doing, done — per project. Cards move themselves as the work happens, and each remembers the conversation that raised it.</p></section>
+    <section><span class="no">§ 05</span><h2>Worktree chats</h2>
+      <p>Start a conversation on its own git worktree. The agent works an isolated branch; your checkout stays exactly as you left it.</p></section>
+    <section><span class="no">§ 06</span><h2>It stays out of the way</h2>
+      <p>Agents finish quietly and send a notification with what they actually said. The window never shoves itself in front of what you were doing.</p></section>
+  </section>
+
+  <section class="ledger">
+    <h2>Three steps, then it is yours.</h2>
+    <dl>
+      <div><span class="n">01</span><dt>Install it</dt><dd>Download the DMG and drop it in Applications. If you already use Claude Code in the terminal, there is nothing else to set up.</dd></div>
+      <div><span class="n">02</span><dt>Point it at something</dt><dd>A project folder, a URL, or a blank browser tab. Projects keep their own chats, board and panes.</dd></div>
+      <div><span class="n">03</span><dt>Talk to it</dt><dd>Ask it to build, browse, test or explain — and watch the work happen in the pane next door.</dd></div>
+    </dl>
+  </section>
+
+  <section class="tail">
+    <h2>Give your agent a screen.</h2>
+    <div class="ctas" style="justify-content:center">
+      <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac</a>
+      <a class="btn ghost" href="https://github.com/pungme/superagent-desktop">GitHub</a>
+    </div>
+    <p class="note">Free · Open source · Runs locally · Notarized by Apple</p>
+  </section>
+</main>
+</body>
+</html>

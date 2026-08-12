@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useEscapeClose } from '../hooks/useEscapeClose'
 
 interface Dash {
   turnsToday: number
   tasksToday: number
   streak: number
   longestStreak: number
-  spark: { day: string; turns: number; tokens: number }[]
+  spark: { day: string; date: string; turns: number; tokens: number }[]
   attention: { name: string; turns: number }[]
   attentionAll: { name: string; turns: number }[]
   hours: number[]
@@ -49,10 +50,20 @@ function Trend({ cur, prev }: { cur: number; prev: number }): React.JSX.Element 
  * activity log and chat transcripts (which reach back before logging existed),
  * browsing stats come from the omnibar history.
  */
-export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
+export function DashboardPanel({
+  onClose,
+  embedded = false
+}: {
+  onClose: () => void
+  /** Inside a desktop window: the frame carries the title and the close. */
+  embedded?: boolean
+}): React.JSX.Element {
   const [dash, setDash] = useState<Dash | null>(null)
+  useEscapeClose(onClose, !embedded)
   const [failed, setFailed] = useState(false)
   const [range, setRange] = useState(14)
+  /** Bumped by "Try again" — the only thing that re-runs a fetch on demand. */
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     window.cove
@@ -68,8 +79,13 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
           spark: Array.isArray(d?.spark)
             ? d.spark.map((s) =>
                 typeof s === 'number'
-                  ? { day: '', turns: s, tokens: 0 }
-                  : { day: s?.day ?? '', turns: s?.turns ?? 0, tokens: s?.tokens ?? 0 }
+                  ? { day: '', date: '', turns: s, tokens: 0 }
+                  : {
+                      day: s?.day ?? '',
+                      date: s?.date ?? '',
+                      turns: s?.turns ?? 0,
+                      tokens: s?.tokens ?? 0
+                    }
               )
             : [],
           attention: d?.attention ?? [],
@@ -105,9 +121,13 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
             tokens: d?.totals?.tokens ?? 0
           }
         })
+        // Belt and braces. Nothing can currently reach this with failed still
+        // set — the range buttons are not rendered while the error is showing,
+        // so "Try again", which clears the flag itself, is the only way back.
+        setFailed(false)
       })
       .catch(() => setFailed(true))
-  }, [range])
+  }, [range, attempt])
 
   const maxTurns = Math.max(1, ...(dash?.attention.map((a) => a.turns) ?? [1]))
   const maxAll = Math.max(1, ...(dash?.attentionAll.map((a) => a.turns) ?? [1]))
@@ -116,16 +136,29 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
   const maxHour = Math.max(1, ...(dash?.hours ?? [1]))
 
   return (
-    <div className="dash-view">
-      <div className="dash-head">
-        <h2>Dashboard</h2>
-        <button className="dash-close" onClick={onClose} title="Close">
-          ✕
-        </button>
-      </div>
+    <div className={`dash-view ${embedded ? 'embedded' : ''}`}>
+      {!embedded && (
+        <div className="dash-head">
+          <h2>Dashboard</h2>
+          <button className="dash-close" onClick={onClose} title="Close">
+            ✕
+          </button>
+        </div>
+      )}
       <div className="dash">
         {failed ? (
-          <div className="dash-empty">Couldn&rsquo;t load activity data — try reopening.</div>
+          <div className="dash-empty">
+            <p>Couldn&rsquo;t load activity data.</p>
+            <button
+              className="dash-retry"
+              onClick={() => {
+                setFailed(false)
+                setAttempt((n) => n + 1)
+              }}
+            >
+              Try again
+            </button>
+          </div>
         ) : !dash ? (
           <div className="dash-empty">Loading…</div>
         ) : (
@@ -206,7 +239,7 @@ export function DashboardPanel({ onClose }: { onClose: () => void }): React.JSX.
                   <div
                     key={i}
                     className="dash-spark-col dash-tip"
-                    data-tip={`${fmtTokens(s.tokens)} tokens · ${s.turns} turns`}
+                    data-tip={`${s.date ? `${s.date} · ` : ''}${fmtTokens(s.tokens)} tokens · ${s.turns} turns`}
                   >
                     <span className="dash-spark-val">
                       {s.tokens > 0 && range <= 14 ? fmtTokens(s.tokens) : ''}

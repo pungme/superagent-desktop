@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron'
+import { ipcMain, shell, nativeImage } from 'electron'
 import { execFile } from 'child_process'
 import {
   readdirSync,
@@ -33,35 +33,57 @@ const SKIP_DIRS = new Set([
 
 const MAX_DEPTH = 12
 
-export function listProjectFiles(root: string, max = 1000): string[] {
+/**
+ * Every path under a project, shallowest first, up to a budget.
+ *
+ * Breadth-first, which matters more than it sounds: depth-first spent the
+ * whole budget inside the first big sub-repo it walked into and returned
+ * before it had even finished listing the top level — a monorepo showed nine
+ * of its twenty-one entries and simply omitted the rest, with nothing to say
+ * so. Level by level, the top of the tree is always complete and it is the
+ * deepest, least-looked-at corners that get cut.
+ *
+ * Directories are named in their own right (a trailing "/") rather than being
+ * inferred from the files inside them, so a directory whose contents fell
+ * outside the budget still appears — and can still be opened.
+ */
+export function listProjectFiles(root: string, max = 8000): string[] {
   const out: string[] = []
-  const walk = (dir: string, depth: number): void => {
-    if (out.length >= max || depth > MAX_DEPTH) return
-    let entries: string[]
-    try {
-      entries = readdirSync(dir)
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (out.length >= max) return
-      if (SKIP_DIRS.has(entry)) continue
-      const full = join(dir, entry)
-      let st: ReturnType<typeof lstatSync>
+  let level: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }]
+  while (level.length && out.length < max) {
+    const next: { dir: string; depth: number }[] = []
+    for (const { dir, depth } of level) {
+      if (out.length >= max) break
+      let entries: string[]
       try {
-        // lstat (not stat) so we can see symlinks without following them — never
-        // descend into a symlinked dir, which is how directory cycles would recurse
-        // forever.
-        st = lstatSync(full)
+        entries = readdirSync(dir)
       } catch {
         continue
       }
-      if (st.isSymbolicLink()) continue
-      if (st.isDirectory()) walk(full, depth + 1)
-      else if (st.isFile()) out.push(relative(root, full))
+      for (const entry of entries) {
+        if (out.length >= max) break
+        if (SKIP_DIRS.has(entry)) continue
+        const full = join(dir, entry)
+        let st: ReturnType<typeof lstatSync>
+        try {
+          // lstat (not stat) so we can see symlinks without following them — never
+          // descend into a symlinked dir, which is how directory cycles would recurse
+          // forever.
+          st = lstatSync(full)
+        } catch {
+          continue
+        }
+        if (st.isSymbolicLink()) continue
+        if (st.isDirectory()) {
+          out.push(relative(root, full) + '/')
+          if (depth + 1 <= MAX_DEPTH) next.push({ dir: full, depth: depth + 1 })
+        } else if (st.isFile()) {
+          out.push(relative(root, full))
+        }
+      }
     }
+    level = next
   }
-  walk(root, 0)
   return out.sort()
 }
 
@@ -163,24 +185,103 @@ export function registerFilesIpc(): void {
       } catch {
         // exclusion is best-effort
       }
-      execFile(
-        'git',
-        ['worktree', 'add', dir, '-b', branch],
-        { cwd: projectPath },
-        (err) => resolve(err ? null : { path: dir, branch })
+      execFile('git', ['worktree', 'add', dir, '-b', branch], { cwd: projectPath }, (err) =>
+        resolve(err ? null : { path: dir, branch })
       )
     })
   })
   ipcMain.handle('worktree:remove', (_e, projectPath: string, wtPath: string) => {
     return new Promise((resolve) => {
-      execFile(
-        'git',
-        ['worktree', 'remove', '--force', wtPath],
-        { cwd: projectPath },
-        (err) => resolve(!err)
+      execFile('git', ['worktree', 'remove', '--force', wtPath], { cwd: projectPath }, (err) =>
+        resolve(!err)
       )
     })
   })
+
+  // Fold a worktree chat's work back into the project and tidy up: commit
+  // whatever the agent left in the worktree, squash it into ONE commit on the
+  // project's current branch, then remove the worktree and delete its branch.
+  // Every failure mode leaves the repo exactly as it was — a half-merged tree is
+  // worse than no button.
+  ipcMain.handle(
+    'worktree:merge',
+    async (_e, projectPath: string, wtPath: string, message: string) => {
+      const git = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
+        new Promise((resolve) =>
+          execFile('git', args, { cwd, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) =>
+            resolve({
+              code: err ? ((err as { code?: number }).code ?? 1) : 0,
+              out: (stdout || '') + (stderr || '')
+            })
+          )
+        )
+      type R =
+        | { ok: true; committed: boolean }
+        | {
+            ok: false
+            reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'
+            detail?: string
+          }
+
+      // The branch checked out IN the worktree is what we merge.
+      const head = await git(['rev-parse', '--abbrev-ref', 'HEAD'], wtPath)
+      const branch = head.out.trim()
+      if (head.code !== 0 || !branch || branch === 'HEAD') {
+        return { ok: false, reason: 'not-worktree', detail: head.out.trim() } as R
+      }
+
+      // Commit anything the agent left uncommitted in the worktree, so the
+      // squash actually captures it.
+      const wtStatus = await git(['status', '--porcelain'], wtPath)
+      if (wtStatus.out.trim()) {
+        await git(['add', '-A'], wtPath)
+        const c = await git(['commit', '-m', message || 'Worktree changes'], wtPath)
+        if (c.code !== 0) return { ok: false, reason: 'error', detail: c.out.trim() } as R
+      }
+
+      // Refuse if the project's own working tree is dirty — a squash merge writes
+      // into it, and mixing the user's in-progress edits with the merge is the
+      // kind of surprise that loses work.
+      const baseStatus = await git(['status', '--porcelain'], projectPath)
+      if (baseStatus.out.trim()) {
+        return { ok: false, reason: 'base-dirty' } as R
+      }
+
+      // Nothing to bring over (branch identical to base) → say so, don't make an
+      // empty commit.
+      const ahead = await git(['rev-list', '--count', `HEAD..${branch}`], projectPath)
+      if (ahead.out.trim() === '0') {
+        return { ok: false, reason: 'nothing' } as R
+      }
+
+      // The squash: stages the branch's net change onto the base without a merge
+      // commit. On conflict, undo cleanly (base was verified clean above) and
+      // leave everything — including the worktree — untouched to resolve by hand.
+      const sq = await git(['merge', '--squash', branch], projectPath)
+      if (sq.code !== 0) {
+        await git(['reset', '--hard', 'HEAD'], projectPath)
+        return { ok: false, reason: 'conflict', detail: sq.out.trim().slice(0, 300) } as R
+      }
+      const commit = await git(['commit', '-m', message || `Merge ${branch}`], projectPath)
+      if (commit.code !== 0) {
+        // Tell "empty squash, nothing to commit" apart from a real commit failure
+        // (a failing pre-commit hook, GPG signing) that DID have changes staged —
+        // otherwise a hook rejection reads as the misleading "nothing to merge".
+        // `diff --cached --quiet` exits non-zero when there ARE staged changes.
+        const hadStaged = (await git(['diff', '--cached', '--quiet'], projectPath)).code !== 0
+        await git(['reset', '--hard', 'HEAD'], projectPath)
+        return hadStaged
+          ? ({ ok: false, reason: 'error', detail: commit.out.trim() } as R)
+          : ({ ok: false, reason: 'nothing', detail: commit.out.trim() } as R)
+      }
+
+      // Merged — now tidy up. Best-effort: the merge already succeeded, so even
+      // if cleanup hiccups the work is safe.
+      await git(['worktree', 'remove', '--force', wtPath], projectPath)
+      await git(['branch', '-D', branch], projectPath)
+      return { ok: true, committed: true } as R
+    }
+  )
 
   ipcMain.handle('files:import', (_e, destDir: string, sources: string[]) => {
     const imported: string[] = []
@@ -199,6 +300,27 @@ export function registerFilesIpc(): void {
     return imported
   })
   // Fallback for types the in-app browser can't render (.docx, .xlsx, …).
+  /**
+   * A thumbnail for a desktop icon, as a data URI.
+   *
+   * The renderer is served over http in development, so it cannot load a
+   * file:// image at all — main reads it instead, and downscales it here so a
+   * desk full of screenshots costs a few KB rather than a few MB.
+   */
+  ipcMain.handle('files:thumb', (_e, path: string): string | null => {
+    try {
+      if (statSync(path).size > 40 * 1024 * 1024) return null
+      const img = nativeImage.createFromPath(path)
+      if (img.isEmpty()) return null
+      const { width, height } = img.getSize()
+      const side = 128
+      const small = width >= height ? img.resize({ width: side }) : img.resize({ height: side })
+      return small.toDataURL()
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.handle('files:openExternal', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
   ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))

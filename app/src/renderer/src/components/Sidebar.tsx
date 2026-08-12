@@ -22,6 +22,55 @@ const STATUS_LABEL: Record<WorkspaceStatus, string> = {
 // reaped after sitting idle. The next message starts/resumes it.
 const DORMANT_LABEL = 'No live session — your next message starts one'
 
+/**
+ * What the pane is showing, as a badge.
+ *
+ * It is a browser either way, but "a globe" answers a question nobody asked —
+ * the useful thing is what you left open. A PDF and a picture are worth
+ * distinguishing; anything else is a page, and a globe says that best.
+ */
+function pageBadge(url: string): { icon: React.JSX.Element; title: string } {
+  const path = url.split(/[?#]/)[0].toLowerCase()
+  const name = decodeURIComponent(path.split('/').pop() || '')
+  const ext = name.slice(name.lastIndexOf('.') + 1)
+  const svg = (children: React.ReactNode): React.JSX.Element => (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+      {children}
+    </svg>
+  )
+  if (ext === 'pdf') {
+    return {
+      title: `PDF open in this project${name ? ` — ${name}` : ''}`,
+      icon: svg(
+        <>
+          <path d="M4 1.8h5l3 3v9.4H4z" />
+          <path d="M9 1.9V5h3" />
+        </>
+      )
+    }
+  }
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'bmp', 'heic'].includes(ext)) {
+    return {
+      title: `Image open in this project${name ? ` — ${name}` : ''}`,
+      icon: svg(
+        <>
+          <rect x="2" y="3.2" width="12" height="9.6" rx="1.4" />
+          <path d="M2.6 11l3.2-3.2 2.4 2.4 2-2 3.2 3.2" />
+        </>
+      )
+    }
+  }
+  return {
+    title: 'A page is open in this project',
+    icon: svg(
+      <>
+        <circle cx="8" cy="8" r="6" />
+        <path d="M2 8h12M8 2c3 3.2 3 8.8 0 12M8 2C5 5.2 5 10.8 8 14" />
+      </>
+    )
+  }
+}
+
 // Stable empty routine list so the selector doesn't return a fresh array each render.
 const EMPTY_ROUTINES: Routine[] = []
 const EMPTY_CHATS: Chat[] = []
@@ -29,11 +78,19 @@ const EMPTY_PORTS: number[] = []
 
 function StatusDot({
   status,
-  live
+  live,
+  browsing
 }: {
   status: WorkspaceStatus
   live?: boolean
+  browsing?: boolean
 }): React.JSX.Element {
+  // Driving the browser is work too — and on a plain tab there is no turn to
+  // report, so without this the row sits at "idle" while the agent clicks
+  // around in it.
+  if (browsing) {
+    return <span className="status-spinner" title="Claude is using this page" />
+  }
   // A spinner while it works: a pulsing dot reads as a state, but the agent
   // running is an activity, and spinning says "still going" at a glance.
   if (status === 'working') {
@@ -54,6 +111,35 @@ function hostOfUrl(url: string): string {
   } catch {
     return ''
   }
+}
+
+/**
+ * The branch chip, truncated in the row but shown in full on hover. The sidebar
+ * scroller clips horizontally, so the tooltip is position:fixed (viewport-
+ * relative) to escape it — a plain CSS ::after would be cut off. Anchored just
+ * under the chip.
+ */
+function BranchChip({ branch }: { branch: string }): React.JSX.Element {
+  const [tip, setTip] = useState<{ x: number; y: number } | null>(null)
+  return (
+    <>
+      <span
+        className="sidebar-item-branch"
+        onMouseEnter={(e) => {
+          const r = e.currentTarget.getBoundingClientRect()
+          setTip({ x: r.left, y: r.bottom + 4 })
+        }}
+        onMouseLeave={() => setTip(null)}
+      >
+        ⎇ {branch}
+      </span>
+      {tip && (
+        <span className="branch-tip" style={{ left: tip.x, top: tip.y }} role="tooltip">
+          {branch}
+        </span>
+      )}
+    </>
+  )
 }
 
 function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.JSX.Element {
@@ -81,6 +167,24 @@ function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.J
 }
 
 // A properly-sized disclosure chevron (points down; rotate -90° when collapsed).
+/** Stands in for the folder while a simulator is attached to the project. */
+function PhoneIcon({ size = 15 }: { size?: number }): React.JSX.Element {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.2}
+      strokeLinejoin="round"
+    >
+      <rect x="4.6" y="1.6" width="6.8" height="12.8" rx="1.6" />
+      <path d="M7 12.7h2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function Chevron({ size = 13 }: { size?: number }): React.JSX.Element {
   return (
     <svg
@@ -181,18 +285,27 @@ function ChatRow({
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const removeChat = useStore((s) => s.removeChat)
+  const unread = useStore((st) => Boolean(st.unread[chat.id]))
+  // The spinner means "this conversation's turn is running", per chat, on screen
+  // or not. Deliberately NOT keyed on background commands: a lingering `xcodebuild`
+  // shows as its own pill, and letting it spin the sidebar made a finished chat
+  // look like it was still thinking. (Background tasks still keep the chat mounted
+  // — that's a separate concern in WorkspaceView.)
+  const running = useStore((st) => Boolean(st.busy[chat.id]?.generating))
   const [editing, setEditing] = useState(false)
   const label = chat.title ?? 'New chat'
   const [draft, setDraft] = useState(label)
 
   return (
     <div
-      className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''}`}
+      className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''} ${
+        unread ? 'unread' : ''
+      }`}
       title={label}
       onClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault()
-        window.cove.chatMenu(chat.id, workspaceId)
+        window.cove.chatMenu(chat.id, workspaceId, chat.cwd)
       }}
       onDoubleClick={() => {
         setDraft(label)
@@ -221,6 +334,13 @@ function ChatRow({
         />
       ) : (
         <span className="chat-tree-title">
+          {running ? (
+            <span className="chat-tree-spinner" title="Working…" />
+          ) : (
+            unread && (
+              <span className="sidebar-unread" title="Claude finished — you haven't read this" />
+            )
+          )}
           {label}
           {chat.cwd && (
             <span className="chat-tree-wt" title={`Worktree: ${chat.cwd}`}>
@@ -244,17 +364,40 @@ function ChatRow({
 }
 
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
-  const active = useStore((s) => s.activeWorkspaceId === ws.id)
+  const active = useStore((s) => s.activeWorkspaceId === ws.id && s.overlay === null)
+  // Live only — no localStorage fallback. What was remembered is "the pane was
+  // open here once", which kept showing a phone long after the device had been
+  // shut down.
+  const simHere = useStore((s) => s.simOpen[ws.id] ?? false)
   const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
   const agentLive = useStore((s) => Boolean(s.agentLive[ws.id]))
   // A live dev server on this project → green dot on its icon (mirrors the
   // toolbar's "● localhost:PORT" chip).
   const serverPorts = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
+  /**
+   * A page is attached to this project's session — whatever opened it.
+   *
+   * The green dot only ever meant "the agent started a dev server here", so a
+   * project sitting on a live site it did not start showed nothing at all. The
+   * question the row should answer is what this project currently has on
+   * screen, not who is responsible for it.
+   */
+  // Live only, reported by the pane itself. What is remembered is "a page was
+  // open here once", which is the same mistake the simulator badge made.
+  const pageUrl = useStore((s) => (ws.kind !== 'browser' ? (s.pageUrl[ws.id] ?? '') : ''))
+  const pageHere = Boolean(pageUrl)
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
+  /**
+   * Something finished here that you have not read. Shown on the project too,
+   * because a collapsed project is exactly when you would otherwise miss it.
+   */
+  const unread = useStore((s) => s.unread)
+  const unreadHere = chats.some((c) => unread[c.id])
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
+  const browsingHere = useStore((s) => s.browsingWorkspaceId === ws.id)
   const removeWorkspace = useStore((s) => s.removeWorkspace)
 
   // Git repos nested inside a code project's folder (a folder-of-repos), shown
@@ -332,13 +475,27 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
           setActive(ws.id)
         }}
+        onContextMenu={(e) => {
+          // Browser tabs have no folder to branch; the menu is a code-project thing.
+          if (ws.kind === 'browser') return
+          e.preventDefault()
+          // selfBranch !== null means the folder is itself a git repo → worktree
+          // chats are possible.
+          window.cove.workspaceMenu({ id: ws.id, path: ws.path, isRepo: selfBranch !== null })
+        }}
         {...attributes}
         {...listeners}
       >
-        <StatusDot status={status} live={agentLive} />
+        <StatusDot status={status} live={agentLive} browsing={browsingHere} />
         <span
           className="sidebar-item-kind"
-          title={ws.kind === 'browser' ? 'Browser' : 'Folder'}
+          title={
+            simHere
+              ? 'A simulator is attached to this project'
+              : ws.kind === 'browser'
+                ? 'Browser'
+                : 'Folder'
+          }
         >
           {ws.kind === 'browser' && favicon ? (
             <img
@@ -348,14 +505,32 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               // A favicon that fails to render falls back to the globe icon.
               onError={() => setFavicon('')}
             />
+          ) : simHere ? (
+            <PhoneIcon />
           ) : (
             <KindIcon kind={ws.kind} />
           )}
-          {serverPorts.length > 0 && (
+          {/* The dot means "something of this project's is live right now". A
+              dev server counted and an attached simulator did not, so a project
+              running a phone looked as idle as one running nothing. */}
+          {(serverPorts.length > 0 || simHere) && (
             <span
               className="sidebar-server-dot"
-              title={`Dev server on :${serverPorts.join(', :')}`}
+              title={
+                serverPorts.length > 0 && simHere
+                  ? `Simulator attached · dev server on :${serverPorts.join(', :')}`
+                  : simHere
+                    ? 'A simulator is attached to this project'
+                    : `Dev server on :${serverPorts.join(', :')}`
+              }
             />
+          )}
+          {/* A live page, when there is no dev server to report: the dot is the
+              more specific claim, so it wins the corner. */}
+          {pageHere && serverPorts.length === 0 && !simHere && (
+            <span className="sidebar-web-dot" title={pageBadge(pageUrl).title}>
+              {pageBadge(pageUrl).icon}
+            </span>
           )}
         </span>
         {/* Not editable: the name mirrors the folder, and renaming here changed
@@ -363,11 +538,10 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         <span className="sidebar-item-name" title={ws.path}>
           {displayName}
         </span>
-        {selfBranch && (
-          <span className="sidebar-item-branch" title={`On git branch ${selfBranch}`}>
-            ⎇ {selfBranch}
-          </span>
+        {unreadHere && !active && (
+          <span className="sidebar-unread" title="Claude finished something you haven't read" />
         )}
+        {selfBranch && <BranchChip branch={selfBranch} />}
         {/* The running-server chip lives in the workspace toolbar now (more room);
             the sidebar row was too cramped next to the branch + close button. */}
         <button
@@ -579,6 +753,7 @@ const TABS_GROUP = '__tabs'
 
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
+  const overlay = useStore((s) => s.overlay)
   const refresh = useStore((s) => s.refresh)
   const addGroup = useStore((s) => s.addGroup)
   const setActive = useStore((s) => s.setActive)
@@ -660,8 +835,8 @@ export function Sidebar(): React.JSX.Element {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="sidebar-scroll">
           <button
-            className="sidebar-dash-row"
-            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-dashboard'))}
+            className={`sidebar-dash-row ${overlay === 'computer' ? 'on' : ''}`}
+            onClick={() => window.dispatchEvent(new CustomEvent('cove:open-computer'))}
           >
             <svg
               className="sidebar-dash-icon"
@@ -670,12 +845,13 @@ export function Sidebar(): React.JSX.Element {
               height="14"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
             >
-              <path d="M2.5 13.5v-4M6.5 13.5v-7M10.5 13.5v-2.5M14.5 13.5v-9" />
+              <rect x="1.5" y="2.5" width="13" height="9" rx="1.2" />
+              <path d="M6 14h4" />
             </svg>
-            Dashboard
+            Computer
           </button>
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">
@@ -688,7 +864,11 @@ export function Sidebar(): React.JSX.Element {
               <WorkspaceRow key={ws.id} ws={ws} index={i} />
             ))}
             {(tabsGroup?.workspaces ?? []).length === 0 && (
-              <div className="tabs-empty">Click + to browse</div>
+              // Was "Click + to browse" — grey text aiming you at a control an
+              // inch away. It opens the tab itself now.
+              <button className="tabs-empty" onClick={() => void newTab()}>
+                Open a tab to browse
+              </button>
             )}
           </div>
           {tree
