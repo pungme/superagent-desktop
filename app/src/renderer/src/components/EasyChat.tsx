@@ -860,24 +860,29 @@ export function EasyChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, visible])
 
-  // Drag a file onto the chat: images attach (like a paste); other files insert
-  // their absolute path so Claude can read them.
+  // Drag a file onto the chat: images attach (like a paste); other files become
+  // a file chip in the composer — the same 📎 chip a file dropped from the tree
+  // gets — rather than dumping a raw path into the text you're writing.
   const onDrop = (e: React.DragEvent): void => {
     const files = [...(e.dataTransfer?.files ?? [])]
     if (files.length === 0) return
     e.preventDefault()
     setDragOver(false)
-    const paths: string[] = []
+    const dropped: { path: string; name: string }[] = []
     for (const file of files) {
       if (file.type.startsWith('image/')) attachImage(file)
       else {
         const p = window.cove.getPathForFile?.(file)
-        if (p) paths.push(p)
+        if (p) dropped.push({ path: p, name: file.name || p.split('/').pop() || p })
       }
     }
-    if (paths.length > 0) {
-      setInput((prev) => (prev ? prev.trimEnd() + ' ' : '') + paths.join(' ') + ' ')
-      requestAnimationFrame(autoResize)
+    if (dropped.length > 0) {
+      // Dedupe against what's already staged, so dropping the same file twice
+      // doesn't chip it twice.
+      setPendingFiles((prev) => {
+        const have = new Set(prev.map((f) => f.path))
+        return [...prev, ...dropped.filter((f) => !have.has(f.path))]
+      })
       inputRef.current?.focus()
     }
   }
