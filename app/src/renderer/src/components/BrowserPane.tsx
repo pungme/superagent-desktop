@@ -35,12 +35,6 @@ interface BrowserPaneProps {
    */
   radius?: number
   /**
-   * The colour of the page's own edge, as it is sampled. Whatever frames this
-   * pane can then match it, so the page appears to run to the frame instead of
-   * stopping short of it against a band of window.
-   */
-  onEdgeColour?: (colour: string) => void
-  /**
    * Fill the pane rather than simulating a desktop screen. A project preview
    * wants the simulated viewport — it is showing you a site as a visitor sees
    * it. A browser tab is not a preview of anything: it should fill its window.
@@ -105,8 +99,7 @@ export function BrowserPane({
   fill = false,
   occluded = false,
   positionKey,
-  radius = 0,
-  onEdgeColour
+  radius = 0
 }: BrowserPaneProps): React.JSX.Element {
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const previewUrl = useStore((s) => s.previewUrls[paneId])
@@ -367,10 +360,6 @@ export function BrowserPane({
   useEffect(() => {
     return window.cove.onAppFocus?.((focused) => setAway(!focused))
   }, [])
-
-  useEffect(() => {
-    if (cornerFill?.bottom) onEdgeColour?.(cornerFill.bottom)
-  }, [cornerFill?.bottom, onEdgeColour])
 
   const paneCovered = overlayOpen || suggestOpen || away || occluded
   useEffect(() => {
