@@ -264,9 +264,15 @@ export function registerFilesIpc(): void {
       }
       const commit = await git(['commit', '-m', message || `Merge ${branch}`], projectPath)
       if (commit.code !== 0) {
-        // e.g. the squash produced no staged change after all.
+        // Tell "empty squash, nothing to commit" apart from a real commit failure
+        // (a failing pre-commit hook, GPG signing) that DID have changes staged —
+        // otherwise a hook rejection reads as the misleading "nothing to merge".
+        // `diff --cached --quiet` exits non-zero when there ARE staged changes.
+        const hadStaged = (await git(['diff', '--cached', '--quiet'], projectPath)).code !== 0
         await git(['reset', '--hard', 'HEAD'], projectPath)
-        return { ok: false, reason: 'nothing', detail: commit.out.trim() } as R
+        return hadStaged
+          ? ({ ok: false, reason: 'error', detail: commit.out.trim() } as R)
+          : ({ ok: false, reason: 'nothing', detail: commit.out.trim() } as R)
       }
 
       // Merged — now tidy up. Best-effort: the merge already succeeded, so even
