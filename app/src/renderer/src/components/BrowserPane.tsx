@@ -52,7 +52,14 @@ interface Suggestion {
 // Monochrome line icons for the viewport switcher (kept black/white/gray).
 function DesktopIcon(): React.JSX.Element {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+    >
       <rect x="1.5" y="2.5" width="13" height="9" rx="1" />
       <path d="M6 14h4M8 11.5V14" strokeLinecap="round" />
     </svg>
@@ -60,15 +67,48 @@ function DesktopIcon(): React.JSX.Element {
 }
 function MobileIcon(): React.JSX.Element {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+    >
       <rect x="4.5" y="1.5" width="7" height="13" rx="1.4" />
       <path d="M7 12.5h2" strokeLinecap="round" />
     </svg>
   )
 }
+// Desktop + phone side by side ("both"), drawn to the same weight as the others
+// so it doesn't read as a dim/disabled glyph.
+function BothIcon(): React.JSX.Element {
+  return (
+    <svg
+      width="16"
+      height="14"
+      viewBox="0 0 18 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+    >
+      <rect x="1.3" y="3" width="9" height="7" rx="1" />
+      <path d="M4 12.5h4M6 10v2.5" strokeLinecap="round" />
+      <rect x="11.7" y="2.5" width="5" height="11" rx="1.2" />
+      <path d="M13.4 11.5h1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
 function FitIcon(): React.JSX.Element {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+    >
       <path
         d="M2 5.5V2.5h3M11 2.5h3v3M14 10.5v3h-3M5 13.5H2v-3"
         strokeLinecap="round"
@@ -610,10 +650,7 @@ export function BrowserPane({
 
   return (
     <div className="browser-pane">
-      <div
-        className={`browser-toolbar ${onCard ? 'on-card' : ''}`}
-        style={toolbarStyle}
-      >
+      <div className={`browser-toolbar ${onCard ? 'on-card' : ''}`} style={toolbarStyle}>
         {state.loading && <span className="browser-loadbar" />}
         <button
           className="browser-nav-btn"
@@ -697,36 +734,36 @@ export function BrowserPane({
             A browser window is not previewing anything — it fills, and the
             switcher there is four buttons that only ever undo themselves. */}
         {!fill && (
-        <div className="browser-viewport" role="group" title="Simulated screen size">
-          <button
-            className={`browser-vp-btn ${viewport === 'desktop' ? 'on' : ''}`}
-            onClick={() => pickViewport('desktop')}
-            title="Desktop — simulate a 1280-wide screen"
-          >
-            <DesktopIcon />
-          </button>
-          <button
-            className={`browser-vp-btn ${viewport === 'both' ? 'on' : ''}`}
-            onClick={() => pickViewport('both')}
-            title="Both — desktop and phone side by side"
-          >
-            <span className="vp-both-icon">⿻</span>
-          </button>
-          <button
-            className={`browser-vp-btn ${viewport === 'mobile' ? 'on' : ''}`}
-            onClick={() => pickViewport('mobile')}
-            title="Mobile — simulate a 390-wide phone"
-          >
-            <MobileIcon />
-          </button>
-          <button
-            className={`browser-vp-btn ${viewport === 'none' ? 'on' : ''}`}
-            onClick={() => pickViewport('none')}
-            title="None — fill the pane"
-          >
-            <FitIcon />
-          </button>
-        </div>
+          <div className="browser-viewport" role="group" title="Simulated screen size">
+            <button
+              className={`browser-vp-btn ${viewport === 'desktop' ? 'on' : ''}`}
+              onClick={() => pickViewport('desktop')}
+              title="Desktop — simulate a 1280-wide screen"
+            >
+              <DesktopIcon />
+            </button>
+            <button
+              className={`browser-vp-btn ${viewport === 'both' ? 'on' : ''}`}
+              onClick={() => pickViewport('both')}
+              title="Both — desktop and phone side by side"
+            >
+              <BothIcon />
+            </button>
+            <button
+              className={`browser-vp-btn ${viewport === 'mobile' ? 'on' : ''}`}
+              onClick={() => pickViewport('mobile')}
+              title="Mobile — simulate a 390-wide phone"
+            >
+              <MobileIcon />
+            </button>
+            <button
+              className={`browser-vp-btn ${viewport === 'none' ? 'on' : ''}`}
+              onClick={() => pickViewport('none')}
+              title="None — fill the pane"
+            >
+              <FitIcon />
+            </button>
+          </div>
         )}
         {/* Manual zoom only applies when not simulating a device (the sim owns zoom). */}
         {viewport === 'none' && (
