@@ -407,6 +407,11 @@ function tick(): void {
 
 export function startRoutines(): void {
   initDb()
+  // Prune orphans: a routine whose workspace no longer exists (the project was
+  // deleted before routines were cleaned up on delete). Left alone it runs
+  // forever, invisible in the UI, driving the browser in the background — which
+  // read as "an agent keeps running though I have no routines".
+  db.prepare('DELETE FROM routines WHERE workspaceId NOT IN (SELECT id FROM workspaces)').run()
   // No run can survive an app restart (the in-memory `running` set and the child
   // process are both gone), so any routine still marked "running" is stale — clear
   // it, or its Run button and status would look wedged forever.
