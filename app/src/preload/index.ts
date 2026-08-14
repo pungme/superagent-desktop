@@ -184,7 +184,11 @@ export interface CoveApi {
     message: string
   ) => Promise<
     | { ok: true; committed: boolean }
-    | { ok: false; reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'; detail?: string }
+    | {
+        ok: false
+        reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'
+        detail?: string
+      }
   >
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
@@ -329,9 +333,9 @@ export interface CoveApi {
   desktopGone: () => void
   /** The desktop as a real folder: its entries, and what you can do to them. */
   deskRoot: () => Promise<string>
-  deskList: (dir?: string) => Promise<
-    { name: string; path: string; target: string; dir: boolean; link: boolean }[]
-  >
+  deskList: (
+    dir?: string
+  ) => Promise<{ name: string; path: string; target: string; dir: boolean; link: boolean }[]>
   deskNewFolder: (dir?: string, name?: string) => Promise<string | null>
   deskLink: (target: string, dir?: string) => Promise<string | null>
   deskMove: (from: string, toDir: string) => Promise<string | null>
@@ -422,6 +426,8 @@ export interface CoveApi {
   agentInterrupt: (id: string) => void
   agentStop: (id: string) => void
   onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
+  /** Raw stderr from the Claude CLI — carries its real diagnostics (auth, org access…). */
+  onAgentStderr: (id: string, cb: (chunk: string) => void) => () => void
   onAgentExit: (id: string, cb: (code: number) => void) => () => void
   /** The previous session could not be resumed; this one starts with no history. */
   onAgentResumeLost: (id: string, cb: () => void) => () => void
@@ -462,7 +468,8 @@ const cove: CoveApi = {
   browserZoom: (id, action) => ipcRenderer.invoke('browser:zoom', id, action),
   browserSetZoom: (id, factor) => ipcRenderer.send('browser:set-zoom-factor', id, factor),
   browserSetRadius: (id, radius) => ipcRenderer.send('browser:set-radius', id, radius),
-  browserTwinBounds: (id, bounds, zoom) => ipcRenderer.send('browser:twin-bounds', id, bounds, zoom),
+  browserTwinBounds: (id, bounds, zoom) =>
+    ipcRenderer.send('browser:twin-bounds', id, bounds, zoom),
   browserSampleCorners: (id) => ipcRenderer.invoke('browser:sample-corners', id),
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   browserShootTwin: () => ipcRenderer.invoke('browser:shoot-twin'),
@@ -486,14 +493,16 @@ const cove: CoveApi = {
     subscribe('desk:menu-action', (p) => cb(p as { action: string; paths: string[] })),
   setNotifyPrefs: (prefs) => ipcRenderer.send('notify:prefs', prefs),
   filesImport: (destDir, sources) => ipcRenderer.invoke('files:import', destDir, sources),
-  chatLastReply: (workspaceId, excerpt) => ipcRenderer.send('chat:last-reply', workspaceId, excerpt),
+  chatLastReply: (workspaceId, excerpt) =>
+    ipcRenderer.send('chat:last-reply', workspaceId, excerpt),
   eventsRecord: (kind, workspaceId, n) => ipcRenderer.send('events:record', kind, workspaceId, n),
   kvAll: () => ipcRenderer.invoke('kv:all'),
   kvSet: (key, value) => ipcRenderer.send('kv:set', key, value),
   kvDel: (key) => ipcRenderer.send('kv:del', key),
   eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
   worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
-  worktreeRemove: (projectPath, wtPath) => ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
+  worktreeRemove: (projectPath, wtPath) =>
+    ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
   worktreeMerge: (projectPath, wtPath, message) =>
     ipcRenderer.invoke('worktree:merge', projectPath, wtPath, message),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
@@ -580,8 +589,7 @@ const cove: CoveApi = {
   deskRename: (path, name) => ipcRenderer.invoke('desk:rename', path, name),
   deskRemove: (path) => ipcRenderer.invoke('desk:remove', path),
   deskReveal: (path) => ipcRenderer.invoke('desk:reveal', path),
-  onDesktopCommand: (cb) =>
-    subscribe('desktop:command', (c) => cb(c as Parameters<typeof cb>[0])),
+  onDesktopCommand: (cb) => subscribe('desktop:command', (c) => cb(c as Parameters<typeof cb>[0])),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
@@ -641,6 +649,7 @@ const cove: CoveApi = {
   agentStop: (id) => ipcRenderer.send('agent:stop', id),
   onAgentEvent: (id, cb) =>
     subscribe(`agent:event:${id}`, (event) => cb(event as Record<string, unknown>)),
+  onAgentStderr: (id, cb) => subscribe(`agent:stderr:${id}`, (chunk) => cb(chunk as string)),
   onAgentExit: (id, cb) => subscribe(`agent:exit:${id}`, (code) => cb(code as number)),
   onAgentResumeLost: (id, cb) => subscribe(`agent:resume-lost:${id}`, () => cb()),
   agentDied: (id) => ipcRenderer.invoke('agent:died', id),

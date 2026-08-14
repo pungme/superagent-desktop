@@ -280,6 +280,24 @@ function msgAt(msg: { id: string; at?: number }): number | null {
   return legacy ? Number(legacy[1]) : null
 }
 
+/**
+ * The one human-readable line out of a chunk of CLI stderr — Claude's own
+ * diagnostic ("Your organization has disabled Claude subscription access…"),
+ * not the node warnings and stack frames around it. Kept in sync with the
+ * main-process meaningfulStderr(); used to show the real reason a turn failed.
+ */
+function meaningfulStderr(raw: string): string | null {
+  const noise =
+    /^\s*(at\s|node:|\(node:|Debugger|Warning:|\[dotenv|npm warn|npm notice|\{|\}|".*":)/i
+  const lines = raw
+    // eslint-disable-next-line no-control-regex
+    .replace(/\[[0-9;]*m/g, '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && l.length <= 300 && !noise.test(l))
+  return lines.length ? lines[lines.length - 1] : null
+}
+
 /** Clock time for a message's hover stamp; the title carries the full date. */
 function msgTime(ms: number): string {
   const d = new Date(ms)
@@ -754,6 +772,11 @@ export function EasyChat({
   const swipeRef = useRef<{ dx: number; fired: boolean; el: HTMLElement } | null>(null)
   const swipeTimer = useRef<number | null>(null)
   const agentIdRef = useRef<string | null>(null)
+  // The last human-readable line the CLI wrote to stderr this turn — Claude's
+  // real diagnostic (org access disabled, invalid key…). We show it verbatim
+  // when a turn errors, instead of the generic "ended the turn" note. Reset each
+  // time a turn starts so a stale reason from a prior failure isn't reused.
+  const lastStderrRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -1559,17 +1582,24 @@ export function EasyChat({
           return
         }
         if (isError || !streamedThisTurnRef.current) {
-          let note = 'Claude ended the turn without a response. Try sending your message again.'
-          if (sub === 'error_max_turns')
+          // If the CLI wrote a real reason to stderr this turn — an org-access or
+          // auth problem, a bad key — that's exactly what the user needs to see,
+          // so show it verbatim instead of guessing with the generic note.
+          const real = isError ? lastStderrRef.current : null
+          let note = real
+            ? real
+            : 'Claude ended the turn without a response. Try sending your message again.'
+          if (!real && sub === 'error_max_turns')
             note =
               'Claude reached its step limit for this turn. Send “continue” to let it keep going.'
-          else if (sub === 'error_during_execution')
+          else if (!real && sub === 'error_during_execution')
             note = 'Claude hit an error partway through this turn. Send “continue” to retry.'
           const errs = event.errors as unknown[] | undefined
           // The CLI's internal diagnostics ([ede_diagnostic] …) mean nothing to
-          // the user; only attach error detail for cases where it's actionable.
+          // the user; only attach error detail for cases where it's actionable,
+          // and never when we already have the real stderr reason.
           const detail =
-            sub !== 'error_during_execution' && Array.isArray(errs) && errs.length
+            !real && sub !== 'error_during_execution' && Array.isArray(errs) && errs.length
               ? ' (' +
                 errs
                   .map((e) => (typeof e === 'string' ? e : JSON.stringify(e)))
@@ -1622,6 +1652,9 @@ export function EasyChat({
     text: string,
     images: { mediaType: string; data: string }[]
   ): void => {
+    // A new turn: forget any stderr reason from a previous failed one, so a
+    // fresh error is described by fresh diagnostics, not a stale line.
+    lastStderrRef.current = null
     if (contextLostRef.current) {
       contextLostRef.current = false
       const recap = buildRecap()
@@ -1652,6 +1685,7 @@ export function EasyChat({
     if (suspendedRef.current) return
     let disposed = false
     let offEvent: (() => void) | undefined
+    let offStderr: (() => void) | undefined
     let offExit: (() => void) | undefined
     let offResumeLost: (() => void) | undefined
 
@@ -1695,6 +1729,12 @@ export function EasyChat({
         // them carries the recap if this session came up without its memory).
         for (const q of pendingSendsRef.current.splice(0)) sendToAgent(id, q.text, q.images)
         offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
+        // Keep the CLI's real diagnostic around so a failed turn can quote it
+        // instead of the generic note (see the result handler).
+        offStderr = window.cove.onAgentStderr?.(id, (chunk) => {
+          const line = meaningfulStderr(chunk)
+          if (line) lastStderrRef.current = line
+        })
         // main only emits agent:exit on a genuine unexpected exit (deliberate
         // stops and the resume→fresh retry are suppressed), so surface it.
         const died = (reason?: string): void => {
@@ -1752,6 +1792,7 @@ export function EasyChat({
       disposed = true
       offResumeLost?.()
       offEvent?.()
+      offStderr?.()
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
     }

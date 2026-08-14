@@ -69,7 +69,7 @@ const TODO_PROMPT =
 // The board outlives the conversation, so it is where work that isn't happening
 // right now belongs — the todo list above is per-turn and disappears with it.
 const BOARD_PROMPT =
-  "This project keeps a list that persists across conversations: stages todo, " +
+  'This project keeps a list that persists across conversations: stages todo, ' +
   'doing, testing and done, kept with board_list, board_add, board_move and ' +
   'board_update. It is yours to maintain, not just to append to.\n' +
   'ADD work that outlives this turn — something the user asked for and you ' +
@@ -122,7 +122,7 @@ const CHOICES_PROMPT =
   'fenced code block tagged `ask` containing a single JSON object: ' +
   '{"question": string, "multiple": boolean, "options": [{"label": string, "hint"?: string}]}. ' +
   'Set "multiple": true when several options can be picked together. Keep labels short; put any ' +
-  "extra explanation in \"hint\". SuperAgent renders these as buttons and sends the user's " +
+  'extra explanation in "hint". SuperAgent renders these as buttons and sends the user\'s ' +
   'selection back as their next message. Use this only for genuine small multiple-choice decisions ' +
   '(2–4 options); for anything open-ended, just ask in prose as normal. Example:\n' +
   '```ask\n{"question": "Which theme?", "multiple": false, "options": [{"label": "Dark"}, ' +
@@ -140,7 +140,7 @@ const FILE_OPEN_PROMPT =
 // The simulator the user is watching lives INSIDE SuperAgent, in a pane beside
 // this chat. Apple's Simulator app is a separate window they did not ask for.
 const SIMULATOR_PROMPT =
-  "SuperAgent shows a live iOS Simulator in a pane next to this chat, and the user is " +
+  'SuperAgent shows a live iOS Simulator in a pane next to this chat, and the user is ' +
   'watching THAT. Use the sim_* tools for anything simulator-related: sim_list_devices, ' +
   'sim_boot, sim_install_and_launch and sim_open_url to set it up, then drive it like a ' +
   'device — sim_screen to SEE it (it returns the screen as an image; there is no DOM, so ' +
@@ -152,7 +152,7 @@ const SIMULATOR_PROMPT =
   "1. Do NOT run `open -a Simulator`, `xcrun simctl boot` followed by opening Apple's " +
   'Simulator app, or otherwise launch the Simulator application — it puts a second window ' +
   'on screen, usually showing a different device from the one in the pane, and the user ' +
-  'ends up watching the wrong thing. Only do it if they explicitly ask for Apple\'s ' +
+  "ends up watching the wrong thing. Only do it if they explicitly ask for Apple's " +
   'Simulator app by name.\n' +
   '2. Build, install and launch onto the device the pane is showing — sim_list_devices ' +
   'marks it. If you run simctl directly, pass that UDID rather than the word `booted`, ' +
@@ -176,7 +176,7 @@ const DESKTOP_PROMPT =
   'Dashboard. Say what you did in a line — do not narrate every window move.\n' +
   'Files dropped on the desktop are linked into ./files/ inside your working directory, so ' +
   'read them with ordinary file tools; nothing needs attaching. Your working directory is ' +
-  'scratch space of the app\'s, not a project — write throwaway files there freely, and when ' +
+  "scratch space of the app's, not a project — write throwaway files there freely, and when " +
   'the user should be able to get at something you made, put it on the desktop.'
 
 /**
@@ -202,6 +202,25 @@ function killSessionsOwnedBy(owner: WebContents): void {
  * chat span forever saying "Working". Record it here and let the renderer ask.
  */
 const deadSessions = new Map<string, { code: number; reason?: string }>()
+
+/**
+ * The one line worth showing a person out of a blob of CLI stderr. Claude's own
+ * diagnostics ("Your organization has disabled Claude subscription access…",
+ * "Invalid API key…") are plain sentences; everything around them is node
+ * warnings, debug logging and stack frames. Strip ANSI, drop the noise, and take
+ * the last human-looking line.
+ */
+export function meaningfulStderr(raw: string): string | undefined {
+  const noise =
+    /^\s*(at\s|node:|\(node:|Debugger|Warning:|\[dotenv|npm warn|npm notice|\{|\}|".*":)/i
+  const lines = raw
+    // eslint-disable-next-line no-control-regex
+    .replace(/\[[0-9;]*m/g, '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && l.length <= 300 && !noise.test(l))
+  return lines.length ? lines[lines.length - 1] : undefined
+}
 
 function markDead(id: string, code: number, reason?: string): void {
   deadSessions.set(id, { code, reason })
@@ -388,7 +407,7 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
         spawnProc(null)
         return
       }
-      markDead(id, code ?? 0)
+      markDead(id, code ?? 0, meaningfulStderr(stderr))
       if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, code ?? 0)
     })
   }
