@@ -255,6 +255,19 @@ interface BackgroundTask {
   outputAt?: number
   /** File the shell streams into; tailed directly for live output. */
   outputPath?: string
+  /**
+   * Backgrounded with a trailing `&` in a normal Bash call, not the
+   * run_in_background flag. We have no shell handle for it, so it can't be
+   * polled or auto-retired — it stays until the user dismisses it.
+   */
+  manual?: boolean
+}
+
+/** A shell command backgrounded with a trailing `&` (but not `&&`). */
+function isBackgrounded(command: string): boolean {
+  const c = command.trim()
+  // Ends with a single & (optionally `& disown` / `&;`), and it isn't `&&`.
+  return /(^|[^&])&(\s*;?\s*disown)?\s*;?\s*$/.test(c)
 }
 
 // The Bash tool answers a backgrounded run with the shell's handle; BashOutput
@@ -274,6 +287,33 @@ const BG_DONE_RE =
  * so the time is recoverable — and null when it genuinely isn't, so the stamp is
  * simply omitted rather than rendering "Invalid Date" over old conversations.
  */
+/**
+ * A short, meaningful name for a backgrounded command. The real command is
+ * often buried behind env setup — `export PATH=…; SP_TOKEN=$(…); node deadline.mjs &`
+ * — so skip leading assignments, `export`, `nohup`, `sudo` and the like, and
+ * name it by the actual program (and its script, if it has one).
+ */
+function bgLabel(command: string): string {
+  // Last segment of a ; / && chain is usually the real work.
+  const seg = command
+    .replace(/&\s*(disown)?\s*;?\s*$/, '')
+    .split(/;|&&/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .pop()
+  const tokens = (seg || command).split(/\s+/).filter(Boolean)
+  const skip = /^(export|nohup|sudo|env|time|VAR=|[A-Z_][A-Z0-9_]*=)/
+  let i = 0
+  while (i < tokens.length && (skip.test(tokens[i]) || tokens[i].includes('='))) i++
+  const prog = (tokens[i] || tokens[0] || 'job').split('/').pop() || 'job'
+  // For an interpreter, the script name is what the user recognises.
+  if (/^(node|python3?|ruby|bash|sh|deno|bun|npx)$/.test(prog)) {
+    const arg = tokens.slice(i + 1).find((t) => !t.startsWith('-'))
+    if (arg) return arg.split('/').pop() || prog
+  }
+  return prog
+}
+
 // Tools that change files on disk — after one of these a code preview may
 // genuinely look different, so the idle-reload should fire. (Bash is excluded
 // on purpose: it's mostly read-only inspection, and reloading on every command
@@ -1362,6 +1402,20 @@ export function EasyChat({
             if (name === 'Bash' && inp.run_in_background) {
               const command = typeof inp.command === 'string' ? inp.command : ''
               setBgTasks((prev) => [...prev, { toolUseId: id, command, startedAt: Date.now() }])
+            } else if (
+              name === 'Bash' &&
+              typeof inp.command === 'string' &&
+              isBackgrounded(inp.command)
+            ) {
+              // Backgrounded the old-fashioned way (`… &`). The shell returns
+              // right away but the job keeps going, so without this it runs
+              // invisibly — the "it's running in the background but you can't see
+              // it" case. No handle to poll, so it's manual-dismiss only.
+              const command = inp.command
+              setBgTasks((prev) => [
+                ...prev,
+                { toolUseId: id, command, startedAt: Date.now(), manual: true }
+              ])
             } else if (name === 'BashOutput' && typeof inp.bash_id === 'string') {
               pollTargets.current.set(id, inp.bash_id)
             } else if (name === 'KillShell' && typeof inp.shell_id === 'string') {
@@ -2917,18 +2971,26 @@ export function EasyChat({
           any live sub-agent. Only present when there's something running. */}
       {(bgTasks.length > 0 || runningAgents.length > 0) && (
         <div className="easy-runs">
+          <span className="easy-runs-label">
+            <span className="easy-runs-label-pulse" />
+            Running in background
+          </span>
           {bgTasks.map((t) => {
             const key = `bg-${t.toolUseId}`
-            const name = t.command.trim().split(/\s+/)[0].split('/').pop() || 'job'
+            const name = bgLabel(t.command)
+            const age = Math.max(1, Math.round((now - t.startedAt) / 1000))
             return (
               <div className="easy-control" key={t.toolUseId}>
                 <button
-                  className={`easy-control-btn ${controlMenu === key ? 'open' : ''}`}
+                  className={`easy-control-btn easy-run-pill ${controlMenu === key ? 'open' : ''}`}
                   onClick={() => setControlMenu((m) => (m === key ? null : key))}
                   title={t.command}
                 >
                   <span className="easy-run-dot" />
                   <span className="easy-control-val">{name}</span>
+                  <span className="easy-run-age-inline">
+                    {age < 60 ? `${age}s` : `${Math.round(age / 60)}m`}
+                  </span>
                 </button>
                 {controlMenu === key && (
                   <div className="easy-control-menu easy-run-menu">
@@ -2938,7 +3000,12 @@ export function EasyChat({
                         {Math.max(1, Math.round((now - t.startedAt) / 1000))}s
                       </span>
                     </div>
-                    <pre className="easy-run-out">{t.output?.trim() || 'Waiting for output…'}</pre>
+                    <pre className="easy-run-out">
+                      {t.output?.trim() ||
+                        (t.manual
+                          ? 'Backgrounded with & — no shell handle to read its output.'
+                          : 'Waiting for output…')}
+                    </pre>
                     <button
                       className="easy-control-item"
                       onClick={() => {
@@ -2968,7 +3035,7 @@ export function EasyChat({
           {/* Clear the whole strip in one go — these are the agent's shells, and
               once a build has finished the pill is just clutter. Doesn't stop
               anything still live; it just stops tracking it here. */}
-          {bgTasks.length > 1 && (
+          {bgTasks.length > 0 && (
             <button
               className="easy-runs-clear"
               title="Hide all — this doesn't stop anything still running"

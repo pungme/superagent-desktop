@@ -4698,14 +4698,69 @@ button {
    the controls, so a pile of xcodebuild pills wraps here instead of pushing the
    Model/Mode/Memory line around. A hair of top offset lifts it off the controls'
    bottom padding; a top border sets it apart as its own strip. */
+/* The background-activity strip. Deliberately distinct from the Model/Mode row:
+   a faint green-tinted band with a left accent bar, so "something is running on
+   its own" reads at a glance and doesn't look like just more controls. */
 .easy-runs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px 10px;
-  margin-top: -4px;
-  border-top: 1px solid var(--border-subtle, var(--border));
+  padding: 8px 14px 9px;
+  margin: 2px 10px 0;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #45b46a 26%, var(--border));
+  border-left: 2.5px solid #45b46a;
+  background: color-mix(in srgb, #45b46a 7%, transparent);
+}
+/* "Running in background" — the strip's own quiet caption. */
+.easy-runs-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #45b46a 70%, var(--text-secondary));
+}
+.easy-runs-label-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #45b46a;
+  box-shadow: 0 0 0 0 color-mix(in srgb, #45b46a 60%, transparent);
+  animation: easy-runs-beacon 1.8s ease-out infinite;
+}
+@keyframes easy-runs-beacon {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, #45b46a 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+/* A running job, tinted to match the strip rather than the neutral Model pills. */
+.easy-run-pill {
+  border-color: color-mix(in srgb, #45b46a 30%, var(--border));
+  background: color-mix(in srgb, #45b46a 8%, transparent);
+}
+.easy-run-pill:hover,
+.easy-run-pill.open {
+  border-color: color-mix(in srgb, #45b46a 55%, var(--border));
+  background: color-mix(in srgb, #45b46a 15%, transparent);
+}
+.easy-run-age-inline {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .easy-runs-label-pulse {
+    animation: none;
+  }
 }
 .easy-runs-clear {
   border: none;
