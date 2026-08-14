@@ -274,6 +274,12 @@ const BG_DONE_RE =
  * so the time is recoverable — and null when it genuinely isn't, so the stamp is
  * simply omitted rather than rendering "Invalid Date" over old conversations.
  */
+// Tools that change files on disk — after one of these a code preview may
+// genuinely look different, so the idle-reload should fire. (Bash is excluded
+// on purpose: it's mostly read-only inspection, and reloading on every command
+// is the noise we're trying to remove.)
+const FILE_WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'edit_file'])
+
 function msgAt(msg: { id: string; at?: number }): number | null {
   if (typeof msg.at === 'number' && Number.isFinite(msg.at)) return msg.at
   const legacy = /^(?:u|a|sys)-(\d{10,})/.exec(msg.id)
@@ -1299,6 +1305,12 @@ export function EasyChat({
             streamedThisTurnRef.current = true
             const name = block.name as string
             const id = block.id as string
+            // A tool that writes to disk means the preview might genuinely have
+            // changed, so the idle-reload should fire. A turn with none of these
+            // (a plain question) leaves the flag unset and the page is left alone.
+            if (FILE_WRITE_TOOLS.has(name)) {
+              useStore.getState().markPreviewDirty(workspaceId)
+            }
             // Claude's task tools drive the Tasks panel. TaskCreate adds a task
             // (id assigned in creation order, matching Claude's #N), TaskUpdate
             // moves its status. We accumulate them and mirror into the store.
