@@ -114,10 +114,12 @@ function hostOfUrl(url: string): string {
 }
 
 /**
- * The branch chip, truncated in the row but shown in full on hover. The sidebar
- * scroller clips horizontally, so the tooltip is position:fixed (viewport-
- * relative) to escape it — a plain CSS ::after would be cut off. Anchored just
- * under the chip.
+ * The branch chip, truncated in the row. On hover — and ONLY when the name is
+ * actually clipped — the same pill grows in place to show the full branch,
+ * rather than popping a separate tooltip that just repeats a name already fully
+ * visible. The expansion is position:fixed and styled like the chip, pinned to
+ * the chip's own spot, so it reads as the pill widening; fixed positioning
+ * escapes the sidebar scroller's horizontal overflow clip.
  */
 function BranchChip({ branch }: { branch: string }): React.JSX.Element {
   const [tip, setTip] = useState<{ x: number; y: number } | null>(null)
@@ -126,16 +128,19 @@ function BranchChip({ branch }: { branch: string }): React.JSX.Element {
       <span
         className="sidebar-item-branch"
         onMouseEnter={(e) => {
-          const r = e.currentTarget.getBoundingClientRect()
-          setTip({ x: r.left, y: r.bottom + 4 })
+          const el = e.currentTarget
+          // A branch that already fits ("main") needs nothing on hover.
+          if (el.scrollWidth <= el.clientWidth + 1) return
+          const r = el.getBoundingClientRect()
+          setTip({ x: r.left, y: r.top })
         }}
         onMouseLeave={() => setTip(null)}
       >
         ⎇ {branch}
       </span>
       {tip && (
-        <span className="branch-tip" style={{ left: tip.x, top: tip.y }} role="tooltip">
-          {branch}
+        <span className="branch-expand" style={{ left: tip.x, top: tip.y }} role="tooltip">
+          ⎇ {branch}
         </span>
       )}
     </>
@@ -430,9 +435,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     })
   }, [ws.kind, ws.id, favicon])
   const displayName =
-    ws.kind === 'browser' && ws.name === 'Browser project'
-      ? hostOfUrl(siteUrl) || ws.name
-      : ws.name
+    ws.kind === 'browser' && ws.name === 'Browser project' ? hostOfUrl(siteUrl) || ws.name : ws.name
   useEffect(() => {
     if (ws.kind === 'browser') return
     let alive = true
