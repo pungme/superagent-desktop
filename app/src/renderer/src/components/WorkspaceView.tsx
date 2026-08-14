@@ -105,6 +105,21 @@ export function WorkspaceView({
 
   const paneOpen = browserOpen || !!openFilePath || simOpen || boardOpen
 
+  // The board and a file preview share the one working surface, and the board
+  // was drawn on top — so clicking a file while the board was open did nothing
+  // visible until you closed the board. Opening a *new* file now steps the board
+  // aside so the file shows straight away. Keyed on the path changing, not on
+  // boardOpen, so opening the board over an already-open file doesn't instantly
+  // dismiss itself.
+  const lastFile = useRef(openFilePath)
+  useEffect(() => {
+    if (openFilePath && openFilePath !== lastFile.current && boardOpen) {
+      localStorage.setItem(`boardOpen:${ws.id}`, '0')
+      setBoardOpen(false)
+    }
+    lastFile.current = openFilePath
+  }, [openFilePath, boardOpen, ws.id])
+
   // No manual toggle, same as the browser: the pane appears when the agent
   // boots or launches something on a simulator, and closes from its own ✕.
   useEffect(() => {
@@ -358,6 +373,21 @@ export function WorkspaceView({
             📁 Files
           </button>
         )}
+        {/* Sits next to Files, top-left: both open a left-hand surface for this
+            project, so they read as a pair. */}
+        <button
+          className={`toolbar-btn ${boardOpen ? 'on' : ''}`}
+          onClick={() =>
+            setBoardOpen((v) => {
+              if (!v) widenForBoard()
+              localStorage.setItem(`boardOpen:${ws.id}`, v ? '0' : '1')
+              return !v
+            })
+          }
+          title="This project's to-do — what's left, and what Claude finished"
+        >
+          ▤ Todo
+        </button>
         {ws.kind === 'browser' ? (
           <>
             <span className="workspace-title">{site.title || hostOf(site.url) || 'New tab'}</span>
@@ -395,19 +425,6 @@ export function WorkspaceView({
           </button>
         )}
         <div className="workspace-toolbar-spacer" />
-        <button
-          className={`toolbar-btn ${boardOpen ? 'on' : ''}`}
-          onClick={() =>
-            setBoardOpen((v) => {
-              if (!v) widenForBoard()
-              localStorage.setItem(`boardOpen:${ws.id}`, v ? '0' : '1')
-              return !v
-            })
-          }
-          title="This project's list — what's left, and what Claude finished"
-        >
-          ▤ List
-        </button>
         {/* A code project's preview reveals itself when the agent navigates, and
             normally closes from the pane's own ✕. But the native page paints
             ABOVE all HTML, so a mis-bounded agent-opened view can cover its own

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BoardCard } from '../../../preload'
 import { useEscapeClose } from '../hooks/useEscapeClose'
 import { useStore } from '../state'
+import { Markdown } from './Markdown'
 
 type Status = BoardCard['status']
 
@@ -11,12 +12,6 @@ const STAGES: { key: Status; label: string }[] = [
   { key: 'testing', label: 'Testing' },
   { key: 'done', label: 'Done' }
 ]
-
-/** Where a card goes when you click its dot: todo → doing → testing → done → todo. */
-function nextStage(s: Status): Status {
-  const i = STAGES.findIndex((x) => x.key === s)
-  return STAGES[(i + 1) % STAGES.length].key
-}
 
 /**
  * The project's list, kept by whoever is working — you or the agent.
@@ -42,6 +37,8 @@ export function BoardPanel({
   const [overStage, setOverStage] = useState<Status | null>(null)
   /** The item opened as a ticket, if any. */
   const [openId, setOpenId] = useState<string | null>(null)
+  /** The item whose stage picker is open, if any. */
+  const [menuId, setMenuId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const chats = useStore((s) => s.chats[workspaceId])
   const selectChat = useStore((s) => s.selectChat)
@@ -58,9 +55,7 @@ export function BoardPanel({
 
   // Escape peels one layer at a time: the open ticket, then whatever you had
   // half-typed, then the list. Nothing you would have to retype is skipped.
-  useEscapeClose(
-    openId ? () => setOpenId(null) : draft ? () => setDraft('') : onClose
-  )
+  useEscapeClose(openId ? () => setOpenId(null) : draft ? () => setDraft('') : onClose)
 
   const refresh = useCallback(async (): Promise<void> => {
     setCards(await window.cove.boardList(workspaceId))
@@ -82,8 +77,10 @@ export function BoardPanel({
     inputRef.current?.focus()
   }
 
-  const cycle = async (c: BoardCard): Promise<void> => {
-    const to = nextStage(c.status)
+  /** Move a card straight to a stage the user picked, no cycling through the rest. */
+  const moveTo = async (c: BoardCard, to: Status): Promise<void> => {
+    setMenuId(null)
+    if (to === c.status) return
     setCards((cs) => cs.map((x) => (x.id === c.id ? { ...x, status: to } : x)))
     await window.cove.boardMove(c.id, to, null)
     await refresh()
@@ -116,13 +113,14 @@ export function BoardPanel({
     const text = c.body ? `${c.title}\n\n${c.body}` : c.title
     if (c.status !== 'doing') await window.cove.boardMove(c.id, 'doing', null)
     await refresh()
-    window.dispatchEvent(
-      new CustomEvent('cove:work-on', { detail: { workspaceId, text } })
-    )
+    window.dispatchEvent(new CustomEvent('cove:work-on', { detail: { workspaceId, text } }))
     onClose()
   }
 
-  const save = async (id: string, patch: { title?: string; body?: string }): Promise<void> => {
+  const save = async (
+    id: string,
+    patch: { title?: string; body?: string; tags?: string[] }
+  ): Promise<void> => {
     await window.cove.boardUpdate(id, patch)
     await refresh()
   }
@@ -138,14 +136,14 @@ export function BoardPanel({
   return (
     <div className="board-panel">
       <div className="board-head">
-        <h2>List</h2>
+        <h2>Todo</h2>
         <span className="board-sub">
           {cards.length === 0
             ? 'Claude adds work here as it goes — or type your own below'
             : `${done} of ${cards.length} done`}
         </span>
         <div className="board-head-spacer" />
-        <button className="board-close" onClick={onClose} title="Close the list">
+        <button className="board-close" onClick={onClose} title="Close the to-do">
           ✕
         </button>
       </div>
@@ -197,15 +195,35 @@ export function BoardPanel({
                     void drop(stage.key, c.id)
                   }}
                 >
-                  <button
-                    className="board-row-dot"
-                    title={
-                      working(c.chatId)
-                        ? 'Claude is working on this now'
-                        : `Move to ${STAGES.find((s) => s.key === nextStage(c.status))?.label}`
-                    }
-                    onClick={() => void cycle(c)}
-                  />
+                  <div className="board-row-stage">
+                    <button
+                      className="board-row-dot"
+                      title={working(c.chatId) ? 'Claude is working on this now' : 'Change stage'}
+                      onClick={() => setMenuId(menuId === c.id ? null : c.id)}
+                    />
+                    {menuId === c.id && (
+                      <>
+                        {/* Click anywhere else dismisses the picker. */}
+                        <div className="board-stage-backdrop" onClick={() => setMenuId(null)} />
+                        <div className="board-stage-menu" role="menu">
+                          {STAGES.map((s) => (
+                            <button
+                              key={s.key}
+                              role="menuitemradio"
+                              aria-checked={s.key === c.status}
+                              className={`board-stage-opt s-${s.key} ${
+                                s.key === c.status ? 'current' : ''
+                              }`}
+                              onClick={() => void moveTo(c, s.key)}
+                            >
+                              <span className={`board-stage-swatch s-${s.key}`} />
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <div
                     className="board-row-main"
                     onClick={() => setOpenId(openId === c.id ? null : c.id)}
@@ -220,6 +238,15 @@ export function BoardPanel({
                             working
                           </span>
                         )}
+                      </div>
+                    )}
+                    {openId !== c.id && c.tags.length > 0 && (
+                      <div className="board-row-tags">
+                        {c.tags.map((t) => (
+                          <span key={t} className="board-tag">
+                            {t}
+                          </span>
+                        ))}
                       </div>
                     )}
                     {openId !== c.id && (c.body || chatTitle(c.chatId) || c.branch) && (
@@ -298,13 +325,33 @@ function Ticket({
   onClose
 }: {
   card: BoardCard
-  onSave: (id: string, patch: { title?: string; body?: string }) => Promise<void>
+  onSave: (id: string, patch: { title?: string; body?: string; tags?: string[] }) => Promise<void>
   onClose: () => void
 }): React.JSX.Element {
   const [title, setTitle] = useState(card.title)
   const [body, setBody] = useState(card.body)
+  const [tags, setTags] = useState<string[]>(card.tags)
+  const [tagDraft, setTagDraft] = useState('')
+  // The body renders as markdown (the agent writes tables, checklists, ✅/❌);
+  // click it to drop into a plain textarea and edit the source. A card with no
+  // body opens straight into edit mode so there is something to type into.
+  const [editing, setEditing] = useState(card.body.trim() === '')
   const [thumbs, setThumbs] = useState<{ path: string; data: string }[]>([])
   const [over, setOver] = useState(false)
+
+  const addTag = (raw: string): void => {
+    const t = raw.trim().slice(0, 32)
+    setTagDraft('')
+    if (!t || tags.some((x) => x.toLowerCase() === t.toLowerCase())) return
+    const next = [...tags, t]
+    setTags(next)
+    void onSave(card.id, { tags: next })
+  }
+  const removeTag = (t: string): void => {
+    const next = tags.filter((x) => x !== t)
+    setTags(next)
+    void onSave(card.id, { tags: next })
+  }
 
   // Pictures live on disk outside the app, so they arrive as data URIs.
   useEffect(() => {
@@ -350,20 +397,61 @@ function Ticket({
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => title.trim() && title !== card.title && void onSave(card.id, { title })}
       />
-      <textarea
-        className="ticket-body"
-        value={body}
-        placeholder="What needs doing, how you'll know it's done, where to start… paste a screenshot straight in."
-        onChange={(e) => setBody(e.target.value)}
-        onBlur={() => body !== card.body && void onSave(card.id, { body })}
-        onPaste={(e) => {
-          const files = [...e.clipboardData.files]
-          if (files.some((f) => f.type.startsWith('image/'))) {
-            e.preventDefault()
-            void addFiles(files)
-          }
-        }}
-      />
+
+      <div className="ticket-tags">
+        {tags.map((t) => (
+          <span key={t} className="board-tag editable">
+            {t}
+            <button className="board-tag-x" title="Remove label" onClick={() => removeTag(t)}>
+              ✕
+            </button>
+          </span>
+        ))}
+        <input
+          className="ticket-tag-input"
+          value={tagDraft}
+          placeholder={tags.length ? '+ label' : '+ add a label'}
+          onChange={(e) => setTagDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault()
+              addTag(tagDraft)
+            } else if (e.key === 'Backspace' && !tagDraft && tags.length) {
+              removeTag(tags[tags.length - 1])
+            }
+          }}
+          onBlur={() => tagDraft && addTag(tagDraft)}
+        />
+      </div>
+
+      {editing ? (
+        <textarea
+          className="ticket-body"
+          value={body}
+          autoFocus
+          placeholder="What needs doing, how you'll know it's done, where to start… markdown works (tables, checklists), and you can paste a screenshot straight in."
+          onChange={(e) => setBody(e.target.value)}
+          onBlur={() => {
+            if (body !== card.body) void onSave(card.id, { body })
+            if (body.trim()) setEditing(false)
+          }}
+          onPaste={(e) => {
+            const files = [...e.clipboardData.files]
+            if (files.some((f) => f.type.startsWith('image/'))) {
+              e.preventDefault()
+              void addFiles(files)
+            }
+          }}
+        />
+      ) : (
+        <div
+          className="ticket-body-rendered"
+          title="Click to edit"
+          onClick={() => setEditing(true)}
+        >
+          <Markdown text={body} />
+        </div>
+      )}
 
       {thumbs.length > 0 && (
         <div className="ticket-shots">

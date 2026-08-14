@@ -708,7 +708,8 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         status: c.status,
         title: c.title,
         body: c.body || undefined,
-        branch: c.branch || undefined
+        branch: c.branch || undefined,
+        tags: c.tags.length ? c.tags : undefined
       }))
       return {
         content: [
@@ -736,17 +737,23 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
           .optional()
           .describe(
             'todo (default), doing, testing or done. Near-misses like "in progress", "QA" or "completed" are understood.'
+          ),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Free-form labels for the item — e.g. "bug", "P1", "ios", "backend". Whatever grouping helps; make them up as needed.'
           )
       }
     },
-    async ({ title, body, status }) => {
+    async ({ title, body, status, tags }) => {
       const ws = workspaceIdFromPane(PANE_ID)
       // A blank card is a blank box on the board with no way to tell what it
       // was for — better to say so than to write one.
       if (!title.trim()) {
         return { content: [{ type: 'text', text: 'A card needs a title.' }] }
       }
-      const card = addCard(ws, title, { body, status, ...stamp(ws) })
+      const card = addCard(ws, title, { body, status, tags, ...stamp(ws) })
       broadcastToWindows('board:changed', { workspaceId: ws })
       return {
         content: [{ type: 'text', text: `Added "${card.title}" to ${card.status} (${card.id}).` }]
@@ -792,10 +799,16 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         id: z.string().describe('The card id, as returned by board_list'),
         title: z.string().optional(),
         body: z.string().optional(),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Replace the item\'s labels with these — e.g. ["bug","P1"]. Pass [] to clear them. Free-form; invent whatever grouping helps.'
+          ),
         remove: z.boolean().optional().describe('Delete the card instead of editing it')
       }
     },
-    async ({ id, title, body, remove }) => {
+    async ({ id, title, body, tags, remove }) => {
       const ws = workspaceIdFromPane(PANE_ID)
       if (!listCards(ws).some((c) => c.id === id)) {
         return { content: [{ type: 'text', text: `No card with id ${id} on this board.` }] }
@@ -808,7 +821,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       if (title !== undefined && !title.trim()) {
         return { content: [{ type: 'text', text: 'A card needs a title.' }] }
       }
-      const card = updateCard(id, { title, body })
+      const card = updateCard(id, { title, body, tags })
       broadcastToWindows('board:changed', { workspaceId: ws })
       return { content: [{ type: 'text', text: `Updated "${card?.title}".` }] }
     }

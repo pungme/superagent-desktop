@@ -111,6 +111,9 @@ export function initStore(): void {
       branch TEXT,
       position REAL NOT NULL DEFAULT 0,
       images TEXT NOT NULL DEFAULT '[]',
+      -- Free-form labels the agent (or you) put on an item — "bug", "P1",
+      -- "ios", whatever helps. JSON array, since SQLite has no array type.
+      tags TEXT NOT NULL DEFAULT '[]',
       createdAt INTEGER NOT NULL,
       updatedAt INTEGER NOT NULL
     );
@@ -121,6 +124,10 @@ export function initStore(): void {
   const cardCols = db.prepare('PRAGMA table_info(cards)').all() as { name: string }[]
   if (cardCols.length && !cardCols.some((c) => c.name === 'images')) {
     db.exec("ALTER TABLE cards ADD COLUMN images TEXT NOT NULL DEFAULT '[]'")
+  }
+  // Migration: free-form tags on an item, for databases that predate them.
+  if (cardCols.length && !cardCols.some((c) => c.name === 'tags')) {
+    db.exec("ALTER TABLE cards ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
   }
 
   // Migration: add the project-kind column to pre-existing databases.
@@ -588,6 +595,8 @@ export interface Card {
   branch: string | null
   /** Absolute paths of pictures attached to the item, oldest first. */
   images: string[]
+  /** Free-form labels — "bug", "P1", "ios". Set by the agent or you. */
+  tags: string[]
   position: number
   createdAt: number
   updatedAt: number
@@ -648,16 +657,17 @@ export function insertIndex(column: number[], before: number | undefined): numbe
   return at === -1 ? column.length : at
 }
 
-/** SQLite has no arrays, so images ride as JSON text and are parsed here. */
+/** SQLite has no arrays, so images/tags ride as JSON text and are parsed here. */
 function hydrate(row: unknown): Card {
-  const r = row as Card & { images: string | string[] }
-  let images: string[] = []
-  try {
-    images = typeof r.images === 'string' ? (JSON.parse(r.images) as string[]) : (r.images ?? [])
-  } catch {
-    images = []
+  const r = row as Card & { images: string | string[]; tags?: string | string[] }
+  const parseArr = (v: string | string[] | undefined): string[] => {
+    try {
+      return typeof v === 'string' ? (JSON.parse(v) as string[]) : (v ?? [])
+    } catch {
+      return []
+    }
   }
-  return { ...r, images }
+  return { ...r, images: parseArr(r.images), tags: parseArr(r.tags) }
 }
 
 export function listCards(workspaceId: string): Card[] {
@@ -668,10 +678,31 @@ export function listCards(workspaceId: string): Card[] {
   ).map(hydrate)
 }
 
+/** Trim, drop blanks, cap length and count, de-dupe — a tag list stays sane. */
+export function cleanTags(tags: unknown): string[] {
+  if (!Array.isArray(tags)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const t of tags) {
+    const s = String(t).trim().slice(0, 32)
+    if (!s || seen.has(s.toLowerCase())) continue
+    seen.add(s.toLowerCase())
+    out.push(s)
+    if (out.length >= 12) break
+  }
+  return out
+}
+
 export function addCard(
   workspaceId: string,
   title: string,
-  opts: { body?: string; status?: unknown; chatId?: string | null; branch?: string | null } = {}
+  opts: {
+    body?: string
+    status?: unknown
+    chatId?: string | null
+    branch?: string | null
+    tags?: string[]
+  } = {}
 ): Card {
   const status = normalizeStatus(opts.status ?? 'todo')
   const last = db
@@ -690,14 +721,15 @@ export function addCard(
     chatId: opts.chatId ?? null,
     branch: opts.branch ?? null,
     images: [],
+    tags: cleanTags(opts.tags),
     position: positionBetween(last.p ?? null, null),
     createdAt: now,
     updatedAt: now
   }
   db.prepare(
-    `INSERT INTO cards (id, workspaceId, title, body, status, chatId, branch, images, position, createdAt, updatedAt)
-     VALUES (@id, @workspaceId, @title, @body, @status, @chatId, @branch, @images, @position, @createdAt, @updatedAt)`
-  ).run({ ...card, images: JSON.stringify(card.images) })
+    `INSERT INTO cards (id, workspaceId, title, body, status, chatId, branch, images, tags, position, createdAt, updatedAt)
+     VALUES (@id, @workspaceId, @title, @body, @status, @chatId, @branch, @images, @tags, @position, @createdAt, @updatedAt)`
+  ).run({ ...card, images: JSON.stringify(card.images), tags: JSON.stringify(card.tags) })
   return card
 }
 
@@ -710,6 +742,7 @@ export function updateCard(
     chatId?: string | null
     branch?: string | null
     images?: string[]
+    tags?: string[]
   }
 ): Card | undefined {
   const row = db.prepare('SELECT * FROM cards WHERE id = ?').get(id)
@@ -733,13 +766,14 @@ export function updateCard(
     chatId: patch.chatId === undefined ? existing.chatId : patch.chatId,
     branch: patch.branch === undefined ? existing.branch : patch.branch,
     images: patch.images === undefined ? existing.images : patch.images,
+    tags: patch.tags === undefined ? existing.tags : cleanTags(patch.tags),
     position,
     updatedAt: Date.now()
   }
   db.prepare(
     `UPDATE cards SET title=@title, body=@body, status=@status, chatId=@chatId,
-     branch=@branch, images=@images, position=@position, updatedAt=@updatedAt WHERE id=@id`
-  ).run({ ...next, images: JSON.stringify(next.images) })
+     branch=@branch, images=@images, tags=@tags, position=@position, updatedAt=@updatedAt WHERE id=@id`
+  ).run({ ...next, images: JSON.stringify(next.images), tags: JSON.stringify(next.tags) })
   if (status === 'done' && existing.status !== 'done') {
     recordEvent('task-done', existing.workspaceId)
   }
@@ -834,7 +868,12 @@ export function registerStoreIpc(): void {
   ipcMain.handle('board:list', (_e, workspaceId: string) => listCards(workspaceId))
   ipcMain.handle(
     'board:add',
-    (_e, workspaceId: string, title: string, opts?: { body?: string; status?: string }) => {
+    (
+      _e,
+      workspaceId: string,
+      title: string,
+      opts?: { body?: string; status?: string; tags?: string[] }
+    ) => {
       const card = addCard(workspaceId, title, opts ?? {})
       announce(workspaceId)
       return card
@@ -842,7 +881,7 @@ export function registerStoreIpc(): void {
   )
   ipcMain.handle(
     'board:update',
-    (_e, id: string, patch: { title?: string; body?: string; status?: string }) => {
+    (_e, id: string, patch: { title?: string; body?: string; status?: string; tags?: string[] }) => {
       const card = updateCard(id, patch)
       announce(card?.workspaceId)
       return card
