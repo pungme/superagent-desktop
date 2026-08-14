@@ -80,6 +80,7 @@ export interface BoardCard {
   chatId: string | null
   branch: string | null
   images: string[]
+  tags: string[]
   position: number
   createdAt: number
   updatedAt: number
@@ -206,11 +207,11 @@ export interface CoveApi {
   boardAdd: (
     workspaceId: string,
     title: string,
-    opts?: { body?: string; status?: string }
+    opts?: { body?: string; status?: string; tags?: string[] }
   ) => Promise<BoardCard>
   boardUpdate: (
     id: string,
-    patch: { title?: string; body?: string; status?: string }
+    patch: { title?: string; body?: string; status?: string; tags?: string[] }
   ) => Promise<BoardCard | undefined>
   boardMove: (id: string, status: string, beforeId: string | null) => Promise<BoardCard | undefined>
   boardRemove: (id: string) => Promise<boolean>
