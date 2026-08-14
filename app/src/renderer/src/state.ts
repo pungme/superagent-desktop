@@ -8,12 +8,55 @@ export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 // viewer/editor; these binary types preview inline in the browser pane; anything
 // else goes to the OS. Shared by the file tree and the agent's open_file tool.
 export const FILE_TEXT_EXTS = new Set([
-  'txt', 'md', 'markdown', 'json', 'xml', 'csv', 'log', 'yml', 'yaml', 'toml', 'ini',
-  'env', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'css', 'scss', 'html', 'htm', 'py',
-  'go', 'rs', 'java', 'c', 'h', 'cpp', 'rb', 'php', 'swift', 'kt', 'sql', 'sh', 'bash', 'zsh'
+  'txt',
+  'md',
+  'markdown',
+  'json',
+  'xml',
+  'csv',
+  'log',
+  'yml',
+  'yaml',
+  'toml',
+  'ini',
+  'env',
+  'js',
+  'mjs',
+  'cjs',
+  'jsx',
+  'ts',
+  'tsx',
+  'css',
+  'scss',
+  'html',
+  'htm',
+  'py',
+  'go',
+  'rs',
+  'java',
+  'c',
+  'h',
+  'cpp',
+  'rb',
+  'php',
+  'swift',
+  'kt',
+  'sql',
+  'sh',
+  'bash',
+  'zsh'
 ])
 export const FILE_PREVIEW_EXTS = new Set([
-  'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif'
+  'pdf',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'svg',
+  'ico',
+  'bmp',
+  'avif'
 ])
 
 // Detected dev-server ports persist across restarts so the "Open preview" chip
@@ -136,6 +179,10 @@ interface CoveState {
 
   previewUrls: Record<string, string>
   reloadOnIdle: Record<string, boolean>
+  /** Set when a turn edited files, so idle-reload only fires when the page could
+      have actually changed — asking a question no longer reloads the preview. */
+  previewDirty: Record<string, boolean>
+  markPreviewDirty: (workspaceId: string) => void
   toast: { workspaceId: string; port: number } | null
   openPreview: (workspaceId: string, port: number) => void
   /** Reveal the browser pane on an arbitrary URL (e.g. a file:// from the tree). */
@@ -240,7 +287,9 @@ export const useStore = create<CoveState>((set, get) => ({
   activeWorkspaceId: null,
   pageUrl: {},
   setPageUrl: (workspaceId, url) =>
-    set((s) => (s.pageUrl[workspaceId] === url ? s : { pageUrl: { ...s.pageUrl, [workspaceId]: url } })),
+    set((s) =>
+      s.pageUrl[workspaceId] === url ? s : { pageUrl: { ...s.pageUrl, [workspaceId]: url } }
+    ),
   simOpen: {},
   setSimOpen: (workspaceId, open) =>
     set((s) => ({ simOpen: { ...s.simOpen, [workspaceId]: open } })),
@@ -303,6 +352,7 @@ export const useStore = create<CoveState>((set, get) => ({
   hooksEnabled: false,
   previewUrls: {},
   reloadOnIdle: {},
+  previewDirty: {},
   toast: null,
   browsingWorkspaceId: null,
   chats: {},
@@ -480,6 +530,10 @@ export const useStore = create<CoveState>((set, get) => ({
   dismissToast: () => set({ toast: null }),
   setReloadOnIdle: (workspaceId, v) =>
     set((s) => ({ reloadOnIdle: { ...s.reloadOnIdle, [workspaceId]: v } })),
+  markPreviewDirty: (workspaceId) =>
+    set((s) =>
+      s.previewDirty[workspaceId] ? s : { previewDirty: { ...s.previewDirty, [workspaceId]: true } }
+    ),
 
   stopBrowsing: () => {
     const id = get().browsingWorkspaceId
@@ -570,9 +624,7 @@ export const useStore = create<CoveState>((set, get) => ({
             // Prefer the chat that was on screen last run, if it still exists.
             (() => {
               const saved = localStorage.getItem(`activeChat:${workspaceId}`)
-              return saved && list.some((c) => c.id === saved)
-                ? saved
-                : list[list.length - 1].id
+              return saved && list.some((c) => c.id === saved) ? saved : list[list.length - 1].id
             })()
         }
       }))
@@ -716,8 +768,15 @@ export const useStore = create<CoveState>((set, get) => ({
           // so a code project with the preview open refreshes after Claude's turn.
           // Browser projects have browserOpen undefined here, so they're skipped —
           // we don't want to reload a page the user is having Claude drive.
-          if (s.browserOpen[e.workspaceId] && (s.reloadOnIdle[e.workspaceId] ?? true)) {
+          // Only reload when the turn actually edited files: a turn that just
+          // answered a question can't have changed the page, and reloading it
+          // then is the "why does it keep refreshing?" annoyance.
+          const dirty = s.previewDirty[e.workspaceId]
+          if (dirty && s.browserOpen[e.workspaceId] && (s.reloadOnIdle[e.workspaceId] ?? true)) {
             window.cove.browserReload(e.workspaceId)
+          }
+          if (dirty) {
+            set((st) => ({ previewDirty: { ...st.previewDirty, [e.workspaceId]: false } }))
           }
           // Let the file tree re-read the project (Claude may have added/removed files).
           window.dispatchEvent(
