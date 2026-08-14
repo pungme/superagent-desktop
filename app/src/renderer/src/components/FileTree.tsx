@@ -64,7 +64,17 @@ function droppedPaths(e: React.DragEvent): string[] {
 export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element {
   const openPath = useStore((s) => s.openPath)
   const [paths, setPaths] = useState<string[]>([])
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // Which folders are open, remembered per project. Reopening Files (or
+  // restarting) puts you back where you were instead of fully collapsed.
+  const expandKey = `fileTree:expanded:${workspaceId}`
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(expandKey)
+      return new Set(raw ? (JSON.parse(raw) as string[]) : [])
+    } catch {
+      return new Set()
+    }
+  })
   const [loading, setLoading] = useState(true)
   // Finder drag hovering the tree ('' = root) or a specific folder row.
   const [dropDir, setDropDir] = useState<string | null>(null)
@@ -112,6 +122,11 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
       const next = new Set(prev)
       if (next.has(path)) next.delete(path)
       else next.add(path)
+      try {
+        localStorage.setItem(expandKey, JSON.stringify([...next]))
+      } catch {
+        /* storage disabled — expansion just won't persist */
+      }
       return next
     })
 
