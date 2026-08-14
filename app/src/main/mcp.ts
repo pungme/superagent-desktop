@@ -160,10 +160,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const file = `${tmpdir()}/sim-${Date.now()}.png`
       await simctl(['io', simTarget(), 'screenshot', file])
       const ws = workspaceIdFromPane(PANE_ID)
-      // If the pane is already mirroring this device the user is looking at it
-      // live; opening the still as a file would take over the working surface
-      // and leave two views of the same phone side by side.
-      const live = isMirroring(simTarget())
+      // Reveal the pane, the same as reading/driving does — a screenshot means
+      // the agent is looking at the device, so the user should be too.
+      const tgt = await inputTarget()
+      // If the pane is already mirroring this device (or we just revealed one)
+      // the user is looking at it live; opening the still as a file would take
+      // over the working surface and leave two views of the same phone.
+      const live = 'udid' in tgt || isMirroring(simTarget())
       if (!live) await openFileInApp(ws, file)
       return {
         content: [
@@ -186,6 +189,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { url: z.string() }
     },
     async ({ url }) => {
+      await inputTarget() // reveal the pane; opening a URL is something to watch
       await simctl(['openurl', simTarget(), url])
       return { content: [{ type: 'text', text: `Opened ${url} in the simulator.` }] }
     }
@@ -226,15 +230,35 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   // simctl accepts that word for a screenshot; baguette needs a real UDID. So
   // input resolves it — to the one booted device, or an error if the choice is
   // ambiguous rather than driving the wrong phone.
+  // Any time the agent reads or drives the device, make sure its pane is on
+  // screen. The pane used to reveal only from sim_boot / sim_install_and_launch,
+  // so a device booted another way — raw `xcrun simctl`, or left running from a
+  // previous session — got tapped and screenshotted while the user's pane stayed
+  // shut ("why isn't it opening the simulator?"). Passing the real udid also
+  // lets the pane claim it for this workspace, so its mount logic has something
+  // to show instead of falling through to onNothingToShow.
+  const revealSim = (udid: string): void => {
+    broadcastToWindows('app:open-simulator', {
+      workspaceId: workspaceIdFromPane(PANE_ID),
+      udid
+    })
+  }
+
   const inputTarget = async (): Promise<{ udid: string } | { error: string }> => {
     const t = simTarget()
-    if (t && t !== 'booted') return { udid: t }
+    if (t && t !== 'booted') {
+      revealSim(t)
+      return { udid: t }
+    }
     const out = await simctl(['list', 'devices', 'booted', '--json'])
     const data = JSON.parse(out) as { devices: Record<string, { udid: string; state: string }[]> }
     const booted = Object.values(data.devices)
       .flat()
       .filter((d) => d.state === 'Booted')
-    if (booted.length === 1) return { udid: booted[0].udid }
+    if (booted.length === 1) {
+      revealSim(booted[0].udid)
+      return { udid: booted[0].udid }
+    }
     if (booted.length === 0)
       return { error: 'No simulator is booted. Boot one with sim_boot first.' }
     return {
@@ -278,6 +302,10 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: {}
     },
     async () => {
+      // Reveal the pane if it is not already up (inputTarget carries the reveal
+      // when exactly one device is booted); reading the screen is reason enough
+      // to show the user what the agent is looking at.
+      await inputTarget()
       const { buf, w, h } = await grabScreen()
       return {
         content: [
@@ -413,6 +441,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       }
     },
     async ({ timeoutMs }) => {
+      await inputTarget() // reveal the pane once, not on every poll below
       const deadline = Date.now() + (timeoutMs ?? 8000)
       // "Settled" = two consecutive shots almost identical. Compared on a cheap
       // downscale so a single moving pixel does not read as motion.
