@@ -995,6 +995,14 @@ export function registerStoreIpc(): void {
   ipcMain.handle('store:deleteWorkspace', (_e, id: string) => {
     db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
     db.prepare('DELETE FROM chats WHERE workspaceId = ?').run(id)
+    // Routines have no FK cascade, so a deleted project used to leave its routines
+    // behind — orphans that kept running hourly, invisible in the UI (no project
+    // to show them under) and driving the browser in the background. Delete them.
+    try {
+      db.prepare('DELETE FROM routines WHERE workspaceId = ?').run(id)
+    } catch {
+      // routines table not created yet (no routine ever made) — nothing to clean.
+    }
     return getTree()
   })
 
