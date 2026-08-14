@@ -732,19 +732,21 @@ button {
   background: var(--hover);
 }
 
-/* Full branch name on hover. position:fixed so the sidebar's overflow clip
-   doesn't cut it off; anchored under the chip by inline left/top. */
-.branch-tip {
+/* The chip grown to full width on hover. Same pill metrics as
+   .sidebar-item-branch (font, padding, radius) and pinned to the chip's own
+   left/top, so it reads as the chip widening in place rather than a tooltip.
+   position:fixed escapes the sidebar's horizontal overflow clip; a soft shadow
+   lifts it clear of whatever it overlaps. */
+.branch-expand {
   position: fixed;
   z-index: 200;
   max-width: 340px;
-  padding: 4px 9px;
-  border-radius: 7px;
+  font-size: 10px;
+  color: var(--text-secondary);
   background: var(--bg-panel);
-  border: 1px solid var(--border-strong);
-  box-shadow: 0 8px 24px var(--shadow);
-  font-size: 11px;
-  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 1px 7px;
+  box-shadow: 0 3px 12px var(--shadow);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
