@@ -2997,13 +2997,13 @@ button {
   padding: 0 10px 14px;
 }
 .board-stage {
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 .board-stage-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 6px 4px;
+  padding: 2px 4px 8px;
 }
 .board-stage-name {
   font-size: 10.5px;
@@ -3022,9 +3022,23 @@ button {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  padding: 7px 26px 7px 8px;
-  border-radius: 8px;
+  margin-bottom: 7px;
+  padding: 9px 26px 9px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg-content);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   cursor: grab;
+  transition:
+    box-shadow 0.13s ease,
+    transform 0.13s ease,
+    border-color 0.13s ease;
+}
+/* A finished card recedes — present for the record, not competing for the eye. */
+.board-row.s-done {
+  background: var(--bg-panel);
+  box-shadow: none;
+  opacity: 0.72;
 }
 .board-row.dragging {
   opacity: 0.4;
@@ -3046,9 +3060,9 @@ button {
 .board-row.insert-above::before {
   content: '';
   position: absolute;
-  left: 6px;
-  right: 6px;
-  top: -2px;
+  left: 2px;
+  right: 2px;
+  top: -5px;
   height: 2px;
   border-radius: 1px;
   background: var(--accent);
@@ -3063,7 +3077,27 @@ button {
   opacity: 1;
 }
 .board-row:hover {
-  background: var(--bg-panel);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+.board-row.s-done:hover {
+  transform: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+  opacity: 1;
+}
+/* The open ticket is a working surface, not a grab target — no hover lift. */
+.board-row:has(.ticket):hover {
+  transform: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-row {
+    transition: none;
+  }
+  .board-row:hover {
+    transform: none;
+  }
 }
 /* One dot per row, coloured by stage — click it to move the item along. */
 .board-row-dot {
@@ -3149,8 +3183,9 @@ button {
 .board-row-body {
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  flex-basis: 100%;
 }
 .board-row-chat {
   border: 0;
