@@ -2954,6 +2954,26 @@ button {
   background: var(--bg-content);
   border-radius: 12px;
   overflow: hidden;
+  /* Animates on every open, not just the first — the shared .desk-card that
+     wraps it persists when you switch surfaces, so the entrance lives here on
+     the panel that actually remounts. */
+  animation: pane-in 0.24s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+/* One entrance for every HTML working surface — a soft fade-and-rise. */
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-panel {
+    animation: none;
+  }
 }
 .board-head {
   display: flex;
@@ -3692,6 +3712,23 @@ button {
   border-right: 1px solid var(--border);
   overflow: hidden;
   position: relative;
+  /* Slides in from the left edge instead of appearing all at once. */
+  animation: files-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes files-in {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .files-side {
+    animation: none;
+  }
 }
 
 /* Invisible grab strip on the tree's right edge. */
@@ -4959,6 +4996,12 @@ button {
   overflow: hidden;
   margin: 6px;
   box-shadow: 0 8px 28px var(--shadow);
+  animation: pane-in 0.24s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .file-viewer {
+    animation: none;
+  }
 }
 
 .file-viewer-bar {
