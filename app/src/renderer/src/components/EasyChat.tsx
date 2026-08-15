@@ -294,9 +294,17 @@ const BG_DONE_RE =
  * name it by the actual program (and its script, if it has one).
  */
 function bgLabel(command: string): string {
+  const bare = command.replace(/&\s*(disown)?\s*;?\s*$/, '').trim()
+  // The agent backgrounds `sleep N; echo done` as a wait/poll timer while other
+  // work runs. Naming it "sleep" reads like the app dozed off (and taking the
+  // last `;` segment would call it "echo"); say what it actually is.
+  const wait = bare.match(/^sleep\s+(\d+)\b/)
+  if (wait) {
+    const s = Number(wait[1])
+    return s >= 60 ? `wait ${Math.round(s / 60)}m` : `wait ${s}s`
+  }
   // Last segment of a ; / && chain is usually the real work.
-  const seg = command
-    .replace(/&\s*(disown)?\s*;?\s*$/, '')
+  const seg = bare
     .split(/;|&&/)
     .map((s) => s.trim())
     .filter(Boolean)
