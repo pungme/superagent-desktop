@@ -881,7 +881,11 @@ export function registerStoreIpc(): void {
   )
   ipcMain.handle(
     'board:update',
-    (_e, id: string, patch: { title?: string; body?: string; status?: string; tags?: string[] }) => {
+    (
+      _e,
+      id: string,
+      patch: { title?: string; body?: string; status?: string; tags?: string[] }
+    ) => {
       const card = updateCard(id, patch)
       announce(card?.workspaceId)
       return card

@@ -337,7 +337,7 @@ function meaningfulStderr(raw: string): string | null {
     /^\s*(at\s|node:|\(node:|Debugger|Warning:|\[dotenv|npm warn|npm notice|\{|\}|".*":)/i
   const lines = raw
     // eslint-disable-next-line no-control-regex
-    .replace(/\[[0-9;]*m/g, '')
+    .replace(/\x1b\[[0-9;]*m/g, '')
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l && l.length <= 300 && !noise.test(l))
