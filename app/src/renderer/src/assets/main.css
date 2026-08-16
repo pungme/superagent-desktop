@@ -4747,6 +4747,14 @@ button {
   border-color: color-mix(in srgb, #45b46a 30%, var(--border));
   background: color-mix(in srgb, #45b46a 8%, transparent);
 }
+/* A description can be a whole sentence — keep the pill from stretching the row;
+   the full text is in the title/hover and the expandable menu. */
+.easy-run-pill .easy-control-val {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .easy-run-pill:hover,
 .easy-run-pill.open {
   border-color: color-mix(in srgb, #45b46a 55%, var(--border));
@@ -4772,6 +4780,13 @@ button {
   flex-shrink: 0;
   border: 1.5px solid var(--text-tertiary);
   background: transparent;
+}
+/* The agent's plain-language description, above the raw command in the popover. */
+.easy-run-desc {
+  font-size: 12px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  line-height: 1.35;
 }
 @media (prefers-reduced-motion: reduce) {
   .easy-runs-label-pulse {

@@ -249,6 +249,12 @@ interface BackgroundTask {
   /** Claude's shell handle, once its result tells us. */
   shellId?: string
   command: string
+  /**
+   * The Bash tool's own `description` — the short "what this does" line the agent
+   * writes, and exactly what the terminal shows. Preferred over parsing the
+   * command, so the pill reads as "Research US indie lane", not "node".
+   */
+  description?: string
   startedAt: number
   /** Latest output the agent has polled back, so the strip can show what's happening. */
   output?: string
@@ -1434,9 +1440,18 @@ export function EasyChat({
             // Backgrounded shells outlive the turn that started them, so track them
             // until something says they're finished.
             const inp = (block.input ?? {}) as Record<string, unknown>
+            // The agent's own one-line "what this does", the same text the
+            // terminal shows next to the command — far clearer than the command.
+            const description =
+              typeof inp.description === 'string' && inp.description.trim()
+                ? inp.description.trim()
+                : undefined
             if (name === 'Bash' && inp.run_in_background) {
               const command = typeof inp.command === 'string' ? inp.command : ''
-              setBgTasks((prev) => [...prev, { toolUseId: id, command, startedAt: Date.now() }])
+              setBgTasks((prev) => [
+                ...prev,
+                { toolUseId: id, command, description, startedAt: Date.now() }
+              ])
             } else if (
               name === 'Bash' &&
               typeof inp.command === 'string' &&
@@ -1454,6 +1469,7 @@ export function EasyChat({
                 {
                   toolUseId: id,
                   command,
+                  description,
                   startedAt,
                   manual: true,
                   // A sleep timer finishes at a known time; give it a small
@@ -3015,12 +3031,15 @@ export function EasyChat({
           memory gauge around. Background commands the agent left running, plus
           any live sub-agent. Only present when there's something running. */}
       {(() => {
-        // A bare `sleep N` is the agent's own wait/poll plumbing, not work worth
-        // a pill each — a run of them just drowns out the real jobs. Collapse all
-        // waits into ONE quiet pill; show real background jobs and sub-agents
-        // individually, since those are the things actually doing something.
-        const waits = bgTasks.filter((t) => sleepDurationSec(t.command) != null)
-        const jobs = bgTasks.filter((t) => sleepDurationSec(t.command) == null)
+        // A bare `sleep N` with no description is the agent's own wait/poll
+        // plumbing, not work worth a pill each — a run of them just drowns out
+        // the real jobs, so collapse those into ONE quiet pill. Anything with a
+        // description (what the terminal shows) is meaningful and shows
+        // individually, as do real jobs and sub-agents.
+        const isBareWait = (t: BackgroundTask): boolean =>
+          sleepDurationSec(t.command) != null && !t.description
+        const waits = bgTasks.filter(isBareWait)
+        const jobs = bgTasks.filter((t) => !isBareWait(t))
         if (jobs.length === 0 && waits.length === 0 && runningAgents.length === 0) return null
         const remainMs = waits.length
           ? Math.max(0, ...waits.map((t) => (t.expiresAt ?? now) - now))
@@ -3035,7 +3054,9 @@ export function EasyChat({
             </span>
             {jobs.map((t) => {
               const key = `bg-${t.toolUseId}`
-              const name = bgLabel(t.command)
+              // The agent's description is what the terminal shows and what a
+              // person understands ("Research US indie lane"); else the command.
+              const name = t.description || bgLabel(t.command)
               const age = Math.max(1, Math.round((now - t.startedAt) / 1000))
               return (
                 <div className="easy-control" key={t.toolUseId}>
@@ -3052,6 +3073,7 @@ export function EasyChat({
                   </button>
                   {controlMenu === key && (
                     <div className="easy-control-menu easy-run-menu">
+                      {t.description && <div className="easy-run-desc">{t.description}</div>}
                       <div className="easy-run-head">
                         <code>{t.command}</code>
                         <span className="easy-run-age">
