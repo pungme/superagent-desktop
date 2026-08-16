@@ -258,9 +258,21 @@ interface BackgroundTask {
   /**
    * Backgrounded with a trailing `&` in a normal Bash call, not the
    * run_in_background flag. We have no shell handle for it, so it can't be
-   * polled or auto-retired — it stays until the user dismisses it.
+   * polled — it stays until the user dismisses it, or until `expiresAt` if we
+   * could work out when it finishes (a `sleep N` timer has a known duration).
    */
   manual?: boolean
+  /** When a known-duration job (e.g. `sleep N`) is done, so it auto-clears. */
+  expiresAt?: number
+}
+
+/** Seconds a `sleep <n>` waits, if the command is (essentially) just that. */
+function sleepDurationSec(command: string): number | null {
+  const m = command
+    .replace(/&\s*(disown)?\s*;?\s*$/, '')
+    .trim()
+    .match(/^sleep\s+(\d+)\b/)
+  return m ? Number(m[1]) : null
 }
 
 /** A shell command backgrounded with a trailing `&` (but not `&&`). */
@@ -783,6 +795,21 @@ export function EasyChat({
     const t = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(t)
   }, [bgOpen])
+  // Retire known-duration jobs (a `sleep N` timer) once they're done — otherwise
+  // manual tasks, which have no shell to report completion, pile up forever. Runs
+  // whether or not the strip's menu is open, so the pills clear on their own.
+  const hasExpiring = bgTasks.some((t) => t.expiresAt)
+  useEffect(() => {
+    if (!hasExpiring) return
+    const t = window.setInterval(() => {
+      const n = Date.now()
+      setBgTasks((prev) => {
+        const next = prev.filter((x) => !(x.expiresAt && x.expiresAt <= n))
+        return next.length === prev.length ? prev : next
+      })
+    }, 1000)
+    return () => window.clearInterval(t)
+  }, [hasExpiring])
   useEffect(() => {
     if (!bgOpen) return
     let alive = true
@@ -1420,9 +1447,19 @@ export function EasyChat({
               // invisibly — the "it's running in the background but you can't see
               // it" case. No handle to poll, so it's manual-dismiss only.
               const command = inp.command
+              const dur = sleepDurationSec(command)
+              const startedAt = Date.now()
               setBgTasks((prev) => [
                 ...prev,
-                { toolUseId: id, command, startedAt: Date.now(), manual: true }
+                {
+                  toolUseId: id,
+                  command,
+                  startedAt,
+                  manual: true,
+                  // A sleep timer finishes at a known time; give it a small
+                  // buffer, then it clears itself instead of piling up.
+                  ...(dur != null ? { expiresAt: startedAt + dur * 1000 + 1500 } : {})
+                }
               ])
             } else if (name === 'BashOutput' && typeof inp.bash_id === 'string') {
               pollTargets.current.set(id, inp.bash_id)
@@ -2977,83 +3014,116 @@ export function EasyChat({
           the Model/Mode line where a handful of jobs would wrap and shove the
           memory gauge around. Background commands the agent left running, plus
           any live sub-agent. Only present when there's something running. */}
-      {(bgTasks.length > 0 || runningAgents.length > 0) && (
-        <div className="easy-runs">
-          <span className="easy-runs-label">
-            <span className="easy-runs-label-pulse" />
-            Running in background
-          </span>
-          {bgTasks.map((t) => {
-            const key = `bg-${t.toolUseId}`
-            const name = bgLabel(t.command)
-            const age = Math.max(1, Math.round((now - t.startedAt) / 1000))
-            return (
-              <div className="easy-control" key={t.toolUseId}>
-                <button
-                  className={`easy-control-btn easy-run-pill ${controlMenu === key ? 'open' : ''}`}
-                  onClick={() => setControlMenu((m) => (m === key ? null : key))}
-                  title={t.command}
-                >
-                  <span className="easy-run-dot" />
-                  <span className="easy-control-val">{name}</span>
-                  <span className="easy-run-age-inline">
-                    {age < 60 ? `${age}s` : `${Math.round(age / 60)}m`}
-                  </span>
-                </button>
-                {controlMenu === key && (
-                  <div className="easy-control-menu easy-run-menu">
-                    <div className="easy-run-head">
-                      <code>{t.command}</code>
-                      <span className="easy-run-age">
-                        {Math.max(1, Math.round((now - t.startedAt) / 1000))}s
-                      </span>
+      {(() => {
+        // A bare `sleep N` is the agent's own wait/poll plumbing, not work worth
+        // a pill each — a run of them just drowns out the real jobs. Collapse all
+        // waits into ONE quiet pill; show real background jobs and sub-agents
+        // individually, since those are the things actually doing something.
+        const waits = bgTasks.filter((t) => sleepDurationSec(t.command) != null)
+        const jobs = bgTasks.filter((t) => sleepDurationSec(t.command) == null)
+        if (jobs.length === 0 && waits.length === 0 && runningAgents.length === 0) return null
+        const remainMs = waits.length
+          ? Math.max(0, ...waits.map((t) => (t.expiresAt ?? now) - now))
+          : 0
+        const remainS = Math.ceil(remainMs / 1000)
+        const remainLabel = remainS >= 60 ? `${Math.round(remainS / 60)}m` : `${remainS}s`
+        return (
+          <div className="easy-runs">
+            <span className="easy-runs-label">
+              <span className="easy-runs-label-pulse" />
+              Running in background
+            </span>
+            {jobs.map((t) => {
+              const key = `bg-${t.toolUseId}`
+              const name = bgLabel(t.command)
+              const age = Math.max(1, Math.round((now - t.startedAt) / 1000))
+              return (
+                <div className="easy-control" key={t.toolUseId}>
+                  <button
+                    className={`easy-control-btn easy-run-pill ${controlMenu === key ? 'open' : ''}`}
+                    onClick={() => setControlMenu((m) => (m === key ? null : key))}
+                    title={t.command}
+                  >
+                    <span className="easy-run-dot" />
+                    <span className="easy-control-val">{name}</span>
+                    <span className="easy-run-age-inline">
+                      {age < 60 ? `${age}s` : `${Math.round(age / 60)}m`}
+                    </span>
+                  </button>
+                  {controlMenu === key && (
+                    <div className="easy-control-menu easy-run-menu">
+                      <div className="easy-run-head">
+                        <code>{t.command}</code>
+                        <span className="easy-run-age">
+                          {Math.max(1, Math.round((now - t.startedAt) / 1000))}s
+                        </span>
+                      </div>
+                      <pre className="easy-run-out">
+                        {t.output?.trim() ||
+                          (t.manual
+                            ? 'Backgrounded with & — no shell handle to read its output.'
+                            : 'Waiting for output…')}
+                      </pre>
+                      <button
+                        className="easy-control-item"
+                        onClick={() => {
+                          setControlMenu(null)
+                          setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
+                        }}
+                      >
+                        <span className="easy-control-item-label">Hide</span>
+                        <span className="easy-control-item-hint">This doesn&rsquo;t stop it</span>
+                      </button>
                     </div>
-                    <pre className="easy-run-out">
-                      {t.output?.trim() ||
-                        (t.manual
-                          ? 'Backgrounded with & — no shell handle to read its output.'
-                          : 'Waiting for output…')}
-                    </pre>
-                    <button
-                      className="easy-control-item"
-                      onClick={() => {
-                        setControlMenu(null)
-                        setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
-                      }}
-                    >
-                      <span className="easy-control-item-label">Hide</span>
-                      <span className="easy-control-item-hint">This doesn&rsquo;t stop it</span>
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
+              )
+            })}
+            {runningAgents.map((a) => (
+              <div className="easy-control" key={a.toolUseId}>
+                <span
+                  className="easy-control-btn easy-run-agent"
+                  title={`Sub-agent working · ${a.label} · ${Math.max(1, Math.round((now - a.startedAt) / 1000))}s`}
+                >
+                  <span className="status-spinner easy-run-agent-spin" />
+                  <span className="easy-control-val">🤖 {a.label}</span>
+                </span>
               </div>
-            )
-          })}
-          {runningAgents.map((a) => (
-            <div className="easy-control" key={a.toolUseId}>
-              <span
-                className="easy-control-btn easy-run-agent"
-                title={`Sub-agent working · ${a.label} · ${Math.max(1, Math.round((now - a.startedAt) / 1000))}s`}
-              >
-                <span className="status-spinner easy-run-agent-spin" />
-                <span className="easy-control-val">🤖 {a.label}</span>
-              </span>
-            </div>
-          ))}
-          {/* Clear the whole strip in one go — these are the agent's shells, and
+            ))}
+            {/* All the agent's wait timers, as one calm pill. Not a spinning
+              "running" dot — it's deliberately idle time, not work. */}
+            {waits.length > 0 && (
+              <div className="easy-control">
+                <span
+                  className="easy-control-btn easy-run-wait"
+                  title={
+                    `${waits.length} wait timer${waits.length > 1 ? 's' : ''} the agent set` +
+                    (remainMs > 0 ? ` · up to ${remainLabel} left` : '')
+                  }
+                >
+                  <span className="easy-wait-dot" />
+                  <span className="easy-control-val">
+                    waiting{waits.length > 1 ? ` · ${waits.length}` : ''}
+                  </span>
+                  {remainMs > 0 && <span className="easy-run-age-inline">{remainLabel}</span>}
+                </span>
+              </div>
+            )}
+            {/* Clear the whole strip in one go — these are the agent's shells, and
               once a build has finished the pill is just clutter. Doesn't stop
               anything still live; it just stops tracking it here. */}
-          {bgTasks.length > 0 && (
-            <button
-              className="easy-runs-clear"
-              title="Hide all — this doesn't stop anything still running"
-              onClick={() => setBgTasks([])}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
+            {bgTasks.length > 0 && (
+              <button
+                className="easy-runs-clear"
+                title="Hide all — this doesn't stop anything still running"
+                onClick={() => setBgTasks([])}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )
+      })()}
       {lightbox && (
         <div className="easy-lightbox" onClick={() => setLightbox(null)}>
           <img src={lightbox} alt="attachment" />

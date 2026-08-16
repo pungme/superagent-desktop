@@ -4757,6 +4757,22 @@ button {
   font-variant-numeric: tabular-nums;
   font-size: 10px;
 }
+/* The collapsed wait-timer pill: calm and neutral, not the green "running" look,
+   because waiting is idle time, not work. */
+.easy-run-wait {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: default;
+}
+.easy-wait-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1.5px solid var(--text-tertiary);
+  background: transparent;
+}
 @media (prefers-reduced-motion: reduce) {
   .easy-runs-label-pulse {
     animation: none;
