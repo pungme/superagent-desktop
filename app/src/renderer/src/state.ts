@@ -77,6 +77,20 @@ function savePorts(p: Record<string, number[]>): void {
   }
 }
 
+/**
+ * The key a workspace's pane-visibility state lives under. Which surface is open
+ * (browser / files / board / a file) is remembered per CONVERSATION, so two
+ * chats in one project can have different setups — one on a webpage, another on
+ * nothing. So it keys off the workspace's active chat, falling back to the
+ * workspace id when there's no chat yet (or when handed an id that is itself a
+ * chat). The native browser view and its login session stay per-workspace
+ * (paneId = ws.id), so switching chats swaps what's shown, not who you're
+ * logged in as.
+ */
+function deskKey(s: { activeChatId: Record<string, string> }, id: string): string {
+  return s.activeChatId[id] ?? id
+}
+
 // Whether the browser pane is open per workspace. Kept only in memory: a cold
 // app start always lands on the chat with the pane closed, so we never reopen a
 // logged-out site as a floating login card. Within a session the map persists as
@@ -318,21 +332,24 @@ export const useStore = create<CoveState>((set, get) => ({
   // A text file replaces the browser pane's slot; hide the native view so it can't
   // cover the viewer, and remember which file is showing.
   openFileInViewer: (workspaceId, path, focus = true) => {
-    localStorage.setItem(`openFile:${workspaceId}`, path)
-    // Focus follows the WORKSPACE, but the file (desk state) is keyed by the id
-    // we were given — a chat id, once desks are per-chat.
+    // Which surface is open is per CHAT (each conversation has its own setup),
+    // so the visibility maps are keyed by the workspace's active chat. Focus
+    // still follows the workspace. deskKey() resolves ws → its active chat.
+    const key = deskKey(get(), workspaceId)
+    localStorage.setItem(`openFile:${key}`, path)
     const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => ({
       // Only a USER action may move the user. The agent opening its results must
       // land in its own project quietly — yanking the active workspace mid-typing
       // is the "app hijacks my work" bug.
       ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
-      openFile: { ...s.openFile, [workspaceId]: path }
+      openFile: { ...s.openFile, [key]: path }
     }))
   },
   closeFile: (workspaceId) => {
-    localStorage.removeItem(`openFile:${workspaceId}`)
-    set((s) => ({ openFile: { ...s.openFile, [workspaceId]: null } }))
+    const key = deskKey(get(), workspaceId)
+    localStorage.removeItem(`openFile:${key}`)
+    set((s) => ({ openFile: { ...s.openFile, [key]: null } }))
   },
   openPath: (workspaceId, absPath, focus = true) => {
     const ext = absPath.slice(absPath.lastIndexOf('.') + 1).toLowerCase()
@@ -467,22 +484,23 @@ export const useStore = create<CoveState>((set, get) => ({
   },
   toggleFiles: (workspaceId) =>
     set((s) => {
-      const next = !s.filesOpen[workspaceId]
-      localStorage.setItem(`filesOpen:${workspaceId}`, next ? '1' : '0')
-      return { filesOpen: { ...s.filesOpen, [workspaceId]: next } }
+      const key = deskKey(s, workspaceId)
+      const next = !s.filesOpen[key]
+      localStorage.setItem(`filesOpen:${key}`, next ? '1' : '0')
+      return { filesOpen: { ...s.filesOpen, [key]: next } }
     }),
 
   toggleBrowser: (workspaceId, current) =>
     set((s) => {
-      const saved = localStorage.getItem(`paneOpen:${workspaceId}`)
-      const effective =
-        current ?? s.browserOpen[workspaceId] ?? (saved !== null ? saved === '1' : false)
+      const key = deskKey(s, workspaceId)
+      const saved = localStorage.getItem(`paneOpen:${key}`)
+      const effective = current ?? s.browserOpen[key] ?? (saved !== null ? saved === '1' : false)
       const next = !effective
       // Remembered so a code project's preview survives an app restart. Browser
       // projects deliberately don't restore (a cold start must not land on a
       // reloaded, often logged-out live page) — see the coldStart flag.
-      localStorage.setItem(`paneOpen:${workspaceId}`, next ? '1' : '0')
-      const browserOpen = { ...s.browserOpen, [workspaceId]: next }
+      localStorage.setItem(`paneOpen:${key}`, next ? '1' : '0')
+      const browserOpen = { ...s.browserOpen, [key]: next }
       return { browserOpen, coldStart: false }
     }),
   setHooksEnabled: (v) => set({ hooksEnabled: v }),
@@ -496,8 +514,11 @@ export const useStore = create<CoveState>((set, get) => ({
     })
     const focusWs = get().resolveWorkspace(workspaceId)
     set((s) => {
-      localStorage.setItem(`paneOpen:${workspaceId}`, '1')
-      const browserOpen = { ...s.browserOpen, [workspaceId]: true }
+      // Visibility (browserOpen) is per chat; the URL to load is a property of
+      // the shared per-workspace pane, so previewUrls stays keyed by workspace.
+      const key = deskKey(s, workspaceId)
+      localStorage.setItem(`paneOpen:${key}`, '1')
+      const browserOpen = { ...s.browserOpen, [key]: true }
       return {
         ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
         browserOpen,
@@ -510,18 +531,19 @@ export const useStore = create<CoveState>((set, get) => ({
   openUrl: (workspaceId, url, focus = true) => {
     const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => {
-      localStorage.setItem(`paneOpen:${workspaceId}`, '1')
-      const browserOpen = { ...s.browserOpen, [workspaceId]: true }
+      const key = deskKey(s, workspaceId)
+      localStorage.setItem(`paneOpen:${key}`, '1')
+      const browserOpen = { ...s.browserOpen, [key]: true }
       // The viewer and the pane are the same slot, and the viewer wins it. A
       // text file left open therefore swallowed every PDF and image opened
       // afterwards: the row highlighted, the page loaded, and nothing changed
       // on screen. Whatever was asked for last is what you want to see.
-      localStorage.removeItem(`openFile:${workspaceId}`)
+      localStorage.removeItem(`openFile:${key}`)
       return {
         ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
         browserOpen,
         coldStart: false,
-        openFile: { ...s.openFile, [workspaceId]: null },
+        openFile: { ...s.openFile, [key]: null },
         previewUrls: { ...s.previewUrls, [workspaceId]: url },
         toast: null
       }
@@ -552,11 +574,14 @@ export const useStore = create<CoveState>((set, get) => ({
       // hidden (e.g. a code project) so the user can watch what it's doing.
       const s = get()
       const known = s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))
-      if (known && !s.browserOpen[workspaceId]) {
+      // Reveal for the chat the user is looking at (surfaces are per chat); the
+      // pane itself is shared per workspace, so whichever chat is active adopts it.
+      const key = deskKey(s, workspaceId)
+      if (known && !s.browserOpen[key]) {
         // Persist too — an agent-opened pane must survive restarts exactly like
         // a user-opened one (this was the hole: agent panes vanished on update).
-        localStorage.setItem(`paneOpen:${workspaceId}`, '1')
-        set({ browserOpen: { ...s.browserOpen, [workspaceId]: true } })
+        localStorage.setItem(`paneOpen:${key}`, '1')
+        set({ browserOpen: { ...s.browserOpen, [key]: true } })
       }
       if (timer) clearTimeout(timer)
       // Auto-clear the indicator a few seconds after the last tool call.
@@ -571,13 +596,14 @@ export const useStore = create<CoveState>((set, get) => ({
       // the user to this workspace when the app is actually frontmost — a
       // background agent must never yank the view while they're in another app.
       const focused = document.hasFocus()
+      const key = deskKey(s, workspaceId)
       // Persist here too. This handler runs BEFORE any browser:activity event
       // and marks the pane open in memory — which made the activity listener's
       // "not open yet" persist guard skip, so agent-opened panes still vanished
       // on restart (seen live: levantto-shop).
-      localStorage.setItem(`paneOpen:${workspaceId}`, '1')
+      localStorage.setItem(`paneOpen:${key}`, '1')
       set({
-        browserOpen: { ...s.browserOpen, [workspaceId]: true },
+        browserOpen: { ...s.browserOpen, [key]: true },
         ...(focused ? { activeWorkspaceId: workspaceId, coldStart: false } : {})
       })
     })
@@ -772,7 +798,9 @@ export const useStore = create<CoveState>((set, get) => ({
           // answered a question can't have changed the page, and reloading it
           // then is the "why does it keep refreshing?" annoyance.
           const dirty = s.previewDirty[e.workspaceId]
-          if (dirty && s.browserOpen[e.workspaceId] && (s.reloadOnIdle[e.workspaceId] ?? true)) {
+          // browserOpen is per active chat now; the pane is shared per workspace.
+          const key = deskKey(s, e.workspaceId)
+          if (dirty && s.browserOpen[key] && (s.reloadOnIdle[e.workspaceId] ?? true)) {
             window.cove.browserReload(e.workspaceId)
           }
           if (dirty) {

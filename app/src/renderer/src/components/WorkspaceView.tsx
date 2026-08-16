@@ -28,14 +28,21 @@ export function WorkspaceView({
   ws: Workspace
   visible?: boolean
 }): React.JSX.Element {
+  // Which surface is open is remembered per CONVERSATION, so two chats in one
+  // project can have different setups (one on a webpage, another on nothing).
+  // `deskKey` is the workspace's active chat, falling back to the workspace id
+  // before a chat is selected. The native browser view + its login session stay
+  // keyed by ws.id, so switching chats swaps what's shown, not who you're as.
+  const activeChatId = useStore((s) => s.activeChatId[ws.id])
+  const deskKey = activeChatId ?? ws.id
   // Browser projects open with the preview showing by default.
   // A browser project auto-opens its pane — but not on a cold launch, so a fresh
   // start lands on the chat instead of a reloaded (often logged-out) live page.
   const browserOpen = useStore((s) => {
-    if (s.browserOpen[ws.id] !== undefined) return s.browserOpen[ws.id]
+    if (s.browserOpen[deskKey] !== undefined) return s.browserOpen[deskKey]
     // An explicit remembered state — open OR closed — wins for every project
     // kind: what you (or the agent) had on screen comes back after a restart.
-    const saved = localStorage.getItem(`paneOpen:${ws.id}`)
+    const saved = localStorage.getItem(`paneOpen:${deskKey}`)
     if (saved !== null) return saved === '1'
     // No record: browser projects still default open only after first
     // interaction this run, so a cold start lands on the chat.
@@ -43,19 +50,21 @@ export function WorkspaceView({
   })
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const filesOpen = useStore(
-    (s) => s.filesOpen[ws.id] ?? localStorage.getItem(`filesOpen:${ws.id}`) === '1'
+    (s) => s.filesOpen[deskKey] ?? localStorage.getItem(`filesOpen:${deskKey}`) === '1'
   )
   // A text file open in the in-app viewer takes the content pane over the browser.
   // undefined = untouched this run (fall back to what was open last run);
   // null = explicitly closed.
   const openFilePath = useStore((s) =>
-    s.openFile[ws.id] === undefined ? localStorage.getItem(`openFile:${ws.id}`) : s.openFile[ws.id]
+    s.openFile[deskKey] === undefined
+      ? localStorage.getItem(`openFile:${deskKey}`)
+      : s.openFile[deskKey]
   )
   const closeFile = useStore((s) => s.closeFile)
   // The simulator is a card on the desk, not a replacement for what's already
   // there: open it next to the page or the file you're working on, which is how
   // you actually build an iOS app. Remembered per project.
-  const [simOpen, setSimOpen] = useState(() => localStorage.getItem(`simOpen:${ws.id}`) === '1')
+  const [simOpen, setSimOpen] = useState(() => localStorage.getItem(`simOpen:${deskKey}`) === '1')
   /** The working surface's share of the desk when the simulator sits beside it. */
   const [deskRatio, setDeskRatio] = useState(() => {
     const saved = Number(localStorage.getItem(`desk:${ws.id}`))
@@ -64,8 +73,18 @@ export function WorkspaceView({
   // Remembered like the other surfaces: leaving the board up and restarting
   // should put you back on the board, not silently on the chat.
   const [boardOpen, setBoardOpen] = useState(
-    () => localStorage.getItem(`boardOpen:${ws.id}`) === '1'
+    () => localStorage.getItem(`boardOpen:${deskKey}`) === '1'
   )
+  // WorkspaceView stays mounted while you switch chats, so the local surface
+  // state (sim/board) has to be re-seeded from the chat you moved to — otherwise
+  // it would keep showing the previous conversation's setup. React's "adjust
+  // state during render when a key changes" pattern: no effect, no flash.
+  const [seededKey, setSeededKey] = useState(deskKey)
+  if (seededKey !== deskKey) {
+    setSeededKey(deskKey)
+    setSimOpen(localStorage.getItem(`simOpen:${deskKey}`) === '1')
+    setBoardOpen(localStorage.getItem(`boardOpen:${deskKey}`) === '1')
+  }
   /**
    * Four columns need about 620px to be worth looking at, and the pane half is
    * usually narrower than that. Opening the board widens it just enough —
@@ -80,7 +99,7 @@ export function WorkspaceView({
     <BoardPanel
       workspaceId={ws.id}
       onClose={() => {
-        localStorage.setItem(`boardOpen:${ws.id}`, '0')
+        localStorage.setItem(`boardOpen:${deskKey}`, '0')
         setBoardOpen(false)
       }}
     />
@@ -114,21 +133,23 @@ export function WorkspaceView({
   const lastFile = useRef(openFilePath)
   useEffect(() => {
     if (openFilePath && openFilePath !== lastFile.current && boardOpen) {
-      localStorage.setItem(`boardOpen:${ws.id}`, '0')
+      localStorage.setItem(`boardOpen:${deskKey}`, '0')
       setBoardOpen(false)
     }
     lastFile.current = openFilePath
-  }, [openFilePath, boardOpen, ws.id])
+  }, [openFilePath, boardOpen, deskKey])
 
   // No manual toggle, same as the browser: the pane appears when the agent
   // boots or launches something on a simulator, and closes from its own ✕.
   useEffect(() => {
     return window.cove.onOpenSimulator?.((p) => {
       if (p.workspaceId !== ws.id) return
-      localStorage.setItem(`simOpen:${ws.id}`, '1')
+      // deskKey in deps so an agent reveal lands on the chat you're actually on,
+      // not the one that was active when this listener first subscribed.
+      localStorage.setItem(`simOpen:${deskKey}`, '1')
       setSimOpen(true)
     })
-  }, [ws.id])
+  }, [ws.id, deskKey])
   // Belt-and-suspenders: when neither the browser preview nor a file viewer is
   // open, make sure the pane's native WebContentsView is detached from the window.
   // Otherwise a pane opened transiently (e.g. the agent browsing) can linger,
@@ -136,9 +157,9 @@ export function WorkspaceView({
   useEffect(() => {
     if (!paneOpen) window.cove.browserHide(ws.id)
   }, [paneOpen, ws.id])
-  // The project's conversations, and whichever one is on screen.
+  // The project's conversations, and whichever one is on screen (activeChatId is
+  // read up top, where it drives deskKey).
   const chats = useStore((s) => s.chats[ws.id])
-  const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const loadChats = useStore((s) => s.loadChats)
   // A chat with a turn (or a background command) in flight has to keep its
   // `claude` process alive even when you switch to a sibling — its agent lives
@@ -380,7 +401,7 @@ export function WorkspaceView({
           onClick={() =>
             setBoardOpen((v) => {
               if (!v) widenForBoard()
-              localStorage.setItem(`boardOpen:${ws.id}`, v ? '0' : '1')
+              localStorage.setItem(`boardOpen:${deskKey}`, v ? '0' : '1')
               return !v
             })
           }
@@ -511,13 +532,13 @@ export function WorkspaceView({
                       visible={visible}
                       workspaceId={ws.id}
                       onClose={() => {
-                        localStorage.setItem(`simOpen:${ws.id}`, '0')
+                        localStorage.setItem(`simOpen:${deskKey}`, '0')
                         setSimOpen(false)
                       }}
                       // No simulator of this project's own: forget that it ever
                       // had a pane rather than reopening it on every visit.
                       onNothingToShow={() => {
-                        localStorage.setItem(`simOpen:${ws.id}`, '0')
+                        localStorage.setItem(`simOpen:${deskKey}`, '0')
                         setSimOpen(false)
                       }}
                     />

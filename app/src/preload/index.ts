@@ -87,7 +87,8 @@ export interface BoardCard {
 }
 
 export interface CoveApi {
-  browserCreate: (id: string, partition: string) => Promise<void>
+  /** Resolves to the pane's current URL ('' if freshly created / nothing loaded). */
+  browserCreate: (id: string, partition: string) => Promise<string>
   browserSetBounds: (id: string, b: { x: number; y: number; width: number; height: number }) => void
   browserHide: (id: string) => void
   browserNavigate: (id: string, url: string) => void
