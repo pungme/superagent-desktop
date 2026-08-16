@@ -501,9 +501,14 @@ export function BrowserPane({
     // Keep the zoom label in sync when the ⌘+/-/0 keys zoom the native pane.
     const offZoom = window.cove.onBrowserZoom(paneId, setZoom)
 
-    window.cove.browserCreate(paneId, partition).then(() => {
+    window.cove.browserCreate(paneId, partition).then((currentUrl) => {
       if (!alive) return
       syncBounds()
+      // A pane that already has a page loaded is one that was merely hidden (e.g.
+      // when you switched to a chat with the browser closed) and is now back.
+      // Leave it exactly as it was — re-navigating would reload it and throw away
+      // any manual browsing. Only a genuinely fresh pane ('') gets navigated.
+      if (currentUrl) return
       // A URL to load, or the themed "new tab" empty state — but only for browser
       // projects. A code preview with no URL stays blank (as before) so it never
       // renders an out-of-place "type a URL" page floating over the chat.

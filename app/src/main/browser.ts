@@ -709,6 +709,12 @@ export function registerBrowserIpc(): void {
   ipcMain.handle('browser:create', (e, id: string, partition: string) => {
     const window = BrowserWindow.fromWebContents(e.sender)
     if (window) createBrowserPane(window, id, partition)
+    // Return whatever the pane is already showing. createBrowserPane no-ops on an
+    // existing id, so a pane hidden on a chat switch and re-created when you come
+    // back reports its live URL — the renderer uses that to leave the page alone
+    // instead of re-navigating (which would reload it and lose any manual nav).
+    // A genuinely fresh pane has loaded nothing yet and reports ''.
+    return getPaneWebContents(id)?.getURL() ?? ''
   })
   // Show the themed "new tab" page — the renderer calls this for a blank project
   // (no URL yet) so the pane isn't an empty white card.

@@ -64,7 +64,11 @@ function DevServerPill({
   onToggle: () => void
 }): React.JSX.Element | null {
   const ports = useStore((s) => s.ports[workspaceId])
-  const paneOpen = useStore((s) => s.browserOpen[workspaceId] === true)
+  // browserOpen is keyed per chat now, so resolve the project's active chat to
+  // tell whether the preview is already showing (and the pill can hide).
+  const paneOpen = useStore(
+    (s) => s.browserOpen[s.activeChatId[workspaceId] ?? workspaceId] === true
+  )
   const openPreview = useStore((s) => s.openPreview)
   const [dismissed, setDismissed] = useState(false)
   const port = ports?.[0]
