@@ -2682,6 +2682,38 @@ export function EasyChat({
           Dictation failed: {dictation.error}
         </div>
       )}
+      {/* Pending attachments sit in their own row above the composer, in normal
+          flow so they reserve space — they used to float over the transcript and
+          cover the last messages. */}
+      {(pendingFiles.length > 0 || pendingImages.length > 0) && (
+        <div className="easy-attachments">
+          {pendingFiles.map((f, idx) => (
+            <div key={f.path} className="easy-file-chip" title={f.path}>
+              <span className="easy-file-chip-icon">📄</span>
+              <span className="easy-file-chip-name">{f.name}</span>
+              <button
+                className="easy-attachment-remove"
+                onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {pendingImages.map((img, idx) => (
+            <div key={idx} className="easy-attachment">
+              <img src={img.url} alt="pasted" />
+              <button
+                className="easy-attachment-remove"
+                onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="easy-input-row">
         {replyTarget && (
           <div className="easy-reply-bar">
@@ -2718,39 +2750,6 @@ export function EasyChat({
                   f
                 )}
               </button>
-            ))}
-          </div>
-        )}
-        {pendingFiles.length > 0 && (
-          <div className="easy-attachments">
-            {pendingFiles.map((f, idx) => (
-              <div key={f.path} className="easy-file-chip" title={f.path}>
-                <span className="easy-file-chip-icon">📄</span>
-                <span className="easy-file-chip-name">{f.name}</span>
-                <button
-                  className="easy-attachment-remove"
-                  onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
-                  title="Remove"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {pendingImages.length > 0 && (
-          <div className="easy-attachments">
-            {pendingImages.map((img, idx) => (
-              <div key={idx} className="easy-attachment">
-                <img src={img.url} alt="pasted" />
-                <button
-                  className="easy-attachment-remove"
-                  onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
-                  title="Remove"
-                >
-                  ×
-                </button>
-              </div>
             ))}
           </div>
         )}

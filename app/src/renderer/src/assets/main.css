@@ -2439,12 +2439,17 @@ button {
 }
 
 .easy-attachments {
-  position: absolute;
-  bottom: calc(100% + 2px);
-  left: 14px;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 10px 14px 2px;
+  border-top: 1px solid var(--border);
+}
+/* The attachments band already carries the composer's top border, so the input
+   row below it shouldn't draw a second line splitting the composer in two. */
+.easy-attachments + .easy-input-row {
+  border-top: none;
 }
 
 .easy-attachment {
