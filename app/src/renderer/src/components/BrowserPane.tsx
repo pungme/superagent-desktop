@@ -540,8 +540,19 @@ export function BrowserPane({
     return window.cove.onBrowserResync(() => syncBounds())
   }, [syncBounds])
 
-  // Navigate when a preview URL is requested (e.g. clicking a port chip).
+  // Navigate when a preview URL is requested (e.g. clicking a port chip, opening
+  // a file). The INITIAL page is loaded by the create effect, which leaves an
+  // already-loaded page untouched — so this effect must not re-fire the stored
+  // preview URL on mount. Otherwise a pane that was merely hidden and restored
+  // (now common, since each chat shows its own surface) snaps back to whatever
+  // was last opened here — e.g. a PDF you opened once reappearing every time the
+  // pane remounts, yanking you off the page you were actually browsing.
+  const previewNavReady = useRef(false)
   useEffect(() => {
+    if (!previewNavReady.current) {
+      previewNavReady.current = true
+      return
+    }
     if (previewUrl) window.cove.browserNavigate(paneId, previewUrl)
   }, [paneId, previewUrl])
 
