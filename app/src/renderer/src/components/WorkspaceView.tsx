@@ -179,6 +179,10 @@ export function WorkspaceView({
   const openPreview = useStore((s) => s.openPreview)
   /** The page this project currently has on its pane, whoever opened it. */
   const attachedUrl = useStore((s) => s.pageUrl[ws.id] ?? '')
+  // The URL we last asked the pane to load — synchronous, so it's right even
+  // before the pane reports back. Used to tell a document (a PDF/image opened
+  // from the tree, file://) apart from a live web/localhost preview.
+  const paneUrl = useStore((s) => s.previewUrls[ws.id] ?? '')
   // Current git branch, for code projects only (browser projects have no repo).
   const [branch, setBranch] = useState<string | null>(null)
   useEffect(() => {
@@ -452,15 +456,27 @@ export function WorkspaceView({
             toolbar — leaving no way to close it. This close lives up here in the
             workspace toolbar, which the native view can never reach, so there is
             always a way out. Shown only when the browser is the visible surface. */}
-        {ws.kind !== 'browser' && browserOpen && !openFilePath && !boardOpen && (
-          <button
-            className="toolbar-btn on"
-            onClick={() => toggleBrowser(ws.id, true)}
-            title="Close the preview pane"
-          >
-            Hide preview
-          </button>
-        )}
+        {ws.kind !== 'browser' &&
+          browserOpen &&
+          !openFilePath &&
+          !boardOpen &&
+          (() => {
+            // A PDF or image opened from the file tree shows in this same pane
+            // (file://), but Chromium's document viewer has no close of its own —
+            // so the only way out is this button. "Hide preview" read as dev-
+            // server language and nobody connected it to their open document, so
+            // for a local file it says "Close" with an ✕ instead.
+            const isDoc = (attachedUrl || paneUrl).startsWith('file:')
+            return (
+              <button
+                className="toolbar-btn on"
+                onClick={() => toggleBrowser(ws.id, true)}
+                title={isDoc ? 'Close this document' : 'Close the preview pane'}
+              >
+                {isDoc ? '✕ Close' : 'Hide preview'}
+              </button>
+            )
+          })()}
         {ws.kind === 'browser' && (
           <button
             className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
