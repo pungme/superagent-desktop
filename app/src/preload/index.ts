@@ -121,6 +121,8 @@ export interface CoveApi {
   browserShootTwin: () => Promise<Uint8Array | null>
   /** Native context menu for a file-tree row (Reveal in Finder, Copy Path…). */
   filesMenu: (absPath: string) => void
+  /** Copy text via Electron's clipboard — works even when the document isn't focused. */
+  clipboardWrite: (text: string) => void
   chatMenu: (chatId: string, workspaceId: string, cwd?: string | null) => void
   /** A worktree chat asked to be merged back and finished. */
   onChatMergeWorktree: (
@@ -475,6 +477,7 @@ const cove: CoveApi = {
   browserShoot: (id) => ipcRenderer.invoke('browser:shoot', id),
   browserShootTwin: () => ipcRenderer.invoke('browser:shoot-twin'),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
+  clipboardWrite: (text) => ipcRenderer.send('clipboard:write', text),
   chatMenu: (chatId, workspaceId, cwd) => ipcRenderer.send('chat:menu', chatId, workspaceId, cwd),
   onChatMergeWorktree: (cb) =>
     subscribe('chat:merge-worktree', (p) =>

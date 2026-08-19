@@ -162,6 +162,12 @@ app.whenReady().then(() => {
     nativeTheme.themeSource = source
   })
 
+  // Copy through Electron's own clipboard, not navigator.clipboard: the Web API
+  // rejects (silently) whenever the document isn't focused — which it often
+  // isn't here, since the native browser/simulator pane holds focus. This one
+  // always lands.
+  ipcMain.on('clipboard:write', (_e, text: string) => clipboard.writeText(text))
+
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })

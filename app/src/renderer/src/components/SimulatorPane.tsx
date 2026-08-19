@@ -237,7 +237,9 @@ export function SimulatorPane({
   const tappable = canInput
 
   /** Rendered position → device points, which is what the injector expects. */
-  const toDevice = (e: React.PointerEvent): { x: number; y: number; w: number; h: number } | null => {
+  const toDevice = (
+    e: React.PointerEvent
+  ): { x: number; y: number; w: number; h: number } | null => {
     const box = shotRef.current
     const size = frame
     if (!box || !size) return null
@@ -498,11 +500,7 @@ export function SimulatorPane({
           ↗
         </button>
         {onClose && (
-          <button
-            className="sim-btn sim-close"
-            title="Close the simulator"
-            onClick={onClose}
-          >
+          <button className="sim-btn sim-close" title="Close the simulator" onClick={onClose}>
             ✕
           </button>
         )}
@@ -520,7 +518,9 @@ export function SimulatorPane({
                   <button
                     className="sim-menu-item"
                     title={
-                      d.state === 'Booted' ? 'Mirror this simulator' : `Boot ${d.name} and mirror it`
+                      d.state === 'Booted'
+                        ? 'Mirror this simulator'
+                        : `Boot ${d.name} and mirror it`
                     }
                     onClick={() => void choose(d)}
                   >
@@ -539,9 +539,7 @@ export function SimulatorPane({
                     <button
                       className={`sim-menu-off ${shuttingDown === d.udid ? 'working' : ''}`}
                       title={
-                        shuttingDown === d.udid
-                          ? `Shutting down ${d.name}…`
-                          : `Shut down ${d.name}`
+                        shuttingDown === d.udid ? `Shutting down ${d.name}…` : `Shut down ${d.name}`
                       }
                       disabled={shuttingDown !== null}
                       onClick={(e) => {
@@ -634,7 +632,7 @@ export function SimulatorPane({
           <button
             className="sim-note-link"
             onClick={() => {
-              void navigator.clipboard.writeText('brew install baguette')
+              window.cove.clipboardWrite('brew install baguette')
               setCopied(true)
               setTimeout(() => setCopied(false), 1600)
             }}
