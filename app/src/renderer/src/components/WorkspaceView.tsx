@@ -35,6 +35,12 @@ export function WorkspaceView({
   // keyed by ws.id, so switching chats swaps what's shown, not who you're as.
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const deskKey = activeChatId ?? ws.id
+  // The native browser view is per CHAT (workspace::chat), so two conversations
+  // in one project don't share one pane — chat A can sit on a PDF while chat B is
+  // on a website. The partition (login/cookies) stays per workspace, so switching
+  // chats swaps the view, not who you're logged in as. workspaceIdFromPane strips
+  // the ::chat suffix wherever the workspace is what matters.
+  const browserPaneId = activeChatId ? `${ws.id}::${activeChatId}` : ws.id
   // Browser projects open with the preview showing by default.
   // A browser project auto-opens its pane — but not on a cold launch, so a fresh
   // start lands on the chat instead of a reloaded (often logged-out) live page.
@@ -107,9 +113,10 @@ export function WorkspaceView({
     <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
   ) : browserOpen ? (
     <BrowserPane
-      paneId={ws.id}
+      paneId={browserPaneId}
+      workspaceId={ws.id}
       // Browser projects share one session so a manual login carries across all
-      // of them; code previews stay isolated per workspace.
+      // of them; code previews stay isolated per workspace (but per-chat views).
       partition={ws.kind === 'browser' ? 'persist:browser' : `persist:ws-${ws.id}`}
       initialUrl={
         ws.browserUrl ??
@@ -155,8 +162,8 @@ export function WorkspaceView({
   // Otherwise a pane opened transiently (e.g. the agent browsing) can linger,
   // floating over the chat instead of sitting closed.
   useEffect(() => {
-    if (!paneOpen) window.cove.browserHide(ws.id)
-  }, [paneOpen, ws.id])
+    if (!paneOpen) window.cove.browserHide(browserPaneId)
+  }, [paneOpen, browserPaneId])
   // The project's conversations, and whichever one is on screen (activeChatId is
   // read up top, where it drives deskKey).
   const chats = useStore((s) => s.chats[ws.id])
@@ -182,7 +189,7 @@ export function WorkspaceView({
   // The URL we last asked the pane to load — synchronous, so it's right even
   // before the pane reports back. Used to tell a document (a PDF/image opened
   // from the tree, file://) apart from a live web/localhost preview.
-  const paneUrl = useStore((s) => s.previewUrls[ws.id] ?? '')
+  const paneUrl = useStore((s) => s.previewUrls[browserPaneId] ?? '')
   // Current git branch, for code projects only (browser projects have no repo).
   const [branch, setBranch] = useState<string | null>(null)
   useEffect(() => {
