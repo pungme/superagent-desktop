@@ -91,6 +91,17 @@ function deskKey(s: { activeChatId: Record<string, string> }, id: string): strin
   return s.activeChatId[id] ?? id
 }
 
+/**
+ * The key of a workspace's browser VIEW — `workspace::chat`, so each conversation
+ * drives its own native pane (chat A on a PDF, chat B on a website) while sharing
+ * the workspace's login. Matches the paneId WorkspaceView renders and the agent's
+ * MCP PANE_ID. Falls back to the workspace id before a chat is selected.
+ */
+function browserKey(s: { activeChatId: Record<string, string> }, workspaceId: string): string {
+  const c = s.activeChatId[workspaceId]
+  return c ? `${workspaceId}::${c}` : workspaceId
+}
+
 // Whether the browser pane is open per workspace. Kept only in memory: a cold
 // app start always lands on the chat with the pane closed, so we never reopen a
 // logged-out site as a floating login card. Within a session the map persists as
@@ -514,16 +525,17 @@ export const useStore = create<CoveState>((set, get) => ({
     })
     const focusWs = get().resolveWorkspace(workspaceId)
     set((s) => {
-      // Visibility (browserOpen) is per chat; the URL to load is a property of
-      // the shared per-workspace pane, so previewUrls stays keyed by workspace.
+      // Visibility (browserOpen) is per chat; the URL to load is per chat's VIEW
+      // (workspace::chat), so opening a preview in one chat doesn't change another.
       const key = deskKey(s, workspaceId)
+      const view = browserKey(s, workspaceId)
       localStorage.setItem(`paneOpen:${key}`, '1')
       const browserOpen = { ...s.browserOpen, [key]: true }
       return {
         ...(focusWs ? { activeWorkspaceId: focusWs } : {}),
         browserOpen,
         coldStart: false,
-        previewUrls: { ...s.previewUrls, [workspaceId]: `http://localhost:${port}` },
+        previewUrls: { ...s.previewUrls, [view]: `http://localhost:${port}` },
         toast: null
       }
     })
@@ -532,6 +544,7 @@ export const useStore = create<CoveState>((set, get) => ({
     const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => {
       const key = deskKey(s, workspaceId)
+      const view = browserKey(s, workspaceId)
       localStorage.setItem(`paneOpen:${key}`, '1')
       const browserOpen = { ...s.browserOpen, [key]: true }
       // The viewer and the pane are the same slot, and the viewer wins it. A
@@ -544,7 +557,7 @@ export const useStore = create<CoveState>((set, get) => ({
         browserOpen,
         coldStart: false,
         openFile: { ...s.openFile, [key]: null },
-        previewUrls: { ...s.previewUrls, [workspaceId]: url },
+        previewUrls: { ...s.previewUrls, [view]: url },
         toast: null
       }
     })
@@ -566,17 +579,21 @@ export const useStore = create<CoveState>((set, get) => ({
     let timer: ReturnType<typeof setTimeout> | null = null
     window.cove.onBrowserActivity((paneId) => {
       // Routine runs drive an offscreen pane ("<workspaceId>::routine") — ignore
-      // those; they must never steal the viewport or flip a panel open.
-      if (paneId.includes('::')) return
-      const workspaceId = paneId
+      // those; they must never steal the viewport or flip a panel open. Note the
+      // suffix check is ::routine specifically: a per-chat pane is also
+      // "<workspace>::<chatId>", and that one we DO want to reveal.
+      if (paneId.endsWith('::routine')) return
+      // paneId is "<workspace>::<chatId>" for a per-chat view (or bare workspace).
+      const workspaceId = paneId.split('::')[0]
+      const chatId = paneId.split('::')[1]
       set({ browsingWorkspaceId: workspaceId })
       // The agent is driving the in-app browser — reveal the preview pane if it's
       // hidden (e.g. a code project) so the user can watch what it's doing.
       const s = get()
       const known = s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))
-      // Reveal for the chat the user is looking at (surfaces are per chat); the
-      // pane itself is shared per workspace, so whichever chat is active adopts it.
-      const key = deskKey(s, workspaceId)
+      // Reveal for the SPECIFIC chat whose agent is browsing (its own view), not
+      // whichever chat happens to be active.
+      const key = chatId ?? workspaceId
       if (known && !s.browserOpen[key]) {
         // Persist too — an agent-opened pane must survive restarts exactly like
         // a user-opened one (this was the hole: agent panes vanished on update).
@@ -589,14 +606,19 @@ export const useStore = create<CoveState>((set, get) => ({
     })
     // Cold start: the agent navigated the browser before the preview was open.
     // Reveal it (and focus the project) so the pane gets created and the page shows.
-    window.cove.onBrowserRequestOpen((workspaceId) => {
+    window.cove.onBrowserRequestOpen((paneId) => {
+      // The broadcast carries the agent's pane id — "<workspace>::<chatId>" for a
+      // per-chat view (or a bare workspace). Split it: the workspace is what the
+      // tree and activeWorkspaceId want; the chat is what browserOpen keys on.
+      const workspaceId = paneId.split('::')[0]
+      const chatId = paneId.split('::')[1]
       const s = get()
       if (!s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))) return
       // Always reveal the pane so the page is ready when the user looks. Only pull
       // the user to this workspace when the app is actually frontmost — a
       // background agent must never yank the view while they're in another app.
       const focused = document.hasFocus()
-      const key = deskKey(s, workspaceId)
+      const key = chatId ?? workspaceId
       // Persist here too. This handler runs BEFORE any browser:activity event
       // and marks the pane open in memory — which made the activity listener's
       // "not open yet" persist guard skip, so agent-opened panes still vanished

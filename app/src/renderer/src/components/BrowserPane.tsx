@@ -5,6 +5,10 @@ import { interpretOmnibox } from '../lib/omnibox'
 
 interface BrowserPaneProps {
   paneId: string
+  /** The workspace this pane belongs to. paneId may be workspace::chat (per-chat
+      views), so workspace-level things (saved URL, sidebar badge, the browsing
+      indicator) key off this, not paneId. Defaults to paneId when omitted. */
+  workspaceId?: string
   partition: string
   initialUrl?: string
   visible?: boolean
@@ -132,6 +136,7 @@ const PANE_RADIUS = 10
 
 export function BrowserPane({
   paneId,
+  workspaceId: workspaceIdProp,
   partition,
   initialUrl,
   visible = true,
@@ -142,6 +147,9 @@ export function BrowserPane({
   radius = 0
 }: BrowserPaneProps): React.JSX.Element {
   const toggleBrowser = useStore((s) => s.toggleBrowser)
+  // paneId is workspace::chat for per-chat views; the workspace is the part
+  // before '::'. Used for sidebar/browsing/saved-URL, which are per project.
+  const workspaceId = workspaceIdProp ?? paneId.split('::')[0]
   const previewUrl = useStore((s) => s.previewUrls[paneId])
   /**
    * The latest requested URL, for the create callback below. `initialUrl` is
@@ -151,9 +159,11 @@ export function BrowserPane({
    * page you just asked for with the one before it.
    */
   const previewUrlRef = useRef<string | undefined>(previewUrl)
-  const reloadOnIdle = useStore((s) => s.reloadOnIdle[paneId] ?? true)
+  // Auto-reload is a per-project preference (the idle-reload logic keys off the
+  // workspace), so read/toggle it by workspace, not the per-chat pane id.
+  const reloadOnIdle = useStore((s) => s.reloadOnIdle[workspaceId] ?? true)
   const setReloadOnIdle = useStore((s) => s.setReloadOnIdle)
-  const browsing = useStore((s) => s.browsingWorkspaceId === paneId)
+  const browsing = useStore((s) => s.browsingWorkspaceId === workspaceId)
   const stopBrowsing = useStore((s) => s.stopBrowsing)
   const hostRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -168,9 +178,9 @@ export function BrowserPane({
   // and whether or not anything of ours started a server for it.
   const setPageUrl = useStore((s) => s.setPageUrl)
   useEffect(() => {
-    setPageUrl(paneId, state.url || '')
-    return () => setPageUrl(paneId, '')
-  }, [paneId, state.url, setPageUrl])
+    setPageUrl(workspaceId, state.url || '')
+    return () => setPageUrl(workspaceId, '')
+  }, [workspaceId, state.url, setPageUrl])
   const [crashed, setCrashed] = useState(false)
   const [zoom, setZoom] = useState(1)
   // Host-relative rect of the simulated device screen, so an HTML card can sit
@@ -577,7 +587,7 @@ export function BrowserPane({
   useEffect(() => {
     if (!/^https?:\/\//i.test(state.url)) return
     const t = setTimeout(() => {
-      window.cove.updateWorkspace(paneId, { browserUrl: state.url })
+      window.cove.updateWorkspace(workspaceId, { browserUrl: state.url })
     }, 1000)
     return () => clearTimeout(t)
   }, [state.url, paneId])
@@ -801,7 +811,7 @@ export function BrowserPane({
         )}
         <button
           className={`browser-nav-btn ${reloadOnIdle ? 'on' : ''}`}
-          onClick={() => setReloadOnIdle(paneId, !reloadOnIdle)}
+          onClick={() => setReloadOnIdle(workspaceId, !reloadOnIdle)}
           title={reloadOnIdle ? 'Auto-reload when Claude finishes: on' : 'Auto-reload: off'}
         >
           ↻

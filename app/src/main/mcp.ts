@@ -72,7 +72,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
    * The desktop chat is not a project — it is the computer's own agent, and the
    * things it drives are the desktop's, not a workspace's.
    */
-  const isDesktop = PANE_ID === DESKTOP_WORKSPACE_ID
+  // PANE_ID may now carry a chat suffix (workspace::chat) so each conversation
+  // drives its own browser view — so compare the workspace part, not the raw id.
+  const isDesktop = workspaceIdFromPane(PANE_ID) === DESKTOP_WORKSPACE_ID
 
   /**
    * Which browser the browser_* tools drive.
@@ -1041,15 +1043,21 @@ export function startMcpServer(): Promise<{ url: string }> {
     try {
       // Scope tools to the workspace named in ?ws=<id> (always present — see writeWorkspaceMcpConfig).
       const params = new URL(req.url, 'http://127.0.0.1').searchParams
-      const paneId = params.get('ws')
+      const ws = params.get('ws')
       // Present when the session belongs to a chat; absent for routines, which
       // have no conversation to point a card back at.
       const chatId = params.get('chat')
-      if (!paneId) {
+      if (!ws) {
         res.writeHead(400, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'missing ws param' }))
         return
       }
+      // Each chat drives its OWN browser view (workspace::chat), so two chats in
+      // one project don't fight over a single shared pane. The desktop keeps its
+      // own tabbed browser, so it stays on the bare workspace id. workspaceIdFrom-
+      // Pane() strips the chat suffix wherever the workspace itself is needed
+      // (board cards, reveal broadcasts).
+      const paneId = chatId && ws !== DESKTOP_WORKSPACE_ID ? `${ws}::${chatId}` : ws
       // Stateless mode: fresh server+transport per request, no session tracking.
       const server = buildServer(paneId, chatId)
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
