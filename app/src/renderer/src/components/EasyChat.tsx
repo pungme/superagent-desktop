@@ -301,7 +301,7 @@ const BG_SHELL_ID_RE = /(?:ID|bash_id|shell)[:\s]+([A-Za-z0-9_-]+)/i
 // the strip shows live output without waiting for the agent to poll the shell.
 const BG_OUTFILE_RE = /written to:\s*(\S+\.output)/i
 const BG_DONE_RE =
-  /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b/i
+  /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b|exited? with code\s*-?\d+/i
 
 /**
  * When a message arrived. Transcripts saved before this field existed have no
@@ -820,14 +820,24 @@ export function EasyChat({
     }, 1000)
     return () => window.clearInterval(t)
   }, [hasExpiring])
+  // Tail each backgrounded task's output file: keep its live output fresh AND
+  // retire it once the file shows it finished ("[exited with code N]", or a
+  // completed/failed/killed status). Runs whenever there's a file to watch — not
+  // only while the strip's menu is open — so a job that ends clears its own pill
+  // instead of sitting on "running" forever.
+  const hasOutfile = bgTasks.some((t) => t.outputPath)
   useEffect(() => {
-    if (!bgOpen) return
+    if (!bgOpen && !hasOutfile) return
     let alive = true
     const tick = async (): Promise<void> => {
       const paths = bgTasksRef.current.filter((t) => t.outputPath)
       for (const t of paths) {
         const text = await window.cove.bgTail?.(t.outputPath!, 8000)
         if (!alive || typeof text !== 'string') continue
+        if (BG_DONE_RE.test(text)) {
+          setBgTasks((prev) => prev.filter((p) => p.toolUseId !== t.toolUseId))
+          continue
+        }
         setBgTasks((prev) =>
           prev.map((p) =>
             p.toolUseId === t.toolUseId ? { ...p, output: text.trim(), outputAt: Date.now() } : p
@@ -841,7 +851,7 @@ export function EasyChat({
       alive = false
       clearInterval(timer)
     }
-  }, [bgOpen])
+  }, [bgOpen, hasOutfile])
   // Context consumed by the last turn (input + cache tokens) — a quiet running
   // gauge of how full the conversation is.
   const [ctxTokens, setCtxTokens] = useState<number | null>(null)
