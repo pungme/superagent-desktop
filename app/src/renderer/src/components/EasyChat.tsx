@@ -2631,7 +2631,7 @@ export function EasyChat({
                   <button
                     className="easy-msg-copy"
                     title="Copy"
-                    onClick={() => navigator.clipboard.writeText(row.msg.text)}
+                    onClick={() => window.cove.clipboardWrite(row.msg.text)}
                   >
                     Copy
                   </button>

@@ -44,7 +44,7 @@ hljs.registerAliases(['yml'], { languageName: 'yaml' })
 function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
   const copy = (): void => {
-    navigator.clipboard.writeText(code)
+    window.cove.clipboardWrite(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 1400)
   }
