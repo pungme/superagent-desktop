@@ -190,6 +190,18 @@ export function WorkspaceView({
   // before the pane reports back. Used to tell a document (a PDF/image opened
   // from the tree, file://) apart from a live web/localhost preview.
   const paneUrl = useStore((s) => s.previewUrls[browserPaneId] ?? '')
+  // When the pane is showing a local document (a PDF/image opened from the tree),
+  // its file name — so the toolbar names what you're looking at instead of a bare
+  // "page". Empty for a real web/localhost page.
+  const docName = ((): string => {
+    const u = attachedUrl || paneUrl
+    if (!u.startsWith('file:')) return ''
+    try {
+      return decodeURIComponent(u.split(/[?#]/)[0].split('/').pop() || '')
+    } catch {
+      return ''
+    }
+  })()
   // Current git branch, for code projects only (browser projects have no repo).
   const [branch, setBranch] = useState<string | null>(null)
   useEffect(() => {
@@ -439,7 +451,15 @@ export function WorkspaceView({
         {/* A site attached to this project that is not one of our dev servers —
             the chip was only ever about localhost, so a project sitting on a
             real site said nothing at all up here. */}
-        {ws.kind !== 'browser' && ports.length === 0 && attachedUrl && (
+        {/* Showing a local document (PDF/image): name the file so you know what's
+            in the pane, not a bare "page". Shown regardless of a dev server. */}
+        {ws.kind !== 'browser' && docName && (
+          <span className="workspace-server attached workspace-doc" title={docName}>
+            <span className="workspace-doc-icon">📄</span>
+            <span className="workspace-doc-name">{docName}</span>
+          </span>
+        )}
+        {ws.kind !== 'browser' && !docName && ports.length === 0 && attachedUrl && (
           <span className="workspace-server attached" title={attachedUrl}>
             <span className="workspace-server-dot" />
             {hostOf(attachedUrl) || 'page'}

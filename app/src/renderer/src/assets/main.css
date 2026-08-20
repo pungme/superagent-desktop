@@ -7987,3 +7987,22 @@ button {
   color: var(--text-secondary);
   line-height: 1.5;
 }
+
+/* The filename chip when a local document (PDF/image) is open in the pane. Caps
+   its width so a long name doesn't shove the toolbar around; the full name is in
+   the title/hover. */
+.workspace-doc {
+  max-width: 260px;
+  overflow: hidden;
+  padding-left: 8px;
+}
+.workspace-doc-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-doc-icon {
+  font-size: 10px;
+  flex-shrink: 0;
+  line-height: 1;
+}
