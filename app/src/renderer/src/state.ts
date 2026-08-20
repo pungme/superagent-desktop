@@ -216,6 +216,9 @@ interface CoveState {
   setReloadOnIdle: (workspaceId: string, v: boolean) => void
 
   browsingWorkspaceId: string | null
+  /** The full pane id (workspace::chat) the agent is browsing — what the Stop
+      button must target, since automation is keyed by pane, not workspace. */
+  browsingPaneId: string | null
   stopBrowsing: () => void
   startBrowsingListener: () => void
 
@@ -383,6 +386,7 @@ export const useStore = create<CoveState>((set, get) => ({
   previewDirty: {},
   toast: null,
   browsingWorkspaceId: null,
+  browsingPaneId: null,
   chats: {},
   activeChatId: {},
   agentIds: {},
@@ -571,9 +575,11 @@ export const useStore = create<CoveState>((set, get) => ({
     ),
 
   stopBrowsing: () => {
-    const id = get().browsingWorkspaceId
+    // Stop the exact pane the agent is driving (workspace::chat) — stopping by
+    // workspace id would miss a per-chat pane and the automation would carry on.
+    const id = get().browsingPaneId
     if (id) window.cove.browserStopAutomation(id)
-    set({ browsingWorkspaceId: null })
+    set({ browsingWorkspaceId: null, browsingPaneId: null })
   },
   startBrowsingListener: () => {
     let timer: ReturnType<typeof setTimeout> | null = null
@@ -586,7 +592,7 @@ export const useStore = create<CoveState>((set, get) => ({
       // paneId is "<workspace>::<chatId>" for a per-chat view (or bare workspace).
       const workspaceId = paneId.split('::')[0]
       const chatId = paneId.split('::')[1]
-      set({ browsingWorkspaceId: workspaceId })
+      set({ browsingWorkspaceId: workspaceId, browsingPaneId: paneId })
       // The agent is driving the in-app browser — reveal the preview pane if it's
       // hidden (e.g. a code project) so the user can watch what it's doing.
       const s = get()
@@ -602,7 +608,7 @@ export const useStore = create<CoveState>((set, get) => ({
       }
       if (timer) clearTimeout(timer)
       // Auto-clear the indicator a few seconds after the last tool call.
-      timer = setTimeout(() => set({ browsingWorkspaceId: null }), 4000)
+      timer = setTimeout(() => set({ browsingWorkspaceId: null, browsingPaneId: null }), 4000)
     })
     // Cold start: the agent navigated the browser before the preview was open.
     // Reveal it (and focus the project) so the pane gets created and the page shows.

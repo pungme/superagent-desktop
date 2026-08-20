@@ -121,7 +121,9 @@ export function WorkspaceView({
       initialUrl={
         ws.browserUrl ??
         (ws.kind !== 'browser'
-          ? (localStorage.getItem(`paneUrl:${ws.id}`) ?? undefined)
+          ? // Per-chat view, so restore THIS chat's last page (the pane writes
+            // paneUrl:<workspace::chat>); falls back to undefined for a fresh chat.
+            (localStorage.getItem(`paneUrl:${browserPaneId}`) ?? undefined)
           : undefined)
       }
       visible={visible}
