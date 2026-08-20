@@ -383,6 +383,10 @@ export interface CoveApi {
     loggedIn: boolean
   }>
   envVersion: () => Promise<{ claudeInstalled: boolean; claudeVersion: string | null }>
+  /** Install Claude Code via Anthropic's native installer; onLine streams progress. */
+  installClaude: (onLine: (line: string) => void) => Promise<{ ok: boolean; error?: string }>
+  /** Open Terminal running `claude` for the one-time sign-in. */
+  openClaudeLogin: () => void
   filesList: (root: string) => Promise<string[]>
   /** A downscaled data URI for an image on disk, or null if it isn't one. */
   filesThumb: (path: string) => Promise<string | null>
@@ -626,6 +630,14 @@ const cove: CoveApi = {
 
   envDetect: () => ipcRenderer.invoke('env:detect'),
   envVersion: () => ipcRenderer.invoke('env:version'),
+  installClaude: (onLine) => {
+    const listener = (_e: Electron.IpcRendererEvent, line: string): void => onLine(line)
+    ipcRenderer.on('env:install-progress', listener)
+    return ipcRenderer
+      .invoke('env:install-claude')
+      .finally(() => ipcRenderer.removeListener('env:install-progress', listener))
+  },
+  openClaudeLogin: () => ipcRenderer.send('env:open-login'),
   filesList: (root) => ipcRenderer.invoke('files:list', root),
   filesThumb: (path) => ipcRenderer.invoke('files:thumb', path),
   filesOpenExternal: (path) => ipcRenderer.invoke('files:openExternal', path),
