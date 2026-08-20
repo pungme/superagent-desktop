@@ -830,7 +830,7 @@ export function BrowserPane({
             className="browser-nav-btn browser-close-btn"
             // This button only exists while the pane is on screen, so the
             // current state is not in doubt: it is open, and this closes it.
-            onClick={() => toggleBrowser(paneId, true)}
+            onClick={() => toggleBrowser(workspaceId, true)}
             title="Close this preview pane"
           >
             ✕
