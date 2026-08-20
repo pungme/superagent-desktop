@@ -103,8 +103,11 @@ export function startHookServer(): Promise<string> {
         const n = new Notification({
           title: name ? `Claude is done — ${name}` : 'SuperAgent — Claude is done',
           subtitle: about,
-          // The reply's opening line is the closest thing to "what happened".
-          body: reply || (about ? 'Finished its turn.' : 'Your agent finished its work.')
+          // The reply's opening line is the closest thing to "what happened";
+          // when there's none (a turn that ended on tool calls, say), invite the
+          // click rather than saying "finished its turn", which means nothing to
+          // a person.
+          body: reply || 'Tap to see what it did.'
         })
         n.on('click', () => {
           const win = BrowserWindow.getAllWindows()[0]
