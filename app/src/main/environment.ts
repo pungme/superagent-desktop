@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron'
+import { ipcMain, WebContents } from 'electron'
+import { spawn } from 'child_process'
 import { loginShellExec, loginShellExecAsync } from './claude-cli'
 
 /**
@@ -72,6 +73,52 @@ export function detectEnvironment(): EnvStatus {
   return { claudeInstalled, claudeVersion, loggedIn }
 }
 
+/**
+ * Install Claude Code for the user via Anthropic's native installer — a
+ * standalone binary into ~/.local/bin, so it needs no Node/npm (the whole point
+ * for a non-dev first run). Streams progress lines back so onboarding can show
+ * what's happening. Runs in a login shell so PATH/curl resolve normally.
+ */
+export function installClaude(
+  onLine: (line: string) => void
+): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const shell = process.env.SHELL || '/bin/zsh'
+    const proc = spawn(shell, ['-lc', 'curl -fsSL https://claude.ai/install.sh | bash'], {
+      env: process.env
+    })
+    let err = ''
+    proc.stdout.on('data', (d) => onLine(d.toString()))
+    proc.stderr.on('data', (d) => {
+      const t = d.toString()
+      err += t
+      onLine(t)
+    })
+    proc.on('error', (e) => resolve({ ok: false, error: e.message }))
+    proc.on('exit', (code) => {
+      // Force a fresh probe so the onboarding re-check sees the new binary.
+      versionCache = null
+      resolve(
+        code === 0 ? { ok: true } : { ok: false, error: err.slice(-400).trim() || `exited ${code}` }
+      )
+    })
+  })
+}
+
+/**
+ * Open Terminal and run `claude` for the one-time interactive sign-in — the auth
+ * flow is a TUI/browser handshake we can't do silently, but this makes it a
+ * single click instead of "open your terminal and type this".
+ */
+export function openClaudeLogin(): void {
+  spawn('osascript', [
+    '-e',
+    'tell application "Terminal" to activate',
+    '-e',
+    'tell application "Terminal" to do script "claude"'
+  ])
+}
+
 export function registerEnvironmentIpc(): void {
   ipcMain.handle('env:detect', () => detectEnvironment())
   // Async + cached — the sync variant blocked main for the shell + CLI startup,
@@ -79,4 +126,13 @@ export function registerEnvironmentIpc(): void {
   ipcMain.handle('env:version', () => detectVersionAsync())
   // Warm the cache off the startup path so even the first Settings open is instant.
   void detectVersionAsync()
+
+  // Install Claude Code, streaming progress to the caller's window.
+  ipcMain.handle('env:install-claude', (e) =>
+    installClaude((line) => {
+      const wc = e.sender as WebContents
+      if (!wc.isDestroyed()) wc.send('env:install-progress', line)
+    })
+  )
+  ipcMain.on('env:open-login', () => openClaudeLogin())
 }

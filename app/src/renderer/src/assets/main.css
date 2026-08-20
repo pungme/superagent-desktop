@@ -8006,3 +8006,53 @@ button {
   flex-shrink: 0;
   line-height: 1;
 }
+
+/* Onboarding: one-click install / sign-in button + progress. */
+.onboarding-install-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.onboarding-install-btn:hover {
+  filter: brightness(1.08);
+}
+.onboarding-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.onboarding-install-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.onboarding-spinner {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong, #ccc);
+  border-top-color: var(--accent, #4f46e5);
+  animation: onboarding-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes onboarding-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.onboarding-install-error {
+  display: block;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--danger, #d9534f);
+}

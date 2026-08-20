@@ -9,12 +9,40 @@ type EnvStatus = { claudeInstalled: boolean; claudeVersion: string | null; logge
 export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
   const [env, setEnv] = useState<EnvStatus | null>(null)
   const [checking, setChecking] = useState(true)
+  const [installing, setInstalling] = useState(false)
+  // The latest line of installer output, shown as a live status.
+  const [installLine, setInstallLine] = useState('')
+  const [installError, setInstallError] = useState<string | null>(null)
 
   const check = async (): Promise<void> => {
     setChecking(true)
     const status = await window.cove.envDetect()
     setEnv(status)
     setChecking(false)
+  }
+
+  // One-click install via Anthropic's native installer (no npm needed), then
+  // re-check so the step flips to ✓.
+  const install = async (): Promise<void> => {
+    setInstalling(true)
+    setInstallError(null)
+    setInstallLine('Downloading Claude Code…')
+    try {
+      const res = await window.cove.installClaude((line) => {
+        const last = line.trim().split('\n').filter(Boolean).pop()
+        if (last) setInstallLine(last.slice(0, 120))
+      })
+      if (res.ok) {
+        setInstallLine('Installed. Checking…')
+        await check()
+      } else {
+        setInstallError(res.error || 'Install failed.')
+      }
+    } catch (e) {
+      setInstallError(e instanceof Error ? e.message : 'Install failed.')
+    } finally {
+      setInstalling(false)
+    }
   }
 
   // Runs once on mount; `checking` already starts true, so we fetch without
@@ -79,10 +107,24 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
                 <span>Version {env.claudeVersion}</span>
               ) : checking ? (
                 <span>Checking…</span>
+              ) : installing ? (
+                <span className="onboarding-install-progress">
+                  <span className="onboarding-spinner" /> {installLine || 'Installing…'}
+                </span>
               ) : (
                 <span>
-                  Not found. Install it, then re-check:
-                  <code>npm install -g @anthropic-ai/claude-code</code>
+                  Not found — install it in one click (no terminal needed).
+                  <button className="onboarding-install-btn" onClick={install}>
+                    Install Claude Code
+                  </button>
+                  {installError && (
+                    <span className="onboarding-install-error">
+                      {installError}
+                      <br />
+                      Or run it yourself:{' '}
+                      <code>curl -fsSL https://claude.ai/install.sh | bash</code>
+                    </span>
+                  )}
                 </span>
               )}
             </div>
@@ -100,8 +142,16 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
                 <span>You&rsquo;re signed in and ready.</span>
               ) : env?.claudeInstalled ? (
                 <span>
-                  Open your terminal, run <code>claude</code> once, and follow the sign-in — it
-                  needs a Claude Pro/Max plan or API credits. Then re-check.
+                  Sign in once with a Claude Pro/Max plan or API credits, then re-check.
+                  <button
+                    className="onboarding-install-btn"
+                    onClick={() => window.cove.openClaudeLogin()}
+                  >
+                    Sign in
+                  </button>
+                  <span className="onboarding-hint">
+                    Opens Terminal running <code>claude</code> — follow the prompts, then Re-check.
+                  </span>
                 </span>
               ) : (
                 <span>Install Claude Code first.</span>
