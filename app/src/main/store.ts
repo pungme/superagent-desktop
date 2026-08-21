@@ -118,6 +118,22 @@ export function initStore(): void {
       updatedAt INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_cards_ws ON cards(workspaceId, status, position);
+    -- The Computer's Calendar app. Standalone (not per project) — it's the
+    -- desktop's own calendar, like a real machine has one.
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      -- ISO 8601. All-day events store a date (YYYY-MM-DD); timed events store a
+      -- full local datetime (YYYY-MM-DDTHH:mm).
+      start TEXT NOT NULL,
+      end TEXT,
+      allDay INTEGER NOT NULL DEFAULT 0,
+      notes TEXT NOT NULL DEFAULT '',
+      color TEXT,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start);
   `)
 
   // Migration: pictures on a list item, for databases that predate them.
@@ -849,6 +865,89 @@ export function removeCard(id: string): void {
   db.prepare('DELETE FROM cards WHERE id = ?').run(id)
 }
 
+export interface CalendarEvent {
+  id: string
+  title: string
+  start: string
+  end: string | null
+  allDay: boolean
+  notes: string
+  color: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+function hydrateEvent(row: unknown): CalendarEvent {
+  const r = row as Omit<CalendarEvent, 'allDay'> & { allDay: number }
+  return { ...r, allDay: !!r.allDay }
+}
+
+/** Events whose day overlaps [from, to) (ISO date strings), for a month view. */
+export function listCalendarEvents(from?: string, to?: string): CalendarEvent[] {
+  // Compare on the date portion so a timed event still matches its day.
+  const rows =
+    from && to
+      ? db
+          .prepare(
+            "SELECT * FROM calendar_events WHERE substr(start,1,10) < ? AND substr(COALESCE(end,start),1,10) >= ? ORDER BY start ASC"
+          )
+          .all(to, from)
+      : db.prepare('SELECT * FROM calendar_events ORDER BY start ASC').all()
+  return (rows as unknown[]).map(hydrateEvent)
+}
+
+export function addCalendarEvent(e: {
+  title: string
+  start: string
+  end?: string | null
+  allDay?: boolean
+  notes?: string
+  color?: string | null
+}): CalendarEvent {
+  const now = Date.now()
+  const ev: CalendarEvent = {
+    id: randomUUID(),
+    title: e.title.trim().slice(0, 200) || 'Untitled event',
+    start: e.start,
+    end: e.end ?? null,
+    allDay: !!e.allDay,
+    notes: (e.notes ?? '').slice(0, 4000),
+    color: e.color ?? null,
+    createdAt: now,
+    updatedAt: now
+  }
+  db.prepare(
+    `INSERT INTO calendar_events (id, title, start, end, allDay, notes, color, createdAt, updatedAt)
+     VALUES (@id, @title, @start, @end, @allDay, @notes, @color, @createdAt, @updatedAt)`
+  ).run({ ...ev, allDay: ev.allDay ? 1 : 0 })
+  return ev
+}
+
+export function updateCalendarEvent(
+  id: string,
+  patch: Partial<Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>>
+): CalendarEvent | undefined {
+  const row = db.prepare('SELECT * FROM calendar_events WHERE id = ?').get(id)
+  if (!row) return undefined
+  const cur = hydrateEvent(row)
+  const next: CalendarEvent = {
+    ...cur,
+    ...patch,
+    title: patch.title === undefined ? cur.title : patch.title.trim().slice(0, 200) || cur.title,
+    notes: patch.notes === undefined ? cur.notes : patch.notes.slice(0, 4000),
+    updatedAt: Date.now()
+  }
+  db.prepare(
+    `UPDATE calendar_events SET title=@title, start=@start, end=@end, allDay=@allDay,
+     notes=@notes, color=@color, updatedAt=@updatedAt WHERE id=@id`
+  ).run({ ...next, allDay: next.allDay ? 1 : 0 })
+  return next
+}
+
+export function removeCalendarEvent(id: string): void {
+  db.prepare('DELETE FROM calendar_events WHERE id = ?').run(id)
+}
+
 export function registerStoreIpc(): void {
   initStore()
 
@@ -918,6 +1017,12 @@ export function registerStoreIpc(): void {
       return null
     }
   })
+  ipcMain.handle('calendar:list', (_e, from?: string, to?: string) =>
+    listCalendarEvents(from, to)
+  )
+  ipcMain.handle('calendar:add', (_e, e) => addCalendarEvent(e))
+  ipcMain.handle('calendar:update', (_e, id: string, patch) => updateCalendarEvent(id, patch))
+  ipcMain.handle('calendar:remove', (_e, id: string) => removeCalendarEvent(id))
   ipcMain.handle('board:remove', (_e, id: string) => {
     // Read the owner before the row goes away, or there is nothing left to name.
     const ws = ownerOf(id)
