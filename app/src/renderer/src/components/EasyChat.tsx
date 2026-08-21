@@ -1749,19 +1749,29 @@ export function EasyChat({
                   .slice(0, 200) +
                 ')'
               : ''
-          setItems((prev) => [
-            ...prev,
-            {
-              kind: 'msg',
-              msg: {
-                id: `sys-${Date.now()}`,
-                at: Date.now(),
-                role: 'assistant',
-                text: `⚠ ${note}${detail}`,
-                system: true
-              }
+          const noteText = `⚠ ${note}${detail}`
+          setItems((prev) => {
+            // Don't stack the same notice twice in a row. A flaky session can end
+            // several turns the same empty way; one bubble reads as a state, a
+            // column of identical bubbles reads as broken.
+            const last = prev[prev.length - 1]
+            if (last?.kind === 'msg' && last.msg.system && last.msg.text === noteText) {
+              return prev
             }
-          ])
+            return [
+              ...prev,
+              {
+                kind: 'msg',
+                msg: {
+                  id: `sys-${Date.now()}`,
+                  at: Date.now(),
+                  role: 'assistant',
+                  text: noteText,
+                  system: true
+                }
+              }
+            ]
+          })
         }
         streamedThisTurnRef.current = false
       }
