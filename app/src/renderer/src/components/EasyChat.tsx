@@ -2495,15 +2495,16 @@ export function EasyChat({
    * How much of Claude's memory this conversation fills. The window depends on
    * the model running — read from the id it reports at startup.
    *
-   * Opus 5 is a 1M-context model whether or not the id carries the [1m] tag:
-   * a session was measured working with 376K tokens in it, which cannot fit a
-   * 200K window and still run, so plain claude-opus-5 was under-reported as
-   * 200K and the gauge sat pinned at 100% on a conversation using a third of
-   * its room. The [1m] tag still forces 1M for the models that offer it as a
-   * choice (Sonnet), and everything else is the 200K baseline.
+   * Opus 5 and Fable 5 are 1M-context models whether or not the id carries the
+   * [1m] tag: sessions were measured running with far more than 200K tokens in
+   * them (376K on Opus, 846K on Fable), which cannot fit a 200K window and still
+   * run — so plain claude-opus-5 / claude-fable-5 were under-reported as 200K and
+   * the gauge sat pinned at 100% on a conversation using a fraction of its room.
+   * The [1m] tag still forces 1M for the models that offer it as a choice
+   * (Sonnet), and everything else is the 200K baseline.
    */
   const ctxWindow =
-    activeModel && (/\[1m\]/i.test(activeModel) || /opus-?5|opus\b/i.test(activeModel))
+    activeModel && (/\[1m\]/i.test(activeModel) || /opus-?5|opus\b|fable/i.test(activeModel))
       ? 1_000_000
       : 200_000
   const ctxPercent = Math.min(100, Math.round(((ctxTokens ?? 0) / ctxWindow) * 100))
