@@ -5,6 +5,7 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
+import { GuardrailPrompt } from './components/GuardrailPrompt'
 import { ComputerPanel } from './components/ComputerPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
@@ -393,6 +394,7 @@ function App(): React.JSX.Element {
       <PreviewToast />
       <UpdateBanner />
       <IntroSplash />
+      <GuardrailPrompt />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )

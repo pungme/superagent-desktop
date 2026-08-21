@@ -4,15 +4,28 @@ import { mergeCoveHooks, removeCoveHooks } from './hooks'
 const SCRIPT = '/Users/x/Library/Application Support/SuperAgent/cove-hook.sh'
 
 describe('mergeCoveHooks', () => {
-  it('adds all five events to an empty settings object', () => {
+  it('adds all events to an empty settings object', () => {
     const out = mergeCoveHooks({}, SCRIPT)
     expect(Object.keys(out.hooks!)).toEqual([
       'SessionStart',
       'UserPromptSubmit',
       'Notification',
       'Stop',
-      'SubagentStop'
+      'SubagentStop',
+      'PreToolUse'
     ])
+  })
+
+  it('installs the PreToolUse gate with a matcher and stays idempotent', () => {
+    const out = mergeCoveHooks({}, SCRIPT)
+    const pre = out.hooks!.PreToolUse as Array<{ matcher?: string; hooks: unknown[] }>
+    expect(pre).toHaveLength(1)
+    // Gates the machine-acting tools and the web-read tool that taints the turn.
+    expect(pre[0].matcher).toContain('Bash')
+    expect(pre[0].matcher).toContain('mcp__cove-browser__browser_read_page')
+    // Running twice must not duplicate it.
+    const twice = mergeCoveHooks(out, SCRIPT)
+    expect((twice.hooks!.PreToolUse as unknown[]).length).toBe(1)
   })
 
   it("preserves the user's existing hooks on the same event", () => {
