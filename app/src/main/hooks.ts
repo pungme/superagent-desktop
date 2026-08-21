@@ -129,7 +129,8 @@ export function startHookServer(): Promise<string> {
       const addr = server.address()
       hookPort = typeof addr === 'object' && addr ? addr.port : 0
       const url = `http://127.0.0.1:${hookPort}${base}`
-      console.log(`[hooks] listening at ${url}`)
+      // Host:port only — `base` carries the per-launch secret; keep it out of logs.
+      console.log(`[hooks] listening on 127.0.0.1:${hookPort}`)
       resolve(url)
     })
   })
