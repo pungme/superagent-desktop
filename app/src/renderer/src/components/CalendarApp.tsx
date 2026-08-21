@@ -63,7 +63,7 @@ function emptyDraft(date: string): Draft {
 }
 
 function draftFromEvent(e: CalendarEvent): Draft {
-  const startTime = e.allDay ? '09:00' : (e.start.slice(11, 16) || '09:00')
+  const startTime = e.allDay ? '09:00' : e.start.slice(11, 16) || '09:00'
   const endTime = e.allDay ? '10:00' : (e.end?.slice(11, 16) ?? startTime)
   return {
     id: e.id,
@@ -86,7 +86,14 @@ function draftToPayload(d: Draft): {
   color: string
 } {
   if (d.allDay) {
-    return { title: d.title, start: d.date, end: d.date, allDay: true, notes: d.notes, color: d.color }
+    return {
+      title: d.title,
+      start: d.date,
+      end: d.date,
+      allDay: true,
+      notes: d.notes,
+      color: d.color
+    }
   }
   return {
     title: d.title,
@@ -169,11 +176,15 @@ export function CalendarApp(): React.JSX.Element {
       <div className="cal-main">
         <div className="cal-head">
           <div className="cal-nav">
-            <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>
+            <button
+              onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+            >
               ‹
             </button>
             <span className="cal-month">{monthLabel}</span>
-            <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>
+            <button
+              onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+            >
               ›
             </button>
           </div>
@@ -259,7 +270,11 @@ export function CalendarApp(): React.JSX.Element {
         ) : (
           <div className="cal-agenda">
             {selectedEvents.map((e) => (
-              <button key={e.id} className="cal-agenda-row" onClick={() => setDraft(draftFromEvent(e))}>
+              <button
+                key={e.id}
+                className="cal-agenda-row"
+                onClick={() => setDraft(draftFromEvent(e))}
+              >
                 <span className="cal-agenda-dot" style={{ background: e.color ?? COLORS[0] }} />
                 <span className="cal-agenda-time">{fmtTime(e)}</span>
                 <span className="cal-agenda-title">{e.title}</span>
