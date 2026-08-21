@@ -7,6 +7,7 @@ import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
 import { getWorkspaceName, getChatTitleBySession, recordEvent } from './store'
 import { paneLog, allowUserFocus } from './browser'
+import { classifyTool, gateDecision, markTainted, clearTurn, trustTurn, toolPreview } from './guardrail'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -42,6 +43,76 @@ const EVENT_STATUS: Record<string, WorkspaceStatus> = {
 let hookPort = 0
 let hookSecret = ''
 
+// --- Prompt-injection gate: held approvals -------------------------------
+// When a tainted turn tries to run a machine-acting tool, the PreToolUse hook
+// blocks on the app while a human decides. One entry per outstanding prompt.
+interface PendingGate {
+  sessionId: string
+  resolve: (approved: boolean) => void
+  timer: ReturnType<typeof setTimeout>
+}
+const pendingGates = new Map<string, PendingGate>()
+let gateSeq = 0
+// If nobody answers, deny — an unattended machine should not run a command that
+// a web page may have planted. Bounded so the agent never hangs indefinitely.
+const GATE_TIMEOUT_MS = 120_000
+
+function requestApproval(
+  workspaceId: string,
+  sessionId: string,
+  toolName: string,
+  preview: string
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const requestId = `gate-${++gateSeq}`
+    const timer = setTimeout(() => {
+      pendingGates.delete(requestId)
+      broadcastToWindows('guardrail:resolved', { requestId })
+      resolve(false)
+    }, GATE_TIMEOUT_MS)
+    pendingGates.set(requestId, { sessionId, resolve, timer })
+    broadcastToWindows('guardrail:ask', { requestId, workspaceId, sessionId, toolName, preview })
+  })
+}
+
+const DENY_JSON = (reason: string): string =>
+  JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+      permissionDecisionReason: reason
+    }
+  })
+
+/**
+ * The PreToolUse verdict. Returns '' to allow (the common path), or a deny JSON
+ * to block. Fail-open: anything we can't reason about is allowed, so the gate can
+ * never wedge the agent.
+ */
+async function decidePreTool(workspaceId: string, body: Record<string, unknown>): Promise<string> {
+  const sessionId = typeof body.session_id === 'string' ? body.session_id : ''
+  const toolName = typeof body.tool_name === 'string' ? body.tool_name : ''
+  if (!sessionId || !toolName) return ''
+
+  const cls = classifyTool(toolName)
+  if (cls === 'taint') {
+    markTainted(sessionId)
+    return ''
+  }
+  if (cls === 'allow') return ''
+  // A gated tool. Only asks when the turn is tainted and not yet trusted.
+  if (gateDecision(sessionId, toolName) === 'allow') return ''
+
+  const preview = toolPreview(toolName, body.tool_input)
+  const approved = await requestApproval(workspaceId, sessionId, toolName, preview)
+  if (approved) return ''
+  return DENY_JSON(
+    'Blocked by SuperAgent: this turn read untrusted web content, and the user did not ' +
+      'approve this action. Do not retry it. Tell the user plainly what you were about to do ' +
+      'and let them decide.'
+  )
+}
+
 export function startHookServer(): Promise<string> {
   hookSecret = randomBytes(12).toString('hex')
   const base = `/hook/${hookSecret}`
@@ -54,7 +125,22 @@ export function startHookServer(): Promise<string> {
     const event = req.url.slice(base.length + 1).split('?')[0] || 'unknown'
     const workspaceId = (req.headers['x-cove-workspace'] as string) || ''
     const body = await readJsonBody(req)
+
+    // The one event we answer synchronously: the tool gate. The verdict body is
+    // read by Claude Code ('' = allow, deny JSON = block). Everything else is a
+    // fire-and-forget status ping answered with 'ok'.
+    if (event === 'PreToolUse') {
+      const verdict = await decidePreTool(workspaceId, body)
+      res.writeHead(200, { 'content-type': 'application/json' }).end(verdict)
+      return
+    }
     res.writeHead(200).end('ok')
+
+    // A fresh user turn clears any untrusted-web-content taint from the last one.
+    if (event === 'UserPromptSubmit') {
+      const sid = typeof body.session_id === 'string' ? body.session_id : ''
+      if (sid) clearTurn(sid)
+    }
 
     const status = EVENT_STATUS[event]
     const sessionId = typeof body.session_id === 'string' ? body.session_id : undefined
@@ -144,6 +230,19 @@ const HOOK_SCRIPT = `#!/bin/sh
 # Installed by SuperAgent. Forwards Claude Code hook events to the SuperAgent app.
 # No-ops entirely unless COVE_HOOK_URL is set (i.e. this claude was launched by SuperAgent).
 [ -z "$COVE_HOOK_URL" ] && exit 0
+if [ "$1" = "PreToolUse" ]; then
+  # Decision hook. The app replies with an empty body to allow the tool, or a
+  # PreToolUse permissionDecision JSON to block it — forward that verbatim to
+  # stdout, which is how Claude Code reads the verdict. Fail open: if the app is
+  # unreachable and curl times out, we print nothing and exit 0 (tool proceeds),
+  # so the guardrail can never wedge the agent.
+  resp=$(curl -sS -X POST "$COVE_HOOK_URL/$1" \\
+    -H "x-cove-workspace: \${COVE_WORKSPACE_ID:-}" \\
+    -H "content-type: application/json" \\
+    --max-time 150 -d @- 2>/dev/null)
+  [ -n "$resp" ] && printf '%s' "$resp"
+  exit 0
+fi
 curl -sS -X POST "$COVE_HOOK_URL/$1" \\
   -H "x-cove-workspace: \${COVE_WORKSPACE_ID:-}" \\
   -H "content-type: application/json" \\
@@ -159,15 +258,24 @@ type HookSettings = { hooks?: Record<string, unknown[]> } & Record<string, unkno
 /** Pure: additively merge SuperAgent's hooks into a settings object. Idempotent; preserves the user's own hooks. */
 export function mergeCoveHooks(settings: HookSettings, scriptPath: string): HookSettings {
   const next: HookSettings = { ...settings, hooks: { ...(settings.hooks ?? {}) } }
-  for (const event of HOOK_EVENTS) {
-    // Single-quote the path — userData lives under "~/Library/Application Support" (has a space).
-    const quoted = `'${scriptPath.replace(/'/g, `'\\''`)}'`
-    const command = `sh ${quoted} ${event}`
-    const entry = { hooks: [{ type: 'command', command }] }
+  // Single-quote the path — userData lives under "~/Library/Application Support" (has a space).
+  const quoted = `'${scriptPath.replace(/'/g, `'\\''`)}'`
+  const addEntry = (event: string, entry: unknown): void => {
     const existing = Array.isArray(next.hooks![event]) ? next.hooks![event] : []
     const withoutCove = existing.filter((e) => !JSON.stringify(e).includes('cove-hook.sh'))
     next.hooks![event] = [...withoutCove, entry]
   }
+  for (const event of HOOK_EVENTS) {
+    addEntry(event, { hooks: [{ type: 'command', command: `sh ${quoted} ${event}` }] })
+  }
+  // The prompt-injection gate. Fires only for the web-read tool (to taint the
+  // turn) and the machine-acting tools (to gate them); the same script routes on
+  // the 'PreToolUse' arg and forwards the app's verdict. Generous timeout so a
+  // held human approval isn't cut off (the app self-denies well before this).
+  addEntry('PreToolUse', {
+    matcher: 'Bash|Write|Edit|MultiEdit|NotebookEdit|mcp__cove-browser__browser_read_page',
+    hooks: [{ type: 'command', command: `sh ${quoted} PreToolUse`, timeout: 600 }]
+  })
   return next
 }
 
@@ -208,8 +316,15 @@ export function hooksInstalled(): boolean {
   if (!existsSync(path)) return false
   try {
     const settings = JSON.parse(readFileSync(path, 'utf8'))
+    // Require the PreToolUse gate too, not just the status hooks — so an install
+    // from a version that predates the guardrail reads as "not current" and gets
+    // re-merged (idempotently) on launch, picking up the gate.
     const stop = settings?.hooks?.Stop
-    return JSON.stringify(stop ?? '').includes('cove-hook.sh')
+    const pre = settings?.hooks?.PreToolUse
+    return (
+      JSON.stringify(stop ?? '').includes('cove-hook.sh') &&
+      JSON.stringify(pre ?? '').includes('cove-hook.sh')
+    )
   } catch {
     return false
   }
@@ -257,6 +372,20 @@ export function registerHookIpc(): void {
     if (typeof prefs.done === 'boolean') notifyPrefs.done = prefs.done
     if (typeof prefs.needsYou === 'boolean') notifyPrefs.needsYou = prefs.needsYou
   })
+  // The user answered a prompt-injection gate. `trustRest` waves through the rest
+  // of this (tainted) turn so a legitimate browse-then-code flow isn't a tap per
+  // command.
+  ipcMain.on(
+    'guardrail:resolve',
+    (_e, requestId: string, approve: boolean, trustRest: boolean) => {
+      const p = pendingGates.get(requestId)
+      if (!p) return
+      pendingGates.delete(requestId)
+      clearTimeout(p.timer)
+      if (approve && trustRest) trustTurn(p.sessionId)
+      p.resolve(!!approve)
+    }
+  )
   ipcMain.handle('hooks:status', () => hooksInstalled())
   ipcMain.handle('hooks:install', () => installHooks())
   ipcMain.handle('hooks:uninstall', () => {
