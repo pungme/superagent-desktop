@@ -219,10 +219,12 @@ export async function navigate(paneId: string, url: string): Promise<string> {
 
 async function navigateInner(paneId: string, url: string): Promise<string> {
   // Cold start: the agent may drive the browser before the user has opened the
-  // preview, so no pane exists yet. For an interactive pane (routine panes carry
-  // a "::" suffix and run offscreen), ask the renderer to open the preview, then
-  // wait briefly for it to create the pane — so the navigation is actually visible.
-  if (!paneId.includes('::')) {
+  // preview, so no pane exists yet. Ask the renderer to open it — EXCEPT for
+  // routine panes, which carry a "::routine" suffix and run offscreen. Note the
+  // suffix test is "::routine" specifically: a per-chat pane is "<ws>::<chatId>"
+  // and DOES need the reveal (this gate used to be `.includes('::')`, which
+  // silently skipped every per-chat pane — "there's no pane to drive").
+  if (!paneId.endsWith('::routine')) {
     // Always ask the UI to reveal the pane. A pane whose WebContents already
     // exists but is *hidden* (the user closed the preview) would otherwise be
     // navigated invisibly — the "sometimes it doesn't open" bug. If no pane
