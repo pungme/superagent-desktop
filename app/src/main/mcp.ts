@@ -1081,7 +1081,9 @@ export function startMcpServer(): Promise<{ url: string }> {
       const addr = httpServer.address()
       port = typeof addr === 'object' && addr ? addr.port : 0
       const url = `http://127.0.0.1:${port}${path}`
-      console.log(`[mcp] cove-browser listening at ${url}`)
+      // Log host:port only — the path carries the per-launch secret, and a stray
+      // console line in a crash dump or bug report would leak it.
+      console.log(`[mcp] cove-browser listening on 127.0.0.1:${port}`)
       resolve({ url })
     })
   })
