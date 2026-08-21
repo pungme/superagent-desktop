@@ -79,6 +79,24 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
   // Finder drag hovering the tree ('' = root) or a specific folder row.
   const [dropDir, setDropDir] = useState<string | null>(null)
 
+  // The file open in the viewer (per active chat) — so the tree can highlight it
+  // and auto-reveal the folders leading to it. Path is relative to cwd, matching
+  // the node paths.
+  const openAbs = useStore((s) => s.openFile[s.activeChatId[workspaceId] ?? workspaceId] ?? '')
+  const openRel = openAbs && openAbs.startsWith(`${cwd}/`) ? openAbs.slice(cwd.length + 1) : ''
+  const openAncestors = useMemo(() => {
+    const set = new Set<string>()
+    if (!openRel) return set
+    const parts = openRel.split('/')
+    parts.pop() // drop the file name; keep the folders above it
+    let acc = ''
+    for (const p of parts) {
+      acc = acc ? `${acc}/${p}` : p
+      set.add(acc)
+    }
+    return set
+  }, [openRel])
+
   const load = useCallback(() => {
     // `loading` starts true, so we don't set it synchronously here (that would
     // fire a setState inside the mount effect); we only clear it when done.
@@ -139,7 +157,8 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
     for (const node of nodes) {
       const pad = { paddingLeft: `${8 + depth * 14}px` }
       if (node.dir) {
-        const open = expanded.has(node.path)
+        // Reveal folders leading to the open file, on top of the user's own picks.
+        const open = expanded.has(node.path) || openAncestors.has(node.path)
         rows.push(
           <button
             key={node.path}
@@ -169,7 +188,7 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
         rows.push(
           <button
             key={node.path}
-            className="file-tree-row file-tree-file"
+            className={`file-tree-row file-tree-file ${node.path === openRel ? 'selected' : ''}`}
             style={pad}
             onClick={() => open(node.path)}
             onContextMenu={(e) => {

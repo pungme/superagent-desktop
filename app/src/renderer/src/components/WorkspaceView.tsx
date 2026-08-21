@@ -110,7 +110,7 @@ export function WorkspaceView({
       }}
     />
   ) : openFilePath ? (
-    <FileViewer path={openFilePath} onClose={() => closeFile(ws.id)} />
+    <FileViewer path={openFilePath} cwd={ws.path} onClose={() => closeFile(ws.id)} />
   ) : browserOpen ? (
     <BrowserPane
       paneId={browserPaneId}

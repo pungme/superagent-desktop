@@ -1361,6 +1361,13 @@ button {
   border-color: var(--border-strong);
 }
 
+.easy-transcript {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .easy-scroll {
   flex: 1;
   min-height: 0;
@@ -2321,7 +2328,7 @@ button {
 
 .easy-scrolldown {
   position: absolute;
-  bottom: 74px;
+  bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;
@@ -3824,6 +3831,13 @@ button {
   overflow: hidden;
 }
 
+.file-tree-file.selected {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.file-tree-file.selected .file-tree-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
 .file-tree-row:hover {
   background: var(--hover);
 }
@@ -5110,6 +5124,21 @@ button {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-viewer-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+/* Where the file sits in the project, shown quietly after its name. */
+.file-viewer-path {
+  font-size: 11px;
+  color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

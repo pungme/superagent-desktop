@@ -4,6 +4,8 @@ import { Markdown } from './Markdown'
 
 interface FileViewerProps {
   path: string
+  /** The project root, so the header can show where the file sits (relative path). */
+  cwd?: string
   onClose: () => void
   /**
    * Inside a desktop window the frame already carries the filename and a close
@@ -22,7 +24,11 @@ const isMarkdown = (p: string): boolean => extOf(p) === 'md' || extOf(p) === 'ma
  * the browser preview would go — so binary previews (PDF/images) still use the
  * native pane, but text no longer shows as Chromium's raw text/plain.
  */
-export function FileViewer({ path, onClose, embedded }: FileViewerProps): React.JSX.Element {
+export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): React.JSX.Element {
+  // Where the file sits inside the project — the folders above it, so the header
+  // shows more than a bare name (a folder full of similarly-named files is common).
+  const rel = cwd && path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : path
+  const relDir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : ''
   // null = still loading; false = unreadable (too large / binary → offer the OS).
   const [content, setContent] = useState<string | null | false>(null)
   const [draft, setDraft] = useState('')
@@ -76,8 +82,9 @@ export function FileViewer({ path, onClose, embedded }: FileViewerProps): React.
     <div className="file-viewer">
       <div className="file-viewer-bar">
         {!embedded && (
-          <span className="file-viewer-name" title={path}>
-            {basename(path)}
+          <span className="file-viewer-title" title={path}>
+            <span className="file-viewer-name">{basename(path)}</span>
+            {relDir && <span className="file-viewer-path">{relDir}</span>}
           </span>
         )}
         {dirty && <span className="file-viewer-dot" title="Unsaved changes" />}
