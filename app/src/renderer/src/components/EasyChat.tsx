@@ -2554,143 +2554,145 @@ export function EasyChat({
         )}
         <TasksPanel chatId={chatId} />
       </div>
-      <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
-        {items.length > 0 && !hideNewChat && (
-          <div className="easy-newchat-group">
-            <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
-              ✎ New chat
-            </button>
-            {isRepo && (
-              <button
-                className="easy-newchat"
-                onClick={() => {
-                  // The chat gets an isolated git worktree on its own branch, so
-                  // parallel agents stop fighting over one checkout.
-                  void useStore
-                    .getState()
-                    .newChatInWorktree(
-                      workspaceId,
-                      cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd
-                    )
-                    .then((ok) => {
-                      if (!ok) window.alert('Could not create a worktree here — git refused.')
-                    })
-                }}
-                title="New chat on its own git branch — isolated worktree, your checkout stays clean"
-              >
-                ⎇ New worktree
+      <div className="easy-transcript">
+        <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
+          {items.length > 0 && !hideNewChat && (
+            <div className="easy-newchat-group">
+              <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
+                ✎ New chat
               </button>
-            )}
-          </div>
-        )}
-        {items.length === 0 && (ready || suspended) && (
-          <div className="easy-empty">
-            <p>Tell Claude what you&rsquo;d like to build or change.</p>
-          </div>
-        )}
-        {items.length === 0 && !ready && !suspended && !agentFailed && (
-          <div className="easy-empty">Starting Claude…</div>
-        )}
-        {toRows(items).map((row, i) => {
-          if (row.kind === 'msg') {
-            const isAssistant = row.msg.role === 'assistant'
-            const isLastUser = !isAssistant && row.msg.id === lastUserId
-            return (
-              <div
-                key={row.msg.id + i}
-                className={`easy-msg easy-${row.msg.role} ${row.msg.system ? 'easy-system' : ''}`}
-                onWheel={(e) => onMsgWheel(e, row.msg)}
-              >
-                {row.msg.replyTo && (
-                  <div className="easy-reply-quote">
-                    <span className="easy-reply-quote-who">
-                      {row.msg.replyTo.role === 'user' ? 'You' : 'Claude'}
-                    </span>
-                    <span className="easy-reply-quote-text">
-                      {row.msg.replyTo.text.replace(/\s+/g, ' ').trim().slice(0, 120)}
-                    </span>
-                  </div>
-                )}
-                {row.msg.images && row.msg.images.length > 0 && (
-                  <div className="easy-msg-images">
-                    {row.msg.images.map((src, ii) => (
-                      <img key={ii} src={src} alt="attachment" onClick={() => setLightbox(src)} />
-                    ))}
-                  </div>
-                )}
-                {isAssistant
-                  ? splitAssistant(row.msg.text).map((seg, si) =>
-                      'md' in seg ? (
-                        <Markdown key={si} text={seg.md} />
-                      ) : (
-                        <Choices key={si} spec={seg.ask} onAnswer={(a) => submit(a)} />
+              {isRepo && (
+                <button
+                  className="easy-newchat"
+                  onClick={() => {
+                    // The chat gets an isolated git worktree on its own branch, so
+                    // parallel agents stop fighting over one checkout.
+                    void useStore
+                      .getState()
+                      .newChatInWorktree(
+                        workspaceId,
+                        cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd
                       )
-                    )
-                  : row.msg.text}
-                {row.msg.streaming && <span className="easy-caret" />}
-                {!row.msg.streaming && row.msg.text && (
-                  <button
-                    className="easy-msg-reply"
-                    title="Reply to this message"
-                    onClick={() => beginReply(row.msg)}
-                  >
-                    ↩
-                  </button>
-                )}
-                {isAssistant && !row.msg.streaming && row.msg.text && (
-                  <button
-                    className="easy-msg-copy"
-                    title="Copy"
-                    onClick={() => window.cove.clipboardWrite(row.msg.text)}
-                  >
-                    Copy
-                  </button>
-                )}
-                {isLastUser && !generating && row.msg.text && (
-                  <button
-                    className="easy-msg-edit"
-                    title="Edit & resend"
-                    onClick={() => editMessage(row.msg)}
-                  >
-                    Edit
-                  </button>
-                )}
-                {!row.msg.streaming &&
-                  (() => {
-                    const at = msgAt(row.msg)
-                    return at === null ? null : (
-                      <span className="easy-msg-time" title={new Date(at).toLocaleString()}>
-                        {msgTime(at)}
+                      .then((ok) => {
+                        if (!ok) window.alert('Could not create a worktree here — git refused.')
+                      })
+                  }}
+                  title="New chat on its own git branch — isolated worktree, your checkout stays clean"
+                >
+                  ⎇ New worktree
+                </button>
+              )}
+            </div>
+          )}
+          {items.length === 0 && (ready || suspended) && (
+            <div className="easy-empty">
+              <p>Tell Claude what you&rsquo;d like to build or change.</p>
+            </div>
+          )}
+          {items.length === 0 && !ready && !suspended && !agentFailed && (
+            <div className="easy-empty">Starting Claude…</div>
+          )}
+          {toRows(items).map((row, i) => {
+            if (row.kind === 'msg') {
+              const isAssistant = row.msg.role === 'assistant'
+              const isLastUser = !isAssistant && row.msg.id === lastUserId
+              return (
+                <div
+                  key={row.msg.id + i}
+                  className={`easy-msg easy-${row.msg.role} ${row.msg.system ? 'easy-system' : ''}`}
+                  onWheel={(e) => onMsgWheel(e, row.msg)}
+                >
+                  {row.msg.replyTo && (
+                    <div className="easy-reply-quote">
+                      <span className="easy-reply-quote-who">
+                        {row.msg.replyTo.role === 'user' ? 'You' : 'Claude'}
                       </span>
-                    )
-                  })()}
-              </div>
-            )
-          }
-          if (row.kind === 'thinking') {
-            if (!row.text) return null
-            return (
-              <div key={row.id} className="easy-thought">
-                {row.text}
-              </div>
-            )
-          }
-          return <ActivityStrip key={'act-' + i} entries={row.entries} />
-        })}
-        {generating && (
-          <div className="easy-thinking">
-            <span />
-            <span />
-            <span />
-            <WorkingTimer />
-          </div>
+                      <span className="easy-reply-quote-text">
+                        {row.msg.replyTo.text.replace(/\s+/g, ' ').trim().slice(0, 120)}
+                      </span>
+                    </div>
+                  )}
+                  {row.msg.images && row.msg.images.length > 0 && (
+                    <div className="easy-msg-images">
+                      {row.msg.images.map((src, ii) => (
+                        <img key={ii} src={src} alt="attachment" onClick={() => setLightbox(src)} />
+                      ))}
+                    </div>
+                  )}
+                  {isAssistant
+                    ? splitAssistant(row.msg.text).map((seg, si) =>
+                        'md' in seg ? (
+                          <Markdown key={si} text={seg.md} />
+                        ) : (
+                          <Choices key={si} spec={seg.ask} onAnswer={(a) => submit(a)} />
+                        )
+                      )
+                    : row.msg.text}
+                  {row.msg.streaming && <span className="easy-caret" />}
+                  {!row.msg.streaming && row.msg.text && (
+                    <button
+                      className="easy-msg-reply"
+                      title="Reply to this message"
+                      onClick={() => beginReply(row.msg)}
+                    >
+                      ↩
+                    </button>
+                  )}
+                  {isAssistant && !row.msg.streaming && row.msg.text && (
+                    <button
+                      className="easy-msg-copy"
+                      title="Copy"
+                      onClick={() => window.cove.clipboardWrite(row.msg.text)}
+                    >
+                      Copy
+                    </button>
+                  )}
+                  {isLastUser && !generating && row.msg.text && (
+                    <button
+                      className="easy-msg-edit"
+                      title="Edit & resend"
+                      onClick={() => editMessage(row.msg)}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {!row.msg.streaming &&
+                    (() => {
+                      const at = msgAt(row.msg)
+                      return at === null ? null : (
+                        <span className="easy-msg-time" title={new Date(at).toLocaleString()}>
+                          {msgTime(at)}
+                        </span>
+                      )
+                    })()}
+                </div>
+              )
+            }
+            if (row.kind === 'thinking') {
+              if (!row.text) return null
+              return (
+                <div key={row.id} className="easy-thought">
+                  {row.text}
+                </div>
+              )
+            }
+            return <ActivityStrip key={'act-' + i} entries={row.entries} />
+          })}
+          {generating && (
+            <div className="easy-thinking">
+              <span />
+              <span />
+              <span />
+              <WorkingTimer />
+            </div>
+          )}
+        </div>
+        {!atBottom && items.length > 0 && (
+          <button className="easy-scrolldown" onClick={scrollToBottom} title="Scroll to bottom">
+            ↓
+          </button>
         )}
       </div>
-      {!atBottom && items.length > 0 && (
-        <button className="easy-scrolldown" onClick={scrollToBottom} title="Scroll to bottom">
-          ↓
-        </button>
-      )}
       {dictation.error && (
         <div className="easy-dictation-error" role="status">
           Dictation failed: {dictation.error}
