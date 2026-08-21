@@ -175,8 +175,25 @@ export function WorkspaceView({
   // inside the mounted <EasyChat>, so unmounting it on switch would kill the
   // work mid-stream. Keep the on-screen chat mounted plus any that's still busy.
   const busy = useStore((s) => s.busy)
+  // Keep the last few chats you were in mounted, not just the active one. The
+  // agent can leave background work running (builders, a long shell) that the app
+  // can't always see as "busy" — and unmounting a chat kills its claude process
+  // (and that work) instantly. Holding a small window of recent chats means
+  // switching away doesn't nuke a session the moment you look elsewhere. Bounded
+  // to a few, so this can't leak sessions. (React's adjust-state-in-render idiom
+  // — no effect.)
+  const [recentChats, setRecentChats] = useState<string[]>(() =>
+    activeChatId ? [activeChatId] : []
+  )
+  if (activeChatId && recentChats[0] !== activeChatId) {
+    setRecentChats([activeChatId, ...recentChats.filter((id) => id !== activeChatId)].slice(0, 3))
+  }
   const mountedChats = (chats ?? []).filter(
-    (c) => c.id === activeChatId || busy[c.id]?.generating || (busy[c.id]?.background ?? 0) > 0
+    (c) =>
+      c.id === activeChatId ||
+      recentChats.includes(c.id) ||
+      busy[c.id]?.generating ||
+      (busy[c.id]?.background ?? 0) > 0
   )
   useEffect(() => {
     loadChats(ws.id)
