@@ -2038,8 +2038,10 @@ button {
   border-radius: 5px;
   /* 'anywhere', not 'break-word': only 'anywhere' shrinks min-content, and a
      long unbroken token (scope lists, hashes) otherwise widens the line box
-     right out of the bubble instead of wrapping. */
+     right out of the bubble instead of wrapping. word-break is the belt to that
+     suspenders for a long path with no break points at all. */
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .md-code {
@@ -2082,7 +2084,12 @@ button {
 .md-code pre {
   margin: 0;
   padding: 10px 12px;
-  overflow-x: auto;
+  /* Wrap long lines instead of hiding them off the right edge. pre-wrap keeps a
+     code block's own indentation/newlines; overflow-wrap breaks an unbreakable
+     token (a long path, a URL, a hash) so it never overflows the bubble. In a
+     chat this reads far better than a clipped or horizontally-scrolling line. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .md-code code {
