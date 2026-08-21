@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CalendarEvent } from '../../../preload'
 
 // --- date helpers (local time, no external deps) --------------------------
@@ -13,6 +13,14 @@ const addDays = (d: Date, n: number): Date => {
   return c
 }
 const startOfMonth = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), 1)
+const startOfWeek = (d: Date): Date => addDays(d, -d.getDay()) // back to Sunday
+const sameYmd = (a: Date, b: Date): boolean => ymd(a) === ymd(b)
+
+/** Minutes past midnight for a timed ISO (`YYYY-MM-DDTHH:mm`); 0 if none. */
+const minutesOf = (iso: string): number => {
+  if (iso.length < 16) return 0
+  return Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16))
+}
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = [
@@ -32,12 +40,17 @@ const MONTHS = [
 // A small, calm palette for events (macOS-ish).
 const COLORS = ['#3b82f6', '#22c55e', '#ef4444', '#f59e0b', '#a855f7', '#14b8a6', '#ec4899']
 
+const HOUR_H = 44 // px per hour in the time grid
+const DAY_MIN = 24 * 60
+
 /** The 42 days (6 weeks) that fill a month grid, starting on Sunday. */
 function monthGrid(month: Date): Date[] {
   const first = startOfMonth(month)
-  const start = addDays(first, -first.getDay()) // back to the Sunday on/before the 1st
+  const start = addDays(first, -first.getDay())
   return Array.from({ length: 42 }, (_, i) => addDays(start, i))
 }
+
+type View = 'day' | 'week' | 'month'
 
 interface Draft {
   id?: string
@@ -50,16 +63,10 @@ interface Draft {
   color: string
 }
 
-function emptyDraft(date: string): Draft {
-  return {
-    title: '',
-    allDay: false,
-    date,
-    startTime: '09:00',
-    endTime: '10:00',
-    notes: '',
-    color: COLORS[0]
-  }
+function emptyDraft(date: string, startTime = '09:00'): Draft {
+  const [h, m] = startTime.split(':').map(Number)
+  const endTime = `${pad(Math.min(h + 1, 23))}:${pad(m)}`
+  return { title: '', allDay: false, date, startTime, endTime, notes: '', color: COLORS[0] }
 }
 
 function draftFromEvent(e: CalendarEvent): Draft {
@@ -86,14 +93,7 @@ function draftToPayload(d: Draft): {
   color: string
 } {
   if (d.allDay) {
-    return {
-      title: d.title,
-      start: d.date,
-      end: d.date,
-      allDay: true,
-      notes: d.notes,
-      color: d.color
-    }
+    return { title: d.title, start: d.date, end: d.date, allDay: true, notes: d.notes, color: d.color }
   }
   return {
     title: d.title,
@@ -105,28 +105,104 @@ function draftToPayload(d: Draft): {
   }
 }
 
+// Lay out a day's timed events into columns so overlaps sit side by side, the way
+// Google Calendar does. Returns each event with its column and the cluster width.
+interface Placed {
+  e: CalendarEvent
+  start: number
+  end: number
+  col: number
+  cols: number
+}
+function packDay(events: CalendarEvent[]): Placed[] {
+  const items = events
+    .map((e) => {
+      const start = minutesOf(e.start)
+      const rawEnd = e.end ? minutesOf(e.end) : start + 30
+      // Keep it on the day and at least a sliver tall.
+      const end = Math.min(Math.max(rawEnd, start + 20), DAY_MIN)
+      return { e, start, end, col: 0, cols: 1 }
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end)
+
+  const out: Placed[] = []
+  let cluster: Placed[] = []
+  let clusterEnd = -1
+  const flush = (): void => {
+    const colEnds: number[] = []
+    for (const it of cluster) {
+      let c = colEnds.findIndex((end) => end <= it.start)
+      if (c === -1) {
+        c = colEnds.length
+        colEnds.push(it.end)
+      } else colEnds[c] = it.end
+      it.col = c
+    }
+    for (const it of cluster) {
+      it.cols = colEnds.length
+      out.push(it)
+    }
+    cluster = []
+    clusterEnd = -1
+  }
+  for (const it of items) {
+    if (cluster.length && it.start >= clusterEnd) flush()
+    cluster.push(it)
+    clusterEnd = Math.max(clusterEnd, it.end)
+  }
+  flush()
+  return out
+}
+
+const fmtHourLabel = (h: number): string => {
+  if (h === 0) return '12 AM'
+  if (h === 12) return '12 PM'
+  return h < 12 ? `${h} AM` : `${h - 12} PM`
+}
+
 export function CalendarApp(): React.JSX.Element {
   // `new Date()` is fine in the renderer (only workflow scripts forbid it).
-  const today = ymd(new Date())
-  const [month, setMonth] = useState(() => startOfMonth(new Date()))
-  const [selected, setSelected] = useState(today)
+  const [now, setNow] = useState(() => new Date())
+  const today = ymd(now)
+  const [view, setView] = useState<View>('week')
+  const [cursor, setCursor] = useState(() => new Date())
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
 
-  const grid = useMemo(() => monthGrid(month), [month])
+  // Tick the now-line every minute.
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
+  // The date span currently on screen — drives both the query and the grid.
+  const span = useMemo(() => {
+    if (view === 'month') {
+      const g = monthGrid(startOfMonth(cursor))
+      return { days: g, from: g[0], to: addDays(g[g.length - 1], 1) }
+    }
+    if (view === 'week') {
+      const s = startOfWeek(cursor)
+      const days = Array.from({ length: 7 }, (_, i) => addDays(s, i))
+      return { days, from: days[0], to: addDays(days[6], 1) }
+    }
+    return { days: [new Date(cursor)], from: new Date(cursor), to: addDays(cursor, 1) }
+  }, [view, cursor])
 
   const refresh = useCallback(async (): Promise<void> => {
-    // Pull a padded range so events on the leading/trailing days show too.
-    const from = ymd(grid[0])
-    const to = ymd(addDays(grid[grid.length - 1], 1))
-    setEvents(await window.cove.calendarList(from, to))
-  }, [grid])
+    setEvents(await window.cove.calendarList(ymd(span.from), ymd(span.to)))
+  }, [span.from, span.to])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  // Events grouped by day (YYYY-MM-DD), sorted all-day first then by time.
+  // Scroll the time grid to ~7am when entering a timed view.
+  useEffect(() => {
+    if (view !== 'month' && gridRef.current) gridRef.current.scrollTop = 7 * HOUR_H
+  }, [view])
+
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
     for (const e of events) {
@@ -135,13 +211,11 @@ export function CalendarApp(): React.JSX.Element {
       list.push(e)
       map.set(key, list)
     }
-    for (const list of map.values()) {
+    for (const list of map.values())
       list.sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.localeCompare(b.start))
-    }
     return map
   }, [events])
 
-  // Escape closes the event editor — the standard way out of a modal.
   useEffect(() => {
     if (!draft) return
     const onKey = (e: KeyboardEvent): void => {
@@ -165,124 +239,246 @@ export function CalendarApp(): React.JSX.Element {
     await refresh()
   }
 
-  const monthLabel = `${MONTHS[month.getMonth()]} ${month.getFullYear()}`
-  const selectedEvents = byDay.get(selected) ?? []
+  const step = (dir: number): void => {
+    if (view === 'month') setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1))
+    else setCursor(addDays(cursor, dir * (view === 'week' ? 7 : 1)))
+  }
 
-  const fmtTime = (e: CalendarEvent): string =>
-    e.allDay ? 'All day' : `${e.start.slice(11, 16)}–${e.end?.slice(11, 16) ?? ''}`
+  const title = (): string => {
+    if (view === 'month') return `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`
+    if (view === 'day')
+      return cursor.toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    const s = span.days[0]
+    const e = span.days[6]
+    const sameMonth = s.getMonth() === e.getMonth()
+    return sameMonth
+      ? `${MONTHS[s.getMonth()]} ${s.getDate()} – ${e.getDate()}, ${s.getFullYear()}`
+      : `${MONTHS[s.getMonth()]} ${s.getDate()} – ${MONTHS[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`
+  }
+
+  const openTimedDraft = (day: Date, hour: number): void =>
+    setDraft(emptyDraft(ymd(day), `${pad(hour)}:00`))
+
+  const nowMin = now.getHours() * 60 + now.getMinutes()
 
   return (
     <div className="cal">
-      <div className="cal-main">
-        <div className="cal-head">
-          <div className="cal-nav">
-            <button
-              onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-            >
-              ‹
-            </button>
-            <span className="cal-month">{monthLabel}</span>
-            <button
-              onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-            >
-              ›
-            </button>
-          </div>
-          <div className="cal-head-actions">
-            <button
-              className="cal-today"
-              onClick={() => {
-                setMonth(startOfMonth(new Date()))
-                setSelected(today)
-              }}
-            >
-              Today
-            </button>
-            <button className="cal-new" onClick={() => setDraft(emptyDraft(selected))}>
-              + Event
-            </button>
-          </div>
-        </div>
-
-        <div className="cal-weekdays">
-          {WEEKDAYS.map((w) => (
-            <div key={w} className="cal-weekday">
-              {w}
-            </div>
-          ))}
-        </div>
-
-        <div className="cal-grid">
-          {grid.map((d) => {
-            const key = ymd(d)
-            const dayEvents = byDay.get(key) ?? []
-            const inMonth = d.getMonth() === month.getMonth()
-            return (
-              <div
-                key={key}
-                className={`cal-cell ${inMonth ? '' : 'other'} ${key === selected ? 'selected' : ''}`}
-                onClick={() => setSelected(key)}
-                onDoubleClick={() => setDraft(emptyDraft(key))}
-              >
-                <span className={`cal-daynum ${key === today ? 'today' : ''}`}>{d.getDate()}</span>
-                <div className="cal-cell-events">
-                  {dayEvents.slice(0, 3).map((e) => (
-                    <button
-                      key={e.id}
-                      className="cal-chip"
-                      style={{ background: e.color ?? COLORS[0] }}
-                      title={e.title}
-                      onClick={(ev) => {
-                        ev.stopPropagation()
-                        setDraft(draftFromEvent(e))
-                      }}
-                    >
-                      {!e.allDay && <span className="cal-chip-time">{e.start.slice(11, 16)}</span>}
-                      <span className="cal-chip-title">{e.title}</span>
-                    </button>
-                  ))}
-                  {dayEvents.length > 3 && (
-                    <span className="cal-more">+{dayEvents.length - 3} more</span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* The selected day's agenda, so you always have a readable list. */}
-      <div className="cal-side">
-        <div className="cal-side-head">
-          <strong>
-            {new Date(`${selected}T00:00`).toLocaleDateString(undefined, {
-              weekday: 'long',
-              month: 'short',
-              day: 'numeric'
-            })}
-          </strong>
-          <button className="cal-side-add" onClick={() => setDraft(emptyDraft(selected))}>
-            +
+      <div className="cal-head">
+        <div className="cal-nav">
+          <button onClick={() => step(-1)} aria-label="Previous">
+            ‹
           </button>
+          <button className="cal-today" onClick={() => setCursor(new Date())}>
+            Today
+          </button>
+          <button onClick={() => step(1)} aria-label="Next">
+            ›
+          </button>
+          <span className="cal-title">{title()}</span>
         </div>
-        {selectedEvents.length === 0 ? (
-          <div className="cal-side-empty">No events.</div>
-        ) : (
-          <div className="cal-agenda">
-            {selectedEvents.map((e) => (
+        <div className="cal-head-actions">
+          <div className="cal-viewseg">
+            {(['day', 'week', 'month'] as View[]).map((v) => (
               <button
-                key={e.id}
-                className="cal-agenda-row"
-                onClick={() => setDraft(draftFromEvent(e))}
+                key={v}
+                className={view === v ? 'on' : ''}
+                onClick={() => setView(v)}
               >
-                <span className="cal-agenda-dot" style={{ background: e.color ?? COLORS[0] }} />
-                <span className="cal-agenda-time">{fmtTime(e)}</span>
-                <span className="cal-agenda-title">{e.title}</span>
+                {v[0].toUpperCase() + v.slice(1)}
               </button>
             ))}
           </div>
-        )}
+          <button className="cal-new" onClick={() => setDraft(emptyDraft(ymd(cursor)))}>
+            + Event
+          </button>
+        </div>
       </div>
+
+      {view === 'month' ? (
+        <div className="cal-monthwrap">
+          <div className="cal-weekdays">
+            {WEEKDAYS.map((w) => (
+              <div key={w} className="cal-weekday">
+                {w}
+              </div>
+            ))}
+          </div>
+          <div className="cal-grid">
+            {span.days.map((d) => {
+              const key = ymd(d)
+              const dayEvents = byDay.get(key) ?? []
+              const inMonth = d.getMonth() === cursor.getMonth()
+              return (
+                <div
+                  key={key}
+                  className={`cal-cell ${inMonth ? '' : 'other'}`}
+                  onDoubleClick={() => setDraft(emptyDraft(key))}
+                >
+                  <button
+                    className={`cal-daynum ${key === today ? 'today' : ''}`}
+                    onClick={() => {
+                      setCursor(new Date(d))
+                      setView('day')
+                    }}
+                  >
+                    {d.getDate()}
+                  </button>
+                  <div className="cal-cell-events">
+                    {dayEvents.slice(0, 3).map((e) => (
+                      <button
+                        key={e.id}
+                        className={`cal-chip ${e.allDay ? '' : 'timed'}`}
+                        style={
+                          e.allDay
+                            ? { background: e.color ?? COLORS[0] }
+                            : { color: e.color ?? COLORS[0] }
+                        }
+                        title={e.title}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          setDraft(draftFromEvent(e))
+                        }}
+                      >
+                        {!e.allDay && (
+                          <span
+                            className="cal-chip-dot"
+                            style={{ background: e.color ?? COLORS[0] }}
+                          />
+                        )}
+                        {!e.allDay && <span className="cal-chip-time">{e.start.slice(11, 16)}</span>}
+                        <span className="cal-chip-title">{e.title}</span>
+                      </button>
+                    ))}
+                    {dayEvents.length > 3 && (
+                      <button
+                        className="cal-more"
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          setCursor(new Date(d))
+                          setView('day')
+                        }}
+                      >
+                        +{dayEvents.length - 3} more
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className={`cal-timegrid ${view}`}>
+          <div className="cal-tg-head">
+            <div className="cal-tg-gutter" />
+            {span.days.map((d) => {
+              const isToday = sameYmd(d, now)
+              return (
+                <button
+                  key={ymd(d)}
+                  className={`cal-tg-dayhead ${isToday ? 'today' : ''}`}
+                  onClick={() => {
+                    setCursor(new Date(d))
+                    setView('day')
+                  }}
+                >
+                  <span className="cal-tg-wd">{WEEKDAYS[d.getDay()]}</span>
+                  <span className="cal-tg-dnum">{d.getDate()}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="cal-tg-allday">
+            <div className="cal-tg-gutter cal-tg-alllabel">all-day</div>
+            {span.days.map((d) => {
+              const key = ymd(d)
+              const all = (byDay.get(key) ?? []).filter((e) => e.allDay)
+              return (
+                <div
+                  key={key}
+                  className="cal-tg-alldaycell"
+                  onDoubleClick={() => setDraft({ ...emptyDraft(key), allDay: true })}
+                >
+                  {all.map((e) => (
+                    <button
+                      key={e.id}
+                      className="cal-allday-chip"
+                      style={{ background: e.color ?? COLORS[0] }}
+                      onClick={() => setDraft(draftFromEvent(e))}
+                    >
+                      {e.title}
+                    </button>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="cal-tg-scroll" ref={gridRef}>
+            <div className="cal-tg-body" style={{ height: `${24 * HOUR_H}px` }}>
+              <div className="cal-tg-hours">
+                {Array.from({ length: 24 }, (_, h) => (
+                  <div key={h} className="cal-tg-hour" style={{ height: `${HOUR_H}px` }}>
+                    {h > 0 && <span className="cal-tg-hourlabel">{fmtHourLabel(h)}</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="cal-tg-cols">
+                {span.days.map((d) => {
+                  const key = ymd(d)
+                  const timed = (byDay.get(key) ?? []).filter((e) => !e.allDay)
+                  const placed = packDay(timed)
+                  const isToday = sameYmd(d, now)
+                  return (
+                    <div key={key} className="cal-tg-col">
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <div
+                          key={h}
+                          className="cal-tg-slot"
+                          style={{ height: `${HOUR_H}px` }}
+                          onClick={() => openTimedDraft(d, h)}
+                        />
+                      ))}
+                      {isToday && (
+                        <div
+                          className="cal-tg-now"
+                          style={{ top: `${(nowMin / 60) * HOUR_H}px` }}
+                        />
+                      )}
+                      {placed.map(({ e, start, end, col, cols }) => (
+                        <button
+                          key={e.id}
+                          className="cal-tg-event"
+                          style={{
+                            top: `${(start / 60) * HOUR_H}px`,
+                            height: `${((end - start) / 60) * HOUR_H - 2}px`,
+                            left: `calc(${(col / cols) * 100}% + 2px)`,
+                            width: `calc(${(1 / cols) * 100}% - 4px)`,
+                            background: e.color ?? COLORS[0]
+                          }}
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            setDraft(draftFromEvent(e))
+                          }}
+                        >
+                          <span className="cal-tg-event-time">{e.start.slice(11, 16)}</span>
+                          <span className="cal-tg-event-title">{e.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {draft && (
         <div className="cal-modal-backdrop" onClick={() => setDraft(null)}>
