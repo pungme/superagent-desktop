@@ -8331,7 +8331,7 @@ button {
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
-  width: 48px;
+  width: 82px;
 }
 .cal-agenda-title {
   overflow: hidden;

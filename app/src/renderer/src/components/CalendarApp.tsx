@@ -134,6 +134,16 @@ export function CalendarApp(): React.JSX.Element {
     return map
   }, [events])
 
+  // Escape closes the event editor — the standard way out of a modal.
+  useEffect(() => {
+    if (!draft) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setDraft(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [draft])
+
   const save = async (): Promise<void> => {
     if (!draft) return
     const payload = draftToPayload({ ...draft, title: draft.title.trim() || 'Untitled event' })
@@ -152,7 +162,7 @@ export function CalendarApp(): React.JSX.Element {
   const selectedEvents = byDay.get(selected) ?? []
 
   const fmtTime = (e: CalendarEvent): string =>
-    e.allDay ? 'All day' : e.start.slice(11, 16)
+    e.allDay ? 'All day' : `${e.start.slice(11, 16)}–${e.end?.slice(11, 16) ?? ''}`
 
   return (
     <div className="cal">
