@@ -1650,9 +1650,10 @@ export function EasyChat({
         // fresh turn on its own.
         setThinking(false)
         setGenerating(false)
-        // The turn is over, so no sub-agent is still running — sweep any pill a
-        // missed result block would otherwise strand.
-        setRunningAgents([])
+        // NB: we deliberately do NOT clear runningAgents here. A sub-agent the
+        // agent spawned can keep running after the turn ends (it will say so),
+        // and clearing on turn-end hid that work. Pills clear when their own
+        // result block arrives, on interrupt/exit, or when the next turn starts.
         // /loop (continuous): the turn finished, so run the prompt again — unless
         // the user stopped it, we hit the safety cap, or the turn was interrupted.
         const lp = loopRef.current
@@ -2250,6 +2251,12 @@ export function EasyChat({
     // Only reset the "did this turn produce anything" flag when starting a fresh
     // turn — a mid-turn interjection is part of the turn already in progress.
     if (!interjecting) streamedThisTurnRef.current = false
+    // Clear stale sub-agent pills at the START of a fresh turn, not the end of the
+    // last one: the agent can leave builders/sub-agents running past a turn (it
+    // says so — "running now, I'll pick up as each finishes"), and sweeping them
+    // when the turn ended hid genuinely-running work. They persist now until you
+    // send the next message.
+    if (!interjecting) setRunningAgents([])
     const payload = images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
     if (!interjecting) {
       inFlightSendRef.current = { text: agentText, images: payload }
