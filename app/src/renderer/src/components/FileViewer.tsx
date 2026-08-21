@@ -64,6 +64,24 @@ export function FileViewer({ path, cwd, onClose, embedded }: FileViewerProps): R
     }
   }, [path])
 
+  // Re-read the file after Claude finishes a turn, so a file the agent just
+  // edited updates on screen instead of showing stale content. Skipped while you
+  // are editing it yourself, so it can never clobber your unsaved changes.
+  useEffect(() => {
+    if (editing) return
+    const onIdle = (): void => {
+      window.cove.fileRead?.(path)?.then((text) => {
+        if (typeof text === 'string' && text !== savedRef.current) {
+          setContent(text)
+          setDraft(text)
+          savedRef.current = text
+        }
+      })
+    }
+    window.addEventListener('cove:workspace-idle', onIdle)
+    return () => window.removeEventListener('cove:workspace-idle', onIdle)
+  }, [path, editing])
+
   const dirty = editing && draft !== savedRef.current
   // Not while there are unsaved edits — Escape must not be how you lose them.
   useEscapeClose(onClose, !dirty)
