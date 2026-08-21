@@ -86,6 +86,19 @@ export interface BoardCard {
   updatedAt: number
 }
 
+export interface CalendarEvent {
+  id: string
+  title: string
+  /** ISO: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:mm (timed). */
+  start: string
+  end: string | null
+  allDay: boolean
+  notes: string
+  color: string | null
+  createdAt: number
+  updatedAt: number
+}
+
 export interface CoveApi {
   /** Resolves to the pane's current URL ('' if freshly created / nothing loaded). */
   browserCreate: (id: string, partition: string) => Promise<string>
@@ -222,6 +235,21 @@ export interface CoveApi {
   ) => Promise<BoardCard | undefined>
   boardMove: (id: string, status: string, beforeId: string | null) => Promise<BoardCard | undefined>
   boardRemove: (id: string) => Promise<boolean>
+  /** The Computer's Calendar. from/to are ISO dates (YYYY-MM-DD); omit for all. */
+  calendarList: (from?: string, to?: string) => Promise<CalendarEvent[]>
+  calendarAdd: (e: {
+    title: string
+    start: string
+    end?: string | null
+    allDay?: boolean
+    notes?: string
+    color?: string | null
+  }) => Promise<CalendarEvent>
+  calendarUpdate: (
+    id: string,
+    patch: Partial<Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>>
+  ) => Promise<CalendarEvent | undefined>
+  calendarRemove: (id: string) => Promise<void>
   boardAddImage: (cardId: string, name: string, bytes: Uint8Array) => Promise<string | null>
   boardRemoveImage: (cardId: string, path: string) => Promise<boolean>
   boardImageData: (path: string) => Promise<string | null>
@@ -527,6 +555,10 @@ const cove: CoveApi = {
   boardUpdate: (id, patch) => ipcRenderer.invoke('board:update', id, patch),
   boardMove: (id, status, beforeId) => ipcRenderer.invoke('board:move', id, status, beforeId),
   boardRemove: (id) => ipcRenderer.invoke('board:remove', id),
+  calendarList: (from, to) => ipcRenderer.invoke('calendar:list', from, to),
+  calendarAdd: (e) => ipcRenderer.invoke('calendar:add', e),
+  calendarUpdate: (id, patch) => ipcRenderer.invoke('calendar:update', id, patch),
+  calendarRemove: (id) => ipcRenderer.invoke('calendar:remove', id),
   boardAddImage: (cardId, name, bytes) => ipcRenderer.invoke('board:addImage', cardId, name, bytes),
   boardRemoveImage: (cardId, path) => ipcRenderer.invoke('board:removeImage', cardId, path),
   boardImageData: (path) => ipcRenderer.invoke('board:imageData', path),

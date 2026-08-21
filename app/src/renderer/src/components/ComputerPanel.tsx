@@ -12,6 +12,7 @@ import { FolderView } from './FolderView'
 import { announceDeskChange } from './deskEvents'
 import { SkillsPanel } from './SkillsPanel'
 import { RoutinesPanel } from './RoutinesPanel'
+import { CalendarApp } from './CalendarApp'
 
 interface DeskFile {
   path: string
@@ -757,6 +758,7 @@ export function ComputerPanel({
         />
       )
     }
+    if (app === 'calendar') return <CalendarApp />
     if (app === 'dashboard') return <DashboardPanel embedded onClose={() => {}} />
     if (app === 'skills') {
       return activeWorkspace ? (
