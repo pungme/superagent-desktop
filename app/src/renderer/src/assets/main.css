@@ -7705,6 +7705,115 @@ button {
   justify-content: center;
 }
 
+/* ---- Settings: full page (nav + content) -------------------------------- */
+.settings-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-content);
+}
+.settings-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-page-head h1 {
+  font-size: 17px;
+  font-weight: 650;
+  margin: 0;
+}
+.settings-done {
+  border: 1px solid transparent;
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.settings-done:hover {
+  filter: brightness(1.05);
+}
+.settings-page-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.settings-nav {
+  width: 196px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.settings-nav-item:hover {
+  background: var(--hover);
+}
+.settings-nav-item.on {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 14%, transparent);
+  color: var(--accent, #3b82f6);
+  font-weight: 550;
+}
+.settings-nav-icon {
+  width: 18px;
+  text-align: center;
+  opacity: 0.85;
+}
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 8px 28px 28px;
+}
+.settings-section {
+  max-width: 680px;
+}
+.settings-about {
+  padding: 20px 0;
+}
+.settings-about-app {
+  font-size: 20px;
+  font-weight: 650;
+}
+.settings-about-ver {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.settings-about-sep {
+  margin: 0 8px;
+  opacity: 0.6;
+}
+.settings-about-update {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .settings-body {
   padding: 8px 16px;
 }

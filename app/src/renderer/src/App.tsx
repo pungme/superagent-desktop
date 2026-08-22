@@ -200,6 +200,10 @@ function App(): React.JSX.Element {
   if (computerOpen && !computerEverOpened) setComputerEverOpened(true)
   /** Any full-window section — all four cover the projects the same way. */
   const sectionOpen = overlay !== null
+  // Settings is a full page too: like a section it must hide the workspace (and
+  // with it the native browser panes, which paint above HTML and would otherwise
+  // punch through the page).
+  const contentCovered = sectionOpen || settingsOpen
   useEffect(() => {
     // One value, so opening either inherently closes the other.
     const openComputer = (): void => setOverlay('computer')
@@ -358,7 +362,7 @@ function App(): React.JSX.Element {
           )}
         </div>
         <HookConsent />
-        {openedWorkspaces.length === 0 && !sectionOpen ? (
+        {openedWorkspaces.length === 0 && !contentCovered ? (
           <div className="empty-state">
             <div className="empty-state-inner">
               <h1>Welcome to SuperAgent</h1>
@@ -373,11 +377,11 @@ function App(): React.JSX.Element {
             <div
               key={ws.id}
               className="workspace-host"
-              style={{ display: ws.id === activeId && !sectionOpen ? 'flex' : 'none' }}
+              style={{ display: ws.id === activeId && !contentCovered ? 'flex' : 'none' }}
             >
               {/* visible also detaches the native browser view — it would
                   composite above the dashboard otherwise. */}
-              <WorkspaceView ws={ws} visible={ws.id === activeId && !sectionOpen} />
+              <WorkspaceView ws={ws} visible={ws.id === activeId && !contentCovered} />
             </div>
           ))
         )}
@@ -386,16 +390,21 @@ function App(): React.JSX.Element {
             and tore down its browser tabs, so stepping out of the Computer for
             a moment threw away whatever was running in it. */}
         {computerEverOpened && (
-          <div className="computer-host" style={{ display: computerOpen ? 'flex' : 'none' }}>
-            <ComputerPanel visible={computerOpen} onClose={() => setOverlay(null)} />
+          <div
+            className="computer-host"
+            style={{ display: computerOpen && !settingsOpen ? 'flex' : 'none' }}
+          >
+            <ComputerPanel visible={computerOpen && !settingsOpen} onClose={() => setOverlay(null)} />
           </div>
         )}
+        {/* A full page (not a modal): covers the content area, above the hosts,
+            with the native panes already detached via contentCovered. */}
+        {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       </main>
       <PreviewToast />
       <UpdateBanner />
       <IntroSplash />
       <GuardrailPrompt />
-      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )
 }
