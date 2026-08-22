@@ -550,6 +550,22 @@ export function BrowserPane({
     return window.cove.onBrowserResync(() => syncBounds())
   }, [syncBounds])
 
+  // The pane's entrance animation (pane-in / browser-frame-in) transforms an
+  // ancestor of the host. getBoundingClientRect includes transforms, so any
+  // bounds sync during those ~0.24s measures a shifted, scaled rect and pins the
+  // native view off-position — and nothing re-measures once the transform clears,
+  // so it stays misaligned (a page sitting a few px low, slightly inset). Re-sync
+  // the instant the entrance finishes, when the ancestor is back at its real spot.
+  useEffect(() => {
+    const onEnd = (e: AnimationEvent): void => {
+      if (e.animationName !== 'pane-in' && e.animationName !== 'browser-frame-in') return
+      const host = hostRef.current
+      if (host && e.target instanceof Node && e.target.contains(host)) syncBounds()
+    }
+    document.addEventListener('animationend', onEnd)
+    return () => document.removeEventListener('animationend', onEnd)
+  }, [syncBounds])
+
   // Navigate when a preview URL is requested (e.g. clicking a port chip, opening
   // a file). The INITIAL page is loaded by the create effect, which leaves an
   // already-loaded page untouched — so this effect must not re-fire the stored
