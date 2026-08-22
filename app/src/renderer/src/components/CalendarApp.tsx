@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CalendarEvent } from '../../../preload'
+import { parseICS } from '../lib/ics'
 
 // --- date helpers (local time, no external deps) --------------------------
 const pad = (n: number): string => String(n).padStart(2, '0')
@@ -168,7 +169,9 @@ export function CalendarApp(): React.JSX.Element {
   const [cursor, setCursor] = useState(() => new Date())
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [importMsg, setImportMsg] = useState<string | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // Tick the now-line every minute.
   useEffect(() => {
@@ -239,6 +242,38 @@ export function CalendarApp(): React.JSX.Element {
     await refresh()
   }
 
+  // Import events from a .ics file (Google Calendar, Apple Calendar, Outlook…).
+  const importIcs = async (file: File): Promise<void> => {
+    try {
+      const parsed = parseICS(await file.text())
+      if (!parsed.length) {
+        setImportMsg('No events found in that file.')
+        return
+      }
+      for (const e of parsed) {
+        await window.cove.calendarAdd({
+          title: e.title,
+          start: e.start,
+          end: e.end,
+          allDay: e.allDay,
+          notes: e.notes,
+          color: COLORS[0]
+        })
+      }
+      await refresh()
+      setImportMsg(`Imported ${parsed.length} event${parsed.length === 1 ? '' : 's'}.`)
+    } catch {
+      setImportMsg("Couldn't read that file.")
+    }
+  }
+
+  // Clear the import toast after a few seconds.
+  useEffect(() => {
+    if (!importMsg) return
+    const t = setTimeout(() => setImportMsg(null), 3500)
+    return () => clearTimeout(t)
+  }, [importMsg])
+
   const step = (dir: number): void => {
     if (view === 'month') setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1))
     else setCursor(addDays(cursor, dir * (view === 'week' ? 7 : 1)))
@@ -293,11 +328,30 @@ export function CalendarApp(): React.JSX.Element {
               </button>
             ))}
           </div>
+          <button
+            className="cal-import"
+            onClick={() => fileRef.current?.click()}
+            title="Import events from a .ics file"
+          >
+            Import
+          </button>
           <button className="cal-new" onClick={() => setDraft(emptyDraft(ymd(cursor)))}>
             + Event
           </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".ics,text/calendar"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void importIcs(f)
+              e.target.value = '' // allow re-importing the same file
+            }}
+          />
         </div>
       </div>
+      {importMsg && <div className="cal-toast">{importMsg}</div>}
 
       {view === 'month' ? (
         <div className="cal-monthwrap">
