@@ -759,6 +759,19 @@ export function EasyChat({
   // is still going is a sentence that scrolls away.
   /** Which pill's menu is open — 'model', 'mode', 'server', or `bg-<id>`. */
   const [controlMenu, setControlMenu] = useState<string | null>(null)
+  // Dismiss an open control menu (model / mode / a background-task pill) when you
+  // click anywhere outside it — the expected way out of a popover. Clicks on a
+  // trigger button or inside a menu are left alone (they handle themselves).
+  useEffect(() => {
+    if (!controlMenu) return
+    const onDown = (e: MouseEvent): void => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.closest('.easy-control-btn') || t.closest('.easy-control-menu'))) return
+      setControlMenu(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [controlMenu])
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
   const bgTasksRef = useRef<BackgroundTask[]>([])
   // Sub-agents (the Task tool) currently running. They live inside the same
