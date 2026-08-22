@@ -8116,11 +8116,14 @@ button {
   justify-content: space-between;
   padding: 12px 16px;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .cal-nav {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .cal-nav button {
   border: none;
@@ -8145,6 +8148,8 @@ button {
 .cal-head-actions {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
+  align-items: center;
 }
 .cal-today,
 .cal-new {
@@ -8494,6 +8499,10 @@ button {
   font-size: 16px;
   font-weight: 650;
   margin-left: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cal-viewseg {
   display: inline-flex;
