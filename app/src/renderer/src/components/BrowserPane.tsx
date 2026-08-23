@@ -392,6 +392,23 @@ export function BrowserPane({
     emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: dw, height: dh - CARD_OMNIBAR_H })
   }, [paneId])
 
+  // Layout keeps settling for a frame or two after a trigger — the toolbar
+  // reflowing, a font landing, the entrance easing. A single sync can land
+  // mid-settle and pin the native view a few px off its final spot, with nothing
+  // to correct it: a ResizeObserver fires on the host's SIZE changing, not when
+  // the host merely SHIFTS (the toolbar above it growing/shrinking moves it
+  // without resizing it). Re-measure across the next frames and a short delay so
+  // the settled position always wins. syncBounds early-returns when hidden or
+  // covered, so a late tick after unmount is harmless.
+  const syncBoundsSettled = useCallback((): void => {
+    syncBounds()
+    requestAnimationFrame(() => {
+      syncBounds()
+      requestAnimationFrame(syncBounds)
+    })
+    window.setTimeout(syncBounds, 220)
+  }, [syncBounds])
+
   // The omnibox dropdown is HTML and nothing renders above the native view, so
   // while it's open the pane freezes (same trick as modals): the dropdown floats
   // over a still of the page instead of shoving the live page down.
@@ -442,10 +459,10 @@ export function BrowserPane({
   // HTML overlay opens/closes over it; re-sync when the dropdown opens/closes so
   // its top-clip is applied or removed.
   useEffect(() => {
-    if (visible && !paneCovered) syncBounds()
+    if (visible && !paneCovered) syncBoundsSettled()
     else if (!visible) window.cove.browserHide(paneId)
     // The covered case is handled below, so the page can be frozen before it goes.
-  }, [visible, paneCovered, paneId, syncBounds, positionKey])
+  }, [visible, paneCovered, paneId, syncBoundsSettled, positionKey])
 
   // Overlay opening: one IPC — main photographs the page and detaches the view
   // in the same handler, then the still stands in (~20 ms later). Detaching must
@@ -486,8 +503,8 @@ export function BrowserPane({
   // a fit-to-pane zoom applied); then reposition/zoom for the newly selected mode.
   useEffect(() => {
     if (viewport === 'none') window.cove.browserZoom(paneId, 'reset')
-    syncBounds()
-  }, [viewport, paneId, syncBounds])
+    syncBoundsSettled()
+  }, [viewport, paneId, syncBoundsSettled])
 
   useEffect(() => {
     let alive = true
@@ -512,7 +529,7 @@ export function BrowserPane({
 
     window.cove.browserCreate(paneId, partition).then((currentUrl) => {
       if (!alive) return
-      syncBounds()
+      syncBoundsSettled()
       // A pane that already has a page loaded is one that was merely hidden (e.g.
       // when you switched to a chat with the browser closed) and is now back.
       // Leave it exactly as it was — re-navigating would reload it and throw away
@@ -540,14 +557,14 @@ export function BrowserPane({
       offZoom()
       window.cove.browserHide(paneId)
     }
-  }, [paneId, partition, initialUrl, closable, syncBounds])
+  }, [paneId, partition, initialUrl, closable, syncBounds, syncBoundsSettled])
 
   // Main detaches panes while the user is in another app (so a loading page
   // can't pull the window forward). When they come back it asks for a re-sync;
   // pushing bounds re-attaches this pane — and only panes still mounted here.
   useEffect(() => {
-    return window.cove.onBrowserResync(() => syncBounds())
-  }, [syncBounds])
+    return window.cove.onBrowserResync(() => syncBoundsSettled())
+  }, [syncBoundsSettled])
 
   // The pane's entrance animation (pane-in / browser-frame-in) transforms an
   // ancestor of the host. getBoundingClientRect includes transforms, so any
@@ -559,11 +576,11 @@ export function BrowserPane({
     const onEnd = (e: AnimationEvent): void => {
       if (e.animationName !== 'pane-in' && e.animationName !== 'browser-frame-in') return
       const host = hostRef.current
-      if (host && e.target instanceof Node && e.target.contains(host)) syncBounds()
+      if (host && e.target instanceof Node && e.target.contains(host)) syncBoundsSettled()
     }
     document.addEventListener('animationend', onEnd)
     return () => document.removeEventListener('animationend', onEnd)
-  }, [syncBounds])
+  }, [syncBoundsSettled])
 
   // Navigate when a preview URL is requested (e.g. clicking a port chip, opening
   // a file). The INITIAL page is loaded by the create effect, which leaves an
