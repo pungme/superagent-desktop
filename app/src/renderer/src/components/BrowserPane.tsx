@@ -146,7 +146,6 @@ export function BrowserPane({
   positionKey,
   radius = 0
 }: BrowserPaneProps): React.JSX.Element {
-  const toggleBrowser = useStore((s) => s.toggleBrowser)
   // paneId is workspace::chat for per-chat views; the workspace is the part
   // before '::'. Used for sidebar/browsing/saved-URL, which are per project.
   const workspaceId = workspaceIdProp ?? paneId.split('::')[0]
@@ -839,19 +838,10 @@ export function BrowserPane({
         >
           ↗
         </button>
-        {closable && (
-          <button
-            // Set apart from the navigation buttons: as one more identical
-            // glyph at the end of ten, nobody read this as the way out.
-            className="browser-nav-btn browser-close-btn"
-            // This button only exists while the pane is on screen, so the
-            // current state is not in doubt: it is open, and this closes it.
-            onClick={() => toggleBrowser(workspaceId, true)}
-            title="Close this preview pane"
-          >
-            ✕
-          </button>
-        )}
+        {/* No close ✕ here on purpose. This omnibox only renders for code-project
+            previews, which always carry the occlusion-proof "✕ Close" up in the
+            workspace toolbar — a second ✕ in the chrome (which the native view can
+            also paint over) was just a redundant, less-reliable duplicate. */}
       </div>
       <div
         ref={hostRef}
