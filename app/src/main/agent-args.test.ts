@@ -49,13 +49,11 @@ describe('buildAgentArgs', () => {
     expect(args.slice(i + 1).some((a) => a.startsWith('--'))).toBe(false)
   })
 
-  it('always pins a model, resolving an empty pick to a concrete default', () => {
+  it('pins the model only when one was chosen', () => {
     expect(valueAfter(buildAgentArgs({ model: 'opus' }), '--model')).toBe('opus')
-    // No pick / "Default" ('') must still send a concrete --model: on a resumed
-    // session, omitting the flag silently keeps the conversation's original
-    // model, so switching to Default couldn't escape a rate-limited one.
-    expect(valueAfter(buildAgentArgs({}), '--model')).toBe('sonnet')
-    expect(valueAfter(buildAgentArgs({ model: '' }), '--model')).toBe('sonnet')
+    // "Default" ('') sends no --model — the CLI resolves the account default.
+    expect(buildAgentArgs({}).includes('--model')).toBe(false)
+    expect(buildAgentArgs({ model: '' }).includes('--model')).toBe(false)
   })
 
   it('resumes in front of -p, where the CLI expects it', () => {

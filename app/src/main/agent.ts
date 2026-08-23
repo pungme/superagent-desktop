@@ -284,13 +284,13 @@ export function buildAgentArgs(
     '--permission-mode',
     opts.permissionMode ?? 'bypassPermissions'
   ]
-  // Always pin a model. The "Default" pick used to send no --model at all —
-  // fine on a fresh session, but on a *resume* claude keeps whatever model the
-  // conversation started on, so picking Default couldn't rescue you from a
-  // rate-limited model (switch away from Fable and it stayed Fable). Resolve an
-  // empty pick to a concrete, universally-available model so the switch always
-  // takes. Sonnet, not Opus: forcing Opus would error on plans without it.
-  args.push('--model', opts.model || 'sonnet')
+  // Pin the model only when the user picked one. "Default" ('') means "whatever
+  // your account uses" — passing no --model lets the CLI resolve the account
+  // default (which is often the best model you have, e.g. Opus 5), so don't
+  // second-guess it with a forced downgrade. To force off a rate-limited model
+  // on a resumed session, pick a concrete model — that DOES send --model and
+  // overrides.
+  if (opts.model) args.push('--model', opts.model)
   if (ctx.resume) args.unshift('--resume', ctx.resume)
   if (ctx.mcpConfig) args.push('--mcp-config', ctx.mcpConfig)
   const appended = [
