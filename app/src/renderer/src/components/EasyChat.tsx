@@ -212,8 +212,14 @@ function toolLabel(name: string): { icon: string; verb: string } {
     const action = name.replace('mcp__cove-browser__browser_', '').replace(/_/g, ' ')
     return { icon: '🌐', verb: action }
   }
+  if (name.startsWith('mcp__cove-browser__sim_')) {
+    const action = name.replace('mcp__cove-browser__sim_', '').replace(/_/g, ' ')
+    return { icon: '📱', verb: action }
+  }
   const map: Record<string, { icon: string; verb: string }> = {
-    Bash: { icon: '⌘', verb: 'Running' },
+    // "Terminal", not "Running": this label shows in a finished turn's collapsed
+    // summary too ("2 steps · …"), where a gerund read as "still running now".
+    Bash: { icon: '⌘', verb: 'Terminal' },
     Read: { icon: '📄', verb: 'Reading' },
     Edit: { icon: '✏️', verb: 'Editing' },
     Write: { icon: '✏️', verb: 'Writing' },
@@ -226,6 +232,10 @@ function toolLabel(name: string): { icon: string; verb: string } {
     Task: { icon: '🤖', verb: 'Sub-agent' },
     ToolSearch: { icon: '🧰', verb: 'Finding tools' }
   }
+  // Any other MCP tool: strip the mcp__server__ prefix so it reads as words, not
+  // a raw internal id (mcp__cove-browser__sim_list_devices → "list devices").
+  const mcp = name.match(/^mcp__[a-z0-9-]+__(.+)$/i)
+  if (mcp) return { icon: '🔧', verb: mcp[1].replace(/_/g, ' ') }
   return map[name] ?? { icon: '🔧', verb: name }
 }
 
