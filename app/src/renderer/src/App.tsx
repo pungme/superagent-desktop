@@ -219,8 +219,13 @@ function App(): React.JSX.Element {
     const open = openOnDesktop('dashboard')
     const openSkills = openOnDesktop('skills')
     const openRoutines = openOnDesktop('routines')
-    // Picking anything in the sidebar leaves both.
-    const close = (): void => setOverlay(null)
+    // Picking anything in the sidebar leaves every full-window surface — the
+    // dashboard/computer overlays AND the Settings page (which is its own state,
+    // so it wasn't closing before: you'd click a project and Settings stayed up).
+    const close = (): void => {
+      setOverlay(null)
+      setSettingsOpen(false)
+    }
     window.addEventListener('cove:open-dashboard', open)
     window.addEventListener('cove:open-computer', openComputer)
     window.addEventListener('cove:open-skills', openSkills)
