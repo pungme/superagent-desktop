@@ -276,6 +276,8 @@ export interface CoveApi {
     action: Record<string, unknown>
   ) => Promise<{ ok: boolean; error?: string }>
   simHasInput: () => Promise<boolean>
+  /** A single still of the simulator device, as a data URL — for the snip tool. */
+  simScreenshot: (udid: string) => Promise<string | null>
   onSimFrame: (
     udid: string,
     cb: (f: { url: string; width: number; height: number }) => void
@@ -586,6 +588,7 @@ const cove: CoveApi = {
   simStreamStop: (udid) => ipcRenderer.send('sim:stream-stop', udid),
   simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),
+  simScreenshot: (udid) => ipcRenderer.invoke('sim:screenshot', udid),
   onSimFrame: (udid, cb) =>
     subscribe(`sim:frame:${udid}`, (f) => cb(f as { url: string; width: number; height: number })),
   onSimGone: (udid, cb) => subscribe(`sim:gone:${udid}`, () => cb()),

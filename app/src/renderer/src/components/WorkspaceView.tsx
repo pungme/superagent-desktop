@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
+import { SnipOverlay } from './SnipOverlay'
 import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
@@ -149,6 +150,43 @@ export function WorkspaceView({
   ) : null
 
   const paneOpen = browserOpen || !!openFilePath || simOpen || boardOpen
+
+  // Snip-to-attach: freeze the current pane surface to a still, let the user drag
+  // a region out of it, and drop that crop straight into the chat composer.
+  const enterOverlay = useStore((s) => s.enterOverlay)
+  const exitOverlay = useStore((s) => s.exitOverlay)
+  const [snipStill, setSnipStill] = useState<string | null>(null)
+  const snipObjectUrl = useRef<string | null>(null)
+  // Snippable surfaces: the (native) browser page or the simulator. A board or
+  // text file is plain HTML — an ordinary screenshot already works there.
+  const canSnip = (browserOpen && !boardOpen && !openFilePath) || simOpen
+  const startSnip = async (): Promise<void> => {
+    let still: string | null = null
+    if (browserOpen && !boardOpen && !openFilePath) {
+      const bytes = await window.cove.browserFreeze(browserPaneId)
+      if (bytes && bytes.length) {
+        const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/jpeg' }))
+        snipObjectUrl.current = url
+        still = url
+      }
+    } else if (simOpen) {
+      const udid = localStorage.getItem(`cove.simDevice:${ws.id}`)
+      if (udid) still = await window.cove.simScreenshot(udid)
+    }
+    if (!still) return
+    // Detach the native browser view so the HTML snip overlay shows over it (the
+    // simulator is HTML already). exitOverlay in finishSnip re-attaches it.
+    enterOverlay()
+    setSnipStill(still)
+  }
+  const finishSnip = (): void => {
+    setSnipStill(null)
+    exitOverlay()
+    if (snipObjectUrl.current) {
+      URL.revokeObjectURL(snipObjectUrl.current)
+      snipObjectUrl.current = null
+    }
+  }
 
   // The board and a file preview share the one working surface, and the board
   // was drawn on top — so clicking a file while the board was open did nothing
@@ -520,6 +558,19 @@ export function WorkspaceView({
           </button>
         )}
         <div className="workspace-toolbar-spacer" />
+        {/* Snip a region of the page/simulator straight into the composer. Lives
+            in the toolbar, not floating over the pane, because the native view
+            paints above HTML and would cover (and swallow the click on) anything
+            floating on top of it. */}
+        {canSnip && (
+          <button
+            className="toolbar-btn workspace-snip"
+            onClick={startSnip}
+            title="Snip a region into your message"
+          >
+            ✂ Snip
+          </button>
+        )}
         {/* A code project's preview reveals itself when the agent navigates, and
             normally closes from the pane's own ✕. But the native page paints
             ABOVE all HTML, so a mis-bounded agent-opened view can cover its own
@@ -672,6 +723,17 @@ export function WorkspaceView({
       </div>
       {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
           mounted, or its overlay lock would blank the active workspace's preview. */}
+      {snipStill && (
+        <SnipOverlay
+          still={snipStill}
+          onCancel={finishSnip}
+          onCapture={(dataUrl) => {
+            // Hand the crop to the active chat's composer (it listens and focuses).
+            window.dispatchEvent(new CustomEvent('cove:attach-image', { detail: { url: dataUrl } }))
+            finishSnip()
+          }}
+        />
+      )}
     </div>
   )
 }
