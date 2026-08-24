@@ -8212,6 +8212,9 @@ button {
   background: var(--bg-content);
   color: var(--text-primary);
   font-size: 13px;
+  /* Responsive to the pane's own width, not the viewport — the calendar lives in
+     a resizable Computer window. Narrow-width rules key off @container below. */
+  container-type: inline-size;
 }
 .cal-main {
   flex: 1;
@@ -8877,6 +8880,62 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* --- Calendar: narrow / mobile layout ------------------------------------ */
+@container (max-width: 560px) {
+  .cal-head {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .cal-title {
+    font-size: 14px;
+  }
+  .cal-nav {
+    gap: 6px;
+  }
+  .cal-today,
+  .cal-new,
+  .cal-import,
+  .cal-viewseg button {
+    padding: 5px 9px;
+    font-size: 11.5px;
+  }
+  .cal-timegrid {
+    --gutter: 42px;
+  }
+  .cal-tg-dnum {
+    font-size: 16px;
+  }
+  .cal-tg-dayhead.today .cal-tg-dnum {
+    width: 26px;
+    height: 26px;
+  }
+  .cal-tg-hourlabel {
+    font-size: 9px;
+  }
+  .cal-tg-event {
+    padding: 1px 3px;
+  }
+  .cal-tg-event-title {
+    font-size: 10px;
+  }
+  /* Month cells get tight fast — trim the padding and chip text. */
+  .cal-grid {
+    padding: 0 8px 8px;
+  }
+  .cal-cell {
+    padding: 3px 3px;
+  }
+  .cal-chip {
+    font-size: 10px;
+    padding: 1px 3px;
+  }
+  .cal-weekday {
+    padding: 6px 2px;
+    font-size: 9.5px;
+    letter-spacing: 0;
+  }
 }
 
 /* --- Prompt-injection gate ------------------------------------------------ */
