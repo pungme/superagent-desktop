@@ -465,9 +465,20 @@ button {
 
 .chat-tree-title {
   flex: 1;
-  white-space: nowrap;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+/* The title text gives way first; the worktree chip stays pinned so its name is
+   readable without dragging the sidebar wider. */
+.chat-tree-label {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* The per-chat working spinner sits inline before the title, where the unread
    dot would otherwise be. A border-ring looks faceted and jagged this small, so
@@ -6132,7 +6143,11 @@ button {
 }
 
 .chat-tree-wt {
-  margin-left: 6px;
+  flex-shrink: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10px;
   color: var(--text-tertiary);
   font-family: 'SF Mono', ui-monospace, monospace;
