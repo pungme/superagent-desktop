@@ -170,6 +170,13 @@ export function WorkspaceView({
   useEffect(() => {
     return window.cove.onOpenSimulator?.((p) => {
       if (p.workspaceId !== ws.id) return
+      // Claim the device the agent just launched onto BEFORE opening the pane.
+      // SimulatorPane mounts in response to this open and only then subscribes to
+      // onOpenSimulator — too late to catch this very event — so it relies on the
+      // stored claim. Without it, its mount check finds nothing booted for this
+      // project and calls onNothingToShow(), closing the pane it just opened:
+      // the "flash then vanish".
+      if (p.udid) localStorage.setItem(`cove.simDevice:${ws.id}`, p.udid)
       // deskKey in deps so an agent reveal lands on the chat you're actually on,
       // not the one that was active when this listener first subscribed.
       localStorage.setItem(`simOpen:${deskKey}`, '1')

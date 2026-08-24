@@ -145,19 +145,18 @@ export function SimulatorPane({
 
   useEffect(() => {
     void refresh().then((list) => {
-      // Whatever is already booted — every runtime can be tapped.
-      const booted = list.filter((d) => d.state === 'Booted')
-      // Whichever one you picked last, if it's still running — otherwise the
-      // pane silently swaps devices under you on every restart.
-      // Only a device THIS project has a claim to — one the agent used here,
-      // or one you picked here. It used to fall back to "whatever is booted",
-      // which is how a project with nothing to do with iOS ended up showing
-      // the simulator belonging to the session you were actually working in.
+      // Only a device THIS project has a claim to — one the agent used here, or
+      // one you picked here. (Never fall back to "whatever is booted": that showed
+      // the simulator from whatever OTHER session you were working in.)
       const mine = localStorage.getItem(`cove.simDevice:${workspaceId}`)
-      const best = mine ? booted.find((d) => d.udid === mine) : undefined
-      if (best) setUdid(best.udid)
-      // No claim, or the claimed device is gone: there is nothing to show
-      // here. Say so rather than adopting someone else's phone.
+      // Show the claimed device while it's Booted OR still Booting — the agent
+      // may have just launched it and it isn't 'Booted' yet; the frame stream
+      // picks it up once it's up. Requiring 'Booted' exactly is what flashed the
+      // pane open then shut. A Shutdown device (a stale claim) still closes.
+      const claimed = mine
+        ? list.find((d) => d.udid === mine && (d.state === 'Booted' || d.state === 'Booting'))
+        : undefined
+      if (claimed) setUdid(claimed.udid)
       else onNothingToShow?.()
     })
     void window.cove.simHasInput().then(setCanInput)
