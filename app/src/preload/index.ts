@@ -71,6 +71,15 @@ export interface HookEvent {
   body: Record<string, unknown>
 }
 
+/** A prompt-injection gate awaiting the user's tap before a tool runs. */
+export interface GuardrailAsk {
+  requestId: string
+  workspaceId: string
+  sessionId: string
+  toolName: string
+  preview: string
+}
+
 export interface BoardCard {
   id: string
   workspaceId: string
@@ -267,6 +276,8 @@ export interface CoveApi {
     action: Record<string, unknown>
   ) => Promise<{ ok: boolean; error?: string }>
   simHasInput: () => Promise<boolean>
+  /** A single still of the simulator device, as a data URL — for the snip tool. */
+  simScreenshot: (udid: string) => Promise<string | null>
   onSimFrame: (
     udid: string,
     cb: (f: { url: string; width: number; height: number }) => void
@@ -472,6 +483,12 @@ export interface CoveApi {
   agentResumeLostCheck: (id: string) => Promise<boolean>
 
   onHookEvent: (cb: (e: HookEvent) => void) => () => void
+  /** A tool is gated pending the user's approval (browse-then-execute guard). */
+  onGuardrailAsk: (cb: (a: GuardrailAsk) => void) => () => void
+  /** A pending gate was resolved elsewhere (e.g. timed out) — dismiss its prompt. */
+  onGuardrailResolved: (cb: (requestId: string) => void) => () => void
+  /** Answer a gate: approve/deny, and whether to trust the rest of this turn. */
+  guardrailResolve: (requestId: string, approve: boolean, trustRest: boolean) => void
   onFocusWorkspace: (cb: (workspaceId: string) => void) => () => void
   /** SuperAgent's own version (package.json / bundle), not Claude Code's. */
   appVersion: () => Promise<string>
@@ -571,6 +588,7 @@ const cove: CoveApi = {
   simStreamStop: (udid) => ipcRenderer.send('sim:stream-stop', udid),
   simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),
+  simScreenshot: (udid) => ipcRenderer.invoke('sim:screenshot', udid),
   onSimFrame: (udid, cb) =>
     subscribe(`sim:frame:${udid}`, (f) => cb(f as { url: string; width: number; height: number })),
   onSimGone: (udid, cb) => subscribe(`sim:gone:${udid}`, () => cb()),
@@ -704,6 +722,11 @@ const cove: CoveApi = {
   agentResumeLostCheck: (id) => ipcRenderer.invoke('agent:resume-lost-check', id),
 
   onHookEvent: (cb) => subscribe('hook:event', (ev) => cb(ev as HookEvent)),
+  onGuardrailAsk: (cb) => subscribe('guardrail:ask', (a) => cb(a as GuardrailAsk)),
+  onGuardrailResolved: (cb) =>
+    subscribe('guardrail:resolved', (r) => cb((r as { requestId: string }).requestId)),
+  guardrailResolve: (requestId, approve, trustRest) =>
+    ipcRenderer.send('guardrail:resolve', requestId, approve, trustRest),
   onFocusWorkspace: (cb) => subscribe('hook:focus-workspace', (id) => cb(id as string)),
   appVersion: () => ipcRenderer.invoke('app:version'),
   updateCheck: () => ipcRenderer.invoke('update:check'),

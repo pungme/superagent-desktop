@@ -346,7 +346,7 @@ function ChatRow({
               <span className="sidebar-unread" title="Claude finished — you haven't read this" />
             )
           )}
-          {label}
+          <span className="chat-tree-label">{label}</span>
           {chat.cwd && (
             <span className="chat-tree-wt" title={`Worktree: ${chat.cwd}`}>
               ⎇ {chat.cwd.split('/').pop()}
