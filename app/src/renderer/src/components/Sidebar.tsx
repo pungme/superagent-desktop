@@ -454,10 +454,18 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     const onIdle = (e: Event): void => {
       if ((e as CustomEvent<{ workspaceId: string }>).detail?.workspaceId === ws.id) refresh()
     }
+    // Also refresh when the app regains focus. Git can change outside this
+    // project's chat — a pull/push from a terminal, another session, or another
+    // machine — and nothing here would notice, so the ↓/↑ badge went stale (it
+    // showed "6 to pull" after the branch was already synced). Re-checking on
+    // focus makes it right the moment you come back to the window.
+    const onFocus = (): void => refresh()
     window.addEventListener('cove:workspace-idle', onIdle)
+    window.addEventListener('focus', onFocus)
     return () => {
       alive = false
       window.removeEventListener('cove:workspace-idle', onIdle)
+      window.removeEventListener('focus', onFocus)
     }
   }, [ws.kind, ws.path, ws.id])
 
