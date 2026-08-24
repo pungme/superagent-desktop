@@ -8953,6 +8953,57 @@ button {
   }
 }
 
+/* --- Snip-to-attach ------------------------------------------------------- */
+.workspace-snip {
+  flex-shrink: 0;
+}
+.snip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(15, 15, 17, 0.66);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: guard-pop 120ms ease-out;
+}
+.snip-frame {
+  position: relative;
+  line-height: 0;
+  cursor: crosshair;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.snip-still {
+  display: block;
+  max-width: min(92vw, 1400px);
+  max-height: 82vh;
+  width: auto;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.snip-rect {
+  position: absolute;
+  border: 1.5px solid #fff;
+  background: rgba(59, 130, 246, 0.18);
+  box-shadow: 0 0 0 100vmax rgba(15, 15, 17, 0.45);
+  pointer-events: none;
+}
+.snip-hint {
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
 /* --- Prompt-injection gate ------------------------------------------------ */
 .guard-backdrop {
   position: fixed;

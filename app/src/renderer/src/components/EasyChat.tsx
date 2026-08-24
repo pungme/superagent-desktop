@@ -1082,6 +1082,28 @@ export function EasyChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, visible])
 
+  // A crop from the snip tool (WorkspaceView) lands here — attach it like a
+  // pasted image and drop the cursor in the box so you can describe the problem
+  // right away. Only the on-screen chat reacts (busy siblings stay hidden).
+  useEffect(() => {
+    if (!isActive || !visible) return
+    const onSnip = (e: Event): void => {
+      const url = (e as CustomEvent<{ url: string }>).detail?.url
+      if (!url) return
+      void fetch(url)
+        .then((r) => r.blob())
+        .then((blob) => {
+          attachImage(
+            new File([blob], `snip-${Date.now()}.png`, { type: blob.type || 'image/png' })
+          )
+          inputRef.current?.focus()
+        })
+    }
+    window.addEventListener('cove:attach-image', onSnip)
+    return () => window.removeEventListener('cove:attach-image', onSnip)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, visible])
+
   // Drag a file onto the chat: images attach (like a paste); other files become
   // a file chip in the composer — the same 📎 chip a file dropped from the tree
   // gets — rather than dumping a raw path into the text you're writing.
