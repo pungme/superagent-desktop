@@ -593,27 +593,11 @@ export function WorkspaceView({
             toolbar — leaving no way to close it. This close lives up here in the
             workspace toolbar, which the native view can never reach, so there is
             always a way out. Shown only when the browser is the visible surface. */}
-        {ws.kind !== 'browser' &&
-          browserOpen &&
-          !openFilePath &&
-          !boardOpen &&
-          (() => {
-            // A PDF or image opened from the file tree shows in this same pane
-            // (file://), but Chromium's document viewer has no close of its own —
-            // so the only way out is this button. "Hide preview" read as dev-
-            // server language and nobody connected it to their open document, so
-            // for a local file it says "Close" with an ✕ instead.
-            const isDoc = (attachedUrl || paneUrl).startsWith('file:')
-            return (
-              <button
-                className="toolbar-btn on"
-                onClick={() => toggleBrowser(ws.id, true)}
-                title={isDoc ? 'Close this document' : 'Close the preview pane'}
-              >
-                {isDoc ? '✕ Close' : 'Hide preview'}
-              </button>
-            )
-          })()}
+        {/* The preview pane's close ✕ lives ON the pane, in its own omnibar
+            (BrowserPane) — where a close belongs and where you look for it. No
+            duplicate up here. The omnibar always renders (web pages and PDFs
+            alike), and the settle re-sync keeps the native view from ever painting
+            over it, so that ✕ is always present and clickable. */}
         {ws.kind === 'browser' && (
           <button
             className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
