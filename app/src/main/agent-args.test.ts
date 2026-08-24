@@ -51,8 +51,8 @@ describe('buildAgentArgs', () => {
 
   it('pins the model only when one was chosen', () => {
     expect(valueAfter(buildAgentArgs({ model: 'opus' }), '--model')).toBe('opus')
+    // "Default" ('') sends no --model — the CLI resolves the account default.
     expect(buildAgentArgs({}).includes('--model')).toBe(false)
-    // '' means "Claude's default", not a model named empty string.
     expect(buildAgentArgs({ model: '' }).includes('--model')).toBe(false)
   })
 

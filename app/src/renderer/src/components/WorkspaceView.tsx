@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
+import { SnipOverlay } from './SnipOverlay'
 import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
@@ -87,9 +88,26 @@ export function WorkspaceView({
   // state during render when a key changes" pattern: no effect, no flash.
   const [seededKey, setSeededKey] = useState(deskKey)
   if (seededKey !== deskKey) {
+    // The agent can open the sim (or board) before activeChatId has resolved, so
+    // it lands keyed to the workspace id; a beat later the key becomes the chat
+    // id and this re-seed ran — reading an empty value and closing it, so it
+    // flashed open then vanished. Carry an open pane across THAT first
+    // workspace→chat resolution only. A real chat→chat switch still reads the new
+    // chat's own state (per-chat isolation preserved), and an explicit saved
+    // value for the new key always wins.
+    const fromWorkspace = seededKey === ws.id
+    const reseed = (kind: 'simOpen' | 'boardOpen', cur: boolean): boolean => {
+      const saved = localStorage.getItem(`${kind}:${deskKey}`)
+      if (saved !== null) return saved === '1'
+      if (fromWorkspace && cur) {
+        localStorage.setItem(`${kind}:${deskKey}`, '1')
+        return true
+      }
+      return false
+    }
     setSeededKey(deskKey)
-    setSimOpen(localStorage.getItem(`simOpen:${deskKey}`) === '1')
-    setBoardOpen(localStorage.getItem(`boardOpen:${deskKey}`) === '1')
+    setSimOpen(reseed('simOpen', simOpen))
+    setBoardOpen(reseed('boardOpen', boardOpen))
   }
   /**
    * Four columns need about 620px to be worth looking at, and the pane half is
@@ -133,6 +151,59 @@ export function WorkspaceView({
 
   const paneOpen = browserOpen || !!openFilePath || simOpen || boardOpen
 
+  // Snip-to-attach: freeze the current pane surface to a still, let the user drag
+  // a region out of it, and drop that crop straight into the chat composer.
+  const enterOverlay = useStore((s) => s.enterOverlay)
+  const exitOverlay = useStore((s) => s.exitOverlay)
+  const [snipStill, setSnipStill] = useState<string | null>(null)
+  const snipObjectUrl = useRef<string | null>(null)
+  const snippingRef = useRef(false) // guards against a double-click starting two snips
+  // Snippable surfaces: the (native) browser page or the simulator. A board or
+  // text file is plain HTML — an ordinary screenshot already works there.
+  const canSnip = (browserOpen && !boardOpen && !openFilePath) || simOpen
+  const startSnip = async (): Promise<void> => {
+    if (snippingRef.current) return
+    snippingRef.current = true
+    let still: string | null = null
+    if (browserOpen && !boardOpen && !openFilePath) {
+      const bytes = await window.cove.browserFreeze(browserPaneId)
+      if (bytes && bytes.length) {
+        const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/jpeg' }))
+        snipObjectUrl.current = url
+        still = url
+      }
+    } else if (simOpen) {
+      const udid = localStorage.getItem(`cove.simDevice:${ws.id}`)
+      if (udid) still = await window.cove.simScreenshot(udid)
+    }
+    if (!still) {
+      snippingRef.current = false
+      return
+    }
+    setSnipStill(still) // the effect below acquires the overlay lock
+  }
+  const finishSnip = (): void => {
+    snippingRef.current = false
+    setSnipStill(null) // the effect cleanup releases the lock + revokes the URL
+  }
+  // Hold the overlay lock — which detaches the native browser view so the HTML
+  // snip overlay is visible over it — and the freeze object URL for exactly as
+  // long as the snip is on screen. Binding both to this effect's lifetime means
+  // they're released when the snip ends OR the workspace unmounts/hides mid-snip,
+  // so a lock can never leak (a leaked lock keeps EVERY browser preview frozen
+  // until restart) and the JPEG blob URL can never leak.
+  useEffect(() => {
+    if (!snipStill) return
+    enterOverlay()
+    return () => {
+      exitOverlay()
+      if (snipObjectUrl.current) {
+        URL.revokeObjectURL(snipObjectUrl.current)
+        snipObjectUrl.current = null
+      }
+    }
+  }, [snipStill, enterOverlay, exitOverlay])
+
   // The board and a file preview share the one working surface, and the board
   // was drawn on top — so clicking a file while the board was open did nothing
   // visible until you closed the board. Opening a *new* file now steps the board
@@ -153,6 +224,13 @@ export function WorkspaceView({
   useEffect(() => {
     return window.cove.onOpenSimulator?.((p) => {
       if (p.workspaceId !== ws.id) return
+      // Claim the device the agent just launched onto BEFORE opening the pane.
+      // SimulatorPane mounts in response to this open and only then subscribes to
+      // onOpenSimulator — too late to catch this very event — so it relies on the
+      // stored claim. Without it, its mount check finds nothing booted for this
+      // project and calls onNothingToShow(), closing the pane it just opened:
+      // the "flash then vanish".
+      if (p.udid) localStorage.setItem(`cove.simDevice:${ws.id}`, p.udid)
       // deskKey in deps so an agent reveal lands on the chat you're actually on,
       // not the one that was active when this listener first subscribed.
       localStorage.setItem(`simOpen:${deskKey}`, '1')
@@ -175,8 +253,25 @@ export function WorkspaceView({
   // inside the mounted <EasyChat>, so unmounting it on switch would kill the
   // work mid-stream. Keep the on-screen chat mounted plus any that's still busy.
   const busy = useStore((s) => s.busy)
+  // Keep the last few chats you were in mounted, not just the active one. The
+  // agent can leave background work running (builders, a long shell) that the app
+  // can't always see as "busy" — and unmounting a chat kills its claude process
+  // (and that work) instantly. Holding a small window of recent chats means
+  // switching away doesn't nuke a session the moment you look elsewhere. Bounded
+  // to a few, so this can't leak sessions. (React's adjust-state-in-render idiom
+  // — no effect.)
+  const [recentChats, setRecentChats] = useState<string[]>(() =>
+    activeChatId ? [activeChatId] : []
+  )
+  if (activeChatId && recentChats[0] !== activeChatId) {
+    setRecentChats([activeChatId, ...recentChats.filter((id) => id !== activeChatId)].slice(0, 3))
+  }
   const mountedChats = (chats ?? []).filter(
-    (c) => c.id === activeChatId || busy[c.id]?.generating || (busy[c.id]?.background ?? 0) > 0
+    (c) =>
+      c.id === activeChatId ||
+      recentChats.includes(c.id) ||
+      busy[c.id]?.generating ||
+      (busy[c.id]?.background ?? 0) > 0
   )
   useEffect(() => {
     loadChats(ws.id)
@@ -479,33 +574,30 @@ export function WorkspaceView({
           </button>
         )}
         <div className="workspace-toolbar-spacer" />
+        {/* Snip a region of the page/simulator straight into the composer. Lives
+            in the toolbar, not floating over the pane, because the native view
+            paints above HTML and would cover (and swallow the click on) anything
+            floating on top of it. */}
+        {canSnip && (
+          <button
+            className="toolbar-btn workspace-snip"
+            onClick={startSnip}
+            title="Snip a region into your message"
+          >
+            ✂ Snip
+          </button>
+        )}
         {/* A code project's preview reveals itself when the agent navigates, and
             normally closes from the pane's own ✕. But the native page paints
             ABOVE all HTML, so a mis-bounded agent-opened view can cover its own
             toolbar — leaving no way to close it. This close lives up here in the
             workspace toolbar, which the native view can never reach, so there is
             always a way out. Shown only when the browser is the visible surface. */}
-        {ws.kind !== 'browser' &&
-          browserOpen &&
-          !openFilePath &&
-          !boardOpen &&
-          (() => {
-            // A PDF or image opened from the file tree shows in this same pane
-            // (file://), but Chromium's document viewer has no close of its own —
-            // so the only way out is this button. "Hide preview" read as dev-
-            // server language and nobody connected it to their open document, so
-            // for a local file it says "Close" with an ✕ instead.
-            const isDoc = (attachedUrl || paneUrl).startsWith('file:')
-            return (
-              <button
-                className="toolbar-btn on"
-                onClick={() => toggleBrowser(ws.id, true)}
-                title={isDoc ? 'Close this document' : 'Close the preview pane'}
-              >
-                {isDoc ? '✕ Close' : 'Hide preview'}
-              </button>
-            )
-          })()}
+        {/* The preview pane's close ✕ lives ON the pane, in its own omnibar
+            (BrowserPane) — where a close belongs and where you look for it. No
+            duplicate up here. The omnibar always renders (web pages and PDFs
+            alike), and the settle re-sync keeps the native view from ever painting
+            over it, so that ✕ is always present and clickable. */}
         {ws.kind === 'browser' && (
           <button
             className={`toolbar-btn ${browserOpen ? 'on' : ''}`}
@@ -631,6 +723,17 @@ export function WorkspaceView({
       </div>
       {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
           mounted, or its overlay lock would blank the active workspace's preview. */}
+      {snipStill && (
+        <SnipOverlay
+          still={snipStill}
+          onCancel={finishSnip}
+          onCapture={(dataUrl) => {
+            // Hand the crop to the active chat's composer (it listens and focuses).
+            window.dispatchEvent(new CustomEvent('cove:attach-image', { detail: { url: dataUrl } }))
+            finishSnip()
+          }}
+        />
+      )}
     </div>
   )
 }

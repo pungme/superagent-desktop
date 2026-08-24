@@ -667,6 +667,12 @@ export function registerSimulatorIpc(): void {
     currentUdid = udid && udid.length ? udid : null
     return true
   })
+  // A single still of the device, for the snip tool — the frame stream is live,
+  // this grabs one on demand.
+  ipcMain.handle('sim:screenshot', async (_e, udid: string) => {
+    const f = await grabFrame(udid)
+    return f?.url ?? null
+  })
   ipcMain.handle('sim:attach-ready', () => ({
     trusted: systemPreferences.isTrustedAccessibilityClient(false)
   }))

@@ -284,7 +284,12 @@ export function buildAgentArgs(
     '--permission-mode',
     opts.permissionMode ?? 'bypassPermissions'
   ]
-  // Pin the model when the user picked one; otherwise Claude's default applies.
+  // Pin the model only when the user picked one. "Default" ('') means "whatever
+  // your account uses" — passing no --model lets the CLI resolve the account
+  // default (which is often the best model you have, e.g. Opus 5), so don't
+  // second-guess it with a forced downgrade. To force off a rate-limited model
+  // on a resumed session, pick a concrete model — that DOES send --model and
+  // overrides.
   if (opts.model) args.push('--model', opts.model)
   if (ctx.resume) args.unshift('--resume', ctx.resume)
   if (ctx.mcpConfig) args.push('--mcp-config', ctx.mcpConfig)

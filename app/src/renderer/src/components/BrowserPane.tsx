@@ -146,7 +146,6 @@ export function BrowserPane({
   positionKey,
   radius = 0
 }: BrowserPaneProps): React.JSX.Element {
-  const toggleBrowser = useStore((s) => s.toggleBrowser)
   // paneId is workspace::chat for per-chat views; the workspace is the part
   // before '::'. Used for sidebar/browsing/saved-URL, which are per project.
   const workspaceId = workspaceIdProp ?? paneId.split('::')[0]
@@ -165,6 +164,7 @@ export function BrowserPane({
   const setReloadOnIdle = useStore((s) => s.setReloadOnIdle)
   const browsing = useStore((s) => s.browsingWorkspaceId === workspaceId)
   const stopBrowsing = useStore((s) => s.stopBrowsing)
+  const toggleBrowser = useStore((s) => s.toggleBrowser)
   const hostRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<BrowserState>({
@@ -231,6 +231,20 @@ export function BrowserPane({
     height: number
   } | null>(null)
   const [frozen, setFrozen] = useState<string | null>(null)
+  // The freeze-frame is a blob object URL; it's revoked when replaced, but a pane
+  // can unmount while still frozen (covered/away, then a chat or workspace switch)
+  // — revoke the last one on unmount so it isn't leaked. (Ref, so the unmount
+  // cleanup sees the current value rather than the mount-time null.)
+  const frozenRef = useRef<string | null>(null)
+  useEffect(() => {
+    frozenRef.current = frozen
+  }, [frozen])
+  useEffect(
+    () => () => {
+      if (frozenRef.current) URL.revokeObjectURL(frozenRef.current)
+    },
+    []
+  )
   // Page-coloured DOM backfills for the top corners (desktop mode): the rounded
   // top arcs reveal these instead of the grey card, so the top reads square.
   const [cornerFill, setCornerFill] = useState<{
@@ -393,6 +407,23 @@ export function BrowserPane({
     emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: dw, height: dh - CARD_OMNIBAR_H })
   }, [paneId])
 
+  // Layout keeps settling for a frame or two after a trigger — the toolbar
+  // reflowing, a font landing, the entrance easing. A single sync can land
+  // mid-settle and pin the native view a few px off its final spot, with nothing
+  // to correct it: a ResizeObserver fires on the host's SIZE changing, not when
+  // the host merely SHIFTS (the toolbar above it growing/shrinking moves it
+  // without resizing it). Re-measure across the next frames and a short delay so
+  // the settled position always wins. syncBounds early-returns when hidden or
+  // covered, so a late tick after unmount is harmless.
+  const syncBoundsSettled = useCallback((): void => {
+    syncBounds()
+    requestAnimationFrame(() => {
+      syncBounds()
+      requestAnimationFrame(syncBounds)
+    })
+    window.setTimeout(syncBounds, 220)
+  }, [syncBounds])
+
   // The omnibox dropdown is HTML and nothing renders above the native view, so
   // while it's open the pane freezes (same trick as modals): the dropdown floats
   // over a still of the page instead of shoving the live page down.
@@ -443,10 +474,10 @@ export function BrowserPane({
   // HTML overlay opens/closes over it; re-sync when the dropdown opens/closes so
   // its top-clip is applied or removed.
   useEffect(() => {
-    if (visible && !paneCovered) syncBounds()
+    if (visible && !paneCovered) syncBoundsSettled()
     else if (!visible) window.cove.browserHide(paneId)
     // The covered case is handled below, so the page can be frozen before it goes.
-  }, [visible, paneCovered, paneId, syncBounds, positionKey])
+  }, [visible, paneCovered, paneId, syncBoundsSettled, positionKey])
 
   // Overlay opening: one IPC — main photographs the page and detaches the view
   // in the same handler, then the still stands in (~20 ms later). Detaching must
@@ -487,8 +518,8 @@ export function BrowserPane({
   // a fit-to-pane zoom applied); then reposition/zoom for the newly selected mode.
   useEffect(() => {
     if (viewport === 'none') window.cove.browserZoom(paneId, 'reset')
-    syncBounds()
-  }, [viewport, paneId, syncBounds])
+    syncBoundsSettled()
+  }, [viewport, paneId, syncBoundsSettled])
 
   useEffect(() => {
     let alive = true
@@ -513,7 +544,7 @@ export function BrowserPane({
 
     window.cove.browserCreate(paneId, partition).then((currentUrl) => {
       if (!alive) return
-      syncBounds()
+      syncBoundsSettled()
       // A pane that already has a page loaded is one that was merely hidden (e.g.
       // when you switched to a chat with the browser closed) and is now back.
       // Leave it exactly as it was — re-navigating would reload it and throw away
@@ -541,14 +572,30 @@ export function BrowserPane({
       offZoom()
       window.cove.browserHide(paneId)
     }
-  }, [paneId, partition, initialUrl, closable, syncBounds])
+  }, [paneId, partition, initialUrl, closable, syncBounds, syncBoundsSettled])
 
   // Main detaches panes while the user is in another app (so a loading page
   // can't pull the window forward). When they come back it asks for a re-sync;
   // pushing bounds re-attaches this pane — and only panes still mounted here.
   useEffect(() => {
-    return window.cove.onBrowserResync(() => syncBounds())
-  }, [syncBounds])
+    return window.cove.onBrowserResync(() => syncBoundsSettled())
+  }, [syncBoundsSettled])
+
+  // The pane's entrance animation (pane-in / browser-frame-in) transforms an
+  // ancestor of the host. getBoundingClientRect includes transforms, so any
+  // bounds sync during those ~0.24s measures a shifted, scaled rect and pins the
+  // native view off-position — and nothing re-measures once the transform clears,
+  // so it stays misaligned (a page sitting a few px low, slightly inset). Re-sync
+  // the instant the entrance finishes, when the ancestor is back at its real spot.
+  useEffect(() => {
+    const onEnd = (e: AnimationEvent): void => {
+      if (e.animationName !== 'pane-in' && e.animationName !== 'browser-frame-in') return
+      const host = hostRef.current
+      if (host && e.target instanceof Node && e.target.contains(host)) syncBoundsSettled()
+    }
+    document.addEventListener('animationend', onEnd)
+    return () => document.removeEventListener('animationend', onEnd)
+  }, [syncBoundsSettled])
 
   // Navigate when a preview URL is requested (e.g. clicking a port chip, opening
   // a file). The INITIAL page is loaded by the create effect, which leaves an
@@ -582,15 +629,20 @@ export function BrowserPane({
     if (state.url) window.cove.historyRecord(state.url, state.title)
   }, [state.url, state.title])
 
-  // Remember the last page per workspace so the preview restores it on the next
-  // launch (paneId is the workspace id for the visible pane). Debounced.
+  // Remember the last page so the preview restores it next launch. Debounced.
+  // Only for BROWSER projects: their pane is the workspace, so one workspace-level
+  // browserUrl is right. A code project's pane is per-chat (paneId = ws::chat) and
+  // each chat keeps its own page in paneUrl:<paneId> above — writing a single
+  // workspace-level browserUrl here would clobber every chat's page with whichever
+  // one navigated last, and restore them all to it on a cold start.
   useEffect(() => {
+    if (closable) return // closable === true means a code project (not browser)
     if (!/^https?:\/\//i.test(state.url)) return
     const t = setTimeout(() => {
       window.cove.updateWorkspace(workspaceId, { browserUrl: state.url })
     }, 1000)
     return () => clearTimeout(t)
-  }, [state.url, paneId])
+  }, [state.url, paneId, closable, workspaceId])
 
   const doZoom = async (action: 'in' | 'out' | 'reset'): Promise<void> => {
     autoFitRef.current = false // manual zoom wins over Fit's auto zoom-to-width
@@ -825,11 +877,9 @@ export function BrowserPane({
         </button>
         {closable && (
           <button
-            // Set apart from the navigation buttons: as one more identical
-            // glyph at the end of ten, nobody read this as the way out.
+            // The close for the middle pane, on the pane itself — where a close
+            // belongs. Set apart from the nav buttons so it reads as the way out.
             className="browser-nav-btn browser-close-btn"
-            // This button only exists while the pane is on screen, so the
-            // current state is not in doubt: it is open, and this closes it.
             onClick={() => toggleBrowser(workspaceId, true)}
             title="Close this preview pane"
           >

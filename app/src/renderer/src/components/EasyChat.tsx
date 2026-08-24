@@ -212,8 +212,14 @@ function toolLabel(name: string): { icon: string; verb: string } {
     const action = name.replace('mcp__cove-browser__browser_', '').replace(/_/g, ' ')
     return { icon: '🌐', verb: action }
   }
+  if (name.startsWith('mcp__cove-browser__sim_')) {
+    const action = name.replace('mcp__cove-browser__sim_', '').replace(/_/g, ' ')
+    return { icon: '📱', verb: action }
+  }
   const map: Record<string, { icon: string; verb: string }> = {
-    Bash: { icon: '⌘', verb: 'Running' },
+    // "Terminal", not "Running": this label shows in a finished turn's collapsed
+    // summary too ("2 steps · …"), where a gerund read as "still running now".
+    Bash: { icon: '⌘', verb: 'Terminal' },
     Read: { icon: '📄', verb: 'Reading' },
     Edit: { icon: '✏️', verb: 'Editing' },
     Write: { icon: '✏️', verb: 'Writing' },
@@ -226,6 +232,10 @@ function toolLabel(name: string): { icon: string; verb: string } {
     Task: { icon: '🤖', verb: 'Sub-agent' },
     ToolSearch: { icon: '🧰', verb: 'Finding tools' }
   }
+  // Any other MCP tool: strip the mcp__server__ prefix so it reads as words, not
+  // a raw internal id (mcp__cove-browser__sim_list_devices → "list devices").
+  const mcp = name.match(/^mcp__[a-z0-9-]+__(.+)$/i)
+  if (mcp) return { icon: '🔧', verb: mcp[1].replace(/_/g, ' ') }
   return map[name] ?? { icon: '🔧', verb: name }
 }
 
@@ -511,7 +521,7 @@ function extractPorts(text: string): number[] {
 // Model choices for the composer picker. '' = Claude's own default (whatever the
 // CLI is configured to use); the rest are passed as --model at spawn.
 const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
-  { value: '', label: 'Default', hint: 'Whatever your Claude account defaults to' },
+  { value: '', label: 'Default', hint: 'Whatever your account uses' },
   // The 1M variants, deliberately. Plain `opus` runs the 200K model: picking
   // Opus from this menu quietly gave you a fifth of the window your own default
   // already had (the CLI resolves that to claude-opus-5[1m]), and the memory
@@ -759,6 +769,19 @@ export function EasyChat({
   // is still going is a sentence that scrolls away.
   /** Which pill's menu is open — 'model', 'mode', 'server', or `bg-<id>`. */
   const [controlMenu, setControlMenu] = useState<string | null>(null)
+  // Dismiss an open control menu (model / mode / a background-task pill) when you
+  // click anywhere outside it — the expected way out of a popover. Clicks on a
+  // trigger button or inside a menu are left alone (they handle themselves).
+  useEffect(() => {
+    if (!controlMenu) return
+    const onDown = (e: MouseEvent): void => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.closest('.easy-control-btn') || t.closest('.easy-control-menu'))) return
+      setControlMenu(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [controlMenu])
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
   const bgTasksRef = useRef<BackgroundTask[]>([])
   // Sub-agents (the Task tool) currently running. They live inside the same
@@ -1056,6 +1079,28 @@ export function EasyChat({
     document.addEventListener('paste', onDocPaste)
     return () => document.removeEventListener('paste', onDocPaste)
     // attachImage only closes over stable setState, so re-subscribing per render is unnecessary.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, visible])
+
+  // A crop from the snip tool (WorkspaceView) lands here — attach it like a
+  // pasted image and drop the cursor in the box so you can describe the problem
+  // right away. Only the on-screen chat reacts (busy siblings stay hidden).
+  useEffect(() => {
+    if (!isActive || !visible) return
+    const onSnip = (e: Event): void => {
+      const url = (e as CustomEvent<{ url: string }>).detail?.url
+      if (!url) return
+      void fetch(url)
+        .then((r) => r.blob())
+        .then((blob) => {
+          attachImage(
+            new File([blob], `snip-${Date.now()}.png`, { type: blob.type || 'image/png' })
+          )
+          inputRef.current?.focus()
+        })
+    }
+    window.addEventListener('cove:attach-image', onSnip)
+    return () => window.removeEventListener('cove:attach-image', onSnip)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, visible])
 
@@ -1650,9 +1695,10 @@ export function EasyChat({
         // fresh turn on its own.
         setThinking(false)
         setGenerating(false)
-        // The turn is over, so no sub-agent is still running — sweep any pill a
-        // missed result block would otherwise strand.
-        setRunningAgents([])
+        // NB: we deliberately do NOT clear runningAgents here. A sub-agent the
+        // agent spawned can keep running after the turn ends (it will say so),
+        // and clearing on turn-end hid that work. Pills clear when their own
+        // result block arrives, on interrupt/exit, or when the next turn starts.
         // /loop (continuous): the turn finished, so run the prompt again — unless
         // the user stopped it, we hit the safety cap, or the turn was interrupted.
         const lp = loopRef.current
@@ -1748,19 +1794,29 @@ export function EasyChat({
                   .slice(0, 200) +
                 ')'
               : ''
-          setItems((prev) => [
-            ...prev,
-            {
-              kind: 'msg',
-              msg: {
-                id: `sys-${Date.now()}`,
-                at: Date.now(),
-                role: 'assistant',
-                text: `⚠ ${note}${detail}`,
-                system: true
-              }
+          const noteText = `⚠ ${note}${detail}`
+          setItems((prev) => {
+            // Don't stack the same notice twice in a row. A flaky session can end
+            // several turns the same empty way; one bubble reads as a state, a
+            // column of identical bubbles reads as broken.
+            const last = prev[prev.length - 1]
+            if (last?.kind === 'msg' && last.msg.system && last.msg.text === noteText) {
+              return prev
             }
-          ])
+            return [
+              ...prev,
+              {
+                kind: 'msg',
+                msg: {
+                  id: `sys-${Date.now()}`,
+                  at: Date.now(),
+                  role: 'assistant',
+                  text: noteText,
+                  system: true
+                }
+              }
+            ]
+          })
         }
         streamedThisTurnRef.current = false
       }
@@ -2250,6 +2306,12 @@ export function EasyChat({
     // Only reset the "did this turn produce anything" flag when starting a fresh
     // turn — a mid-turn interjection is part of the turn already in progress.
     if (!interjecting) streamedThisTurnRef.current = false
+    // Clear stale sub-agent pills at the START of a fresh turn, not the end of the
+    // last one: the agent can leave builders/sub-agents running past a turn (it
+    // says so — "running now, I'll pick up as each finishes"), and sweeping them
+    // when the turn ended hid genuinely-running work. They persist now until you
+    // send the next message.
+    if (!interjecting) setRunningAgents([])
     const payload = images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
     if (!interjecting) {
       inFlightSendRef.current = { text: agentText, images: payload }
