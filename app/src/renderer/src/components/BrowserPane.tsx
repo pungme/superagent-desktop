@@ -230,6 +230,20 @@ export function BrowserPane({
     height: number
   } | null>(null)
   const [frozen, setFrozen] = useState<string | null>(null)
+  // The freeze-frame is a blob object URL; it's revoked when replaced, but a pane
+  // can unmount while still frozen (covered/away, then a chat or workspace switch)
+  // — revoke the last one on unmount so it isn't leaked. (Ref, so the unmount
+  // cleanup sees the current value rather than the mount-time null.)
+  const frozenRef = useRef<string | null>(null)
+  useEffect(() => {
+    frozenRef.current = frozen
+  }, [frozen])
+  useEffect(
+    () => () => {
+      if (frozenRef.current) URL.revokeObjectURL(frozenRef.current)
+    },
+    []
+  )
   // Page-coloured DOM backfills for the top corners (desktop mode): the rounded
   // top arcs reveal these instead of the grey card, so the top reads square.
   const [cornerFill, setCornerFill] = useState<{
@@ -614,15 +628,20 @@ export function BrowserPane({
     if (state.url) window.cove.historyRecord(state.url, state.title)
   }, [state.url, state.title])
 
-  // Remember the last page per workspace so the preview restores it on the next
-  // launch (paneId is the workspace id for the visible pane). Debounced.
+  // Remember the last page so the preview restores it next launch. Debounced.
+  // Only for BROWSER projects: their pane is the workspace, so one workspace-level
+  // browserUrl is right. A code project's pane is per-chat (paneId = ws::chat) and
+  // each chat keeps its own page in paneUrl:<paneId> above — writing a single
+  // workspace-level browserUrl here would clobber every chat's page with whichever
+  // one navigated last, and restore them all to it on a cold start.
   useEffect(() => {
+    if (closable) return // closable === true means a code project (not browser)
     if (!/^https?:\/\//i.test(state.url)) return
     const t = setTimeout(() => {
       window.cove.updateWorkspace(workspaceId, { browserUrl: state.url })
     }, 1000)
     return () => clearTimeout(t)
-  }, [state.url, paneId])
+  }, [state.url, paneId, closable, workspaceId])
 
   const doZoom = async (action: 'in' | 'out' | 'reset'): Promise<void> => {
     autoFitRef.current = false // manual zoom wins over Fit's auto zoom-to-width
