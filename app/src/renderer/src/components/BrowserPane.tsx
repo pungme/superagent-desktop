@@ -164,6 +164,7 @@ export function BrowserPane({
   const setReloadOnIdle = useStore((s) => s.setReloadOnIdle)
   const browsing = useStore((s) => s.browsingWorkspaceId === workspaceId)
   const stopBrowsing = useStore((s) => s.stopBrowsing)
+  const toggleBrowser = useStore((s) => s.toggleBrowser)
   const hostRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<BrowserState>({
@@ -874,10 +875,17 @@ export function BrowserPane({
         >
           ↗
         </button>
-        {/* No close ✕ here on purpose. This omnibox only renders for code-project
-            previews, which always carry the occlusion-proof "✕ Close" up in the
-            workspace toolbar — a second ✕ in the chrome (which the native view can
-            also paint over) was just a redundant, less-reliable duplicate. */}
+        {closable && (
+          <button
+            // The close for the middle pane, on the pane itself — where a close
+            // belongs. Set apart from the nav buttons so it reads as the way out.
+            className="browser-nav-btn browser-close-btn"
+            onClick={() => toggleBrowser(workspaceId, true)}
+            title="Close this preview pane"
+          >
+            ✕
+          </button>
+        )}
       </div>
       <div
         ref={hostRef}
