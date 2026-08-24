@@ -157,10 +157,13 @@ export function WorkspaceView({
   const exitOverlay = useStore((s) => s.exitOverlay)
   const [snipStill, setSnipStill] = useState<string | null>(null)
   const snipObjectUrl = useRef<string | null>(null)
+  const snippingRef = useRef(false) // guards against a double-click starting two snips
   // Snippable surfaces: the (native) browser page or the simulator. A board or
   // text file is plain HTML — an ordinary screenshot already works there.
   const canSnip = (browserOpen && !boardOpen && !openFilePath) || simOpen
   const startSnip = async (): Promise<void> => {
+    if (snippingRef.current) return
+    snippingRef.current = true
     let still: string | null = null
     if (browserOpen && !boardOpen && !openFilePath) {
       const bytes = await window.cove.browserFreeze(browserPaneId)
@@ -173,20 +176,33 @@ export function WorkspaceView({
       const udid = localStorage.getItem(`cove.simDevice:${ws.id}`)
       if (udid) still = await window.cove.simScreenshot(udid)
     }
-    if (!still) return
-    // Detach the native browser view so the HTML snip overlay shows over it (the
-    // simulator is HTML already). exitOverlay in finishSnip re-attaches it.
-    enterOverlay()
-    setSnipStill(still)
+    if (!still) {
+      snippingRef.current = false
+      return
+    }
+    setSnipStill(still) // the effect below acquires the overlay lock
   }
   const finishSnip = (): void => {
-    setSnipStill(null)
-    exitOverlay()
-    if (snipObjectUrl.current) {
-      URL.revokeObjectURL(snipObjectUrl.current)
-      snipObjectUrl.current = null
-    }
+    snippingRef.current = false
+    setSnipStill(null) // the effect cleanup releases the lock + revokes the URL
   }
+  // Hold the overlay lock — which detaches the native browser view so the HTML
+  // snip overlay is visible over it — and the freeze object URL for exactly as
+  // long as the snip is on screen. Binding both to this effect's lifetime means
+  // they're released when the snip ends OR the workspace unmounts/hides mid-snip,
+  // so a lock can never leak (a leaked lock keeps EVERY browser preview frozen
+  // until restart) and the JPEG blob URL can never leak.
+  useEffect(() => {
+    if (!snipStill) return
+    enterOverlay()
+    return () => {
+      exitOverlay()
+      if (snipObjectUrl.current) {
+        URL.revokeObjectURL(snipObjectUrl.current)
+        snipObjectUrl.current = null
+      }
+    }
+  }, [snipStill, enterOverlay, exitOverlay])
 
   // The board and a file preview share the one working surface, and the board
   // was drawn on top — so clicking a file while the board was open did nothing

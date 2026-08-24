@@ -116,6 +116,15 @@ export function SimulatorPane({
     text: '',
     timer: null
   })
+  // Clear a pending type-flush on unmount, so a keystroke typed just before the
+  // pane closes (✕ or a chat switch) doesn't fire input at a device whose pane is
+  // gone, and doesn't setState on an unmounted component.
+  useEffect(
+    () => () => {
+      if (typeBuf.current.timer) clearTimeout(typeBuf.current.timer)
+    },
+    []
+  )
 
   const device = devices.find((d) => d.udid === udid)
 
