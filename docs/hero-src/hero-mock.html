@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --ink: #23241f;
+    --muted: #6a6d64;
+    --faint: #9a9d92;
+    --line: rgba(35, 36, 31, 0.1);
+    --paper: #f6f5f2;
+    --side: #efeeea;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1360px; height: 900px; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    background: transparent;
+    display: grid; place-items: center;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .window {
+    width: 1216px; height: 742px;
+    background: var(--paper);
+    border-radius: 12px;
+    box-shadow:
+      0 0 0 0.5px rgba(35, 36, 31, 0.2),
+      0 24px 60px -18px rgba(35, 36, 31, 0.4);
+    display: grid;
+    grid-template-columns: 216px 1fr 316px;
+    overflow: hidden;
+  }
+
+  /* ---------- sidebar ---------- */
+  .side { background: var(--side); border-right: 1px solid var(--line); padding: 12px 10px; font-size: 12.5px; color: var(--ink); position: relative; }
+  .tl-row { display: flex; gap: 7px; padding: 2px 4px 14px; }
+  .tl { width: 12px; height: 12px; border-radius: 50%; }
+  .tl.r { background: #f0605c; } .tl.y { background: #f6be50; } .tl.g { background: #61c455; }
+  .side-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; color: #3d3f38; }
+  .side-item.hd { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: var(--faint); text-transform: uppercase; margin-top: 12px; padding-bottom: 3px; }
+  .side-item.on { background: rgba(35, 36, 31, 0.08); font-weight: 600; }
+  .side-item .ico { width: 14px; text-align: center; opacity: 0.65; font-size: 11px; }
+  .fav { width: 13px; height: 13px; border-radius: 3.5px; flex: none; display: grid; place-items: center; font-size: 8px; color: #fff; font-weight: 700; }
+  .badge { margin-left: auto; font-size: 9.5px; color: var(--faint); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .sub { padding-left: 26px; font-size: 11.5px; color: var(--muted); }
+  .side-foot { position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; color: var(--faint); font-size: 11.5px; padding: 5px 8px; }
+
+  /* ---------- browser pane ---------- */
+  .main { display: flex; flex-direction: column; background: #fbfbf9; min-width: 0; }
+  .main-bar { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  .page-title { font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .page-url { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .bar-btn {
+    font-size: 10px; color: #4b4d46; text-align: center; line-height: 1.25;
+    border: 1px solid var(--line); border-radius: 7px; padding: 4px 9px; background: #fff; white-space: nowrap;
+  }
+  .bar-btn.dark { background: #2b2c27; color: #f2f1ec; border-color: #2b2c27; }
+
+  .stage {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 26px;
+    padding: 24px; background:
+      radial-gradient(90% 80% at 50% 0%, rgba(255, 255, 255, 0.7), transparent 70%),
+      #f0efeb;
+    position: relative; min-height: 0;
+  }
+  .desk-card {
+    width: 620px; border-radius: 9px; overflow: hidden; background: #fff;
+    box-shadow: 0 0 0 0.5px rgba(35, 36, 31, 0.16), 0 18px 44px -16px rgba(35, 36, 31, 0.38);
+  }
+  .desk-chrome { display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: #f3f2ef; border-bottom: 1px solid var(--line); }
+  .desk-chrome .tl { width: 8.5px; height: 8.5px; }
+  .desk-url {
+    flex: 1; margin: 0 40px; height: 17px; border-radius: 9px; background: #fff;
+    border: 1px solid var(--line); font-size: 9.5px; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .desk-url .lock { font-size: 8px; }
+  .desk-card img { display: block; width: 100%; height: auto; }
+
+  .phone {
+    width: 178px; border-radius: 26px; background: #101210; padding: 8px 7px;
+    box-shadow: 0 0 0 0.5px rgba(35, 36, 31, 0.3), 0 18px 44px -14px rgba(35, 36, 31, 0.45);
+    position: relative;
+  }
+  .phone::before {
+    content: ""; position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    width: 58px; height: 15px; border-radius: 9px; background: #101210; z-index: 2;
+  }
+  .phone-screen { border-radius: 19px; overflow: hidden; background: #fff; }
+  .phone-screen img { display: block; width: 100%; height: auto; }
+
+  .stage-tag {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: var(--muted); background: rgba(255, 255, 255, 0.85);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .stage-tag i { width: 5px; height: 5px; border-radius: 50%; background: #6faa72; }
+
+  /* ---------- chat ---------- */
+  .chat { border-left: 1px solid var(--line); background: var(--paper); display: flex; flex-direction: column; padding: 10px 12px; }
+  .chat-top { display: flex; justify-content: flex-end; padding-bottom: 8px; }
+  .newchat { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 3.5px 10px; }
+  .msgs { flex: 1; display: flex; flex-direction: column; gap: 9px; overflow: hidden; }
+  .stamp { font-size: 9.5px; color: var(--faint); align-self: flex-end; padding: 1px 2px; }
+  .stamp.left { align-self: flex-start; }
+  .bub {
+    max-width: 92%; font-size: 12px; line-height: 1.5; padding: 8px 11px; border-radius: 13px;
+  }
+  .bub.user { align-self: flex-end; background: #23241f; color: #f4f3ee; border-bottom-right-radius: 4px; }
+  .bub.agent { align-self: flex-start; background: #eceae4; color: #2c2d28; border-bottom-left-radius: 4px; }
+  .bub b { font-weight: 600; }
+  .steps { align-self: flex-start; display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); padding: 2px 2px; }
+  .steps .chev { color: var(--faint); }
+  .steps .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 9.5px; }
+  .input { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 9px 11px; font-size: 12px; color: var(--faint); display: flex; align-items: center; }
+  .input .mic { margin-left: auto; opacity: 0.55; font-size: 11px; }
+  .chat-foot { display: flex; align-items: center; gap: 8px; padding: 8px 2px 0; font-size: 10px; color: var(--faint); }
+  .pill { border: 1px solid var(--line); border-radius: 6px; padding: 2.5px 7px; background: #fff; color: var(--muted); }
+  .mem { margin-left: auto; display: flex; align-items: center; gap: 5px; }
+  .mem-bar { width: 46px; height: 4px; border-radius: 2px; background: #e0ded7; overflow: hidden; }
+  .mem-bar i { display: block; width: 34%; height: 100%; background: #8a8d81; border-radius: 2px; }
+</style>
+</head>
+<body>
+  <div class="window">
+    <aside class="side">
+      <div class="tl-row"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+      <div class="side-item"><span class="ico">&#9632;</span>Computer</div>
+      <div class="side-item hd">Browse</div>
+      <div class="side-item on"><span class="fav" style="background:#635bff">S</span>stripe.com</div>
+      <div class="side-item"><span class="fav" style="background:#93b087">D</span>docs &middot; vite</div>
+      <div class="side-item"><span class="fav" style="background:#86a6c6">L</span>localhost:5173</div>
+      <div class="side-item hd">Work</div>
+      <div class="side-item on"><span class="ico">&#9656;</span>landing-page<span class="badge">&#8963; main</span></div>
+      <div class="sub">Pricing page refresh</div>
+      <div class="sub">New chat</div>
+      <div class="side-item"><span class="ico">&#9656;</span>mobile-app<span class="badge">&#8963; main</span></div>
+      <div class="side-item"><span class="ico">&#9656;</span>design-system<span class="badge">&#8963; main</span></div>
+      <div class="side-item hd">Personal</div>
+      <div class="side-item"><span class="ico">&#9656;</span>notes-app<span class="badge">&#8963; main</span></div>
+      <div class="side-item"><span class="ico">&#9656;</span>reading-list</div>
+      <div class="side-foot"><span>+ New group</span><span>&#8942;</span></div>
+    </aside>
+
+    <main class="main">
+      <div class="main-bar">
+        <span class="page-title">Stripe | Financial Infrastructure</span>
+        <span class="page-url">https://stripe.com/en-us</span>
+      </div>
+      <div class="stage">
+        <div class="desk-card">
+          <div class="desk-chrome">
+            <span class="tl r"></span><span class="tl y"></span><span class="tl g"></span>
+            <span class="desk-url"><span class="lock">&#128274;</span>stripe.com/en-us</span>
+          </div>
+          <img src="site-desktop.png" alt="" />
+        </div>
+        <div class="phone">
+          <div class="phone-screen"><img src="site-phone.png" alt="" /></div>
+        </div>
+        <div class="stage-tag"><i></i>same session &middot; desktop 1440 &middot; iPhone 390 &middot; both live</div>
+      </div>
+    </main>
+
+    <aside class="chat">
+      <div class="chat-top"><span class="newchat">&#9998; New chat</span></div>
+      <div class="msgs">
+        <div class="bub user">Open stripe.com and show it as desktop and iPhone side by side. Does the hero hold up on mobile?</div>
+        <div class="stamp">Today 21:14</div>
+        <div class="bub agent">Opening it in the browser pane, both viewports, one session.</div>
+        <div class="steps"><span class="chev">&#8250;</span>3 steps <span class="mono">&middot; navigate &middot; dual view &middot; screenshot</span></div>
+        <div class="stamp left">Today 21:14</div>
+        <div class="bub agent">It holds up well. The gradient crops gracefully at 390px and the headline stays two lines. <b>Get started goes full width on the phone</b>, which reads deliberate, not squeezed.</div>
+        <div class="bub agent">One nitpick: the partner logo row collapses to two logos on mobile. If you want that pattern for our pricing page, we should plan the logo set around it.</div>
+        <div class="stamp left">Today 21:15</div>
+      </div>
+      <div class="input">Message Claude&hellip; (/ commands &middot; @ files)<span class="mic">&#127908;</span></div>
+      <div class="chat-foot">
+        <span class="pill">Model &middot; Opus</span>
+        <span class="pill">Mode &middot; Full</span>
+        <span class="mem">Memory <span class="mem-bar"><i></i></span> 34%</span>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>

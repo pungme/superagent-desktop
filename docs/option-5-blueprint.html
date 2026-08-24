@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SuperAgent — a home for your agent</title>
+  <meta name="description" content="SuperAgent is a Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work." />
+  <link rel="canonical" href="https://superagent.computer/" />
+  <link rel="icon" href="logo.png" />
+  <meta property="og:title" content="SuperAgent — a home for your agent" />
+  <meta property="og:description" content="A Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work." />
+  <meta property="og:image" content="https://superagent.computer/hero.png" />
+  <meta property="og:url" content="https://superagent.computer/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Archivo:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --paper:#f5f4ef;
+      --ink:#14202f;
+      --blue:#1b4a8f;
+      --blue-soft:rgba(27,74,143,0.16);
+      --orange:#dd4f14;
+      --muted:#5d6b7d;
+      --faint:#93a0ae;
+      --rule:rgba(20,32,47,0.13);
+      --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+      --sans:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      --grid-minor:rgba(27,74,143,0.055);
+      --grid-major:rgba(27,74,143,0.10);
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html{scroll-behavior:smooth;}
+    body{
+      font-family:var(--sans);
+      background-color:var(--paper);
+      background-image:
+        repeating-linear-gradient(0deg,transparent 0 23px,var(--grid-minor) 23px 24px),
+        repeating-linear-gradient(90deg,transparent 0 23px,var(--grid-minor) 23px 24px),
+        repeating-linear-gradient(0deg,transparent 0 119px,var(--grid-major) 119px 120px),
+        repeating-linear-gradient(90deg,transparent 0 119px,var(--grid-major) 119px 120px);
+      color:var(--ink);
+      line-height:1.6;
+      -webkit-font-smoothing:antialiased;
+      overflow-x:hidden;
+    }
+    a{color:inherit;}
+    img{max-width:100%;height:auto;display:block;}
+    .wrap{max-width:1120px;margin:0 auto;padding:0 32px;}
+    .mono{font-family:var(--mono);}
+
+    /* ---------- nav ---------- */
+    .nav{position:sticky;top:0;z-index:60;background:rgba(245,244,239,0.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);}
+    .nav-inner{display:flex;align-items:center;gap:24px;max-width:1120px;margin:0 auto;padding:14px 32px;}
+    .nav-logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-0.02em;text-decoration:none;font-size:1rem;}
+    .nav-logo img{width:22px;height:22px;border-radius:6px;}
+    .nav-sheet{font-family:var(--mono);font-size:0.64rem;letter-spacing:0.14em;color:var(--faint);border-left:1px solid var(--rule);padding-left:16px;text-transform:uppercase;}
+    .nav-links{margin-left:auto;display:flex;gap:20px;align-items:center;}
+    .nav-links a{font-family:var(--mono);text-decoration:none;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);transition:color .2s;}
+    .nav-links a:hover{color:var(--blue);}
+    .nav-dl{border:1.5px solid var(--ink);padding:7px 14px;border-radius:2px;color:var(--ink)!important;font-weight:600;transition:background .2s,color .2s;}
+    .nav-dl:hover{background:var(--ink);color:var(--paper)!important;}
+
+    /* ---------- shared drawing chrome ---------- */
+    .stamp{
+      display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);
+      font-size:0.62rem;letter-spacing:0.16em;text-transform:uppercase;
+      color:var(--orange);border:1.5px solid var(--orange);border-radius:2px;
+      padding:5px 10px;transform:rotate(-1.4deg);
+    }
+    .kicker{font-family:var(--mono);font-size:0.68rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--blue);display:flex;align-items:center;gap:10px;}
+    .kicker::before{content:"";width:26px;height:1.5px;background:var(--orange);flex:none;}
+    .rule{height:1px;background:var(--rule);}
+    .tick-rule{position:relative;height:12px;border-top:1px solid var(--rule);}
+    .tick-rule::before,.tick-rule::after{content:"";position:absolute;top:0;width:1px;height:8px;background:var(--rule);}
+    .tick-rule::before{left:0;}
+    .tick-rule::after{right:0;}
+
+    /* ---------- hero ---------- */
+    .hero{padding:76px 0 40px;position:relative;}
+    .hero-grid{display:grid;grid-template-columns:1.05fr 0.95fr;gap:56px;align-items:start;}
+    .hero h1{
+      font-size:clamp(2.4rem,5.4vw,4.1rem);line-height:1.02;letter-spacing:-0.045em;font-weight:800;margin-top:20px;
+    }
+    .hero h1 em{font-style:normal;color:var(--blue);position:relative;display:inline-block;}
+    .hero h1 em::after{
+      content:"";position:absolute;left:0;right:0;bottom:0.06em;height:0.1em;background:var(--orange);
+      transform:scaleX(0);transform-origin:left;animation:swipe 1s .9s cubic-bezier(.2,.8,.2,1) forwards;
+    }
+    @keyframes swipe{to{transform:scaleX(1);}}
+    .hero-sub{margin-top:22px;max-width:520px;font-size:1.06rem;color:var(--muted);}
+    .hero-ctas{display:flex;align-items:center;gap:18px;margin-top:30px;flex-wrap:wrap;}
+    .btn{
+      display:inline-flex;align-items:center;gap:9px;background:var(--ink);color:var(--paper);
+      padding:13px 24px;border-radius:3px;text-decoration:none;font-weight:700;font-size:0.95rem;
+      box-shadow:4px 4px 0 rgba(27,74,143,0.22);transition:transform .16s,box-shadow .16s;
+    }
+    .btn:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 rgba(27,74,143,0.3);}
+    .btn-ghost{
+      display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:0.78rem;letter-spacing:0.08em;
+      text-transform:uppercase;text-decoration:none;color:var(--muted);border-bottom:1.5px solid var(--rule);padding-bottom:3px;transition:color .2s,border-color .2s;
+    }
+    .btn-ghost:hover{color:var(--blue);border-color:var(--blue);}
+    .hero-note{margin-top:20px;font-family:var(--mono);font-size:0.7rem;color:var(--faint);letter-spacing:0.04em;}
+
+    /* spec block in hero right */
+    .spec{border:1.5px solid var(--ink);border-radius:3px;background:rgba(255,255,255,0.55);}
+    .spec-hd{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1.5px solid var(--ink);font-family:var(--mono);font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;}
+    .spec-row{display:flex;justify-content:space-between;gap:14px;padding:8px 14px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:0.7rem;}
+    .spec-row:last-child{border-bottom:none;}
+    .spec-row span:first-child{color:var(--faint);letter-spacing:0.06em;text-transform:uppercase;font-size:0.62rem;}
+    .spec-row span:last-child{color:var(--ink);font-weight:500;}
+
+    /* ---------- figure sheets ---------- */
+    .fig{padding:64px 0;border-top:1px solid var(--rule);}
+    .fig-grid{display:grid;grid-template-columns:300px 1fr;gap:48px;align-items:start;}
+    .fig.flip .fig-grid{grid-template-columns:1fr 300px;}
+    .fig.flip .fig-copy{order:2;}
+    .fig-num{font-family:var(--mono);font-size:0.68rem;letter-spacing:0.2em;color:var(--orange);text-transform:uppercase;}
+    .fig-copy h2{font-size:clamp(1.5rem,2.5vw,2.05rem);line-height:1.12;letter-spacing:-0.035em;font-weight:700;margin:14px 0 12px;}
+    .fig-copy p{color:var(--muted);font-size:0.98rem;}
+    .fig-notes{margin-top:20px;border-top:1px solid var(--rule);padding-top:14px;}
+    .fig-note{display:flex;gap:10px;font-family:var(--mono);font-size:0.68rem;color:var(--muted);padding:5px 0;letter-spacing:0.02em;}
+    .fig-note b{color:var(--blue);font-weight:500;flex:none;}
+
+    /* drawing plate */
+    .plate{position:relative;border:1.5px solid var(--ink);border-radius:3px;background:rgba(255,255,255,0.62);padding:26px;}
+    .plate::before,.plate::after{content:"";position:absolute;width:9px;height:9px;border:1.5px solid var(--blue);}
+    .plate::before{top:-1.5px;left:-1.5px;border-right:none;border-bottom:none;}
+    .plate::after{bottom:-1.5px;right:-1.5px;border-left:none;border-top:none;}
+    .plate-tag{
+      position:absolute;top:-1.5px;right:-1.5px;background:var(--ink);color:var(--paper);
+      font-family:var(--mono);font-size:0.58rem;letter-spacing:0.16em;padding:4px 9px;text-transform:uppercase;
+    }
+    .plate-foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:10px;border-top:1px dashed var(--rule);font-family:var(--mono);font-size:0.62rem;color:var(--faint);letter-spacing:0.08em;text-transform:uppercase;}
+    .live-dot{display:inline-flex;align-items:center;gap:6px;color:var(--orange);}
+    .live-dot i{width:5px;height:5px;border-radius:50%;background:var(--orange);display:block;animation:blink 2s infinite;}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+    /* dimension line */
+    .dim{position:relative;height:16px;margin-bottom:12px;}
+    .dim::before{content:"";position:absolute;left:0;right:0;top:8px;height:1px;background:var(--blue-soft);}
+    .dim::after{
+      content:attr(data-dim);position:absolute;left:50%;top:0;transform:translateX(-50%);
+      background:var(--paper);padding:0 8px;font-family:var(--mono);font-size:0.58rem;color:var(--faint);letter-spacing:0.14em;
+    }
+    .dim i{position:absolute;top:4px;width:1px;height:9px;background:var(--blue-soft);}
+    .dim i:first-child{left:0;}
+    .dim i:last-child{right:0;}
+
+    /* self-drawing svg outline over the mockup */
+    .draw-wrap{position:relative;}
+    .draw-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;}
+    .draw-svg path,.draw-svg rect,.draw-svg line{
+      fill:none;stroke:var(--blue);stroke-width:1.2;
+      stroke-dasharray:var(--len,1400);stroke-dashoffset:var(--len,1400);
+    }
+    .live .draw-svg path,.live .draw-svg rect,.live .draw-svg line{
+      animation:draw 1.05s cubic-bezier(.65,0,.35,1) forwards;
+    }
+    .live .draw-svg{animation:fadeOutLine .5s 1.15s forwards;}
+    @keyframes draw{to{stroke-dashoffset:0;}}
+    @keyframes fadeOutLine{to{opacity:0.14;}}
+
+    /* ---------- app window mockup ---------- */
+    .app{
+      position:relative;border-radius:8px;overflow:hidden;background:#fff;
+      border:1px solid rgba(20,32,47,0.16);
+      box-shadow:0 1px 2px rgba(20,32,47,0.05),0 18px 44px -22px rgba(20,32,47,0.3);
+      opacity:0;transform:scale(0.985);
+    }
+    .live .app{animation:powerOn .7s .85s cubic-bezier(.2,.8,.2,1) forwards;}
+    @keyframes powerOn{to{opacity:1;transform:scale(1);}}
+    .titlebar{display:flex;align-items:center;gap:7px;padding:9px 12px;border-bottom:1px solid rgba(20,32,47,0.09);background:#f7f7f5;}
+    .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+    .dot.r{background:#f0625a}.dot.y{background:#f5bf4f}.dot.g{background:#5cc46c}
+    .titlebar .tb-title{margin-left:auto;margin-right:auto;font-family:var(--mono);font-size:0.62rem;color:var(--faint);letter-spacing:0.04em;}
+    .app-body{display:flex;height:var(--app-h,332px);}
+    .sidebar{width:168px;flex:none;border-right:1px solid rgba(20,32,47,0.09);background:#fbfbf9;padding:12px 0;position:relative;}
+    .side-hd{font-family:var(--mono);font-size:0.55rem;letter-spacing:0.18em;color:var(--faint);text-transform:uppercase;padding:0 12px;margin-bottom:7px;}
+    .side-item{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:0.74rem;color:var(--muted);position:relative;z-index:2;}
+    .side-item .sq{width:9px;height:9px;border-radius:2px;flex:none;}
+    .side-item .unread{margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--orange);opacity:0;}
+    .side-sep{height:1px;background:rgba(20,32,47,0.08);margin:11px 12px;}
+    .side-hi{position:absolute;left:6px;right:6px;height:26px;border-radius:5px;background:rgba(27,74,143,0.10);top:26px;z-index:1;}
+    .pane{flex:1;padding:14px;display:flex;flex-direction:column;gap:9px;min-width:0;}
+    .skel{height:9px;border-radius:3px;background:rgba(20,32,47,0.09);}
+    .skel.w40{width:40%}.skel.w55{width:55%}.skel.w70{width:70%}.skel.w85{width:85%}.skel.w25{width:25%}
+    .skel.tall{height:74px;border-radius:6px;background:linear-gradient(115deg,rgba(27,74,143,0.16),rgba(221,79,20,0.14));}
+    .skel.btn{height:20px;width:74px;border-radius:4px;background:var(--ink);opacity:.85;}
+    .skel-row{display:flex;gap:9px;}
+    .skel-row .skel{flex:1;height:40px;border-radius:5px;}
+
+    /* FIG 01 — sidebar */
+    .live .d1-hi{animation:hiMove 9s 1.3s infinite;}
+    @keyframes hiMove{
+      0%,14%{top:26px;} 20%,34%{top:52px;} 40%,54%{top:78px;}
+      60%,74%{top:130px;} 80%,94%{top:156px;} 100%{top:26px;}
+    }
+    .live .d1-u1{animation:unread 9s 1.3s infinite;}
+    .live .d1-u2{animation:unread 9s 3.2s infinite;}
+    @keyframes unread{0%{opacity:0;transform:scale(.4)}6%{opacity:1;transform:scale(1.25)}10%,44%{opacity:1;transform:scale(1)}52%,100%{opacity:0;transform:scale(.6)}}
+    .d1-page{position:relative;flex:1;display:flex;flex-direction:column;gap:9px;}
+    .d1-layer{position:absolute;inset:0;display:flex;flex-direction:column;gap:9px;opacity:0;}
+    .live .d1-l1{animation:layerA 9s 1.3s infinite;}
+    .live .d1-l2{animation:layerB 9s 1.3s infinite;}
+    @keyframes layerA{0%,36%{opacity:1}42%,94%{opacity:0}100%{opacity:1}}
+    @keyframes layerB{0%,36%{opacity:0}42%,94%{opacity:1}100%{opacity:0}}
+
+    /* FIG 02 — worktree */
+    .branch{width:100%;height:200px;display:block;}
+    .branch .trunk,.branch .limb{fill:none;stroke-linecap:round;}
+    .branch .trunk{stroke:rgba(20,32,47,0.3);stroke-width:2;}
+    .branch .limb{stroke:var(--orange);stroke-width:2.4;stroke-dasharray:300;stroke-dashoffset:300;}
+    .live .branch .limb{animation:draw 1.5s 1.2s cubic-bezier(.6,0,.35,1) forwards;}
+    .branch .cm{fill:#fff;stroke:var(--orange);stroke-width:2;opacity:0;transform-origin:center;transform-box:fill-box;}
+    .live .cm1{animation:pop .5s 2.35s cubic-bezier(.2,1.5,.4,1) forwards;}
+    .live .cm2{animation:pop .5s 2.75s cubic-bezier(.2,1.5,.4,1) forwards;}
+    .live .cm3{animation:pop .5s 3.15s cubic-bezier(.2,1.5,.4,1) forwards;}
+    @keyframes pop{0%{opacity:0;transform:scale(.2)}70%{opacity:1;transform:scale(1.25)}100%{opacity:1;transform:scale(1)}}
+    .branch .base{fill:#fff;stroke:rgba(20,32,47,0.34);stroke-width:2;}
+    .branch text{font-family:var(--mono);font-size:11px;}
+    .clean-badge{
+      position:absolute;left:26px;bottom:18px;display:inline-flex;align-items:center;gap:7px;
+      background:#fff;border:1.5px solid var(--blue);border-radius:2px;padding:5px 10px;
+      font-family:var(--mono);font-size:0.63rem;color:var(--blue);letter-spacing:0.06em;opacity:0;
+    }
+    .live .clean-badge{animation:fadeUp .6s 2.9s forwards;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+
+    /* phone */
+    .phone{
+      width:var(--pw,148px);border-radius:22px;border:2.5px solid #16202c;background:#fff;
+      padding:7px 5px;position:relative;flex:none;box-shadow:0 12px 30px -14px rgba(20,32,47,0.5);
+    }
+    .phone::before{content:"";position:absolute;top:7px;left:50%;transform:translateX(-50%);width:38%;height:9px;border-radius:6px;background:#16202c;}
+    .phone-screen{border-radius:15px;overflow:hidden;background:#fbfbf9;height:var(--ph,258px);position:relative;padding:20px 9px 9px;}
+    .prow{height:26px;border-radius:5px;background:rgba(20,32,47,0.07);margin-bottom:7px;display:flex;align-items:center;padding:0 8px;gap:6px;}
+    .prow i{width:14px;height:14px;border-radius:4px;background:rgba(27,74,143,0.28);display:block;flex:none;}
+    .prow em{height:6px;border-radius:3px;background:rgba(20,32,47,0.16);flex:1;display:block;}
+    .p-hero{height:52px;border-radius:7px;background:linear-gradient(115deg,rgba(27,74,143,0.24),rgba(221,79,20,0.2));margin-bottom:9px;}
+    .p-detail{position:absolute;inset:0;background:#fbfbf9;padding:20px 9px 9px;transform:translateX(100%);}
+    .live .p-detail{animation:pushIn 8s 2.4s infinite;}
+    @keyframes pushIn{0%,26%{transform:translateX(100%)}34%,72%{transform:translateX(0)}80%,100%{transform:translateX(100%)}}
+    .ripple{position:absolute;width:34px;height:34px;border-radius:50%;border:2px solid var(--orange);opacity:0;pointer-events:none;}
+    .live .ripple{animation:rip 8s 2.4s infinite;}
+    @keyframes rip{0%,20%{opacity:0;transform:scale(.3)}24%{opacity:.9;transform:scale(.5)}32%{opacity:0;transform:scale(1.5)}100%{opacity:0;transform:scale(1.5)}}
+    .tapdot{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--ink);opacity:0;}
+    .live .tapdot{animation:tapd 8s 2.4s infinite;}
+    @keyframes tapd{0%,17%{opacity:0}20%,27%{opacity:.75}31%,100%{opacity:0}}
+
+    /* FIG 04 — dual view */
+    .dual{display:flex;align-items:flex-end;gap:22px;justify-content:center;}
+    .deskcard{flex:1;max-width:420px;border-radius:8px;overflow:hidden;border:1px solid rgba(20,32,47,0.16);background:#fff;box-shadow:0 12px 32px -18px rgba(20,32,47,0.35);}
+    .urlbar{display:flex;align-items:center;gap:6px;padding:7px 10px;background:#f7f7f5;border-bottom:1px solid rgba(20,32,47,0.08);}
+    .urlbar .pill{flex:1;height:15px;border-radius:8px;background:rgba(20,32,47,0.07);display:flex;align-items:center;padding:0 8px;font-family:var(--mono);font-size:0.55rem;color:var(--faint);}
+    .scrollport{height:196px;overflow:hidden;position:relative;}
+    .scrollport .inner{padding:11px;display:flex;flex-direction:column;gap:8px;}
+    .live .sync-scroll{animation:syncScroll 9s 1.6s infinite;}
+    @keyframes syncScroll{0%,10%{transform:translateY(0)}45%,62%{transform:translateY(-96px)}92%,100%{transform:translateY(0)}}
+    .sync-tag{
+      display:inline-flex;align-items:center;gap:7px;margin:14px auto 0;
+      font-family:var(--mono);font-size:0.6rem;letter-spacing:0.14em;text-transform:uppercase;
+      color:var(--blue);border:1px dashed var(--blue);border-radius:2px;padding:4px 10px;
+    }
+
+    /* FIG 05 — automation */
+    .autowrap{position:relative;}
+    .formcard{max-width:340px;margin:0 auto;padding:16px;border:1px solid rgba(20,32,47,0.12);border-radius:7px;background:#fff;box-shadow:0 8px 22px -14px rgba(20,32,47,0.3);}
+    .formcard h4{font-size:0.9rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:12px;}
+    .flabel{font-family:var(--mono);font-size:0.55rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);margin-bottom:5px;}
+    .finput{height:30px;border:1px solid rgba(20,32,47,0.18);border-radius:4px;margin-bottom:11px;display:flex;align-items:center;padding:0 9px;font-family:var(--mono);font-size:0.7rem;color:var(--ink);overflow:hidden;}
+    .finput.focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(27,74,143,0.12);}
+    .live .f1{animation:focusOn 11s 1.4s infinite;}
+    .live .f2{animation:focusOn2 11s 1.4s infinite;}
+    @keyframes focusOn{0%,12%{border-color:rgba(20,32,47,0.18);box-shadow:none}16%,32%{border-color:var(--blue);box-shadow:0 0 0 3px rgba(27,74,143,0.12)}36%,100%{border-color:rgba(20,32,47,0.18);box-shadow:none}}
+    @keyframes focusOn2{0%,38%{border-color:rgba(20,32,47,0.18);box-shadow:none}42%,58%{border-color:var(--blue);box-shadow:0 0 0 3px rgba(27,74,143,0.12)}62%,100%{border-color:rgba(20,32,47,0.18);box-shadow:none}}
+    .typed{white-space:nowrap;overflow:hidden;width:0;}
+    .live .t1{animation:type1 11s 1.4s infinite;}
+    .live .t2{animation:type2 11s 1.4s infinite;}
+    @keyframes type1{0%,16%{width:0}30%,92%{width:11.2em}100%{width:0}}
+    @keyframes type2{0%,42%{width:0}56%,92%{width:7.6em}100%{width:0}}
+    .fbtn{height:32px;border-radius:4px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:600;}
+    .live .fbtn{animation:press 11s 1.4s infinite;}
+    @keyframes press{0%,64%{transform:scale(1);background:var(--ink)}67%{transform:scale(.965);background:var(--blue)}70%,100%{transform:scale(1);background:var(--ink)}}
+    .cursor{position:absolute;width:13px;height:13px;z-index:6;left:0;top:0;opacity:0;}
+    .cursor svg{display:block;filter:drop-shadow(0 2px 3px rgba(20,32,47,.35));}
+    .live .cursor{animation:curPath 11s 1.4s infinite;}
+    @keyframes curPath{
+      0%{opacity:0;transform:translate(58%,84%)}
+      6%{opacity:1;transform:translate(58%,84%)}
+      14%{opacity:1;transform:translate(38%,34%)}
+      38%{opacity:1;transform:translate(38%,34%)}
+      44%{opacity:1;transform:translate(38%,54%)}
+      62%{opacity:1;transform:translate(38%,54%)}
+      67%{opacity:1;transform:translate(48%,76%)}
+      86%{opacity:1;transform:translate(48%,76%)}
+      94%,100%{opacity:0;transform:translate(58%,88%)}
+    }
+    .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5;}
+    .live .flash{animation:shutter 11s 1.4s infinite;}
+    @keyframes shutter{0%,74%{opacity:0}76%{opacity:.85}82%,100%{opacity:0}}
+    .snap{
+      position:absolute;right:14px;bottom:14px;z-index:7;background:#fff;border:1px solid rgba(20,32,47,0.16);
+      border-radius:4px;padding:6px 9px;font-family:var(--mono);font-size:0.6rem;color:var(--muted);
+      box-shadow:0 8px 20px -10px rgba(20,32,47,.4);opacity:0;
+    }
+    .live .snap{animation:snapIn 11s 1.4s infinite;}
+    @keyframes snapIn{0%,76%{opacity:0;transform:translateY(8px) rotate(2deg)}82%,92%{opacity:1;transform:translateY(0) rotate(-1.5deg)}96%,100%{opacity:0;transform:translateY(4px) rotate(-1.5deg)}}
+    .steplog{margin-top:14px;border-top:1px dashed var(--rule);padding-top:11px;display:flex;flex-direction:column;gap:5px;}
+    .step{font-family:var(--mono);font-size:0.68rem;color:var(--muted);display:flex;gap:9px;opacity:.25;transition:opacity .3s,color .3s;}
+    .step b{color:var(--blue);font-weight:500;}
+    .step.on{opacity:1;color:var(--ink);}
+
+    /* FIG 06 — the desk */
+    .desk{
+      position:relative;border-radius:10px;overflow:hidden;padding:20px;
+      background:
+        radial-gradient(120% 90% at 12% 8%,rgba(27,74,143,0.16),transparent 60%),
+        radial-gradient(110% 80% at 88% 18%,rgba(221,79,20,0.14),transparent 62%),
+        radial-gradient(120% 110% at 60% 100%,rgba(84,132,96,0.16),transparent 60%),
+        #eceae3;
+      min-height:392px;
+    }
+    .desk-grid{display:grid;grid-template-columns:1.35fr 0.85fr;gap:16px;align-items:start;}
+    .desk-col{display:flex;flex-direction:column;gap:16px;}
+    .desk-row{display:flex;gap:16px;align-items:flex-start;}
+    .floatcard{
+      background:rgba(255,255,255,0.94);border:1px solid rgba(255,255,255,0.8);border-radius:9px;
+      box-shadow:0 14px 40px -18px rgba(20,32,47,0.5);overflow:hidden;opacity:0;transform:translateY(16px);
+    }
+    .live .fc1{animation:fadeUp .6s .45s forwards;}
+    .live .fc2{animation:fadeUp .6s .62s forwards;}
+    .live .fc3{animation:fadeUp .6s .79s forwards;}
+    .live .fc4{animation:fadeUp .6s .96s forwards;}
+    .card-hd{font-family:var(--mono);font-size:0.56rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);padding:9px 11px;border-bottom:1px solid rgba(20,32,47,0.07);}
+    .kan{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:10px;}
+    .kan-col{display:flex;flex-direction:column;gap:6px;min-height:104px;}
+    .kan-lbl{font-family:var(--mono);font-size:0.5rem;letter-spacing:0.14em;color:var(--faint);text-transform:uppercase;}
+    .kcard{height:22px;border-radius:4px;background:rgba(20,32,47,0.07);border-left:2.5px solid rgba(27,74,143,0.45);}
+    .kcard.warm{border-left-color:var(--orange);}
+    .kmover{position:relative;z-index:2;background:#fff;box-shadow:0 4px 12px -4px rgba(20,32,47,.35);}
+    .live .kmover{animation:kmove 9s 1.4s infinite;}
+    @keyframes kmove{
+      0%,16%{transform:translate(0,0)} 26%,52%{transform:translate(calc(100% + 7px),0)}
+      62%,90%{transform:translate(calc(200% + 14px),0)} 96%,100%{transform:translate(0,0);opacity:0}
+    }
+    .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:10px;}
+    .tile{background:rgba(20,32,47,0.045);border-radius:6px;padding:8px;}
+    .tile .n{font-size:1.05rem;font-weight:800;letter-spacing:-0.03em;}
+    .tile .l{font-family:var(--mono);font-size:0.5rem;letter-spacing:0.12em;color:var(--faint);text-transform:uppercase;}
+    .bars{display:flex;align-items:flex-end;gap:4px;height:34px;margin-top:7px;}
+    .bars i{flex:1;background:rgba(27,74,143,0.35);border-radius:2px 2px 0 0;height:12%;transform-origin:bottom;}
+    .live .bars i{animation:grow .8s cubic-bezier(.2,.9,.3,1) forwards;}
+    .live .bars i:nth-child(1){animation-delay:1.15s;--h:38%}
+    .live .bars i:nth-child(2){animation-delay:1.25s;--h:64%}
+    .live .bars i:nth-child(3){animation-delay:1.35s;--h:46%}
+    .live .bars i:nth-child(4){animation-delay:1.45s;--h:88%}
+    .live .bars i:nth-child(5){animation-delay:1.55s;--h:70%}
+    .live .bars i:nth-child(6){animation-delay:1.65s;--h:100%}
+    @keyframes grow{to{height:var(--h,60%);}}
+    .desk-wall-note{position:absolute;right:16px;bottom:12px;font-family:var(--mono);font-size:0.58rem;color:rgba(20,32,47,0.42);letter-spacing:0.1em;}
+
+    /* ---------- appendix ---------- */
+    .appendix{padding:64px 0;border-top:1px solid var(--rule);}
+    .app-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:32px;border:1.5px solid var(--ink);border-radius:3px;overflow:hidden;background:rgba(255,255,255,0.5);}
+    .app-cell{padding:20px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);}
+    .app-cell:nth-child(3n){border-right:none;}
+    .app-cell:nth-child(n+4){border-bottom:none;}
+    .app-cell .pn{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.16em;color:var(--orange);}
+    .app-cell b{display:block;margin:8px 0 5px;font-size:0.95rem;font-weight:700;letter-spacing:-0.02em;}
+    .app-cell span{font-size:0.87rem;color:var(--muted);}
+
+    /* ---------- cta + footer ---------- */
+    .cta{padding:76px 0;border-top:1px solid var(--rule);}
+    .cta-box{border:1.5px solid var(--ink);border-radius:3px;padding:40px;background:rgba(255,255,255,0.62);position:relative;}
+    .cta-box::before{content:"";position:absolute;inset:5px;border:1px dashed var(--blue-soft);border-radius:2px;pointer-events:none;}
+    .cta h2{font-size:clamp(1.8rem,3.4vw,2.7rem);letter-spacing:-0.04em;font-weight:800;line-height:1.05;}
+    .titleblock{display:grid;grid-template-columns:repeat(4,1fr);border-top:1.5px solid var(--ink);margin-top:34px;}
+    .tb-cell{padding:11px 14px;border-right:1px solid var(--rule);}
+    .tb-cell:last-child{border-right:none;}
+    .tb-cell .k{font-family:var(--mono);font-size:0.52rem;letter-spacing:0.16em;color:var(--faint);text-transform:uppercase;}
+    .tb-cell .v{font-family:var(--mono);font-size:0.72rem;color:var(--ink);margin-top:3px;}
+    footer{border-top:1px solid var(--rule);}
+    .foot{max-width:1120px;margin:0 auto;padding:24px 32px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;font-family:var(--mono);font-size:0.7rem;color:var(--muted);letter-spacing:0.04em;}
+    .foot-links{margin-left:auto;display:flex;gap:18px;}
+    .foot-links a{text-decoration:none;}
+    .foot-links a:hover{color:var(--blue);}
+
+    /* reveal */
+    .rev{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1);}
+    .rev.in{opacity:1;transform:none;}
+
+    /* ---------- responsive ---------- */
+    @media (max-width:900px){
+      .hero-grid{grid-template-columns:1fr;gap:34px;}
+      .fig-grid,.fig.flip .fig-grid{grid-template-columns:1fr;gap:26px;}
+      .fig.flip .fig-copy{order:0;}
+      .desk-grid{grid-template-columns:1fr;}
+      .app-grid{grid-template-columns:repeat(2,1fr);}
+      .app-cell:nth-child(3n){border-right:1px solid var(--rule);}
+      .app-cell:nth-child(2n){border-right:none;}
+      .app-cell:nth-child(n+4){border-bottom:1px solid var(--rule);}
+      .app-cell:nth-child(n+5){border-bottom:none;}
+      .titleblock{grid-template-columns:repeat(2,1fr);}
+      .tb-cell:nth-child(2){border-right:none;}
+    }
+    @media (max-width:640px){
+      .wrap{padding:0 18px;}
+      .nav-inner{padding:12px 18px;}
+      .nav-sheet{display:none;}
+      .nav-links{gap:14px;}
+      .hero{padding:48px 0 28px;}
+      .fig{padding:44px 0;}
+      .plate{padding:14px;}
+      .dim{display:none;}
+      .app-body{height:auto;flex-direction:column;--app-h:auto;}
+      .sidebar{width:100%;border-right:none;border-bottom:1px solid rgba(20,32,47,0.09);}
+      .side-hi{display:none;}
+      .pane{min-height:190px;}
+      .dual{flex-direction:column;align-items:center;gap:16px;}
+      .deskcard{width:100%;}
+      .desk-row{flex-direction:column;}
+      .app-grid{grid-template-columns:1fr;}
+      .app-cell{border-right:none!important;border-bottom:1px solid var(--rule)!important;}
+      .app-cell:last-child{border-bottom:none!important;}
+      .cta-box{padding:24px;}
+      .foot{padding:20px 18px;}
+      .foot-links{margin-left:0;width:100%;}
+    }
+    @media (prefers-reduced-motion:reduce){
+      html{scroll-behavior:auto;}
+      *,*::before,*::after{animation:none!important;transition:none!important;}
+      .rev{opacity:1!important;transform:none!important;}
+      .app{opacity:1!important;transform:none!important;}
+      .draw-svg{opacity:.14;}
+      .draw-svg path,.draw-svg rect,.draw-svg line{stroke-dashoffset:0!important;}
+      .branch .limb{stroke-dashoffset:0!important;}
+      .branch .cm,.clean-badge{opacity:1!important;}
+      .floatcard{opacity:1!important;transform:none!important;}
+      .cursor,.ripple,.tapdot,.flash,.snap,.p-detail{display:none!important;}
+      .typed{width:auto!important;}
+      .bars i{height:60%!important;}
+      .step{opacity:1;color:var(--ink);}
+      .hero h1 em::after{transform:scaleX(1);}
+    }
+    /* ---------- corrections ---------- */
+    .side-hi{display:none;}
+    .side-item{border-radius:5px;margin:0 6px;padding:6px 8px;transition:color .3s;}
+    .side-item.active{background:rgba(27,74,143,0.10);color:var(--ink);font-weight:600;}
+    .live .d1-i1{animation:hiA 10s 1.2s infinite;}
+    .live .d1-i2{animation:hiB 10s 1.2s infinite;}
+    .live .d1-i3{animation:hiC 10s 1.2s infinite;}
+    .live .d1-i4{animation:hiD 10s 1.2s infinite;}
+    .live .d1-i5{animation:hiE 10s 1.2s infinite;}
+    @keyframes hiA{0%,17%{background:rgba(27,74,143,0.10);color:var(--ink)}19%,100%{background:transparent;color:var(--muted)}}
+    @keyframes hiB{0%,18%{background:transparent;color:var(--muted)}20%,35%{background:rgba(27,74,143,0.10);color:var(--ink)}37%,100%{background:transparent;color:var(--muted)}}
+    @keyframes hiC{0%,36%{background:transparent;color:var(--muted)}38%,48%{background:rgba(27,74,143,0.10);color:var(--ink)}50%,100%{background:transparent;color:var(--muted)}}
+    @keyframes hiD{0%,49%{background:transparent;color:var(--muted)}52%,70%{background:rgba(27,74,143,0.10);color:var(--ink)}72%,100%{background:transparent;color:var(--muted)}}
+    @keyframes hiE{0%,71%{background:transparent;color:var(--muted)}74%,96%{background:rgba(27,74,143,0.10);color:var(--ink)}98%,100%{background:transparent;color:var(--muted)}}
+    .d1-layer{inset:14px;}
+    .live .d1-l1{animation:layerA2 10s 1.2s infinite;}
+    .live .d1-l2{animation:layerB2 10s 1.2s infinite;}
+    @keyframes layerA2{0%,46%{opacity:1}51%,95%{opacity:0}100%{opacity:1}}
+    @keyframes layerB2{0%,46%{opacity:0}51%,95%{opacity:1}100%{opacity:0}}
+    .live .d1-u1{animation:unread 10s 1.2s infinite;}
+    .live .d1-u2{animation:unread 10s 4.4s infinite;}
+    /* cursor travels by position, not by its own 13px box */
+    .live .cursor{animation:curPath2 11s 1.4s infinite;}
+    @keyframes curPath2{
+      0%{opacity:0;left:56%;top:88%}
+      5%{opacity:1;left:56%;top:88%}
+      14%{opacity:1;left:38%;top:40%}
+      38%{opacity:1;left:38%;top:40%}
+      45%{opacity:1;left:38%;top:62%}
+      62%{opacity:1;left:38%;top:62%}
+      68%{opacity:1;left:44%;top:78%}
+      88%{opacity:1;left:44%;top:78%}
+      95%,100%{opacity:0;left:52%;top:90%}
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#"><img src="logo.png" alt="" /><span>SuperAgent</span></a>
+      <span class="nav-sheet">Sheet 1 of 1 &nbsp;·&nbsp; Rev. 1.5.11</span>
+      <div class="nav-links">
+        <a href="#figures">Figures</a>
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+        <a class="nav-dl" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <span class="kicker">Fig. 00 — General arrangement</span>
+          <h1>A <em>home</em> for your agent.</h1>
+          <p class="hero-sub">
+            SuperAgent is a Mac app that gives Claude Code a place to live — with a real
+            browser it drives, an iPhone in the window, and chats that survive restarts.
+            It opens pages, tests what it builds, and shows you, right next to the conversation.
+          </p>
+          <div class="hero-ctas">
+            <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac ↓</a>
+            <a class="btn-ghost" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub →</a>
+          </div>
+          <p class="hero-note">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription</p>
+        </div>
+        <div>
+          <div style="margin-bottom:18px"><span class="stamp">Patent pending: a home for your agent</span></div>
+          <div class="spec">
+            <div class="spec-hd"><span>Specification</span><span>001</span></div>
+            <div class="spec-row"><span>Platform</span><span>macOS · Apple Silicon</span></div>
+            <div class="spec-row"><span>Engine</span><span>Claude Code</span></div>
+            <div class="spec-row"><span>Browser</span><span>embedded, agent-driven</span></div>
+            <div class="spec-row"><span>Device</span><span>iOS Simulator, streamed</span></div>
+            <div class="spec-row"><span>Delivery</span><span>.dmg · notarized</span></div>
+            <div class="spec-row"><span>Licence</span><span>MIT · runs locally</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="plate rev" style="margin-top:44px" data-fig>
+        <span class="plate-tag">Fig. 00</span>
+        <div class="dim" data-dim="one window · everything in it"><i></i><i></i></div>
+        <div class="draw-wrap">
+          <svg class="draw-svg" viewBox="0 0 1000 380" preserveAspectRatio="none" aria-hidden="true">
+            <rect x="1" y="1" width="998" height="378" rx="8" style="--len:2760"></rect>
+            <line x1="1" y1="34" x2="999" y2="34" style="--len:1000"></line>
+            <line x1="196" y1="34" x2="196" y2="379" style="--len:346"></line>
+            <line x1="620" y1="34" x2="620" y2="379" style="--len:346"></line>
+          </svg>
+          <div class="app" style="--app-h:346px">
+            <div class="titlebar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="tb-title">SuperAgent — ~/projects/landing</span></div>
+            <div class="app-body">
+              <div class="sidebar">
+                <div class="side-hi" style="top:26px"></div>
+                <div class="side-hd">Tabs</div>
+                <div class="side-item active"><i class="sq" style="background:#1b4a8f"></i>localhost:5173</div>
+                <div class="side-item"><i class="sq" style="background:#dd4f14"></i>docs — vite</div>
+                <div class="side-item"><i class="sq" style="background:#548460"></i>github.com</div>
+                <div class="side-sep"></div>
+                <div class="side-hd">Chats</div>
+                <div class="side-item">Landing page<i class="unread" style="opacity:1"></i></div>
+                <div class="side-item">Fix auth flow</div>
+                <div class="side-item">Migrate pnpm</div>
+              </div>
+              <div class="pane" style="background:#fdfdfc;gap:10px">
+                <div style="align-self:flex-end;max-width:78%;background:var(--ink);color:#fff;border-radius:10px 10px 3px 10px;padding:8px 11px;font-size:0.76rem;line-height:1.45">Open the landing page and make the hero bigger.</div>
+                <div style="max-width:86%;background:rgba(20,32,47,0.055);border-radius:10px 10px 10px 3px;padding:8px 11px;font-size:0.76rem;line-height:1.45;color:#2b3a4d">On it — opening the page beside you and bumping the scale.</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <span style="font-family:var(--mono);font-size:0.58rem;border:1px solid var(--rule);border-radius:3px;padding:3px 7px;color:var(--blue)">browser_navigate</span>
+                  <span style="font-family:var(--mono);font-size:0.58rem;border:1px solid var(--rule);border-radius:3px;padding:3px 7px;color:var(--blue)">edit · hero.css</span>
+                </div>
+                <div style="max-width:86%;background:rgba(20,32,47,0.055);border-radius:10px;padding:8px 11px;font-size:0.76rem;line-height:1.45;color:#2b3a4d">Done — the preview on the right is live.</div>
+                <div style="margin-top:auto;border:1px solid var(--rule);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:0.63rem;color:var(--faint)">Ask anything…</div>
+              </div>
+              <div style="width:380px;flex:none;background:#fff;display:flex;flex-direction:column">
+                <div class="urlbar"><i class="dot r" style="width:7px;height:7px"></i><i class="dot y" style="width:7px;height:7px"></i><i class="dot g" style="width:7px;height:7px"></i><span class="pill">localhost:5173</span></div>
+                <div style="padding:12px;display:flex;flex-direction:column;gap:9px;flex:1">
+                  <div class="skel w25"></div>
+                  <div class="skel tall"></div>
+                  <div class="skel w70"></div>
+                  <div class="skel w55"></div>
+                  <div class="skel-row"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+                  <div class="skel btn"></div>
+                  <div class="skel w85"></div>
+                  <div class="skel w40"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="plate-foot"><span>Scale — 1:1 · drawn from life</span><span class="live-dot"><i></i>Live, not a screenshot</span></div>
+      </div>
+    </div>
+  </header>
+
+  <main id="figures">
+    <!-- FIG 01 -->
+    <section class="fig">
+      <div class="wrap">
+        <div class="fig-grid">
+          <div class="fig-copy rev">
+            <span class="fig-num">Fig. 01 — Sidebar assembly</span>
+            <h2>One rail for pages and conversations.</h2>
+            <p>Plain browser tabs at the top of the sidebar, chats underneath. Browse first, summon the agent when you need it — unread dots and all, exactly where you left them.</p>
+            <div class="fig-notes">
+              <div class="fig-note"><b>[A]</b><span>Tabs — real pages, not bookmarks</span></div>
+              <div class="fig-note"><b>[B]</b><span>Chats — each one keeps its own context</span></div>
+              <div class="fig-note"><b>[C]</b><span>Unread mark — the agent answered while you were away</span></div>
+            </div>
+          </div>
+          <div class="plate rev" data-fig>
+            <span class="plate-tag">Fig. 01</span>
+            <div class="draw-wrap">
+              <svg class="draw-svg" viewBox="0 0 700 300" preserveAspectRatio="none" aria-hidden="true">
+                <rect x="1" y="1" width="698" height="298" rx="8" style="--len:2000"></rect>
+                <line x1="1" y1="30" x2="699" y2="30" style="--len:700"></line>
+                <line x1="196" y1="30" x2="196" y2="299" style="--len:270"></line>
+              </svg>
+              <div class="app" style="--app-h:268px">
+                <div class="titlebar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span class="tb-title">SuperAgent</span></div>
+                <div class="app-body">
+                  <div class="sidebar">
+                    <div class="side-hd">Tabs</div>
+                    <div class="side-item d1-i1"><i class="sq" style="background:#1b4a8f"></i>localhost:5173</div>
+                    <div class="side-item d1-i2"><i class="sq" style="background:#dd4f14"></i>stripe.com/docs</div>
+                    <div class="side-item d1-i3"><i class="sq" style="background:#548460"></i>github.com</div>
+                    <div class="side-sep"></div>
+                    <div class="side-hd">Chats</div>
+                    <div class="side-item d1-i4">Landing page<i class="unread d1-u1"></i></div>
+                    <div class="side-item d1-i5">Fix auth flow<i class="unread d1-u2"></i></div>
+                    <div class="side-item d1-i6">Migrate pnpm</div>
+                  </div>
+                  <div class="pane d1-page">
+                    <div class="d1-layer d1-l1">
+                      <div class="skel w25"></div>
+                      <div class="skel tall"></div>
+                      <div class="skel w70"></div>
+                      <div class="skel-row"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+                      <div class="skel w55"></div>
+                      <div class="skel btn"></div>
+                    </div>
+                    <div class="d1-layer d1-l2">
+                      <div style="align-self:flex-end;max-width:74%;background:var(--ink);color:#fff;border-radius:10px 10px 3px 10px;padding:7px 10px;font-size:0.74rem">Why is the login redirect looping?</div>
+                      <div style="max-width:84%;background:rgba(20,32,47,0.055);border-radius:10px 10px 10px 3px;padding:7px 10px;font-size:0.74rem;color:#2b3a4d">The session cookie is set after the redirect. Moving it before — reloading now.</div>
+                      <div style="display:flex;gap:6px"><span style="font-family:var(--mono);font-size:0.56rem;border:1px solid var(--rule);border-radius:3px;padding:3px 7px;color:var(--blue)">read · auth.ts</span><span style="font-family:var(--mono);font-size:0.56rem;border:1px solid var(--rule);border-radius:3px;padding:3px 7px;color:var(--blue)">browser_click</span></div>
+                      <div style="max-width:84%;background:rgba(20,32,47,0.055);border-radius:10px;padding:7px 10px;font-size:0.74rem;color:#2b3a4d">Fixed — it lands on /app now.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="plate-foot"><span>Detail A–C · sidebar</span><span class="live-dot"><i></i>Running</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIG 02 -->
+    <section class="fig flip">
+      <div class="wrap">
+        <div class="fig-grid">
+          <div class="plate rev" data-fig style="position:relative">
+            <span class="plate-tag">Fig. 02</span>
+            <div class="draw-wrap">
+              <svg class="branch" viewBox="0 0 640 200" aria-hidden="true">
+                <line class="trunk" x1="40" y1="150" x2="600" y2="150"></line>
+                <path class="limb" d="M150 150 C 210 150, 214 70, 280 70 L 560 70"></path>
+                <circle class="base" cx="86" cy="150" r="6"></circle>
+                <circle class="base" cx="150" cy="150" r="6"></circle>
+                <circle class="cm cm1" cx="316" cy="70" r="6.5"></circle>
+                <circle class="cm cm2" cx="392" cy="70" r="6.5"></circle>
+                <circle class="cm cm3" cx="468" cy="70" r="6.5"></circle>
+                <text x="40" y="176" fill="#5d6b7d">main — your checkout</text>
+                <text x="280" y="52" fill="#dd4f14">superagent/fix-auth-flow</text>
+              </svg>
+              <div class="clean-badge">✓ your working tree · untouched</div>
+            </div>
+            <div class="plate-foot"><span>Section view · branch topology</span><span class="live-dot"><i></i>3 commits</span></div>
+          </div>
+          <div class="fig-copy rev">
+            <span class="fig-num">Fig. 02 — Worktree chats</span>
+            <h2>Its own branch, off to the side.</h2>
+            <p>Start a chat on its own git worktree. The agent commits away on an isolated branch while your checkout stays exactly as you left it — no stashing, no surprises, nothing to undo.</p>
+            <div class="fig-notes">
+              <div class="fig-note"><b>[D]</b><span>Divergence point — the moment you say go</span></div>
+              <div class="fig-note"><b>[E]</b><span>Agent commits — landing on the branch, not on you</span></div>
+              <div class="fig-note"><b>[F]</b><span>Your tree — clean throughout</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIG 03 -->
+    <section class="fig">
+      <div class="wrap">
+        <div class="fig-grid">
+          <div class="fig-copy rev">
+            <span class="fig-num">Fig. 03 — Device module</span>
+            <h2>An iPhone in the window.</h2>
+            <p>An iOS Simulator streamed inside the app from its own framebuffer — the real device, live, tap and type included. Nothing to grant, nothing to install, no second window to hunt for.</p>
+            <div class="fig-notes">
+              <div class="fig-note"><b>[G]</b><span>Framebuffer stream — the device, not a video</span></div>
+              <div class="fig-note"><b>[H]</b><span>Tap &amp; type — the agent drives it, so can you</span></div>
+              <div class="fig-note"><b>[J]</b><span>Docked in-window — never a stray Simulator</span></div>
+            </div>
+          </div>
+          <div class="plate rev" data-fig>
+            <span class="plate-tag">Fig. 03</span>
+            <div class="draw-wrap" style="display:flex;justify-content:center;align-items:center;gap:28px;padding:8px 0">
+              <div class="phone" style="--pw:172px;--ph:292px">
+                <div class="phone-screen">
+                  <div class="p-hero"></div>
+                  <div class="prow"><i></i><em></em></div>
+                  <div class="prow"><i></i><em></em></div>
+                  <div class="prow"><i></i><em></em></div>
+                  <div class="prow"><i></i><em></em></div>
+                  <div class="ripple" style="left:52px;top:150px"></div>
+                  <div class="tapdot" style="left:63px;top:161px"></div>
+                  <div class="p-detail">
+                    <div style="display:flex;align-items:center;gap:7px;margin-bottom:9px"><span style="font-family:var(--mono);font-size:0.62rem;color:var(--blue)">←</span><span style="height:6px;width:52px;border-radius:3px;background:rgba(20,32,47,0.16);display:block"></span></div>
+                    <div class="p-hero" style="height:74px"></div>
+                    <div class="prow" style="height:16px"></div>
+                    <div class="prow" style="height:16px;width:76%"></div>
+                    <div style="margin-top:11px;height:30px;border-radius:7px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.68rem;font-weight:600">Confirm</div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:9px;max-width:190px">
+                <div style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.14em;color:var(--faint);text-transform:uppercase">Callouts</div>
+                <div class="fig-note"><b>[G]</b><span>iPhone 16 · booted</span></div>
+                <div class="fig-note"><b>[H]</b><span>tap → 63, 161</span></div>
+                <div class="fig-note"><b>[J]</b><span>60 fps · in-window</span></div>
+                <div style="margin-top:6px;border:1px dashed var(--blue-soft);border-radius:3px;padding:8px;font-family:var(--mono);font-size:0.6rem;color:var(--muted);line-height:1.6">sim_tap → row 3<br />sim_screen → ok</div>
+              </div>
+            </div>
+            <div class="plate-foot"><span>Elevation · device module</span><span class="live-dot"><i></i>Streaming</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIG 04 -->
+    <section class="fig flip">
+      <div class="wrap">
+        <div class="fig-grid">
+          <div class="plate rev" data-fig>
+            <span class="plate-tag">Fig. 04</span>
+            <div class="dim" data-dim="same session · two viewports"><i></i><i></i></div>
+            <div class="draw-wrap">
+              <div class="dual">
+                <div class="deskcard">
+                  <div class="urlbar"><i class="dot r" style="width:7px;height:7px"></i><i class="dot y" style="width:7px;height:7px"></i><i class="dot g" style="width:7px;height:7px"></i><span class="pill">yoursite.dev/launch</span></div>
+                  <div class="scrollport">
+                    <div class="inner sync-scroll">
+                      <div class="skel w25"></div>
+                      <div class="skel tall"></div>
+                      <div class="skel w70"></div>
+                      <div class="skel w85"></div>
+                      <div class="skel-row"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+                      <div class="skel btn"></div>
+                      <div class="skel w55"></div>
+                      <div class="skel w70"></div>
+                      <div class="skel-row"><div class="skel"></div><div class="skel"></div></div>
+                      <div class="skel w40"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="phone" style="--pw:132px;--ph:196px">
+                  <div class="phone-screen" style="padding:18px 7px 7px">
+                    <div class="sync-scroll" style="display:flex;flex-direction:column;gap:7px">
+                      <div class="skel w40"></div>
+                      <div class="skel tall" style="height:44px"></div>
+                      <div class="skel w85"></div>
+                      <div class="skel w70"></div>
+                      <div class="skel" style="height:26px;border-radius:5px"></div>
+                      <div class="skel btn" style="width:56px"></div>
+                      <div class="skel w55"></div>
+                      <div class="skel w70"></div>
+                      <div class="skel" style="height:26px;border-radius:5px"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:center"><span class="sync-tag">● scrolling in sync · both live</span></div>
+            </div>
+            <div class="plate-foot"><span>Plan view · dual viewport</span><span class="live-dot"><i></i>1440px &amp; 390px</span></div>
+          </div>
+          <div class="fig-copy rev">
+            <span class="fig-num">Fig. 04 — Dual viewport</span>
+            <h2>One page, seen twice.</h2>
+            <p>One click shows the same page in a desktop card and an iPhone frame — same session, both live. Scroll one and the other follows; every change lands in both at once, so responsive bugs turn up before you ship them.</p>
+            <div class="fig-notes">
+              <div class="fig-note"><b>[K]</b><span>Desktop card — 1440 × 900</span></div>
+              <div class="fig-note"><b>[L]</b><span>Phone frame — 390 × 844</span></div>
+              <div class="fig-note"><b>[M]</b><span>Shared session — one login, both views</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIG 05 -->
+    <section class="fig">
+      <div class="wrap">
+        <div class="fig-grid">
+          <div class="fig-copy rev">
+            <span class="fig-num">Fig. 05 — Automation linkage</span>
+            <h2>It clicks. It types. It proves it.</h2>
+            <p>The agent reads the page, fills the form, presses the button and screenshots the result — every step visible in the pane while it happens, so you are watching the work, not reading a claim about it.</p>
+            <div class="fig-notes">
+              <div class="fig-note"><b>[N]</b><span>Pointer — driven by the agent, in your view</span></div>
+              <div class="fig-note"><b>[P]</b><span>Input — real keystrokes into a real page</span></div>
+              <div class="fig-note"><b>[Q]</b><span>Capture — proof, filed back into the chat</span></div>
+            </div>
+          </div>
+          <div class="plate rev" data-fig>
+            <span class="plate-tag">Fig. 05</span>
+            <div class="draw-wrap autowrap">
+              <svg class="draw-svg" viewBox="0 0 700 300" preserveAspectRatio="none" aria-hidden="true">
+                <rect x="1" y="1" width="698" height="298" rx="8" style="--len:2000"></rect>
+                <line x1="1" y1="30" x2="699" y2="30" style="--len:700"></line>
+              </svg>
+              <div class="app" style="--app-h:262px">
+                <div class="urlbar"><i class="dot r" style="width:8px;height:8px"></i><i class="dot y" style="width:8px;height:8px"></i><i class="dot g" style="width:8px;height:8px"></i><span class="pill">yoursite.dev/signup</span></div>
+                <div style="position:relative;height:262px;background:#fbfbf9;display:flex;align-items:center;justify-content:center;padding:16px">
+                  <div class="formcard">
+                    <h4>Create your account</h4>
+                    <div class="flabel">Email</div>
+                    <div class="finput f1"><span class="typed t1">ada@lovelace.dev</span></div>
+                    <div class="flabel">Workspace</div>
+                    <div class="finput f2"><span class="typed t2">analytical</span></div>
+                    <div class="fbtn">Sign up</div>
+                  </div>
+                  <div class="flash"></div>
+                  <div class="snap">▣ screenshot-01.png · filed</div>
+                  <div class="cursor" aria-hidden="true">
+                    <svg width="13" height="17" viewBox="0 0 13 17"><path d="M1 1l11 7.5-5 .8 2.6 5.3-2 1-2.6-5.3L1 14z" fill="#14202f" stroke="#fff" stroke-width="1"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="steplog">
+              <div class="step s0"><b>01</b><span>browser_click → input[name=email]</span></div>
+              <div class="step s1"><b>02</b><span>browser_type → "ada@lovelace.dev"</span></div>
+              <div class="step s2"><b>03</b><span>browser_click → button "Sign up"</span></div>
+              <div class="step s3"><b>04</b><span>browser_screenshot → filed to chat</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIG 06 -->
+    <section class="fig">
+      <div class="wrap">
+        <div style="text-align:center;max-width:640px;margin:0 auto 34px" class="rev">
+          <span class="fig-num">Fig. 06 — General assembly</span>
+          <h2 style="font-size:clamp(1.8rem,3.4vw,2.6rem);line-height:1.06;letter-spacing:-0.04em;font-weight:800;margin:14px 0 12px">The computer inside SuperAgent.</h2>
+          <p style="color:var(--muted)">Your page, the Simulator, a board Claude keeps and a local dashboard — side by side on one surface, over a Monet you can switch off. A desk, not a slot.</p>
+        </div>
+        <div class="plate rev" data-fig>
+          <span class="plate-tag">Fig. 06</span>
+          <div class="draw-wrap">
+            <div class="desk">
+              <div class="desk-grid">
+                <div class="desk-col">
+                  <div class="floatcard fc1">
+                    <div class="urlbar"><i class="dot r" style="width:7px;height:7px"></i><i class="dot y" style="width:7px;height:7px"></i><i class="dot g" style="width:7px;height:7px"></i><span class="pill">yoursite.dev</span></div>
+                    <div style="padding:12px;display:flex;flex-direction:column;gap:9px">
+                      <div class="skel w25"></div>
+                      <div class="skel tall" style="height:62px"></div>
+                      <div class="skel-row"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+                      <div class="skel w70"></div>
+                      <div class="skel btn"></div>
+                    </div>
+                  </div>
+                  <div class="floatcard fc3">
+                    <div class="card-hd">Board · kept by Claude</div>
+                    <div class="kan">
+                      <div class="kan-col"><span class="kan-lbl">Todo</span><div class="kcard"></div><div class="kcard"></div></div>
+                      <div class="kan-col"><span class="kan-lbl">Doing</span><div class="kcard warm kmover"></div><div class="kcard"></div></div>
+                      <div class="kan-col"><span class="kan-lbl">Done</span><div class="kcard"></div><div class="kcard"></div></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="desk-col">
+                  <div class="desk-row" style="justify-content:center">
+                    <div class="floatcard fc2" style="background:transparent;box-shadow:none;border:none">
+                      <div class="phone" style="--pw:118px;--ph:186px">
+                        <div class="phone-screen" style="padding:17px 6px 6px">
+                          <div class="p-hero" style="height:40px"></div>
+                          <div class="prow" style="height:20px"><i style="width:11px;height:11px"></i><em></em></div>
+                          <div class="prow" style="height:20px"><i style="width:11px;height:11px"></i><em></em></div>
+                          <div class="prow" style="height:20px"><i style="width:11px;height:11px"></i><em></em></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="floatcard fc4">
+                    <div class="card-hd">Dashboard · local</div>
+                    <div class="tiles">
+                      <div class="tile"><div class="n">48</div><div class="l">turns today</div></div>
+                      <div class="tile"><div class="n">12</div><div class="l">tasks done</div></div>
+                    </div>
+                    <div style="padding:0 10px 12px"><div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+                  </div>
+                </div>
+              </div>
+              <span class="desk-wall-note">wallpaper: Monet · switchable</span>
+            </div>
+          </div>
+          <div class="plate-foot"><span>Assembly · all parts shown in position</span><span class="live-dot"><i></i>One window</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="appendix">
+    <div class="wrap">
+      <div class="rev">
+        <span class="kicker">Appendix A — tolerances</span>
+        <h2 style="font-size:clamp(1.5rem,2.6vw,2.05rem);letter-spacing:-0.035em;font-weight:700;margin-top:12px">The small things, done properly.</h2>
+      </div>
+      <div class="app-grid rev">
+        <div class="app-cell"><span class="pn">A-01</span><b>Survives restarts</b><span>Panes, open files, active chat — exactly where you left them, even through updates.</span></div>
+        <div class="app-cell"><span class="pn">A-02</span><b>Never steals focus</b><span>Agents finish quietly in the background. The window comes forward only when you ask.</span></div>
+        <div class="app-cell"><span class="pn">A-03</span><b>Interject mid-turn</b><span>Type while the agent works and it sees your message before it finishes — like the terminal.</span></div>
+        <div class="app-cell"><span class="pn">A-04</span><b>Context gauge</b><span>Every conversation shows how much of the context window it has used.</span></div>
+        <div class="app-cell"><span class="pn">A-05</span><b>Useful notifications</b><span>Done, or has a question — with a summary of the agent's actual last reply.</span></div>
+        <div class="app-cell"><span class="pn">A-06</span><b>Updates itself</b><span>Signed, notarized, delivered in the background. Restart when it suits you.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="wrap">
+      <div class="cta-box rev">
+        <span class="kicker">Issue &amp; release</span>
+        <h2 style="margin-top:14px">Give your agent a screen.</h2>
+        <p style="color:var(--muted);margin-top:14px;max-width:520px">Download it, point it at a project, and watch the work happen next to the conversation.</p>
+        <div class="hero-ctas">
+          <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download for Mac ↓</a>
+          <a class="btn-ghost" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">All releases →</a>
+        </div>
+        <div class="titleblock">
+          <div class="tb-cell"><div class="k">Drawing</div><div class="v">SuperAgent</div></div>
+          <div class="tb-cell"><div class="k">Format</div><div class="v">Apple Silicon · .dmg</div></div>
+          <div class="tb-cell"><div class="k">Finish</div><div class="v">Notarized · auto-update</div></div>
+          <div class="tb-cell"><div class="k">Licence</div><div class="v">MIT · open source</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot">
+      <a class="nav-logo" href="#" style="font-size:0.86rem"><img src="logo.png" alt="" style="width:18px;height:18px" /><span>SuperAgent</span></a>
+      <span>MIT licensed · runs locally</span>
+      <div class="foot-links">
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var revs = document.querySelectorAll('.rev');
+      var figs = document.querySelectorAll('[data-fig]');
+
+      if (reduce) {
+        revs.forEach(function (el) { el.classList.add('in'); });
+        figs.forEach(function (el) { el.classList.add('live'); });
+        return;
+      }
+
+      var revObs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add('in'); revObs.unobserve(e.target); }
+        });
+      }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+      revs.forEach(function (el) { revObs.observe(el); });
+
+      var figObs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add('live'); figObs.unobserve(e.target); }
+        });
+      }, { threshold: 0.2 });
+      figs.forEach(function (el) { figObs.observe(el); });
+
+      // Fig. 05 — step log follows the automation loop (11s, starts 1.4s after live)
+      var log = document.querySelector('.steplog');
+      if (log) {
+        var steps = log.querySelectorAll('.step');
+        var marks = [0, 16, 42, 76];
+        var timer = null;
+        var start = 0;
+        var logObs = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting && !timer) {
+              start = performance.now() + 1400;
+              timer = setInterval(function () {
+                var t = (performance.now() - start) / 11000;
+                if (t < 0) return;
+                var pct = (t % 1) * 100;
+                var active = -1;
+                for (var i = 0; i < marks.length; i++) { if (pct >= marks[i]) active = i; }
+                steps.forEach(function (s, i) { s.classList.toggle('on', i === active); });
+              }, 120);
+            } else if (!e.isIntersecting && timer) {
+              clearInterval(timer); timer = null;
+              steps.forEach(function (s) { s.classList.remove('on'); });
+            }
+          });
+        }, { threshold: 0.25 });
+        logObs.observe(log);
+      }
+    })();
+  </script>
+</body>
+</html>

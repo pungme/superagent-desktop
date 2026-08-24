@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SuperAgent — 5 landing page options</title>
+<style>
+  :root{--ink:#15181d;--muted:#697280;--line:rgba(21,24,29,.12);--paper:#fbfbf9;}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:44px 28px 72px}
+  h1{font-size:2rem;letter-spacing:-.03em;font-weight:750}
+  .sub{color:var(--muted);margin-top:8px;max-width:640px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:22px;margin-top:34px}
+  .card{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(21,24,29,.04),0 18px 40px -26px rgba(21,24,29,.3);display:flex;flex-direction:column;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s}
+  .card:hover{transform:translateY(-3px);box-shadow:0 1px 2px rgba(21,24,29,.05),0 26px 54px -26px rgba(21,24,29,.38)}
+  .thumb{height:250px;border-bottom:1px solid var(--line);overflow:hidden;position:relative;background:#f2f2ef}
+  .thumb iframe{width:1440px;height:1440px;border:0;transform:scale(.3125);transform-origin:0 0;pointer-events:none}
+  .meta{padding:16px 18px 18px}
+  .n{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .meta b{display:block;font-size:1.05rem;letter-spacing:-.02em;margin:6px 0 5px}
+  .meta p{font-size:.9rem;color:var(--muted)}
+  .go{display:inline-block;margin-top:13px;font-size:.85rem;font-weight:650;text-decoration:none;color:var(--ink);border-bottom:1.5px solid var(--ink);padding-bottom:1px}
+  .note{margin-top:32px;font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Five landing pages, one product.</h1>
+  <p class="sub">Every option is a full page with animated CSS mockups instead of screenshots — sidebar, worktree branch, iOS Simulator, dual desktop + phone views, browser automation, and the desk finale. Click any to open it full size.</p>
+  <div class="grid">
+    <a class="card" href="option-1-midnight.html"><div class="thumb"><iframe src="option-1-midnight.html" scrolling="no" loading="lazy" title="Midnight"></iframe></div><div class="meta"><span class="n">Option 01</span><b>Midnight Studio</b><p>Dark and cinematic. Aurora glows, glass panels, gradient headline — Linear × Arc energy.</p><span class="go">Open →</span></div></a>
+    <a class="card" href="option-2-editorial.html"><div class="thumb"><iframe src="option-2-editorial.html" scrolling="no" loading="lazy" title="Editorial"></iframe></div><div class="meta"><span class="n">Option 02</span><b>Kinetic Editorial</b><p>Magazine typography with one sticky app window that morphs through all six features as you scroll.</p><span class="go">Open →</span></div></a>
+    <a class="card" href="option-3-bento.html"><div class="thumb"><iframe src="option-3-bento.html" scrolling="no" loading="lazy" title="Bento"></iframe></div><div class="meta"><span class="n">Option 03</span><b>Bento Playground</b><p>Bright pastel bento grid. Each feature is its own tinted tile with a looping micro-demo.</p><span class="go">Open →</span></div></a>
+    <a class="card" href="option-4-monet.html"><div class="thumb"><iframe src="option-4-monet.html" scrolling="no" loading="lazy" title="Monet"></iframe></div><div class="meta"><span class="n">Option 04</span><b>The Monet Desk</b><p>Painterly and calm. Frosted panes drifting over an impressionist wash — the app's own wallpaper, as a website.</p><span class="go">Open →</span></div></a>
+    <a class="card" href="option-5-blueprint.html"><div class="thumb"><iframe src="option-5-blueprint.html" scrolling="no" loading="lazy" title="Blueprint"></iframe></div><div class="meta"><span class="n">Option 05</span><b>Blueprint Machine</b><p>Graph paper and engineering drawings. Figures draw themselves, then power on into live UI.</p><span class="go">Open →</span></div></a>
+  </div>
+  <p class="note">Nothing is deployed — <code>index.html</code> is untouched. These live beside it in <code>docs/</code>.</p>
+</div>
+</body>
+</html>

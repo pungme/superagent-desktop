@@ -1,0 +1,1517 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SuperAgent, a home for your agent</title>
+  <meta
+    name="description"
+    content="SuperAgent is a Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work."
+  />
+  <link rel="canonical" href="https://superagent.computer/" />
+  <link rel="icon" href="logo.png" />
+  <meta property="og:title" content="SuperAgent, a home for your agent" />
+  <meta property="og:description" content="A Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work." />
+  <meta property="og:image" content="https://superagent.computer/hero.png" />
+  <meta property="og:url" content="https://superagent.computer/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet" />
+  <style>
+    /* ============ The Monet Desk ============ */
+    :root {
+      --cream: #f6f2e9;
+      --ink: #31342d;
+      --muted: #6e7466;
+      --faint: #999f8f;
+      --line: rgba(49, 52, 45, 0.1);
+      --sage: #93b087;
+      --lilac: #b8a3d2;
+      --blue: #86a6c6;
+      --blush: #e0aeb0;
+      --gold: #d9c188;
+      --deep: #5c7a86;
+      --glass: rgba(255, 254, 250, 0.74);
+      --glass-edge: rgba(255, 255, 255, 0.9);
+      --card: #fffefb;
+      --skel: #e2ddcf;
+      --skel2: #d2ccb9;
+      --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+      --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+      --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+      --shadow: 0 1px 2px rgba(49, 52, 45, 0.06), 0 4px 12px -4px rgba(60, 74, 84, 0.14), 0 30px 70px -26px rgba(56, 72, 84, 0.46);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--sans);
+      background: var(--cream);
+      color: var(--ink);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; }
+    img { max-width: 100%; display: block; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---------- the pond: painted background ---------- */
+    /* Built in three coats, like the real thing: a ground of wet colour,
+       floating pads and brushstrokes over it, then canvas tooth on top. */
+    .pond {
+      position: fixed; inset: -22vh -22vw; z-index: -3;
+      overflow: hidden; pointer-events: none;
+      background:
+        radial-gradient(70% 55% at 18% 8%, rgba(147, 176, 135, 0.55), transparent 70%),
+        radial-gradient(60% 50% at 88% 14%, rgba(134, 166, 198, 0.5), transparent 72%),
+        radial-gradient(65% 55% at 78% 82%, rgba(224, 174, 176, 0.42), transparent 72%),
+        radial-gradient(55% 50% at 10% 88%, rgba(217, 193, 136, 0.4), transparent 72%),
+        radial-gradient(80% 60% at 50% 50%, rgba(184, 163, 210, 0.3), transparent 75%),
+        linear-gradient(168deg, #edeade 0%, #e8ecdf 34%, #eee4e0 66%, #f1ece0 100%);
+    }
+    .blob { position: absolute; border-radius: 50%; will-change: transform; }
+    .b1 { width: 54vw; height: 40vw; left: -10vw; top: -6vh;
+      background: radial-gradient(closest-side, rgba(147, 176, 135, 0.72), rgba(147, 176, 135, 0) 72%);
+      animation: drift1 64s ease-in-out infinite; }
+    .b2 { width: 50vw; height: 38vw; right: -12vw; top: 2vh;
+      background: radial-gradient(closest-side, rgba(134, 166, 198, 0.68), rgba(134, 166, 198, 0) 74%);
+      animation: drift2 78s ease-in-out infinite; }
+    .b3 { width: 44vw; height: 34vw; left: 18vw; top: 38vh;
+      background: radial-gradient(closest-side, rgba(184, 163, 210, 0.6), rgba(184, 163, 210, 0) 72%);
+      animation: drift3 88s ease-in-out infinite; }
+    .b4 { width: 40vw; height: 30vw; right: 2vw; top: 54vh;
+      background: radial-gradient(closest-side, rgba(224, 174, 176, 0.62), rgba(224, 174, 176, 0) 72%);
+      animation: drift1 72s ease-in-out -30s infinite; }
+    .b5 { width: 46vw; height: 32vw; left: -8vw; bottom: -12vh;
+      background: radial-gradient(closest-side, rgba(217, 193, 136, 0.55), rgba(217, 193, 136, 0) 72%);
+      animation: drift2 92s ease-in-out -18s infinite; }
+    .b6 { width: 30vw; height: 22vw; left: 46vw; top: 4vh;
+      background: radial-gradient(closest-side, rgba(92, 122, 134, 0.3), rgba(92, 122, 134, 0) 72%);
+      animation: drift3 96s ease-in-out -40s infinite; }
+    .b7 { width: 34vw; height: 26vw; left: 8vw; top: 70vh;
+      background: radial-gradient(closest-side, rgba(134, 166, 198, 0.5), rgba(134, 166, 198, 0) 74%);
+      animation: drift1 84s ease-in-out -52s infinite; }
+
+    /* lily pads, squat ellipses laid flat on the water */
+    .pad {
+      position: absolute; border-radius: 50%;
+      filter: blur(22px); opacity: 0.55; will-change: transform;
+    }
+    .p1 { width: 22vw; height: 7vw; left: 6vw; top: 26vh; background: rgba(122, 155, 116, 0.55);
+      transform: rotate(-8deg); animation: pad1 58s ease-in-out infinite; }
+    .p2 { width: 17vw; height: 5.5vw; right: 12vw; top: 34vh; background: rgba(196, 176, 216, 0.5);
+      transform: rotate(6deg); animation: pad2 66s ease-in-out -14s infinite; }
+    .p3 { width: 25vw; height: 7.5vw; left: 30vw; top: 62vh; background: rgba(214, 168, 170, 0.45);
+      transform: rotate(-4deg); animation: pad1 74s ease-in-out -28s infinite; }
+    .p4 { width: 19vw; height: 6vw; right: 6vw; bottom: 12vh; background: rgba(146, 178, 136, 0.5);
+      transform: rotate(9deg); animation: pad2 62s ease-in-out -40s infinite; }
+    .p5 { width: 15vw; height: 5vw; left: 14vw; bottom: 26vh; background: rgba(212, 190, 132, 0.45);
+      transform: rotate(-11deg); animation: pad1 70s ease-in-out -6s infinite; }
+    @keyframes pad1 {
+      0%, 100% { transform: rotate(-8deg) translate(0, 0); }
+      50% { transform: rotate(-5deg) translate(2.5vw, -1.5vh); }
+    }
+    @keyframes pad2 {
+      0%, 100% { transform: rotate(6deg) translate(0, 0); }
+      50% { transform: rotate(3deg) translate(-2vw, 2vh); }
+    }
+
+    /* brushstrokes, the loaded-brush marks that make it paint, not gradient */
+    .stroke {
+      position: absolute; border-radius: 50%;
+      filter: blur(30px); opacity: 0.3; will-change: transform;
+    }
+    .s1 { width: 30vw; height: 2.4vw; left: 12vw; top: 18vh; background: rgba(120, 150, 116, 0.5); transform: rotate(-14deg); }
+    .s2 { width: 24vw; height: 2vw; right: 10vw; top: 26vh; background: rgba(126, 158, 190, 0.5); transform: rotate(11deg); }
+    .s3 { width: 28vw; height: 2.2vw; left: 24vw; top: 54vh; background: rgba(178, 152, 200, 0.45); transform: rotate(-7deg); }
+    .s4 { width: 22vw; height: 1.8vw; right: 18vw; bottom: 22vh; background: rgba(206, 156, 158, 0.45); transform: rotate(13deg); }
+    .s5 { width: 26vw; height: 2vw; left: 4vw; bottom: 8vh; background: rgba(200, 176, 120, 0.4); transform: rotate(-9deg); }
+
+    /* dabs, the loaded-brush marks; without these it is only a gradient */
+    .dabs {
+      position: fixed; inset: -6vh -6vw; z-index: -2; pointer-events: none;
+      opacity: 0.9; will-change: transform;
+      animation: dabDrift 120s ease-in-out infinite;
+    }
+    .dabs svg { width: 100%; height: 100%; display: block; filter: blur(2px); }
+    @keyframes dabDrift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-1.2vw, 1vh) scale(1.03); }
+    }
+
+    /* light on water, and a soft gallery vignette */
+    .glaze {
+      position: fixed; inset: 0; z-index: -2; pointer-events: none;
+      background:
+        radial-gradient(46% 34% at 50% 2%, rgba(255, 253, 245, 0.5), transparent 72%),
+        radial-gradient(120% 92% at 50% 48%, transparent 46%, rgba(70, 84, 92, 0.2) 100%);
+    }
+    @keyframes drift1 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      33% { transform: translate(4vw, 3vh) rotate(6deg); }
+      66% { transform: translate(-3vw, 5vh) rotate(-4deg); }
+    }
+    @keyframes drift2 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      40% { transform: translate(-5vw, 4vh) rotate(-7deg); }
+      75% { transform: translate(3vw, -3vh) rotate(5deg); }
+    }
+    @keyframes drift3 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(4vw, -4vh) scale(1.08); }
+    }
+    /* canvas tooth: fine weave plus a breath of grain */
+    .linen {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      opacity: 0.55;
+      background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.42'/%3E%3C/svg%3E"),
+        repeating-linear-gradient(0deg, rgba(49, 52, 45, 0.02) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(49, 52, 45, 0.017) 0 1px, transparent 1px 3px);
+      mix-blend-mode: multiply;
+    }
+
+    /* ---------- typography ---------- */
+    h1, h2, .serif { font-family: var(--serif); font-weight: 600; letter-spacing: 0.005em; }
+    h1 em, h2 em { font-style: italic; font-weight: 500; }
+    .kicker {
+      font-family: var(--sans); font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.22em; text-transform: uppercase; color: var(--faint);
+      display: block; margin-bottom: 14px;
+    }
+    .kicker .num { font-family: var(--serif); font-style: italic; font-size: 0.95rem;
+      letter-spacing: 0; text-transform: none; margin-right: 10px; color: var(--muted); }
+
+    /* ---------- glass ---------- */
+    .glass {
+      background: var(--glass);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      backdrop-filter: blur(20px) saturate(1.4);
+      border: 1px solid var(--glass-edge);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+    /* a thin bright lip along the top edge, the way glass catches light */
+    .glass::before {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 34%);
+      mix-blend-mode: soft-light;
+    }
+    .bob { animation: bob var(--bobd, 9s) ease-in-out var(--bobo, 0s) infinite; }
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-7px); }
+    }
+
+    /* a frosted band so content dissolves under the nav instead of being sliced */
+    .top-scrim {
+      position: fixed; top: 0; left: 0; right: 0; height: 108px; z-index: 40; pointer-events: none;
+      -webkit-backdrop-filter: blur(11px); backdrop-filter: blur(11px);
+      -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 100%);
+      mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 100%);
+    }
+
+    /* hero trust marks */
+    .trust {
+      list-style: none; display: flex; justify-content: center; flex-wrap: wrap;
+      gap: 10px; margin: 22px 0 0;
+    }
+    .trust li {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 14px; border-radius: 999px;
+      font-size: 0.79rem; color: var(--muted);
+      background: rgba(255, 254, 250, 0.62);
+      -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 1px 2px rgba(49, 52, 45, 0.04), 0 10px 22px -16px rgba(56, 72, 84, 0.4);
+    }
+    .trust .tk { font-size: 0.5rem; color: var(--sage); }
+
+    /* ---------- nav ---------- */
+    .nav { position: sticky; top: 14px; z-index: 50; margin: 14px 0 0; }
+    .nav-inner {
+      max-width: 1080px; margin: 0 auto; width: calc(100% - 32px);
+      display: flex; align-items: center; gap: 22px;
+      padding: 10px 18px; border-radius: 999px;
+      background: rgba(253, 252, 248, 0.92);
+      -webkit-backdrop-filter: blur(14px) saturate(1.2);
+      backdrop-filter: blur(14px) saturate(1.2);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 2px 5px rgba(49, 52, 45, 0.05), 0 14px 34px -18px rgba(73, 82, 94, 0.3);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 0.95rem; letter-spacing: -0.01em; text-decoration: none; }
+    .nav-logo img { width: 22px; height: 22px; border-radius: 6px; }
+    .nav-links { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+    .nav-links a { text-decoration: none; font-size: 0.86rem; color: var(--muted); transition: color 0.25s var(--ease); }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-btn {
+      background: var(--ink); color: #fdfcf7 !important; font-weight: 600;
+      padding: 7px 15px; border-radius: 999px; font-size: 0.83rem !important;
+      transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    }
+    .nav-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -8px rgba(49, 52, 45, 0.5); }
+
+    /* ---------- buttons ---------- */
+    .btn {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: var(--ink); color: #fdfcf7; padding: 13px 26px; border-radius: 12px;
+      text-decoration: none; font-weight: 600; font-size: 0.95rem;
+      box-shadow: 0 2px 5px rgba(49, 52, 45, 0.18), 0 14px 30px -12px rgba(49, 52, 45, 0.45);
+      transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 3px 7px rgba(49, 52, 45, 0.16), 0 20px 40px -14px rgba(49, 52, 45, 0.5); }
+    .btn .apple { font-size: 1.05em; line-height: 1; }
+    .link {
+      font-size: 0.94rem; color: var(--muted); text-decoration: none;
+      background-image: linear-gradient(currentColor, currentColor);
+      background-size: 0% 1px; background-repeat: no-repeat; background-position: 0 100%;
+      padding-bottom: 2px; transition: background-size 0.35s var(--ease), color 0.25s var(--ease);
+    }
+    .link:hover { color: var(--ink); background-size: 100% 1px; }
+    .note { font-size: 0.8rem; color: var(--faint); }
+
+    /* ---------- hero ---------- */
+    .hero { padding: 72px 0 32px; text-align: center; }
+    .hero-mark {
+      width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 30px;
+      box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.34), 0 2px 6px rgba(49, 52, 45, 0.14), 0 18px 40px -14px rgba(60, 74, 84, 0.44);
+    }
+    .hero h1 {
+      font-size: clamp(2.7rem, 6.4vw, 4.6rem);
+      line-height: 1.05; letter-spacing: -0.01em; max-width: 760px; margin: 0 auto;
+    }
+    .hero-sub { margin: 22px auto 0; max-width: 560px; font-size: 1.06rem; color: var(--muted); }
+    .hero-ctas { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 34px; flex-wrap: wrap; }
+    .hero .note { margin-top: 18px; }
+
+    /* hero window entrance + composition */
+    .hero-stage { position: relative; max-width: 860px; margin: 52px auto 0; padding: 0 8px; }
+    .js .rise { opacity: 0; transform: translateY(34px) rotate(-0.6deg); }
+    .in .rise, .rise.now {
+      opacity: 1; transform: none;
+      transition: opacity 1.2s var(--ease), transform 1.2s var(--ease);
+      transition-delay: var(--d, 0s);
+    }
+    .hero-win { position: relative; z-index: 2; text-align: left; overflow: hidden; }
+    .chip {
+      position: absolute; z-index: 3; padding: 10px 14px; border-radius: 14px;
+      font-size: 0.72rem; font-weight: 500; color: var(--muted);
+      display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    }
+    .chip-gauge { right: -14px; top: 42px; --bobd: 11s; --bobo: -3s; }
+    .chip-notif { left: -10px; bottom: 56px; --bobd: 10s; --bobo: -6s; }
+    .chip b { color: var(--ink); font-weight: 600; }
+    .chip .ok { color: #5c8a5e; font-weight: 700; }
+    .gauge-bar { width: 54px; height: 5px; border-radius: 3px; background: var(--skel); overflow: hidden; }
+    .gauge-fill { height: 100%; width: 63%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--sage), var(--blue)); transform-origin: left;
+      animation: gaugeIn 9s ease-in-out infinite; }
+    @keyframes gaugeIn { 0%, 8% { transform: scaleX(0.55); } 40%, 100% { transform: scaleX(1); } }
+
+    /* ---------- shared mini-app chrome ---------- */
+    .chrome {
+      display: flex; align-items: center; gap: 6px;
+      padding: 9px 12px; border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.5);
+    }
+    .tl { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .tl.r { background: #f1968c; } .tl.y { background: #efc784; } .tl.g { background: #a5cf92; }
+    .chrome-title {
+      margin-left: 8px; font-size: 0.66rem; color: var(--faint); font-weight: 500;
+      letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .live { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 0.6rem; color: var(--faint); font-weight: 600; letter-spacing: 0.08em; }
+    .live i { width: 6px; height: 6px; border-radius: 50%; background: #7fae82; animation: pulse 2.4s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.75); } }
+
+    /* skeleton atoms */
+    .ln { height: 7px; border-radius: 4px; background: var(--skel); }
+    .ln.dk { background: var(--skel2); }
+
+    /* ---------- hero window internals ---------- */
+    .hw-body { display: grid; grid-template-columns: 148px 1.15fr 1fr; min-height: 330px; }
+    .hw-side { border-right: 1px solid var(--line); padding: 10px 8px; background: rgba(252, 250, 244, 0.55); }
+    .hw-chat { border-right: 1px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 10px; background: rgba(255, 255, 255, 0.52); }
+    .hw-page { padding: 12px; background: rgba(255, 255, 255, 0.45); }
+
+    .side-label { font-size: 0.56rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); padding: 6px 8px 4px; }
+    .side-row {
+      display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 8px;
+      font-size: 0.68rem; color: var(--muted); font-weight: 500; position: relative;
+    }
+    .side-row.on { background: rgba(49, 52, 45, 0.07); color: var(--ink); }
+    .fv { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+    .fv1 { background: var(--blue); } .fv2 { background: var(--sage); } .fv3 { background: var(--lilac); } .fv4 { background: var(--blush); }
+    .udot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); margin-left: auto; flex: none; }
+
+    .bubble { max-width: 88%; padding: 8px 11px; border-radius: 12px; font-size: 0.68rem; line-height: 1.5; }
+    .bub-user { align-self: flex-end; background: var(--ink); color: #f4f2ea; border-bottom-right-radius: 4px; }
+    .bub-agent { align-self: flex-start; background: rgba(49, 52, 45, 0.06); color: var(--ink); border-bottom-left-radius: 4px; }
+    .swap-slot { display: grid; }
+    .swap-slot > * { grid-area: 1 / 1; justify-self: start; }
+    .typing { display: inline-flex; gap: 4px; padding: 3px 2px; }
+    .typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); animation: tydot 1.3s ease-in-out infinite; }
+    .typing i:nth-child(2) { animation-delay: 0.18s; }
+    .typing i:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes tydot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-3px); opacity: 1; } }
+
+    /* hero loop: typing -> reply appears -> page refresh shimmer */
+    .hw-typing { animation: hwTyping 9s ease-in-out infinite; }
+    @keyframes hwTyping { 0%, 34% { opacity: 1; } 39%, 100% { opacity: 0; } }
+    .hw-reply { animation: hwReply 9s var(--ease) infinite; }
+    @keyframes hwReply {
+      0%, 36% { opacity: 0; transform: translateY(6px); }
+      42%, 96% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; }
+    }
+    .mini-page { background: var(--card); border: 1px solid var(--line); border-radius: 10px; height: 100%; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+    .mp-bar { display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-bottom: 1px solid var(--line); }
+    .mp-url { flex: 1; height: 12px; border-radius: 6px; background: var(--cream); border: 1px solid var(--line);
+      font-size: 0.5rem; color: var(--faint); display: flex; align-items: center; padding: 0 7px; font-family: var(--mono); }
+    .mp-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .mp-hero { height: 56px; border-radius: 8px; background: linear-gradient(120deg, var(--sage), var(--blue) 70%); opacity: 0.75; }
+    .hw-swap { animation: hwSwap 9s ease-in-out infinite; }
+    @keyframes hwSwap { 0%, 44% { opacity: 0.45; } 58%, 100% { opacity: 0.85; } }
+    .shimmer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: 10px; }
+    .shimmer::after {
+      content: ""; position: absolute; top: -20%; bottom: -20%; width: 46%;
+      background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.65) 50%, rgba(255,255,255,0) 100%);
+      transform: translateX(-160%) rotate(4deg);
+      animation: sweep 9s var(--ease) infinite;
+    }
+    @keyframes sweep { 0%, 46% { transform: translateX(-160%) rotate(4deg); } 62%, 100% { transform: translateX(320%) rotate(4deg); } }
+
+    /* ---------- sections ---------- */
+    section.feature { padding: 72px 0 22px; }
+    .feat-grid {
+      display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: center;
+    }
+    .feature.flip .feat-grid > .feat-copy { order: 2; }
+    .feature.flip .feat-grid > .pane-wrap { order: 1; }
+    .feat-copy h2 { font-size: clamp(1.9rem, 3.4vw, 2.7rem); line-height: 1.12; letter-spacing: -0.005em; }
+    .feat-copy p { margin-top: 16px; color: var(--muted); font-size: 0.98rem; max-width: 46ch; }
+    .pane-wrap { position: relative; }
+    .pane { padding: 18px; }
+    .pane-cap {
+      margin-top: 12px; text-align: center;
+      font-family: var(--serif); font-style: italic; font-size: 0.95rem; color: var(--faint);
+    }
+    .mini { background: rgba(255, 255, 255, 0.62); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+
+    /* reveal */
+    .js [data-rv] { opacity: 0; transform: translateY(26px); }
+    .js .io.in [data-rv] {
+      opacity: 1; transform: none;
+      transition: opacity 1s var(--ease), transform 1s var(--ease);
+      transition-delay: var(--d, 0s);
+    }
+
+    /* ============ Demo 1: sidebar ============ */
+    .d1-body { display: grid; grid-template-columns: 158px 1fr; min-height: 264px; }
+    .d1-side { border-right: 1px solid var(--line); padding: 10px 8px; background: rgba(252, 250, 244, 0.6); }
+    .d1-tabs { position: relative; }
+    .d1-hl {
+      position: absolute; left: 0; right: 0; top: 0; height: 29px; border-radius: 8px;
+      background: rgba(49, 52, 45, 0.08); z-index: 0;
+      animation: d1hl 9s var(--ease) infinite;
+    }
+    @keyframes d1hl {
+      0%, 27% { transform: translateY(0); }
+      33%, 60% { transform: translateY(33px); }
+      66%, 93% { transform: translateY(66px); }
+      100% { transform: translateY(0); }
+    }
+    .d1-tabs .side-row { height: 29px; margin-bottom: 4px; position: relative; z-index: 1; }
+    .d1-main { position: relative; padding: 12px; }
+    .d1-pg { position: absolute; inset: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .d1-pg1 { animation: d1a 9s ease-in-out infinite; }
+    .d1-pg2 { animation: d1b 9s ease-in-out infinite; opacity: 0; }
+    .d1-pg3 { animation: d1c 9s ease-in-out infinite; opacity: 0; }
+    @keyframes d1a { 0%, 27% { opacity: 1; } 33%, 93% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes d1b { 0%, 29% { opacity: 0; } 35%, 60% { opacity: 1; } 66%, 100% { opacity: 0; } }
+    @keyframes d1c { 0%, 62% { opacity: 0; } 68%, 93% { opacity: 1; } 100% { opacity: 0; } }
+    .d1-row { display: flex; align-items: center; gap: 8px; }
+    .d1-check { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--skel2); flex: none; }
+    .d1-check.done { background: var(--sage); border-color: var(--sage); }
+    .d1-dotA { animation: d1dotA 9s ease-in-out infinite; }
+    @keyframes d1dotA { 0%, 38% { opacity: 0; transform: scale(0.4); } 43%, 80% { opacity: 1; transform: scale(1); } 86%, 100% { opacity: 0; transform: scale(0.4); } }
+    .d1-dotB { animation: d1dotB 9s ease-in-out infinite; background: var(--blush); }
+    @keyframes d1dotB { 0%, 8% { opacity: 1; transform: scale(1); } 14%, 100% { opacity: 0; transform: scale(0.4); } }
+
+    /* ============ Demo 2: worktrees ============ */
+    .d2-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .tagchip {
+      font-family: var(--mono); font-size: 0.58rem; padding: 3px 8px; border-radius: 999px;
+      background: rgba(169, 189, 159, 0.28); color: #55704e; font-weight: 600; letter-spacing: 0.02em;
+    }
+    .tagchip.vio { background: rgba(196, 180, 214, 0.3); color: #6f5d87; }
+    .d2-stage { position: relative; height: 190px; padding: 0; }
+    .d2-graph { position: relative; width: 300px; height: 130px; margin: 26px auto 0; }
+    .d2-lbl { position: absolute; font-family: var(--mono); font-size: 0.56rem; color: var(--faint); }
+    .d2-lbl.main-l { left: 0; top: 84px; }
+    .d2-lbl.br-l { left: 136px; top: 68px; color: #6f5d87; }
+    .d2-line { position: absolute; height: 3px; border-radius: 2px; background: var(--skel2); }
+    .d2-main-line { left: 0; right: 0; top: 104px; }
+    .d2-diag {
+      left: 74px; top: 100px; width: 74px; background: var(--lilac);
+      transform-origin: left center; transform: rotate(-38deg) scaleX(1);
+      animation: d2diag 8s var(--ease) infinite;
+    }
+    @keyframes d2diag {
+      0%, 6% { transform: rotate(-38deg) scaleX(0); }
+      16%, 94% { transform: rotate(-38deg) scaleX(1); }
+      97%, 100% { transform: rotate(-38deg) scaleX(0); }
+    }
+    .d2-branch-line {
+      left: 132px; top: 54px; width: 158px; background: var(--lilac);
+      transform-origin: left center;
+      animation: d2br 8s var(--ease) infinite;
+    }
+    @keyframes d2br {
+      0%, 14% { transform: scaleX(0); }
+      26%, 94% { transform: scaleX(1); }
+      97%, 100% { transform: scaleX(0); }
+    }
+    .d2-c { position: absolute; width: 13px; height: 13px; border-radius: 50%; border: 3px solid #fff;
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.2); }
+    .d2-cm { background: var(--muted); top: 96px; }
+    .d2-cb { background: var(--lilac); top: 46px; }
+    .cm1 { left: 18px; } .cm2 { left: 52px; } .cm3 { left: 68px; top: 96px; background: var(--sage); }
+    .cb1 { left: 150px; } .cb2 { left: 196px; } .cb3 { left: 242px; }
+    .d2-pop1 { animation: d2pop 8s var(--ease) infinite; }
+    .d2-pop2 { animation: d2pop2 8s var(--ease) infinite; }
+    .d2-pop3 { animation: d2pop3 8s var(--ease) infinite; }
+    @keyframes d2pop { 0%, 30% { transform: scale(0); } 36% { transform: scale(1.35); } 40%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+    @keyframes d2pop2 { 0%, 44% { transform: scale(0); } 50% { transform: scale(1.35); } 54%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+    @keyframes d2pop3 { 0%, 58% { transform: scale(0); } 64% { transform: scale(1.35); } 68%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+    .d2-clean {
+      position: absolute; left: 6px; top: 118px;
+      font-size: 0.58rem; font-weight: 600; color: #55704e;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .d2-clean i { width: 12px; height: 12px; border-radius: 50%; background: var(--sage); color: #fff;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 0.5rem; font-style: normal;
+      animation: d2clean 8s ease-in-out infinite; }
+    @keyframes d2clean { 0%, 70% { transform: scale(1); } 75% { transform: scale(1.35); } 80%, 100% { transform: scale(1); } }
+    .d2-commit-msg {
+      position: absolute; right: 0; top: 0; font-family: var(--mono); font-size: 0.55rem; color: var(--muted);
+      background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px;
+      animation: d2msg 8s var(--ease) infinite;
+    }
+    @keyframes d2msg {
+      0%, 58% { opacity: 0; transform: translateY(5px); }
+      65%, 92% { opacity: 1; transform: translateY(0); }
+      96%, 100% { opacity: 0; }
+    }
+
+    /* ============ iPhone frame (shared) ============ */
+    .iphone {
+      position: relative; width: 148px; border-radius: 26px;
+      background: #2c2e2a; padding: 7px;
+      box-shadow: 0 3px 8px rgba(49, 52, 45, 0.2), 0 22px 44px -18px rgba(49, 52, 45, 0.45),
+        inset 0 0 0 2px #4a4c46;
+      flex: none;
+    }
+    .iphone-screen {
+      position: relative; border-radius: 20px; overflow: hidden;
+      background: var(--card); height: 100%;
+    }
+    .iphone .island {
+      position: absolute; top: 13px; left: 50%; transform: translateX(-50%);
+      width: 46px; height: 12px; border-radius: 999px; background: #2c2e2a; z-index: 6;
+    }
+
+    /* ============ Demo 3: simulator ============ */
+    .d3-flex { display: flex; align-items: center; justify-content: center; gap: 26px; padding: 20px 8px 14px; flex-wrap: wrap; }
+    .d3-phone { height: 300px; }
+    .d3-app { display: flex; flex-direction: column; height: 100%; padding-top: 30px; }
+    .d3-navbar { padding: 0 12px 8px; display: flex; align-items: center; justify-content: space-between; }
+    .d3-title { font-size: 0.62rem; font-weight: 700; color: var(--ink); }
+    .d3-list { flex: 1; padding: 4px 10px; display: flex; flex-direction: column; gap: 8px; }
+    .d3-card { position: relative; background: var(--cream); border-radius: 10px; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; }
+    .d3-card.hl { animation: d3hl 8s ease-in-out infinite; }
+    @keyframes d3hl {
+      0%, 16% { background: var(--cream); }
+      22%, 30% { background: rgba(157, 182, 205, 0.35); }
+      38%, 100% { background: var(--cream); }
+    }
+    .d3-ripple {
+      position: absolute; right: 16px; top: 12px; width: 26px; height: 26px; border-radius: 50%;
+      border: 2.5px solid var(--blue); opacity: 0; pointer-events: none; z-index: 5;
+      animation: d3rip 8s var(--ease) infinite;
+    }
+    @keyframes d3rip {
+      0%, 17% { opacity: 0; transform: scale(0.25); }
+      20% { opacity: 0.75; transform: scale(0.45); }
+      32% { opacity: 0; transform: scale(1.9); }
+      100% { opacity: 0; transform: scale(0.25); }
+    }
+    .d3-sheet {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 62%;
+      background: #fff; border-radius: 16px 16px 0 0; z-index: 4;
+      box-shadow: 0 -8px 24px rgba(49, 52, 45, 0.14);
+      padding: 12px; display: flex; flex-direction: column; gap: 8px;
+      transform: translateY(106%);
+      animation: d3sheet 8s var(--ease) infinite;
+    }
+    @keyframes d3sheet {
+      0%, 26% { transform: translateY(106%); }
+      35%, 66% { transform: translateY(4%); }
+      76%, 100% { transform: translateY(106%); }
+    }
+    .d3-grab { width: 30px; height: 4px; border-radius: 2px; background: var(--skel2); margin: 0 auto 2px; }
+    .d3-btn { margin-top: auto; height: 26px; border-radius: 9px; background: var(--ink); color: #f4f2ea;
+      display: flex; align-items: center; justify-content: center; font-size: 0.58rem; font-weight: 600; }
+    .d3-aside { max-width: 224px; display: flex; flex-direction: column; gap: 10px; }
+    .d3-aside .fact { font-size: 0.74rem; color: var(--muted); display: flex; gap: 8px; align-items: baseline; }
+    .d3-aside .fact::before { content: "·"; font-family: var(--serif); font-size: 1rem; color: var(--sage); }
+
+
+    /* the point of this panel: you say the goal once, it does the rest */
+    .d3-chat { width: 236px; display: flex; flex-direction: column; gap: 8px; }
+    .d3-chat .who {
+      font-size: 0.54rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--faint); margin-bottom: 2px;
+    }
+    .d3-chat .bubble { max-width: 100%; font-size: 0.68rem; opacity: 0; }
+    .d3-chat .bub-user { align-self: flex-end; }
+    .d3-chat .tagchip { align-self: flex-start; opacity: 0; }
+    .d3-chat .step-note { font-size: 0.6rem; color: var(--faint); font-family: var(--mono); opacity: 0; }
+    .d3-m1 { animation: d3msg 8s var(--ease) infinite; }
+    .d3-m2 { animation: d3msg 8s var(--ease) infinite; animation-delay: 0.9s; }
+    .d3-m3 { animation: d3msg 8s var(--ease) infinite; animation-delay: 1.7s; }
+    .d3-m4 { animation: d3msg 8s var(--ease) infinite; animation-delay: 3.6s; }
+    @keyframes d3msg {
+      0% { opacity: 0; transform: translateY(6px); }
+      6%, 88% { opacity: 1; transform: none; }
+      96%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+
+    /* ============ Demo 4: two live views ============ */
+    .d4-flex { display: flex; align-items: flex-end; justify-content: center; gap: 22px; padding: 18px 6px 8px; }
+    .d4-desktop { width: min(320px, 58%); background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+      box-shadow: 0 2px 6px rgba(49,52,45,0.07), 0 18px 40px -20px rgba(73,82,94,0.35); }
+    .d4-view { height: 196px; overflow: hidden; position: relative; }
+    .d4-phone { height: 258px; width: 128px; }
+    .d4-phone .iphone-screen { padding-top: 0; }
+    .pm { display: flex; flex-direction: column; gap: 7px; padding: 11px; animation: d4scroll 8s var(--ease) infinite; }
+    @keyframes d4scroll {
+      0%, 22% { transform: translateY(0); }
+      36%, 58% { transform: translateY(-24%); }
+      72%, 100% { transform: translateY(0); }
+    }
+    .pm-nav { display: flex; gap: 6px; align-items: center; margin-bottom: 2px; }
+    .pm-logo { width: 12px; height: 12px; border-radius: 4px; background: var(--sage); }
+    .pm-hero { height: 64px; border-radius: 8px;
+      background: linear-gradient(115deg, var(--lilac), var(--blue) 60%, var(--sage)); opacity: 0.7; position: relative; overflow: hidden; }
+    .pm-btn { width: 74px; height: 20px; border-radius: 7px; background: var(--ink);
+      animation: d4btn 8s var(--ease) infinite; }
+    @keyframes d4btn {
+      0%, 58% { transform: scale(1); }
+      63% { transform: scale(1.1); }
+      68%, 100% { transform: scale(1); }
+    }
+    .pm-cards { display: flex; gap: 7px; }
+    .pm-card { flex: 1; height: 44px; border-radius: 7px; background: var(--cream); border: 1px solid var(--line); }
+    .d4-badge {
+      margin: 16px auto 0; width: fit-content;
+      display: flex; align-items: center; gap: 7px;
+      font-size: 0.62rem; font-weight: 600; letter-spacing: 0.06em; color: var(--muted);
+      background: rgba(255, 255, 255, 0.55); border: 1px solid var(--glass-edge);
+      padding: 5px 12px; border-radius: 999px;
+    }
+    .d4-badge i { width: 6px; height: 6px; border-radius: 50%; background: #7fae82; animation: pulse 2.4s ease-in-out infinite; }
+
+    /* ============ Demo 5: automation ============ */
+    .d5-stage { position: relative; width: 330px; height: 226px; margin: 14px auto 6px; }
+    .d5-page { position: absolute; inset: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .d5-form { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .d5-label { font-size: 0.58rem; font-weight: 600; color: var(--faint); letter-spacing: 0.08em; text-transform: uppercase; }
+    .d5-field {
+      height: 30px; border: 1.5px solid var(--skel2); border-radius: 8px; background: #fff;
+      display: flex; align-items: center; padding: 0 10px;
+      font-family: var(--mono); font-size: 0.66rem; color: var(--ink);
+      animation: d5field 10s ease-in-out infinite;
+    }
+    @keyframes d5field {
+      0%, 18% { border-color: var(--skel2); box-shadow: none; }
+      22%, 60% { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(157, 182, 205, 0.25); }
+      66%, 100% { border-color: var(--skel2); box-shadow: none; }
+    }
+    .d5-text {
+      display: inline-block; overflow: hidden; white-space: nowrap; width: 9ch;
+      animation: d5type 10s var(--ease) infinite;
+    }
+    @keyframes d5type {
+      0%, 22% { width: 0ch; animation-timing-function: steps(9, end); }
+      44%, 96% { width: 9ch; }
+      100% { width: 0ch; }
+    }
+    .d5-caret { display: inline-block; width: 1.5px; height: 12px; background: var(--ink); margin-left: 1px;
+      animation: d5caret 1.1s steps(1) infinite; }
+    @keyframes d5caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    .d5-go {
+      width: 96px; height: 30px; border-radius: 8px; background: var(--ink); color: #f4f2ea;
+      display: flex; align-items: center; justify-content: center; font-size: 0.64rem; font-weight: 600;
+      animation: d5go 10s var(--ease) infinite;
+    }
+    @keyframes d5go {
+      0%, 55% { transform: scale(1); }
+      58% { transform: scale(0.93); }
+      61%, 100% { transform: scale(1); }
+    }
+    .d5-cursor {
+      position: absolute; z-index: 8; left: 0; top: 0; width: 14px; height: 14px; pointer-events: none;
+      transform: translate(252px, 168px);
+      animation: d5cur 10s var(--ease) infinite;
+    }
+    /* a real arrow reads as "something is driving this"; a dot reads as a bug */
+    .d5-cursor::before {
+      content: ""; position: absolute; left: 0; top: 0; width: 13px; height: 17px;
+      background: var(--ink);
+      -webkit-clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      filter: drop-shadow(0 0 1.2px #fff) drop-shadow(0 0 1.2px #fff) drop-shadow(0 3px 5px rgba(49, 52, 45, 0.4));
+    }
+    @keyframes d5cur {
+      0%, 10% { transform: translate(268px, 186px); }
+      17%, 50% { transform: translate(150px, 80px); }
+      56%, 64% { transform: translate(64px, 112px); }
+      80%, 100% { transform: translate(268px, 186px); }
+    }
+    .d5-click { position: absolute; z-index: 7; width: 30px; height: 30px; border-radius: 50%;
+      border: 2.5px solid var(--blush); opacity: 0; pointer-events: none; }
+    .d5-click1 { left: 142px; top: 72px; animation: d5c1 10s var(--ease) infinite; }
+    .d5-click2 { left: 56px; top: 104px; animation: d5c2 10s var(--ease) infinite; }
+    @keyframes d5c1 { 0%, 18% { opacity: 0; transform: scale(0.25); } 20% { opacity: 0.85; transform: scale(0.4); } 30% { opacity: 0; transform: scale(1.8); } 100% { opacity: 0; } }
+    @keyframes d5c2 { 0%, 55% { opacity: 0; transform: scale(0.25); } 57% { opacity: 0.85; transform: scale(0.4); } 67% { opacity: 0; transform: scale(1.8); } 100% { opacity: 0; } }
+    .d5-flash { position: absolute; inset: 0; z-index: 6; border-radius: 12px; background: #fff; opacity: 0;
+      pointer-events: none; animation: d5flash 10s ease-out infinite; }
+    @keyframes d5flash { 0%, 66% { opacity: 0; } 69% { opacity: 0.9; } 75%, 100% { opacity: 0; } }
+    .d5-shot {
+      position: absolute; right: 10px; bottom: 10px; z-index: 9;
+      width: 74px; border-radius: 8px; background: #fff; border: 1px solid var(--line);
+      box-shadow: 0 6px 18px -6px rgba(49, 52, 45, 0.35); padding: 5px;
+      animation: d5shot 10s var(--ease) infinite;
+    }
+    @keyframes d5shot {
+      0%, 71% { opacity: 0; transform: translateY(10px) scale(0.8); }
+      76%, 93% { opacity: 1; transform: translateY(0) scale(1); }
+      98%, 100% { opacity: 0; transform: translateY(6px) scale(0.9); }
+    }
+    .d5-shot .thumb { height: 36px; border-radius: 4px; background: linear-gradient(115deg, var(--lilac), var(--blue)); opacity: 0.55; }
+    .d5-shot .cap { font-size: 0.48rem; color: var(--faint); font-family: var(--mono); margin-top: 4px; text-align: center; }
+
+    /* the click has to visibly cause something, or it reads as decoration */
+    .d5-results { display: flex; flex-direction: column; gap: 7px; margin-top: 2px; }
+    .d5-res {
+      display: flex; align-items: center; gap: 7px; opacity: 0;
+      font-size: 0.58rem; color: var(--muted);
+      animation: d5res 10s var(--ease) infinite;
+    }
+    .d5-res i {
+      width: 4px; height: 4px; border-radius: 50%; background: var(--accent, #7d9a84); flex: none;
+    }
+    .d5-res:nth-child(1) { animation-delay: 0s; }
+    .d5-res:nth-child(2) { animation-delay: 0.12s; }
+    .d5-res:nth-child(3) { animation-delay: 0.24s; }
+    @keyframes d5res {
+      0%, 60% { opacity: 0; transform: translateY(5px); }
+      65%, 94% { opacity: 1; transform: none; }
+      99%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+
+    /* the running commentary: which step is happening, right now */
+    .d5-steps {
+      margin: 16px auto 0; display: flex; flex-direction: column; gap: 2px;
+      width: fit-content; max-width: 100%;
+    }
+    .d5-step {
+      display: flex; align-items: center; gap: 9px;
+      font-size: 0.72rem; color: var(--faint);
+      padding: 4px 10px; border-radius: 999px;
+      animation: d5step 10s steps(1) infinite;
+    }
+    .d5-step .n {
+      font-family: var(--mono); font-size: 0.6rem; width: 15px; flex: none;
+    }
+    .d5-step b { font-weight: 600; }
+    .d5-step:nth-child(1) { animation-name: d5step1; }
+    .d5-step:nth-child(2) { animation-name: d5step2; }
+    .d5-step:nth-child(3) { animation-name: d5step3; }
+    .d5-step:nth-child(4) { animation-name: d5step4; }
+    @keyframes d5step1 { 0%, 17% { color: var(--ink); background: rgba(125, 154, 132, 0.14); } 18%, 100% { color: var(--faint); background: transparent; } }
+    @keyframes d5step2 { 0%, 17% { color: var(--faint); background: transparent; } 18%, 52% { color: var(--ink); background: rgba(125, 154, 132, 0.14); } 53%, 100% { color: var(--faint); background: transparent; } }
+    @keyframes d5step3 { 0%, 52% { color: var(--faint); background: transparent; } 53%, 65% { color: var(--ink); background: rgba(125, 154, 132, 0.14); } 66%, 100% { color: var(--faint); background: transparent; } }
+    @keyframes d5step4 { 0%, 65% { color: var(--faint); background: transparent; } 66%, 92% { color: var(--ink); background: rgba(125, 154, 132, 0.14); } 93%, 100% { color: var(--faint); background: transparent; } }
+
+    /* one instruction from you, then four steps it takes on its own */
+    .d5-goal {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      margin: 0 auto 14px; max-width: 340px; text-align: center;
+    }
+    .d5-goal .who {
+      font-size: 0.54rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--faint);
+    }
+    .d5-goal .said {
+      background: var(--ink); color: #f4f2ea; border-radius: 12px;
+      padding: 9px 13px; font-size: 0.74rem; line-height: 1.45;
+    }
+    .d5-then {
+      display: block; text-align: center; margin: 0 auto 8px;
+      font-size: 0.54rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--faint);
+    }
+    .d5-log {
+      margin: 14px auto 0; width: fit-content; max-width: 100%;
+      font-family: var(--mono); font-size: 0.62rem; color: var(--muted);
+      background: rgba(255, 255, 255, 0.55); border: 1px solid var(--glass-edge);
+      padding: 5px 12px; border-radius: 999px;
+    }
+
+    /* ============ Demo 6: the desk ============ */
+    .desk-sec { padding: 110px 0 30px; }
+    .desk-head { text-align: center; max-width: 620px; margin: 0 auto 48px; }
+    .desk-head h2 { font-size: clamp(2.1rem, 4.4vw, 3.2rem); line-height: 1.1; }
+    .desk-head p { margin-top: 16px; color: var(--muted); }
+    .desk {
+      position: relative; border-radius: 26px; overflow: hidden;
+      border: 1px solid var(--glass-edge);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      background:
+        radial-gradient(60% 70% at 18% 20%, rgba(169, 189, 159, 0.55), rgba(169, 189, 159, 0) 70%),
+        radial-gradient(55% 65% at 85% 15%, rgba(157, 182, 205, 0.5), rgba(157, 182, 205, 0) 70%),
+        radial-gradient(50% 60% at 70% 90%, rgba(196, 180, 214, 0.45), rgba(196, 180, 214, 0) 70%),
+        radial-gradient(45% 55% at 15% 85%, rgba(228, 192, 193, 0.42), rgba(228, 192, 193, 0) 70%),
+        #f3efe4;
+    }
+    .desk-grid {
+      display: grid; gap: 16px;
+      grid-template-columns: 1.25fr 0.62fr 1fr;
+      grid-template-areas: "browser sim board" "browser sim dash";
+      grid-template-rows: auto auto;
+    }
+    .dk { border-radius: 16px; overflow: hidden; }
+    .js .io .dk { opacity: 0; transform: translateY(30px) scale(0.97); }
+    .js .io.in .dk {
+      opacity: 1; transform: none;
+      transition: opacity 1s var(--ease), transform 1s var(--ease);
+      transition-delay: var(--d, 0s);
+    }
+    .dk-browser { grid-area: browser; display: flex; flex-direction: column; min-height: 300px; background: var(--glass);
+      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--glass-edge); }
+    .dk-sim { grid-area: sim; display: flex; align-items: center; justify-content: center; padding: 8px 0; }
+    .dk-board { grid-area: board; background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-edge); padding: 12px; }
+    .dk-dash { grid-area: dash; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .dk-browser .mini-page { border: none; border-radius: 0; background: rgba(255, 255, 255, 0.75); }
+    .dk-phone { height: 286px; width: 140px; }
+    .dk-title { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 9px; }
+    .kb-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .kb-col { background: rgba(255, 255, 255, 0.55); border-radius: 10px; padding: 5px; min-height: 128px; }
+    .kb-col h4 { font-size: 0.52rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); padding: 3px 4px 5px; }
+    .kb-card { border-radius: 7px; background: #fff; border: 1px solid var(--line); padding: 6px; margin-bottom: 6px;
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.07); }
+    .kb-card .ln { height: 5px; }
+    .kb-card .ln + .ln { margin-top: 4px; }
+    .kb-mover {
+      position: relative; z-index: 3;
+      transform: translate(calc(100% + 18px), 50px);
+      animation: kbmove 10s var(--ease) infinite;
+    }
+    @keyframes kbmove {
+      0%, 30% { transform: translate(0, 0); opacity: 1; }
+      38%, 42% { transform: translate(calc(50% + 9px), 14px) scale(1.06); opacity: 1; }
+      50%, 88% { transform: translate(calc(100% + 18px), 50px) scale(1); opacity: 1; }
+      93% { transform: translate(calc(100% + 18px), 50px); opacity: 0; }
+      94% { transform: translate(0, 0); opacity: 0; }
+      100% { transform: translate(0, 0); opacity: 1; }
+    }
+    .kb-tag { display: inline-block; margin-top: 5px; font-size: 0.44rem; font-weight: 700; letter-spacing: 0.06em;
+      color: #55704e; background: rgba(169, 189, 159, 0.3); border-radius: 999px; padding: 1px 6px; }
+    .tile { background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-edge); border-radius: 14px; padding: 12px; }
+    .tile .big { font-family: var(--serif); font-size: 1.7rem; font-weight: 600; line-height: 1.1; }
+    .tile .sm { font-size: 0.58rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
+    .bars { display: flex; align-items: flex-end; gap: 4px; height: 34px; margin-top: 8px; }
+    .bar { flex: 1; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, var(--blue), var(--sage)); opacity: 0.8;
+      transform-origin: bottom; height: calc(var(--h) * 1%); }
+    .js .io .bar { transform: scaleY(0.12); }
+    .js .io.in .bar { transform: scaleY(1); transition: transform 0.9s var(--ease); transition-delay: var(--d, 0s); }
+    .tile .gauge-bar { width: 100%; margin-top: 10px; height: 6px; }
+    .tile .gauge-fill { animation: none; }
+    .js .io .tile .gauge-fill { transform: scaleX(0.1); }
+    .js .io.in .tile .gauge-fill { transform: scaleX(1); transition: transform 1.1s var(--ease) 0.7s; }
+
+    /* ---------- open & local ---------- */
+    .open { padding: 76px 0 20px; }
+    .open-head { text-align: center; margin-bottom: 40px; }
+    .open-head h2 { font-size: clamp(1.8rem, 3.2vw, 2.5rem); }
+    .open-head p { margin: 16px auto 0; max-width: 52ch; color: var(--muted); font-size: 1rem; }
+    .pillars { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .pillar { padding: 30px 30px 26px; }
+    .pillar .mark {
+      width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+      font-size: 1rem; margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.6); border: 1px solid var(--glass-edge);
+    }
+    .pillar h3 { font-family: var(--serif); font-size: 1.5rem; font-weight: 600; line-height: 1.15; }
+    .pillar h3 em { font-style: italic; font-weight: 500; }
+    .pillar > p { margin-top: 12px; color: var(--muted); font-size: 0.94rem; }
+    .pillar ul { list-style: none; margin-top: 18px; border-top: 1px solid var(--line); }
+    .pillar li {
+      display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line);
+      font-size: 0.88rem; color: var(--muted); line-height: 1.55;
+    }
+    .pillar li:last-child { border-bottom: none; }
+    .pillar li b { color: var(--ink); font-weight: 600; }
+    .pillar li .tick { flex: none; color: var(--sage); font-size: 0.8rem; padding-top: 2px; }
+    .open-foot {
+      margin-top: 22px; text-align: center;
+      font-family: var(--serif); font-style: italic; font-size: 1.05rem; color: var(--muted);
+    }
+    .open-foot a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+    .open-foot a:hover { border-color: var(--ink); }
+
+
+
+    /* ---------- hero: the real window ---------- */
+    .hero-shot { margin: 0; }
+    .hero-shot img { display: block; width: 100%; height: auto; border-radius: 16px; }
+    @media (max-width: 640px) { .hero-shot img { border-radius: 10px; } }
+    /* ---------- details grid ---------- */
+    .details { padding: 84px 0 26px; }
+    .det-head { text-align: center; margin-bottom: 40px; }
+    .det-head h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); }
+    .det-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .det {
+      position: relative; overflow: hidden;
+      padding: 20px 20px 18px; border-radius: 16px;
+      background: rgba(255, 254, 250, 0.72);
+      -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.05), 0 18px 36px -22px rgba(56, 72, 84, 0.42);
+      transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease);
+    }
+    /* each plate keeps a wash of a different pigment in its corner */
+    .det::after {
+      content: ""; position: absolute; right: -30px; top: -30px;
+      width: 110px; height: 110px; border-radius: 50%;
+      background: radial-gradient(closest-side, var(--tint, rgba(147, 176, 135, 0.4)), transparent 72%);
+      pointer-events: none;
+    }
+    .det:nth-child(1) { --tint: rgba(147, 176, 135, 0.42); }
+    .det:nth-child(2) { --tint: rgba(134, 166, 198, 0.42); }
+    .det:nth-child(3) { --tint: rgba(184, 163, 210, 0.42); }
+    .det:nth-child(4) { --tint: rgba(224, 174, 176, 0.42); }
+    .det:nth-child(5) { --tint: rgba(217, 193, 136, 0.42); }
+    .det:nth-child(6) { --tint: rgba(92, 122, 134, 0.32); }
+    .det:hover { transform: translateY(-5px); box-shadow: 0 2px 5px rgba(49, 52, 45, 0.06), 0 28px 48px -22px rgba(56, 72, 84, 0.5); }
+    .det .glyph { position: relative; font-family: var(--serif); font-style: italic; font-size: 1.5rem; color: var(--deep); line-height: 1; margin-bottom: 10px; opacity: 0.75; }
+    .det b { display: block; font-size: 0.88rem; font-weight: 600; letter-spacing: -0.01em; }
+    .det span { display: block; margin-top: 5px; font-size: 0.8rem; color: var(--muted); line-height: 1.55; }
+
+    /* ---------- closing cta ---------- */
+    .close-cta { padding: 92px 0 84px; text-align: center; }
+    .close-cta .plaque {
+      position: relative; max-width: 780px; margin: 0 auto; padding: 54px 40px 46px;
+      border-radius: 24px;
+      background: rgba(255, 254, 250, 0.6);
+      -webkit-backdrop-filter: blur(18px) saturate(1.35); backdrop-filter: blur(18px) saturate(1.35);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.05), 0 34px 70px -30px rgba(56, 72, 84, 0.5);
+    }
+    /* an inner gilt line, like a mount inside a frame */
+    .close-cta .plaque::before {
+      content: ""; position: absolute; inset: 9px; border-radius: 17px;
+      border: 1px solid rgba(217, 193, 136, 0.45); pointer-events: none;
+    }
+    .close-cta h2 { font-size: clamp(2.2rem, 5vw, 3.6rem); line-height: 1.08; }
+    .close-cta .hero-ctas { margin-top: 32px; }
+    .close-cta .note { margin-top: 18px; }
+    .how-line { margin-top: 26px; font-family: var(--serif); font-style: italic; font-size: 1.15rem; color: var(--muted); }
+    .how-line b { font-weight: 600; color: var(--ink); font-style: italic; }
+
+    /* ---------- footer ---------- */
+    footer { border-top: 1px solid var(--line); background: rgba(253, 252, 248, 0.5);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+    .foot {
+      max-width: 1080px; margin: 0 auto; padding: 30px 24px;
+      display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+      font-size: 0.84rem; color: var(--muted);
+    }
+    .foot .nav-logo { font-size: 0.9rem; }
+    .foot-links { margin-left: auto; display: flex; gap: 20px; }
+    .foot-links a { text-decoration: none; transition: color 0.25s var(--ease); }
+    .foot-links a:hover { color: var(--ink); }
+
+    /* ---------- play/pause gating (JS present) ---------- */
+    .js .demo * { animation-play-state: paused; }
+    .js .demo.play * { animation-play-state: running; }
+
+    /* ---------- responsive ---------- */
+    @media (max-width: 900px) {
+      .pillars { grid-template-columns: 1fr; }
+      .feat-grid { grid-template-columns: 1fr; gap: 34px; }
+      .feature.flip .feat-grid > .feat-copy { order: 1; }
+      .feature.flip .feat-grid > .pane-wrap { order: 2; }
+      .feat-copy p { max-width: 60ch; }
+      .desk-grid { grid-template-columns: 1fr 1fr; grid-template-areas: "browser sim" "board board" "dash dash"; }
+      .det-grid { grid-template-columns: 1fr 1fr; }
+      .hw-body { grid-template-columns: 132px 1fr; }
+      .hw-page { display: none; }
+      .chip-gauge { right: 2px; top: -22px; }
+      .chip-notif { left: 2px; bottom: -16px; }
+    }
+    @media (max-width: 560px) {
+      /* the floating chips have nowhere to sit beside a full-width window */
+      .chip-gauge, .chip-notif { display: none; }
+      .wrap { padding: 0 18px; }
+      .hero { padding: 64px 0 28px; }
+      section.feature { padding: 54px 0 14px; }
+      .desk-sec, .details { padding: 80px 0 20px; }
+      .det-grid { grid-template-columns: 1fr; }
+      .desk-grid { grid-template-columns: 1fr; grid-template-areas: "browser" "sim" "board" "dash"; }
+      .desk { padding: 14px; }
+      .d1-body { grid-template-columns: 132px 1fr; }
+      .d4-flex { gap: 14px; }
+      .d4-desktop { width: 55%; }
+      .d4-phone { width: 104px; height: 216px; }
+      .d3-flex { gap: 18px; }
+      .pane { padding: 12px; }
+      .hw-body { grid-template-columns: 1fr; min-height: 0; }
+      .hw-side { display: none; }
+      .nav-links a:not(.nav-btn) { display: none; }
+    }
+    @media (max-width: 380px) {
+      .d5-stage { transform: scale(0.92); transform-origin: center; }
+      .d2-graph { transform: scale(0.94); transform-origin: center; }
+    }
+
+    /* ---------- reduced motion ---------- */
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+      .js [data-rv], .rise, .js .io .dk { opacity: 1 !important; transform: none !important; }
+      .js .io .bar { transform: scaleY(1) !important; }
+      .js .io .tile .gauge-fill { transform: scaleX(1) !important; }
+      .d1-pg2, .d1-pg3, .d5-click, .d5-flash, .d3-ripple { opacity: 0 !important; }
+      .d3-sheet { transform: translateY(106%) !important; }
+      .kb-mover { transform: translate(calc(100% + 18px), 50px) !important; }
+      .d5-cursor { transform: translate(70px, 110px) !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="pond" aria-hidden="true">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="blob b3"></div>
+    <div class="blob b4"></div>
+    <div class="blob b5"></div>
+    <div class="blob b6"></div>
+    <div class="blob b7"></div>
+    <div class="pad p1"></div>
+    <div class="pad p2"></div>
+    <div class="pad p3"></div>
+    <div class="pad p4"></div>
+    <div class="pad p5"></div>
+    <div class="stroke s1"></div>
+    <div class="stroke s2"></div>
+    <div class="stroke s3"></div>
+    <div class="stroke s4"></div>
+    <div class="stroke s5"></div>
+  </div>
+  <div class="dabs" aria-hidden="true"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><ellipse cx="23.94" cy="47.94" rx="1.21" ry="0.26" fill="rgba(217,213,205,0.098)" transform="rotate(-49.0 23.94 47.94)"/><ellipse cx="26.86" cy="47.66" rx="0.94" ry="0.35" fill="rgba(217,213,205,0.121)" transform="rotate(-51.6 26.86 47.66)"/><ellipse cx="30.37" cy="49.69" rx="1.66" ry="0.52" fill="rgba(218,213,206,0.106)" transform="rotate(-35.9 30.37 49.69)"/><ellipse cx="29.91" cy="50.06" rx="1.07" ry="0.33" fill="rgba(218,213,206,0.076)" transform="rotate(-48.3 29.91 50.06)"/><ellipse cx="23.78" cy="49.01" rx="0.77" ry="0.36" fill="rgba(218,213,205,0.072)" transform="rotate(-33.4 23.78 49.01)"/><ellipse cx="29.14" cy="49.5" rx="1.69" ry="0.55" fill="rgba(218,213,206,0.072)" transform="rotate(-49.6 29.14 49.5)"/><ellipse cx="30.65" cy="50.06" rx="1.46" ry="0.4" fill="rgba(218,213,206,0.053)" transform="rotate(-39.0 30.65 50.06)"/><ellipse cx="30.24" cy="50.1" rx="1.4" ry="0.27" fill="rgba(218,213,206,0.117)" transform="rotate(-42.7 30.24 50.1)"/><ellipse cx="27.44" cy="49.93" rx="0.61" ry="0.34" fill="rgba(218,213,206,0.06)" transform="rotate(-33.4 27.44 49.93)"/><ellipse cx="127.11" cy="43.87" rx="0.82" ry="0.53" fill="rgba(214,209,220,0.101)" transform="rotate(12.7 127.11 43.87)"/><ellipse cx="137.67" cy="42.71" rx="1.03" ry="0.32" fill="rgba(212,209,220,0.114)" transform="rotate(6.6 137.67 42.71)"/><ellipse cx="132.41" cy="41.72" rx="1.4" ry="0.42" fill="rgba(212,209,220,0.107)" transform="rotate(21.5 132.41 41.72)"/><ellipse cx="124.96" cy="42.88" rx="1.55" ry="0.4" fill="rgba(213,208,221,0.088)" transform="rotate(-0.4 124.96 42.88)"/><ellipse cx="129.99" cy="41.07" rx="0.66" ry="0.38" fill="rgba(212,208,221,0.072)" transform="rotate(16.1 129.99 41.07)"/><ellipse cx="133.13" cy="44.88" rx="1.01" ry="0.26" fill="rgba(214,209,220,0.107)" transform="rotate(12.3 133.13 44.88)"/><ellipse cx="133.19" cy="42.41" rx="1.43" ry="0.25" fill="rgba(212,209,220,0.102)" transform="rotate(15.6 133.19 42.41)"/><ellipse cx="62.21" cy="62.87" rx="1.35" ry="0.5" fill="rgba(226,211,214,0.108)" transform="rotate(29.5 62.21 62.87)"/><ellipse cx="68.71" cy="62.76" rx="1.77" ry="0.37" fill="rgba(226,211,215,0.097)" transform="rotate(45.0 68.71 62.76)"/><ellipse cx="67.36" cy="60.82" rx="1.51" ry="0.39" fill="rgba(225,211,215,0.117)" transform="rotate(44.0 67.36 60.82)"/><ellipse cx="61.46" cy="58.97" rx="1.49" ry="0.36" fill="rgba(224,211,214,0.11)" transform="rotate(43.7 61.46 58.97)"/><ellipse cx="108.78" cy="97.27" rx="1.72" ry="0.26" fill="rgba(234,211,213,0.106)" transform="rotate(59.6 108.78 97.27)"/><ellipse cx="112.27" cy="99.23" rx="0.7" ry="0.57" fill="rgba(235,211,213,0.081)" transform="rotate(40.2 112.27 99.23)"/><ellipse cx="112.34" cy="100.03" rx="1.48" ry="0.49" fill="rgba(235,211,213,0.108)" transform="rotate(36.5 112.34 100.03)"/><ellipse cx="110.41" cy="97.5" rx="1.08" ry="0.42" fill="rgba(234,211,213,0.114)" transform="rotate(59.5 110.41 97.5)"/><ellipse cx="113.32" cy="98.12" rx="1.59" ry="0.43" fill="rgba(235,211,213,0.099)" transform="rotate(53.9 113.32 98.12)"/><ellipse cx="113.88" cy="96.98" rx="1.15" ry="0.44" fill="rgba(235,211,213,0.076)" transform="rotate(49.0 113.88 96.98)"/><ellipse cx="107.9" cy="99.17" rx="1.27" ry="0.27" fill="rgba(234,211,213,0.114)" transform="rotate(59.4 107.9 99.17)"/><ellipse cx="26.98" cy="14.85" rx="1.29" ry="0.55" fill="rgba(204,212,197,0.119)" transform="rotate(-38.5 26.98 14.85)"/><ellipse cx="32.05" cy="11.51" rx="0.64" ry="0.37" fill="rgba(204,212,197,0.052)" transform="rotate(-28.2 32.05 11.51)"/><ellipse cx="25.11" cy="13.25" rx="0.79" ry="0.41" fill="rgba(204,212,196,0.052)" transform="rotate(-31.9 25.11 13.25)"/><ellipse cx="24.57" cy="14.93" rx="0.77" ry="0.46" fill="rgba(204,212,197,0.058)" transform="rotate(-38.9 24.57 14.93)"/><ellipse cx="27.95" cy="12.55" rx="1.02" ry="0.37" fill="rgba(204,212,196,0.076)" transform="rotate(-24.9 27.95 12.55)"/><ellipse cx="27.52" cy="15.67" rx="1.07" ry="0.29" fill="rgba(204,212,197,0.102)" transform="rotate(-20.5 27.52 15.67)"/><ellipse cx="79.6" cy="96.69" rx="1.04" ry="0.31" fill="rgba(232,213,208,0.112)" transform="rotate(16.7 79.6 96.69)"/><ellipse cx="79.43" cy="98.59" rx="1.44" ry="0.34" fill="rgba(232,214,208,0.124)" transform="rotate(15.1 79.43 98.59)"/><ellipse cx="82.49" cy="92.95" rx="1.13" ry="0.52" fill="rgba(232,213,210,0.058)" transform="rotate(16.3 82.49 92.95)"/><ellipse cx="80.37" cy="95.18" rx="0.7" ry="0.45" fill="rgba(232,213,209,0.057)" transform="rotate(19.4 80.37 95.18)"/><ellipse cx="32.16" cy="38.1" rx="1.2" ry="0.57" fill="rgba(212,211,206,0.089)" transform="rotate(-29.1 32.16 38.1)"/><ellipse cx="30.21" cy="36.38" rx="1.66" ry="0.28" fill="rgba(211,211,205,0.069)" transform="rotate(-31.5 30.21 36.38)"/><ellipse cx="33.9" cy="38.76" rx="1.54" ry="0.27" fill="rgba(213,211,206,0.114)" transform="rotate(-31.2 33.9 38.76)"/><ellipse cx="33.95" cy="36.06" rx="1.02" ry="0.36" fill="rgba(211,211,206,0.066)" transform="rotate(-26.2 33.95 36.06)"/><ellipse cx="32.9" cy="40.06" rx="0.9" ry="0.32" fill="rgba(213,212,206,0.082)" transform="rotate(-16.4 32.9 40.06)"/><ellipse cx="29.78" cy="39.78" rx="1.01" ry="0.28" fill="rgba(213,212,205,0.07)" transform="rotate(-15.2 29.78 39.78)"/><ellipse cx="27.48" cy="86.79" rx="1.06" ry="0.35" fill="rgba(231,218,198,0.108)" transform="rotate(48.1 27.48 86.79)"/><ellipse cx="29.28" cy="87.75" rx="1.65" ry="0.29" fill="rgba(231,218,198,0.118)" transform="rotate(38.4 29.28 87.75)"/><ellipse cx="29.19" cy="87.46" rx="1.39" ry="0.52" fill="rgba(231,218,198,0.092)" transform="rotate(26.7 29.19 87.46)"/><ellipse cx="26.16" cy="88.88" rx="1.55" ry="0.48" fill="rgba(232,219,197,0.097)" transform="rotate(30.6 26.16 88.88)"/><ellipse cx="25.4" cy="87.35" rx="0.61" ry="0.36" fill="rgba(231,219,197,0.077)" transform="rotate(40.1 25.4 87.35)"/><ellipse cx="26.57" cy="87.94" rx="1.36" ry="0.43" fill="rgba(231,219,197,0.078)" transform="rotate(45.4 26.57 87.94)"/><ellipse cx="24.44" cy="87.89" rx="1.59" ry="0.25" fill="rgba(232,219,197,0.096)" transform="rotate(31.0 24.44 87.89)"/><ellipse cx="150.8" cy="20.33" rx="1.32" ry="0.58" fill="rgba(196,208,222,0.072)" transform="rotate(1.8 150.8 20.33)"/><ellipse cx="150.85" cy="21.81" rx="1.48" ry="0.44" fill="rgba(197,208,222,0.066)" transform="rotate(-9.4 150.85 21.81)"/><ellipse cx="150.81" cy="20.68" rx="1.71" ry="0.32" fill="rgba(196,208,222,0.077)" transform="rotate(-13.3 150.81 20.68)"/><ellipse cx="151.72" cy="19.32" rx="1.24" ry="0.35" fill="rgba(196,208,221,0.084)" transform="rotate(-15.7 151.72 19.32)"/><ellipse cx="153.69" cy="22.31" rx="1.12" ry="0.4" fill="rgba(196,208,222,0.092)" transform="rotate(-9.1 153.69 22.31)"/><ellipse cx="154.01" cy="21.15" rx="0.76" ry="0.3" fill="rgba(196,208,222,0.051)" transform="rotate(3.6 154.01 21.15)"/><ellipse cx="147.28" cy="20.77" rx="0.91" ry="0.34" fill="rgba(197,208,222,0.082)" transform="rotate(-6.5 147.28 20.77)"/><ellipse cx="149.72" cy="22.56" rx="0.8" ry="0.57" fill="rgba(197,208,222,0.095)" transform="rotate(-5.7 149.72 22.56)"/><ellipse cx="143.25" cy="30.07" rx="1.64" ry="0.42" fill="rgba(202,208,222,0.051)" transform="rotate(49.5 143.25 30.07)"/><ellipse cx="135.39" cy="31.85" rx="1.51" ry="0.47" fill="rgba(205,208,222,0.061)" transform="rotate(30.1 135.39 31.85)"/><ellipse cx="137.05" cy="28.64" rx="1.33" ry="0.43" fill="rgba(202,208,222,0.1)" transform="rotate(37.7 137.05 28.64)"/><ellipse cx="137.61" cy="29.03" rx="1.35" ry="0.5" fill="rgba(202,208,222,0.051)" transform="rotate(26.8 137.61 29.03)"/><ellipse cx="142.28" cy="31.78" rx="1.44" ry="0.45" fill="rgba(204,208,221,0.091)" transform="rotate(31.0 142.28 31.78)"/><ellipse cx="146.93" cy="28.09" rx="0.74" ry="0.4" fill="rgba(200,208,222,0.06)" transform="rotate(42.8 146.93 28.09)"/><ellipse cx="127.13" cy="58.19" rx="1.03" ry="0.32" fill="rgba(222,209,218,0.114)" transform="rotate(6.8 127.13 58.19)"/><ellipse cx="130.82" cy="56.75" rx="0.73" ry="0.37" fill="rgba(221,209,218,0.063)" transform="rotate(13.5 130.82 56.75)"/><ellipse cx="130.81" cy="58.73" rx="1.34" ry="0.27" fill="rgba(222,209,218,0.055)" transform="rotate(26.6 130.81 58.73)"/><ellipse cx="119.49" cy="61.4" rx="1.13" ry="0.39" fill="rgba(224,209,218,0.099)" transform="rotate(17.4 119.49 61.4)"/><ellipse cx="118.77" cy="60.43" rx="0.82" ry="0.28" fill="rgba(223,209,218,0.079)" transform="rotate(7.8 118.77 60.43)"/><ellipse cx="131.38" cy="55.75" rx="0.96" ry="0.47" fill="rgba(220,209,218,0.07)" transform="rotate(16.9 131.38 55.75)"/><ellipse cx="95.55" cy="81.14" rx="0.94" ry="0.38" fill="rgba(230,211,214,0.056)" transform="rotate(-8.5 95.55 81.14)"/><ellipse cx="86.57" cy="81.86" rx="1.42" ry="0.3" fill="rgba(230,212,212,0.086)" transform="rotate(0.3 86.57 81.86)"/><ellipse cx="85.87" cy="75.83" rx="1.5" ry="0.39" fill="rgba(229,211,214,0.066)" transform="rotate(3.4 85.87 75.83)"/><ellipse cx="91.82" cy="81.99" rx="1.65" ry="0.26" fill="rgba(230,211,213,0.079)" transform="rotate(-0.5 91.82 81.99)"/><ellipse cx="90.64" cy="81.07" rx="1.32" ry="0.26" fill="rgba(230,211,213,0.081)" transform="rotate(-5.7 90.64 81.07)"/><ellipse cx="85.34" cy="88.92" rx="0.69" ry="0.47" fill="rgba(231,212,211,0.051)" transform="rotate(0.3 85.34 88.92)"/><ellipse cx="88.58" cy="91.95" rx="1.06" ry="0.5" fill="rgba(232,212,211,0.096)" transform="rotate(2.0 88.58 91.95)"/><ellipse cx="82.11" cy="90.9" rx="1.62" ry="0.43" fill="rgba(231,213,210,0.056)" transform="rotate(0.3 82.11 90.9)"/><ellipse cx="88.4" cy="92.84" rx="0.62" ry="0.38" fill="rgba(232,212,211,0.101)" transform="rotate(-10.8 88.4 92.84)"/><ellipse cx="81.63" cy="91.81" rx="1.14" ry="0.41" fill="rgba(231,213,210,0.106)" transform="rotate(1.8 81.63 91.81)"/><ellipse cx="85.51" cy="88.41" rx="1.43" ry="0.32" fill="rgba(231,212,211,0.072)" transform="rotate(10.6 85.51 88.41)"/><ellipse cx="143.04" cy="1.63" rx="0.86" ry="0.49" fill="rgba(194,208,221,0.111)" transform="rotate(32.7 143.04 1.63)"/><ellipse cx="139.84" cy="1.26" rx="1.59" ry="0.57" fill="rgba(194,208,221,0.099)" transform="rotate(26.6 139.84 1.26)"/><ellipse cx="145.53" cy="1.08" rx="0.84" ry="0.51" fill="rgba(194,208,221,0.071)" transform="rotate(33.2 145.53 1.08)"/><ellipse cx="141.34" cy="2.57" rx="1.59" ry="0.4" fill="rgba(194,208,221,0.104)" transform="rotate(28.5 141.34 2.57)"/><ellipse cx="139.88" cy="1.02" rx="0.68" ry="0.5" fill="rgba(194,208,221,0.082)" transform="rotate(17.9 139.88 1.02)"/><ellipse cx="144.18" cy="2.35" rx="1.41" ry="0.33" fill="rgba(194,208,221,0.119)" transform="rotate(21.9 144.18 2.35)"/><ellipse cx="146.14" cy="3.04" rx="1.2" ry="0.36" fill="rgba(194,208,221,0.091)" transform="rotate(39.8 146.14 3.04)"/><ellipse cx="142.65" cy="-0.22" rx="1.56" ry="0.27" fill="rgba(194,208,221,0.112)" transform="rotate(18.0 142.65 -0.22)"/><ellipse cx="20.25" cy="83.99" rx="1.32" ry="0.38" fill="rgba(231,219,197,0.091)" transform="rotate(6.1 20.25 83.99)"/><ellipse cx="18.19" cy="82.82" rx="1.48" ry="0.29" fill="rgba(231,219,197,0.118)" transform="rotate(25.8 18.19 82.82)"/><ellipse cx="20.27" cy="82.68" rx="1.32" ry="0.42" fill="rgba(231,218,197,0.105)" transform="rotate(6.8 20.27 82.68)"/><ellipse cx="20.75" cy="83.01" rx="1.06" ry="0.5" fill="rgba(231,218,197,0.06)" transform="rotate(15.5 20.75 83.01)"/><ellipse cx="69.72" cy="42.78" rx="0.61" ry="0.53" fill="rgba(214,209,217,0.053)" transform="rotate(-54.2 69.72 42.78)"/><ellipse cx="64.45" cy="45.42" rx="0.68" ry="0.3" fill="rgba(216,209,215,0.087)" transform="rotate(-51.7 64.45 45.42)"/><ellipse cx="70.19" cy="45.55" rx="1.2" ry="0.34" fill="rgba(216,209,217,0.109)" transform="rotate(-41.2 70.19 45.55)"/><ellipse cx="69.06" cy="41.91" rx="1.34" ry="0.56" fill="rgba(214,209,216,0.111)" transform="rotate(-55.8 69.06 41.91)"/><ellipse cx="65.13" cy="41.22" rx="1.61" ry="0.51" fill="rgba(213,209,215,0.12)" transform="rotate(-44.2 65.13 41.22)"/><ellipse cx="64.81" cy="45.22" rx="1.32" ry="0.56" fill="rgba(216,209,215,0.082)" transform="rotate(-39.9 64.81 45.22)"/><ellipse cx="68.26" cy="43.63" rx="0.61" ry="0.49" fill="rgba(215,209,216,0.099)" transform="rotate(-43.6 68.26 43.63)"/><ellipse cx="70.03" cy="40.91" rx="1.45" ry="0.29" fill="rgba(213,209,217,0.116)" transform="rotate(-39.9 70.03 40.91)"/><ellipse cx="28.91" cy="85.92" rx="1.55" ry="0.29" fill="rgba(231,218,198,0.085)" transform="rotate(13.9 28.91 85.92)"/><ellipse cx="27.82" cy="83.54" rx="1.61" ry="0.4" fill="rgba(231,218,199,0.104)" transform="rotate(16.5 27.82 83.54)"/><ellipse cx="22.96" cy="86.4" rx="1.49" ry="0.24" fill="rgba(232,219,197,0.096)" transform="rotate(29.7 22.96 86.4)"/><ellipse cx="27.32" cy="86.84" rx="1.24" ry="0.37" fill="rgba(231,218,198,0.115)" transform="rotate(15.0 27.32 86.84)"/><ellipse cx="22.46" cy="82.97" rx="1.43" ry="0.54" fill="rgba(231,218,198,0.079)" transform="rotate(21.1 22.46 82.97)"/><ellipse cx="72.63" cy="14.87" rx="0.63" ry="0.49" fill="rgba(205,210,210,0.121)" transform="rotate(22.6 72.63 14.87)"/><ellipse cx="72.79" cy="11.25" rx="1.09" ry="0.35" fill="rgba(204,210,209,0.089)" transform="rotate(7.0 72.79 11.25)"/><ellipse cx="72.82" cy="16.53" rx="1.38" ry="0.41" fill="rgba(205,210,210,0.062)" transform="rotate(13.7 72.82 16.53)"/><ellipse cx="66.39" cy="13.49" rx="0.66" ry="0.34" fill="rgba(205,210,208,0.113)" transform="rotate(13.6 66.39 13.49)"/><ellipse cx="65.08" cy="15.98" rx="0.77" ry="0.51" fill="rgba(206,210,208,0.121)" transform="rotate(16.0 65.08 15.98)"/><ellipse cx="67.71" cy="11.63" rx="1.19" ry="0.56" fill="rgba(205,210,207,0.092)" transform="rotate(23.6 67.71 11.63)"/><ellipse cx="76.75" cy="16.01" rx="1.15" ry="0.36" fill="rgba(205,210,211,0.073)" transform="rotate(18.4 76.75 16.01)"/><ellipse cx="72.84" cy="14.78" rx="1.36" ry="0.51" fill="rgba(205,210,210,0.107)" transform="rotate(16.8 72.84 14.78)"/><ellipse cx="73.09" cy="11.78" rx="1.06" ry="0.39" fill="rgba(205,210,209,0.076)" transform="rotate(7.4 73.09 11.78)"/><ellipse cx="103.92" cy="4.41" rx="1.1" ry="0.41" fill="rgba(200,209,217,0.07)" transform="rotate(-44.0 103.92 4.41)"/><ellipse cx="102.16" cy="0.97" rx="1.77" ry="0.33" fill="rgba(199,209,216,0.099)" transform="rotate(-38.8 102.16 0.97)"/><ellipse cx="107.7" cy="3.97" rx="0.79" ry="0.48" fill="rgba(199,209,218,0.078)" transform="rotate(-32.5 107.7 3.97)"/><ellipse cx="111.81" cy="2.06" rx="1.16" ry="0.25" fill="rgba(198,208,219,0.092)" transform="rotate(-37.8 111.81 2.06)"/><ellipse cx="102.37" cy="-0.19" rx="1.18" ry="0.4" fill="rgba(199,209,215,0.121)" transform="rotate(-42.0 102.37 -0.19)"/><ellipse cx="24.87" cy="88.52" rx="0.86" ry="0.28" fill="rgba(232,219,197,0.114)" transform="rotate(-12.7 24.87 88.52)"/><ellipse cx="20.37" cy="95.15" rx="1.7" ry="0.39" fill="rgba(233,220,193,0.071)" transform="rotate(-4.7 20.37 95.15)"/><ellipse cx="28.16" cy="91.91" rx="1.16" ry="0.33" fill="rgba(232,219,196,0.067)" transform="rotate(-13.3 28.16 91.91)"/><ellipse cx="19.02" cy="88.45" rx="1.67" ry="0.32" fill="rgba(232,219,195,0.114)" transform="rotate(1.8 19.02 88.45)"/><ellipse cx="16.29" cy="90.7" rx="1.33" ry="0.26" fill="rgba(233,220,194,0.116)" transform="rotate(-4.3 16.29 90.7)"/><ellipse cx="25.2" cy="88.38" rx="1.3" ry="0.53" fill="rgba(232,219,197,0.103)" transform="rotate(-15.9 25.2 88.38)"/><ellipse cx="16.74" cy="89.13" rx="0.79" ry="0.4" fill="rgba(233,220,194,0.061)" transform="rotate(-0.0 16.74 89.13)"/><ellipse cx="15.64" cy="91.3" rx="0.89" ry="0.38" fill="rgba(233,220,194,0.063)" transform="rotate(-4.0 15.64 91.3)"/><ellipse cx="25.77" cy="27.04" rx="1.09" ry="0.57" fill="rgba(207,211,202,0.055)" transform="rotate(52.6 25.77 27.04)"/><ellipse cx="14.29" cy="29.37" rx="1.16" ry="0.35" fill="rgba(206,211,201,0.092)" transform="rotate(43.2 14.29 29.37)"/><ellipse cx="16.85" cy="24.24" rx="1.44" ry="0.25" fill="rgba(205,212,199,0.069)" transform="rotate(54.1 16.85 24.24)"/><ellipse cx="15.02" cy="24.63" rx="1.57" ry="0.56" fill="rgba(205,212,199,0.121)" transform="rotate(47.8 15.02 24.63)"/><ellipse cx="151.75" cy="34.56" rx="0.65" ry="0.36" fill="rgba(204,208,221,0.124)" transform="rotate(-56.5 151.75 34.56)"/><ellipse cx="151.76" cy="32.81" rx="0.82" ry="0.4" fill="rgba(203,208,221,0.088)" transform="rotate(-32.4 151.76 32.81)"/><ellipse cx="149.5" cy="38.62" rx="0.79" ry="0.5" fill="rgba(208,209,220,0.075)" transform="rotate(-44.7 149.5 38.62)"/><ellipse cx="148.35" cy="33.67" rx="1.6" ry="0.28" fill="rgba(204,208,221,0.073)" transform="rotate(-39.4 148.35 33.67)"/><ellipse cx="150.39" cy="35.04" rx="1.66" ry="0.33" fill="rgba(205,208,221,0.113)" transform="rotate(-44.9 150.39 35.04)"/><ellipse cx="148.53" cy="39.01" rx="1.79" ry="0.55" fill="rgba(208,209,220,0.097)" transform="rotate(-44.1 148.53 39.01)"/><ellipse cx="69.08" cy="27.31" rx="1.61" ry="0.24" fill="rgba(208,209,213,0.111)" transform="rotate(-56.6 69.08 27.31)"/><ellipse cx="67.83" cy="24.38" rx="0.8" ry="0.42" fill="rgba(207,210,211,0.066)" transform="rotate(-46.4 67.83 24.38)"/><ellipse cx="66.56" cy="26.18" rx="0.73" ry="0.33" fill="rgba(208,209,212,0.075)" transform="rotate(-44.5 66.56 26.18)"/><ellipse cx="69.14" cy="26.27" rx="0.7" ry="0.42" fill="rgba(208,209,212,0.1)" transform="rotate(-58.4 69.14 26.27)"/><ellipse cx="64.0" cy="25.61" rx="0.64" ry="0.32" fill="rgba(208,210,211,0.103)" transform="rotate(-42.3 64.0 25.61)"/><ellipse cx="67.35" cy="25.51" rx="1.67" ry="0.36" fill="rgba(208,209,212,0.056)" transform="rotate(-50.1 67.35 25.51)"/><ellipse cx="68.22" cy="27.45" rx="1.14" ry="0.55" fill="rgba(208,209,212,0.069)" transform="rotate(-57.4 68.22 27.45)"/><ellipse cx="3.85" cy="90.3" rx="0.66" ry="0.32" fill="rgba(234,221,191,0.101)" transform="rotate(11.0 3.85 90.3)"/><ellipse cx="11.89" cy="90.46" rx="0.77" ry="0.31" fill="rgba(233,220,193,0.124)" transform="rotate(5.9 11.89 90.46)"/><ellipse cx="-0.88" cy="93.78" rx="1.34" ry="0.53" fill="rgba(235,222,189,0.074)" transform="rotate(18.4 -0.88 93.78)"/><ellipse cx="1.26" cy="90.35" rx="1.03" ry="0.28" fill="rgba(234,221,190,0.12)" transform="rotate(23.0 1.26 90.35)"/><ellipse cx="6.6" cy="92.07" rx="0.76" ry="0.29" fill="rgba(234,221,191,0.098)" transform="rotate(16.0 6.6 92.07)"/><ellipse cx="36.45" cy="50.36" rx="1.17" ry="0.33" fill="rgba(218,212,208,0.077)" transform="rotate(41.7 36.45 50.36)"/><ellipse cx="34.2" cy="50.51" rx="1.75" ry="0.54" fill="rgba(219,212,207,0.114)" transform="rotate(34.6 34.2 50.51)"/><ellipse cx="31.86" cy="51.54" rx="0.98" ry="0.25" fill="rgba(219,213,207,0.078)" transform="rotate(36.1 31.86 51.54)"/><ellipse cx="34.25" cy="50.81" rx="1.34" ry="0.36" fill="rgba(219,212,207,0.114)" transform="rotate(44.7 34.25 50.81)"/><ellipse cx="33.28" cy="51.79" rx="1.5" ry="0.55" fill="rgba(219,213,207,0.121)" transform="rotate(23.3 33.28 51.79)"/><ellipse cx="36.56" cy="65.7" rx="1.78" ry="0.58" fill="rgba(226,214,207,0.089)" transform="rotate(1.9 36.56 65.7)"/><ellipse cx="34.13" cy="64.21" rx="1.1" ry="0.47" fill="rgba(225,214,207,0.078)" transform="rotate(16.0 34.13 64.21)"/><ellipse cx="33.76" cy="66.66" rx="1.65" ry="0.32" fill="rgba(226,215,206,0.095)" transform="rotate(-4.9 33.76 66.66)"/><ellipse cx="28.69" cy="65.18" rx="1.31" ry="0.41" fill="rgba(226,215,205,0.067)" transform="rotate(10.1 28.69 65.18)"/><ellipse cx="27.43" cy="68.44" rx="0.94" ry="0.4" fill="rgba(228,216,204,0.057)" transform="rotate(3.1 27.43 68.44)"/><ellipse cx="30.94" cy="36.54" rx="1.0" ry="0.5" fill="rgba(212,211,205,0.065)" transform="rotate(-38.9 30.94 36.54)"/><ellipse cx="33.38" cy="34.6" rx="0.97" ry="0.41" fill="rgba(211,211,206,0.114)" transform="rotate(-38.1 33.38 34.6)"/><ellipse cx="27.87" cy="36.46" rx="1.24" ry="0.56" fill="rgba(211,212,205,0.124)" transform="rotate(-25.5 27.87 36.46)"/><ellipse cx="27.79" cy="35.32" rx="1.66" ry="0.33" fill="rgba(211,211,204,0.059)" transform="rotate(-18.8 27.79 35.32)"/><ellipse cx="28.48" cy="34.36" rx="0.82" ry="0.45" fill="rgba(210,211,204,0.065)" transform="rotate(-34.5 28.48 34.36)"/><ellipse cx="30.51" cy="35.65" rx="1.57" ry="0.58" fill="rgba(211,211,205,0.102)" transform="rotate(-39.7 30.51 35.65)"/><ellipse cx="126.59" cy="13.11" rx="1.22" ry="0.55" fill="rgba(198,208,222,0.102)" transform="rotate(-10.4 126.59 13.11)"/><ellipse cx="130.57" cy="12.03" rx="0.76" ry="0.56" fill="rgba(198,208,222,0.077)" transform="rotate(-14.7 130.57 12.03)"/><ellipse cx="129.17" cy="15.08" rx="0.86" ry="0.3" fill="rgba(198,208,222,0.115)" transform="rotate(-3.3 129.17 15.08)"/><ellipse cx="128.51" cy="13.42" rx="1.12" ry="0.51" fill="rgba(198,208,222,0.087)" transform="rotate(-17.0 128.51 13.42)"/><ellipse cx="128.08" cy="15.11" rx="0.81" ry="0.36" fill="rgba(199,208,222,0.087)" transform="rotate(-26.7 128.08 15.11)"/><ellipse cx="134.69" cy="92.02" rx="1.72" ry="0.36" fill="rgba(236,211,212,0.096)" transform="rotate(-9.0 134.69 92.02)"/><ellipse cx="129.94" cy="90.6" rx="0.79" ry="0.55" fill="rgba(235,211,212,0.053)" transform="rotate(-19.4 129.94 90.6)"/><ellipse cx="138.19" cy="88.46" rx="0.83" ry="0.36" fill="rgba(236,211,212,0.053)" transform="rotate(-0.9 138.19 88.46)"/><ellipse cx="131.7" cy="88.83" rx="1.54" ry="0.26" fill="rgba(235,211,213,0.063)" transform="rotate(-9.6 131.7 88.83)"/><ellipse cx="133.33" cy="91.44" rx="1.78" ry="0.27" fill="rgba(236,211,212,0.083)" transform="rotate(3.5 133.33 91.44)"/><ellipse cx="136.97" cy="77.97" rx="1.19" ry="0.35" fill="rgba(234,211,214,0.096)" transform="rotate(16.2 136.97 77.97)"/><ellipse cx="136.29" cy="76.19" rx="1.52" ry="0.27" fill="rgba(233,211,214,0.072)" transform="rotate(27.5 136.29 76.19)"/><ellipse cx="149.45" cy="71.57" rx="0.82" ry="0.38" fill="rgba(232,211,214,0.063)" transform="rotate(36.9 149.45 71.57)"/><ellipse cx="135.79" cy="77.15" rx="1.65" ry="0.53" fill="rgba(234,211,214,0.11)" transform="rotate(20.0 135.79 77.15)"/><ellipse cx="136.57" cy="75.51" rx="1.27" ry="0.41" fill="rgba(233,211,214,0.057)" transform="rotate(33.6 136.57 75.51)"/><ellipse cx="140.19" cy="71.18" rx="1.59" ry="0.32" fill="rgba(231,210,215,0.119)" transform="rotate(19.0 140.19 71.18)"/><ellipse cx="135.61" cy="77.77" rx="1.25" ry="0.46" fill="rgba(234,211,214,0.083)" transform="rotate(20.5 135.61 77.77)"/><ellipse cx="149.5" cy="73.95" rx="1.58" ry="0.35" fill="rgba(234,211,213,0.113)" transform="rotate(13.2 149.5 73.95)"/><ellipse cx="118.09" cy="47.89" rx="1.27" ry="0.46" fill="rgba(217,209,220,0.119)" transform="rotate(-30.2 118.09 47.89)"/><ellipse cx="116.12" cy="50.74" rx="1.65" ry="0.51" fill="rgba(218,209,220,0.108)" transform="rotate(-26.8 116.12 50.74)"/><ellipse cx="122.19" cy="53.37" rx="1.78" ry="0.56" fill="rgba(219,209,219,0.091)" transform="rotate(-42.4 122.19 53.37)"/><ellipse cx="120.48" cy="48.99" rx="1.69" ry="0.38" fill="rgba(217,209,220,0.106)" transform="rotate(-20.3 120.48 48.99)"/><ellipse cx="130.37" cy="52.01" rx="1.09" ry="0.46" fill="rgba(218,209,219,0.069)" transform="rotate(-18.0 130.37 52.01)"/><ellipse cx="127.82" cy="47.84" rx="0.78" ry="0.3" fill="rgba(216,209,220,0.067)" transform="rotate(-30.8 127.82 47.84)"/><ellipse cx="122.89" cy="52.16" rx="1.02" ry="0.31" fill="rgba(219,209,219,0.071)" transform="rotate(-33.4 122.89 52.16)"/><ellipse cx="103.31" cy="2.96" rx="1.01" ry="0.49" fill="rgba(200,209,216,0.054)" transform="rotate(25.1 103.31 2.96)"/><ellipse cx="103.18" cy="-2.62" rx="1.32" ry="0.44" fill="rgba(198,209,215,0.098)" transform="rotate(31.4 103.18 -2.62)"/><ellipse cx="109.93" cy="-2.87" rx="1.04" ry="0.58" fill="rgba(197,209,218,0.097)" transform="rotate(27.4 109.93 -2.87)"/><ellipse cx="97.01" cy="-1.05" rx="0.63" ry="0.52" fill="rgba(199,209,213,0.083)" transform="rotate(40.7 97.01 -1.05)"/><ellipse cx="100.69" cy="-0.2" rx="1.61" ry="0.56" fill="rgba(199,209,215,0.064)" transform="rotate(30.6 100.69 -0.2)"/><ellipse cx="96.79" cy="1.91" rx="1.55" ry="0.3" fill="rgba(200,209,214,0.084)" transform="rotate(26.1 96.79 1.91)"/><ellipse cx="105.65" cy="2.18" rx="0.78" ry="0.46" fill="rgba(199,209,217,0.079)" transform="rotate(36.6 105.65 2.18)"/><ellipse cx="108.8" cy="1.37" rx="1.68" ry="0.48" fill="rgba(198,209,218,0.059)" transform="rotate(45.4 108.8 1.37)"/><ellipse cx="117.35" cy="22.19" rx="1.05" ry="0.47" fill="rgba(202,208,223,0.09)" transform="rotate(12.6 117.35 22.19)"/><ellipse cx="127.16" cy="17.6" rx="1.2" ry="0.56" fill="rgba(199,208,222,0.115)" transform="rotate(-2.2 127.16 17.6)"/><ellipse cx="121.94" cy="17.25" rx="1.44" ry="0.56" fill="rgba(200,208,222,0.101)" transform="rotate(0.1 121.94 17.25)"/><ellipse cx="117.43" cy="21.76" rx="1.26" ry="0.42" fill="rgba(202,208,223,0.066)" transform="rotate(-4.0 117.43 21.76)"/><ellipse cx="117.68" cy="21.93" rx="1.48" ry="0.31" fill="rgba(202,208,223,0.07)" transform="rotate(0.4 117.68 21.93)"/><ellipse cx="117.58" cy="21.18" rx="0.81" ry="0.24" fill="rgba(202,208,223,0.062)" transform="rotate(-1.2 117.58 21.18)"/><ellipse cx="117.49" cy="19.36" rx="1.37" ry="0.45" fill="rgba(201,208,222,0.071)" transform="rotate(-4.9 117.49 19.36)"/><ellipse cx="127.11" cy="17.9" rx="0.79" ry="0.31" fill="rgba(199,208,222,0.074)" transform="rotate(-2.2 127.11 17.9)"/><ellipse cx="120.72" cy="22.56" rx="0.75" ry="0.26" fill="rgba(202,208,223,0.064)" transform="rotate(-7.5 120.72 22.56)"/><ellipse cx="80.22" cy="47.51" rx="1.55" ry="0.43" fill="rgba(217,208,219,0.08)" transform="rotate(46.6 80.22 47.51)"/><ellipse cx="81.22" cy="47.79" rx="1.73" ry="0.45" fill="rgba(217,208,220,0.1)" transform="rotate(41.0 81.22 47.79)"/><ellipse cx="90.34" cy="50.71" rx="1.13" ry="0.37" fill="rgba(219,208,221,0.085)" transform="rotate(36.2 90.34 50.71)"/><ellipse cx="90.73" cy="48.03" rx="0.66" ry="0.5" fill="rgba(217,208,221,0.093)" transform="rotate(38.8 90.73 48.03)"/><ellipse cx="80.57" cy="49.54" rx="1.59" ry="0.45" fill="rgba(218,209,219,0.1)" transform="rotate(56.5 80.57 49.54)"/><ellipse cx="82.57" cy="50.69" rx="1.64" ry="0.44" fill="rgba(219,208,220,0.061)" transform="rotate(50.2 82.57 50.69)"/><ellipse cx="116.48" cy="35.58" rx="0.86" ry="0.3" fill="rgba(210,208,222,0.067)" transform="rotate(-17.5 116.48 35.58)"/><ellipse cx="112.92" cy="38.12" rx="1.21" ry="0.52" fill="rgba(212,208,222,0.055)" transform="rotate(-27.4 112.92 38.12)"/><ellipse cx="118.67" cy="35.74" rx="0.99" ry="0.49" fill="rgba(210,208,222,0.08)" transform="rotate(-32.0 118.67 35.74)"/><ellipse cx="119.54" cy="37.09" rx="0.61" ry="0.28" fill="rgba(210,208,221,0.101)" transform="rotate(-13.9 119.54 37.09)"/><ellipse cx="118.27" cy="36.79" rx="1.32" ry="0.53" fill="rgba(210,208,222,0.115)" transform="rotate(-38.4 118.27 36.79)"/><ellipse cx="108.56" cy="33.8" rx="1.01" ry="0.44" fill="rgba(209,208,222,0.065)" transform="rotate(-36.4 108.56 33.8)"/><ellipse cx="44.7" cy="88.69" rx="0.61" ry="0.31" fill="rgba(230,216,202,0.078)" transform="rotate(-23.0 44.7 88.69)"/><ellipse cx="45.27" cy="85.67" rx="1.59" ry="0.41" fill="rgba(230,216,203,0.079)" transform="rotate(-34.4 45.27 85.67)"/><ellipse cx="50.31" cy="87.82" rx="1.34" ry="0.57" fill="rgba(230,216,204,0.073)" transform="rotate(-41.7 50.31 87.82)"/><ellipse cx="47.27" cy="89.17" rx="0.68" ry="0.38" fill="rgba(230,216,203,0.093)" transform="rotate(-41.4 47.27 89.17)"/><ellipse cx="48.3" cy="89.22" rx="1.71" ry="0.28" fill="rgba(230,216,203,0.084)" transform="rotate(-40.3 48.3 89.22)"/><ellipse cx="67.15" cy="32.85" rx="1.54" ry="0.37" fill="rgba(209,209,214,0.122)" transform="rotate(-31.2 67.15 32.85)"/><ellipse cx="60.53" cy="30.36" rx="1.5" ry="0.42" fill="rgba(209,209,211,0.053)" transform="rotate(-40.1 60.53 30.36)"/><ellipse cx="66.26" cy="30.87" rx="0.84" ry="0.57" fill="rgba(209,209,213,0.07)" transform="rotate(-25.9 66.26 30.87)"/><ellipse cx="68.36" cy="29.35" rx="0.78" ry="0.37" fill="rgba(208,209,213,0.059)" transform="rotate(-26.1 68.36 29.35)"/><ellipse cx="63.04" cy="29.54" rx="1.16" ry="0.57" fill="rgba(209,209,212,0.114)" transform="rotate(-38.1 63.04 29.54)"/><ellipse cx="132.45" cy="94.61" rx="1.4" ry="0.58" fill="rgba(236,211,212,0.077)" transform="rotate(-25.3 132.45 94.61)"/><ellipse cx="132.34" cy="96.39" rx="1.22" ry="0.48" fill="rgba(236,211,211,0.114)" transform="rotate(-39.5 132.34 96.39)"/><ellipse cx="130.87" cy="96.4" rx="1.67" ry="0.4" fill="rgba(236,211,212,0.102)" transform="rotate(-32.1 130.87 96.4)"/><ellipse cx="134.72" cy="95.25" rx="0.94" ry="0.43" fill="rgba(236,212,211,0.121)" transform="rotate(-29.6 134.72 95.25)"/><ellipse cx="133.79" cy="94.24" rx="1.55" ry="0.25" fill="rgba(236,211,212,0.092)" transform="rotate(-27.9 133.79 94.24)"/><ellipse cx="136.02" cy="95.42" rx="0.98" ry="0.49" fill="rgba(237,212,211,0.053)" transform="rotate(-30.4 136.02 95.42)"/><ellipse cx="135.27" cy="96.42" rx="1.48" ry="0.57" fill="rgba(237,212,211,0.066)" transform="rotate(-27.6 135.27 96.42)"/><ellipse cx="131.09" cy="95.12" rx="1.45" ry="0.48" fill="rgba(236,211,212,0.101)" transform="rotate(-28.2 131.09 95.12)"/><ellipse cx="15.27" cy="69.16" rx="0.71" ry="0.32" fill="rgba(230,217,201,0.055)" transform="rotate(-4.5 15.27 69.16)"/><ellipse cx="18.4" cy="66.55" rx="0.96" ry="0.47" fill="rgba(228,216,203,0.066)" transform="rotate(-8.0 18.4 66.55)"/><ellipse cx="11.58" cy="63.74" rx="1.43" ry="0.5" fill="rgba(227,216,202,0.084)" transform="rotate(-15.4 11.58 63.74)"/><ellipse cx="10.73" cy="64.21" rx="1.19" ry="0.32" fill="rgba(227,216,201,0.054)" transform="rotate(-3.9 10.73 64.21)"/><ellipse cx="12.98" cy="66.39" rx="1.24" ry="0.28" fill="rgba(228,216,202,0.089)" transform="rotate(-9.8 12.98 66.39)"/><ellipse cx="17.37" cy="64.86" rx="0.73" ry="0.36" fill="rgba(227,216,203,0.121)" transform="rotate(-14.4 17.37 64.86)"/><ellipse cx="10.84" cy="67.01" rx="1.01" ry="0.29" fill="rgba(229,217,201,0.108)" transform="rotate(-3.4 10.84 67.01)"/><ellipse cx="8.73" cy="41.35" rx="1.64" ry="0.37" fill="rgba(214,213,201,0.097)" transform="rotate(-35.4 8.73 41.35)"/><ellipse cx="9.03" cy="41.75" rx="0.97" ry="0.37" fill="rgba(214,213,202,0.052)" transform="rotate(-30.5 9.03 41.75)"/><ellipse cx="7.37" cy="39.55" rx="1.06" ry="0.36" fill="rgba(213,213,201,0.058)" transform="rotate(-32.3 7.37 39.55)"/><ellipse cx="3.89" cy="41.52" rx="0.72" ry="0.38" fill="rgba(214,213,200,0.058)" transform="rotate(-42.3 3.89 41.52)"/><ellipse cx="119.64" cy="29.88" rx="1.46" ry="0.36" fill="rgba(206,208,222,0.11)" transform="rotate(41.2 119.64 29.88)"/><ellipse cx="122.25" cy="27.1" rx="1.24" ry="0.47" fill="rgba(203,208,223,0.071)" transform="rotate(39.8 122.25 27.1)"/><ellipse cx="123.23" cy="28.21" rx="0.92" ry="0.54" fill="rgba(204,208,222,0.114)" transform="rotate(31.5 123.23 28.21)"/><ellipse cx="123.45" cy="25.94" rx="0.89" ry="0.45" fill="rgba(202,208,223,0.071)" transform="rotate(19.2 123.45 25.94)"/><ellipse cx="123.41" cy="28.51" rx="1.45" ry="0.25" fill="rgba(204,208,222,0.124)" transform="rotate(23.2 123.41 28.51)"/><ellipse cx="121.52" cy="30.0" rx="1.68" ry="0.27" fill="rgba(206,208,222,0.114)" transform="rotate(42.3 121.52 30.0)"/><ellipse cx="7.34" cy="52.85" rx="1.23" ry="0.4" fill="rgba(221,215,201,0.083)" transform="rotate(-5.6 7.34 52.85)"/><ellipse cx="-1.07" cy="56.08" rx="1.32" ry="0.54" fill="rgba(223,216,199,0.101)" transform="rotate(14.8 -1.07 56.08)"/><ellipse cx="-2.45" cy="56.58" rx="0.89" ry="0.32" fill="rgba(224,216,199,0.085)" transform="rotate(12.2 -2.45 56.58)"/><ellipse cx="2.65" cy="56.58" rx="1.35" ry="0.42" fill="rgba(223,216,200,0.087)" transform="rotate(-7.7 2.65 56.58)"/><ellipse cx="-0.19" cy="54.81" rx="1.6" ry="0.33" fill="rgba(222,216,200,0.058)" transform="rotate(11.1 -0.19 54.81)"/><ellipse cx="9.3" cy="53.63" rx="0.98" ry="0.4" fill="rgba(221,215,202,0.063)" transform="rotate(-1.9 9.3 53.63)"/><ellipse cx="5.22" cy="55.83" rx="1.73" ry="0.44" fill="rgba(223,215,201,0.08)" transform="rotate(-2.7 5.22 55.83)"/><ellipse cx="10.27" cy="56.55" rx="1.53" ry="0.55" fill="rgba(223,215,202,0.115)" transform="rotate(-9.6 10.27 56.55)"/><ellipse cx="4.23" cy="52.25" rx="1.7" ry="0.26" fill="rgba(221,215,201,0.054)" transform="rotate(10.2 4.23 52.25)"/><ellipse cx="140.57" cy="8.38" rx="0.65" ry="0.39" fill="rgba(195,208,221,0.106)" transform="rotate(-22.6 140.57 8.38)"/><ellipse cx="147.55" cy="6.66" rx="0.65" ry="0.41" fill="rgba(194,208,221,0.062)" transform="rotate(-18.3 147.55 6.66)"/><ellipse cx="140.38" cy="5.75" rx="1.61" ry="0.43" fill="rgba(194,208,221,0.111)" transform="rotate(-17.0 140.38 5.75)"/><ellipse cx="148.02" cy="8.13" rx="1.63" ry="0.35" fill="rgba(194,208,221,0.085)" transform="rotate(-19.8 148.02 8.13)"/><ellipse cx="145.89" cy="4.91" rx="1.68" ry="0.52" fill="rgba(194,208,221,0.111)" transform="rotate(-24.7 145.89 4.91)"/><ellipse cx="146.34" cy="7.53" rx="0.85" ry="0.35" fill="rgba(194,208,221,0.096)" transform="rotate(-27.6 146.34 7.53)"/><ellipse cx="95.54" cy="23.24" rx="1.51" ry="0.36" fill="rgba(205,208,218,0.09)" transform="rotate(-28.8 95.54 23.24)"/><ellipse cx="94.66" cy="22.05" rx="1.29" ry="0.41" fill="rgba(205,209,217,0.082)" transform="rotate(-48.2 94.66 22.05)"/><ellipse cx="93.77" cy="23.3" rx="1.35" ry="0.31" fill="rgba(205,209,217,0.057)" transform="rotate(-28.3 93.77 23.3)"/><ellipse cx="99.25" cy="22.87" rx="1.19" ry="0.47" fill="rgba(205,208,218,0.076)" transform="rotate(-46.1 99.25 22.87)"/><ellipse cx="98.14" cy="19.49" rx="1.72" ry="0.45" fill="rgba(204,209,218,0.123)" transform="rotate(-26.7 98.14 19.49)"/><ellipse cx="97.06" cy="21.81" rx="0.85" ry="0.41" fill="rgba(205,208,218,0.122)" transform="rotate(-24.1 97.06 21.81)"/><ellipse cx="103.13" cy="20.59" rx="1.25" ry="0.53" fill="rgba(204,208,219,0.12)" transform="rotate(-25.6 103.13 20.59)"/><ellipse cx="98.84" cy="21.97" rx="0.94" ry="0.35" fill="rgba(204,208,218,0.08)" transform="rotate(-32.8 98.84 21.97)"/><ellipse cx="2.27" cy="69.15" rx="1.1" ry="0.47" fill="rgba(231,218,198,0.062)" transform="rotate(-15.5 2.27 69.15)"/><ellipse cx="4.55" cy="74.58" rx="0.9" ry="0.33" fill="rgba(231,219,197,0.104)" transform="rotate(-5.0 4.55 74.58)"/><ellipse cx="3.33" cy="70.48" rx="0.85" ry="0.57" fill="rgba(231,218,198,0.093)" transform="rotate(-0.8 3.33 70.48)"/><ellipse cx="2.09" cy="70.15" rx="0.83" ry="0.52" fill="rgba(231,218,198,0.104)" transform="rotate(-16.7 2.09 70.15)"/><ellipse cx="3.56" cy="72.15" rx="1.03" ry="0.35" fill="rgba(231,218,198,0.093)" transform="rotate(-26.0 3.56 72.15)"/><ellipse cx="7.84" cy="70.23" rx="1.37" ry="0.45" fill="rgba(230,218,199,0.072)" transform="rotate(-13.2 7.84 70.23)"/><ellipse cx="15.98" cy="27.69" rx="0.95" ry="0.4" fill="rgba(206,211,200,0.125)" transform="rotate(-6.7 15.98 27.69)"/><ellipse cx="15.56" cy="28.23" rx="1.33" ry="0.38" fill="rgba(206,211,201,0.081)" transform="rotate(-6.7 15.56 28.23)"/><ellipse cx="11.45" cy="28.32" rx="1.72" ry="0.3" fill="rgba(206,212,200,0.09)" transform="rotate(-14.3 11.45 28.32)"/><ellipse cx="13.03" cy="27.8" rx="1.02" ry="0.39" fill="rgba(206,212,200,0.114)" transform="rotate(-7.5 13.03 27.8)"/><ellipse cx="13.06" cy="30.93" rx="1.52" ry="0.4" fill="rgba(207,212,201,0.089)" transform="rotate(-2.2 13.06 30.93)"/><ellipse cx="13.67" cy="29.24" rx="1.4" ry="0.55" fill="rgba(206,211,201,0.076)" transform="rotate(9.8 13.67 29.24)"/><ellipse cx="9.03" cy="27.1" rx="1.51" ry="0.31" fill="rgba(205,212,199,0.093)" transform="rotate(4.4 9.03 27.1)"/><ellipse cx="87.77" cy="83.33" rx="1.44" ry="0.54" fill="rgba(230,212,212,0.089)" transform="rotate(-20.5 87.77 83.33)"/><ellipse cx="84.21" cy="81.47" rx="0.62" ry="0.32" fill="rgba(230,212,212,0.061)" transform="rotate(-26.1 84.21 81.47)"/><ellipse cx="87.24" cy="82.22" rx="1.43" ry="0.35" fill="rgba(230,212,212,0.05)" transform="rotate(-26.8 87.24 82.22)"/><ellipse cx="83.95" cy="82.33" rx="0.66" ry="0.39" fill="rgba(230,212,212,0.069)" transform="rotate(-40.9 83.95 82.33)"/><ellipse cx="87.64" cy="84.65" rx="1.51" ry="0.43" fill="rgba(231,212,212,0.056)" transform="rotate(-20.9 87.64 84.65)"/><ellipse cx="83.71" cy="84.81" rx="1.44" ry="0.34" fill="rgba(230,212,211,0.067)" transform="rotate(-15.8 83.71 84.81)"/><ellipse cx="82.71" cy="84.24" rx="1.53" ry="0.58" fill="rgba(230,212,211,0.052)" transform="rotate(-22.8 82.71 84.24)"/><ellipse cx="77.01" cy="92.72" rx="1.65" ry="0.39" fill="rgba(231,213,209,0.097)" transform="rotate(-32.0 77.01 92.72)"/><ellipse cx="79.51" cy="92.1" rx="1.44" ry="0.32" fill="rgba(231,213,209,0.067)" transform="rotate(-22.6 79.51 92.1)"/><ellipse cx="76.35" cy="94.57" rx="1.37" ry="0.26" fill="rgba(232,214,208,0.069)" transform="rotate(-17.2 76.35 94.57)"/><ellipse cx="69.9" cy="95.36" rx="1.49" ry="0.26" fill="rgba(231,214,207,0.077)" transform="rotate(-34.7 69.9 95.36)"/><ellipse cx="73.31" cy="91.31" rx="1.55" ry="0.24" fill="rgba(231,214,208,0.062)" transform="rotate(-37.2 73.31 91.31)"/><ellipse cx="31.12" cy="18.26" rx="0.82" ry="0.24" fill="rgba(205,212,199,0.083)" transform="rotate(-1.7 31.12 18.26)"/><ellipse cx="38.77" cy="17.39" rx="1.32" ry="0.42" fill="rgba(206,212,200,0.116)" transform="rotate(-1.5 38.77 17.39)"/><ellipse cx="34.65" cy="20.11" rx="1.59" ry="0.41" fill="rgba(206,211,201,0.059)" transform="rotate(-1.6 34.65 20.11)"/><ellipse cx="41.46" cy="20.93" rx="1.65" ry="0.45" fill="rgba(207,211,202,0.065)" transform="rotate(-3.5 41.46 20.93)"/><ellipse cx="0.81" cy="1.41" rx="1.65" ry="0.29" fill="rgba(201,214,190,0.122)" transform="rotate(-20.2 0.81 1.41)"/><ellipse cx="1.15" cy="3.96" rx="1.57" ry="0.42" fill="rgba(201,214,190,0.112)" transform="rotate(-14.6 1.15 3.96)"/><ellipse cx="0.35" cy="3.86" rx="1.78" ry="0.4" fill="rgba(201,214,190,0.069)" transform="rotate(-12.3 0.35 3.86)"/><ellipse cx="4.39" cy="1.36" rx="1.24" ry="0.49" fill="rgba(201,214,190,0.116)" transform="rotate(-7.9 4.39 1.36)"/><ellipse cx="5.09" cy="4.51" rx="1.33" ry="0.44" fill="rgba(201,214,190,0.072)" transform="rotate(-12.7 5.09 4.51)"/><ellipse cx="4.04" cy="3.86" rx="1.31" ry="0.44" fill="rgba(201,214,190,0.06)" transform="rotate(-14.0 4.04 3.86)"/><ellipse cx="4.16" cy="2.02" rx="0.88" ry="0.27" fill="rgba(201,214,190,0.067)" transform="rotate(-27.8 4.16 2.02)"/><ellipse cx="2.21" cy="1.77" rx="1.48" ry="0.3" fill="rgba(201,214,190,0.121)" transform="rotate(-20.8 2.21 1.77)"/><ellipse cx="83.4" cy="97.72" rx="1.51" ry="0.52" fill="rgba(232,213,209,0.057)" transform="rotate(-44.5 83.4 97.72)"/><ellipse cx="83.24" cy="98.78" rx="0.91" ry="0.35" fill="rgba(232,213,208,0.067)" transform="rotate(-36.6 83.24 98.78)"/><ellipse cx="84.67" cy="97.74" rx="0.99" ry="0.45" fill="rgba(232,213,209,0.092)" transform="rotate(-48.5 84.67 97.74)"/><ellipse cx="89.27" cy="99.51" rx="0.73" ry="0.45" fill="rgba(233,213,209,0.112)" transform="rotate(-52.7 89.27 99.51)"/><ellipse cx="83.51" cy="99.84" rx="1.23" ry="0.41" fill="rgba(233,213,208,0.083)" transform="rotate(-59.2 83.51 99.84)"/><ellipse cx="89.2" cy="98.83" rx="1.05" ry="0.39" fill="rgba(233,213,210,0.076)" transform="rotate(-41.6 89.2 98.83)"/><ellipse cx="87.71" cy="99.06" rx="1.39" ry="0.26" fill="rgba(233,213,209,0.085)" transform="rotate(-36.4 87.71 99.06)"/><ellipse cx="138.24" cy="16.79" rx="1.61" ry="0.55" fill="rgba(197,208,222,0.052)" transform="rotate(-40.0 138.24 16.79)"/><ellipse cx="136.93" cy="17.03" rx="0.82" ry="0.52" fill="rgba(197,208,222,0.101)" transform="rotate(-34.6 136.93 17.03)"/><ellipse cx="138.07" cy="16.69" rx="1.56" ry="0.55" fill="rgba(197,208,222,0.07)" transform="rotate(-38.1 138.07 16.69)"/><ellipse cx="136.2" cy="19.71" rx="1.54" ry="0.37" fill="rgba(198,208,222,0.06)" transform="rotate(-45.9 136.2 19.71)"/><ellipse cx="138.04" cy="17.29" rx="0.9" ry="0.55" fill="rgba(197,208,222,0.094)" transform="rotate(-46.0 138.04 17.29)"/><ellipse cx="120.09" cy="75.8" rx="1.13" ry="0.27" fill="rgba(232,210,215,0.114)" transform="rotate(26.0 120.09 75.8)"/><ellipse cx="125.67" cy="79.29" rx="1.52" ry="0.31" fill="rgba(233,211,214,0.092)" transform="rotate(30.7 125.67 79.29)"/><ellipse cx="120.38" cy="76.05" rx="0.61" ry="0.32" fill="rgba(232,210,215,0.074)" transform="rotate(26.4 120.38 76.05)"/><ellipse cx="117.77" cy="80.28" rx="0.72" ry="0.53" fill="rgba(232,210,215,0.113)" transform="rotate(29.2 117.77 80.28)"/><ellipse cx="117.66" cy="77.61" rx="1.18" ry="0.29" fill="rgba(232,210,215,0.066)" transform="rotate(24.2 117.66 77.61)"/><ellipse cx="116.24" cy="75.8" rx="0.86" ry="0.39" fill="rgba(231,210,216,0.052)" transform="rotate(31.4 116.24 75.8)"/><ellipse cx="124.94" cy="77.64" rx="1.49" ry="0.43" fill="rgba(233,210,215,0.093)" transform="rotate(46.2 124.94 77.64)"/><ellipse cx="121.15" cy="79.59" rx="1.53" ry="0.41" fill="rgba(233,210,215,0.085)" transform="rotate(43.6 121.15 79.59)"/><ellipse cx="60.09" cy="10.13" rx="1.37" ry="0.36" fill="rgba(205,211,204,0.09)" transform="rotate(21.2 60.09 10.13)"/><ellipse cx="55.26" cy="11.84" rx="0.71" ry="0.31" fill="rgba(205,211,203,0.057)" transform="rotate(42.1 55.26 11.84)"/><ellipse cx="58.72" cy="11.08" rx="1.75" ry="0.38" fill="rgba(205,211,204,0.074)" transform="rotate(34.6 58.72 11.08)"/><ellipse cx="55.5" cy="10.43" rx="0.95" ry="0.35" fill="rgba(205,211,203,0.105)" transform="rotate(34.6 55.5 10.43)"/><ellipse cx="58.63" cy="10.07" rx="0.71" ry="0.24" fill="rgba(205,211,204,0.07)" transform="rotate(25.5 58.63 10.07)"/><ellipse cx="55.64" cy="10.31" rx="0.75" ry="0.28" fill="rgba(205,211,203,0.11)" transform="rotate(24.7 55.64 10.31)"/><ellipse cx="61.89" cy="94.77" rx="0.83" ry="0.28" fill="rgba(231,215,205,0.119)" transform="rotate(12.3 61.89 94.77)"/><ellipse cx="59.02" cy="93.54" rx="1.79" ry="0.26" fill="rgba(231,215,205,0.094)" transform="rotate(26.4 59.02 93.54)"/><ellipse cx="61.63" cy="95.71" rx="0.62" ry="0.33" fill="rgba(231,215,205,0.051)" transform="rotate(18.3 61.63 95.71)"/><ellipse cx="62.41" cy="95.79" rx="1.35" ry="0.32" fill="rgba(231,215,205,0.08)" transform="rotate(13.9 62.41 95.79)"/><ellipse cx="61.36" cy="94.53" rx="1.18" ry="0.52" fill="rgba(231,215,205,0.069)" transform="rotate(24.0 61.36 94.53)"/><ellipse cx="59.8" cy="94.22" rx="0.82" ry="0.45" fill="rgba(231,215,205,0.098)" transform="rotate(21.1 59.8 94.22)"/><ellipse cx="63.91" cy="94.97" rx="1.16" ry="0.56" fill="rgba(231,215,205,0.07)" transform="rotate(13.8 63.91 94.97)"/><ellipse cx="107.81" cy="69.37" rx="1.03" ry="0.38" fill="rgba(229,209,218,0.068)" transform="rotate(-4.1 107.81 69.37)"/><ellipse cx="97.46" cy="70.07" rx="1.2" ry="0.42" fill="rgba(229,210,217,0.055)" transform="rotate(4.8 97.46 70.07)"/><ellipse cx="97.92" cy="68.34" rx="1.29" ry="0.46" fill="rgba(228,210,217,0.07)" transform="rotate(10.2 97.92 68.34)"/><ellipse cx="104.39" cy="67.09" rx="1.03" ry="0.34" fill="rgba(227,209,218,0.108)" transform="rotate(9.9 104.39 67.09)"/><ellipse cx="98.85" cy="65.45" rx="1.67" ry="0.56" fill="rgba(226,209,218,0.053)" transform="rotate(10.2 98.85 65.45)"/><ellipse cx="99.59" cy="67.71" rx="0.93" ry="0.35" fill="rgba(228,210,218,0.097)" transform="rotate(3.8 99.59 67.71)"/><ellipse cx="107.4" cy="69.35" rx="1.37" ry="0.54" fill="rgba(229,209,218,0.123)" transform="rotate(5.7 107.4 69.35)"/><ellipse cx="64.64" cy="95.78" rx="1.74" ry="0.5" fill="rgba(231,215,205,0.071)" transform="rotate(-6.4 64.64 95.78)"/><ellipse cx="68.64" cy="96.73" rx="0.99" ry="0.57" fill="rgba(232,214,206,0.075)" transform="rotate(-11.0 68.64 96.73)"/><ellipse cx="76.59" cy="101.87" rx="1.16" ry="0.46" fill="rgba(233,214,206,0.05)" transform="rotate(-12.3 76.59 101.87)"/><ellipse cx="70.99" cy="102.31" rx="0.84" ry="0.34" fill="rgba(233,215,205,0.077)" transform="rotate(-11.6 70.99 102.31)"/><ellipse cx="70.95" cy="96.07" rx="0.99" ry="0.52" fill="rgba(232,214,207,0.123)" transform="rotate(-13.4 70.95 96.07)"/><ellipse cx="64.86" cy="102.74" rx="1.69" ry="0.43" fill="rgba(233,216,203,0.052)" transform="rotate(-17.4 64.86 102.74)"/><ellipse cx="64.03" cy="98.46" rx="1.55" ry="0.25" fill="rgba(232,215,204,0.082)" transform="rotate(-6.9 64.03 98.46)"/><ellipse cx="68.04" cy="96.77" rx="1.52" ry="0.28" fill="rgba(232,215,206,0.115)" transform="rotate(-21.5 68.04 96.77)"/><ellipse cx="123.58" cy="49.27" rx="1.28" ry="0.51" fill="rgba(217,209,220,0.072)" transform="rotate(-18.6 123.58 49.27)"/><ellipse cx="125.02" cy="46.69" rx="1.41" ry="0.34" fill="rgba(216,209,220,0.091)" transform="rotate(-14.6 125.02 46.69)"/><ellipse cx="127.93" cy="46.99" rx="1.62" ry="0.37" fill="rgba(216,209,220,0.1)" transform="rotate(-7.7 127.93 46.99)"/><ellipse cx="128.81" cy="48.23" rx="1.13" ry="0.54" fill="rgba(216,209,220,0.097)" transform="rotate(-18.2 128.81 48.23)"/><ellipse cx="127.18" cy="48.4" rx="1.62" ry="0.32" fill="rgba(216,209,220,0.076)" transform="rotate(-11.8 127.18 48.4)"/><ellipse cx="129.58" cy="48.8" rx="1.35" ry="0.39" fill="rgba(216,209,220,0.118)" transform="rotate(-18.7 129.58 48.8)"/><ellipse cx="125.81" cy="49.03" rx="0.67" ry="0.37" fill="rgba(217,209,220,0.089)" transform="rotate(-7.6 125.81 49.03)"/><ellipse cx="128.7" cy="46.57" rx="1.45" ry="0.39" fill="rgba(215,209,220,0.111)" transform="rotate(-2.9 128.7 46.57)"/><ellipse cx="129.66" cy="49.69" rx="0.72" ry="0.42" fill="rgba(217,209,219,0.06)" transform="rotate(-17.8 129.66 49.69)"/><ellipse cx="95.33" cy="40.54" rx="1.57" ry="0.54" fill="rgba(213,208,220,0.082)" transform="rotate(17.8 95.33 40.54)"/><ellipse cx="98.63" cy="39.31" rx="1.14" ry="0.54" fill="rgba(213,208,221,0.121)" transform="rotate(10.2 98.63 39.31)"/><ellipse cx="92.65" cy="41.36" rx="0.84" ry="0.54" fill="rgba(214,208,220,0.115)" transform="rotate(19.0 92.65 41.36)"/><ellipse cx="98.22" cy="43.39" rx="0.99" ry="0.34" fill="rgba(215,208,221,0.106)" transform="rotate(18.7 98.22 43.39)"/><ellipse cx="97.52" cy="42.34" rx="0.64" ry="0.39" fill="rgba(214,208,221,0.102)" transform="rotate(25.3 97.52 42.34)"/><ellipse cx="145.21" cy="47.35" rx="1.2" ry="0.55" fill="rgba(214,209,219,0.077)" transform="rotate(12.3 145.21 47.35)"/><ellipse cx="150.22" cy="46.48" rx="1.12" ry="0.52" fill="rgba(213,209,219,0.072)" transform="rotate(12.8 150.22 46.48)"/><ellipse cx="147.25" cy="45.0" rx="0.85" ry="0.29" fill="rgba(213,209,219,0.102)" transform="rotate(20.5 147.25 45.0)"/><ellipse cx="143.65" cy="45.44" rx="1.32" ry="0.41" fill="rgba(213,209,219,0.095)" transform="rotate(17.7 143.65 45.44)"/><ellipse cx="141.32" cy="49.95" rx="0.78" ry="0.25" fill="rgba(216,209,219,0.089)" transform="rotate(14.4 141.32 49.95)"/><ellipse cx="147.12" cy="46.65" rx="1.25" ry="0.27" fill="rgba(214,209,219,0.095)" transform="rotate(16.8 147.12 46.65)"/><ellipse cx="148.57" cy="51.76" rx="0.98" ry="0.43" fill="rgba(217,209,218,0.064)" transform="rotate(1.2 148.57 51.76)"/><ellipse cx="143.4" cy="47.13" rx="0.76" ry="0.33" fill="rgba(214,209,219,0.117)" transform="rotate(2.4 143.4 47.13)"/><ellipse cx="28.07" cy="54.68" rx="1.74" ry="0.51" fill="rgba(221,213,206,0.112)" transform="rotate(28.0 28.07 54.68)"/><ellipse cx="23.75" cy="55.41" rx="1.78" ry="0.25" fill="rgba(221,214,205,0.112)" transform="rotate(39.7 23.75 55.41)"/><ellipse cx="26.77" cy="56.85" rx="1.71" ry="0.43" fill="rgba(222,214,205,0.103)" transform="rotate(40.9 26.77 56.85)"/><ellipse cx="23.54" cy="56.53" rx="1.65" ry="0.39" fill="rgba(222,214,205,0.051)" transform="rotate(33.9 23.54 56.53)"/><ellipse cx="25.15" cy="55.95" rx="1.75" ry="0.32" fill="rgba(221,214,205,0.083)" transform="rotate(30.3 25.15 55.95)"/><ellipse cx="156.54" cy="75.25" rx="1.4" ry="0.53" fill="rgba(236,211,212,0.076)" transform="rotate(-18.9 156.54 75.25)"/><ellipse cx="157.29" cy="71.22" rx="1.16" ry="0.36" fill="rgba(233,211,213,0.074)" transform="rotate(-14.8 157.29 71.22)"/><ellipse cx="152.04" cy="74.59" rx="1.68" ry="0.55" fill="rgba(235,211,213,0.058)" transform="rotate(-22.2 152.04 74.59)"/><ellipse cx="144.12" cy="71.93" rx="1.41" ry="0.46" fill="rgba(232,211,214,0.068)" transform="rotate(-9.2 144.12 71.93)"/><ellipse cx="155.49" cy="71.4" rx="1.68" ry="0.31" fill="rgba(233,211,213,0.108)" transform="rotate(-28.7 155.49 71.4)"/><ellipse cx="77.85" cy="95.87" rx="1.76" ry="0.55" fill="rgba(232,214,208,0.107)" transform="rotate(45.1 77.85 95.87)"/><ellipse cx="84.29" cy="101.61" rx="1.63" ry="0.29" fill="rgba(233,213,208,0.067)" transform="rotate(35.4 84.29 101.61)"/><ellipse cx="84.68" cy="97.03" rx="1.77" ry="0.48" fill="rgba(232,213,209,0.066)" transform="rotate(41.8 84.68 97.03)"/><ellipse cx="83.77" cy="101.0" rx="1.52" ry="0.5" fill="rgba(233,213,208,0.074)" transform="rotate(48.2 83.77 101.0)"/><ellipse cx="77.06" cy="96.1" rx="1.5" ry="0.57" fill="rgba(232,214,208,0.093)" transform="rotate(31.9 77.06 96.1)"/><ellipse cx="89.49" cy="97.09" rx="0.71" ry="0.28" fill="rgba(233,213,210,0.056)" transform="rotate(36.0 89.49 97.09)"/><ellipse cx="84.38" cy="96.76" rx="1.77" ry="0.41" fill="rgba(232,213,209,0.067)" transform="rotate(27.5 84.38 96.76)"/><ellipse cx="57.32" cy="46.34" rx="1.17" ry="0.44" fill="rgba(217,210,213,0.096)" transform="rotate(46.4 57.32 46.34)"/><ellipse cx="52.06" cy="52.67" rx="1.08" ry="0.33" fill="rgba(220,211,212,0.107)" transform="rotate(24.3 52.06 52.67)"/><ellipse cx="50.95" cy="52.78" rx="0.7" ry="0.3" fill="rgba(220,211,211,0.1)" transform="rotate(42.3 50.95 52.78)"/><ellipse cx="52.76" cy="46.26" rx="1.73" ry="0.3" fill="rgba(216,211,212,0.05)" transform="rotate(39.5 52.76 46.26)"/><ellipse cx="61.09" cy="50.02" rx="1.31" ry="0.37" fill="rgba(219,210,214,0.069)" transform="rotate(48.4 61.09 50.02)"/><ellipse cx="59.89" cy="46.36" rx="0.78" ry="0.26" fill="rgba(217,210,214,0.089)" transform="rotate(22.8 59.89 46.36)"/><ellipse cx="111.67" cy="94.56" rx="1.76" ry="0.31" fill="rgba(234,211,214,0.051)" transform="rotate(-35.3 111.67 94.56)"/><ellipse cx="106.13" cy="98.7" rx="0.75" ry="0.26" fill="rgba(234,211,213,0.089)" transform="rotate(-19.4 106.13 98.7)"/><ellipse cx="110.27" cy="100.13" rx="1.7" ry="0.52" fill="rgba(235,211,213,0.102)" transform="rotate(-22.2 110.27 100.13)"/><ellipse cx="116.71" cy="97.11" rx="1.06" ry="0.25" fill="rgba(235,211,213,0.092)" transform="rotate(-26.9 116.71 97.11)"/><ellipse cx="114.5" cy="94.68" rx="1.06" ry="0.41" fill="rgba(234,211,213,0.086)" transform="rotate(-41.2 114.5 94.68)"/><ellipse cx="109.57" cy="95.62" rx="1.79" ry="0.54" fill="rgba(234,211,214,0.087)" transform="rotate(-21.4 109.57 95.62)"/><ellipse cx="107.85" cy="96.51" rx="0.95" ry="0.56" fill="rgba(234,211,213,0.086)" transform="rotate(-35.4 107.85 96.51)"/><ellipse cx="116.68" cy="96.04" rx="0.8" ry="0.35" fill="rgba(235,211,213,0.117)" transform="rotate(-23.1 116.68 96.04)"/><ellipse cx="76.75" cy="72.09" rx="0.71" ry="0.57" fill="rgba(228,211,214,0.093)" transform="rotate(-36.2 76.75 72.09)"/><ellipse cx="68.65" cy="71.03" rx="1.29" ry="0.26" fill="rgba(228,212,213,0.074)" transform="rotate(-47.3 68.65 71.03)"/><ellipse cx="69.96" cy="70.47" rx="1.8" ry="0.36" fill="rgba(228,212,213,0.059)" transform="rotate(-43.5 69.96 70.47)"/><ellipse cx="70.53" cy="73.83" rx="1.11" ry="0.27" fill="rgba(228,212,212,0.072)" transform="rotate(-48.1 70.53 73.83)"/><ellipse cx="35.01" cy="71.15" rx="1.71" ry="0.55" fill="rgba(228,215,205,0.123)" transform="rotate(-14.3 35.01 71.15)"/><ellipse cx="36.53" cy="69.59" rx="1.58" ry="0.39" fill="rgba(227,215,206,0.12)" transform="rotate(-7.8 36.53 69.59)"/><ellipse cx="32.44" cy="69.26" rx="1.66" ry="0.24" fill="rgba(228,215,205,0.061)" transform="rotate(-2.8 32.44 69.26)"/><ellipse cx="32.37" cy="69.62" rx="1.56" ry="0.26" fill="rgba(228,215,205,0.084)" transform="rotate(1.4 32.37 69.62)"/><ellipse cx="34.66" cy="70.83" rx="1.62" ry="0.29" fill="rgba(228,215,205,0.118)" transform="rotate(-11.6 34.66 70.83)"/><ellipse cx="29.09" cy="72.31" rx="1.2" ry="0.3" fill="rgba(229,216,203,0.085)" transform="rotate(-18.2 29.09 72.31)"/><ellipse cx="31.72" cy="69.36" rx="1.27" ry="0.52" fill="rgba(228,215,205,0.079)" transform="rotate(-14.4 31.72 69.36)"/><ellipse cx="107.86" cy="76.38" rx="1.59" ry="0.57" fill="rgba(231,210,216,0.079)" transform="rotate(-35.3 107.86 76.38)"/><ellipse cx="105.86" cy="78.79" rx="1.63" ry="0.51" fill="rgba(231,210,216,0.12)" transform="rotate(-29.6 105.86 78.79)"/><ellipse cx="104.0" cy="76.74" rx="1.71" ry="0.41" fill="rgba(230,210,216,0.089)" transform="rotate(-18.8 104.0 76.74)"/><ellipse cx="106.73" cy="77.18" rx="0.67" ry="0.47" fill="rgba(231,210,216,0.076)" transform="rotate(-29.6 106.73 77.18)"/><ellipse cx="103.56" cy="76.14" rx="0.62" ry="0.5" fill="rgba(230,210,216,0.056)" transform="rotate(-26.1 103.56 76.14)"/><ellipse cx="106.19" cy="79.14" rx="1.08" ry="0.25" fill="rgba(231,210,216,0.084)" transform="rotate(-30.5 106.19 79.14)"/><ellipse cx="108.71" cy="78.52" rx="1.23" ry="0.32" fill="rgba(231,210,216,0.068)" transform="rotate(-24.6 108.71 78.52)"/><ellipse cx="9.65" cy="77.12" rx="1.72" ry="0.36" fill="rgba(231,218,197,0.1)" transform="rotate(-37.3 9.65 77.12)"/><ellipse cx="4.63" cy="73.89" rx="1.05" ry="0.53" fill="rgba(231,218,197,0.116)" transform="rotate(-28.3 4.63 73.89)"/><ellipse cx="6.54" cy="79.17" rx="1.73" ry="0.29" fill="rgba(232,219,196,0.05)" transform="rotate(-40.4 6.54 79.17)"/><ellipse cx="3.18" cy="76.91" rx="0.89" ry="0.51" fill="rgba(232,219,196,0.076)" transform="rotate(-23.2 3.18 76.91)"/><ellipse cx="13.01" cy="75.32" rx="1.22" ry="0.32" fill="rgba(231,218,199,0.061)" transform="rotate(-25.2 13.01 75.32)"/><ellipse cx="50.39" cy="50.95" rx="1.19" ry="0.32" fill="rgba(218,211,211,0.074)" transform="rotate(-46.5 50.39 50.95)"/><ellipse cx="52.54" cy="50.47" rx="0.66" ry="0.46" fill="rgba(218,211,212,0.096)" transform="rotate(-24.8 52.54 50.47)"/><ellipse cx="47.17" cy="51.75" rx="1.19" ry="0.4" fill="rgba(219,212,210,0.093)" transform="rotate(-22.1 47.17 51.75)"/><ellipse cx="53.17" cy="52.31" rx="0.98" ry="0.32" fill="rgba(220,211,212,0.083)" transform="rotate(-25.2 53.17 52.31)"/><ellipse cx="49.45" cy="91.37" rx="1.71" ry="0.3" fill="rgba(231,216,203,0.123)" transform="rotate(27.0 49.45 91.37)"/><ellipse cx="53.75" cy="91.37" rx="1.15" ry="0.39" fill="rgba(231,216,204,0.053)" transform="rotate(39.6 53.75 91.37)"/><ellipse cx="49.68" cy="90.32" rx="1.44" ry="0.5" fill="rgba(231,216,203,0.103)" transform="rotate(39.4 49.68 90.32)"/><ellipse cx="52.13" cy="89.27" rx="1.54" ry="0.48" fill="rgba(230,215,204,0.05)" transform="rotate(24.7 52.13 89.27)"/><ellipse cx="50.96" cy="92.0" rx="0.77" ry="0.25" fill="rgba(231,216,203,0.091)" transform="rotate(18.2 50.96 92.0)"/><ellipse cx="52.35" cy="89.61" rx="0.8" ry="0.42" fill="rgba(230,215,204,0.094)" transform="rotate(23.7 52.35 89.61)"/><ellipse cx="52.92" cy="91.51" rx="1.32" ry="0.35" fill="rgba(231,216,204,0.089)" transform="rotate(32.2 52.92 91.51)"/><ellipse cx="50.43" cy="91.79" rx="0.91" ry="0.51" fill="rgba(231,216,203,0.078)" transform="rotate(31.4 50.43 91.79)"/><ellipse cx="54.05" cy="89.86" rx="1.74" ry="0.27" fill="rgba(231,215,204,0.109)" transform="rotate(23.2 54.05 89.86)"/><ellipse cx="132.64" cy="90.26" rx="1.08" ry="0.5" fill="rgba(235,211,212,0.075)" transform="rotate(-3.7 132.64 90.26)"/><ellipse cx="132.78" cy="90.22" rx="1.56" ry="0.48" fill="rgba(235,211,212,0.097)" transform="rotate(4.9 132.78 90.22)"/><ellipse cx="134.58" cy="88.91" rx="1.63" ry="0.44" fill="rgba(235,211,212,0.115)" transform="rotate(10.7 134.58 88.91)"/><ellipse cx="133.24" cy="89.82" rx="0.99" ry="0.25" fill="rgba(235,211,212,0.056)" transform="rotate(-4.3 133.24 89.82)"/><ellipse cx="138.4" cy="67.01" rx="0.72" ry="0.48" fill="rgba(228,210,216,0.113)" transform="rotate(-21.2 138.4 67.01)"/><ellipse cx="141.22" cy="69.35" rx="1.17" ry="0.43" fill="rgba(229,210,215,0.068)" transform="rotate(-35.8 141.22 69.35)"/><ellipse cx="141.85" cy="69.0" rx="1.76" ry="0.38" fill="rgba(229,210,215,0.119)" transform="rotate(-22.4 141.85 69.0)"/><ellipse cx="136.85" cy="66.63" rx="0.93" ry="0.52" fill="rgba(227,210,216,0.122)" transform="rotate(-14.0 136.85 66.63)"/><ellipse cx="137.84" cy="66.16" rx="1.75" ry="0.41" fill="rgba(227,210,216,0.051)" transform="rotate(-26.5 137.84 66.16)"/><ellipse cx="139.24" cy="66.77" rx="1.04" ry="0.4" fill="rgba(227,210,216,0.088)" transform="rotate(-31.0 139.24 66.77)"/><ellipse cx="87.51" cy="20.98" rx="1.58" ry="0.27" fill="rgba(205,209,215,0.09)" transform="rotate(-24.0 87.51 20.98)"/><ellipse cx="87.7" cy="19.58" rx="1.63" ry="0.24" fill="rgba(205,209,215,0.11)" transform="rotate(-12.3 87.7 19.58)"/><ellipse cx="81.68" cy="21.25" rx="1.3" ry="0.43" fill="rgba(206,209,214,0.116)" transform="rotate(-37.4 81.68 21.25)"/><ellipse cx="86.84" cy="21.23" rx="1.51" ry="0.44" fill="rgba(205,209,215,0.074)" transform="rotate(-26.2 86.84 21.23)"/><ellipse cx="81.91" cy="20.17" rx="1.39" ry="0.29" fill="rgba(206,209,214,0.118)" transform="rotate(-34.9 81.91 20.17)"/><ellipse cx="85.67" cy="22.49" rx="0.91" ry="0.31" fill="rgba(206,209,215,0.121)" transform="rotate(-14.8 85.67 22.49)"/><ellipse cx="83.24" cy="18.91" rx="1.63" ry="0.29" fill="rgba(205,209,214,0.061)" transform="rotate(-23.3 83.24 18.91)"/><ellipse cx="83.11" cy="22.86" rx="1.67" ry="0.26" fill="rgba(206,209,215,0.118)" transform="rotate(-26.4 83.11 22.86)"/><ellipse cx="88.18" cy="21.06" rx="1.14" ry="0.4" fill="rgba(205,209,215,0.051)" transform="rotate(-37.2 88.18 21.06)"/><ellipse cx="106.08" cy="32.07" rx="1.23" ry="0.28" fill="rgba(208,208,221,0.118)" transform="rotate(30.7 106.08 32.07)"/><ellipse cx="103.81" cy="31.94" rx="1.01" ry="0.53" fill="rgba(208,208,221,0.093)" transform="rotate(20.6 103.81 31.94)"/><ellipse cx="105.1" cy="33.02" rx="0.82" ry="0.37" fill="rgba(209,208,221,0.085)" transform="rotate(42.8 105.1 33.02)"/><ellipse cx="104.61" cy="33.45" rx="0.9" ry="0.42" fill="rgba(209,208,221,0.082)" transform="rotate(38.1 104.61 33.45)"/><ellipse cx="104.78" cy="33.07" rx="0.95" ry="0.29" fill="rgba(209,208,221,0.107)" transform="rotate(19.8 104.78 33.07)"/><ellipse cx="15.66" cy="83.34" rx="0.86" ry="0.44" fill="rgba(232,219,196,0.068)" transform="rotate(47.1 15.66 83.34)"/><ellipse cx="16.42" cy="88.95" rx="1.48" ry="0.37" fill="rgba(233,220,194,0.122)" transform="rotate(48.6 16.42 88.95)"/><ellipse cx="14.94" cy="86.28" rx="1.21" ry="0.5" fill="rgba(232,219,195,0.054)" transform="rotate(58.0 14.94 86.28)"/><ellipse cx="14.67" cy="88.75" rx="1.37" ry="0.27" fill="rgba(233,220,194,0.107)" transform="rotate(56.1 14.67 88.75)"/><ellipse cx="17.47" cy="86.5" rx="0.97" ry="0.49" fill="rgba(232,219,195,0.117)" transform="rotate(49.2 17.47 86.5)"/><ellipse cx="17.01" cy="84.52" rx="1.56" ry="0.45" fill="rgba(232,219,196,0.117)" transform="rotate(47.1 17.01 84.52)"/><ellipse cx="148.94" cy="63.48" rx="1.42" ry="0.45" fill="rgba(225,210,216,0.115)" transform="rotate(-38.0 148.94 63.48)"/><ellipse cx="155.12" cy="66.9" rx="1.03" ry="0.58" fill="rgba(228,210,215,0.096)" transform="rotate(-31.1 155.12 66.9)"/><ellipse cx="155.55" cy="66.05" rx="1.35" ry="0.33" fill="rgba(228,210,215,0.099)" transform="rotate(-28.3 155.55 66.05)"/><ellipse cx="153.06" cy="66.65" rx="0.88" ry="0.42" fill="rgba(228,210,215,0.071)" transform="rotate(-48.3 153.06 66.65)"/><ellipse cx="41.44" cy="48.9" rx="1.35" ry="0.31" fill="rgba(218,212,209,0.119)" transform="rotate(-41.9 41.44 48.9)"/><ellipse cx="38.07" cy="49.97" rx="1.34" ry="0.39" fill="rgba(218,212,208,0.11)" transform="rotate(-28.5 38.07 49.97)"/><ellipse cx="36.49" cy="47.91" rx="0.99" ry="0.46" fill="rgba(217,212,208,0.116)" transform="rotate(-29.8 36.49 47.91)"/><ellipse cx="33.08" cy="48.13" rx="1.12" ry="0.49" fill="rgba(217,212,207,0.057)" transform="rotate(-34.8 33.08 48.13)"/><ellipse cx="35.73" cy="49.15" rx="1.45" ry="0.54" fill="rgba(218,212,207,0.116)" transform="rotate(-43.3 35.73 49.15)"/><ellipse cx="38.53" cy="50.65" rx="1.18" ry="0.29" fill="rgba(218,212,208,0.115)" transform="rotate(-23.0 38.53 50.65)"/><ellipse cx="30.22" cy="49.14" rx="1.47" ry="0.48" fill="rgba(218,213,206,0.118)" transform="rotate(-44.4 30.22 49.14)"/><ellipse cx="36.98" cy="49.73" rx="0.73" ry="0.56" fill="rgba(218,212,208,0.119)" transform="rotate(-40.0 36.98 49.73)"/><ellipse cx="102.11" cy="38.04" rx="1.68" ry="0.36" fill="rgba(212,208,221,0.063)" transform="rotate(-37.5 102.11 38.04)"/><ellipse cx="89.42" cy="42.26" rx="0.95" ry="0.24" fill="rgba(214,208,220,0.107)" transform="rotate(-35.5 89.42 42.26)"/><ellipse cx="100.58" cy="42.06" rx="1.68" ry="0.43" fill="rgba(214,208,221,0.063)" transform="rotate(-39.4 100.58 42.06)"/><ellipse cx="98.81" cy="42.66" rx="0.61" ry="0.55" fill="rgba(215,208,221,0.056)" transform="rotate(-43.9 98.81 42.66)"/><ellipse cx="91.27" cy="38.97" rx="1.78" ry="0.4" fill="rgba(212,208,220,0.061)" transform="rotate(-36.2 91.27 38.97)"/><ellipse cx="93.89" cy="40.03" rx="1.76" ry="0.47" fill="rgba(213,208,220,0.115)" transform="rotate(-56.1 93.89 40.03)"/><ellipse cx="95.2" cy="43.11" rx="0.68" ry="0.32" fill="rgba(215,208,221,0.084)" transform="rotate(-59.7 95.2 43.11)"/><ellipse cx="100.49" cy="43.92" rx="0.76" ry="0.42" fill="rgba(216,208,221,0.051)" transform="rotate(-41.9 100.49 43.92)"/><ellipse cx="92.25" cy="39.32" rx="1.45" ry="0.32" fill="rgba(213,208,220,0.079)" transform="rotate(-48.5 92.25 39.32)"/><ellipse cx="42.15" cy="8.69" rx="0.65" ry="0.48" fill="rgba(205,212,198,0.063)" transform="rotate(17.8 42.15 8.69)"/><ellipse cx="42.92" cy="6.75" rx="1.22" ry="0.4" fill="rgba(204,212,197,0.084)" transform="rotate(20.2 42.92 6.75)"/><ellipse cx="44.7" cy="5.89" rx="0.93" ry="0.51" fill="rgba(204,212,197,0.094)" transform="rotate(9.2 44.7 5.89)"/><ellipse cx="40.94" cy="5.82" rx="0.87" ry="0.55" fill="rgba(204,212,196,0.116)" transform="rotate(24.5 40.94 5.82)"/><ellipse cx="44.45" cy="8.02" rx="0.75" ry="0.42" fill="rgba(205,212,198,0.086)" transform="rotate(15.4 44.45 8.02)"/><ellipse cx="94.22" cy="44.55" rx="0.74" ry="0.39" fill="rgba(216,208,221,0.114)" transform="rotate(50.5 94.22 44.55)"/><ellipse cx="95.85" cy="43.37" rx="1.28" ry="0.46" fill="rgba(215,208,221,0.054)" transform="rotate(51.4 95.85 43.37)"/><ellipse cx="91.82" cy="46.68" rx="1.18" ry="0.39" fill="rgba(217,208,221,0.094)" transform="rotate(39.2 91.82 46.68)"/><ellipse cx="97.24" cy="43.4" rx="1.16" ry="0.3" fill="rgba(215,208,221,0.058)" transform="rotate(47.2 97.24 43.4)"/><ellipse cx="84.94" cy="45.27" rx="1.27" ry="0.27" fill="rgba(216,208,220,0.06)" transform="rotate(35.6 84.94 45.27)"/><ellipse cx="86.2" cy="45.59" rx="1.68" ry="0.54" fill="rgba(216,208,220,0.109)" transform="rotate(53.2 86.2 45.59)"/><ellipse cx="88.77" cy="45.86" rx="1.17" ry="0.31" fill="rgba(216,208,220,0.071)" transform="rotate(42.8 88.77 45.86)"/><ellipse cx="84.79" cy="47.22" rx="1.52" ry="0.51" fill="rgba(217,208,220,0.098)" transform="rotate(34.4 84.79 47.22)"/><ellipse cx="100.04" cy="15.09" rx="0.96" ry="0.24" fill="rgba(203,209,217,0.094)" transform="rotate(36.1 100.04 15.09)"/><ellipse cx="100.18" cy="15.41" rx="1.04" ry="0.44" fill="rgba(203,209,217,0.06)" transform="rotate(31.9 100.18 15.41)"/><ellipse cx="102.95" cy="13.84" rx="1.04" ry="0.42" fill="rgba(202,209,218,0.123)" transform="rotate(43.5 102.95 13.84)"/><ellipse cx="100.69" cy="13.61" rx="1.37" ry="0.46" fill="rgba(202,209,217,0.067)" transform="rotate(25.3 100.69 13.61)"/><ellipse cx="99.82" cy="13.38" rx="1.12" ry="0.37" fill="rgba(203,209,217,0.059)" transform="rotate(39.0 99.82 13.38)"/><ellipse cx="101.34" cy="14.01" rx="0.63" ry="0.47" fill="rgba(202,209,217,0.065)" transform="rotate(36.4 101.34 14.01)"/><ellipse cx="103.92" cy="12.93" rx="1.61" ry="0.49" fill="rgba(202,209,218,0.067)" transform="rotate(32.5 103.92 12.93)"/><ellipse cx="101.82" cy="13.02" rx="0.85" ry="0.41" fill="rgba(202,209,217,0.062)" transform="rotate(31.0 101.82 13.02)"/><ellipse cx="126.66" cy="85.66" rx="1.56" ry="0.45" fill="rgba(234,211,213,0.075)" transform="rotate(-3.7 126.66 85.66)"/><ellipse cx="131.05" cy="88.06" rx="1.17" ry="0.3" fill="rgba(235,211,213,0.112)" transform="rotate(-6.5 131.05 88.06)"/><ellipse cx="127.33" cy="88.53" rx="0.63" ry="0.26" fill="rgba(235,211,213,0.054)" transform="rotate(-9.9 127.33 88.53)"/><ellipse cx="129.74" cy="87.72" rx="1.6" ry="0.39" fill="rgba(235,211,213,0.06)" transform="rotate(-4.8 129.74 87.72)"/><ellipse cx="127.61" cy="87.55" rx="1.0" ry="0.52" fill="rgba(235,211,213,0.116)" transform="rotate(-10.3 127.61 87.55)"/><ellipse cx="128.86" cy="85.55" rx="1.02" ry="0.57" fill="rgba(235,211,213,0.12)" transform="rotate(-11.7 128.86 85.55)"/><ellipse cx="94.38" cy="83.93" rx="1.25" ry="0.29" fill="rgba(231,211,213,0.085)" transform="rotate(6.7 94.38 83.93)"/><ellipse cx="93.82" cy="83.91" rx="1.71" ry="0.39" fill="rgba(231,211,213,0.052)" transform="rotate(16.4 93.82 83.91)"/><ellipse cx="97.17" cy="81.76" rx="1.15" ry="0.55" fill="rgba(231,211,214,0.068)" transform="rotate(9.5 97.17 81.76)"/><ellipse cx="97.43" cy="82.7" rx="0.99" ry="0.48" fill="rgba(231,211,214,0.097)" transform="rotate(19.5 97.43 82.7)"/><ellipse cx="100.22" cy="83.93" rx="1.25" ry="0.28" fill="rgba(231,211,214,0.052)" transform="rotate(13.6 100.22 83.93)"/><ellipse cx="91.88" cy="88.35" rx="1.08" ry="0.28" fill="rgba(231,212,212,0.055)" transform="rotate(13.2 91.88 88.35)"/><ellipse cx="90.19" cy="82.11" rx="0.71" ry="0.53" fill="rgba(230,211,213,0.082)" transform="rotate(6.1 90.19 82.11)"/><ellipse cx="98.33" cy="83.45" rx="1.53" ry="0.33" fill="rgba(231,211,214,0.057)" transform="rotate(28.0 98.33 83.45)"/><ellipse cx="149.4" cy="10.9" rx="1.3" ry="0.58" fill="rgba(194,208,221,0.068)" transform="rotate(35.4 149.4 10.9)"/><ellipse cx="153.01" cy="11.88" rx="1.27" ry="0.29" fill="rgba(194,208,221,0.056)" transform="rotate(32.5 153.01 11.88)"/><ellipse cx="153.17" cy="13.01" rx="1.18" ry="0.42" fill="rgba(194,208,221,0.09)" transform="rotate(22.7 153.17 13.01)"/><ellipse cx="153.4" cy="12.74" rx="1.5" ry="0.24" fill="rgba(194,208,221,0.118)" transform="rotate(43.9 153.4 12.74)"/><ellipse cx="150.95" cy="11.17" rx="1.6" ry="0.51" fill="rgba(194,208,221,0.06)" transform="rotate(29.7 150.95 11.17)"/><ellipse cx="62.97" cy="44.24" rx="0.67" ry="0.47" fill="rgba(215,209,215,0.061)" transform="rotate(-42.3 62.97 44.24)"/><ellipse cx="69.92" cy="47.89" rx="1.58" ry="0.32" fill="rgba(218,209,217,0.102)" transform="rotate(-34.3 69.92 47.89)"/><ellipse cx="60.33" cy="42.71" rx="1.32" ry="0.38" fill="rgba(214,210,214,0.104)" transform="rotate(-39.0 60.33 42.71)"/><ellipse cx="67.13" cy="41.29" rx="1.67" ry="0.53" fill="rgba(213,209,216,0.086)" transform="rotate(-42.2 67.13 41.29)"/><ellipse cx="63.36" cy="44.15" rx="0.93" ry="0.45" fill="rgba(215,209,215,0.083)" transform="rotate(-37.6 63.36 44.15)"/><ellipse cx="118.72" cy="73.48" rx="0.78" ry="0.39" fill="rgba(231,210,216,0.082)" transform="rotate(-39.2 118.72 73.48)"/><ellipse cx="123.45" cy="74.33" rx="1.64" ry="0.57" fill="rgba(232,210,215,0.123)" transform="rotate(-24.5 123.45 74.33)"/><ellipse cx="119.57" cy="72.62" rx="1.5" ry="0.25" fill="rgba(231,210,216,0.092)" transform="rotate(-28.8 119.57 72.62)"/><ellipse cx="126.78" cy="73.27" rx="1.45" ry="0.55" fill="rgba(232,210,215,0.123)" transform="rotate(-25.2 126.78 73.27)"/><ellipse cx="118.82" cy="72.99" rx="0.83" ry="0.32" fill="rgba(231,210,216,0.106)" transform="rotate(-22.6 118.82 72.99)"/><ellipse cx="63.3" cy="24.31" rx="0.87" ry="0.49" fill="rgba(208,210,210,0.124)" transform="rotate(8.6 63.3 24.31)"/><ellipse cx="58.96" cy="23.76" rx="0.64" ry="0.5" fill="rgba(208,210,209,0.074)" transform="rotate(2.4 58.96 23.76)"/><ellipse cx="61.79" cy="22.22" rx="1.49" ry="0.31" fill="rgba(207,210,209,0.093)" transform="rotate(11.1 61.79 22.22)"/><ellipse cx="63.69" cy="19.48" rx="1.77" ry="0.28" fill="rgba(206,210,209,0.084)" transform="rotate(-1.9 63.69 19.48)"/><ellipse cx="56.63" cy="22.41" rx="1.5" ry="0.42" fill="rgba(207,210,207,0.082)" transform="rotate(15.0 56.63 22.41)"/><ellipse cx="58.49" cy="22.69" rx="0.96" ry="0.45" fill="rgba(207,210,208,0.053)" transform="rotate(22.3 58.49 22.69)"/><ellipse cx="114.88" cy="90.64" rx="0.62" ry="0.33" fill="rgba(234,211,214,0.067)" transform="rotate(34.3 114.88 90.64)"/><ellipse cx="111.61" cy="90.1" rx="1.14" ry="0.25" fill="rgba(233,211,214,0.067)" transform="rotate(26.9 111.61 90.1)"/><ellipse cx="111.85" cy="90.47" rx="0.67" ry="0.31" fill="rgba(233,211,214,0.062)" transform="rotate(27.6 111.85 90.47)"/><ellipse cx="112.97" cy="90.52" rx="1.59" ry="0.35" fill="rgba(233,211,214,0.078)" transform="rotate(40.8 112.97 90.52)"/><ellipse cx="114.02" cy="91.97" rx="1.48" ry="0.35" fill="rgba(234,211,214,0.058)" transform="rotate(28.2 114.02 91.97)"/><ellipse cx="118.44" cy="89.69" rx="1.63" ry="0.29" fill="rgba(234,211,214,0.12)" transform="rotate(34.1 118.44 89.69)"/><ellipse cx="111.35" cy="91.46" rx="1.17" ry="0.41" fill="rgba(233,211,214,0.061)" transform="rotate(21.5 111.35 91.46)"/><ellipse cx="118.23" cy="92.05" rx="0.76" ry="0.49" fill="rgba(234,211,213,0.074)" transform="rotate(32.0 118.23 92.05)"/><ellipse cx="115.52" cy="89.13" rx="0.98" ry="0.54" fill="rgba(233,211,214,0.104)" transform="rotate(29.1 115.52 89.13)"/><ellipse cx="92.52" cy="97.04" rx="1.34" ry="0.56" fill="rgba(233,212,211,0.101)" transform="rotate(36.6 92.52 97.04)"/><ellipse cx="102.58" cy="96.5" rx="1.62" ry="0.4" fill="rgba(233,211,212,0.115)" transform="rotate(15.9 102.58 96.5)"/><ellipse cx="99.14" cy="95.34" rx="0.69" ry="0.27" fill="rgba(233,212,212,0.059)" transform="rotate(25.2 99.14 95.34)"/><ellipse cx="95.24" cy="96.67" rx="1.21" ry="0.42" fill="rgba(233,212,211,0.088)" transform="rotate(26.0 95.24 96.67)"/><ellipse cx="92.85" cy="94.23" rx="1.51" ry="0.38" fill="rgba(232,212,211,0.059)" transform="rotate(31.9 92.85 94.23)"/><ellipse cx="102.66" cy="91.37" rx="0.8" ry="0.29" fill="rgba(233,211,213,0.086)" transform="rotate(-2.4 102.66 91.37)"/><ellipse cx="101.19" cy="91.71" rx="1.03" ry="0.32" fill="rgba(232,211,213,0.066)" transform="rotate(-6.2 101.19 91.71)"/><ellipse cx="112.47" cy="88.32" rx="1.66" ry="0.46" fill="rgba(233,211,214,0.077)" transform="rotate(0.5 112.47 88.32)"/><ellipse cx="108.7" cy="86.84" rx="1.51" ry="0.45" fill="rgba(232,210,215,0.096)" transform="rotate(11.4 108.7 86.84)"/><ellipse cx="102.38" cy="85.75" rx="1.65" ry="0.35" fill="rgba(232,211,214,0.058)" transform="rotate(1.8 102.38 85.75)"/><ellipse cx="115.6" cy="90.98" rx="1.05" ry="0.34" fill="rgba(234,211,214,0.118)" transform="rotate(14.7 115.6 90.98)"/><ellipse cx="36.96" cy="46.91" rx="1.15" ry="0.26" fill="rgba(217,212,208,0.055)" transform="rotate(53.9 36.96 46.91)"/><ellipse cx="33.24" cy="46.88" rx="0.88" ry="0.32" fill="rgba(217,212,207,0.056)" transform="rotate(36.7 33.24 46.88)"/><ellipse cx="31.19" cy="47.5" rx="1.15" ry="0.29" fill="rgba(217,212,206,0.077)" transform="rotate(41.1 31.19 47.5)"/><ellipse cx="37.7" cy="44.83" rx="0.75" ry="0.27" fill="rgba(216,212,208,0.069)" transform="rotate(49.5 37.7 44.83)"/><ellipse cx="36.68" cy="47.09" rx="1.17" ry="0.47" fill="rgba(217,212,208,0.088)" transform="rotate(49.9 36.68 47.09)"/><ellipse cx="36.63" cy="42.93" rx="0.76" ry="0.34" fill="rgba(215,212,207,0.063)" transform="rotate(36.2 36.63 42.93)"/><ellipse cx="33.99" cy="43.65" rx="0.83" ry="0.38" fill="rgba(215,212,207,0.106)" transform="rotate(36.7 33.99 43.65)"/><ellipse cx="35.02" cy="55.45" rx="1.0" ry="0.49" fill="rgba(221,213,207,0.097)" transform="rotate(-43.6 35.02 55.45)"/><ellipse cx="36.06" cy="55.74" rx="1.62" ry="0.47" fill="rgba(221,213,208,0.102)" transform="rotate(-35.3 36.06 55.74)"/><ellipse cx="36.16" cy="55.73" rx="0.74" ry="0.55" fill="rgba(221,213,208,0.057)" transform="rotate(-46.4 36.16 55.73)"/><ellipse cx="33.67" cy="55.31" rx="1.09" ry="0.53" fill="rgba(221,213,207,0.072)" transform="rotate(-44.5 33.67 55.31)"/><ellipse cx="31.3" cy="58.13" rx="1.14" ry="0.58" fill="rgba(222,214,206,0.074)" transform="rotate(-45.2 31.3 58.13)"/><ellipse cx="33.49" cy="56.63" rx="0.91" ry="0.3" fill="rgba(221,213,207,0.059)" transform="rotate(-32.6 33.49 56.63)"/><ellipse cx="109.5" cy="51.1" rx="1.61" ry="0.51" fill="rgba(219,208,220,0.059)" transform="rotate(-46.9 109.5 51.1)"/><ellipse cx="106.98" cy="46.38" rx="0.67" ry="0.54" fill="rgba(217,208,221,0.062)" transform="rotate(-42.2 106.98 46.38)"/><ellipse cx="111.25" cy="46.31" rx="0.87" ry="0.45" fill="rgba(216,208,221,0.058)" transform="rotate(-57.1 111.25 46.31)"/><ellipse cx="113.69" cy="51.8" rx="0.91" ry="0.33" fill="rgba(219,209,220,0.072)" transform="rotate(-36.1 113.69 51.8)"/><ellipse cx="116.15" cy="49.04" rx="1.2" ry="0.56" fill="rgba(217,209,220,0.108)" transform="rotate(-37.1 116.15 49.04)"/><ellipse cx="113.51" cy="49.57" rx="0.89" ry="0.48" fill="rgba(218,209,220,0.125)" transform="rotate(-40.4 113.51 49.57)"/><ellipse cx="118.13" cy="51.96" rx="1.42" ry="0.4" fill="rgba(219,209,220,0.104)" transform="rotate(-53.2 118.13 51.96)"/><ellipse cx="112.68" cy="51.63" rx="1.41" ry="0.34" fill="rgba(219,209,220,0.096)" transform="rotate(-48.5 112.68 51.63)"/><ellipse cx="116.18" cy="50.84" rx="0.98" ry="0.41" fill="rgba(218,209,220,0.123)" transform="rotate(-42.7 116.18 50.84)"/><ellipse cx="72.44" cy="62.28" rx="0.72" ry="0.25" fill="rgba(226,210,216,0.073)" transform="rotate(-31.9 72.44 62.28)"/><ellipse cx="78.72" cy="59.21" rx="1.63" ry="0.3" fill="rgba(225,210,218,0.076)" transform="rotate(-33.5 78.72 59.21)"/><ellipse cx="82.54" cy="58.59" rx="1.17" ry="0.51" fill="rgba(224,209,219,0.11)" transform="rotate(-50.6 82.54 58.59)"/><ellipse cx="79.17" cy="56.99" rx="0.91" ry="0.52" fill="rgba(223,209,219,0.075)" transform="rotate(-32.1 79.17 56.99)"/><ellipse cx="77.99" cy="57.54" rx="1.51" ry="0.36" fill="rgba(224,209,218,0.052)" transform="rotate(-41.2 77.99 57.54)"/><ellipse cx="77.54" cy="60.65" rx="1.31" ry="0.38" fill="rgba(226,210,217,0.12)" transform="rotate(-55.6 77.54 60.65)"/><ellipse cx="75.74" cy="60.64" rx="0.96" ry="0.55" fill="rgba(226,210,217,0.081)" transform="rotate(-34.3 75.74 60.64)"/><ellipse cx="71.39" cy="59.28" rx="1.63" ry="0.31" fill="rgba(225,210,216,0.079)" transform="rotate(-33.1 71.39 59.28)"/><ellipse cx="81.43" cy="61.69" rx="0.7" ry="0.53" fill="rgba(226,210,217,0.054)" transform="rotate(-48.6 81.43 61.69)"/><ellipse cx="62.74" cy="0.72" rx="0.63" ry="0.44" fill="rgba(203,211,202,0.079)" transform="rotate(-19.1 62.74 0.72)"/><ellipse cx="69.86" cy="3.36" rx="1.3" ry="0.26" fill="rgba(203,211,205,0.094)" transform="rotate(-31.2 69.86 3.36)"/><ellipse cx="58.23" cy="2.66" rx="1.52" ry="0.4" fill="rgba(204,212,201,0.054)" transform="rotate(-27.2 58.23 2.66)"/><ellipse cx="70.08" cy="-0.41" rx="1.03" ry="0.41" fill="rgba(202,211,204,0.125)" transform="rotate(-36.5 70.08 -0.41)"/><ellipse cx="68.03" cy="-0.7" rx="1.52" ry="0.3" fill="rgba(202,211,203,0.106)" transform="rotate(-35.7 68.03 -0.7)"/><ellipse cx="68.05" cy="1.21" rx="1.45" ry="0.47" fill="rgba(203,211,204,0.12)" transform="rotate(-18.9 68.05 1.21)"/><ellipse cx="68.36" cy="3.8" rx="1.33" ry="0.35" fill="rgba(203,211,205,0.089)" transform="rotate(-35.2 68.36 3.8)"/></svg></div>
+  <div class="glaze" aria-hidden="true"></div>
+  <div class="linen" aria-hidden="true"></div>
+
+  <div class="top-scrim" aria-hidden="true"></div>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#"><img src="logo.png" alt="" /><span>SuperAgent</span></a>
+      <div class="nav-links">
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
+        <a class="nav-btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero io demo">
+    <div class="wrap">
+      <img class="hero-mark rise" src="logo.png" alt="SuperAgent logo" width="64" height="64" />
+      <h1 class="rise" style="--d:.08s">A home for your agent. <em>On your machine.</em></h1>
+      <p class="hero-sub rise" style="--d:.16s">
+        SuperAgent gives Claude Code a place to live on your Mac: a real browser it
+        drives, an iPhone in the window, chats that survive restarts. It runs on your
+        own Claude subscription, so there is no server of ours in the middle. And every
+        line of it is open source, so you never have to take that on faith.
+      </p>
+      <ul class="trust rise" style="--d:.2s">
+        <li><span class="tk">&#9679;</span> Nothing leaves your Mac</li>
+        <li><span class="tk">&#9679;</span> No account, no telemetry</li>
+        <li><span class="tk">&#9679;</span> MIT, read every line</li>
+      </ul>
+      <div class="hero-ctas rise" style="--d:.24s">
+        <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple">&#63743;</span> Download for Mac</a>
+        <a class="link" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+      <p class="note rise" style="--d:.3s">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription</p>
+
+      <div class="hero-stage">
+        <figure class="hero-shot rise" style="--d:.4s">
+          <img src="hero.png" alt="The SuperAgent window: stripe.com open in the browser pane as a desktop card and an iPhone side by side, with the chat that opened it reporting what it found" width="2720" height="1800" fetchpriority="high" decoding="async" />
+        </figure>
+      </div>
+  </header>
+
+
+  <!-- 1 · sidebar -->
+  <section class="feature io demo" id="features">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">I.</span>The sidebar</span>
+        <h2>Tabs above, <em>conversations</em> below.</h2>
+        <p>Plain browser tabs at the top of the sidebar, your chats underneath. Browse first, summon the agent when you need it, and let unread dots tell you which conversation finished while you were looking away.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane glass bob" style="--bobd:10s">
+          <div class="mini">
+            <div class="chrome"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">SuperAgent</span></div>
+            <div class="d1-body">
+              <aside class="d1-side">
+                <div class="side-label">Tabs</div>
+                <div class="d1-tabs">
+                  <span class="d1-hl"></span>
+                  <div class="side-row"><i class="fv fv1"></i><span>linear.app</span></div>
+                  <div class="side-row"><i class="fv fv2"></i><span>docs · vite</span></div>
+                  <div class="side-row"><i class="fv fv3"></i><span>localhost:5173</span></div>
+                </div>
+                <div class="side-label" style="margin-top:8px">Chats</div>
+                <div class="side-row"><span>Fix auth test</span><i class="udot d1-dotA"></i></div>
+                <div class="side-row on"><span>Landing copy</span></div>
+                <div class="side-row"><span>Migrate pnpm</span><i class="udot d1-dotB"></i></div>
+              </aside>
+              <div class="d1-main">
+                <div class="d1-pg d1-pg1">
+                  <div class="ln dk" style="width:42%; height:10px"></div>
+                  <div class="d1-row"><span class="d1-check done"></span><span class="ln" style="flex:1"></span></div>
+                  <div class="d1-row"><span class="d1-check done"></span><span class="ln" style="flex:1; max-width:78%"></span></div>
+                  <div class="d1-row"><span class="d1-check"></span><span class="ln" style="flex:1; max-width:86%"></span></div>
+                  <div class="d1-row"><span class="d1-check"></span><span class="ln" style="flex:1; max-width:64%"></span></div>
+                </div>
+                <div class="d1-pg d1-pg2">
+                  <div class="ln dk" style="width:56%; height:10px"></div>
+                  <div class="ln" style="width:92%"></div>
+                  <div class="ln" style="width:88%"></div>
+                  <div class="ln" style="width:70%"></div>
+                  <div class="ln dk" style="width:38%; margin-top:6px"></div>
+                  <div class="ln" style="width:84%"></div>
+                  <div class="ln" style="width:60%"></div>
+                </div>
+                <div class="d1-pg d1-pg3">
+                  <div class="mp-hero" style="height:74px"></div>
+                  <div class="ln" style="width:72%"></div>
+                  <div class="ln" style="width:48%"></div>
+                  <div class="ln dk" style="width:32%; height:16px; border-radius:6px"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="pane-cap">The highlight glides; each tab brings its page.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · worktrees -->
+  <section class="feature flip io demo">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">II.</span>Worktree chats</span>
+        <h2>Each chat, its <em>own branch.</em></h2>
+        <p>Start a chat on its own git worktree. The agent commits on an isolated branch while your checkout stays exactly as you left it, clean, untouched, still yours.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane glass bob" style="--bobd:11s; --bobo:-2s">
+          <div class="mini">
+            <div class="d2-top">
+              <span class="tagchip vio">worktree chat</span>
+              <span class="tagchip">superagent/fix-auth</span>
+              <span class="chrome-title" style="margin-left:auto">Fix the flaky auth test</span>
+            </div>
+            <div class="d2-stage">
+              <div class="d2-graph">
+                <span class="d2-commit-msg">&#10003; stub clock in auth spec</span>
+                <span class="d2-lbl br-l">superagent/fix-auth</span>
+                <span class="d2-line d2-main-line"></span>
+                <span class="d2-line d2-diag"></span>
+                <span class="d2-line d2-branch-line"></span>
+                <span class="d2-c d2-cm cm1"></span>
+                <span class="d2-c d2-cm cm2"></span>
+                <span class="d2-c d2-cm cm3"></span>
+                <span class="d2-c d2-cb cb1 d2-pop1"></span>
+                <span class="d2-c d2-cb cb2 d2-pop2"></span>
+                <span class="d2-c d2-cb cb3 d2-pop3"></span>
+                <span class="d2-lbl main-l">main</span>
+                <span class="d2-clean"><i>&#10003;</i> your checkout · clean</span>
+              </div>
+            </div>
+          </div>
+          <p class="pane-cap">Commits land on the branch; main never stirs.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · simulator -->
+  <section class="feature io demo">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">III.</span>The simulator</span>
+        <h2>An iPhone, <em>living</em> in the window.</h2>
+        <p>An iOS Simulator streamed inside the app from its own framebuffer, the real device, live, tap and type included. Nothing to grant, nothing to install.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane glass bob" style="--bobd:9.5s; --bobo:-4s">
+          <div class="mini">
+            <div class="chrome"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Simulator · iPhone 16</span><span class="live"><i></i>streaming</span></div>
+            <div class="d3-flex">
+              <div class="iphone d3-phone">
+                <span class="island"></span>
+                <div class="iphone-screen">
+                  <div class="d3-app">
+                    <div class="d3-navbar"><span class="d3-title">Orders</span><span class="ln dk" style="width:20px"></span></div>
+                    <div class="d3-list">
+                      <div class="d3-card hl">
+                        <span class="d3-ripple"></span>
+                        <span class="ln dk" style="width:52%"></span>
+                        <span class="ln" style="width:76%"></span>
+                      </div>
+                      <div class="d3-card"><span class="ln dk" style="width:44%"></span><span class="ln" style="width:68%"></span></div>
+                      <div class="d3-card"><span class="ln dk" style="width:58%"></span><span class="ln" style="width:72%"></span></div>
+                      <div class="d3-card"><span class="ln dk" style="width:40%"></span><span class="ln" style="width:64%"></span></div>
+                    </div>
+                  </div>
+                  <div class="d3-sheet">
+                    <span class="d3-grab"></span>
+                    <span class="ln dk" style="width:46%; height:9px"></span>
+                    <span class="ln" style="width:82%"></span>
+                    <span class="ln" style="width:70%"></span>
+                    <span class="d3-btn">Confirm order</span>
+                  </div>
+                </div>
+              </div>
+              <div class="d3-chat">
+                <div class="who">The chat, beside it</div>
+                <div class="bubble bub-user d3-m1">Check the confirm button still works on iPhone.</div>
+                <div class="bubble bub-agent d3-m2">Booting the simulator and opening Orders.</div>
+                <span class="tagchip d3-m3">sim_tap &rsaquo; row 2</span>
+                <div class="bubble bub-agent d3-m4">Tapped it. The sheet opens and <b>Confirm is enabled.</b></div>
+              </div>
+            </div>
+          </div>
+          <p class="pane-cap">You ask once. It boots the device, taps, and reports back.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · two live views -->
+  <section class="feature flip io demo">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">IV.</span>Desktop &amp; phone at once</span>
+        <h2>One page, <em>seen twice.</em></h2>
+        <p>One click shows the same page in a desktop card and an iPhone frame, same session, both live. Scroll one and the other follows; every change lands in both at once.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane glass bob" style="--bobd:10.5s; --bobo:-1s">
+          <div class="d4-flex">
+            <div class="d4-desktop">
+              <div class="mp-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="mp-url">yoursite.dev/launch</span></div>
+              <div class="d4-view">
+                <div class="pm">
+                  <div class="pm-nav"><span class="pm-logo"></span><span class="ln" style="width:26px"></span><span class="ln" style="width:26px"></span><span class="ln dk" style="width:38px; margin-left:auto"></span></div>
+                  <div class="pm-hero"></div>
+                  <div class="ln dk" style="width:62%; height:9px"></div>
+                  <div class="ln" style="width:84%"></div>
+                  <div class="ln" style="width:52%"></div>
+                  <div class="pm-btn"></div>
+                  <div class="pm-cards"><span class="pm-card"></span><span class="pm-card"></span><span class="pm-card"></span></div>
+                  <div class="ln" style="width:70%"></div>
+                  <div class="ln" style="width:58%"></div>
+                </div>
+              </div>
+            </div>
+            <div class="iphone d4-phone">
+              <span class="island"></span>
+              <div class="iphone-screen">
+                <div class="pm" style="padding-top:30px">
+                  <div class="pm-nav"><span class="pm-logo"></span><span class="ln dk" style="width:30px; margin-left:auto"></span></div>
+                  <div class="pm-hero" style="height:52px"></div>
+                  <div class="ln dk" style="width:74%; height:8px"></div>
+                  <div class="ln" style="width:90%"></div>
+                  <div class="ln" style="width:64%"></div>
+                  <div class="pm-btn" style="width:64px; height:18px"></div>
+                  <div class="pm-cards" style="flex-direction:column"><span class="pm-card" style="height:30px"></span><span class="pm-card" style="height:30px"></span></div>
+                  <div class="ln" style="width:76%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="d4-badge"><i></i>same session · both live</div>
+          <p class="pane-cap">Two mirrors of one pond.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · automation -->
+  <section class="feature io demo">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">V.</span>Browser automation</span>
+        <h2>Hands <em>on the page.</em></h2>
+        <p>You set the goal in one line. It opens the page beside the conversation and works it like you would: reading, typing into the search box, pressing the button, screenshotting what came back. You are not driving any of it, you are just watching it happen.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane glass bob" style="--bobd:11.5s; --bobo:-5s">
+          <div class="d5-goal">
+            <span class="who">You said</span>
+            <span class="said">&ldquo;Check the docs search still works.&rdquo;</span>
+          </div>
+          <div class="d5-stage">
+            <div class="d5-page">
+              <div class="mp-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="mp-url">yoursite.dev/docs</span></div>
+              <div class="d5-form">
+                <div>
+                  <div class="d5-label">Search the docs</div>
+                  <div class="d5-field"><span class="d5-text">worktrees</span><span class="d5-caret"></span></div>
+                </div>
+                <div class="d5-go">Search</div>
+                <div class="d5-results">
+                  <div class="d5-res"><i></i>Worktree chats</div>
+                  <div class="d5-res"><i></i>Starting a worktree</div>
+                  <div class="d5-res"><i></i>Merging it back</div>
+                </div>
+              </div>
+            </div>
+            <span class="d5-click d5-click1"></span>
+            <span class="d5-click d5-click2"></span>
+            <div class="d5-flash"></div>
+            <div class="d5-shot"><div class="thumb"></div><div class="cap">screenshot.png</div></div>
+            <div class="d5-cursor"></div>
+          </div>
+          <span class="d5-then">Then it went and did this</span>
+          <div class="d5-steps" aria-hidden="true">
+            <div class="d5-step"><span class="n">01</span><span><b>Reads</b> the page</span></div>
+            <div class="d5-step"><span class="n">02</span><span><b>Types</b> &ldquo;worktrees&rdquo; into the search box</span></div>
+            <div class="d5-step"><span class="n">03</span><span><b>Clicks</b> Search, and the results come back</span></div>
+            <div class="d5-step"><span class="n">04</span><span><b>Screenshots</b> the result into the chat</span></div>
+          </div>
+          <p class="pane-cap">One instruction from you. The rest is the agent, in your own browser.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · the desk -->
+  <section class="desk-sec io demo">
+    <div class="wrap">
+      <div class="desk-head" data-rv>
+        <span class="kicker"><span class="num">VI.</span>The finale</span>
+        <h2>The computer <em>inside</em> SuperAgent.</h2>
+        <p>A desk, not a slot. The page you're on, the simulator, the board Claude keeps, and your dashboard, side by side on one surface, over a Monet you can switch off.</p>
+      </div>
+      <div class="desk" data-rv style="--d:.1s">
+        <div class="desk-grid">
+          <div class="dk dk-browser" style="--d:.25s">
+            <div class="chrome"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">localhost:5173 · preview</span><span class="live"><i></i>dev server</span></div>
+            <div class="mini-page" style="flex:1">
+              <div class="mp-body">
+                <div class="mp-hero hw-swap" style="height:84px"></div>
+                <div class="ln dk" style="width:54%; height:10px"></div>
+                <div class="ln" style="width:82%"></div>
+                <div class="ln" style="width:66%"></div>
+                <div class="pm-cards" style="margin-top:6px"><span class="pm-card"></span><span class="pm-card"></span><span class="pm-card"></span></div>
+                <div class="ln" style="width:70%"></div>
+              </div>
+              <div class="shimmer"></div>
+            </div>
+          </div>
+          <div class="dk dk-sim" style="--d:.45s">
+            <div class="iphone dk-phone">
+              <span class="island"></span>
+              <div class="iphone-screen">
+                <div class="d3-app">
+                  <div class="d3-navbar"><span class="d3-title">Preview</span><span class="ln dk" style="width:18px"></span></div>
+                  <div class="d3-list">
+                    <div class="mp-hero" style="height:48px; border-radius:10px"></div>
+                    <div class="d3-card"><span class="ln dk" style="width:50%"></span><span class="ln" style="width:74%"></span></div>
+                    <div class="d3-card"><span class="ln dk" style="width:42%"></span><span class="ln" style="width:66%"></span></div>
+                    <div class="d3-card"><span class="ln dk" style="width:56%"></span><span class="ln" style="width:70%"></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="dk dk-board" style="--d:.6s">
+            <div class="dk-title">The board Claude keeps</div>
+            <div class="kb-cols">
+              <div class="kb-col">
+                <h4>Next</h4>
+                <div class="kb-card"><span class="ln" style="width:88%"></span><span class="ln" style="width:60%"></span></div>
+                <div class="kb-card"><span class="ln" style="width:72%"></span></div>
+              </div>
+              <div class="kb-col">
+                <h4>Doing</h4>
+                <div class="kb-card kb-mover"><span class="ln dk" style="width:84%"></span><span class="ln" style="width:56%"></span><span class="kb-tag">agent</span></div>
+              </div>
+              <div class="kb-col">
+                <h4>Done</h4>
+                <div class="kb-card"><span class="ln" style="width:78%"></span></div>
+                <div class="kb-card"><span class="ln" style="width:64%"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="dk dk-dash" style="--d:.75s">
+            <div class="tile">
+              <div class="sm">Turns today</div>
+              <div class="big">42</div>
+              <div class="bars">
+                <span class="bar" style="--h:38; --d:.8s"></span>
+                <span class="bar" style="--h:62; --d:.88s"></span>
+                <span class="bar" style="--h:48; --d:.96s"></span>
+                <span class="bar" style="--h:80; --d:1.04s"></span>
+                <span class="bar" style="--h:58; --d:1.12s"></span>
+                <span class="bar" style="--h:92; --d:1.2s"></span>
+                <span class="bar" style="--h:70; --d:1.28s"></span>
+              </div>
+            </div>
+            <div class="tile">
+              <div class="sm">Streak</div>
+              <div class="big">12 <span style="font-size:0.9rem">days</span></div>
+              <div class="sm" style="margin-top:8px">Context</div>
+              <div class="gauge-bar"><span class="gauge-fill"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pane-cap" data-rv style="--d:.3s">Cards move themselves as the agent works, and each one remembers the conversation that raised it.</p>
+    </div>
+  </section>
+
+  <!-- details -->
+  <section class="open io">
+    <div class="wrap">
+      <div class="open-head" data-rv>
+        <span class="kicker"><span class="num">VII.</span> Open &amp; local</span>
+        <h2>Yours to inspect. <em>Yours to keep.</em></h2>
+        <p>An agent with a browser is an agent with your logins. That only works if you
+          can see where it runs and read what it does, so both are on the table.</p>
+      </div>
+      <div class="pillars">
+        <div class="pillar glass" data-rv>
+          <div class="mark">&#9671;</div>
+          <h3>Open source, <em>end to end.</em></h3>
+          <p>Not a wrapper with a peek at the source. The whole app is on GitHub under MIT.</p>
+          <ul>
+            <li><span class="tick">&#10003;</span><span><b>Read how it touches your browser.</b> The part that matters most is the part you can audit.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Build it yourself.</b> Clone it, change it, ship your own. MIT means MIT.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Signed and notarized by Apple</b>, so the build you download is the one that was published.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Issues in the open.</b> Bugs, roadmap and arguments all happen in public.</span></li>
+          </ul>
+        </div>
+        <div class="pillar glass" data-rv style="--d:.1s">
+          <div class="mark">&#8962;</div>
+          <h3>It never <em>phones home.</em></h3>
+          <p>There is no SuperAgent server. There is nowhere for your work to go but your own disk.</p>
+          <ul>
+            <li><span class="tick">&#10003;</span><span><b>Your chats, code and pages stay local.</b> Nothing is uploaded, because there is nothing to upload it to.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Your own Claude subscription.</b> The agent talks to Anthropic directly, with no proxy of ours in between and no second bill.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>No account, no analytics, no tracking.</b> There is no sign-up screen and no telemetry SDK in the build.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Your logins stay yours.</b> Browser sessions live in a profile on your Mac, the same as any browser.</span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="open-foot" data-rv>Don't take our word for it. <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">read the source</a>.</p>
+    </div>
+  </section>
+
+  <section class="details io">
+    <div class="wrap">
+      <div class="det-head" data-rv>
+        <span class="kicker">The small things</span>
+        <h2>Done <em>properly.</em></h2>
+      </div>
+      <div class="det-grid">
+        <div class="det" data-rv style="--d:.05s"><div class="glyph">a.</div><b>Survives restarts</b><span>Panes, open files, active chat, exactly where you left them, even through updates.</span></div>
+        <div class="det" data-rv style="--d:.12s"><div class="glyph">b.</div><b>Never steals focus</b><span>Agents finish quietly in the background. The window comes forward only when you ask.</span></div>
+        <div class="det" data-rv style="--d:.19s"><div class="glyph">c.</div><b>Interject mid-turn</b><span>Type while the agent works and it sees your message before it finishes, just like the terminal.</span></div>
+        <div class="det" data-rv style="--d:.26s"><div class="glyph">d.</div><b>Context gauge</b><span>Every conversation shows how much of the context window it has used.</span></div>
+        <div class="det" data-rv style="--d:.33s"><div class="glyph">e.</div><b>Useful notifications</b><span>Done or has a question, with a summary of the agent's actual last reply.</span></div>
+        <div class="det" data-rv style="--d:.4s"><div class="glyph">f.</div><b>Updates itself</b><span>Signed, notarized, delivered in the background. Restart when it suits you.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- closing -->
+  <section class="close-cta io">
+    <div class="wrap">
+      <div class="plaque" data-rv>
+        <h2>Give your agent <em>a screen.</em></h2>
+        <p class="how-line" data-rv style="--d:.1s"><b>Install.</b> Point it at something. <b>Talk.</b> Then watch it work in the pane next door.</p>
+        <div class="hero-ctas" data-rv style="--d:.2s">
+          <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple">&#63743;</span> Download for Mac</a>
+          <a class="link" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">All releases</a>
+        </div>
+        <p class="note" data-rv style="--d:.3s">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription<br />Apple Silicon · .dmg · auto-updates</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot">
+      <a class="nav-logo" href="#"><img src="logo.png" alt="" style="width:20px;height:20px" /><span>SuperAgent</span></a>
+      <span>MIT licensed</span>
+      <div class="foot-links">
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      document.documentElement.classList.add("js");
+      var sections = document.querySelectorAll(".io");
+      if (!("IntersectionObserver" in window)) {
+        sections.forEach(function (el) { el.classList.add("in", "play"); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) {
+            e.target.classList.add("in", "play");
+          } else {
+            e.target.classList.remove("play");
+          }
+        });
+      }, { threshold: 0.15, rootMargin: "0px 0px -5% 0px" });
+      sections.forEach(function (el) { io.observe(el); });
+    })();
+  </script>
+</body>
+</html>
