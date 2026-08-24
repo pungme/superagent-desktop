@@ -2013,7 +2013,12 @@ export function EasyChat({
   // backgrounded chat has sat idle: the transcript is React state and the session
   // id is persisted, so coming back is a --resume away.
   useEffect(() => {
-    if (visible || suspended || generating || thinking) return
+    // Never reap a chat that has live background work (a Monitor, a long poll, a
+    // running server the agent backgrounded). Reaping kills the claude process,
+    // and those jobs are its children — so an unseen monitoring session used to
+    // die 5 minutes after you switched away to work elsewhere. Its own work
+    // keeps it resident; the reaper re-arms once the background pills clear.
+    if (visible || suspended || generating || thinking || bgTasks.length > 0) return
     const timer = window.setTimeout(() => {
       const id = agentIdRef.current
       if (!id) return
