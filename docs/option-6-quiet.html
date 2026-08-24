@@ -438,9 +438,22 @@
     .d1-check { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--skel2); flex: none; }
     .d1-check.done { background: var(--sage); border-color: var(--sage); }
     .d1-dotA { animation: d1dotA 9s ease-in-out infinite; }
-    @keyframes d1dotA { 0%, 38% { opacity: 0; transform: scale(0.4); } 43%, 80% { opacity: 1; transform: scale(1); } 86%, 100% { opacity: 0; transform: scale(0.4); } }
+    @keyframes d1dotA { 0%, 42% { opacity: 0; transform: scale(0.4); } 47%, 82% { opacity: 1; transform: scale(1); } 88%, 100% { opacity: 0; transform: scale(0.4); } }
     .d1-dotB { animation: d1dotB 9s ease-in-out infinite; background: var(--blush); }
     @keyframes d1dotB { 0%, 8% { opacity: 1; transform: scale(1); } 14%, 100% { opacity: 0; transform: scale(0.4); } }
+
+    .d1-pg { gap: 7px; }
+    .d1-pg .bubble { font-size: 0.64rem; max-width: 86%; padding: 6px 9px; }
+    .side-row.dim { opacity: 0.55; }
+    .workdot { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); margin-left: auto; flex: none; }
+    .d1-work { animation: d1work 9s ease-in-out infinite; }
+    @keyframes d1work {
+      0%, 6% { opacity: 1; transform: scale(1); }
+      12%, 20% { opacity: 0.35; transform: scale(0.7); }
+      26%, 36% { opacity: 1; transform: scale(1); }
+      40%, 100% { opacity: 0; transform: scale(0.4); }
+    }
+    .d1-dotA + .workdot, .workdot + .udot { margin-left: 4px; }
 
     /* ============ Demo 2: worktrees ============ */
     .d2-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -1119,8 +1132,8 @@
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
         <span class="kicker"><span class="num">I.</span>The sidebar</span>
-        <h2>Tabs above, <em>conversations</em> below.</h2>
-        <p>Plain browser tabs at the top of the sidebar, your chats underneath. Browse first, summon the agent when you need it, and let unread dots tell you which conversation finished while you were looking away.</p>
+        <h2>Every session, <em>one rail.</em></h2>
+        <p>Your chats line the sidebar: one per task, each keeping its own context, picking up exactly where you left it. A pulsing dot means the agent is still working; an unread dot means it finished while you were looking away. Browser tabs sit alongside for when a task needs a page.</p>
       </div>
       <div class="pane-wrap" data-rv style="--d:.15s">
         <div class="pane glass bob" style="--bobd:10s">
@@ -1128,45 +1141,43 @@
             <div class="chrome"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">SuperAgent</span></div>
             <div class="d1-body">
               <aside class="d1-side">
-                <div class="side-label">Tabs</div>
+                <div class="side-label">Chats</div>
                 <div class="d1-tabs">
                   <span class="d1-hl"></span>
-                  <div class="side-row"><i class="fv fv1"></i><span>linear.app</span></div>
-                  <div class="side-row"><i class="fv fv2"></i><span>docs · vite</span></div>
-                  <div class="side-row"><i class="fv fv3"></i><span>localhost:5173</span></div>
+                  <div class="side-row"><span>Landing copy</span></div>
+                  <div class="side-row"><span>Fix auth test</span><i class="workdot d1-work"></i><i class="udot d1-dotA"></i></div>
+                  <div class="side-row"><span>Migrate pnpm</span><i class="udot d1-dotB"></i></div>
                 </div>
-                <div class="side-label" style="margin-top:8px">Chats</div>
-                <div class="side-row"><span>Fix auth test</span><i class="udot d1-dotA"></i></div>
-                <div class="side-row on"><span>Landing copy</span></div>
-                <div class="side-row"><span>Migrate pnpm</span><i class="udot d1-dotB"></i></div>
+                <div class="side-row dim"><span>Pricing refresh</span></div>
+                <div class="side-label" style="margin-top:10px">Tabs</div>
+                <div class="side-row dim"><i class="fv fv2"></i><span>docs · vite</span></div>
+                <div class="side-row dim"><i class="fv fv3"></i><span>localhost:5173</span></div>
               </aside>
               <div class="d1-main">
                 <div class="d1-pg d1-pg1">
-                  <div class="ln dk" style="width:42%; height:10px"></div>
-                  <div class="d1-row"><span class="d1-check done"></span><span class="ln" style="flex:1"></span></div>
-                  <div class="d1-row"><span class="d1-check done"></span><span class="ln" style="flex:1; max-width:78%"></span></div>
-                  <div class="d1-row"><span class="d1-check"></span><span class="ln" style="flex:1; max-width:86%"></span></div>
-                  <div class="d1-row"><span class="d1-check"></span><span class="ln" style="flex:1; max-width:64%"></span></div>
+                  <div class="bubble bub-user" style="align-self:flex-end">Tighten the hero copy, keep the serif.</div>
+                  <div class="ln" style="width:88%"></div>
+                  <div class="ln" style="width:74%"></div>
+                  <div class="d1-row" style="margin-top:4px"><span class="d1-check done"></span><span class="ln" style="flex:1; max-width:60%"></span></div>
+                  <div class="d1-row"><span class="d1-check"></span><span class="ln" style="flex:1; max-width:72%"></span></div>
                 </div>
                 <div class="d1-pg d1-pg2">
-                  <div class="ln dk" style="width:56%; height:10px"></div>
-                  <div class="ln" style="width:92%"></div>
-                  <div class="ln" style="width:88%"></div>
-                  <div class="ln" style="width:70%"></div>
-                  <div class="ln dk" style="width:38%; margin-top:6px"></div>
-                  <div class="ln" style="width:84%"></div>
-                  <div class="ln" style="width:60%"></div>
+                  <div class="bubble bub-user" style="align-self:flex-end">Why is the login redirect looping?</div>
+                  <div class="ln" style="width:90%"></div>
+                  <div class="ln" style="width:82%"></div>
+                  <span class="tagchip" style="align-self:flex-start">browser_click &rsaquo; Sign in</span>
+                  <div class="ln" style="width:68%"></div>
                 </div>
                 <div class="d1-pg d1-pg3">
-                  <div class="mp-hero" style="height:74px"></div>
-                  <div class="ln" style="width:72%"></div>
-                  <div class="ln" style="width:48%"></div>
-                  <div class="ln dk" style="width:32%; height:16px; border-radius:6px"></div>
+                  <div class="bubble bub-user" style="align-self:flex-end">Move us to pnpm, keep CI green.</div>
+                  <div class="ln" style="width:84%"></div>
+                  <div class="d1-row" style="margin-top:4px"><span class="d1-check done"></span><span class="ln" style="flex:1; max-width:70%"></span></div>
+                  <div class="d1-row"><span class="d1-check done"></span><span class="ln" style="flex:1; max-width:56%"></span></div>
                 </div>
               </div>
             </div>
           </div>
-          <p class="pane-cap">The highlight glides; each tab brings its page.</p>
+          <p class="pane-cap">Click a session; its whole context is already there.</p>
         </div>
       </div>
     </div>
