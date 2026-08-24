@@ -18,7 +18,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet" />
   <style>
     /* ============ The Monet Desk ============ */
     :root {
@@ -1082,6 +1082,32 @@
     /* a little more air, since there is no colour doing the work */
     .feat-copy p, .open-head p { color: var(--muted); }
     .pane-cap, .open-foot { color: var(--faint); }
+
+    /* ============ quiet type: one sans, no italics ============ */
+    h1, h2, h3, .serif {
+      font-family: var(--sans);
+      font-weight: 650;
+      letter-spacing: -0.035em;
+      font-style: normal;
+    }
+    h1 em, h2 em, h3 em, .serif em {
+      font-style: normal;
+      font-weight: 650;
+      color: var(--muted);
+    }
+    .hero h1 { font-size: clamp(2.3rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.045em; }
+    .feat-copy h2 { font-size: clamp(1.6rem, 2.8vw, 2.15rem); }
+    .desk-head h2, .close-cta h2 { font-size: clamp(1.9rem, 4vw, 2.7rem); letter-spacing: -0.04em; }
+    .det-head h2, .open-head h2 { font-size: clamp(1.5rem, 2.6vw, 2rem); }
+    .kicker .num { font-family: var(--mono); font-style: normal; font-size: 0.68rem; letter-spacing: 0.08em; }
+    .pane-cap, .open-foot, .how-line {
+      font-family: var(--sans); font-style: normal; font-size: 0.82rem;
+    }
+    .how-line { font-size: 0.95rem; }
+    .how-line b { font-style: normal; }
+    .det .glyph { font-family: var(--mono); font-style: normal; font-size: 0.72rem; letter-spacing: 0.08em; }
+    .stamp, .d3-chat .who { font-style: normal; }
+    .tile .big { font-family: var(--sans); font-weight: 700; letter-spacing: -0.03em; }
   </style>
 </head>
 <body>
