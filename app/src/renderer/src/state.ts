@@ -620,20 +620,19 @@ export const useStore = create<CoveState>((set, get) => ({
       const chatId = paneId.split('::')[1]
       const s = get()
       if (!s.tree.some((g) => g.workspaces.some((w) => w.id === workspaceId))) return
-      // Always reveal the pane so the page is ready when the user looks. Only pull
-      // the user to this workspace when the app is actually frontmost — a
-      // background agent must never yank the view while they're in another app.
-      const focused = document.hasFocus()
+      // Reveal the pane in ITS OWN session so the page is ready when the user
+      // looks — but never switch the active session for them. A background
+      // session's agent opening a page must not yank you off the session you're
+      // working in (it did, whenever the app was frontmost). You'll see the page
+      // when you choose to go to that session; the agent drives it in the
+      // meantime through the main process regardless of what's on screen.
       const key = chatId ?? workspaceId
       // Persist here too. This handler runs BEFORE any browser:activity event
       // and marks the pane open in memory — which made the activity listener's
       // "not open yet" persist guard skip, so agent-opened panes still vanished
       // on restart (seen live: levantto-shop).
       localStorage.setItem(`paneOpen:${key}`, '1')
-      set({
-        browserOpen: { ...s.browserOpen, [key]: true },
-        ...(focused ? { activeWorkspaceId: workspaceId, coldStart: false } : {})
-      })
+      set({ browserOpen: { ...s.browserOpen, [key]: true }, coldStart: false })
     })
   },
 
