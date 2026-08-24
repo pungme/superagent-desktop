@@ -87,9 +87,26 @@ export function WorkspaceView({
   // state during render when a key changes" pattern: no effect, no flash.
   const [seededKey, setSeededKey] = useState(deskKey)
   if (seededKey !== deskKey) {
+    // The agent can open the sim (or board) before activeChatId has resolved, so
+    // it lands keyed to the workspace id; a beat later the key becomes the chat
+    // id and this re-seed ran — reading an empty value and closing it, so it
+    // flashed open then vanished. Carry an open pane across THAT first
+    // workspace→chat resolution only. A real chat→chat switch still reads the new
+    // chat's own state (per-chat isolation preserved), and an explicit saved
+    // value for the new key always wins.
+    const fromWorkspace = seededKey === ws.id
+    const reseed = (kind: 'simOpen' | 'boardOpen', cur: boolean): boolean => {
+      const saved = localStorage.getItem(`${kind}:${deskKey}`)
+      if (saved !== null) return saved === '1'
+      if (fromWorkspace && cur) {
+        localStorage.setItem(`${kind}:${deskKey}`, '1')
+        return true
+      }
+      return false
+    }
     setSeededKey(deskKey)
-    setSimOpen(localStorage.getItem(`simOpen:${deskKey}`) === '1')
-    setBoardOpen(localStorage.getItem(`boardOpen:${deskKey}`) === '1')
+    setSimOpen(reseed('simOpen', simOpen))
+    setBoardOpen(reseed('boardOpen', boardOpen))
   }
   /**
    * Four columns need about 620px to be worth looking at, and the pane half is
