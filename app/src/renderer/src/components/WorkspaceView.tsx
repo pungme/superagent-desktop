@@ -158,34 +158,46 @@ export function WorkspaceView({
   const [snipStill, setSnipStill] = useState<string | null>(null)
   const snipObjectUrl = useRef<string | null>(null)
   const snippingRef = useRef(false) // guards against a double-click starting two snips
-  // Snippable surfaces: the (native) browser page or the simulator. A board or
-  // text file is plain HTML — an ordinary screenshot already works there.
-  const canSnip = (browserOpen && !boardOpen && !openFilePath) || simOpen
-  const startSnip = async (): Promise<void> => {
-    if (snippingRef.current) return
-    snippingRef.current = true
-    let still: string | null = null
-    if (browserOpen && !boardOpen && !openFilePath) {
-      const bytes = await window.cove.browserFreeze(browserPaneId)
-      if (bytes && bytes.length) {
-        const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/jpeg' }))
-        snipObjectUrl.current = url
-        still = url
+  // The ✂ Snip button now lives ON each pane (the browser omnibar, the simulator
+  // chrome) — more intuitive than a far-off toolbar button. Each pane dispatches
+  // cove:start-snip with its source; this runs the freeze → overlay → attach flow.
+  const startSnip = useCallback(
+    async (source: 'browser' | 'sim'): Promise<void> => {
+      if (snippingRef.current) return
+      snippingRef.current = true
+      let still: string | null = null
+      if (source === 'browser') {
+        const bytes = await window.cove.browserFreeze(browserPaneId)
+        if (bytes && bytes.length) {
+          const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/jpeg' }))
+          snipObjectUrl.current = url
+          still = url
+        }
+      } else {
+        const udid = localStorage.getItem(`cove.simDevice:${ws.id}`)
+        if (udid) still = await window.cove.simScreenshot(udid)
       }
-    } else if (simOpen) {
-      const udid = localStorage.getItem(`cove.simDevice:${ws.id}`)
-      if (udid) still = await window.cove.simScreenshot(udid)
-    }
-    if (!still) {
-      snippingRef.current = false
-      return
-    }
-    setSnipStill(still) // the effect below acquires the overlay lock
-  }
+      if (!still) {
+        snippingRef.current = false
+        return
+      }
+      setSnipStill(still) // the effect below acquires the overlay lock
+    },
+    [browserPaneId, ws.id]
+  )
   const finishSnip = (): void => {
     snippingRef.current = false
     setSnipStill(null) // the effect cleanup releases the lock + revokes the URL
   }
+  // A pane asked to start a snip (scoped to this workspace).
+  useEffect(() => {
+    const onStart = (e: Event): void => {
+      const d = (e as CustomEvent<{ workspaceId: string; source: 'browser' | 'sim' }>).detail
+      if (d?.workspaceId === ws.id) void startSnip(d.source)
+    }
+    window.addEventListener('cove:start-snip', onStart)
+    return () => window.removeEventListener('cove:start-snip', onStart)
+  }, [ws.id, startSnip])
   // Hold the overlay lock — which detaches the native browser view so the HTML
   // snip overlay is visible over it — and the freeze object URL for exactly as
   // long as the snip is on screen. Binding both to this effect's lifetime means
@@ -574,19 +586,8 @@ export function WorkspaceView({
           </button>
         )}
         <div className="workspace-toolbar-spacer" />
-        {/* Snip a region of the page/simulator straight into the composer. Lives
-            in the toolbar, not floating over the pane, because the native view
-            paints above HTML and would cover (and swallow the click on) anything
-            floating on top of it. */}
-        {canSnip && (
-          <button
-            className="toolbar-btn workspace-snip"
-            onClick={startSnip}
-            title="Snip a region into your message"
-          >
-            ✂ Snip
-          </button>
-        )}
+        {/* ✂ Snip lives ON the pane now (browser omnibar / simulator chrome), not
+            here — closer to what you're snipping and more intuitive. */}
         {/* A code project's preview reveals itself when the agent navigates, and
             normally closes from the pane's own ✕. But the native page paints
             ABOVE all HTML, so a mis-bounded agent-opened view can cover its own

@@ -680,7 +680,11 @@ function GroupSection({
   const groupCount = useStore((s) => s.tree.length)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(group.name)
-  const { setNodeRef, isOver } = useDroppable({ id: `group:${group.id}` })
+  const { setNodeRef, isOver, active } = useDroppable({ id: `group:${group.id}` })
+  // A group being dragged reorders groups — it never nests inside another. So its
+  // drop hint is an insertion LINE, not the fill highlight a project-into-group
+  // drop uses (that fill read as "drop into the middle of this group").
+  const draggingGroup = String(active?.id ?? '').startsWith('gdrag:')
   // Drag the group header to reorder groups (id prefixed so onDragEnd can tell a
   // group drag from a project drag).
   const {
@@ -702,7 +706,7 @@ function GroupSection({
 
   return (
     <div
-      className={`sidebar-group ${isOver ? 'drop-target' : ''} ${isDragging ? 'dragging' : ''}`}
+      className={`sidebar-group ${isOver ? (draggingGroup ? 'drop-reorder' : 'drop-target') : ''} ${isDragging ? 'dragging' : ''}`}
       ref={setNodeRef}
     >
       <div className="sidebar-group-header">

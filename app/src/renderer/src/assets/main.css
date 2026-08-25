@@ -219,6 +219,37 @@ button {
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 
+/* Reordering a whole group: a clear insertion LINE at the top — the same
+   affordance as reordering a project — so it reads as "place the group here",
+   never as "drop inside this group" (groups don't nest). */
+.sidebar-group.drop-reorder {
+  position: relative;
+}
+.sidebar-group.drop-reorder::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: -3px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.sidebar-group.drop-reorder::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -6.5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: var(--bg-panel);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .sidebar-group-header {
   display: flex;
   align-items: center;
@@ -5288,19 +5319,23 @@ button {
   position: relative;
 }
 
-/* Desktop viewport: the omnibar is docked onto the floating card's top strip so
-   the card reads as a self-contained browser window. */
+/* Card viewports (desktop / mobile / both): the omnibar floats as its own
+   rounded pill above the page card, with a gap between them — a thin bar and a
+   page, two separate rounded rectangles. */
 .browser-toolbar.on-card {
   z-index: 1;
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
   padding: 4px 8px;
   background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
+  border-radius: 10px;
+  box-shadow:
+    0 6px 18px -8px rgba(0, 0, 0, 0.35),
+    0 1px 3px -1px rgba(0, 0, 0, 0.2);
   /* No overflow:hidden — it would clip the omnibox suggestions dropdown, which is
-     absolutely positioned below the bar. The button/input children are inset, so
-     the rounded top corners don't need clipping. */
+     absolutely positioned below the bar. The inset children keep the rounded
+     corners clean without clipping. */
 }
 
 .browser-toolbar {
