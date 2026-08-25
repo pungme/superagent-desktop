@@ -1520,6 +1520,20 @@ button {
   white-space: pre-wrap;
   word-wrap: break-word;
   touch-action: pan-y; /* let a horizontal swipe engage reply, vertical still scrolls */
+  /* Each bubble is keyed by id and mounts once, so this plays exactly when the
+     message first appears — on send, on receive, and once for each on chat load. */
+  animation: easy-msg-in 0.24s cubic-bezier(0.22, 0.72, 0.24, 1) both;
+}
+/* Assistant (received) rises up from the left edge; a soft arrival. */
+@keyframes easy-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .easy-user {
@@ -1527,6 +1541,18 @@ button {
   background: var(--accent);
   color: var(--accent-fg);
   border-bottom-right-radius: 4px;
+  /* Sent: a small pop, so it reads as "off it goes". */
+  animation-name: easy-msg-in-user;
+}
+@keyframes easy-msg-in-user {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .easy-assistant {
@@ -1534,6 +1560,12 @@ button {
   background: var(--assistant-bubble);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .easy-msg {
+    animation: none;
+  }
 }
 
 /* ---- Quote-reply (WhatsApp-style) ---- */
