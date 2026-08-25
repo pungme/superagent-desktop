@@ -9049,6 +9049,42 @@ button {
   }
 }
 
+/* --- In-place snip: a crosshair selection right over the (frozen) page ----- */
+.browser-snip {
+  position: absolute;
+  z-index: 6;
+  cursor: crosshair;
+  overflow: hidden;
+  border-radius: 10px;
+}
+/* Before a drag: a light dim over the whole page + a hint. */
+.browser-snip-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 15, 17, 0.28);
+}
+/* The selection: clear inside, everything outside dimmed (the big spread shadow
+   is the dimmer), a crisp ring around it. */
+.browser-snip-rect {
+  position: absolute;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 100vmax rgba(15, 15, 17, 0.4);
+  pointer-events: none;
+}
+.browser-snip-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
 /* --- Snip-to-attach ------------------------------------------------------- */
 /* Floating tool dock in the margin beside the page/phone card (never over the
    native view). A column so more tools can stack in later. */

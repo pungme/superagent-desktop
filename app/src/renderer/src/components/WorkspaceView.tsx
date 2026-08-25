@@ -193,7 +193,9 @@ export function WorkspaceView({
   useEffect(() => {
     const onStart = (e: Event): void => {
       const d = (e as CustomEvent<{ workspaceId: string; source: 'browser' | 'sim' }>).detail
-      if (d?.workspaceId === ws.id) void startSnip(d.source)
+      // The browser snips itself in place (BrowserPane); only the simulator uses
+      // this overlay-based path.
+      if (d?.workspaceId === ws.id && d.source === 'sim') void startSnip('sim')
     }
     window.addEventListener('cove:start-snip', onStart)
     return () => window.removeEventListener('cove:start-snip', onStart)

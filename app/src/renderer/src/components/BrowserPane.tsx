@@ -249,6 +249,106 @@ export function BrowserPane({
     },
     []
   )
+
+  // --- Seamless in-place snip ------------------------------------------------
+  // Rather than a separate popup, freeze the page where it sits (paneCovered
+  // below includes `snipping`, so the existing freeze-frame stands in at the
+  // native view's exact rect) and let the user drag a crosshair selection right
+  // on it, with everything else dimmed. On release, crop that region out of the
+  // freeze still and drop it into the composer.
+  const [snipping, setSnipping] = useState(false)
+  const snipStartRef = useRef<{ x: number; y: number } | null>(null)
+  const [snipRect, setSnipRect] = useState<{ x: number; y: number; w: number; h: number } | null>(
+    null
+  )
+  const snipLayerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onStart = (e: Event): void => {
+      const d = (e as CustomEvent<{ workspaceId: string; source: string }>).detail
+      if (d?.workspaceId === workspaceId && d?.source === 'browser') {
+        setSnipRect(null)
+        snipStartRef.current = null
+        setSnipping(true)
+      }
+    }
+    window.addEventListener('cove:start-snip', onStart)
+    return () => window.removeEventListener('cove:start-snip', onStart)
+  }, [workspaceId])
+  useEffect(() => {
+    if (!snipping) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setSnipping(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [snipping])
+  const snipRel = (e: React.PointerEvent): { x: number; y: number } => {
+    const box = snipLayerRef.current!.getBoundingClientRect()
+    return {
+      x: Math.max(0, Math.min(e.clientX - box.left, box.width)),
+      y: Math.max(0, Math.min(e.clientY - box.top, box.height))
+    }
+  }
+  const snipDown = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const p = snipRel(e)
+    snipStartRef.current = p
+    setSnipRect({ x: p.x, y: p.y, w: 0, h: 0 })
+  }
+  const snipMove = (e: React.PointerEvent): void => {
+    const s = snipStartRef.current
+    if (!s) return
+    const p = snipRel(e)
+    setSnipRect({
+      x: Math.min(s.x, p.x),
+      y: Math.min(s.y, p.y),
+      w: Math.abs(p.x - s.x),
+      h: Math.abs(p.y - s.y)
+    })
+  }
+  const snipUp = (): void => {
+    const s = snipStartRef.current
+    snipStartRef.current = null
+    const rect = snipRect
+    const layer = snipLayerRef.current
+    if (!s || !rect || rect.w < 6 || rect.h < 6 || !frozen || !layer) {
+      setSnipping(false)
+      return
+    }
+    const layerW = layer.clientWidth
+    const layerH = layer.clientHeight
+    const img = new Image()
+    img.onload = (): void => {
+      // The still fills the layer (the native view's rect); scale selection →
+      // the still's own pixels.
+      const sx = img.naturalWidth / layerW
+      const sy = img.naturalHeight / layerH
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(rect.w * sx))
+      canvas.height = Math.max(1, Math.round(rect.h * sy))
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(
+          img,
+          rect.x * sx,
+          rect.y * sy,
+          rect.w * sx,
+          rect.h * sy,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        )
+        window.dispatchEvent(
+          new CustomEvent('cove:attach-image', { detail: { url: canvas.toDataURL('image/png') } })
+        )
+      }
+      setSnipping(false)
+    }
+    img.onerror = (): void => setSnipping(false)
+    img.src = frozen
+  }
   // Page-coloured DOM backfills for the top corners (desktop mode): the rounded
   // top arcs reveal these instead of the grey card, so the top reads square.
   const [cornerFill, setCornerFill] = useState<{
@@ -460,7 +560,7 @@ export function BrowserPane({
     return window.cove.onAppFocus?.((focused) => setAway(!focused))
   }, [])
 
-  const paneCovered = overlayOpen || suggestOpen || away || occluded
+  const paneCovered = overlayOpen || suggestOpen || away || occluded || snipping
   useEffect(() => {
     coveredRef.current = paneCovered
   }, [paneCovered])
@@ -991,6 +1091,39 @@ export function BrowserPane({
                 viewport === 'desktop' ? '0 0 10px 10px' : viewport === 'mobile' ? '10px' : '0'
             }}
           />
+        )}
+        {snipping && viewRect && (
+          // In-place snip: a crosshair layer sitting exactly over the frozen page
+          // (viewRect), so you drag right on the browser with everything else
+          // dimmed — no separate popup.
+          <div
+            className="browser-snip"
+            ref={snipLayerRef}
+            style={{
+              left: viewRect.left,
+              top: viewRect.top,
+              width: viewRect.width,
+              height: viewRect.height
+            }}
+            onPointerDown={snipDown}
+            onPointerMove={snipMove}
+            onPointerUp={snipUp}
+          >
+            {snipRect ? (
+              <div
+                className="browser-snip-rect"
+                style={{
+                  left: snipRect.x,
+                  top: snipRect.y,
+                  width: snipRect.w,
+                  height: snipRect.h
+                }}
+              />
+            ) : (
+              <div className="browser-snip-scrim" />
+            )}
+            {!snipRect && <div className="browser-snip-hint">Drag to snip · Esc to cancel</div>}
+          </div>
         )}
         {browsing && (
           <div className="browsing-indicator">
