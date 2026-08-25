@@ -9068,7 +9068,12 @@ button {
 .browser-snip-rect {
   position: absolute;
   border: 1.5px solid #fff;
-  box-shadow: 0 0 0 100vmax rgba(15, 15, 17, 0.4);
+  /* The big spread shadow dims everything outside; the two hairline rings (dark
+     then light) keep the selection edge visible on a light OR dark page. */
+  box-shadow:
+    0 0 0 100vmax rgba(15, 15, 17, 0.4),
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
 .browser-snip-hint {
