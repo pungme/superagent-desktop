@@ -297,6 +297,11 @@ function ChatRow({
   // look like it was still thinking. (Background tasks still keep the chat mounted
   // — that's a separate concern in WorkspaceView.)
   const running = useStore((st) => Boolean(st.busy[chat.id]?.generating))
+  // Background work (a Monitor, a long job) keeps the session alive even when the
+  // turn is over. Show a distinct STEADY dot for it — not the "working" spinner,
+  // which reads as "still thinking" — so you can tell from the sidebar that this
+  // session has something running (e.g. a monitor) even while you're in another.
+  const bgRunning = useStore((st) => (st.busy[chat.id]?.background ?? 0) > 0)
   const [editing, setEditing] = useState(false)
   const label = chat.title ?? 'New chat'
   const [draft, setDraft] = useState(label)
@@ -341,6 +346,8 @@ function ChatRow({
         <span className="chat-tree-title">
           {running ? (
             <span className="chat-tree-spinner" title="Working…" />
+          ) : bgRunning ? (
+            <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
           ) : (
             unread && (
               <span className="sidebar-unread" title="Claude finished — you haven't read this" />

@@ -533,6 +533,35 @@ button {
     transform: rotate(360deg);
   }
 }
+/* Background work (a monitor, a long job) keeps the session alive: a steady green
+   dot that gently breathes — "something is running here", distinct from the
+   spinner's "actively thinking". */
+.chat-tree-bg {
+  width: 7px;
+  height: 7px;
+  margin: 0 6px 0 0;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  animation: chat-tree-bg-pulse 1.8s ease-in-out infinite;
+}
+@keyframes chat-tree-bg-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-tree-bg {
+    animation: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .chat-tree-spinner {
     animation: none;
