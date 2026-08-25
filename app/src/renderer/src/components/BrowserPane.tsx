@@ -1022,7 +1022,11 @@ export function BrowserPane({
       {onCard && simFrame && (
         <div
           className="pane-dock"
-          style={{ left: simFrame.left + simFrame.width - 34, top: simFrame.top + simFrame.height + 8 }}
+          style={{
+            left: simFrame.left + simFrame.width / 2,
+            top: simFrame.top + simFrame.height + 8,
+            transform: 'translateX(-50%)'
+          }}
         >
           <button
             className="pane-dock-btn"
@@ -1033,7 +1037,8 @@ export function BrowserPane({
             }
             title="Snip a region of this page into your message"
           >
-            ✂
+            <span className="pane-dock-icon">✂</span>
+            <span>Snip</span>
           </button>
         </div>
       )}

@@ -662,7 +662,8 @@ export function SimulatorPane({
               )
             }
           >
-            ✂
+            <span className="pane-dock-icon">✂</span>
+            <span>Snip</span>
           </button>
         </div>
       )}
