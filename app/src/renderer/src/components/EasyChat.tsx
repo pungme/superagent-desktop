@@ -1541,6 +1541,30 @@ export function EasyChat({
             } else if (name === 'KillShell' && typeof inp.shell_id === 'string') {
               const killed = inp.shell_id
               setBgTasks((prev) => prev.filter((t) => t.shellId !== killed))
+            } else if (name === 'Monitor') {
+              // Claude Code's Monitor tool: a long-running background watch that
+              // is NOT a Bash job, so it wasn't tracked — which meant the idle
+              // reaper (guarded on bgTasks.length) didn't know to spare the chat,
+              // and the monitor died when you switched away. Track it so its own
+              // work keeps the process resident. A non-persistent monitor ends at
+              // its timeout and clears then; a persistent one runs until stopped,
+              // so it has no expiry (and keeps the chat alive, as intended).
+              const label =
+                (typeof inp.description === 'string' && inp.description.trim()) || 'monitor'
+              const startedAt = Date.now()
+              const timeoutMs = typeof inp.timeout_ms === 'number' ? inp.timeout_ms : null
+              const persistent = inp.persistent === true
+              setBgTasks((prev) => [
+                ...prev,
+                {
+                  toolUseId: id,
+                  command: label,
+                  description: label,
+                  startedAt,
+                  manual: true,
+                  ...(!persistent && timeoutMs ? { expiresAt: startedAt + timeoutMs + 2000 } : {})
+                }
+              ])
             } else if (name === 'Task') {
               // A sub-agent just started. Its result block clears the pill.
               const label =
