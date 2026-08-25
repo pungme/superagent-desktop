@@ -893,17 +893,21 @@ export function BrowserPane({
         >
           ↗
         </button>
-        <button
-          className="browser-nav-btn"
-          onClick={() =>
-            window.dispatchEvent(
-              new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'browser' } })
-            )
-          }
-          title="Snip a region of this page into your message"
-        >
-          ✂
-        </button>
+        {/* Fit mode fills edge-to-edge — no margin outside the page for a floating
+            dock — so keep ✂ in the omnibar there. Card modes use the outside dock. */}
+        {!onCard && (
+          <button
+            className="browser-nav-btn"
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'browser' } })
+              )
+            }
+            title="Snip a region of this page into your message"
+          >
+            ✂
+          </button>
+        )}
         {closable && (
           <button
             // The close for the middle pane, on the pane itself — where a close
@@ -1011,6 +1015,25 @@ export function BrowserPane({
           </div>
         )}
       </div>
+      {/* Floating tool dock, OUTSIDE the page card in the surrounding margin (card
+          modes only — fit mode is edge-to-edge, so ✂ stays in the omnibar there).
+          Never over the native view, so it can't be occluded. Room to grow more
+          tools later. */}
+      {onCard && (
+        <div className="pane-dock">
+          <button
+            className="pane-dock-btn"
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'browser' } })
+              )
+            }
+            title="Snip a region of this page into your message"
+          >
+            ✂
+          </button>
+        </div>
+      )}
     </div>
   )
 }
