@@ -125,6 +125,10 @@ function FitIcon(): React.JSX.Element {
 // Height of the omnibar when it's docked onto the desktop floating card (so the
 // card reads as a self-contained browser window). Native view is pushed down by it.
 const CARD_OMNIBAR_H = 40
+// The omnibar floats as its own pill above the page card, with this gap between
+// them — so the page is a clean rounded rectangle and the bar a separate one, no
+// corner-colour masks faking a square top.
+const CARD_OMNIBAR_GAP = 10
 // The native view's radius is uniform (no per-corner API), HTML never paints
 // over web contents, and plain native Views don't either — but sibling
 // WebContentsViews DO (verified on screen: the red-box probe). So desktop mode
@@ -350,9 +354,15 @@ export function BrowserPane({
       const top = Math.round((H - sh) / 2)
       window.cove.browserSetZoom?.(paneId, scale)
       setSimFrame({ left, top, width: sw, height: sh })
-      // The omnibar is docked onto the card's top strip, so the page starts below it.
+      // The omnibar floats as a separate pill above; the page card starts below
+      // it plus the gap, and is rounded on all four corners (no top masks).
       window.cove.browserSetRadius?.(paneId, PANE_RADIUS)
-      emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: sw, height: sh - CARD_OMNIBAR_H })
+      emit({
+        x: x0 + left,
+        y: y0 + top + CARD_OMNIBAR_H + CARD_OMNIBAR_GAP,
+        width: sw,
+        height: sh - CARD_OMNIBAR_H - CARD_OMNIBAR_GAP
+      })
       return
     }
     if (mode === 'both') {
@@ -379,7 +389,12 @@ export function BrowserPane({
       window.cove.browserSetRadius?.(paneId, PANE_RADIUS)
       setSimFrame({ left, top, width: sw, height: sh })
       setTwinFrame({ left: pleft, top: ptop, width: pw, height: ph })
-      emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: sw, height: sh - CARD_OMNIBAR_H })
+      emit({
+        x: x0 + left,
+        y: y0 + top + CARD_OMNIBAR_H + CARD_OMNIBAR_GAP,
+        width: sw,
+        height: sh - CARD_OMNIBAR_H - CARD_OMNIBAR_GAP
+      })
       window.cove.browserTwinBounds?.(
         paneId,
         { x: x0 + pleft, y: y0 + ptop, width: pw, height: ph },
@@ -400,11 +415,14 @@ export function BrowserPane({
     window.cove.browserSetZoom?.(paneId, scale)
     setSimFrame({ left, top, width: dw, height: dh })
     window.cove.browserSetRadius?.(paneId, PANE_RADIUS)
-    // The omnibar is docked on the phone's top strip too (added when mobile got
-    // its own address bar), so the page has to start BELOW it — a native view
-    // paints over all HTML, so a full-frame view hides the toolbar completely
-    // and with it the only way back to Desktop.
-    emit({ x: x0 + left, y: y0 + top + CARD_OMNIBAR_H, width: dw, height: dh - CARD_OMNIBAR_H })
+    // The omnibar floats above the phone card too (added when mobile got its own
+    // address bar); the page starts below the bar plus the gap.
+    emit({
+      x: x0 + left,
+      y: y0 + top + CARD_OMNIBAR_H + CARD_OMNIBAR_GAP,
+      width: dw,
+      height: dh - CARD_OMNIBAR_H - CARD_OMNIBAR_GAP
+    })
   }, [paneId])
 
   // Layout keeps settling for a frame or two after a trigger — the toolbar
@@ -875,6 +893,17 @@ export function BrowserPane({
         >
           ↗
         </button>
+        <button
+          className="browser-nav-btn"
+          onClick={() =>
+            window.dispatchEvent(
+              new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'browser' } })
+            )
+          }
+          title="Snip a region of this page into your message"
+        >
+          ✂
+        </button>
         {closable && (
           <button
             // The close for the middle pane, on the pane itself — where a close
@@ -900,10 +929,12 @@ export function BrowserPane({
             key={`simframe-${viewport}`}
             className="browser-sim-frame"
             style={{
+              // The page card sits below the floating omnibar pill + the gap; the
+              // omnibar pill (toolbarStyle) occupies the strip above it.
               left: simFrame.left,
-              top: simFrame.top,
+              top: simFrame.top + CARD_OMNIBAR_H + CARD_OMNIBAR_GAP,
               width: simFrame.width,
-              height: simFrame.height
+              height: simFrame.height - CARD_OMNIBAR_H - CARD_OMNIBAR_GAP
             }}
           />
         )}
@@ -919,28 +950,9 @@ export function BrowserPane({
             }}
           />
         )}
-        {simFrame && visible && viewport !== 'none' && cornerFill && (
-          <>
-            {/* Under the native page by nature (DOM); the rounded top arcs of the
-                page reveal these, matching the page so the top reads square. */}
-            <div
-              className="browser-corner-fill"
-              style={{
-                left: simFrame.left,
-                top: simFrame.top + CARD_OMNIBAR_H,
-                background: cornerFill.left
-              }}
-            />
-            <div
-              className="browser-corner-fill"
-              style={{
-                left: simFrame.left + simFrame.width - 10,
-                top: simFrame.top + CARD_OMNIBAR_H,
-                background: cornerFill.right
-              }}
-            />
-          </>
-        )}
+        {/* No corner-colour masks anymore: the omnibar floats as its own pill
+            above a gap, so the page card's rounded top corners are wanted, not
+            faked square. */}
         {viewport === 'none' && radius > 0 && visible && viewRect && (
           /* The page's rounded bottom: the strip the view was held back from,
              filled with the colour of the page's own bottom edge. */
