@@ -198,6 +198,20 @@ export function WorkspaceView({
     window.addEventListener('cove:start-snip', onStart)
     return () => window.removeEventListener('cove:start-snip', onStart)
   }, [ws.id, startSnip])
+  // ⌘⇧S snips whatever pane is on screen (the browser page or the simulator).
+  useEffect(() => {
+    if (!visible) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key.toLowerCase() !== 's') return
+      const source: 'browser' | 'sim' | null =
+        browserOpen && !boardOpen && !openFilePath ? 'browser' : simOpen ? 'sim' : null
+      if (!source) return
+      e.preventDefault()
+      void startSnip(source)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [visible, browserOpen, boardOpen, openFilePath, simOpen, startSnip])
   // Hold the overlay lock — which detaches the native browser view so the HTML
   // snip overlay is visible over it — and the freeze object URL for exactly as
   // long as the snip is on screen. Binding both to this effect's lifetime means

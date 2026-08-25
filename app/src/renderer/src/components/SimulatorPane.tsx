@@ -655,7 +655,7 @@ export function SimulatorPane({
         <div className="pane-dock corner">
           <button
             className="pane-dock-btn"
-            title="Snip a region of the screen into your message"
+            title="Snip a region of the screen into your message (⌘⇧S)"
             onClick={() =>
               window.dispatchEvent(
                 new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'sim' } })

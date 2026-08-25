@@ -903,7 +903,7 @@ export function BrowserPane({
                 new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'browser' } })
               )
             }
-            title="Snip a region of this page into your message"
+            title="Snip a region of this page into your message (⌘⇧S)"
           >
             ✂
           </button>
@@ -1035,7 +1035,7 @@ export function BrowserPane({
                 new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'browser' } })
               )
             }
-            title="Snip a region of this page into your message"
+            title="Snip a region of this page into your message (⌘⇧S)"
           >
             <span className="pane-dock-icon">✂</span>
             <span>Snip</span>
