@@ -652,7 +652,7 @@ export function SimulatorPane({
       {/* Floating tool dock beside the phone (the stage is centred, so this sits
           in the margin, not over the screen). Room to grow more tools later. */}
       {udid && (
-        <div className="pane-dock">
+        <div className="pane-dock corner">
           <button
             className="pane-dock-btn"
             title="Snip a region of the screen into your message"
