@@ -5448,13 +5448,13 @@ button {
   }
 }
 
-/* Closing the pane is not navigation. A hairline and a little air separate it
-   from the arrows, and it reddens on hover so it reads as "this puts it away". */
+/* Closing the pane is not navigation — a little air sets it apart from the
+   arrows, and it reddens on hover so it reads as "this puts it away". A clean
+   rounded button (like the others), so the red hover is a tidy pill, not the
+   asymmetric square-left notch the old border-left + half-radius produced. */
 .browser-close-btn {
-  margin-left: 6px;
-  padding-left: 6px;
-  border-left: 1px solid var(--border);
-  border-radius: 0 6px 6px 0;
+  margin-left: 4px;
+  border-radius: 6px;
   width: 30px;
   /* A cramped toolbar was squeezing it to 21px — the one button you need to be
      able to hit is the one that gets you out. */
