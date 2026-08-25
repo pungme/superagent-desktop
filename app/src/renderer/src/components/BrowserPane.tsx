@@ -1015,12 +1015,15 @@ export function BrowserPane({
           </div>
         )}
       </div>
-      {/* Floating tool dock, OUTSIDE the page card in the surrounding margin (card
-          modes only — fit mode is edge-to-edge, so ✂ stays in the omnibar there).
-          Never over the native view, so it can't be occluded. Room to grow more
-          tools later. */}
-      {onCard && (
-        <div className="pane-dock">
+      {/* Floating tool dock, just BELOW the page card (anchored to its rect, so it
+          hugs the browser rather than floating off in the pane corner). Card modes
+          only — fit mode is edge-to-edge, so ✂ stays in the omnibar there. Never
+          over the native view. Row layout so more tools can sit alongside later. */}
+      {onCard && simFrame && (
+        <div
+          className="pane-dock"
+          style={{ left: simFrame.left + simFrame.width - 34, top: simFrame.top + simFrame.height + 8 }}
+        >
           <button
             className="pane-dock-btn"
             onClick={() =>
