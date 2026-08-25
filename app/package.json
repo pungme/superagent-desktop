@@ -1,6 +1,6 @@
 {
   "name": "superagent",
-  "version": "1.5.14",
+  "version": "1.5.15",
   "description": "The desktop home for Claude Code — a persistent chat, a real browser your agent drives on your own logins, and routines on a schedule. Local, on your own Claude subscription, open source.",
   "main": "./out/main/index.js",
   "scripts": {
