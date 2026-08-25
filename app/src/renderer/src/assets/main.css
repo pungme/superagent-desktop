@@ -9065,15 +9065,20 @@ button {
   flex-direction: column;
 }
 .pane-dock-btn {
-  width: 34px;
-  height: 34px;
+  height: 32px;
+  padding: 0 12px 0 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--bg-panel);
   color: var(--text-secondary);
-  font-size: 15px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
   line-height: 1;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   box-shadow:
     0 6px 18px -6px rgba(0, 0, 0, 0.35),
     0 1px 3px -1px rgba(0, 0, 0, 0.22),
@@ -9082,6 +9087,10 @@ button {
     background 0.12s ease,
     color 0.12s ease,
     transform 0.08s ease;
+}
+.pane-dock-icon {
+  font-size: 14px;
+  line-height: 1;
 }
 .pane-dock-btn:hover {
   background: var(--hover);
