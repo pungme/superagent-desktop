@@ -497,18 +497,6 @@ export function SimulatorPane({
         {hardware('lock', 'Lock', '⏻')}
         {hardware('app-switcher', 'App switcher', '▤')}
         {typing && <span className="sim-typing">typing…</span>}
-        <button
-          className="sim-btn"
-          title="Snip a region of the screen into your message"
-          disabled={!udid}
-          onClick={() =>
-            window.dispatchEvent(
-              new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'sim' } })
-            )
-          }
-        >
-          ✂
-        </button>
         {/* The escape hatch: Apple's own window, only when asked for. Until
             then it is kept out of sight, because a build opens it uninvited. */}
         <button
@@ -658,6 +646,23 @@ export function SimulatorPane({
             }}
           >
             {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      )}
+      {/* Floating tool dock beside the phone (the stage is centred, so this sits
+          in the margin, not over the screen). Room to grow more tools later. */}
+      {udid && (
+        <div className="pane-dock">
+          <button
+            className="pane-dock-btn"
+            title="Snip a region of the screen into your message"
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent('cove:start-snip', { detail: { workspaceId, source: 'sim' } })
+              )
+            }
+          >
+            ✂
           </button>
         </div>
       )}

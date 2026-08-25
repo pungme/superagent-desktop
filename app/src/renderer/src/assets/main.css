@@ -9018,8 +9018,42 @@ button {
 }
 
 /* --- Snip-to-attach ------------------------------------------------------- */
-.workspace-snip {
-  flex-shrink: 0;
+/* Floating tool dock in the margin beside the page/phone card (never over the
+   native view). A column so more tools can stack in later. */
+.pane-dock {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pane-dock-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow:
+    0 6px 18px -6px rgba(0, 0, 0, 0.35),
+    0 1px 3px -1px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px var(--border);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    transform 0.08s ease;
+}
+.pane-dock-btn:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.pane-dock-btn:active {
+  transform: scale(0.94);
 }
 .snip-overlay {
   position: fixed;
