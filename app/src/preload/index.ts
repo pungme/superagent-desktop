@@ -218,6 +218,8 @@ export interface CoveApi {
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
   browserFreeze: (id: string) => Promise<Uint8Array | null>
   checkPort: (port: number) => Promise<boolean>
+  /** Kill whatever dev server is listening on this local port. */
+  killPort: (port: number) => Promise<boolean>
   onBrowserZoom: (id: string, cb: (factor: number) => void) => () => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
   onOpenFile: (cb: (p: { workspaceId: string; path: string }) => void) => () => void
@@ -560,6 +562,7 @@ const cove: CoveApi = {
     ipcRenderer.invoke('worktree:merge', projectPath, wtPath, message),
   browserFreeze: (id) => ipcRenderer.invoke('browser:freeze', id),
   checkPort: (port) => ipcRenderer.invoke('net:checkPort', port),
+  killPort: (port) => ipcRenderer.invoke('net:killPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
   browserDestroy: (id) => ipcRenderer.send('browser:destroy', id),
   onBrowserState: (id, cb) => subscribe(`browser:state:${id}`, (s) => cb(s as BrowserState)),

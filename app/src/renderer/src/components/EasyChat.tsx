@@ -70,6 +70,7 @@ function DevServerPill({
     (s) => s.browserOpen[s.activeChatId[workspaceId] ?? workspaceId] === true
   )
   const openPreview = useStore((s) => s.openPreview)
+  const removePort = useStore((s) => s.removePort)
   const [dismissed, setDismissed] = useState(false)
   const port = ports?.[0]
   if (!port || paneOpen || dismissed) return null
@@ -97,6 +98,17 @@ function DevServerPill({
             <span className="easy-control-item-hint">Show localhost:{port} in the pane</span>
           </button>
           <button
+            className="easy-control-item easy-run-stop"
+            onClick={() => {
+              onToggle()
+              void window.cove.killPort(port)
+              removePort(workspaceId, port)
+            }}
+          >
+            <span className="easy-control-item-label">⏹ Stop the server</span>
+            <span className="easy-control-item-hint">Kill the process on :{port}</span>
+          </button>
+          <button
             className="easy-control-item"
             onClick={() => {
               onToggle()
@@ -104,7 +116,7 @@ function DevServerPill({
             }}
           >
             <span className="easy-control-item-label">Hide</span>
-            <span className="easy-control-item-hint">This doesn&rsquo;t stop the server</span>
+            <span className="easy-control-item-hint">Just remove this pill; leaves it running</span>
           </button>
         </div>
       )}
@@ -2060,6 +2072,41 @@ export function EasyChat({
     return () => window.clearTimeout(timer)
   }, [visible, suspended, generating, thinking, bgTasks.length])
 
+  // Actually stop a background job. The app has no direct handle to a job the
+  // agent backgrounded (a `&` job has none at all; a run_in_background one is a
+  // shell only the agent's KillShell can reach), so we ask the agent to kill it —
+  // it started it and can. Drops the pill either way; if the session is already
+  // gone the job died with it. (The reliable, agent-free version is task #59.)
+  const stopBgTask = (t: BackgroundTask): void => {
+    setControlMenu(null)
+    setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
+    const id = agentIdRef.current
+    if (!id) return // session gone → the job died with it; just cleared the pill
+    const instruction = t.shellId
+      ? `Stop the background job you started earlier (shell ${t.shellId}): \`${t.command}\`. ` +
+        `Kill it with KillShell, then confirm in one short line that it's stopped.`
+      : `Stop the background job you started earlier: \`${t.command}\`. Find its process and ` +
+        `kill it (pkill/kill), then confirm in one short line that it's stopped.`
+    // Show a clean line in the chat so it's clear this was sent (the agent gets
+    // the detailed instruction above).
+    setItems((prev) => [
+      ...prev,
+      {
+        kind: 'msg',
+        msg: {
+          id: `u-stop-${Date.now()}`,
+          at: Date.now(),
+          role: 'assistant',
+          text: `⏹ Stopping background job: ${t.description || bgLabel(t.command)}`,
+          system: true
+        }
+      }
+    ])
+    window.cove.agentSend(id, instruction, [])
+    setGenerating(true)
+    setThinking(true)
+  }
+
   /**
    * A turn that finished while you were elsewhere leaves something to read.
    *
@@ -3193,6 +3240,10 @@ export function EasyChat({
                             ? 'Backgrounded with & — no shell handle to read its output.'
                             : 'Waiting for output…')}
                       </pre>
+                      <button className="easy-control-item easy-run-stop" onClick={() => stopBgTask(t)}>
+                        <span className="easy-control-item-label">⏹ Stop it</span>
+                        <span className="easy-control-item-hint">Ask the agent to kill it</span>
+                      </button>
                       <button
                         className="easy-control-item"
                         onClick={() => {
@@ -3201,7 +3252,9 @@ export function EasyChat({
                         }}
                       >
                         <span className="easy-control-item-label">Hide</span>
-                        <span className="easy-control-item-hint">This doesn&rsquo;t stop it</span>
+                        <span className="easy-control-item-hint">
+                          Just remove this pill; leaves it running
+                        </span>
                       </button>
                     </div>
                   )}

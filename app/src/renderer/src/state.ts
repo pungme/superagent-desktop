@@ -189,6 +189,7 @@ interface CoveState {
   resolveWorkspace: (deskId: string) => string | null
   setStatus: (workspaceId: string, status: WorkspaceStatus) => void
   addPort: (workspaceId: string, port: number) => void
+  removePort: (workspaceId: string, port: number) => void
   verifyPorts: () => Promise<void>
   /**
    * `current` is the pane's *effective* open state, which the component has
@@ -483,6 +484,13 @@ export const useStore = create<CoveState>((set, get) => ({
       // then drops out rather than sitting there green forever.
       window.setTimeout(() => void get().verifyPorts(), 4000)
       return { ports, toast: { workspaceId, port } }
+    }),
+  // Drop a port from the chip (e.g. after "Stop the server" kills it).
+  removePort: (workspaceId, port) =>
+    set((s) => {
+      const ports = { ...s.ports, [workspaceId]: (s.ports[workspaceId] ?? []).filter((p) => p !== port) }
+      savePorts(ports)
+      return { ports }
     }),
   // After a restart, drop any persisted server that isn't actually listening
   // anymore (its process may not have survived) — keep the ones that did.

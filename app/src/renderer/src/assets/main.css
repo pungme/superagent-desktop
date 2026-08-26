@@ -5027,6 +5027,14 @@ button {
   border-width: 1.25px;
 }
 /* Wider than the model list: this one holds a command and its output. */
+/* The "Stop it / Stop the server" action reads as the consequential one. */
+.easy-control-item.easy-run-stop .easy-control-item-label {
+  color: #d9534f;
+  font-weight: 600;
+}
+.easy-control-item.easy-run-stop:hover {
+  background: rgba(217, 83, 79, 0.1);
+}
 .easy-run-menu {
   min-width: 340px;
   max-width: min(560px, 68vw);

@@ -971,4 +971,41 @@ export function registerBrowserIpc(): void {
       socket.once('error', () => finish(false))
     })
   })
+  // Kill whatever is LISTENING on a local port — the "Stop the server" button.
+  // The agent backgrounded the server, so the app has no process handle to it, but
+  // it does know the port; lsof maps the port to the owning PID(s), which we then
+  // terminate (TERM first; a stubborn dev server gets KILL a beat later).
+  ipcMain.handle('net:killPort', async (_e, port: number): Promise<boolean> => {
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) return false
+    const pids = await new Promise<number[]>((resolve) => {
+      execFile('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN'], (err, stdout) => {
+        if (err) return resolve([])
+        resolve(
+          stdout
+            .split('\n')
+            .map((s) => Number(s.trim()))
+            .filter((n) => Number.isInteger(n) && n > 0)
+        )
+      })
+    })
+    if (pids.length === 0) return false
+    for (const pid of pids) {
+      try {
+        process.kill(pid, 'SIGTERM')
+      } catch {
+        /* already gone */
+      }
+    }
+    // A dev server that traps TERM (some watchers do) gets a KILL shortly after.
+    setTimeout(() => {
+      for (const pid of pids) {
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          /* gone — good */
+        }
+      }
+    }, 1500)
+    return true
+  })
 }
