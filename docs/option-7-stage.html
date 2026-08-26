@@ -59,15 +59,13 @@
          not mandatory, so a tall section on a short display never traps you */
       scroll-snap-type: y proximity;
     }
-    section.feature, .hero, .desk-sec, .open, .details, .close-cta {
-      scroll-snap-align: start;
-    }
+    section.feature { scroll-snap-align: start; }
     @media (prefers-reduced-motion: reduce) { html { scroll-snap-type: none; scroll-behavior: auto; } }
     /* Snapping is for a mouse on a full-height stage. On a touch screen the
        stages are short and snap only fights the momentum scroll. */
     @media (pointer: coarse), (max-width: 900px) {
       html { scroll-snap-type: none; }
-      section.feature, .hero, .desk-sec, .open, .details, .close-cta { scroll-snap-align: none; }
+      section.feature { scroll-snap-align: none; }
     }
     body {
       font-family: var(--sans);
