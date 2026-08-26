@@ -51,6 +51,9 @@
          inside it must scale with it, not on its own. */
       -webkit-text-size-adjust: 100%;
       text-size-adjust: 100%;
+      /* stop the page detaching from the top on iOS: without this the rubber
+         band leaves it resting away from the edge, and snap pins it there */
+      overscroll-behavior-y: none;
       scroll-behavior: smooth;
       /* one feature per screen, so let the scroll settle on them — proximity,
          not mandatory, so a tall section on a short display never traps you */
@@ -60,6 +63,12 @@
       scroll-snap-align: start;
     }
     @media (prefers-reduced-motion: reduce) { html { scroll-snap-type: none; scroll-behavior: auto; } }
+    /* Snapping is for a mouse on a full-height stage. On a touch screen the
+       stages are short and snap only fights the momentum scroll. */
+    @media (pointer: coarse), (max-width: 900px) {
+      html { scroll-snap-type: none; }
+      section.feature, .hero, .desk-sec, .open, .details, .close-cta { scroll-snap-align: none; }
+    }
     body {
       font-family: var(--sans);
       background: var(--cream);
