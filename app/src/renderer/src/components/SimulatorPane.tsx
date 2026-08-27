@@ -181,13 +181,16 @@ export function SimulatorPane({
    */
   useEffect(() => {
     return window.cove.onOpenSimulator?.((p) => {
+      // Only follow sim events for THIS workspace — a background project booting a
+      // device must not swap the phone on the pane you're actually watching.
+      if (p.workspaceId !== workspaceId) return
       if (!p.udid || p.udid === udid) return
       rememberDevice(p.udid)
       setFrame(null)
       setGone(false)
       setUdid(p.udid)
     })
-  }, [udid])
+  }, [udid, workspaceId])
 
   /**
    * Tell the sidebar whether a simulator is really attached here.

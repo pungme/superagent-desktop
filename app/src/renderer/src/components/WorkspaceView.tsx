@@ -253,17 +253,21 @@ export function WorkspaceView({
   useEffect(() => {
     return window.cove.onOpenSimulator?.((p) => {
       if (p.workspaceId !== ws.id) return
+      // Open on the chat that ASKED (p.chatId), not whichever chat is on screen
+      // when this async reveal lands — a background chat booting a simulator used
+      // to pop it open over the conversation you'd switched to. Fall back to the
+      // active desk for the desktop agent / legacy events with no chat.
+      const targetDesk = p.chatId ?? deskKey
       // Claim the device the agent just launched onto BEFORE opening the pane.
       // SimulatorPane mounts in response to this open and only then subscribes to
       // onOpenSimulator — too late to catch this very event — so it relies on the
-      // stored claim. Without it, its mount check finds nothing booted for this
-      // project and calls onNothingToShow(), closing the pane it just opened:
-      // the "flash then vanish".
+      // stored claim. The claim stays workspace-scoped (the device is shared);
+      // SimulatorPane resolves it by workspace.
       if (p.udid) localStorage.setItem(`cove.simDevice:${ws.id}`, p.udid)
-      // deskKey in deps so an agent reveal lands on the chat you're actually on,
-      // not the one that was active when this listener first subscribed.
-      localStorage.setItem(`simOpen:${deskKey}`, '1')
-      setSimOpen(true)
+      localStorage.setItem(`simOpen:${targetDesk}`, '1')
+      // Only flip the visible pane if the requesting chat is the one on screen;
+      // otherwise it's persisted above and appears when you switch to that chat.
+      if (targetDesk === deskKey) setSimOpen(true)
     })
   }, [ws.id, deskKey])
   // Belt-and-suspenders: when neither the browser preview nor a file viewer is

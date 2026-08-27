@@ -55,9 +55,13 @@ let secret = ''
  * The guard is held across the round trip rather than the broadcast: the grab
  * comes from the load, not from the send.
  */
-function openFileInApp(workspaceId: string, path: string): Promise<void> {
+function openFileInApp(workspaceId: string, path: string, chatId: string | null): Promise<void> {
   return withoutStealingFocus(async () => {
-    broadcastToWindows('app:open-file', { workspaceId, path })
+    // chatId scopes the reveal to the conversation that asked: the renderer opens
+    // it on THAT chat's desk, not whichever chat happens to be on screen when the
+    // (async) broadcast lands — otherwise a background chat's file opened over the
+    // one you switched to. null → workspace-level (the desktop agent).
+    broadcastToWindows('app:open-file', { workspaceId, path, chatId })
     // Long enough for the renderer to mount the pane and the viewer to start —
     // the guard adds its own short tail on release.
     await new Promise((r) => setTimeout(r, 1500))
@@ -143,6 +147,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       // asked for a simulator, so show them one instead of leaving a button.
       broadcastToWindows('app:open-simulator', {
         workspaceId: workspaceIdFromPane(PANE_ID),
+        chatId: CHAT_ID,
         udid
       })
       // A build with a simulator destination opens Apple's window by itself.
@@ -169,7 +174,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       // the user is looking at it live; opening the still as a file would take
       // over the working surface and leave two views of the same phone.
       const live = 'udid' in tgt || isMirroring(simTarget())
-      if (!live) await openFileInApp(ws, file)
+      if (!live) await openFileInApp(ws, file, CHAT_ID)
       return {
         content: [
           {
@@ -209,6 +214,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const out = await simctl(['launch', simTarget(), bundleId])
       broadcastToWindows('app:open-simulator', {
         workspaceId: workspaceIdFromPane(PANE_ID),
+        chatId: CHAT_ID,
         udid: simTarget()
       })
       if (isMirroring(simTarget())) keepSimulatorHidden()
@@ -242,6 +248,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   const revealSim = (udid: string): void => {
     broadcastToWindows('app:open-simulator', {
       workspaceId: workspaceIdFromPane(PANE_ID),
+      chatId: CHAT_ID,
       udid
     })
   }
@@ -500,7 +507,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         const root = getWorkspacePath(ws)
         abs = root ? resolve(root, abs) : resolve(abs)
       }
-      await openFileInApp(ws, abs)
+      await openFileInApp(ws, abs, CHAT_ID)
       return { content: [{ type: 'text', text: `Opened ${abs} in SuperAgent.` }] }
     }
   )

@@ -164,12 +164,20 @@ interface CoveState {
   filesOpen: Record<string, boolean>
   // Absolute path of the text file open in the in-app viewer/editor, per workspace.
   openFile: Record<string, string | null>
-  openFileInViewer: (workspaceId: string, path: string, focus?: boolean) => void
+  // deskId targets a SPECIFIC chat's desk (an agent reveal for a background
+  // chat), instead of the workspace's currently-active chat. Omit for user
+  // actions, which always mean "the chat I'm looking at".
+  openFileInViewer: (
+    workspaceId: string,
+    path: string,
+    focus?: boolean,
+    deskId?: string | null
+  ) => void
   closeFile: (workspaceId: string) => void
   // Open an absolute file path the right way: text/code/markdown in the in-app
   // viewer, PDFs/images in the preview pane, everything else in the OS default.
   // Shared by the file tree and the agent's open_file tool.
-  openPath: (workspaceId: string, absPath: string, focus?: boolean) => void
+  openPath: (workspaceId: string, absPath: string, focus?: boolean, deskId?: string | null) => void
 
   // Count of open HTML overlays (slide-overs, modals). While > 0 the native
   // browser view is hidden so it can't cover them.
@@ -210,9 +218,9 @@ interface CoveState {
   previewDirty: Record<string, boolean>
   markPreviewDirty: (workspaceId: string) => void
   toast: { workspaceId: string; port: number } | null
-  openPreview: (workspaceId: string, port: number) => void
+  openPreview: (workspaceId: string, port: number, deskId?: string | null) => void
   /** Reveal the browser pane on an arbitrary URL (e.g. a file:// from the tree). */
-  openUrl: (workspaceId: string, url: string, focus?: boolean) => void
+  openUrl: (workspaceId: string, url: string, focus?: boolean, deskId?: string | null) => void
   dismissToast: () => void
   setReloadOnIdle: (workspaceId: string, v: boolean) => void
 
@@ -350,11 +358,12 @@ export const useStore = create<CoveState>((set, get) => ({
   openFile: {},
   // A text file replaces the browser pane's slot; hide the native view so it can't
   // cover the viewer, and remember which file is showing.
-  openFileInViewer: (workspaceId, path, focus = true) => {
+  openFileInViewer: (workspaceId, path, focus = true, deskId) => {
     // Which surface is open is per CHAT (each conversation has its own setup),
     // so the visibility maps are keyed by the workspace's active chat. Focus
-    // still follows the workspace. deskKey() resolves ws → its active chat.
-    const key = deskKey(get(), workspaceId)
+    // still follows the workspace. deskKey() resolves ws → its active chat;
+    // deskId overrides it to reveal on a specific (background) chat's desk.
+    const key = deskId ?? deskKey(get(), workspaceId)
     localStorage.setItem(`openFile:${key}`, path)
     const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => ({
@@ -370,13 +379,13 @@ export const useStore = create<CoveState>((set, get) => ({
     localStorage.removeItem(`openFile:${key}`)
     set((s) => ({ openFile: { ...s.openFile, [key]: null } }))
   },
-  openPath: (workspaceId, absPath, focus = true) => {
+  openPath: (workspaceId, absPath, focus = true, deskId) => {
     const ext = absPath.slice(absPath.lastIndexOf('.') + 1).toLowerCase()
     if (FILE_TEXT_EXTS.has(ext)) {
-      get().openFileInViewer(workspaceId, absPath, focus)
+      get().openFileInViewer(workspaceId, absPath, focus, deskId)
     } else if (FILE_PREVIEW_EXTS.has(ext)) {
       // encodeURI (not encodeURIComponent) so path separators survive.
-      get().openUrl(workspaceId, `file://${encodeURI(absPath)}`, focus)
+      get().openUrl(workspaceId, `file://${encodeURI(absPath)}`, focus, deskId)
     } else {
       // .docx, .xlsx, archives, unknown types → hand off to the OS.
       window.cove.filesOpenExternal(absPath)
@@ -535,7 +544,7 @@ export const useStore = create<CoveState>((set, get) => ({
     }),
   setHooksEnabled: (v) => set({ hooksEnabled: v }),
 
-  openPreview: (workspaceId, port) => {
+  openPreview: (workspaceId, port, deskId) => {
     // Check before opening: the chip is scraped from the agent's output, so it
     // can name a server that has since stopped. Showing ERR_CONNECTION_REFUSED
     // and leaving a green dot claiming it is running cannot both be right.
@@ -546,8 +555,10 @@ export const useStore = create<CoveState>((set, get) => ({
     set((s) => {
       // Visibility (browserOpen) is per chat; the URL to load is per chat's VIEW
       // (workspace::chat), so opening a preview in one chat doesn't change another.
-      const key = deskKey(s, workspaceId)
-      const view = browserKey(s, workspaceId)
+      // deskId targets a specific (background) chat's desk/view; without it the
+      // preview lands on the active chat, which was the "wrong session" bug.
+      const key = deskId ?? deskKey(s, workspaceId)
+      const view = deskId ? `${workspaceId}::${deskId}` : browserKey(s, workspaceId)
       localStorage.setItem(`paneOpen:${key}`, '1')
       const browserOpen = { ...s.browserOpen, [key]: true }
       return {
@@ -559,11 +570,13 @@ export const useStore = create<CoveState>((set, get) => ({
       }
     })
   },
-  openUrl: (workspaceId, url, focus = true) => {
+  openUrl: (workspaceId, url, focus = true, deskId) => {
     const focusWs = focus ? get().resolveWorkspace(workspaceId) : null
     set((s) => {
-      const key = deskKey(s, workspaceId)
-      const view = browserKey(s, workspaceId)
+      // deskId reveals on a specific (background) chat's desk/view; without it a
+      // PDF/URL opened by a background chat's agent landed on the active chat.
+      const key = deskId ?? deskKey(s, workspaceId)
+      const view = deskId ? `${workspaceId}::${deskId}` : browserKey(s, workspaceId)
       localStorage.setItem(`paneOpen:${key}`, '1')
       const browserOpen = { ...s.browserOpen, [key]: true }
       // The viewer and the pane are the same slot, and the viewer wins it. A

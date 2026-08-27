@@ -231,11 +231,15 @@ export interface CoveApi {
   killPort: (port: number) => Promise<boolean>
   onBrowserZoom: (id: string, cb: (factor: number) => void) => () => void
   onBrowserState: (id: string, cb: (s: BrowserState) => void) => () => void
-  onOpenFile: (cb: (p: { workspaceId: string; path: string }) => void) => () => void
+  onOpenFile: (
+    cb: (p: { workspaceId: string; path: string; chatId?: string | null }) => void
+  ) => () => void
   /** The project list changed in main (e.g. the agent cloned a repo) — refresh. */
   onProjectsChanged: (cb: (p: { activate?: string }) => void) => () => void
   /** The agent booted or launched something on a simulator — reveal the pane. */
-  onOpenSimulator: (cb: (p: { workspaceId: string; udid?: string }) => void) => () => void
+  onOpenSimulator: (
+    cb: (p: { workspaceId: string; udid?: string; chatId?: string | null }) => void
+  ) => () => void
   onBrowserCrashed: (id: string, cb: () => void) => () => void
   browserStopAutomation: (id: string) => void
   /** Stop a page that is still loading (the reload button becomes ×). */
@@ -626,9 +630,13 @@ const cove: CoveApi = {
   installUpdate: () => ipcRenderer.send('update:install'),
   // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
   onOpenSimulator: (cb) =>
-    subscribe('app:open-simulator', (p) => cb(p as { workspaceId: string; udid?: string })),
+    subscribe('app:open-simulator', (p) =>
+      cb(p as { workspaceId: string; udid?: string; chatId?: string | null })
+    ),
   onOpenFile: (cb) =>
-    subscribe('app:open-file', (p) => cb(p as { workspaceId: string; path: string })),
+    subscribe('app:open-file', (p) =>
+      cb(p as { workspaceId: string; path: string; chatId?: string | null })
+    ),
   onProjectsChanged: (cb) => subscribe('projects:changed', (p) => cb(p as { activate?: string })),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
