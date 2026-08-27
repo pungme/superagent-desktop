@@ -193,23 +193,74 @@ export function registerFilesIpc(): void {
   // renaming on collision rather than overwriting someone's work.
   // A chat's private git worktree under <project>/.worktrees/<slug>, on its own
   // branch — parallel chats stop fighting over one working tree.
-  ipcMain.handle('worktree:create', (_e, projectPath: string) => {
-    return new Promise((resolve) => {
-      const slug = `wt-${Date.now().toString(36)}`
-      const branch = `superagent/${slug}`
-      const dir = join(projectPath, '.worktrees', slug)
-      // Keep .worktrees out of git status without touching the project's .gitignore.
-      try {
-        const exclude = join(projectPath, '.git', 'info', 'exclude')
-        if (existsSync(join(projectPath, '.git')) && existsSync(exclude)) {
-          const cur = readFileSync(exclude, 'utf8')
-          if (!cur.includes('.worktrees/')) writeFileSync(exclude, cur + '\n.worktrees/\n')
+  ipcMain.handle(
+    'worktree:create',
+    (_e, projectPath: string, opts?: { branch?: string; newBranch?: string; base?: string }) => {
+      return new Promise((resolve) => {
+        const slug = `wt-${Date.now().toString(36)}`
+        const dir = join(projectPath, '.worktrees', slug)
+        // Keep .worktrees out of git status without touching the project's .gitignore.
+        try {
+          const exclude = join(projectPath, '.git', 'info', 'exclude')
+          if (existsSync(join(projectPath, '.git')) && existsSync(exclude)) {
+            const cur = readFileSync(exclude, 'utf8')
+            if (!cur.includes('.worktrees/')) writeFileSync(exclude, cur + '\n.worktrees/\n')
+          }
+        } catch {
+          // exclusion is best-effort
         }
-      } catch {
-        // exclusion is best-effort
-      }
-      execFile('git', ['worktree', 'add', dir, '-b', branch], { cwd: projectPath }, (err) =>
-        resolve(err ? null : { path: dir, branch })
+        // Three ways to say which branch the worktree is on:
+        //  - opts.branch: check out an EXISTING branch (feature-1) in the worktree.
+        //  - opts.newBranch: create a NEW branch, optionally from opts.base.
+        //  - neither: the historical default — a fresh auto-named superagent/ branch.
+        let args: string[]
+        let branch: string
+        if (opts?.branch) {
+          branch = opts.branch
+          args = ['worktree', 'add', dir, branch]
+        } else if (opts?.newBranch) {
+          branch = opts.newBranch
+          args = ['worktree', 'add', dir, '-b', branch, ...(opts.base ? [opts.base] : [])]
+        } else {
+          branch = `superagent/${slug}`
+          args = ['worktree', 'add', dir, '-b', branch]
+        }
+        execFile('git', args, { cwd: projectPath }, (err) =>
+          resolve(err ? null : { path: dir, branch })
+        )
+      })
+    }
+  )
+  // Local branches, with the current one flagged and any already checked out in a
+  // worktree marked (git won't check the same branch out twice). Powers the
+  // branch picker + the toolbar switcher.
+  ipcMain.handle('git:branches', (_e, cwd: string) => {
+    return new Promise((resolve) => {
+      execFile(
+        'git',
+        ['for-each-ref', '--format=%(refname:short)|%(HEAD)|%(worktreepath)', 'refs/heads/'],
+        { cwd, maxBuffer: 4 * 1024 * 1024 },
+        (err, stdout) => {
+          if (err) return resolve([])
+          const rows = stdout
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .map((l) => {
+              const [name, head, wt] = l.split('|')
+              return { name, current: head === '*', worktree: wt ? wt.trim() || null : null }
+            })
+          resolve(rows)
+        }
+      )
+    })
+  })
+  // Switch the checkout to another branch. Fails cleanly if the tree is dirty or
+  // the branch is checked out in a worktree — git returns non-zero and we surface it.
+  ipcMain.handle('git:checkout', (_e, cwd: string, branch: string) => {
+    return new Promise((resolve) => {
+      execFile('git', ['checkout', branch], { cwd }, (err, _stdout, stderr) =>
+        resolve(err ? { ok: false, error: (stderr || '').trim() } : { ok: true })
       )
     })
   })

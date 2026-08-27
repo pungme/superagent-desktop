@@ -200,7 +200,16 @@ export interface CoveApi {
     }
   }>
   /** New git worktree under <project>/.worktrees; null if git refused. */
-  worktreeCreate: (projectPath: string) => Promise<{ path: string; branch: string } | null>
+  worktreeCreate: (
+    projectPath: string,
+    opts?: { branch?: string; newBranch?: string; base?: string }
+  ) => Promise<{ path: string; branch: string } | null>
+  /** Local branches: name, whether current, and the worktree path it's in (if any). */
+  gitBranches: (
+    cwd: string
+  ) => Promise<{ name: string; current: boolean; worktree: string | null }[]>
+  /** Switch the checkout to a branch. { ok } or { ok:false, error } if git refused. */
+  gitCheckout: (cwd: string, branch: string) => Promise<{ ok: boolean; error?: string }>
   worktreeRemove: (projectPath: string, wtPath: string) => Promise<boolean>
   /** Squash-merge a worktree back into the project's branch, then remove it. */
   worktreeMerge: (
@@ -555,7 +564,9 @@ const cove: CoveApi = {
   kvSet: (key, value) => ipcRenderer.send('kv:set', key, value),
   kvDel: (key) => ipcRenderer.send('kv:del', key),
   eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
-  worktreeCreate: (projectPath) => ipcRenderer.invoke('worktree:create', projectPath),
+  worktreeCreate: (projectPath, opts) => ipcRenderer.invoke('worktree:create', projectPath, opts),
+  gitBranches: (cwd) => ipcRenderer.invoke('git:branches', cwd),
+  gitCheckout: (cwd, branch) => ipcRenderer.invoke('git:checkout', cwd, branch),
   worktreeRemove: (projectPath, wtPath) =>
     ipcRenderer.invoke('worktree:remove', projectPath, wtPath),
   worktreeMerge: (projectPath, wtPath, message) =>
