@@ -917,6 +917,10 @@ export function EasyChat({
   const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamingIdRef = useRef<string | null>(null)
+  // The streamed reply's text, accumulated as deltas arrive — so the done
+  // notification can quote the last message. (React state lags a render, so a ref
+  // is the reliable source at the finalize point.)
+  const streamTextRef = useRef('')
   // Whether a turn is in flight, tracked as a ref so it's correct SYNCHRONOUSLY.
   // The `generating` state lags a render behind, so firing several messages in
   // quick succession made each one read `generating` as still false — so they
@@ -1355,6 +1359,7 @@ export function EasyChat({
             // Begin a new streaming assistant message.
             const id = `a-${Date.now()}-${Math.random()}`
             streamingIdRef.current = id
+            streamTextRef.current = ''
             streamedThisTurnRef.current = true
             setThinking(false)
             setItems((prev) => [
@@ -1374,6 +1379,7 @@ export function EasyChat({
           if (delta?.type === 'text_delta') {
             const sid = streamingIdRef.current
             const chunk = delta.text as string
+            streamTextRef.current += chunk
             setItems((prev) =>
               prev.map((it) =>
                 it.kind === 'msg' && it.msg.id === sid
@@ -1607,6 +1613,16 @@ export function EasyChat({
                 : it
             )
           )
+          // Capture the streamed reply for the done notification. This was ONLY
+          // done in the non-streaming branch above, so a normal (streamed) reply
+          // never updated it — the notification then quoted whatever last came
+          // through un-streamed (often an API/limit error), never the real reply.
+          const isApiError = (msg?.isApiErrorMessage as boolean) === true
+          const text = streamTextRef.current.trim()
+          if (text && !isApiError) {
+            const line = text.split('\n').find((l) => l.trim()) ?? ''
+            if (line) window.cove.chatLastReply(workspaceId, line.replace(/[#*_`>]/g, '').trim())
+          }
         }
         return
       }
