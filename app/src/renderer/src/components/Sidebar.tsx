@@ -7,7 +7,8 @@ import {
   useSensor,
   useSensors,
   useDraggable,
-  useDroppable
+  useDroppable,
+  useDndContext
 } from '@dnd-kit/core'
 import { useStore, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
@@ -381,7 +382,22 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   // open here once", which kept showing a phone long after the device had been
   // shut down.
   const simHere = useStore((s) => s.simOpen[ws.id] ?? false)
-  const status = useStore((s) => s.statuses[ws.id] ?? 'idle')
+  // The spinner used to trust the last Claude-Code hook status, last-write-wins.
+  // But a background/worktree chat reaped on switch-away never fires its `Stop`
+  // hook (and a trailing SubagentStop re-arms "working"), so it would spin
+  // forever even though nothing is running. Derive "working" from the live
+  // union of this workspace's chats' generating state instead — it clears on
+  // turn-end AND on reap (clearBusy), so it can't strand. The hook is still the
+  // source of truth for "needs-you" (a Notification the user must answer).
+  const anyGenerating = useStore((s) =>
+    (s.chats[ws.id] ?? []).some((c) => s.busy[c.id]?.generating)
+  )
+  const hookStatus = useStore((s) => s.statuses[ws.id] ?? 'idle')
+  const status: WorkspaceStatus = anyGenerating
+    ? 'working'
+    : hookStatus === 'needs-you'
+      ? 'needs-you'
+      : 'idle'
   const agentLive = useStore((s) => Boolean(s.agentLive[ws.id]))
   // A live dev server on this project → green dot on its icon (mirrors the
   // toolbar's "● localhost:PORT" chip).
@@ -483,6 +499,13 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   // Also a drop target, so dragging over a row lets us reorder relative to it
   // (not just append to the group).
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: ws.id })
+  // While a whole GROUP is being dragged, rows must not show their insertion
+  // line: closestCenter snaps to the nearest row, so an "insert between these
+  // two projects" line appeared inside a folder and read as "drop the group
+  // INTO this folder" — which groups never do. Hide it; the target folder shows
+  // its own reorder line instead.
+  const { active: dndActive } = useDndContext()
+  const draggingGroup = String(dndActive?.id ?? '').startsWith('gdrag:')
   const setRefs = (node: HTMLElement | null): void => {
     setNodeRef(node)
     setDropRef(node)
@@ -492,7 +515,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     <div className="sidebar-item-wrap">
       <div
         ref={setRefs}
-        className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver ? 'drop-before' : ''}`}
+        className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver && !draggingGroup ? 'drop-before' : ''}`}
         onClick={() => {
           window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
           setActive(ws.id)
@@ -692,6 +715,14 @@ function GroupSection({
   // drop hint is an insertion LINE, not the fill highlight a project-into-group
   // drop uses (that fill read as "drop into the middle of this group").
   const draggingGroup = String(active?.id ?? '').startsWith('gdrag:')
+  // closestCenter usually resolves the hover to one of this group's ROWS, not the
+  // group container, so `isOver` alone missed most of the group's body. Treat the
+  // group as the drop target whenever the pointer is over its header OR any of its
+  // projects — then the reorder line follows the folder you're actually over.
+  const { over } = useDndContext()
+  const overId = over ? String(over.id) : null
+  const overThisGroup =
+    overId === `group:${group.id}` || group.workspaces.some((w) => w.id === overId)
   // Drag the group header to reorder groups (id prefixed so onDragEnd can tell a
   // group drag from a project drag).
   const {
@@ -700,6 +731,10 @@ function GroupSection({
     setNodeRef: setDragRef,
     isDragging
   } = useDraggable({ id: `gdrag:${group.id}` })
+  // Reorder line for a group drag over ANOTHER group; fill only for a project
+  // dropped into a group. Never hint on the group being dragged itself.
+  const showReorder = draggingGroup && overThisGroup && !isDragging
+  const showFill = !draggingGroup && isOver
   const collapsed = group.collapsed === 1
 
   const onDelete = (): void => {
@@ -713,7 +748,7 @@ function GroupSection({
 
   return (
     <div
-      className={`sidebar-group ${isOver ? (draggingGroup ? 'drop-reorder' : 'drop-target') : ''} ${isDragging ? 'dragging' : ''}`}
+      className={`sidebar-group ${showReorder ? 'drop-reorder' : showFill ? 'drop-target' : ''} ${isDragging ? 'dragging' : ''}`}
       ref={setNodeRef}
     >
       <div className="sidebar-group-header">
