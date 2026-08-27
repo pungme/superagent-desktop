@@ -786,9 +786,10 @@ export function ComputerPanel({
       }`}
       onPointerMove={(e) => {
         if (!dockAuto) return
-        // The reveal strip is deeper than the dock is tall, so the dock is
-        // already there by the time the pointer arrives at it.
-        const near = e.clientY > e.currentTarget.getBoundingClientRect().bottom - 96
+        // A slim reveal band right at the bottom edge — 96px popped the dock up
+        // whenever the pointer wandered anywhere near the lower quarter, which read
+        // as far too twitchy. Keep it close to the edge so it's a deliberate reach.
+        const near = e.clientY > e.currentTarget.getBoundingClientRect().bottom - 40
         setNearBottom((cur) => (cur === near ? cur : near))
       }}
       onPointerLeave={() => setNearBottom(false)}
