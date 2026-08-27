@@ -116,9 +116,12 @@ function App(): React.JSX.Element {
   // The agent's open_file tool asks the app to display a file in-app (viewer for
   // text/markdown, pane for PDFs/images) instead of the OS default.
   useEffect(() => {
-    return window.cove.onOpenFile(({ workspaceId, path }) => {
-      // Agent-originated: open in that project WITHOUT switching the user to it.
-      useStore.getState().openPath(workspaceId, path, false)
+    return window.cove.onOpenFile(({ workspaceId, path, chatId }) => {
+      // Agent-originated: open in that project WITHOUT switching the user to it,
+      // and on the chat that ASKED (chatId), not whichever chat is on screen when
+      // this async reveal lands — otherwise a background chat's file opened over
+      // the conversation you'd switched to.
+      useStore.getState().openPath(workspaceId, path, false, chatId ?? undefined)
     })
   }, [])
 
@@ -399,7 +402,10 @@ function App(): React.JSX.Element {
             className="computer-host"
             style={{ display: computerOpen && !settingsOpen ? 'flex' : 'none' }}
           >
-            <ComputerPanel visible={computerOpen && !settingsOpen} onClose={() => setOverlay(null)} />
+            <ComputerPanel
+              visible={computerOpen && !settingsOpen}
+              onClose={() => setOverlay(null)}
+            />
           </div>
         )}
         {/* A full page (not a modal): covers the content area, above the hosts,
