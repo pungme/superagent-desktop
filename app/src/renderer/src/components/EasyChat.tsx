@@ -1123,11 +1123,10 @@ export function EasyChat({
   // Drag a file onto the chat: images attach (like a paste); other files become
   // a file chip in the composer — the same 📎 chip a file dropped from the tree
   // gets — rather than dumping a raw path into the text you're writing.
-  const onDrop = (e: React.DragEvent): void => {
-    const files = [...(e.dataTransfer?.files ?? [])]
+  // Attach a set of files: images inline (like a paste), other files as a 📎 chip
+  // carrying the path the agent can read. Shared by drag-drop and the attach button.
+  const attachFiles = (files: File[]): void => {
     if (files.length === 0) return
-    e.preventDefault()
-    setDragOver(false)
     const dropped: { path: string; name: string }[] = []
     for (const file of files) {
       if (file.type.startsWith('image/')) attachImage(file)
@@ -1137,7 +1136,7 @@ export function EasyChat({
       }
     }
     if (dropped.length > 0) {
-      // Dedupe against what's already staged, so dropping the same file twice
+      // Dedupe against what's already staged, so attaching the same file twice
       // doesn't chip it twice.
       setPendingFiles((prev) => {
         const have = new Set(prev.map((f) => f.path))
@@ -1145,6 +1144,14 @@ export function EasyChat({
       })
       inputRef.current?.focus()
     }
+  }
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const onDrop = (e: React.DragEvent): void => {
+    const files = [...(e.dataTransfer?.files ?? [])]
+    if (files.length === 0) return
+    e.preventDefault()
+    setDragOver(false)
+    attachFiles(files)
   }
 
   // Track the drop-hint from the window so it can't get stuck: show it only while a
@@ -3004,6 +3011,27 @@ export function EasyChat({
               }
             }}
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              attachFiles([...(e.target.files ?? [])])
+              e.target.value = '' // allow re-picking the same file
+            }}
+          />
+          <button
+            className="easy-attach"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!ready && !suspended}
+            title="Attach a file or image"
+            aria-label="Attach a file"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.49" />
+            </svg>
+          </button>
           <button
             className={`easy-mic ${dictation.state === 'recording' ? 'recording' : ''}`}
             // Hold to talk, or tap for hands-free — the shape Wispr Flow settled
