@@ -532,16 +532,16 @@ function extractPorts(text: string): number[] {
 
 // Model choices for the composer picker. '' = Claude's own default (whatever the
 // CLI is configured to use); the rest are passed as --model at spawn.
+// Order + wording follow Claude Code's own /model picker so the two agree.
+// The 1M variants for Opus/Sonnet are deliberate: plain `opus` runs the 200K
+// model, so picking it here quietly gave a fifth of the window the default
+// already had (the CLI resolves the default to claude-opus-5[1m]).
 const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
-  { value: '', label: 'Default', hint: 'Whatever your account uses' },
-  // The 1M variants, deliberately. Plain `opus` runs the 200K model: picking
-  // Opus from this menu quietly gave you a fifth of the window your own default
-  // already had (the CLI resolves that to claude-opus-5[1m]), and the memory
-  // gauge then read full on a conversation that had barely started.
-  { value: 'opus[1m]', label: 'Opus', hint: 'Most capable · 1M context' },
-  { value: 'sonnet[1m]', label: 'Sonnet', hint: 'Balanced · 1M context' },
-  { value: 'haiku', label: 'Haiku', hint: 'Fastest, lightest' },
-  { value: 'fable', label: 'Fable', hint: 'Fast, for quick edits' }
+  { value: '', label: 'Default', hint: 'Recommended · best for everyday, complex tasks' },
+  { value: 'opus[1m]', label: 'Opus', hint: 'Opus 5 · 1M context · everyday, complex tasks' },
+  { value: 'fable', label: 'Fable', hint: 'Fable 5 · most capable, for the hardest, longest tasks' },
+  { value: 'sonnet[1m]', label: 'Sonnet', hint: 'Sonnet 5 · efficient for routine tasks' },
+  { value: 'haiku', label: 'Haiku', hint: 'Haiku 4.5 · fastest for quick answers' }
 ]
 
 /**
