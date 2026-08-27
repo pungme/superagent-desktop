@@ -1234,6 +1234,12 @@ button {
 }
 
 /* Current git branch chip (code projects). */
+.workspace-branch-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
 .workspace-branch {
   flex: 0 0 auto;
   display: inline-flex;
@@ -1247,6 +1253,160 @@ button {
   padding: 2px 9px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.workspace-branch:hover {
+  background: var(--active, var(--border));
+  color: var(--text-primary);
+}
+.workspace-branch-caret {
+  font-size: 8px;
+  opacity: 0.6;
+  margin-left: 1px;
+}
+.workspace-branch-err {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  max-width: 260px;
+  font-size: 11px;
+  color: var(--danger, #e5484d);
+  background: var(--surface, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  white-space: normal;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* Branch dropdown — shared by the toolbar switcher and the worktree picker. */
+.branch-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 70;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+}
+.branch-menu-filter {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 8px 10px;
+  outline: none;
+}
+.branch-menu-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.branch-menu-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.branch-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.branch-menu-item:hover:not(:disabled) {
+  background: var(--hover);
+}
+.branch-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.branch-menu-item.current {
+  color: var(--text-secondary);
+}
+.branch-menu-glyph {
+  flex: 0 0 auto;
+  opacity: 0.6;
+}
+.branch-menu-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branch-menu-tag {
+  flex: 0 0 auto;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background: var(--hover);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.branch-menu-new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding: 7px 8px;
+}
+.branch-menu-new input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 7px;
+  outline: none;
+}
+.branch-menu-new button {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent, #4a7cff);
+  color: #fff;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.branch-menu-new button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* New-worktree split button: main action + caret that opens the branch picker. */
+.easy-newchat-wt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.easy-newchat-caret {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  font-size: 9px;
+}
+.easy-newchat-wt .branch-menu {
+  left: auto;
+  right: 0;
 }
 
 /* Running dev-server chip in the toolbar — the agent started a server; click to

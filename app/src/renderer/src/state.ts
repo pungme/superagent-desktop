@@ -231,7 +231,11 @@ interface CoveState {
   loadChats: (workspaceId: string) => Promise<Chat[]>
   newChat: (workspaceId: string) => Promise<void>
   /** New chat running in a fresh git worktree of the project. */
-  newChatInWorktree: (workspaceId: string, projectPath: string) => Promise<boolean>
+  newChatInWorktree: (
+    workspaceId: string,
+    projectPath: string,
+    opts?: { branch?: string; newBranch?: string; base?: string }
+  ) => Promise<boolean>
   selectChat: (workspaceId: string, chatId: string) => void
   removeChat: (workspaceId: string, chatId: string) => Promise<void>
   renameChat: (workspaceId: string, chatId: string, title: string) => Promise<void>
@@ -488,7 +492,10 @@ export const useStore = create<CoveState>((set, get) => ({
   // Drop a port from the chip (e.g. after "Stop the server" kills it).
   removePort: (workspaceId, port) =>
     set((s) => {
-      const ports = { ...s.ports, [workspaceId]: (s.ports[workspaceId] ?? []).filter((p) => p !== port) }
+      const ports = {
+        ...s.ports,
+        [workspaceId]: (s.ports[workspaceId] ?? []).filter((p) => p !== port)
+      }
       savePorts(ports)
       return { ports }
     }),
@@ -706,8 +713,8 @@ export const useStore = create<CoveState>((set, get) => ({
       activeChatId: { ...s.activeChatId, [workspaceId]: id }
     }))
   },
-  newChatInWorktree: async (workspaceId, projectPath) => {
-    const wt = await window.cove.worktreeCreate(projectPath)
+  newChatInWorktree: async (workspaceId, projectPath, opts) => {
+    const wt = await window.cove.worktreeCreate(projectPath, opts)
     if (!wt) return false // not a git repo, or git refused — caller says so
     const id = await window.cove.chatCreate(workspaceId, wt.path)
     const list = await window.cove.chatList(workspaceId)

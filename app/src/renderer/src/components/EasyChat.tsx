@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { TasksPanel } from './TasksPanel'
+import { BranchMenu } from './BranchMenu'
 import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
@@ -539,7 +540,11 @@ function extractPorts(text: string): number[] {
 const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: '', label: 'Default', hint: 'Recommended · best for everyday, complex tasks' },
   { value: 'opus[1m]', label: 'Opus', hint: 'Opus 5 · 1M context · everyday, complex tasks' },
-  { value: 'fable', label: 'Fable', hint: 'Fable 5 · most capable, for the hardest, longest tasks' },
+  {
+    value: 'fable',
+    label: 'Fable',
+    hint: 'Fable 5 · most capable, for the hardest, longest tasks'
+  },
   { value: 'sonnet[1m]', label: 'Sonnet', hint: 'Sonnet 5 · efficient for routine tasks' },
   { value: 'haiku', label: 'Haiku', hint: 'Haiku 4.5 · fastest for quick answers' }
 ]
@@ -773,6 +778,8 @@ export function EasyChat({
   // The full placeholder lists the affordances, which wraps and clips in a
   // narrow chat column; below this width only the short form fits on one line.
   const [narrowComposer, setNarrowComposer] = useState(false)
+  // The "New worktree" branch picker (choose an existing branch or a new one).
+  const [wtMenu, setWtMenu] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   // Non-image files dropped on the chat — shown as chips, sent as paths.
   const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
@@ -2724,25 +2731,71 @@ export function EasyChat({
                 ✎ New chat
               </button>
               {isRepo && (
-                <button
-                  className="easy-newchat"
-                  onClick={() => {
-                    // The chat gets an isolated git worktree on its own branch, so
-                    // parallel agents stop fighting over one checkout.
-                    void useStore
-                      .getState()
-                      .newChatInWorktree(
-                        workspaceId,
-                        cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd
-                      )
-                      .then((ok) => {
-                        if (!ok) window.alert('Could not create a worktree here — git refused.')
-                      })
-                  }}
-                  title="New chat on its own git branch — isolated worktree, your checkout stays clean"
-                >
-                  ⎇ New worktree
-                </button>
+                <span className="easy-newchat-wt">
+                  <button
+                    className="easy-newchat"
+                    onClick={() => {
+                      // The chat gets an isolated git worktree on its own branch, so
+                      // parallel agents stop fighting over one checkout. Fast path:
+                      // an auto-named branch off the current HEAD.
+                      void useStore
+                        .getState()
+                        .newChatInWorktree(
+                          workspaceId,
+                          cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd
+                        )
+                        .then((ok) => {
+                          if (!ok) window.alert('Could not create a worktree here — git refused.')
+                        })
+                    }}
+                    title="New chat on its own git branch — isolated worktree, your checkout stays clean"
+                  >
+                    ⎇ New worktree
+                  </button>
+                  <button
+                    className="easy-newchat easy-newchat-caret"
+                    title="Pick a branch for the worktree"
+                    onClick={() => setWtMenu((v) => !v)}
+                  >
+                    ▾
+                  </button>
+                  {wtMenu && (
+                    <BranchMenu
+                      cwd={cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd}
+                      onClose={() => setWtMenu(false)}
+                      onPick={(b) => {
+                        setWtMenu(false)
+                        const proj = cwd.includes('/.worktrees/')
+                          ? cwd.split('/.worktrees/')[0]
+                          : cwd
+                        void useStore
+                          .getState()
+                          .newChatInWorktree(workspaceId, proj, { branch: b })
+                          .then((ok) => {
+                            if (!ok)
+                              window.alert(
+                                `Could not open ${b} in a worktree — it may already be checked out elsewhere.`
+                              )
+                          })
+                      }}
+                      onNew={(name) => {
+                        setWtMenu(false)
+                        const proj = cwd.includes('/.worktrees/')
+                          ? cwd.split('/.worktrees/')[0]
+                          : cwd
+                        void useStore
+                          .getState()
+                          .newChatInWorktree(workspaceId, proj, { newBranch: name })
+                          .then((ok) => {
+                            if (!ok)
+                              window.alert(
+                                `Could not create branch ${name} — it may already exist.`
+                              )
+                          })
+                      }}
+                    />
+                  )}
+                </span>
               )}
             </div>
           )}
@@ -3028,7 +3081,16 @@ export function EasyChat({
             title="Attach a file or image"
             aria-label="Attach a file"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.49" />
             </svg>
           </button>
@@ -3284,7 +3346,10 @@ export function EasyChat({
                             ? 'Backgrounded with & — no shell handle to read its output.'
                             : 'Waiting for output…')}
                       </pre>
-                      <button className="easy-control-item easy-run-stop" onClick={() => stopBgTask(t)}>
+                      <button
+                        className="easy-control-item easy-run-stop"
+                        onClick={() => stopBgTask(t)}
+                      >
                         <span className="easy-control-item-label">⏹ Stop it</span>
                         <span className="easy-control-item-hint">Ask the agent to kill it</span>
                       </button>

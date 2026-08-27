@@ -8,6 +8,7 @@ import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
 import { FileViewer } from './FileViewer'
 import { RoutineRunView } from './RoutineRunView'
+import { BranchMenu } from './BranchMenu'
 import type { Workspace, Routine } from '../../../preload'
 
 const EMPTY_ROUTINES: Routine[] = []
@@ -329,6 +330,11 @@ export function WorkspaceView({
   })()
   // Current git branch, for code projects only (browser projects have no repo).
   const [branch, setBranch] = useState<string | null>(null)
+  const [branchMenu, setBranchMenu] = useState(false)
+  const [branchErr, setBranchErr] = useState<string | null>(null)
+  const refreshBranch = useCallback(() => {
+    window.cove.gitBranch(ws.path).then((b) => setBranch(b))
+  }, [ws.path])
   useEffect(() => {
     if (ws.kind === 'browser') return
     let alive = true
@@ -567,8 +573,36 @@ export function WorkspaceView({
             <span className="workspace-title">{ws.name}</span>
             <span className="workspace-path">{ws.path}</span>
             {branch && (
-              <span className="workspace-branch" title={`On git branch ${branch}`}>
-                ⎇ {branch}
+              <span className="workspace-branch-wrap">
+                <button
+                  className="workspace-branch"
+                  title={`On git branch ${branch} — click to switch`}
+                  onClick={() => {
+                    setBranchErr(null)
+                    setBranchMenu((v) => !v)
+                  }}
+                >
+                  ⎇ {branch}
+                  <span className="workspace-branch-caret">▾</span>
+                </button>
+                {branchMenu && (
+                  <BranchMenu
+                    cwd={ws.path}
+                    pickDisabledInWorktree
+                    onClose={() => setBranchMenu(false)}
+                    onPick={async (b) => {
+                      const r = await window.cove.gitCheckout(ws.path, b)
+                      if (r.ok) {
+                        setBranchMenu(false)
+                        setBranchErr(null)
+                        refreshBranch()
+                      } else {
+                        setBranchErr(r.error || 'Could not switch branch')
+                      }
+                    }}
+                  />
+                )}
+                {branchErr && <span className="workspace-branch-err">{branchErr}</span>}
               </span>
             )}
           </>
