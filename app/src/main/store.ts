@@ -134,6 +134,30 @@ export function initStore(): void {
       updatedAt INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start);
+    -- The companion's view of a conversation: append-only, numbered per chat,
+    -- written by main from the agent's stream. A phone that reconnects asks for
+    -- "everything after N" and gets exactly that.
+    CREATE TABLE IF NOT EXISTS chat_events (
+      chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+      seq INTEGER NOT NULL,
+      ts INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      data TEXT NOT NULL,
+      PRIMARY KEY (chatId, seq)
+    );
+    -- Phones paired with this Mac. The secret is safeStorage-encrypted; the
+    -- token is stored hashed, so the table alone lets nobody in.
+    CREATE TABLE IF NOT EXISTS devices (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      model TEXT NOT NULL DEFAULT '',
+      secret BLOB NOT NULL,
+      tokenHash TEXT NOT NULL,
+      pushToken TEXT,
+      pushEnv TEXT NOT NULL DEFAULT 'production',
+      createdAt INTEGER NOT NULL,
+      lastSeenAt INTEGER
+    );
   `)
 
   // Migration: pictures on a list item, for databases that predate them.
@@ -289,6 +313,129 @@ export function getWorkspaceKind(id: string): WorkspaceKind | undefined {
   const row = db.prepare('SELECT kind FROM workspaces WHERE id = ?').get(id) as
     { kind: WorkspaceKind } | undefined
   return row?.kind
+}
+
+// --- Companion event log ----------------------------------------------------
+
+export interface ChatEventRow {
+  chatId: string
+  seq: number
+  ts: number
+  kind: string
+  data: string
+}
+
+/** Append one event; returns its seq. Serialised per chat by the transaction. */
+export function appendChatEvent(chatId: string, kind: string, data: unknown): number {
+  const run = db.transaction((): number => {
+    const row = db
+      .prepare('SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM chat_events WHERE chatId = ?')
+      .get(chatId) as { seq: number }
+    db.prepare('INSERT INTO chat_events (chatId, seq, ts, kind, data) VALUES (?, ?, ?, ?, ?)').run(
+      chatId,
+      row.seq,
+      Date.now(),
+      kind,
+      JSON.stringify(data)
+    )
+    return row.seq
+  })
+  return run()
+}
+
+export function listChatEvents(chatId: string, afterSeq: number, limit = 500): ChatEventRow[] {
+  return db
+    .prepare(
+      'SELECT chatId, seq, ts, kind, data FROM chat_events WHERE chatId = ? AND seq > ? ORDER BY seq LIMIT ?'
+    )
+    .all(chatId, afterSeq, limit) as ChatEventRow[]
+}
+
+export function chatEventCount(chatId: string): number {
+  return (
+    db.prepare('SELECT COUNT(*) AS n FROM chat_events WHERE chatId = ?').get(chatId) as {
+      n: number
+    }
+  ).n
+}
+
+export function lastChatEventSeq(chatId: string): number {
+  return (
+    db.prepare('SELECT COALESCE(MAX(seq), 0) AS s FROM chat_events WHERE chatId = ?').get(chatId) as {
+      s: number
+    }
+  ).s
+}
+
+/** The renderer's saved transcript, parsed. [] when missing or unreadable. */
+export function loadChatItems(chatId: string): unknown[] {
+  const row = db.prepare('SELECT data FROM chats WHERE id = ?').get(chatId) as
+    { data: string } | undefined
+  if (!row) return []
+  try {
+    const parsed = JSON.parse(row.data)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Append renderer-shaped items to a saved transcript. Used for turns that ran
+ * with no window open, so the desktop still shows them when it comes back.
+ */
+export function appendChatItems(chatId: string, items: unknown[]): void {
+  if (!items.length) return
+  const run = db.transaction(() => {
+    const current = loadChatItems(chatId)
+    db.prepare('UPDATE chats SET data = ?, updatedAt = ? WHERE id = ?').run(
+      JSON.stringify([...current, ...items]),
+      Date.now(),
+      chatId
+    )
+  })
+  run()
+}
+
+export interface ChatRow {
+  id: string
+  workspaceId: string
+  title: string | null
+  claudeSessionId: string | null
+  updatedAt: number
+  cwd: string | null
+}
+
+export function getChat(chatId: string): ChatRow | undefined {
+  return db
+    .prepare('SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd FROM chats WHERE id = ?')
+    .get(chatId) as ChatRow | undefined
+}
+
+export function listAllChats(): ChatRow[] {
+  return db
+    .prepare(
+      'SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC'
+    )
+    .all() as ChatRow[]
+}
+
+export function getWorkspace(id: string): Workspace | undefined {
+  return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as Workspace | undefined
+}
+
+/** A mirrored renderer setting (localStorage → kv), or undefined. */
+export function kvGet(key: string): string | undefined {
+  const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(key) as
+    { value: string } | undefined
+  return row?.value
+}
+
+export function kvSet(key: string, value: string): void {
+  db.prepare('INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
+    key,
+    value
+  )
 }
 
 /**
