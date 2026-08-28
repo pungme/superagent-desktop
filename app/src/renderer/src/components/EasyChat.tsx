@@ -323,8 +323,12 @@ const BG_SHELL_ID_RE = /(?:ID|bash_id|shell)[:\s]+([A-Za-z0-9_-]+)/i
 // "Output is being written to: /…/tasks/<id>.output" — reading that file is how
 // the strip shows live output without waiting for the agent to poll the shell.
 const BG_OUTFILE_RE = /written to:\s*(\S+\.output)/i
+// A backgrounded shell reports its end several ways: an XML/label status, a
+// bare "[killed]"/"[completed]" marker (what BashOutput writes when a shell is
+// killed — this one used to slip through, leaving a dead job pinned to the strip
+// as "running" forever), or a plain exit-code line.
 const BG_DONE_RE =
-  /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b|exited? with code\s*-?\d+/i
+  /<status>\s*(completed|failed|killed)\s*<\/status>|status:\s*(completed|failed|killed)\b|\[(completed|failed|killed|done)\]|exited? with code\s*-?\d+/i
 
 /**
  * When a message arrived. Transcripts saved before this field existed have no
