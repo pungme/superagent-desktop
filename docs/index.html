@@ -1829,7 +1829,7 @@
     /* ---- intro: logo + wordmark, then the logo flies to its seat in the hero ---- */
     html.intro { overflow: hidden; }
     html.intro:not(.leaving) .hero .rise { opacity: 0 !important; transform: translateY(34px) rotate(-0.6deg) !important; transition: none !important; }
-    html.intro .nav-logo > * { opacity: 0 !important; transition: none !important; }
+    html.intro .hero-mark { opacity: 0 !important; transform: none !important; transition: none !important; }
     #intro {
       position: fixed; inset: 0; z-index: 100; background: var(--cream);
       display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -1853,16 +1853,16 @@
     .intro-skip { position: absolute; bottom: 28px; left: 0; right: 0; text-align: center; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); animation: i-fade 0.8s var(--ease) both 2s; }
     /* leaving: text drops away, sheet clears, logo is carried to the hero mark by JS */
     #intro.out { background: transparent; pointer-events: none; }
-    #intro.out .intro-rule, #intro.out .intro-skip {
+    #intro.out .intro-word, #intro.out .intro-rule, #intro.out .intro-jp, #intro.out .intro-skip {
       opacity: 0; transform: translateY(-8px); transition: opacity 0.3s var(--ease), transform 0.3s var(--ease); animation: none;
     }
-    #intro.out .intro-logo, #intro.out .intro-word, #intro.out .intro-jp {
+    #intro.out .intro-word span { animation: none; }
+    #intro.out .intro-logo {
       animation: none; will-change: transform; transform-origin: center center;
       transition: transform 0.75s var(--ease), opacity 0.75s var(--ease), border-radius 0.75s var(--ease), box-shadow 0.75s var(--ease);
     }
-    #intro.out .intro-word span { animation: none; }
-    /* a piece with nowhere to land (nav collapsed on a phone) fades instead */
-    #intro.out .fade { opacity: 0; transform: scale(0.9); transition-duration: 0.4s; }
+    /* no mark on screen to land on: the logo fades out instead */
+    #intro.out .intro-logo.fade { opacity: 0; transform: scale(0.9); transition-duration: 0.4s; }
   </style>
 </head>
 <body>
@@ -2800,39 +2800,29 @@
       var done = false, timer = hold ? 0 : setTimeout(leave, 2400);
       function leave() {
         if (done) return; done = true; clearTimeout(timer);
-        var pairs = [
-          [intro.querySelector(".intro-logo"), document.querySelector(".nav-logo img")],
-          [intro.querySelector(".intro-word"), document.querySelector(".nav-logo .wm > span:first-child")],
-          [intro.querySelector(".intro-jp"),   document.querySelector(".nav-logo .jp")]
-        ];
-        // measure everything BEFORE .out changes any style
-        var moves = pairs.map(function (p) {
-          var from = p[0].getBoundingClientRect();
-          var to = p[1] ? p[1].getBoundingClientRect() : null;
-          return { el: p[0], twin: p[1], from: from, to: to };
-        });
+        var logo = intro.querySelector(".intro-logo");
+        var mark = document.querySelector(".hero-mark");
+        // measure BEFORE .out changes any style
+        var from = logo.getBoundingClientRect();
+        var to = mark ? mark.getBoundingClientRect() : null;
         intro.classList.add("out");
-        root.classList.add("leaving"); // hero starts rising now, under the flying pieces
+        root.classList.add("leaving"); // hero text starts rising now, under the flying logo
         var wait = 400;
-        moves.forEach(function (m) {
-          var to = m.to;
-          if (to && to.width > 0 && to.bottom > 0 && to.top < window.innerHeight) {
-            // FLIP: carry the intro piece onto its nav twin, same centre, same width
-            var dx = (to.left + to.width / 2) - (m.from.left + m.from.width / 2);
-            var dy = (to.top + to.height / 2) - (m.from.top + m.from.height / 2);
-            var k = to.width / m.from.width;
-            m.el.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + k + ")";
-            if (m.el.classList.contains("intro-logo")) {
-              m.el.style.borderRadius = (parseFloat(getComputedStyle(m.twin).borderRadius) / k) + "px";
-              m.el.style.boxShadow = "none";
-            }
-            wait = 750;
-          } else {
-            m.el.classList.add("fade");
-          }
-        });
+        if (to && to.width > 0 && to.bottom > 0 && to.top < window.innerHeight) {
+          // FLIP: carry the intro logo onto the hero mark — same centre, same size, same corners
+          var dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+          var dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+          var k = to.width / from.width;
+          logo.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + k + ")";
+          logo.style.borderRadius = (parseFloat(getComputedStyle(mark).borderRadius) / k) + "px";
+          logo.style.boxShadow = getComputedStyle(mark).boxShadow;
+          wait = 750;
+        } else {
+          logo.classList.add("fade");
+        }
         setTimeout(function () {
-          // the flown pieces are sitting exactly on the nav's own; swap, no jump
+          // the flown logo is sitting exactly on the mark: show the mark, drop the intro
+          if (mark) { mark.style.transition = "none"; mark.style.opacity = "1"; mark.style.transform = "none"; }
           root.classList.remove("intro"); root.classList.remove("leaving");
           intro.remove();
         }, wait);
