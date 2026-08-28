@@ -667,7 +667,13 @@ export function BrowserPane({
       // when you switched to a chat with the browser closed) and is now back.
       // Leave it exactly as it was — re-navigating would reload it and throw away
       // any manual browsing. Only a genuinely fresh pane ('') gets navigated.
-      if (currentUrl) return
+      // But DO seed the URL state: an already-loaded page emits no browser:state
+      // event on re-show, so the omnibar sat empty over a visible website until
+      // the next navigation.
+      if (currentUrl) {
+        setState((prev) => (prev.url ? prev : { ...prev, url: currentUrl }))
+        return
+      }
       // A URL to load, or the themed "new tab" empty state — but only for browser
       // projects. A code preview with no URL stays blank (as before) so it never
       // renders an out-of-place "type a URL" page floating over the chat.

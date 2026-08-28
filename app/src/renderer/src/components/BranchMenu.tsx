@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Branch {
   name: string
@@ -10,15 +11,28 @@ interface Branch {
  * A dropdown of a repo's branches. Used two ways: switch the checkout to a branch
  * (toolbar), or open a branch in a worktree (the New-worktree picker). The parent
  * decides what picking does via onPick; onNew (when given) adds a "new branch" row.
+ *
+ * Rendered through a PORTAL at position:fixed — the menu opens over surfaces with
+ * their own stacking contexts (message bubbles, sticky strips), and as a plain
+ * absolute child it kept ending up painted UNDER them. A body-level fixed layer
+ * escapes every ancestor stacking context by construction. (The native
+ * browser/PDF view still paints above all HTML — the callers take the overlay
+ * lock for that; this handles the HTML-vs-HTML stacking.)
  */
 export function BranchMenu({
   cwd,
+  anchor,
+  align = 'left',
   onPick,
   onNew,
   onClose,
   pickDisabledInWorktree = false
 }: {
   cwd: string
+  /** The trigger element the menu positions itself under. */
+  anchor: HTMLElement | null
+  /** Which edge of the anchor the menu lines up with. */
+  align?: 'left' | 'right'
   /** An existing branch was chosen. */
   onPick: (branch: string) => void
   /** Optional: create a new branch of this name. */
@@ -26,19 +40,46 @@ export function BranchMenu({
   onClose: () => void
   /** Switching can't target a branch already in a worktree; grey those out. */
   pickDisabledInWorktree?: boolean
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [filter, setFilter] = useState('')
   const [newName, setNewName] = useState('')
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+
+  const WIDTH = 260
 
   useEffect(() => {
     void window.cove.gitBranches(cwd).then(setBranches)
   }, [cwd])
 
+  // Position under the anchor, clamped to the viewport.
+  useLayoutEffect(() => {
+    if (!anchor) return
+    const place = (): void => {
+      const r = anchor.getBoundingClientRect()
+      const left = align === 'right' ? r.right - WIDTH : r.left
+      setPos({
+        top: Math.min(r.bottom + 6, window.innerHeight - 80),
+        left: Math.max(8, Math.min(left, window.innerWidth - WIDTH - 8))
+      })
+    }
+    place()
+    // The anchor can move (resize, layout shifts) — follow it; scrolling any
+    // ancestor just closes the menu rather than trying to track it.
+    window.addEventListener('resize', place)
+    const onScroll = (): void => onClose()
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', onScroll, true)
+    }
+  }, [anchor, align, onClose])
+
   useEffect(() => {
     const onDown = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      const t = e.target as Node
+      if (ref.current && !ref.current.contains(t) && !(anchor && anchor.contains(t))) onClose()
     }
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()
@@ -49,14 +90,20 @@ export function BranchMenu({
       document.removeEventListener('mousedown', onDown)
       window.removeEventListener('keydown', onKey)
     }
-  }, [onClose])
+  }, [onClose, anchor])
+
+  if (!pos) return null
 
   const shown = (branches ?? []).filter((b) =>
     b.name.toLowerCase().includes(filter.trim().toLowerCase())
   )
 
-  return (
-    <div className="branch-menu" ref={ref}>
+  return createPortal(
+    <div
+      className="branch-menu"
+      ref={ref}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, width: WIDTH }}
+    >
       <input
         className="branch-menu-filter"
         placeholder="Find a branch…"
@@ -115,6 +162,7 @@ export function BranchMenu({
           </button>
         </form>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }

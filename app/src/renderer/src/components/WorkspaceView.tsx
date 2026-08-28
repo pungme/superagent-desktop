@@ -314,6 +314,7 @@ export function WorkspaceView({
   // toolbar — there's room here, unlike the cramped sidebar row.
   const ports = useStore((s) => s.ports[ws.id] ?? EMPTY_PORTS)
   const openPreview = useStore((s) => s.openPreview)
+  const openUrl = useStore((s) => s.openUrl)
   /** The page this project currently has on its pane, whoever opened it. */
   const attachedUrl = useStore((s) => s.pageUrl[ws.id] ?? '')
   // The URL we last asked the pane to load — synchronous, so it's right even
@@ -323,11 +324,17 @@ export function WorkspaceView({
   // When the pane is showing a local document (a PDF/image opened from the tree),
   // its file name — so the toolbar names what you're looking at instead of a bare
   // "page". Empty for a real web/localhost page.
-  const docName = ((): string => {
+  // The file:// document currently bound to this project's pane, if any. Its URL
+  // and display name come from the same source so the chip and what it opens can
+  // never disagree (the bug where the chip named a PDF but opened localhost).
+  const docUrl = ((): string => {
     const u = attachedUrl || paneUrl
-    if (!u.startsWith('file:')) return ''
+    return u.startsWith('file:') ? u : ''
+  })()
+  const docName = ((): string => {
+    if (!docUrl) return ''
     try {
-      return decodeURIComponent(u.split(/[?#]/)[0].split('/').pop() || '')
+      return decodeURIComponent(docUrl.split(/[?#]/)[0].split('/').pop() || '')
     } catch {
       return ''
     }
@@ -336,9 +343,19 @@ export function WorkspaceView({
   const [branch, setBranch] = useState<string | null>(null)
   const [branchMenu, setBranchMenu] = useState(false)
   const [branchErr, setBranchErr] = useState<string | null>(null)
+  const branchChipRef = useRef<HTMLButtonElement>(null)
   const refreshBranch = useCallback(() => {
     window.cove.gitBranch(ws.path).then((b) => setBranch(b))
   }, [ws.path])
+  // The branch dropdown opens over the desk, where the native browser/PDF view
+  // paints above ALL html — so it appeared BEHIND the page. Take the same overlay
+  // lock the snip uses: it freezes and detaches the native view while the menu is
+  // open, so the dropdown is on top; closing it re-attaches the pane.
+  useEffect(() => {
+    if (!branchMenu) return
+    enterOverlay()
+    return () => exitOverlay()
+  }, [branchMenu, enterOverlay, exitOverlay])
   useEffect(() => {
     if (ws.kind === 'browser') return
     let alive = true
@@ -579,6 +596,7 @@ export function WorkspaceView({
             {branch && (
               <span className="workspace-branch-wrap">
                 <button
+                  ref={branchChipRef}
                   className="workspace-branch"
                   title={`On git branch ${branch} — click to switch`}
                   onClick={() => {
@@ -592,6 +610,7 @@ export function WorkspaceView({
                 {branchMenu && (
                   <BranchMenu
                     cwd={ws.path}
+                    anchor={branchChipRef.current}
                     pickDisabledInWorktree
                     onClose={() => setBranchMenu(false)}
                     onPick={async (b) => {
@@ -618,18 +637,30 @@ export function WorkspaceView({
             in the pane, not a bare "page". Shown regardless of a dev server. */}
         {/* An opened PDF/image is a file:// page in the native pane, which paints
             OVER the pane's own ✕ — so the doc chip in the toolbar (which the native
-            view can never cover) is the reliable close. It shows a ✕ while the doc
-            is open (click to close) and just reveals it again if hidden. */}
+            view can never cover) is the reliable control. The NAME opens the pane
+            AND navigates it to this document (never "whatever the pane last
+            showed" — that opened localhost while the chip named a PDF); the ✕
+            closes the pane. */}
         {ws.kind !== 'browser' && docName && (
-          <button
-            className="workspace-server attached workspace-doc"
-            title={browserOpen ? `Close ${docName}` : docName}
-            onClick={() => toggleBrowser(ws.id, browserOpen)}
-          >
-            <span className="workspace-doc-icon">📄</span>
-            <span className="workspace-doc-name">{docName}</span>
-            {browserOpen && <span className="workspace-doc-close">✕</span>}
-          </button>
+          <span className="workspace-server attached workspace-doc">
+            <button
+              className="workspace-doc-open"
+              title={`Show ${docName}`}
+              onClick={() => openUrl(ws.id, docUrl, false)}
+            >
+              <span className="workspace-doc-icon">📄</span>
+              <span className="workspace-doc-name">{docName}</span>
+            </button>
+            {browserOpen && (
+              <button
+                className="workspace-doc-close"
+                title={`Close ${docName}`}
+                onClick={() => toggleBrowser(ws.id, browserOpen)}
+              >
+                ✕
+              </button>
+            )}
+          </span>
         )}
         {ws.kind !== 'browser' && !docName && ports.length === 0 && attachedUrl && (
           <span className="workspace-server attached" title={attachedUrl}>
