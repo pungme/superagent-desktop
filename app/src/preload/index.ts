@@ -205,7 +205,14 @@ export interface CoveApi {
   worktreeCreate: (
     projectPath: string,
     opts?: { branch?: string; newBranch?: string; base?: string }
-  ) => Promise<{ path: string; branch: string } | null>
+  ) => Promise<{ path: string; branch: string; base: string } | null>
+  /** Rename a chat's auto-named superagent/* branch to follow its title. */
+  worktreeRename: (
+    wtPath: string,
+    newBranch: string
+  ) => Promise<{ ok: boolean; branch: string | null }>
+  /** Unkept work in a worktree: uncommitted edits, or commits past its base. */
+  worktreeStatus: (projectPath: string, wtPath: string) => Promise<{ dirty: boolean; ahead: number }>
   /** Local branches: name, whether current, and the worktree path it's in (if any). */
   gitBranches: (
     cwd: string
@@ -573,6 +580,9 @@ const cove: CoveApi = {
   kvDel: (key) => ipcRenderer.send('kv:del', key),
   eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
   worktreeCreate: (projectPath, opts) => ipcRenderer.invoke('worktree:create', projectPath, opts),
+  worktreeRename: (wtPath, newBranch) => ipcRenderer.invoke('worktree:rename', wtPath, newBranch),
+  worktreeStatus: (projectPath, wtPath) =>
+    ipcRenderer.invoke('worktree:status', projectPath, wtPath),
   gitBranches: (cwd) => ipcRenderer.invoke('git:branches', cwd),
   gitCheckout: (cwd, branch) => ipcRenderer.invoke('git:checkout', cwd, branch),
   worktreeRemove: (projectPath, wtPath) =>

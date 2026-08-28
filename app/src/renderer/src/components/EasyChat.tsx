@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { TasksPanel } from './TasksPanel'
-import { BranchMenu } from './BranchMenu'
 import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
@@ -138,8 +137,6 @@ interface EasyChatProps {
    * the same thing is one too many.
    */
   hideNewChat?: boolean
-  /** The project is a git repo — enables the "New worktree" chat button. */
-  isRepo?: boolean
   /** Whether this chat's workspace is the one on screen. Background chats stay
       mounted (so switching back is instant) but get their claude process reaped
       once they've been idle a while — see IDLE_REAP_MS. */
@@ -841,7 +838,6 @@ export function EasyChat({
   initialSessionId,
   hideNewChat,
   browserProject,
-  isRepo = false,
   visible = true
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
@@ -888,8 +884,6 @@ export function EasyChat({
   // narrow chat column; below this width only the short form fits on one line.
   const [narrowComposer, setNarrowComposer] = useState(false)
   // The "New worktree" branch picker (choose an existing branch or a new one).
-  const [wtMenu, setWtMenu] = useState(false)
-  const wtCaretRef = useRef<HTMLButtonElement>(null)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   // Non-image files dropped on the chat — shown as chips, sent as paths.
   const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
@@ -1184,6 +1178,25 @@ export function EasyChat({
         } catch {
           // Ignore a corrupt blob — start fresh.
         }
+      }
+      // This chat wanted its own checkout but git refused (no commits yet, or
+      // an index it won't branch from). Say so once, inline — a small system
+      // line beats an alert() the user has to dismiss.
+      if (localStorage.getItem(`wtFallback:${chatId}`) === '1') {
+        localStorage.removeItem(`wtFallback:${chatId}`)
+        setItems((prev) => [
+          ...prev,
+          {
+            kind: 'msg',
+            msg: {
+              id: `sys-${Date.now()}`,
+              at: Date.now(),
+              role: 'assistant',
+              text: 'This project has no commits yet, so this chat works directly in the folder.',
+              system: true
+            }
+          }
+        ])
       }
       hydratedRef.current = true
     })
@@ -2930,76 +2943,9 @@ export function EasyChat({
               <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
                 ✎ New chat
               </button>
-              {isRepo && (
-                <span className="easy-newchat-wt">
-                  <button
-                    className="easy-newchat"
-                    onClick={() => {
-                      // The chat gets an isolated git worktree on its own branch, so
-                      // parallel agents stop fighting over one checkout. Fast path:
-                      // an auto-named branch off the current HEAD.
-                      void useStore
-                        .getState()
-                        .newChatInWorktree(
-                          workspaceId,
-                          cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd
-                        )
-                        .then((ok) => {
-                          if (!ok) window.alert('Could not create a worktree here — git refused.')
-                        })
-                    }}
-                    title="New chat on its own git branch — isolated worktree, your checkout stays clean"
-                  >
-                    ⎇ New worktree
-                  </button>
-                  <button
-                    ref={wtCaretRef}
-                    className="easy-newchat easy-newchat-caret"
-                    title="Pick a branch for the worktree"
-                    onClick={() => setWtMenu((v) => !v)}
-                  >
-                    ▾
-                  </button>
-                  {wtMenu && (
-                    <BranchMenu
-                      cwd={cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd}
-                      anchor={wtCaretRef.current}
-                      align="right"
-                      onClose={() => setWtMenu(false)}
-                      onPick={(b) => {
-                        setWtMenu(false)
-                        const proj = cwd.includes('/.worktrees/')
-                          ? cwd.split('/.worktrees/')[0]
-                          : cwd
-                        void useStore
-                          .getState()
-                          .newChatInWorktree(workspaceId, proj, { branch: b })
-                          .then((ok) => {
-                            if (!ok)
-                              window.alert(
-                                `Could not open ${b} in a worktree — it may already be checked out elsewhere.`
-                              )
-                          })
-                      }}
-                      onNew={(name) => {
-                        setWtMenu(false)
-                        const proj = cwd.includes('/.worktrees/')
-                          ? cwd.split('/.worktrees/')[0]
-                          : cwd
-                        void useStore
-                          .getState()
-                          .newChatInWorktree(workspaceId, proj, { newBranch: name })
-                          .then((ok) => {
-                            if (!ok)
-                              window.alert(
-                                `Could not create branch ${name} — it may already exist.`
-                              )
-                          })
-                      }}
-                    />
-                  )}
-                </span>
-              )}
+              {/* One button. A new chat on a repo IS its own checkout now (the
+                  store isolates it automatically), so the separate ⎇ New
+                  worktree pill and its branch picker are gone. */}
             </div>
           )}
           {items.length === 0 && (ready || suspended) && (

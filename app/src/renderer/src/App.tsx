@@ -165,19 +165,13 @@ function App(): React.JSX.Element {
 
   // Right-click actions on a project row (native menu built in main).
   useEffect(() => {
-    return window.cove.onWorkspaceMenuAction(async ({ action, id, path }) => {
+    return window.cove.onWorkspaceMenuAction(async ({ action, id }) => {
       const s = useStore.getState()
+      // New Chat isolates itself on a repo now (a chat is a checkout) — the
+      // separate new-worktree action and its alert are gone.
       if (action === 'new-chat') {
         s.setActive(id)
         await s.newChat(id)
-      } else if (action === 'new-worktree') {
-        s.setActive(id)
-        const ok = await s.newChatInWorktree(id, path)
-        // Only offered for repos, so this is the rare "git refused" case (e.g. no
-        // commits yet, or a dirty index git won't branch from).
-        if (!ok) {
-          window.alert("Couldn't create a worktree — git refused (needs ≥1 commit).")
-        }
       }
     })
   }, [])

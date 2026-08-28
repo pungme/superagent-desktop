@@ -257,15 +257,11 @@ app.whenReady().then(() => {
     if (!win) return
     const send = (action: string): void =>
       win.webContents.send('workspace:menu-action', { action, id: ws.id, path: ws.path })
+    // One entry: New Chat isolates itself on a repo now (a chat is a checkout),
+    // so the separate worktree item is gone.
     const template: Electron.MenuItemConstructorOptions[] = [
       { label: 'New Chat', click: () => send('new-chat') }
     ]
-    if (ws.isRepo) {
-      template.push({
-        label: 'New Chat in a Worktree',
-        click: () => send('new-worktree')
-      })
-    }
     template.push(
       { type: 'separator' },
       { label: 'Reveal in Finder', click: () => shell.showItemInFolder(ws.path) },
