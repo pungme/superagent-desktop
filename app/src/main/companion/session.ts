@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { createHash } from 'crypto'
 import { Sealer, Opener, aadFor, probe, newToken, DeviceKeys } from './crypto'
 import { machineId } from './identity'
 import { addDevice, allDeviceKeys, tokenMatches, touchDevice, setPushToken } from './devices'
@@ -65,9 +66,15 @@ export class ClientConn {
     if (!this.keys) {
       if (!this.identify(data)) {
         // Nobody's key opens this — not our phone. Drop the connection.
+        const pend = pendingPairing()
+        const fp = pend ? createHash('sha256').update(pend.secret).digest('hex').slice(0, 8) : '-'
+        console.log(
+          `[companion] conn ${this.id}: first frame (${data.length} chars) opened by no key; pairing=${!!pend} secretFp=${fp} m=${machineId().slice(0, 8)} frame=${data.slice(0, 24)} devices=${allDeviceKeys().length}`
+        )
         this.close()
         return
       }
+      console.log(`[companion] conn ${this.id}: identified as ${this.pairing ? 'pairing' : this.deviceId}`)
     }
     const plain = this.opener!.open(data)
     if (plain === null) {

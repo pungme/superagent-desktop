@@ -1,5 +1,6 @@
 {
-  "note": "Shared between superagent-desktop (crypto.test.ts) and superagent-ios (CryptoTests). Regenerate with the script in the desktop test if the scheme changes.",
+  "note": "Shared between superagent-desktop (crypto.test.ts) and superagent-ios (CryptoTests). AES-256-GCM, nonce = salt(4)||counter(8 BE), AAD = machineId||direction. Regenerate with the script in the desktop test if the scheme changes.",
+  "cipher": "aes-256-gcm",
   "machineId": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "secretHex": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
   "keyM2pHex": "df780823787b9e094b05a975d7d61b9fbcf1c2142b2b61f4f92d8f28a1673e78",
@@ -8,7 +9,7 @@
   "counter": 1,
   "aadM2p": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefm2p",
   "plaintext": "{\"t\":\"welcome\",\"machine\":{\"name\":\"Fixture Mac\",\"appVersion\":\"1.6.1\",\"protocol\":1},\"tree\":[],\"chats\":[]}",
-  "frameM2p": "obLD1AAAAAAAAAAB5b3/NRKuExCkHu2+z3HImMuz26NsMM/k3PFMQp0eVPTnAclKJ3OcgDzJ3dFEyProJLiz+JJluanH4Y+b6EVkMpxperhMc2p2PPR4rWDRmQxHCmPvw89L+DclD22urr2VK3H2Ai0OWsC0vKDM0gSIDEOes31/gzM=",
+  "frameM2p": "obLD1AAAAAAAAAABe0PpECv61l5riAvdyKti+ruCOpZugpXRrQEp3CdcGIxi/MDEXkckM2WUS08nfwkCxPUCbzAEB362itRbReE8GNf0AUsXx0pUR36IcanLFH3yQRSI9XFULro/GZIMr5f0HUYqdWIB3+zasmcbauW35FSjC0SntCY=",
   "pairingDigestHex": "1198c78cc7f44c2b977696e02616c9610af2fe19a4c7ad34e9f4fa07420f2ee2",
   "pairingCode": "819755"
 }

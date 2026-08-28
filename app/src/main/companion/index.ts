@@ -33,7 +33,8 @@ const conns = new Map<string, ClientConn>()
 let blockerId: number | null = null
 
 export function relayUrl(): string {
-  return kvGet(RELAY_KEY) || DEFAULT_RELAY
+  // COVE_RELAY_URL: dev/test override (a local relay), never persisted.
+  return process.env.COVE_RELAY_URL || kvGet(RELAY_KEY) || DEFAULT_RELAY
 }
 
 export function startCompanion(): void {
@@ -163,7 +164,7 @@ function chatForSession(sessionId: string): string | undefined {
   return undefined
 }
 
-function pushChats(): void {
+export function pushChats(): void {
   const chats = listChats()
   for (const c of conns.values()) if (c.authenticated) c.send({ t: 'chats', chats })
 }

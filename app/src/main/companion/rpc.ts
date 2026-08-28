@@ -19,6 +19,8 @@ import {
 import { listRoutines, runRoutine } from '../routines'
 import { resolveGate } from '../hooks'
 import { workspaceStatuses } from './status'
+import { pushChats } from './index'
+import { broadcastToWindows } from '../util'
 import type {
   RpcMethod,
   RpcErrorCode,
@@ -85,6 +87,9 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         if (!getWorkspace(p.data.workspaceId)) return fail('not-found', 'no such project')
         const id = createChat(p.data.workspaceId)
+        // Every phone (and the desktop sidebar) learns about the new row now.
+        broadcastToWindows('projects:changed')
+        pushChats()
         return { ok: true, result: { chatId: id } }
       }
       case 'approval.answer': {

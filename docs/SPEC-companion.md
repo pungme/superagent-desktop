@@ -118,9 +118,9 @@ Mac UI: "iPhone 16 Pro paired" toast; device listed with Revoke button.
 ### 2.5 Encryption
 
 - Keys: `root = k` (32 bytes from the QR). `key_m2p = HKDF-SHA256(root, salt=machineId, info="sa-m2p")`, `key_p2m = HKDF(…, info="sa-p2m")`. Separate directions, so nonces never collide.
-- Frame: `nonce(12) ‖ ChaCha20-Poly1305(key_dir, nonce, plaintextJSON, aad=machineId ‖ connId)`. Nonce = 64-bit counter per direction per connection, prefixed by a 32-bit random connection salt; counter must strictly increase (replay protection). AAD binds the frame to the connection so a relay cannot splice frames between phones.
+- Frame: `nonce(12) ‖ AES-256-GCM(key_dir, nonce, plaintextJSON, aad=machineId ‖ direction)`. Nonce = 64-bit counter per direction per connection, prefixed by a 32-bit random connection salt; counter must strictly increase (replay protection). AAD binds the frame to the connection so a relay cannot splice frames between phones.
 - Rekey: a new connection picks a new salt; the 64-bit counter cannot realistically wrap. Forward secrecy (X25519 ephemeral exchange in `hello`/`welcome`, ratcheting the keys) is a v2 change that touches only this section.
-- Implementations: Node `crypto.createCipheriv('chacha20-poly1305', …, { authTagLength: 16 })` + `hkdfSync`; Swift `ChaChaPoly.seal/open` + `HKDF<SHA256>`. Interop verified by shared test vectors in the fixture set.
+- Implementations: Node `crypto.createCipheriv("aes-256-gcm", …)` + `hkdfSync`; Swift `AES.GCM.seal/open` + `HKDF<SHA256>`. ChaCha20-Poly1305 was the first choice but Electron's BoringSSL does not expose it through createCipheriv. Interop verified by shared test vectors in the fixture set.
 
 
 

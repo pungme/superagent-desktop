@@ -3,6 +3,11 @@ import { createCipheriv, createDecipheriv, hkdfSync, createHash, randomBytes } f
 /**
  * End-to-end encryption between this Mac and one paired phone (SPEC §2.5).
  *
+ * AES-256-GCM rather than ChaCha20-Poly1305: Electron ships BoringSSL, whose
+ * Node bindings do not expose chacha20-poly1305 through createCipheriv (plain
+ * Node does, which is how a test can pass and the app still fail). GCM is
+ * available in Electron, Node and CryptoKit alike.
+ *
  * Both sides hold the same 32-byte secret `k` (from the pairing QR). Each
  * direction gets its own key so counters never collide:
  *   key_m2p = HKDF-SHA256(k, salt = machineId, info = "sa-m2p")
@@ -13,7 +18,7 @@ import { createCipheriv, createDecipheriv, hkdfSync, createHash, randomBytes } f
  * strictly increase, so a relay cannot replay or reorder frames.
  * AAD = machineId ‖ direction, binding a frame to this Mac and its direction.
  *
- * Pure Node crypto; the Swift side uses CryptoKit's HKDF + ChaChaPoly, which
+ * Pure Node crypto; the Swift side uses CryptoKit's HKDF + AES.GCM, which
  * produce byte-identical results (shared vectors in fixtures/companion/).
  */
 
@@ -53,7 +58,7 @@ export class Sealer {
     const nonce = Buffer.alloc(12)
     this.salt.copy(nonce, 0)
     nonce.writeBigUInt64BE(this.counter, 4)
-    const cipher = createCipheriv('chacha20-poly1305', this.key, nonce, { authTagLength: 16 })
+    const cipher = createCipheriv('aes-256-gcm', this.key, nonce)
     cipher.setAAD(this.aad, { plaintextLength: Buffer.byteLength(plaintext, 'utf8') })
     const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
     return Buffer.concat([nonce, ct, cipher.getAuthTag()]).toString('base64')
@@ -86,7 +91,7 @@ export class Opener {
     if (this.salt && !this.salt.equals(salt)) return null
     if (counter <= this.last) return null
     try {
-      const d = createDecipheriv('chacha20-poly1305', this.key, nonce, { authTagLength: 16 })
+      const d = createDecipheriv('aes-256-gcm', this.key, nonce)
       d.setAAD(this.aad, { plaintextLength: ct.length })
       d.setAuthTag(tag)
       const pt = Buffer.concat([d.update(ct), d.final()]).toString('utf8')
