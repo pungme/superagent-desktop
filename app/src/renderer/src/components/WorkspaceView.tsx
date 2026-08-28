@@ -814,7 +814,6 @@ export function WorkspaceView({
                     chatId={c.id}
                     initialSessionId={c.claudeSessionId}
                     browserProject={ws.kind === 'browser'}
-                    isRepo={branch !== null}
                     visible={visible && onScreen}
                   />
                 </div>

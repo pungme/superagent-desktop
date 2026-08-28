@@ -27,6 +27,19 @@ export function UpdateBanner(): React.JSX.Element | null {
   const [notesLoading, setNotesLoading] = useState(false)
   const closeTimer = useRef<number | null>(null)
   const busy = useStore((s) => s.busy)
+  // The notes popover extends down over the desk, where the native browser/PDF
+  // view paints above ALL HTML — without the overlay lock its lower half was
+  // cut off by the page (checklist #1: every overlay near the pane takes the
+  // lock). It freezes and detaches the native view while the notes are open.
+  // Lives up here with the other hooks — this component has early returns.
+  const enterOverlay = useStore((s) => s.enterOverlay)
+  const exitOverlay = useStore((s) => s.exitOverlay)
+  const notesOpen = notesHover || notesPinned
+  useEffect(() => {
+    if (!notesOpen) return
+    enterOverlay()
+    return () => exitOverlay()
+  }, [notesOpen, enterOverlay, exitOverlay])
 
   const progress = useStore((s) => s.updateProgress)
 

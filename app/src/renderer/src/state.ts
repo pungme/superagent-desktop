@@ -244,13 +244,11 @@ interface CoveState {
   activeChatId: Record<string, string>
   refreshChats: () => Promise<void>
   loadChats: (workspaceId: string) => Promise<Chat[]>
+  /**
+   * New conversation. On a git repo this ALSO creates a private worktree —
+   * a chat is a checkout — falling back to a plain chat if git refuses.
+   */
   newChat: (workspaceId: string) => Promise<void>
-  /** New chat running in a fresh git worktree of the project. */
-  newChatInWorktree: (
-    workspaceId: string,
-    projectPath: string,
-    opts?: { branch?: string; newBranch?: string; base?: string }
-  ) => Promise<boolean>
   selectChat: (workspaceId: string, chatId: string) => void
   removeChat: (workspaceId: string, chatId: string) => Promise<void>
   renameChat: (workspaceId: string, chatId: string, title: string) => Promise<void>
@@ -755,23 +753,33 @@ export const useStore = create<CoveState>((set, get) => ({
     }
   },
   newChat: async (workspaceId) => {
-    const id = await window.cove.chatCreate(workspaceId)
+    // A chat is a checkout. On a git repo, every conversation silently gets its
+    // own worktree on its own branch (cut from the project's current branch), so
+    // two agents can never move one HEAD under each other. Non-repo folders have
+    // nothing to isolate and keep plain chats. If git refuses (no commits yet, an
+    // index it won't branch from), fall back to a plain chat — the chat explains
+    // itself once, inline, instead of an alert.
+    const ws = get()
+      .tree.flatMap((g) => g.workspaces)
+      .find((w) => w.id === workspaceId)
+    let cwd: string | undefined
+    let fellBack = false
+    if (ws && ws.kind !== 'browser') {
+      const isRepo = (await window.cove.gitBranch(ws.path)) !== null
+      if (isRepo) {
+        const wt = await window.cove.worktreeCreate(ws.path)
+        if (wt) cwd = wt.path
+        else fellBack = true
+      }
+    }
+    const id = await window.cove.chatCreate(workspaceId, cwd)
+    // One-shot flag the chat reads on first mount to show its inline note.
+    if (fellBack) localStorage.setItem(`wtFallback:${id}`, '1')
     const list = await window.cove.chatList(workspaceId)
     set((s) => ({
       chats: { ...s.chats, [workspaceId]: list },
       activeChatId: { ...s.activeChatId, [workspaceId]: id }
     }))
-  },
-  newChatInWorktree: async (workspaceId, projectPath, opts) => {
-    const wt = await window.cove.worktreeCreate(projectPath, opts)
-    if (!wt) return false // not a git repo, or git refused — caller says so
-    const id = await window.cove.chatCreate(workspaceId, wt.path)
-    const list = await window.cove.chatList(workspaceId)
-    set((s) => ({
-      chats: { ...s.chats, [workspaceId]: list },
-      activeChatId: { ...s.activeChatId, [workspaceId]: id }
-    }))
-    return true
   },
   selectChat: (workspaceId, chatId) => {
     // Opening a conversation is reading it.
