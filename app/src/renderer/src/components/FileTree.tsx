@@ -82,7 +82,21 @@ export function FileTree({ cwd, workspaceId }: FileTreeProps): React.JSX.Element
   // The file open in the viewer (per active chat) — so the tree can highlight it
   // and auto-reveal the folders leading to it. Path is relative to cwd, matching
   // the node paths.
-  const openAbs = useStore((s) => s.openFile[s.activeChatId[workspaceId] ?? workspaceId] ?? '')
+  const textAbs = useStore((s) => s.openFile[s.activeChatId[workspaceId] ?? workspaceId] ?? '')
+  // A PDF/image doesn't go through the text viewer — it loads in the pane as a
+  // file:// URL (which CLEARS openFile), so the tree never showed a selected
+  // state for exactly the files people click most. Fold the pane's document in.
+  const paneFileAbs = useStore((s) => {
+    const chat = s.activeChatId[workspaceId]
+    const u = s.previewUrls[chat ? `${workspaceId}::${chat}` : workspaceId] ?? ''
+    if (!u.startsWith('file://')) return ''
+    try {
+      return decodeURI(u.slice('file://'.length).split(/[?#]/)[0])
+    } catch {
+      return ''
+    }
+  })
+  const openAbs = textAbs || paneFileAbs
   const openRel = openAbs && openAbs.startsWith(`${cwd}/`) ? openAbs.slice(cwd.length + 1) : ''
   const openAncestors = useMemo(() => {
     const set = new Set<string>()

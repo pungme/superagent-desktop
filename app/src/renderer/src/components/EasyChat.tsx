@@ -115,8 +115,13 @@ function DevServerPill({
               setDismissed(true)
             }}
           >
-            <span className="easy-control-item-label">Hide</span>
-            <span className="easy-control-item-hint">Just remove this pill; leaves it running</span>
+            {/* The pill is scraped from the agent's output, so it can name a
+                server that isn't ours to kill — something external, shared, or a
+                stale detection. Dismiss drops the chip without touching it. */}
+            <span className="easy-control-item-label">Dismiss</span>
+            <span className="easy-control-item-hint">
+              Not my server / not interested — keep it running, drop the pill
+            </span>
           </button>
         </div>
       )}
@@ -720,6 +725,22 @@ function toRows(items: Item[]): Row[] {
     return rows[i]
   }
   for (const it of items) {
+    // A tool-heavy turn opens text blocks that never receive visible text
+    // before the tool call fires — each left a padding-only sliver bubble in
+    // the transcript ("... empty like that"). A settled assistant message with
+    // nothing to show isn't a message; skip it here so already-saved
+    // transcripts are cleaned up too. Streaming bubbles stay (the caret is the
+    // content); user messages and system notes always render.
+    if (
+      it.kind === 'msg' &&
+      it.msg.role === 'assistant' &&
+      !it.msg.streaming &&
+      !it.msg.system &&
+      !it.msg.text.trim() &&
+      !(it.msg.images && it.msg.images.length)
+    ) {
+      continue
+    }
     if (it.kind === 'tool' || it.kind === 'diff') {
       const entry: Activity =
         it.kind === 'tool' ? { kind: 'tool', tool: it.tool } : { kind: 'diff', diff: it.diff }
