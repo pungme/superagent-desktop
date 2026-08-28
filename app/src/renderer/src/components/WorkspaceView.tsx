@@ -616,11 +616,20 @@ export function WorkspaceView({
             real site said nothing at all up here. */}
         {/* Showing a local document (PDF/image): name the file so you know what's
             in the pane, not a bare "page". Shown regardless of a dev server. */}
+        {/* An opened PDF/image is a file:// page in the native pane, which paints
+            OVER the pane's own ✕ — so the doc chip in the toolbar (which the native
+            view can never cover) is the reliable close. It shows a ✕ while the doc
+            is open (click to close) and just reveals it again if hidden. */}
         {ws.kind !== 'browser' && docName && (
-          <span className="workspace-server attached workspace-doc" title={docName}>
+          <button
+            className="workspace-server attached workspace-doc"
+            title={browserOpen ? `Close ${docName}` : docName}
+            onClick={() => toggleBrowser(ws.id, browserOpen)}
+          >
             <span className="workspace-doc-icon">📄</span>
             <span className="workspace-doc-name">{docName}</span>
-          </span>
+            {browserOpen && <span className="workspace-doc-close">✕</span>}
+          </button>
         )}
         {ws.kind !== 'browser' && !docName && ports.length === 0 && attachedUrl && (
           <span className="workspace-server attached" title={attachedUrl}>
