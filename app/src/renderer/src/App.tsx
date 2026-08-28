@@ -9,7 +9,7 @@ import { GuardrailPrompt } from './components/GuardrailPrompt'
 import { ComputerPanel } from './components/ComputerPanel'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
-import { useStore } from './state'
+import { useStore, keepErrorText } from './state'
 
 const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 460
@@ -134,32 +134,20 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  // A worktree chat asked to be merged back (already confirmed in the native
-  // dialog). Squash it in, then clean up the chat that pointed at the worktree.
+  // Keep was confirmed in the native dialog: squash the chat's changes into the
+  // branch it was cut from, then remove the chat (keepWorktreeChat does both).
   useEffect(() => {
-    return window.cove.onChatMergeWorktree(async ({ chatId, workspaceId, projectPath, wtPath }) => {
-      const chat = useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)
-      const title = chat?.title?.trim()
-      const message =
-        title && title !== 'New chat' ? title : `Merge worktree ${wtPath.split('/').pop()}`
-      const res = await window.cove.worktreeMerge(projectPath, wtPath, message)
-      if (res.ok) {
-        // The worktree folder is gone now, so the chat that lived in it can't
-        // resume — remove it and land the user on the project.
-        await useStore.getState().removeChat(workspaceId, chatId)
-        useStore.getState().setActive(workspaceId)
-      } else {
-        const why: Record<string, string> = {
-          'base-dirty':
-            'The project has uncommitted changes — commit or stash them first, then merge.',
-          conflict:
-            'Merge conflict — resolve it in this chat, then try again. Nothing was changed.',
-          nothing: 'Nothing to merge — this worktree has no new commits.',
-          'not-worktree': "This chat isn't in a worktree.",
-          error: res.detail || 'git failed.'
-        }
-        window.alert(why[res.reason] ?? 'Could not merge the worktree.')
-      }
+    return window.cove.onChatMergeWorktree(async ({ chatId, workspaceId }) => {
+      const res = await useStore.getState().keepWorktreeChat(workspaceId, chatId)
+      if (!res.ok) window.alert(keepErrorText(res.reason, res.detail))
+    })
+  }, [])
+
+  // Throw away was confirmed in the native dialog — delete without the unkept
+  // guard asking again.
+  useEffect(() => {
+    return window.cove.onChatThrowAway(({ chatId, workspaceId }) => {
+      void useStore.getState().removeChat(workspaceId, chatId, true)
     })
   }, [])
 

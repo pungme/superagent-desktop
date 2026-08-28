@@ -1264,7 +1264,7 @@ button {
   max-width: 260px;
   font-size: 11px;
   color: var(--danger, #e5484d);
-  background: var(--surface, var(--bg));
+  background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 8px;
@@ -1278,7 +1278,7 @@ button {
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  background: var(--surface, var(--bg));
+  background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32);
@@ -1379,6 +1379,15 @@ button {
 .branch-menu-new button:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* Keep / Throw away — the worktree chat's two exits, in the pinned band. */
+.easy-keep {
+  color: var(--accent, #4a7cff) !important;
+  font-weight: 600;
+}
+.easy-throw {
+  color: var(--danger, #e5484d) !important;
 }
 
 /* New-worktree split button: main action + caret that opens the branch picker. */
@@ -2566,38 +2575,49 @@ button {
   background: #17181d;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
+/* A soft ring pulsing off the tile — the "it's alive" signal. */
+.easy-think-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  box-shadow: 0 0 0 0 rgba(23, 24, 29, 0.35);
+  animation: think-ring 1.6s ease-out infinite;
+}
+/* The dot stays home and breathes. An orbit read as a stuck dot at this size. */
 .easy-think-dot {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #fff;
-  animation: think-orbit 1.15s linear infinite;
+  transform: translate(-50%, -50%);
+  animation: think-breathe 1.6s ease-in-out infinite;
 }
-@keyframes think-orbit {
-  from {
-    transform: translate(-50%, -50%) rotate(0deg) translateX(4.5px);
+@keyframes think-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.7);
+    opacity: 0.65;
   }
-  to {
-    transform: translate(-50%, -50%) rotate(360deg) translateX(4.5px);
+  50% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 1;
+  }
+}
+@keyframes think-ring {
+  70% {
+    box-shadow: 0 0 0 7px rgba(23, 24, 29, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(23, 24, 29, 0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .easy-think-dot {
-    animation: think-pulse 1.15s ease-in-out infinite;
-  }
-  @keyframes think-pulse {
-    0%,
-    100% {
-      transform: translate(-50%, -50%) scale(0.8);
-      opacity: 0.6;
-    }
-    50% {
-      transform: translate(-50%, -50%) scale(1.15);
-      opacity: 1;
-    }
+  .easy-think-mark::after {
+    animation: none;
   }
 }
 
@@ -4212,11 +4232,10 @@ button {
   color: var(--text-tertiary);
 }
 
+/* File names read at full strength — the old --text-secondary (50% black in
+   light mode) made every file look disabled/"fading". Folders stay visually
+   distinct through their carets and position, not through dimming the files. */
 .file-tree-file .file-tree-name {
-  color: var(--text-secondary);
-}
-
-.file-tree-file:hover .file-tree-name {
   color: var(--text-primary);
 }
 

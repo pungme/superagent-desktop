@@ -283,6 +283,25 @@ function ChatRow({
   const [editing, setEditing] = useState(false)
   const label = chat.title ?? 'New chat'
   const [draft, setDraft] = useState(label)
+  // The chip shows the branch the chat is actually ON (read from its HEAD), not
+  // the folder slug — so it follows a title rename, and it follows the agent if
+  // the user asks for a branch of their own. Re-read whenever a turn ends.
+  const [wtBranch, setWtBranch] = useState<string | null>(null)
+  useEffect(() => {
+    if (!chat.cwd) return
+    let alive = true
+    const refresh = (): void => {
+      window.cove.gitBranch(chat.cwd!).then((b) => {
+        if (alive) setWtBranch(b)
+      })
+    }
+    refresh()
+    window.addEventListener('cove:workspace-idle', refresh)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', refresh)
+    }
+  }, [chat.cwd])
 
   return (
     <div
@@ -332,9 +351,9 @@ function ChatRow({
             )
           )}
           <span className="chat-tree-label">{label}</span>
-          {chat.cwd && (
+          {chat.cwd && wtBranch && (
             <span className="chat-tree-wt" title={`Worktree: ${chat.cwd}`}>
-              ⎇ {chat.cwd.split('/').pop()}
+              ⎇ {wtBranch.replace(/^superagent\//, '')}
             </span>
           )}
         </span>

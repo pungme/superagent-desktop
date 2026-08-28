@@ -108,6 +108,23 @@ function browserKey(s: { activeChatId: Record<string, string> }, workspaceId: st
 // normal zustand state.
 
 /**
+ * Why a Keep failed, in words a user can act on — no branch/worktree/merge
+ * jargon. Shared by the menu flow (App.tsx) and the delete guard.
+ */
+export function keepErrorText(reason: string, detail?: string): string {
+  const map: Record<string, string> = {
+    'base-dirty':
+      "The project has changes that aren't saved yet. Save or discard them in the project first, then keep.",
+    conflict:
+      'These changes clash with something already in the project. Ask the agent in this chat to resolve it, then keep again. Nothing was changed.',
+    nothing: "Nothing to keep — this chat didn't change anything.",
+    'not-worktree': "This chat doesn't have its own copy of the project.",
+    error: detail || 'git failed.'
+  }
+  return map[reason] ?? "Couldn't keep the changes."
+}
+
+/**
  * Only modes that need no prompt: SuperAgent drives `claude -p`, where there is
  * nowhere to answer a permission request, so an asking mode would silently deny
  * and the tool would just fail.
@@ -250,7 +267,27 @@ interface CoveState {
    */
   newChat: (workspaceId: string) => Promise<void>
   selectChat: (workspaceId: string, chatId: string) => void
-  removeChat: (workspaceId: string, chatId: string) => Promise<void>
+  /**
+   * Delete a conversation. A worktree chat with unkept changes gets the native
+   * Keep / Throw away / Cancel dialog first; `force` skips it (the user already
+   * confirmed a Throw away, or Keep just merged).
+   */
+  removeChat: (workspaceId: string, chatId: string, force?: boolean) => Promise<void>
+  /**
+   * Keep a worktree chat's changes: squash them into the branch it was cut
+   * from, then remove the chat. Returns worktree:merge's result verbatim.
+   */
+  keepWorktreeChat: (
+    workspaceId: string,
+    chatId: string
+  ) => Promise<
+    | { ok: true; committed: boolean }
+    | {
+        ok: false
+        reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'
+        detail?: string
+      }
+  >
   renameChat: (workspaceId: string, chatId: string, title: string) => Promise<void>
   touchChat: (workspaceId: string, chatId: string, patch: Partial<Chat>) => void
 
@@ -787,7 +824,40 @@ export const useStore = create<CoveState>((set, get) => ({
     localStorage.setItem(`activeChat:${workspaceId}`, chatId)
     set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } }))
   },
-  removeChat: async (workspaceId, chatId) => {
+  keepWorktreeChat: async (workspaceId, chatId) => {
+    const chat = get().chats[workspaceId]?.find((c) => c.id === chatId)
+    if (!chat?.cwd || !chat.cwd.includes('/.worktrees/')) {
+      return { ok: false as const, reason: 'not-worktree' as const }
+    }
+    const projectPath = chat.cwd.split('/.worktrees/')[0]
+    const title = chat.title?.trim()
+    const message = title && title !== 'New chat' ? title : 'Keep chat changes'
+    const res = await window.cove.worktreeMerge(projectPath, chat.cwd, message)
+    if (res.ok) {
+      // The merge already removed the worktree; force skips the unkept-guard.
+      await get().removeChat(workspaceId, chatId, true)
+      get().setActive(workspaceId)
+    }
+    return res
+  },
+  removeChat: async (workspaceId, chatId, force = false) => {
+    const dying0 = get().chats[workspaceId]?.find((c) => c.id === chatId)
+    // A worktree chat with unkept work must not vanish on a stray click: ask
+    // Keep / Throw away / Cancel first. Clean chats delete silently, as ever.
+    if (!force && dying0?.cwd && dying0.cwd.includes('/.worktrees/')) {
+      const projectPath = dying0.cwd.split('/.worktrees/')[0]
+      const st = await window.cove.worktreeStatus(projectPath, dying0.cwd).catch(() => null)
+      if (st && (st.dirty || st.ahead > 0)) {
+        const choice = await window.cove.chatConfirmUnkept()
+        if (choice === 'cancel') return
+        if (choice === 'keep') {
+          const res = await get().keepWorktreeChat(workspaceId, chatId)
+          if (!res.ok) window.alert(keepErrorText(res.reason, res.detail))
+          return // kept (and removed), or failed and the chat stays
+        }
+        // 'throw' falls through to the normal delete
+      }
+    }
     // Free the chat's native browser view (workspace::chat) — a full Chromium
     // renderer that otherwise leaked for the life of the app, since only whole
     // workspaces were ever torn down (and even then by the bare id).
@@ -815,6 +885,26 @@ export const useStore = create<CoveState>((set, get) => ({
   renameChat: async (workspaceId, chatId, title) => {
     await window.cove.chatUpdate(chatId, { title })
     get().touchChat(workspaceId, chatId, { title })
+    // The chat's branch follows its title (auto-title and manual rename both
+    // land here) — "superagent/wt-a3f9k" tells nobody anything; the chat's own
+    // name does. Only auto-named superagent/* branches are renamed (main-side
+    // guard), so a branch the user asked for by name is never touched. Renaming
+    // never moves files — safe mid-session.
+    const chat = get().chats[workspaceId]?.find((c) => c.id === chatId)
+    if (chat?.cwd && chat.cwd.includes('/.worktrees/')) {
+      const slug = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40)
+        .replace(/-+$/, '')
+      if (slug) {
+        void window.cove.worktreeRename(chat.cwd, `superagent/${slug}`).then(() => {
+          // Nudge the sidebar chip (it re-reads the branch on this event).
+          window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
+        })
+      }
+    }
   },
   touchChat: (workspaceId, chatId, patch) =>
     set((s) => ({

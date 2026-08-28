@@ -154,6 +154,19 @@ export interface CoveApi {
   ) => () => void
   onChatCleared: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
   onChatDeleteRequest: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
+  /** Explicit "Throw away" confirmed in the native dialog — delete without the guard. */
+  onChatThrowAway: (cb: (p: { chatId: string; workspaceId: string }) => void) => () => void
+  /** Ask to keep a chat's changes (native dialog, then chat:merge-worktree). */
+  chatKeepRequest: (p: {
+    chatId: string
+    workspaceId: string
+    projectPath: string
+    wtPath: string
+  }) => void
+  /** Ask to throw a chat's changes away (native dialog, then chat:throw-away). */
+  chatThrowRequest: (p: { chatId: string; workspaceId: string }) => void
+  /** Three-way dialog for deleting a chat with unkept changes. */
+  chatConfirmUnkept: () => Promise<'keep' | 'throw' | 'cancel'>
   /** Right-click a project row: native menu (new chat, new worktree chat, reveal). */
   workspaceMenu: (ws: { id: string; path: string; isRepo: boolean }) => void
   onWorkspaceMenuAction: (
@@ -212,7 +225,10 @@ export interface CoveApi {
     newBranch: string
   ) => Promise<{ ok: boolean; branch: string | null }>
   /** Unkept work in a worktree: uncommitted edits, or commits past its base. */
-  worktreeStatus: (projectPath: string, wtPath: string) => Promise<{ dirty: boolean; ahead: number }>
+  worktreeStatus: (
+    projectPath: string,
+    wtPath: string
+  ) => Promise<{ dirty: boolean; ahead: number }>
   /** Local branches: name, whether current, and the worktree path it's in (if any). */
   gitBranches: (
     cwd: string
@@ -562,6 +578,11 @@ const cove: CoveApi = {
     subscribe('chat:cleared', (p) => cb(p as { chatId: string; workspaceId: string })),
   onChatDeleteRequest: (cb) =>
     subscribe('chat:delete', (p) => cb(p as { chatId: string; workspaceId: string })),
+  onChatThrowAway: (cb) =>
+    subscribe('chat:throw-away', (p) => cb(p as { chatId: string; workspaceId: string })),
+  chatKeepRequest: (p) => ipcRenderer.send('chat:keep-request', p),
+  chatThrowRequest: (p) => ipcRenderer.send('chat:throw-request', p),
+  chatConfirmUnkept: () => ipcRenderer.invoke('chat:confirm-unkept'),
   workspaceMenu: (ws) => ipcRenderer.send('workspace:menu', ws),
   onWorkspaceMenuAction: (cb) =>
     subscribe('workspace:menu-action', (p) =>
