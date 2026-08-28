@@ -225,6 +225,13 @@ interface CoveState {
   setReloadOnIdle: (workspaceId: string, v: boolean) => void
 
   browsingWorkspaceId: string | null
+  /**
+   * Desks whose pane the USER closed while an agent was browsing, by desk key →
+   * when. While an entry exists, automation activity must not auto-reveal that
+   * pane again — the user's close outranks the agent's "look at this". Cleared
+   * when the workspace's turn goes idle or the pane is reopened.
+   */
+  userClosedPaneAt: Record<string, number>
   /** The full pane id (workspace::chat) the agent is browsing — what the Stop
       button must target, since automation is keyed by pane, not workspace. */
   browsingPaneId: string | null
@@ -401,6 +408,7 @@ export const useStore = create<CoveState>((set, get) => ({
   toast: null,
   browsingWorkspaceId: null,
   browsingPaneId: null,
+  userClosedPaneAt: {},
   chats: {},
   activeChatId: {},
   agentIds: {},
@@ -540,7 +548,15 @@ export const useStore = create<CoveState>((set, get) => ({
       // reloaded, often logged-out live page) — see the coldStart flag.
       localStorage.setItem(`paneOpen:${key}`, next ? '1' : '0')
       const browserOpen = { ...s.browserOpen, [key]: next }
-      return { browserOpen, coldStart: false }
+      // Closing while the agent is browsing must STICK: without this record the
+      // very next automation event auto-revealed the pane again, so during a
+      // long agent-driven browse the card kept popping back over whatever the
+      // user was doing ("it blocks every other action"). Cleared when the turn
+      // goes idle, or when the pane is opened again.
+      const userClosedPaneAt = { ...s.userClosedPaneAt }
+      if (next) delete userClosedPaneAt[key]
+      else userClosedPaneAt[key] = Date.now()
+      return { browserOpen, coldStart: false, userClosedPaneAt }
     }),
   setHooksEnabled: (v) => set({ hooksEnabled: v }),
 
@@ -628,7 +644,10 @@ export const useStore = create<CoveState>((set, get) => ({
       // Reveal for the SPECIFIC chat whose agent is browsing (its own view), not
       // whichever chat happens to be active.
       const key = chatId ?? workspaceId
-      if (known && !s.browserOpen[key]) {
+      // The user closed this pane mid-browse: that decision STICKS for the rest
+      // of the turn. Re-revealing on every tool call made the card pop back over
+      // whatever they were doing, endlessly, until the agent finished.
+      if (known && !s.browserOpen[key] && !s.userClosedPaneAt[key]) {
         // Persist too — an agent-opened pane must survive restarts exactly like
         // a user-opened one (this was the hole: agent panes vanished on update).
         localStorage.setItem(`paneOpen:${key}`, '1')
@@ -637,6 +656,20 @@ export const useStore = create<CoveState>((set, get) => ({
       if (timer) clearTimeout(timer)
       // Auto-clear the indicator a few seconds after the last tool call.
       timer = setTimeout(() => set({ browsingWorkspaceId: null, browsingPaneId: null }), 4000)
+    })
+    // A turn finished: the user's "keep it closed" veto expires with the turn
+    // that provoked it — the NEXT turn's browsing may reveal again.
+    window.addEventListener('cove:workspace-idle', (e) => {
+      const wsId = (e as CustomEvent<{ workspaceId: string }>).detail?.workspaceId
+      if (!wsId) return
+      const s = get()
+      const keep: Record<string, number> = {}
+      for (const [k, at] of Object.entries(s.userClosedPaneAt)) {
+        if (s.resolveWorkspace(k) !== wsId && k !== wsId) keep[k] = at
+      }
+      if (Object.keys(keep).length !== Object.keys(s.userClosedPaneAt).length) {
+        set({ userClosedPaneAt: keep })
+      }
     })
     // Cold start: the agent navigated the browser before the preview was open.
     // Reveal it (and focus the project) so the pane gets created and the page shows.
@@ -655,6 +688,9 @@ export const useStore = create<CoveState>((set, get) => ({
       // when you choose to go to that session; the agent drives it in the
       // meantime through the main process regardless of what's on screen.
       const key = chatId ?? workspaceId
+      // Same veto as the activity path: a pane the user closed this turn stays
+      // closed even for an explicit navigate — their close outranks the agent.
+      if (s.userClosedPaneAt[key]) return
       // Persist here too. This handler runs BEFORE any browser:activity event
       // and marks the pane open in memory — which made the activity listener's
       // "not open yet" persist guard skip, so agent-opened panes still vanished

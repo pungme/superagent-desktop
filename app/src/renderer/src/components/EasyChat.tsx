@@ -2740,7 +2740,7 @@ export function EasyChat({
   return (
     <div
       ref={chatRef}
-      className={`easy-chat ${dragOver ? 'drag-over' : ''}`}
+      className={`easy-chat ${dragOver ? 'drag-over' : ''} ${narrowComposer ? 'narrow' : ''}`}
       onDragOver={(e) => {
         // Allow the drop (default would block it); the window effect shows the hint.
         if (e.dataTransfer.types.includes('Files')) e.preventDefault()
