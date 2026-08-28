@@ -1829,7 +1829,10 @@
     /* ---- intro: logo + wordmark, then the logo flies to its seat in the hero ---- */
     html.intro { overflow: hidden; }
     html.intro:not(.leaving) .hero .rise { opacity: 0 !important; transform: translateY(34px) rotate(-0.6deg) !important; transition: none !important; }
-    html.intro .hero-mark { opacity: 0 !important; transform: none !important; transition: none !important; }
+    html.intro .hero .hero-mark.rise { opacity: 0 !important; transform: none !important; transition: none !important; }
+    /* a scrollbar appearing when overflow:hidden lifts would shift the whole
+       centred hero sideways at the swap — reserve the gutter from the start */
+    html { scrollbar-gutter: stable; }
     #intro {
       position: fixed; inset: 0; z-index: 100; background: var(--cream);
       display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -2802,6 +2805,8 @@
         if (done) return; done = true; clearTimeout(timer);
         var logo = intro.querySelector(".intro-logo");
         var mark = document.querySelector(".hero-mark");
+        // the mark must be measured at rest — flat, unrotated, where it will be shown
+        if (mark) { mark.style.setProperty("transform", "none", "important"); mark.style.setProperty("transition", "none", "important"); }
         // measure BEFORE .out changes any style
         var from = logo.getBoundingClientRect();
         var to = mark ? mark.getBoundingClientRect() : null;
