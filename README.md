@@ -145,9 +145,19 @@ allowed to do without asking.
   installable; runs a local server that streams the booted simulator over a
   WebSocket and accepts HID events (tap, swipe, key) back. That is exactly the
   two halves we need, already solved, and it keeps us on public APIs.
-    Cost: an external binary the user must install — the same shape as the
-    Claude Code dependency, so surface it the way we surface that (detect,
-    explain, offer the brew command; never bundle silently).
+    Cost, originally: an external binary the user had to `brew install`,
+    surfaced the way the Claude Code dependency is (detect, explain, offer the
+    command). NOW BUNDLED (2026-08-28, after 1.6.0): upstream publishes a prebuilt arm64
+    binary per release, so app/scripts/fetch-baguette.mjs pins a version +
+    sha256, drops the bare executable into app/native/, and electron-builder
+    ships it in Resources next to simfb (with its Apache-2.0 LICENSE).
+    Only the executable — the 38 MB resource bundle beside it is baguette's
+    web UI / virtual camera, and `baguette input` acks gestures without it
+    (verified 2026-08-28 on 0.1.96: tap, swipe, key, press all {"ok":true}
+    from a bare binary). findBaguette() in src/main/simulator.ts tries the
+    bundled copy first, then the brew paths as a fallback. To upgrade, bump
+    VERSION/SHA256 in the fetch script and re-check the input payload shapes
+    against `baguette input` — 0.1.88 → 0.1.96 changed nothing we send.
     VERIFIED 2026-08-08 against baguette 0.1.88 (brew). Half of it works:
       * INPUT INJECTION WORKS. `baguette tap|press|swipe|pinch|pan` drive a
         booted device and answer {"ok":true,...}. `baguette input` reads

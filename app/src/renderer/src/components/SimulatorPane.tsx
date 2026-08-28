@@ -637,9 +637,12 @@ export function SimulatorPane({
         )}
       </div>
 
+      {/* The app ships its own baguette, so this only shows when that copy
+          failed to start (a build made without it, or not an arm64 Mac). */}
       {!canInput && (
         <div className="sim-note">
-          Tapping needs <code>brew install baguette</code> — the mirror works without it.{' '}
+          Tapping is off — the bundled input helper didn’t start. <code>brew install baguette</code>{' '}
+          stands in; the mirror works without it.{' '}
           <button
             className="sim-note-link"
             onClick={() => {

@@ -13,7 +13,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "electron-vite preview",
     "copy-ort": "node scripts/copy-ort.mjs",
-    "predev": "npm run copy-ort",
+    "predev": "npm run copy-ort && node scripts/fetch-baguette.mjs --optional",
     "dev": "electron-vite dev",
     "prebuild": "npm run copy-ort",
     "build": "npm run build:native && npm run typecheck && electron-vite build",
@@ -22,7 +22,8 @@
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build:native && electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
-    "build:native": "sh native/build.sh"
+    "build:native": "sh native/build.sh && node scripts/fetch-baguette.mjs",
+    "fetch-baguette": "node scripts/fetch-baguette.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
