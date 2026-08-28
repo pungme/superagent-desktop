@@ -71,6 +71,32 @@ export interface HookEvent {
   body: Record<string, unknown>
 }
 
+import type { PairPayload } from '../shared/companion-protocol'
+
+/** Everything Settings → Phone shows. Mirrors companion/index.ts CompanionState. */
+export interface CompanionState {
+  machineId: string
+  relay: { url: string; state: 'connected' | 'reconnecting' | 'offline'; error: string }
+  devices: {
+    id: string
+    name: string
+    model: string
+    pushToken: string | null
+    pushEnv: string
+    createdAt: number
+    lastSeenAt: number | null
+  }[]
+  connected: string[]
+  pairing: {
+    open: boolean
+    payload?: PairPayload
+    code?: string
+    expiresAt?: number
+    request?: { device: { id: string; name: string; model: string } }
+  }
+  keepAwake: boolean
+}
+
 /** A prompt-injection gate awaiting the user's tap before a tool runs. */
 export interface GuardrailAsk {
   requestId: string
@@ -527,6 +553,19 @@ export interface CoveApi {
   agentResumeLostCheck: (id: string) => Promise<boolean>
 
   onHookEvent: (cb: (e: HookEvent) => void) => () => void
+
+  // Phone companion (Settings → Phone)
+  companionState: () => Promise<CompanionState>
+  onCompanionState: (cb: (s: CompanionState) => void) => () => void
+  companionPairStart: () => Promise<{ payload: PairPayload; code: string; expiresAt: number }>
+  companionPairCancel: () => void
+  companionPairDecide: (accepted: boolean) => void
+  onCompanionPairingRequest: (
+    cb: (r: { device: { id: string; name: string; model: string }; code: string }) => void
+  ) => () => void
+  companionRevoke: (deviceId: string) => void
+  companionSetRelay: (url: string) => void
+  companionReconnect: () => void
   /** A tool is gated pending the user's approval (browse-then-execute guard). */
   onGuardrailAsk: (cb: (a: GuardrailAsk) => void) => () => void
   /** A pending gate was resolved elsewhere (e.g. timed out) — dismiss its prompt. */
@@ -786,6 +825,19 @@ const cove: CoveApi = {
   agentResumeLostCheck: (id) => ipcRenderer.invoke('agent:resume-lost-check', id),
 
   onHookEvent: (cb) => subscribe('hook:event', (ev) => cb(ev as HookEvent)),
+
+  companionState: () => ipcRenderer.invoke('companion:state'),
+  onCompanionState: (cb) => subscribe('companion:state', (s) => cb(s as CompanionState)),
+  companionPairStart: () => ipcRenderer.invoke('companion:pair-start'),
+  companionPairCancel: () => ipcRenderer.send('companion:pair-cancel'),
+  companionPairDecide: (accepted) => ipcRenderer.send('companion:pair-decide', accepted),
+  onCompanionPairingRequest: (cb) =>
+    subscribe('companion:pairing-request', (r) =>
+      cb(r as { device: { id: string; name: string; model: string }; code: string })
+    ),
+  companionRevoke: (id) => ipcRenderer.send('companion:revoke', id),
+  companionSetRelay: (url) => ipcRenderer.send('companion:set-relay', url),
+  companionReconnect: () => ipcRenderer.send('companion:reconnect'),
   onGuardrailAsk: (cb) => subscribe('guardrail:ask', (a) => cb(a as GuardrailAsk)),
   onGuardrailResolved: (cb) =>
     subscribe('guardrail:resolved', (r) => cb((r as { requestId: string }).requestId)),

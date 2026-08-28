@@ -34,7 +34,13 @@ export interface DiffHunk {
 }
 
 export type WireEventData =
-  | { kind: 'user'; id: string; text: string; images?: { mediaType: string; size: number }[]; from: 'desktop' | 'ios' }
+  | {
+      kind: 'user'
+      id: string
+      text: string
+      images?: { mediaType: string; size: number }[]
+      from: 'desktop' | 'ios'
+    }
   | { kind: 'assistant'; id: string; text: string }
   | { kind: 'thinking'; id: string; text: string }
   | { kind: 'tool'; id: string; name: string; detail: string }
@@ -51,7 +57,12 @@ export type WireEventData =
       approvalKind: 'guardrail' | 'permission'
       expiresAt: number
     }
-  | { kind: 'approval_end'; id: string; outcome: 'approved' | 'denied' | 'expired'; by: 'desktop' | 'ios' }
+  | {
+      kind: 'approval_end'
+      id: string
+      outcome: 'approved' | 'denied' | 'expired'
+      by: 'desktop' | 'ios'
+    }
 
 /** A persisted, replayable entry. `seq` is per chat and strictly increasing. */
 export interface WireEvent {
