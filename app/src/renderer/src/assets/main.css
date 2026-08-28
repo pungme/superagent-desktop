@@ -1794,8 +1794,12 @@ button {
 .easy-chat.narrow .easy-user .easy-msg-reply {
   left: 6px;
 }
+/* right: 60px, not 6px — Copy already owns the inside top-right corner, and on a
+   short (one-line) bubble the two landed on the same spot with Copy on top, so
+   Reply could not be clicked at all (caught by elementFromPoint in the CDP
+   check). Sitting left of Copy clears it at any bubble height. */
 .easy-chat.narrow .easy-assistant .easy-msg-reply {
-  right: 6px;
+  right: 60px;
 }
 .easy-msg:hover .easy-msg-reply {
   opacity: 1;

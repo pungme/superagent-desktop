@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { TasksPanel } from './TasksPanel'
 import { BranchMenu } from './BranchMenu'
@@ -611,7 +611,14 @@ function toolChip(t: ToolCall, cls: string, key: string): React.JSX.Element {
   )
 }
 
-function ActivityStrip({ entries }: { entries: Activity[] }): React.JSX.Element {
+// Memoized like MessageRow: settled strips skip re-render during streaming (the
+// entries array identity is stable thanks to the rows useMemo, except for the
+// strip currently receiving new tool entries).
+const ActivityStrip = memo(function ActivityStrip({
+  entries
+}: {
+  entries: Activity[]
+}): React.JSX.Element {
   const [open, setOpen] = useState(false)
 
   // A lone entry reads fine on its own — a chip for a tool, a card for an edit.
@@ -658,7 +665,7 @@ function ActivityStrip({ entries }: { entries: Activity[] }): React.JSX.Element 
       )}
     </div>
   )
-}
+})
 
 // A file edit — collapsed to one line by default so the chat isn't flooded with
 // diffs; click to see the actual change.
@@ -728,6 +735,104 @@ function toRows(items: Item[]): Row[] {
   }
   return rows
 }
+
+/**
+ * One transcript bubble, memoized. During streaming the transcript re-renders
+ * every frame; without this boundary EVERY historical bubble re-ran its
+ * splitAssistant regex scan and re-reconciled its whole subtree each time —
+ * per-token cost that grew with conversation length. Handlers come in as
+ * STABLE callbacks (ref-backed in EasyChat) so memo actually holds; only the
+ * row whose `msg` object changed (the streaming one) re-renders.
+ */
+const MessageRow = memo(function MessageRow({
+  msg,
+  showEdit,
+  onWheelMsg,
+  onReply,
+  onEdit,
+  onAnswer,
+  onLightbox
+}: {
+  msg: ChatMessage
+  /** This is the last user message and no turn is running — offer Edit. */
+  showEdit: boolean
+  onWheelMsg: (e: React.WheelEvent<HTMLDivElement>, msg: ChatMessage) => void
+  onReply: (msg: ChatMessage) => void
+  onEdit: (msg: ChatMessage) => void
+  onAnswer: (a: string) => void
+  onLightbox: (src: string) => void
+}): React.JSX.Element {
+  const isAssistant = msg.role === 'assistant'
+  // The regex+JSON scan runs once per text change (i.e. once per frame for the
+  // streaming row, once ever for settled rows) instead of for all rows.
+  const segments = useMemo(
+    () => (isAssistant ? splitAssistant(msg.text) : null),
+    [isAssistant, msg.text]
+  )
+  const at = msg.streaming ? null : msgAt(msg)
+  return (
+    <div
+      className={`easy-msg easy-${msg.role} ${msg.system ? 'easy-system' : ''}`}
+      onWheel={(e) => onWheelMsg(e, msg)}
+    >
+      {msg.replyTo && (
+        <div className="easy-reply-quote">
+          <span className="easy-reply-quote-who">
+            {msg.replyTo.role === 'user' ? 'You' : 'Claude'}
+          </span>
+          <span className="easy-reply-quote-text">
+            {msg.replyTo.text.replace(/\s+/g, ' ').trim().slice(0, 120)}
+          </span>
+        </div>
+      )}
+      {msg.images && msg.images.length > 0 && (
+        <div className="easy-msg-images">
+          {msg.images.map((src, ii) => (
+            <img key={ii} src={src} alt="attachment" onClick={() => onLightbox(src)} />
+          ))}
+        </div>
+      )}
+      {segments
+        ? segments.map((seg, si) =>
+            'md' in seg ? (
+              <Markdown key={si} text={seg.md} />
+            ) : (
+              <Choices key={si} spec={seg.ask} onAnswer={onAnswer} />
+            )
+          )
+        : msg.text}
+      {msg.streaming && <span className="easy-caret" />}
+      {!msg.streaming && msg.text && (
+        <button
+          className="easy-msg-reply"
+          title="Reply to this message"
+          onClick={() => onReply(msg)}
+        >
+          ↩
+        </button>
+      )}
+      {isAssistant && !msg.streaming && msg.text && (
+        <button
+          className="easy-msg-copy"
+          title="Copy"
+          onClick={() => window.cove.clipboardWrite(msg.text)}
+        >
+          Copy
+        </button>
+      )}
+      {showEdit && msg.text && (
+        <button className="easy-msg-edit" title="Edit & resend" onClick={() => onEdit(msg)}>
+          Edit
+        </button>
+      )}
+      {at !== null && (
+        <span className="easy-msg-time" title={new Date(at).toLocaleString()}>
+          {msgTime(at)}
+        </span>
+      )}
+    </div>
+  )
+})
 
 export function EasyChat({
   cwd,
@@ -2606,6 +2711,25 @@ export function EasyChat({
     void interruptNow()
   }
 
+  // STABLE row handlers: MessageRow is memoized, and a fresh arrow prop per
+  // render would defeat that. The identities below never change; they read the
+  // live closures through a ref updated each render-commit.
+  const rowFnsRef = useRef({ onMsgWheel, beginReply, editMessage, submit, setLightbox })
+  useEffect(() => {
+    rowFnsRef.current = { onMsgWheel, beginReply, editMessage, submit, setLightbox }
+  })
+  const onRowWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>, m: ChatMessage) => rowFnsRef.current.onMsgWheel(e, m),
+    []
+  )
+  const onRowReply = useCallback((m: ChatMessage) => rowFnsRef.current.beginReply(m), [])
+  const onRowEdit = useCallback((m: ChatMessage) => rowFnsRef.current.editMessage(m), [])
+  const onRowAnswer = useCallback((a: string) => rowFnsRef.current.submit(a), [])
+  const onRowLightbox = useCallback((src: string) => rowFnsRef.current.setLightbox(src), [])
+  // The transcript rows, recomputed only when the items actually change — not on
+  // every keystroke/timer render of the surrounding component.
+  const rows = useMemo(() => toRows(items), [items])
+
   /** When the mic went down, and whether this is a hands-free (tapped) session. */
   const micDownAtRef = useRef(0)
   const handsFreeRef = useRef(false)
@@ -2869,80 +2993,20 @@ export function EasyChat({
           {items.length === 0 && !ready && !suspended && !agentFailed && (
             <div className="easy-empty">Starting Claude…</div>
           )}
-          {toRows(items).map((row, i) => {
+          {rows.map((row) => {
             if (row.kind === 'msg') {
-              const isAssistant = row.msg.role === 'assistant'
-              const isLastUser = !isAssistant && row.msg.id === lastUserId
+              const isLastUser = row.msg.role === 'user' && row.msg.id === lastUserId
               return (
-                <div
-                  key={row.msg.id + i}
-                  className={`easy-msg easy-${row.msg.role} ${row.msg.system ? 'easy-system' : ''}`}
-                  onWheel={(e) => onMsgWheel(e, row.msg)}
-                >
-                  {row.msg.replyTo && (
-                    <div className="easy-reply-quote">
-                      <span className="easy-reply-quote-who">
-                        {row.msg.replyTo.role === 'user' ? 'You' : 'Claude'}
-                      </span>
-                      <span className="easy-reply-quote-text">
-                        {row.msg.replyTo.text.replace(/\s+/g, ' ').trim().slice(0, 120)}
-                      </span>
-                    </div>
-                  )}
-                  {row.msg.images && row.msg.images.length > 0 && (
-                    <div className="easy-msg-images">
-                      {row.msg.images.map((src, ii) => (
-                        <img key={ii} src={src} alt="attachment" onClick={() => setLightbox(src)} />
-                      ))}
-                    </div>
-                  )}
-                  {isAssistant
-                    ? splitAssistant(row.msg.text).map((seg, si) =>
-                        'md' in seg ? (
-                          <Markdown key={si} text={seg.md} />
-                        ) : (
-                          <Choices key={si} spec={seg.ask} onAnswer={(a) => submit(a)} />
-                        )
-                      )
-                    : row.msg.text}
-                  {row.msg.streaming && <span className="easy-caret" />}
-                  {!row.msg.streaming && row.msg.text && (
-                    <button
-                      className="easy-msg-reply"
-                      title="Reply to this message"
-                      onClick={() => beginReply(row.msg)}
-                    >
-                      ↩
-                    </button>
-                  )}
-                  {isAssistant && !row.msg.streaming && row.msg.text && (
-                    <button
-                      className="easy-msg-copy"
-                      title="Copy"
-                      onClick={() => window.cove.clipboardWrite(row.msg.text)}
-                    >
-                      Copy
-                    </button>
-                  )}
-                  {isLastUser && !generating && row.msg.text && (
-                    <button
-                      className="easy-msg-edit"
-                      title="Edit & resend"
-                      onClick={() => editMessage(row.msg)}
-                    >
-                      Edit
-                    </button>
-                  )}
-                  {!row.msg.streaming &&
-                    (() => {
-                      const at = msgAt(row.msg)
-                      return at === null ? null : (
-                        <span className="easy-msg-time" title={new Date(at).toLocaleString()}>
-                          {msgTime(at)}
-                        </span>
-                      )
-                    })()}
-                </div>
+                <MessageRow
+                  key={row.msg.id}
+                  msg={row.msg}
+                  showEdit={isLastUser && !generating}
+                  onWheelMsg={onRowWheel}
+                  onReply={onRowReply}
+                  onEdit={onRowEdit}
+                  onAnswer={onRowAnswer}
+                  onLightbox={onRowLightbox}
+                />
               )
             }
             if (row.kind === 'thinking') {
@@ -2953,7 +3017,13 @@ export function EasyChat({
                 </div>
               )
             }
-            return <ActivityStrip key={'act-' + i} entries={row.entries} />
+            // Activity rows keyed by their first entry's tool/diff id — stable as
+            // rows shift, unlike the array index (index keys remounted every later
+            // message whenever a strip was inserted mid-turn, blowing the Markdown
+            // memo cache exactly when tools were streaming).
+            const first = row.entries[0]
+            const actKey = 'act-' + (first.kind === 'tool' ? first.tool.id : first.diff.id)
+            return <ActivityStrip key={actKey} entries={row.entries} />
           })}
           {generating && (
             <div className="easy-thinking">
