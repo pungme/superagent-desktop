@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
@@ -46,27 +46,35 @@ export function WorkspaceView({
   // Browser projects open with the preview showing by default.
   // A browser project auto-opens its pane — but not on a cold launch, so a fresh
   // start lands on the chat instead of a reloaded (often logged-out) live page.
+  // The localStorage fallbacks are read ONCE per desk, not inside the selectors:
+  // selectors run on every store update, and a synchronous storage read per
+  // update per mounted workspace added up. The fallback only matters while the
+  // store has no entry ("untouched this run"), which is exactly when the stored
+  // value can't have changed either.
+  const savedDesk = useMemo(
+    () => ({
+      paneOpen: localStorage.getItem(`paneOpen:${deskKey}`),
+      filesOpen: localStorage.getItem(`filesOpen:${deskKey}`) === '1',
+      openFile: localStorage.getItem(`openFile:${deskKey}`)
+    }),
+    [deskKey]
+  )
   const browserOpen = useStore((s) => {
     if (s.browserOpen[deskKey] !== undefined) return s.browserOpen[deskKey]
     // An explicit remembered state — open OR closed — wins for every project
     // kind: what you (or the agent) had on screen comes back after a restart.
-    const saved = localStorage.getItem(`paneOpen:${deskKey}`)
-    if (saved !== null) return saved === '1'
+    if (savedDesk.paneOpen !== null) return savedDesk.paneOpen === '1'
     // No record: browser projects still default open only after first
     // interaction this run, so a cold start lands on the chat.
     return ws.kind === 'browser' ? !s.coldStart : false
   })
   const toggleBrowser = useStore((s) => s.toggleBrowser)
-  const filesOpen = useStore(
-    (s) => s.filesOpen[deskKey] ?? localStorage.getItem(`filesOpen:${deskKey}`) === '1'
-  )
+  const filesOpen = useStore((s) => s.filesOpen[deskKey] ?? savedDesk.filesOpen)
   // A text file open in the in-app viewer takes the content pane over the browser.
   // undefined = untouched this run (fall back to what was open last run);
   // null = explicitly closed.
   const openFilePath = useStore((s) =>
-    s.openFile[deskKey] === undefined
-      ? localStorage.getItem(`openFile:${deskKey}`)
-      : s.openFile[deskKey]
+    s.openFile[deskKey] === undefined ? savedDesk.openFile : s.openFile[deskKey]
   )
   const closeFile = useStore((s) => s.closeFile)
   // The simulator is a card on the desk, not a replacement for what's already
