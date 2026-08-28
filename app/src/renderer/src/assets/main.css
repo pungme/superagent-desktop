@@ -1805,20 +1805,23 @@ button {
 .easy-assistant .easy-msg-reply {
   right: -34px;
 }
-/* Narrow chat column: the bubble runs nearly edge to edge, so a button 34px
-   OUTSIDE it lands past the scroller's edge and overflow-x clips it — you
-   simply couldn't see (or reach) Reply. Tuck it just inside the bubble edge
-   instead, the same treatment as Copy. It has its own pill background, and
-   it's hover-only, so it doesn't sit over text at rest. */
-.easy-chat.narrow .easy-user .easy-msg-reply {
-  left: 6px;
-}
-/* right: 60px, not 6px — Copy already owns the inside top-right corner, and on a
-   short (one-line) bubble the two landed on the same spot with Copy on top, so
-   Reply could not be clicked at all (caught by elementFromPoint in the CDP
-   check). Sitting left of Copy clears it at any bubble height. */
+/* Narrow chat column: a button 34px OUTSIDE the bubble lands past the
+   scroller's edge and overflow-x clips it — Reply moves inside (rules below,
+   on the top-right rail with Copy). */
+/* Narrow: Reply joins Copy on the top-right rail — same row, to its left.
+   (Two earlier attempts both failed: right:6px stacked it UNDER Copy on
+   one-line bubbles; right:60px at vertical-center floated it over the middle
+   of the text. Corner-rail placement is fixed and predictable at any bubble
+   size, and it's hover-only like Copy.) */
 .easy-chat.narrow .easy-assistant .easy-msg-reply {
-  right: 60px;
+  top: 4px;
+  right: 62px;
+  transform: none;
+}
+.easy-chat.narrow .easy-user .easy-msg-reply {
+  top: 4px;
+  left: 6px;
+  transform: none;
 }
 .easy-msg:hover .easy-msg-reply {
   opacity: 1;
