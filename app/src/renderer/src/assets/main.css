@@ -4813,6 +4813,117 @@ button {
   color: #fff;
 }
 
+/* "What's new" — a pill that reveals the release notes below the banner, on
+   hover or click. The banner is fixed dark, so the popover matches it. */
+.update-notes-wrap {
+  position: relative;
+  display: inline-flex;
+  -webkit-app-region: no-drag;
+}
+.update-banner-whatsnew {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.update-banner-whatsnew:hover,
+.update-banner-whatsnew.on {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.update-notes {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px;
+  max-width: 78vw;
+  max-height: 52vh;
+  overflow-y: auto;
+  background: rgba(24, 25, 29, 0.99);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  text-align: left;
+  cursor: default;
+  animation: update-notes-in 0.16s ease-out;
+}
+@keyframes update-notes-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -4px);
+  }
+}
+/* Invisible bridge over the 10px gap so moving the pointer down to the popover
+   doesn't cross empty space and dismiss it. */
+.update-notes::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+.update-notes-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  font-weight: 650;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(24, 25, 29, 0.99);
+}
+.update-notes-close {
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.update-notes-close:hover {
+  color: #fff;
+}
+.update-notes-body {
+  padding: 6px 14px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.82);
+}
+.update-notes-muted {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+.update-notes-body h1,
+.update-notes-body h2,
+.update-notes-body h3 {
+  font-size: 13px;
+  margin: 10px 0 4px;
+  color: #fff;
+}
+.update-notes-body p {
+  margin: 4px 0;
+}
+.update-notes-body ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.update-notes-body li {
+  margin: 2px 0;
+}
+.update-notes-body a {
+  color: #8ab4ff;
+}
+
 /* Confirming a restart that would kill in-flight work. Amber rather than red —
    this is a "you'd lose something" pause, not an error. */
 .update-banner-warn {

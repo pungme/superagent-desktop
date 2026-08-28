@@ -332,6 +332,8 @@ export interface CoveApi {
   /** The updater failed (download/verify) — surfaced so the UI can say so. */
   onUpdateError: (cb: (message: string) => void) => () => void
   installUpdate: () => void
+  /** "What's new" for a version — the GitHub release body (markdown), or null. */
+  updateNotes: (version: string) => Promise<string | null>
 
   storeTree: () => Promise<TreeGroup[]>
   createGroup: (name: string) => Promise<TreeGroup[]>
@@ -628,6 +630,7 @@ const cove: CoveApi = {
     subscribe('update:progress', (p) => cb(p as { version: string | null; percent: number })),
   onUpdateError: (cb) => subscribe('update:error', (m) => cb(m as string)),
   installUpdate: () => ipcRenderer.send('update:install'),
+  updateNotes: (version) => ipcRenderer.invoke('update:notes', version),
   // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
   onOpenSimulator: (cb) =>
     subscribe('app:open-simulator', (p) =>

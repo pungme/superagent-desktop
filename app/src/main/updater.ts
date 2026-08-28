@@ -205,6 +205,35 @@ export function startAutoUpdate(): void {
     })
   })
 
+  // "What's new" for the update banner. The auto-update feed (latest-mac.yml)
+  // carries no release notes, so fetch the release body from the GitHub Releases
+  // API on demand — public repo, no auth needed. Cached per version so hovering
+  // the banner doesn't re-fetch, and errors return null (the banner just omits
+  // the notes rather than breaking).
+  const notesCache = new Map<string, string | null>()
+  ipcMain.handle('update:notes', async (_e, version: string) => {
+    const v = String(version || '').replace(/^v/, '')
+    if (!v) return null
+    if (notesCache.has(v)) return notesCache.get(v) ?? null
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/pungme/superagent-desktop/releases/tags/v${v}`,
+        { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SuperAgent' } }
+      )
+      if (!res.ok) {
+        notesCache.set(v, null)
+        return null
+      }
+      const json = (await res.json()) as { body?: string }
+      const body = (json.body ?? '').trim() || null
+      notesCache.set(v, body)
+      return body
+    } catch (err) {
+      logLine('error', `notes fetch failed: ${String(err)}`)
+      return null
+    }
+  })
+
   // A small delay so it doesn't compete with app startup work, then keep
   // checking: the app is left running for days, and a check only at launch
   // means a fix can sit unnoticed for just as long.
