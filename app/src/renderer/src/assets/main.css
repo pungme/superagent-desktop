@@ -782,13 +782,16 @@ button {
 }
 
 .sidebar-item-branch {
-  flex: 0 0 auto;
+  /* No fixed clamp: max-width 90px truncated "wepush-dev-env" in a row full of
+     empty space. Natural width when the row has room; when it doesn't, the
+     high shrink factor makes the CHIP give way (ellipsize) before the name. */
+  flex: 0 4 auto;
+  min-width: 48px;
   font-size: 10px;
   color: var(--text-tertiary);
   background: var(--hover);
   border-radius: 999px;
   padding: 1px 7px;
-  max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2934,8 +2937,9 @@ button {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.4;
-  /* Extra right padding clears the attach + mic buttons pinned inside the box. */
-  padding: 10px 74px 10px 12px;
+  /* Right padding clears the mic; left clears the attach button, which sits on
+     the leading edge like every other chat app. */
+  padding: 10px 42px 10px 40px;
   outline: none;
 }
 
@@ -2955,8 +2959,10 @@ button {
 
 /* Attach button, pinned inside the box to the left of the mic. */
 .easy-attach {
+  /* Leading edge, where attach lives in every chat app — parked between the
+     mic and send it read as one more "voice-ish" control. */
   position: absolute;
-  right: 38px;
+  left: 6px;
   bottom: 6px;
   width: 28px;
   height: 28px;
