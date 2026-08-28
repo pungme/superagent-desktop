@@ -507,6 +507,10 @@ function attachPaneView(pane: BrowserPane): void {
   if (pane.window.isDestroyed()) return
   pane.window.contentView.addChildView(pane.view)
   pane.visible = true
+  // Mark as most-recently-shown, then trim any long-cold panes over the cap —
+  // this one is now visible, so it can't be the one evicted.
+  lastShownAt.set(pane.id, Date.now())
+  evictColdPanes()
 }
 
 export function createBrowserPane(window: BrowserWindow, id: string, partition: string): void {
@@ -688,8 +692,50 @@ export function destroyBrowserPane(id: string): void {
   faviconByPane.delete(id)
   errorUrlByPane.delete(id)
   detachedWhileAway.delete(id)
+  lastShownAt.delete(id)
   hidePane(pane)
   pane.view.webContents.close()
+}
+
+/**
+ * Free every pane belonging to a workspace — the bare id AND every per-chat pane
+ * (`workspace::chat`). Panes are created per conversation, but the old teardown
+ * only destroyed the bare workspace id, so every chat's WebContentsView (a full
+ * Chromium renderer, ~100MB) leaked for the life of the app. Called when a
+ * workspace is removed; individual chats free their own pane on delete.
+ */
+export function destroyWorkspacePanes(workspaceId: string): void {
+  const prefix = workspaceId + '::'
+  for (const id of [...panes.keys()]) {
+    if (id === workspaceId || id.startsWith(prefix)) destroyBrowserPane(id)
+  }
+}
+
+// LRU bound on live panes. Each is a Chromium renderer, so an afternoon of
+// hopping between chats/projects could pile up dozens. We keep the most recently
+// SHOWN panes and close the webContents of the rest — a revisited pane is
+// recreated and re-navigated to its stored URL (the renderer persists paneUrl),
+// so nothing is lost but the in-memory page (scroll/unsubmitted input). The cap
+// is generous so it only bites when memory would otherwise balloon.
+const lastShownAt = new Map<string, number>()
+const MAX_LIVE_PANES = 8
+const PANE_COLD_MS = 3 * 60 * 1000
+function evictColdPanes(): void {
+  if (panes.size <= MAX_LIVE_PANES) return
+  const now = Date.now()
+  // Only ever evict a pane that is hidden AND hasn't been looked at for a few
+  // minutes — never one the user just switched away from, and never a visible
+  // one. If nothing qualifies we simply keep them all rather than disrupt an
+  // active page; the cap is a memory ceiling, not a hard limit.
+  const cold = [...panes.values()]
+    .filter((p) => !p.visible && now - (lastShownAt.get(p.id) ?? 0) > PANE_COLD_MS)
+    .sort((a, b) => (lastShownAt.get(a.id) ?? 0) - (lastShownAt.get(b.id) ?? 0))
+  let over = panes.size - MAX_LIVE_PANES
+  for (const p of cold) {
+    if (over <= 0) break
+    destroyBrowserPane(p.id)
+    over--
+  }
 }
 
 function hidePane(pane: BrowserPane): void {
@@ -956,6 +1002,9 @@ export function registerBrowserIpc(): void {
     if (url) shell.openExternal(url)
   })
   ipcMain.on('browser:destroy', (_e, id: string) => destroyBrowserPane(id))
+  ipcMain.on('browser:destroy-workspace', (_e, workspaceId: string) =>
+    destroyWorkspacePanes(workspaceId)
+  )
   // Is a dev server still listening on this local port? Used after a restart to
   // drop persisted server chips whose process didn't survive.
   ipcMain.handle('net:checkPort', (_e, port: number): Promise<boolean> => {

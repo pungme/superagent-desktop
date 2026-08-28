@@ -744,6 +744,10 @@ export const useStore = create<CoveState>((set, get) => ({
     set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: chatId } }))
   },
   removeChat: async (workspaceId, chatId) => {
+    // Free the chat's native browser view (workspace::chat) — a full Chromium
+    // renderer that otherwise leaked for the life of the app, since only whole
+    // workspaces were ever torn down (and even then by the bare id).
+    window.cove.browserDestroy(`${workspaceId}::${chatId}`)
     const dying = get().chats[workspaceId]?.find((c) => c.id === chatId)
     if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
       const projectPath = dying.cwd.split('/.worktrees/')[0]
@@ -938,10 +942,11 @@ export const useStore = create<CoveState>((set, get) => ({
     set({ tree, activeWorkspaceId: workspaceId })
   },
   removeWorkspace: async (id) => {
-    // Tear down the workspace's browser view. The PTY and Easy-mode agent are
-    // stopped by their panes' unmount effects, but the WebContentsView has no
-    // such hook (it's kept alive across preview toggles), so destroy it here.
-    window.cove.browserDestroy(id)
+    // Tear down ALL of the workspace's browser views. The PTY and Easy-mode agent
+    // are stopped by their panes' unmount effects, but WebContentsViews have no
+    // such hook, and each conversation has its own (workspace::chat) — the old
+    // bare-id destroy missed every per-chat pane, leaking them all.
+    window.cove.browserDestroyWorkspace(id)
     const tree = await window.cove.deleteWorkspace(id)
     set({ tree })
     if (get().activeWorkspaceId === id) {
