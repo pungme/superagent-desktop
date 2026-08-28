@@ -356,6 +356,14 @@ button {
   padding-left: 4px; /* subtle indent under the section header, no rail */
 }
 
+/* One project + its chats/repos/routines is a BLOCK. With many projects the
+   rows ran edge-to-edge and the tree read as one undifferentiated list — the
+   gap between blocks is what makes each project's cluster scannable, and the
+   heavier project name anchors it over its lighter children. */
+.sidebar-item-wrap + .sidebar-item-wrap {
+  margin-top: 8px;
+}
+
 .sidebar-item {
   position: relative;
   display: flex;
@@ -415,7 +423,9 @@ button {
 .sidebar-item-name {
   flex: 1;
   font-size: 13.5px;
-  font-weight: 500;
+  /* Heavier than the 400-weight chat/repo children, so with many projects each
+     name anchors its own cluster. */
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
