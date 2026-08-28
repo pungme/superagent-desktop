@@ -29,6 +29,7 @@ import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
 import { startCompanionLog } from './companion/log'
+import { startCompanion, stopCompanion, registerCompanionIpc } from './companion'
 import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
@@ -190,6 +191,9 @@ app.whenReady().then(() => {
   buildMenu()
   startHookServer()
   startRoutines()
+  // The phone companion: an outbound relay connection that stays up.
+  registerCompanionIpc()
+  startCompanion()
 
   // Which SuperAgent this is. Worth surfacing now that builds auto-update in the
   // background — otherwise there's no way to tell what you're running, or to say
@@ -386,6 +390,7 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  stopCompanion()
   killAllAgents()
   stopRoutines()
   stopAllSimStreams()

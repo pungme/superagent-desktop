@@ -420,6 +420,28 @@ export function listAllChats(): ChatRow[] {
     .all() as ChatRow[]
 }
 
+/** The chat a claude session belongs to (sessions are recorded on their chat rows). */
+export function getChatIdBySession(sessionId: string): string | undefined {
+  const row = db.prepare('SELECT id FROM chats WHERE claudeSessionId = ? LIMIT 1').get(sessionId) as
+    { id: string } | undefined
+  return row?.id
+}
+
+/** A new, empty chat at the end of a project's list. Returns its id. */
+export function createChat(workspaceId: string, cwd?: string): string {
+  const id = randomUUID()
+  const next =
+    ((
+      db
+        .prepare('SELECT MAX(position) AS p FROM chats WHERE workspaceId = ?')
+        .get(workspaceId) as { p: number | null } | undefined
+    )?.p ?? -1) + 1
+  db.prepare(
+    'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data, cwd) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?)'
+  ).run(id, workspaceId, next, Date.now(), '[]', cwd ?? null)
+  return id
+}
+
 export function getWorkspace(id: string): Workspace | undefined {
   return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as Workspace | undefined
 }

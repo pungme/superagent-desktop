@@ -85,9 +85,7 @@ export class TranscriptProjector {
         if (!text.trim() || this.emitted.has(key)) return
         this.emitted.add(key)
         out.push(
-          isApiError
-            ? { kind: 'notice', text }
-            : { kind: 'assistant', id: `${msgId}-${i}`, text }
+          isApiError ? { kind: 'notice', text } : { kind: 'assistant', id: `${msgId}-${i}`, text }
         )
       } else if (block.type === 'thinking') {
         const text = typeof block.thinking === 'string' ? block.thinking : ''
@@ -190,7 +188,13 @@ export function toolDiff(
 export type LegacyItem =
   | {
       kind: 'msg'
-      msg: { id: string; role: 'user' | 'assistant'; text: string; system?: boolean; images?: string[] }
+      msg: {
+        id: string
+        role: 'user' | 'assistant'
+        text: string
+        system?: boolean
+        images?: string[]
+      }
     }
   | { kind: 'tool'; tool: { id: string; name: string; detail: string } }
   | { kind: 'diff'; diff: { id: string; file: string; hunks: DiffHunk[] } }
@@ -240,14 +244,18 @@ function dataUrlType(u: string): string {
 export function toLegacyItems(events: WireEventData[]): LegacyItem[] {
   const out: LegacyItem[] = []
   for (const e of events) {
-    if (e.kind === 'user')
-      out.push({ kind: 'msg', msg: { id: e.id, role: 'user', text: e.text } })
+    if (e.kind === 'user') out.push({ kind: 'msg', msg: { id: e.id, role: 'user', text: e.text } })
     else if (e.kind === 'assistant')
       out.push({ kind: 'msg', msg: { id: e.id, role: 'assistant', text: e.text } })
     else if (e.kind === 'notice')
       out.push({
         kind: 'msg',
-        msg: { id: `sys-${Date.now()}-${out.length}`, role: 'assistant', text: e.text, system: true }
+        msg: {
+          id: `sys-${Date.now()}-${out.length}`,
+          role: 'assistant',
+          text: e.text,
+          system: true
+        }
       })
     else if (e.kind === 'tool')
       out.push({ kind: 'tool', tool: { id: e.id, name: e.name, detail: e.detail } })

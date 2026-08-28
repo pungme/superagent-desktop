@@ -50,7 +50,11 @@ export function record(chatId: string, data: WireEventData): WireEvent {
  * Everything after `afterSeq`, from memory when possible. `hasMore` tells the
  * caller to page again (the phone asks with the last seq it got).
  */
-export function eventsAfter(chatId: string, afterSeq: number, limit = 500): {
+export function eventsAfter(
+  chatId: string,
+  afterSeq: number,
+  limit = 500
+): {
   events: WireEvent[]
   hasMore: boolean
 } {

@@ -88,7 +88,10 @@ describe('TranscriptProjector', () => {
 
 describe('legacy transcripts', () => {
   const items = [
-    { kind: 'msg', msg: { id: 'u1', role: 'user', text: 'hi', images: ['data:image/png;base64,AAA'] } },
+    {
+      kind: 'msg',
+      msg: { id: 'u1', role: 'user', text: 'hi', images: ['data:image/png;base64,AAA'] }
+    },
     { kind: 'msg', msg: { id: 'a1', role: 'assistant', text: 'hello' } },
     { kind: 'msg', msg: { id: 's1', role: 'assistant', text: 'resumed fresh', system: true } },
     { kind: 'tool', tool: { id: 't1', name: 'Read', detail: 'x.ts' } },

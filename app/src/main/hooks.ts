@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Notification, ipcMain } from 'electron'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
+import { EventEmitter } from 'events'
 import { randomBytes } from 'crypto'
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, chmodSync } from 'fs'
 import { join, dirname } from 'path'
@@ -43,6 +44,15 @@ const EVENT_STATUS: Record<string, WorkspaceStatus> = {
 let hookPort = 0
 let hookSecret = ''
 
+/**
+ * Hook traffic for the rest of main (the companion, first of all):
+ *  'event'         { workspaceId, event, status?, sessionId }
+ *  'approval'      { requestId, workspaceId, sessionId, toolName, preview, expiresAt }
+ *  'approval-end'  { requestId, outcome, by }
+ */
+export const hookBus = new EventEmitter()
+hookBus.setMaxListeners(50)
+
 // --- Prompt-injection gate: held approvals -------------------------------
 // When a tainted turn tries to run a machine-acting tool, the PreToolUse hook
 // blocks on the app while a human decides. One entry per outstanding prompt.
@@ -68,11 +78,43 @@ function requestApproval(
     const timer = setTimeout(() => {
       pendingGates.delete(requestId)
       broadcastToWindows('guardrail:resolved', { requestId })
+      hookBus.emit('approval-end', { requestId, outcome: 'expired', by: 'desktop' })
       resolve(false)
     }, GATE_TIMEOUT_MS)
     pendingGates.set(requestId, { sessionId, resolve, timer })
     broadcastToWindows('guardrail:ask', { requestId, workspaceId, sessionId, toolName, preview })
+    hookBus.emit('approval', {
+      requestId,
+      workspaceId,
+      sessionId,
+      toolName,
+      preview,
+      expiresAt: Date.now() + GATE_TIMEOUT_MS
+    })
   })
+}
+
+/**
+ * Answer a held approval — from the window or from a paired phone. First
+ * answer wins; a late one reports false so the caller can say "already
+ * decided". `trustRest` waves through the rest of this (tainted) turn.
+ */
+export function resolveGate(
+  requestId: string,
+  approve: boolean,
+  trustRest: boolean,
+  by: 'desktop' | 'ios'
+): boolean {
+  const p = pendingGates.get(requestId)
+  if (!p) return false
+  pendingGates.delete(requestId)
+  clearTimeout(p.timer)
+  if (approve && trustRest) trustTurn(p.sessionId)
+  p.resolve(!!approve)
+  // Whoever didn't answer sees it settle.
+  broadcastToWindows('guardrail:resolved', { requestId })
+  hookBus.emit('approval-end', { requestId, outcome: approve ? 'approved' : 'denied', by })
+  return true
 }
 
 const DENY_JSON = (reason: string): string =>
@@ -146,6 +188,7 @@ export function startHookServer(): Promise<string> {
     const sessionId = typeof body.session_id === 'string' ? body.session_id : undefined
 
     broadcastToWindows('hook:event', { workspaceId, event, status, sessionId, body })
+    hookBus.emit('event', { workspaceId, event, status, sessionId })
 
     if (event === 'Notification') {
       const focused = BrowserWindow.getFocusedWindow()
@@ -375,16 +418,8 @@ export function registerHookIpc(): void {
   // The user answered a prompt-injection gate. `trustRest` waves through the rest
   // of this (tainted) turn so a legitimate browse-then-code flow isn't a tap per
   // command.
-  ipcMain.on(
-    'guardrail:resolve',
-    (_e, requestId: string, approve: boolean, trustRest: boolean) => {
-      const p = pendingGates.get(requestId)
-      if (!p) return
-      pendingGates.delete(requestId)
-      clearTimeout(p.timer)
-      if (approve && trustRest) trustTurn(p.sessionId)
-      p.resolve(!!approve)
-    }
+  ipcMain.on('guardrail:resolve', (_e, requestId: string, approve: boolean, trustRest: boolean) =>
+    resolveGate(requestId, approve, trustRest, 'desktop')
   )
   ipcMain.handle('hooks:status', () => hooksInstalled())
   ipcMain.handle('hooks:install', () => installHooks())

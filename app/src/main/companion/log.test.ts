@@ -16,7 +16,10 @@ const { mem, fakeBus } = vi.hoisted(() => {
   }
 })
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp' }, ipcMain: { handle() {}, on() {} } }))
+vi.mock('electron', () => ({
+  app: { getPath: () => '/tmp' },
+  ipcMain: { handle: () => undefined, on: () => undefined }
+}))
 vi.mock('../store', () => ({
   appendChatEvent: (chatId: string, kind: string, data: unknown) => {
     const buf = mem.events.get(chatId) ?? []
@@ -38,8 +41,7 @@ vi.mock('../store', () => ({
 
 vi.mock('../agent', () => ({
   agentBus: fakeBus,
-  listSessions: () =>
-    [...mem.owned.entries()].map(([id, owned]) => ({ id, owned, chatId: 'c1' }))
+  listSessions: () => [...mem.owned.entries()].map(([id, owned]) => ({ id, owned, chatId: 'c1' }))
 }))
 
 import { startCompanionLog, logBus, eventsAfter, record, _resetLogForTests } from './log'
@@ -85,12 +87,18 @@ describe('companion log', () => {
     fakeBus.emit('event', {
       id: 's1',
       chatId: 'c1',
-      event: { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hi' } } }
+      event: {
+        type: 'stream_event',
+        event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hi' } }
+      }
     })
     fakeBus.emit('event', {
       id: 's1',
       chatId: 'c1',
-      event: { type: 'assistant', message: { id: 'm', content: [{ type: 'text', text: 'Hi there' }] } }
+      event: {
+        type: 'assistant',
+        message: { id: 'm', content: [{ type: 'text', text: 'Hi there' }] }
+      }
     })
     expect(deltas).toEqual(['Hi'])
     expect(eventsAfter('c1', 0).events.map((e) => e.data.kind)).toEqual(['assistant'])
@@ -109,7 +117,14 @@ describe('companion log', () => {
 
   it('keeps the phone-supplied localId as the user event id', () => {
     mem.owned.set('s3', false)
-    fakeBus.emit('user', { id: 's3', chatId: 'c1', text: 'from phone', images: [], from: 'ios', localId: 'L1' })
+    fakeBus.emit('user', {
+      id: 's3',
+      chatId: 'c1',
+      text: 'from phone',
+      images: [],
+      from: 'ios',
+      localId: 'L1'
+    })
     expect(eventsAfter('c1', 0).events[0].data).toMatchObject({ id: 'L1', from: 'ios' })
   })
 })
