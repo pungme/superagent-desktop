@@ -928,6 +928,56 @@ export function EasyChat({
   // notification can quote the last message. (React state lags a render, so a ref
   // is the reliable source at the finalize point.)
   const streamTextRef = useRef('')
+  // Coalesce streamed deltas into ONE transcript update per animation frame.
+  // Each token used to fire its own setItems — dozens of full re-renders/sec on a
+  // long transcript. We buffer deltas and flush on rAF, so re-renders track the
+  // display refresh, not the token rate. The finalize path sets the message's
+  // full text from streamTextRef, so a not-yet-flushed tail is never lost.
+  const pendingTextRef = useRef(false)
+  const pendingThinkRef = useRef('')
+  const flushRafRef = useRef<number | null>(null)
+  const flushStream = useCallback(() => {
+    flushRafRef.current = null
+    const textDirty = pendingTextRef.current
+    const addThink = pendingThinkRef.current
+    pendingTextRef.current = false
+    pendingThinkRef.current = ''
+    if (!textDirty && !addThink) return
+    const sid = streamingIdRef.current
+    const tid = thinkingIdRef.current
+    const fullText = streamTextRef.current
+    setItems((prev) =>
+      prev.map((it) => {
+        if (textDirty && it.kind === 'msg' && it.msg.id === sid) {
+          return { ...it, msg: { ...it.msg, text: fullText } }
+        }
+        if (addThink && it.kind === 'thinking' && it.id === tid) {
+          return { ...it, text: it.text + addThink }
+        }
+        return it
+      })
+    )
+  }, [])
+  const scheduleFlush = useCallback(() => {
+    if (flushRafRef.current !== null) return
+    flushRafRef.current = requestAnimationFrame(flushStream)
+  }, [flushStream])
+  // Flush synchronously NOW (used at block boundaries, before streamTextRef /
+  // streamingIdRef are reset for the next block — a buffered tail must land on the
+  // block that produced it, not the next one).
+  const drainStream = useCallback(() => {
+    if (flushRafRef.current !== null) {
+      cancelAnimationFrame(flushRafRef.current)
+      flushRafRef.current = null
+    }
+    flushStream()
+  }, [flushStream])
+  useEffect(
+    () => () => {
+      if (flushRafRef.current !== null) cancelAnimationFrame(flushRafRef.current)
+    },
+    []
+  )
   // Whether a turn is in flight, tracked as a ref so it's correct SYNCHRONOUSLY.
   // The `generating` state lags a render behind, so firing several messages in
   // quick succession made each one read `generating` as still false — so they
@@ -1368,6 +1418,9 @@ export function EasyChat({
         const ev = event.event as Record<string, unknown>
         const evType = ev?.type as string
         if (evType === 'content_block_start') {
+          // Land any buffered tail on the block that's ending before we switch
+          // streamingIdRef / reset streamTextRef for the new one.
+          drainStream()
           const block = ev.content_block as Record<string, unknown>
           if (block?.type === 'text') {
             // Begin a new streaming assistant message.
@@ -1391,27 +1444,19 @@ export function EasyChat({
         } else if (evType === 'content_block_delta') {
           const delta = ev.delta as Record<string, unknown>
           if (delta?.type === 'text_delta') {
-            const sid = streamingIdRef.current
             const chunk = delta.text as string
             streamTextRef.current += chunk
-            setItems((prev) =>
-              prev.map((it) =>
-                it.kind === 'msg' && it.msg.id === sid
-                  ? { ...it, msg: { ...it.msg, text: it.msg.text + chunk } }
-                  : it
-              )
-            )
+            // Buffer; the rAF flush applies streamTextRef's full text to the row.
+            pendingTextRef.current = true
+            scheduleFlush()
           } else if (delta?.type === 'thinking_delta') {
-            const tid = thinkingIdRef.current
             const chunk = (delta.thinking as string) ?? ''
-            setItems((prev) =>
-              prev.map((it) =>
-                it.kind === 'thinking' && it.id === tid ? { ...it, text: it.text + chunk } : it
-              )
-            )
+            pendingThinkRef.current += chunk
+            scheduleFlush()
           }
         } else if (evType === 'content_block_stop') {
-          // A thinking block ended — stop appending to it.
+          // Land the block's buffered tail, then stop appending to a thinking block.
+          drainStream()
           thinkingIdRef.current = null
         }
         return
@@ -1620,10 +1665,19 @@ export function EasyChat({
         // Finalize the streaming text message.
         const sid = streamingIdRef.current
         if (sid) {
+          // Drop any pending rAF and write the COMPLETE streamed text here — this
+          // is the authoritative final state, so a delta buffered but not yet
+          // flushed at end-of-turn can't be lost.
+          if (flushRafRef.current !== null) {
+            cancelAnimationFrame(flushRafRef.current)
+            flushRafRef.current = null
+          }
+          pendingTextRef.current = false
+          const fullText = streamTextRef.current
           setItems((prev) =>
             prev.map((it) =>
               it.kind === 'msg' && it.msg.id === sid
-                ? { ...it, msg: { ...it.msg, streaming: false } }
+                ? { ...it, msg: { ...it.msg, text: fullText, streaming: false } }
                 : it
             )
           )
