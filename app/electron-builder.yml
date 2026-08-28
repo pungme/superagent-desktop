@@ -24,6 +24,12 @@ extraResources:
   # outside the asar to be spawnable.
   - from: native/simfb
     to: simfb
+  # baguette, the simulator input helper (tap/swipe/key). Pinned upstream build
+  # fetched by scripts/fetch-baguette.mjs; Apache-2.0, so its license ships too.
+  - from: native/baguette
+    to: baguette
+  - from: native/baguette.LICENSE
+    to: baguette.LICENSE
 asarUnpack:
   - resources/**
   # node-pty's spawn-helper must stay executable outside the asar

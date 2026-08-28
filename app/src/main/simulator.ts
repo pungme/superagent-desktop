@@ -29,7 +29,8 @@ const run = promisify(execFile)
  *     input forces an immediate grab, so the picture reacts to a tap in about
  *     the time the tap takes.
  *
- * Gestures go through baguette either way; see `inputSession`.
+ * Gestures go through baguette either way (bundled with the app); see
+ * `inputSession`.
  */
 
 export interface SimDevice {
@@ -241,12 +242,31 @@ function sendGesture(
     session.proc.stdin.write(JSON.stringify(payload) + '\n')
   })
 }
-/** Whether baguette is on PATH — decided once, since input needs it. */
+/**
+ * Where baguette is — decided once, since input needs it.
+ *
+ * The app ships its own copy: scripts/fetch-baguette.mjs pins an upstream
+ * release and electron-builder puts it in Resources next to simfb, so nobody
+ * has to `brew install` anything for tapping to work. The bundled one wins
+ * because it is the version the gesture payloads were checked against; the
+ * brew paths stay as the fallback for a build made without it (or a machine
+ * the arm64 binary can't run on).
+ */
 let baguettePath: string | null | undefined
+
+export function baguetteCandidates(
+  packaged = app.isPackaged,
+  resourcesPath = process.resourcesPath
+): string[] {
+  const bundled = packaged
+    ? [join(resourcesPath, 'baguette')]
+    : [join(__dirname, '../../native/baguette'), join(process.cwd(), 'native/baguette')]
+  return [...bundled, '/opt/homebrew/bin/baguette', '/usr/local/bin/baguette']
+}
 
 async function findBaguette(): Promise<string | null> {
   if (baguettePath !== undefined) return baguettePath
-  for (const p of ['/opt/homebrew/bin/baguette', '/usr/local/bin/baguette']) {
+  for (const p of baguetteCandidates()) {
     try {
       await run(p, ['--version'], { timeout: 4000 })
       baguettePath = p
