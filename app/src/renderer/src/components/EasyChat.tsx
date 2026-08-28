@@ -784,6 +784,7 @@ export function EasyChat({
   const [narrowComposer, setNarrowComposer] = useState(false)
   // The "New worktree" branch picker (choose an existing branch or a new one).
   const [wtMenu, setWtMenu] = useState(false)
+  const wtCaretRef = useRef<HTMLButtonElement>(null)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   // Non-image files dropped on the chat — shown as chips, sent as paths.
   const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
@@ -2811,6 +2812,7 @@ export function EasyChat({
                     ⎇ New worktree
                   </button>
                   <button
+                    ref={wtCaretRef}
                     className="easy-newchat easy-newchat-caret"
                     title="Pick a branch for the worktree"
                     onClick={() => setWtMenu((v) => !v)}
@@ -2820,6 +2822,8 @@ export function EasyChat({
                   {wtMenu && (
                     <BranchMenu
                       cwd={cwd.includes('/.worktrees/') ? cwd.split('/.worktrees/')[0] : cwd}
+                      anchor={wtCaretRef.current}
+                      align="right"
                       onClose={() => setWtMenu(false)}
                       onPick={(b) => {
                         setWtMenu(false)
