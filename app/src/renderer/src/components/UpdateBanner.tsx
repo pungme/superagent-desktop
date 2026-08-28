@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state'
+import { Markdown } from './Markdown'
 
 /**
  * Shown once a newer release has finished downloading in the background
@@ -18,6 +19,13 @@ export function UpdateBanner(): React.JSX.Element | null {
   const [dismissed, setDismissed] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [installing, setInstalling] = useState(false)
+  // "What's new": notes are fetched lazily the first time you hover/click, and
+  // cached in main. undefined = not loaded yet; null = fetched but none/failed.
+  const [notes, setNotes] = useState<string | null | undefined>(undefined)
+  const [notesHover, setNotesHover] = useState(false)
+  const [notesPinned, setNotesPinned] = useState(false)
+  const [notesLoading, setNotesLoading] = useState(false)
+  const closeTimer = useRef<number | null>(null)
   const busy = useStore((s) => s.busy)
 
   const progress = useStore((s) => s.updateProgress)
@@ -41,7 +49,6 @@ export function UpdateBanner(): React.JSX.Element | null {
       offError()
     }
   }, [])
-
 
   // Downloading: a quiet progress pill so the minute-plus between "found" and
   // "ready" isn't silent. Dismissable; the ready pill re-asserts itself.
@@ -79,10 +86,36 @@ export function UpdateBanner(): React.JSX.Element | null {
     else install()
   }
 
+  // Fetch the release body once, on first hover/click.
+  const loadNotes = (): void => {
+    if (notes !== undefined || notesLoading || !version) return
+    setNotesLoading(true)
+    window.cove
+      .updateNotes(version)
+      .then((n) => setNotes(n))
+      .finally(() => setNotesLoading(false))
+  }
+  // Hover-intent: a short close delay bridges the gap between the trigger and the
+  // popover below it, so moving the pointer down doesn't dismiss it.
+  const openNotes = (): void => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+    setNotesHover(true)
+    loadNotes()
+  }
+  const scheduleClose = (): void => {
+    closeTimer.current = window.setTimeout(() => setNotesHover(false), 180)
+  }
+  const notesVisible = notesHover || notesPinned
+
   // "2 chats and 1 background task" — only naming what's actually running.
   const parts: string[] = []
   if (workingChats > 0) {
-    parts.push(`Claude is still working in ${workingChats} ${workingChats === 1 ? 'chat' : 'chats'}`)
+    parts.push(
+      `Claude is still working in ${workingChats} ${workingChats === 1 ? 'chat' : 'chats'}`
+    )
   }
   if (backgroundTasks > 0) {
     parts.push(
@@ -95,7 +128,8 @@ export function UpdateBanner(): React.JSX.Element | null {
       <div className="update-banner update-banner-warn" role="alertdialog">
         <span className="update-banner-dot update-banner-dot-warn" />
         <span className="update-banner-text">
-          {parts.join(' and ')}. Restarting stops {workingChats + backgroundTasks === 1 ? 'it' : 'them'}.
+          {parts.join(' and ')}. Restarting stops{' '}
+          {workingChats + backgroundTasks === 1 ? 'it' : 'them'}.
         </span>
         <button className="update-banner-action" onClick={install}>
           Restart anyway
@@ -121,6 +155,42 @@ export function UpdateBanner(): React.JSX.Element | null {
       <span className="update-banner-dot" />
       <span className="update-banner-text">
         SuperAgent <b>{version}</b> is ready to install.
+      </span>
+      <span className="update-notes-wrap" onMouseEnter={openNotes} onMouseLeave={scheduleClose}>
+        <button
+          className={`update-banner-whatsnew ${notesVisible ? 'on' : ''}`}
+          onClick={() => setNotesPinned((p) => !p)}
+          aria-expanded={notesVisible}
+          title="What's new in this update"
+        >
+          What&rsquo;s new
+        </button>
+        {notesVisible && (
+          <div className="update-notes" role="dialog" aria-label={`What's new in ${version}`}>
+            <div className="update-notes-head">
+              <span>What&rsquo;s new in {version}</span>
+              <button
+                className="update-notes-close"
+                onClick={() => {
+                  setNotesPinned(false)
+                  setNotesHover(false)
+                }}
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="update-notes-body">
+              {notes ? (
+                <Markdown text={notes} />
+              ) : notesLoading ? (
+                <span className="update-notes-muted">Loading…</span>
+              ) : (
+                <span className="update-notes-muted">Release notes unavailable.</span>
+              )}
+            </div>
+          </div>
+        )}
       </span>
       <button className="update-banner-action" onClick={onRestart} disabled={installing}>
         {installing ? 'Updating…' : 'Restart to update'}
