@@ -1818,13 +1818,6 @@
     .jp { font-family: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; font-weight: 700; letter-spacing: 0.1em; }
     .nav-logo .wm { display: flex; flex-direction: column; line-height: 1.1; }
     .nav-logo .jp { font-size: 0.5rem; color: var(--faint); letter-spacing: 0.2em; margin-top: 2px; }
-    .hero-tag {
-      display: inline-flex; align-items: baseline; gap: 12px; margin: 16px auto 0;
-      padding: 5px 14px 6px; border: 1px solid var(--line); border-radius: 999px;
-      background: rgba(255, 255, 255, 0.5); color: var(--ink); font-size: 0.86rem;
-    }
-    .hero-tag .jp b { color: var(--sd-orange); font-weight: 700; }
-    .hero-tag .en { font-family: var(--sans); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
     .kicker .jp { text-transform: none; letter-spacing: 0.12em; margin-left: 10px; color: var(--muted); font-size: 0.72rem; }
     .close-cta .jp.lead { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 8px; }
     .foot .jp { font-size: 0.68rem; color: var(--faint); letter-spacing: 0.14em; }
@@ -1833,7 +1826,8 @@
 
     /* ---- intro: logo + wordmark, then the logo flies to its seat in the hero ---- */
     html.intro { overflow: hidden; }
-    html.intro .hero .rise { opacity: 0 !important; transform: translateY(34px) rotate(-0.6deg) !important; transition: none !important; }
+    html.intro:not(.leaving) .hero .rise { opacity: 0 !important; transform: translateY(34px) rotate(-0.6deg) !important; transition: none !important; }
+    html.intro .hero-mark { opacity: 0 !important; transform: none !important; transition: none !important; }
     #intro {
       position: fixed; inset: 0; z-index: 100; background: var(--cream);
       display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -1854,19 +1848,10 @@
     @keyframes i-rule { to { width: 120px; } }
     .intro-jp { margin-top: 12px; font-size: 0.8rem; letter-spacing: 0.36em; color: var(--muted); animation: i-fade 0.6s var(--ease) both 1.15s; }
     @keyframes i-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-    .intro-tag {
-      margin-top: 22px; display: inline-flex; align-items: baseline; gap: 12px;
-      padding: 6px 16px 7px; border: 1.5px solid var(--ink); border-radius: 999px;
-      font-size: 0.95rem; color: var(--ink);
-      animation: i-stamp 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both 1.55s;
-    }
-    .intro-tag .jp b { color: var(--sd-orange); }
-    .intro-tag .en { font-family: var(--sans); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
-    @keyframes i-stamp { from { opacity: 0; transform: scale(1.7) rotate(-5deg); } to { opacity: 1; transform: rotate(-1.5deg); } }
     .intro-skip { position: absolute; bottom: 28px; left: 0; right: 0; text-align: center; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); animation: i-fade 0.8s var(--ease) both 2s; }
     /* leaving: text drops away, sheet clears, logo is carried to the hero mark by JS */
     #intro.out { background: transparent; pointer-events: none; }
-    #intro.out .intro-word, #intro.out .intro-rule, #intro.out .intro-jp, #intro.out .intro-tag, #intro.out .intro-skip {
+    #intro.out .intro-word, #intro.out .intro-rule, #intro.out .intro-jp, #intro.out .intro-skip {
       opacity: 0; transform: translateY(-8px); transition: opacity 0.3s var(--ease), transform 0.3s var(--ease); animation: none;
     }
     #intro.out .intro-logo { animation: none; transition: transform 0.75s var(--ease), border-radius 0.75s var(--ease), box-shadow 0.75s var(--ease); }
@@ -1879,7 +1864,6 @@
       <div class="intro-word" aria-label="SuperAgent"><span style="--i:0">S</span><span style="--i:1">u</span><span style="--i:2">p</span><span style="--i:3">e</span><span style="--i:4">r</span><span style="--i:5">A</span><span style="--i:6">g</span><span style="--i:7">e</span><span style="--i:8">n</span><span style="--i:9">t</span></div>
       <div class="intro-rule"></div>
       <div class="intro-jp jp">スーパーエージェント</div>
-      <div class="intro-tag"><span class="jp">極度<b>代理人</b>(しなさい)</span><span class="en">Extreme agent · do it</span></div>
     </div>
     <div class="intro-skip">Click to skip</div>
   </div>
@@ -1899,7 +1883,6 @@
     <div class="wrap">
       <img class="hero-mark rise" src="logo.png" alt="SuperAgent logo" width="64" height="64" />
       <h1 class="rise" style="--d:.08s">A <em>home</em> for your agent.</h1>
-      <div class="hero-tag rise" style="--d:.12s"><span class="jp">極度<b>代理人</b>(しなさい)</span><span class="en">Extreme agent · do it</span></div>
       <p class="hero-sub rise" style="--d:.16s">
         A Mac app where Claude Code lives: a real browser it drives, an iPhone in
         the window, chats that survive restarts. Open source, on your own subscription.
@@ -2805,7 +2788,7 @@
       window.scrollTo(0, 0);
       // ?hold keeps the splash up until a click or key, for tuning it
       var hold = /[?&]hold\b/.test(location.search);
-      var done = false, timer = hold ? 0 : setTimeout(leave, 2700);
+      var done = false, timer = hold ? 0 : setTimeout(leave, 2400);
       function leave() {
         if (done) return; done = true; clearTimeout(timer);
         var logo = intro.querySelector(".intro-logo");
@@ -2813,6 +2796,7 @@
         var from = logo.getBoundingClientRect();
         var to = mark ? mark.getBoundingClientRect() : null;
         intro.classList.add("out");
+        root.classList.add("leaving"); // hero starts rising now, under the flying logo
         var wait = 750;
         if (to && to.top >= 0 && to.bottom <= window.innerHeight) {
           // FLIP: carry the intro logo onto the hero mark, then swap them
@@ -2828,7 +2812,7 @@
         }
         setTimeout(function () {
           if (mark) { mark.style.transition = "none"; mark.style.opacity = "1"; mark.style.transform = "none"; }
-          root.classList.remove("intro");
+          root.classList.remove("intro"); root.classList.remove("leaving");
           intro.remove();
         }, wait);
       }
