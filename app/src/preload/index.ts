@@ -123,6 +123,8 @@ export interface CoveApi {
   /** Whether the app window is focused — main's word, the renderer can't tell. */
   onAppFocus: (cb: (focused: boolean) => void) => () => void
   browserDestroy: (id: string) => void
+  /** Free ALL of a workspace's panes (the bare id + every per-chat pane). */
+  browserDestroyWorkspace: (workspaceId: string) => void
   browserZoom: (id: string, action: 'in' | 'out' | 'reset') => Promise<number>
   browserSetZoom: (id: string, factor: number) => void
   /** Corner radius of the native view; uniform, so it's chosen per viewport mode. */
@@ -582,6 +584,8 @@ const cove: CoveApi = {
   killPort: (port) => ipcRenderer.invoke('net:killPort', port),
   onBrowserZoom: (id, cb) => subscribe(`browser:zoom:${id}`, (f) => cb(f as number)),
   browserDestroy: (id) => ipcRenderer.send('browser:destroy', id),
+  browserDestroyWorkspace: (workspaceId) =>
+    ipcRenderer.send('browser:destroy-workspace', workspaceId),
   onBrowserState: (id, cb) => subscribe(`browser:state:${id}`, (s) => cb(s as BrowserState)),
   onBrowserCrashed: (id, cb) => subscribe(`browser:crashed:${id}`, () => cb()),
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
