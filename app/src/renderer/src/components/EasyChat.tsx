@@ -2953,9 +2953,11 @@ export function EasyChat({
           })}
           {generating && (
             <div className="easy-thinking">
-              <span />
-              <span />
-              <span />
+              {/* The brand mark, thinking: a light dot orbiting inside the black
+                  tile — the app's own icon, in motion. */}
+              <span className="easy-think-mark" aria-hidden="true">
+                <span className="easy-think-dot" />
+              </span>
               <WorkingTimer />
             </div>
           )}

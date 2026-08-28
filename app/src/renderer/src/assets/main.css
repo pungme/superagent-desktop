@@ -2550,24 +2550,56 @@ button {
 .easy-thinking {
   align-self: flex-start;
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
   padding: 10px 13px;
 }
 
-.easy-thinking span:not(.easy-elapsed) {
-  width: 7px;
-  height: 7px;
+/* On-brand thinking indicator: the app mark (a light dot on a black tile) with
+   the dot orbiting smoothly — the icon itself, in motion. Stays dark-with-light
+   in both themes, like the real app icon. */
+.easy-think-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: #17181d;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.easy-think-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--text-tertiary);
-  animation: bounce 1.2s ease-in-out infinite;
+  background: #fff;
+  animation: think-orbit 1.15s linear infinite;
 }
-
-.easy-thinking span:nth-child(2) {
-  animation-delay: 0.15s;
+@keyframes think-orbit {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg) translateX(4.5px);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg) translateX(4.5px);
+  }
 }
-
-.easy-thinking span:nth-child(3) {
-  animation-delay: 0.3s;
+@media (prefers-reduced-motion: reduce) {
+  .easy-think-dot {
+    animation: think-pulse 1.15s ease-in-out infinite;
+  }
+  @keyframes think-pulse {
+    0%,
+    100% {
+      transform: translate(-50%, -50%) scale(0.8);
+      opacity: 0.6;
+    }
+    50% {
+      transform: translate(-50%, -50%) scale(1.15);
+      opacity: 1;
+    }
+  }
 }
 
 .easy-elapsed {
