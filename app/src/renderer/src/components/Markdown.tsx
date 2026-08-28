@@ -41,7 +41,15 @@ hljs.registerAliases(['sh', 'shell', 'zsh'], { languageName: 'bash' })
 hljs.registerAliases(['html'], { languageName: 'xml' })
 hljs.registerAliases(['yml'], { languageName: 'yaml' })
 
-function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.Element {
+function CodeBlock({
+  code,
+  lang,
+  streaming
+}: {
+  code: string
+  lang?: string
+  streaming?: boolean
+}): React.JSX.Element {
   const [copied, setCopied] = useState(false)
   const copy = (): void => {
     window.cove.clipboardWrite(code)
@@ -50,6 +58,11 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.E
   }
 
   const highlighted = useMemo(() => {
+    // While the message is still streaming, `code` grows every frame — and
+    // highlightAuto (which tries every registered language) re-ran on the whole
+    // growing block each time, a top CPU cost whenever the agent streams code.
+    // Plain text until the block settles; one real highlight at the end.
+    if (streaming) return null
     try {
       if (lang && hljs.getLanguage(lang)) {
         return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
@@ -58,7 +71,7 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.E
     } catch {
       return null
     }
-  }, [code, lang])
+  }, [code, lang, streaming])
 
   return (
     <div className="md-code">
@@ -80,7 +93,14 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.JSX.E
 }
 
 /** Renders assistant text as GitHub-flavored markdown, with copyable code blocks. */
-export const Markdown = memo(function Markdown({ text }: { text: string }): React.JSX.Element {
+export const Markdown = memo(function Markdown({
+  text,
+  streaming
+}: {
+  text: string
+  /** The bubble is still receiving tokens — defer expensive syntax highlight. */
+  streaming?: boolean
+}): React.JSX.Element {
   return (
     <div className="md">
       <ReactMarkdown
@@ -91,7 +111,7 @@ export const Markdown = memo(function Markdown({ text }: { text: string }): Reac
             const raw = String(children).replace(/\n$/, '')
             // Fenced blocks contain a newline or carry a language; inline code stays inline.
             const isBlock = match || raw.includes('\n')
-            if (isBlock) return <CodeBlock code={raw} lang={match?.[1]} />
+            if (isBlock) return <CodeBlock code={raw} lang={match?.[1]} streaming={streaming} />
             return (
               <code className="md-inline-code" {...props}>
                 {children}

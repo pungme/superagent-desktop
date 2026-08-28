@@ -397,8 +397,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    * Something finished here that you have not read. Shown on the project too,
    * because a collapsed project is exactly when you would otherwise miss it.
    */
-  const unread = useStore((s) => s.unread)
-  const unreadHere = chats.some((c) => unread[c.id])
+  // A boolean selector, not the whole unread map — subscribing to the map made
+  // every project row re-render on any chat's read/unread flip anywhere.
+  const unreadHere = useStore((s) => (s.chats[ws.id] ?? []).some((c) => Boolean(s.unread[c.id])))
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)

@@ -795,7 +795,7 @@ const MessageRow = memo(function MessageRow({
       {segments
         ? segments.map((seg, si) =>
             'md' in seg ? (
-              <Markdown key={si} text={seg.md} />
+              <Markdown key={si} text={seg.md} streaming={msg.streaming} />
             ) : (
               <Choices key={si} spec={seg.ask} onAnswer={onAnswer} />
             )
@@ -2375,10 +2375,27 @@ export function EasyChat({
   )
 
   // Auto-scroll only when the user is already near the bottom, so scrolling up
-  // to read scrollback isn't interrupted.
+  // to read scrollback isn't interrupted. Coalesced onto rAF: reading
+  // scrollHeight right after React commits forces a synchronous reflow of the
+  // whole transcript, and doing that per stream-flush doubled the layout work —
+  // one scroll per painted frame is all a human can see anyway. Skipped
+  // entirely for background (hidden) chats, where scrolling a display:none
+  // transcript is pure waste.
+  const scrollRafRef = useRef<number | null>(null)
   useEffect(() => {
-    if (atBottom) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [items, thinking, atBottom])
+    if (!atBottom || !visible) return
+    if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current)
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+    })
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current)
+        scrollRafRef.current = null
+      }
+    }
+  }, [items, thinking, atBottom, visible])
 
   // Track the composer's width so the placeholder can shed its hints before
   // they wrap. Observing the textarea itself keeps this correct under both
