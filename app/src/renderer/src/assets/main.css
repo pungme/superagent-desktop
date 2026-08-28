@@ -8558,6 +8558,17 @@ button {
   max-width: 260px;
   overflow: hidden;
   padding-left: 8px;
+  cursor: pointer;
+}
+.workspace-doc-close {
+  flex-shrink: 0;
+  margin-left: 2px;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.6;
+}
+.workspace-doc:hover .workspace-doc-close {
+  opacity: 1;
 }
 .workspace-doc-name {
   overflow: hidden;
