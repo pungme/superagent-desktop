@@ -880,10 +880,37 @@ export function EasyChat({
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
   const [atBottom, setAtBottom] = useState(true)
+  // Whether this worktree chat has anything unkept (uncommitted edits, or
+  // commits past its base) — drives the Keep / Throw away buttons at the top of
+  // the transcript. Re-checked when a turn ends; a clean chat shows nothing,
+  // there's no decision to make.
+  const [wtChanges, setWtChanges] = useState(false)
+  const isWorktreeChat = cwd.includes('/.worktrees/')
+  useEffect(() => {
+    if (!isWorktreeChat) return
+    const projectPath = cwd.split('/.worktrees/')[0]
+    let alive = true
+    const check = (): void => {
+      window.cove
+        .worktreeStatus(projectPath, cwd)
+        .then((st) => {
+          if (alive) setWtChanges(st.dirty || st.ahead > 0)
+        })
+        .catch(() => {})
+    }
+    check()
+    const onIdle = (e: Event): void => {
+      if ((e as CustomEvent<{ workspaceId: string }>).detail?.workspaceId === workspaceId) check()
+    }
+    window.addEventListener('cove:workspace-idle', onIdle)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', onIdle)
+    }
+  }, [isWorktreeChat, cwd, workspaceId])
   // The full placeholder lists the affordances, which wraps and clips in a
   // narrow chat column; below this width only the short form fits on one line.
   const [narrowComposer, setNarrowComposer] = useState(false)
-  // The "New worktree" branch picker (choose an existing branch or a new one).
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   // Non-image files dropped on the chat — shown as chips, sent as paths.
   const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
@@ -1476,8 +1503,8 @@ export function EasyChat({
     if (!title) return
     const latest = useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)
     if (latest && latest.title !== placeholderTitleRef.current) return // renamed while we waited
-    window.cove.chatUpdate(chatId, { title })
-    useStore.getState().touchChat(workspaceId, chatId, { title })
+    // Through renameChat, so a worktree chat's branch follows the title too.
+    await useStore.getState().renameChat(workspaceId, chatId, title)
   }, [cwd, workspaceId, chatId])
 
   // Claude's tasks, accumulated from TaskCreate/TaskUpdate and mirrored (in
@@ -2940,6 +2967,33 @@ export function EasyChat({
         <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
           {items.length > 0 && !hideNewChat && (
             <div className="easy-newchat-group">
+              {/* This chat's changes live in its own copy of the project until
+                  the user decides. Shown only when there IS something unkept. */}
+              {isWorktreeChat && wtChanges && (
+                <>
+                  <button
+                    className="easy-newchat easy-keep"
+                    title="Add this chat's changes to the project as one change, then close the chat"
+                    onClick={() =>
+                      window.cove.chatKeepRequest({
+                        chatId,
+                        workspaceId,
+                        projectPath: cwd.split('/.worktrees/')[0],
+                        wtPath: cwd
+                      })
+                    }
+                  >
+                    ✓ Keep
+                  </button>
+                  <button
+                    className="easy-newchat easy-throw"
+                    title="Delete everything this chat did"
+                    onClick={() => window.cove.chatThrowRequest({ chatId, workspaceId })}
+                  >
+                    Throw away
+                  </button>
+                </>
+              )}
               <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
                 ✎ New chat
               </button>

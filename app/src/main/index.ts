@@ -194,34 +194,78 @@ app.whenReady().then(() => {
   ipcMain.handle('app:version', () => app.getVersion())
 
   // Right-click a chat row: clear (wipe transcript + session, keep the row) or delete.
+  // Keep / Throw away, shared by the context menu and the in-chat buttons. The
+  // words branch/worktree/merge never appear — the user keeps a chat's changes
+  // or throws them away.
+  const askKeep = async (
+    win: BrowserWindow,
+    p: { chatId: string; workspaceId: string; projectPath: string; wtPath: string }
+  ): Promise<void> => {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question',
+      buttons: ['Keep', 'Cancel'],
+      defaultId: 0,
+      message: "Keep this chat's changes?",
+      detail: "They'll be added to the project as one change. The chat closes."
+    })
+    if (response === 0) win.webContents.send('chat:merge-worktree', p)
+  }
+  const askThrowAway = async (
+    win: BrowserWindow,
+    p: { chatId: string; workspaceId: string }
+  ): Promise<void> => {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Throw away', 'Cancel'],
+      defaultId: 1,
+      message: "Throw away this chat's changes?",
+      detail: "Everything it did is deleted. This can't be undone."
+    })
+    if (response === 0) win.webContents.send('chat:throw-away', p)
+  }
+  ipcMain.on(
+    'chat:keep-request',
+    (e, p: { chatId: string; workspaceId: string; projectPath: string; wtPath: string }) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (win) void askKeep(win, p)
+    }
+  )
+  ipcMain.on('chat:throw-request', (e, p: { chatId: string; workspaceId: string }) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (win) void askThrowAway(win, p)
+  })
+  // Deleting a chat that still has unkept changes: the renderer asks here for
+  // the three-way native dialog before anything happens.
+  ipcMain.handle('chat:confirm-unkept', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win) return 'cancel'
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Keep', 'Throw away', 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      message: "This chat has changes you haven't kept.",
+      detail: 'Keep adds them to the project as one change. Throw away deletes them.'
+    })
+    return response === 0 ? 'keep' : response === 1 ? 'throw' : 'cancel'
+  })
+
   ipcMain.on('chat:menu', (e, chatId: string, workspaceId: string, cwd?: string | null) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return
     const template: Electron.MenuItemConstructorOptions[] = []
-    // A worktree chat can be folded back into the project when you're done.
+    // A worktree chat's changes can be kept (squashed into the project) or
+    // thrown away when you're done.
     if (cwd && cwd.includes('/.worktrees/')) {
       const projectPath = cwd.split('/.worktrees/')[0]
       template.push(
         {
-          label: 'Merge & finish…',
-          click: async () => {
-            const { response } = await dialog.showMessageBox(win, {
-              type: 'question',
-              buttons: ['Merge & finish', 'Cancel'],
-              defaultId: 1,
-              message: 'Merge this worktree back into the project?',
-              detail:
-                'Its changes are squashed into a single commit on the current branch, then the worktree and its branch are removed. Nothing happens if there are conflicts.'
-            })
-            if (response === 0) {
-              win.webContents.send('chat:merge-worktree', {
-                chatId,
-                workspaceId,
-                projectPath,
-                wtPath: cwd
-              })
-            }
-          }
+          label: 'Keep changes…',
+          click: () => void askKeep(win, { chatId, workspaceId, projectPath, wtPath: cwd })
+        },
+        {
+          label: 'Throw away…',
+          click: () => void askThrowAway(win, { chatId, workspaceId })
         },
         { type: 'separator' }
       )

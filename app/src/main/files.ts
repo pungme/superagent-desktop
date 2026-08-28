@@ -196,7 +196,11 @@ export function registerFilesIpc(): void {
   // branch — parallel chats stop fighting over one working tree.
   ipcMain.handle(
     'worktree:create',
-    async (_e, projectPath: string, opts?: { branch?: string; newBranch?: string; base?: string }) => {
+    async (
+      _e,
+      projectPath: string,
+      opts?: { branch?: string; newBranch?: string; base?: string }
+    ) => {
       const run = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
         new Promise((resolve) =>
           execFile('git', args, { cwd, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) =>
@@ -259,6 +263,7 @@ export function registerFilesIpc(): void {
       // and every fresh chat would otherwise start with a broken toolchain.
       // Tracked paths are skipped (check-ignore says so); failures are logged
       // and ignored — a missing symlink just means "npm install" as before.
+      const linked: string[] = []
       for (const dep of ['node_modules', '.venv', 'vendor', 'target']) {
         try {
           const src = join(projectPath, dep)
@@ -268,9 +273,27 @@ export function registerFilesIpc(): void {
           const dst = join(dir, dep)
           if (existsSync(dst)) continue
           symlinkSync(src, dst)
+          linked.push(dep)
           console.log(`[worktree] linked ${dep} into ${dir}`)
         } catch (err) {
           console.log(`[worktree] could not link ${dep}:`, err)
+        }
+      }
+      // A gitignore pattern like "node_modules/" (trailing slash) matches only
+      // DIRECTORIES — the symlink we just made is not one, so `git add -A`
+      // during Keep would COMMIT the symlink into the repo (caught by the
+      // acceptance run: an absolute scratch path landed on main). Exclude the
+      // linked names explicitly, repo-locally.
+      if (linked.length) {
+        try {
+          const exclude = join(projectPath, '.git', 'info', 'exclude')
+          const cur = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
+          const missing = linked.filter((d) => !cur.split('\n').includes(`/${d}`))
+          if (missing.length) {
+            writeFileSync(exclude, cur + '\n' + missing.map((d) => `/${d}`).join('\n') + '\n')
+          }
+        } catch {
+          // best-effort; worst case is the old behavior
         }
       }
       return { path: dir, branch, base }
