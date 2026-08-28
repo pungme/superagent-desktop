@@ -1,0 +1,2840 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SuperAgent · スーパーエージェント · a home for your agent</title>
+  <meta
+    name="description"
+    content="SuperAgent is a Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work."
+  />
+  <link rel="canonical" href="https://superagent.computer/" />
+  <link rel="icon" href="logo.png" />
+  <script>
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("intro");
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    }
+  </script>
+  <meta property="og:title" content="SuperAgent, a home for your agent" />
+  <meta property="og:description" content="A Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work." />
+  <meta property="og:image" content="https://superagent.computer/hero.png" />
+  <meta property="og:url" content="https://superagent.computer/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Sans+JP:wght@700&amp;display=swap" rel="stylesheet" />
+  <style>
+    /* ============ The Monet Desk ============ */
+    :root {
+      --cream: #f6f2e9;
+      --ink: #31342d;
+      --muted: #6e7466;
+      --faint: #999f8f;
+      --line: rgba(49, 52, 45, 0.1);
+      --sage: #93b087;
+      --lilac: #b8a3d2;
+      --blue: #86a6c6;
+      --blush: #e0aeb0;
+      --gold: #d9c188;
+      --deep: #5c7a86;
+      --glass: rgba(255, 254, 250, 0.74);
+      --glass-edge: rgba(255, 255, 255, 0.9);
+      --card: #fffefb;
+      --skel: #e2ddcf;
+      --skel2: #d2ccb9;
+      --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+      --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+      --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+      --shadow: 0 1px 2px rgba(49, 52, 45, 0.06), 0 4px 12px -4px rgba(60, 74, 84, 0.14), 0 30px 70px -26px rgba(56, 72, 84, 0.46);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html {
+      /* iOS inflates small text in narrow columns, which blew the mockups'
+         6pt type up past the window it sits in. The window scales; the text
+         inside it must scale with it, not on its own. */
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+      /* stop the page detaching from the top on iOS: without this the rubber
+         band leaves it resting away from the edge, and snap pins it there */
+      overscroll-behavior-y: none;
+      scroll-behavior: smooth;
+      /* one feature per screen, so let the scroll settle on them — proximity,
+         not mandatory, so a tall section on a short display never traps you */
+      scroll-snap-type: y proximity;
+    }
+    section.feature { scroll-snap-align: start; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-snap-type: none; scroll-behavior: auto; } }
+    /* Snapping is for a mouse on a full-height stage. On a touch screen the
+       stages are short and snap only fights the momentum scroll. */
+    @media (pointer: coarse), (max-width: 900px) {
+      html { scroll-snap-type: none; }
+      section.feature { scroll-snap-align: none; }
+    }
+    body {
+      font-family: var(--sans);
+      background: var(--cream);
+      color: var(--ink);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; }
+    img { max-width: 100%; display: block; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---------- the pond: painted background ---------- */
+    /* Built in three coats, like the real thing: a ground of wet colour,
+       floating pads and brushstrokes over it, then canvas tooth on top. */
+    .pond {
+      position: fixed; inset: -22vh -22vw; z-index: -3;
+      overflow: hidden; pointer-events: none;
+      background:
+        radial-gradient(70% 55% at 18% 8%, rgba(147, 176, 135, 0.55), transparent 70%),
+        radial-gradient(60% 50% at 88% 14%, rgba(134, 166, 198, 0.5), transparent 72%),
+        radial-gradient(65% 55% at 78% 82%, rgba(224, 174, 176, 0.42), transparent 72%),
+        radial-gradient(55% 50% at 10% 88%, rgba(217, 193, 136, 0.4), transparent 72%),
+        radial-gradient(80% 60% at 50% 50%, rgba(184, 163, 210, 0.3), transparent 75%),
+        linear-gradient(168deg, #edeade 0%, #e8ecdf 34%, #eee4e0 66%, #f1ece0 100%);
+    }
+    .blob { position: absolute; border-radius: 50%; will-change: transform; }
+    .b1 { width: 54vw; height: 40vw; left: -10vw; top: -6vh;
+      background: radial-gradient(closest-side, rgba(147, 176, 135, 0.72), rgba(147, 176, 135, 0) 72%);
+      animation: drift1 64s ease-in-out infinite; }
+    .b2 { width: 50vw; height: 38vw; right: -12vw; top: 2vh;
+      background: radial-gradient(closest-side, rgba(134, 166, 198, 0.68), rgba(134, 166, 198, 0) 74%);
+      animation: drift2 78s ease-in-out infinite; }
+    .b3 { width: 44vw; height: 34vw; left: 18vw; top: 38vh;
+      background: radial-gradient(closest-side, rgba(184, 163, 210, 0.6), rgba(184, 163, 210, 0) 72%);
+      animation: drift3 88s ease-in-out infinite; }
+    .b4 { width: 40vw; height: 30vw; right: 2vw; top: 54vh;
+      background: radial-gradient(closest-side, rgba(224, 174, 176, 0.62), rgba(224, 174, 176, 0) 72%);
+      animation: drift1 72s ease-in-out -30s infinite; }
+    .b5 { width: 46vw; height: 32vw; left: -8vw; bottom: -12vh;
+      background: radial-gradient(closest-side, rgba(217, 193, 136, 0.55), rgba(217, 193, 136, 0) 72%);
+      animation: drift2 92s ease-in-out -18s infinite; }
+    .b6 { width: 30vw; height: 22vw; left: 46vw; top: 4vh;
+      background: radial-gradient(closest-side, rgba(92, 122, 134, 0.3), rgba(92, 122, 134, 0) 72%);
+      animation: drift3 96s ease-in-out -40s infinite; }
+    .b7 { width: 34vw; height: 26vw; left: 8vw; top: 70vh;
+      background: radial-gradient(closest-side, rgba(134, 166, 198, 0.5), rgba(134, 166, 198, 0) 74%);
+      animation: drift1 84s ease-in-out -52s infinite; }
+
+    /* lily pads, squat ellipses laid flat on the water */
+    .pad {
+      position: absolute; border-radius: 50%;
+      filter: blur(22px); opacity: 0.55; will-change: transform;
+    }
+    .p1 { width: 22vw; height: 7vw; left: 6vw; top: 26vh; background: rgba(122, 155, 116, 0.55);
+      transform: rotate(-8deg); animation: pad1 58s ease-in-out infinite; }
+    .p2 { width: 17vw; height: 5.5vw; right: 12vw; top: 34vh; background: rgba(196, 176, 216, 0.5);
+      transform: rotate(6deg); animation: pad2 66s ease-in-out -14s infinite; }
+    .p3 { width: 25vw; height: 7.5vw; left: 30vw; top: 62vh; background: rgba(214, 168, 170, 0.45);
+      transform: rotate(-4deg); animation: pad1 74s ease-in-out -28s infinite; }
+    .p4 { width: 19vw; height: 6vw; right: 6vw; bottom: 12vh; background: rgba(146, 178, 136, 0.5);
+      transform: rotate(9deg); animation: pad2 62s ease-in-out -40s infinite; }
+    .p5 { width: 15vw; height: 5vw; left: 14vw; bottom: 26vh; background: rgba(212, 190, 132, 0.45);
+      transform: rotate(-11deg); animation: pad1 70s ease-in-out -6s infinite; }
+    @keyframes pad1 {
+      0%, 100% { transform: rotate(-8deg) translate(0, 0); }
+      50% { transform: rotate(-5deg) translate(2.5vw, -1.5vh); }
+    }
+    @keyframes pad2 {
+      0%, 100% { transform: rotate(6deg) translate(0, 0); }
+      50% { transform: rotate(3deg) translate(-2vw, 2vh); }
+    }
+
+    /* brushstrokes, the loaded-brush marks that make it paint, not gradient */
+    .stroke {
+      position: absolute; border-radius: 50%;
+      filter: blur(30px); opacity: 0.3; will-change: transform;
+    }
+    .s1 { width: 30vw; height: 2.4vw; left: 12vw; top: 18vh; background: rgba(120, 150, 116, 0.5); transform: rotate(-14deg); }
+    .s2 { width: 24vw; height: 2vw; right: 10vw; top: 26vh; background: rgba(126, 158, 190, 0.5); transform: rotate(11deg); }
+    .s3 { width: 28vw; height: 2.2vw; left: 24vw; top: 54vh; background: rgba(178, 152, 200, 0.45); transform: rotate(-7deg); }
+    .s4 { width: 22vw; height: 1.8vw; right: 18vw; bottom: 22vh; background: rgba(206, 156, 158, 0.45); transform: rotate(13deg); }
+    .s5 { width: 26vw; height: 2vw; left: 4vw; bottom: 8vh; background: rgba(200, 176, 120, 0.4); transform: rotate(-9deg); }
+
+    /* dabs, the loaded-brush marks; without these it is only a gradient */
+    .dabs {
+      position: fixed; inset: -6vh -6vw; z-index: -2; pointer-events: none;
+      opacity: 0.9; will-change: transform;
+      animation: dabDrift 120s ease-in-out infinite;
+    }
+    .dabs svg { width: 100%; height: 100%; display: block; filter: blur(2px); }
+    @keyframes dabDrift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-1.2vw, 1vh) scale(1.03); }
+    }
+
+    /* light on water, and a soft gallery vignette */
+    .glaze {
+      position: fixed; inset: 0; z-index: -2; pointer-events: none;
+      background:
+        radial-gradient(46% 34% at 50% 2%, rgba(255, 253, 245, 0.5), transparent 72%),
+        radial-gradient(120% 92% at 50% 48%, transparent 46%, rgba(70, 84, 92, 0.2) 100%);
+    }
+    @keyframes drift1 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      33% { transform: translate(4vw, 3vh) rotate(6deg); }
+      66% { transform: translate(-3vw, 5vh) rotate(-4deg); }
+    }
+    @keyframes drift2 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      40% { transform: translate(-5vw, 4vh) rotate(-7deg); }
+      75% { transform: translate(3vw, -3vh) rotate(5deg); }
+    }
+    @keyframes drift3 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(4vw, -4vh) scale(1.08); }
+    }
+    /* canvas tooth: fine weave plus a breath of grain */
+    .linen {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      opacity: 0.55;
+      background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.42'/%3E%3C/svg%3E"),
+        repeating-linear-gradient(0deg, rgba(49, 52, 45, 0.02) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(49, 52, 45, 0.017) 0 1px, transparent 1px 3px);
+      mix-blend-mode: multiply;
+    }
+
+    /* ---------- typography ---------- */
+    h1, h2, .serif { font-family: var(--serif); font-weight: 600; letter-spacing: 0.005em; }
+    h1 em, h2 em { font-style: italic; font-weight: 500; }
+    .kicker {
+      font-family: var(--sans); font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.22em; text-transform: uppercase; color: var(--faint);
+      display: block; margin-bottom: 14px;
+    }
+    .kicker .num { font-family: var(--serif); font-style: italic; font-size: 0.95rem;
+      letter-spacing: 0; text-transform: none; margin-right: 10px; color: var(--muted); }
+
+    /* ---------- glass ---------- */
+    .glass {
+      background: var(--glass);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      backdrop-filter: blur(20px) saturate(1.4);
+      border: 1px solid var(--glass-edge);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+    /* a thin bright lip along the top edge, the way glass catches light */
+    .glass::before {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 34%);
+      mix-blend-mode: soft-light;
+    }
+    .bob { animation: bob var(--bobd, 9s) ease-in-out var(--bobo, 0s) infinite; }
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-7px); }
+    }
+
+    /* a frosted band so content dissolves under the nav instead of being sliced */
+    .top-scrim {
+      position: fixed; top: 0; left: 0; right: 0; height: 108px; z-index: 40; pointer-events: none;
+      -webkit-backdrop-filter: blur(11px); backdrop-filter: blur(11px);
+      -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 100%);
+      mask-image: linear-gradient(180deg, #000 0%, #000 40%, transparent 100%);
+    }
+
+    /* hero trust marks */
+    .trust {
+      list-style: none; display: flex; justify-content: center; flex-wrap: wrap;
+      gap: 10px; margin: 22px 0 0;
+    }
+    .trust li {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 14px; border-radius: 999px;
+      font-size: 0.79rem; color: var(--muted);
+      background: rgba(255, 254, 250, 0.62);
+      -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 1px 2px rgba(49, 52, 45, 0.04), 0 10px 22px -16px rgba(56, 72, 84, 0.4);
+    }
+    .trust .tk {
+      width: 14px; height: 14px; flex: none;
+      fill: none; stroke: var(--sage); stroke-width: 1.3;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    /* ---------- nav ---------- */
+    .nav { position: sticky; top: 14px; z-index: 50; margin: 14px 0 0; }
+    .nav-inner {
+      max-width: 1080px; margin: 0 auto; width: calc(100% - 32px);
+      display: flex; align-items: center; gap: 22px;
+      padding: 10px 18px; border-radius: 999px;
+      background: rgba(253, 252, 248, 0.92);
+      -webkit-backdrop-filter: blur(14px) saturate(1.2);
+      backdrop-filter: blur(14px) saturate(1.2);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 2px 5px rgba(49, 52, 45, 0.05), 0 14px 34px -18px rgba(73, 82, 94, 0.3);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 0.95rem; letter-spacing: -0.01em; text-decoration: none; }
+    .nav-logo img { width: 22px; height: 22px; border-radius: 6px; }
+    .nav-links { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+    .nav-links a { text-decoration: none; font-size: 0.86rem; color: var(--muted); transition: color 0.25s var(--ease); }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-btn {
+      background: var(--ink); color: #fdfcf7 !important; font-weight: 600;
+      padding: 7px 15px; border-radius: 999px; font-size: 0.83rem !important;
+      transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    }
+    .nav-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -8px rgba(49, 52, 45, 0.5); }
+
+    /* ---------- buttons ---------- */
+    .btn {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: var(--ink); color: #fdfcf7; padding: 13px 26px; border-radius: 12px;
+      text-decoration: none; font-weight: 600; font-size: 0.95rem;
+      box-shadow: 0 2px 5px rgba(49, 52, 45, 0.18), 0 14px 30px -12px rgba(49, 52, 45, 0.45);
+      transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 3px 7px rgba(49, 52, 45, 0.16), 0 20px 40px -14px rgba(49, 52, 45, 0.5); }
+    .btn .apple { font-size: 1.05em; line-height: 1; }
+    .link {
+      font-size: 0.94rem; color: var(--muted); text-decoration: none;
+      background-image: linear-gradient(currentColor, currentColor);
+      background-size: 0% 1px; background-repeat: no-repeat; background-position: 0 100%;
+      padding-bottom: 2px; transition: background-size 0.35s var(--ease), color 0.25s var(--ease);
+    }
+    .link:hover { color: var(--ink); background-size: 100% 1px; }
+    .note { font-size: 0.8rem; color: var(--faint); }
+
+    /* ---------- hero ---------- */
+    .hero { padding: 72px 0 32px; text-align: center; }
+    .hero-mark {
+      width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 30px;
+      box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.34), 0 2px 6px rgba(49, 52, 45, 0.14), 0 18px 40px -14px rgba(60, 74, 84, 0.44);
+    }
+    .hero h1 {
+      font-size: clamp(2.7rem, 6.4vw, 4.6rem);
+      line-height: 1.05; letter-spacing: -0.01em; max-width: 760px; margin: 0 auto;
+    }
+    .hero-sub { margin: 22px auto 0; max-width: 560px; font-size: 1.06rem; color: var(--muted); }
+    .hero-ctas { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 34px; flex-wrap: wrap; }
+    .hero .note { margin-top: 18px; }
+
+    /* hero window entrance + composition */
+    /* the hero shot sets the scale for everything under it, so it matches the
+       width the feature stages now use rather than sitting narrower than them */
+    .hero .wrap { max-width: 1280px; }
+    .hero-stage { position: relative; max-width: 1160px; margin: 46px auto 0; padding: 0 8px; }
+    .js .rise { opacity: 0; transform: translateY(34px) rotate(-0.6deg); }
+    .in .rise, .rise.now {
+      opacity: 1; transform: none;
+      transition: opacity 1.2s var(--ease), transform 1.2s var(--ease);
+      transition-delay: var(--d, 0s);
+    }
+    .hero-win { position: relative; z-index: 2; text-align: left; overflow: hidden; }
+    .chip {
+      position: absolute; z-index: 3; padding: 10px 14px; border-radius: 14px;
+      font-size: 0.72rem; font-weight: 500; color: var(--muted);
+      display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    }
+    .chip-gauge { right: -14px; top: 42px; --bobd: 11s; --bobo: -3s; }
+    .chip-notif { left: -10px; bottom: 56px; --bobd: 10s; --bobo: -6s; }
+    .chip b { color: var(--ink); font-weight: 600; }
+    .chip .ok { color: #5c8a5e; font-weight: 700; }
+    .gauge-bar { width: 54px; height: 5px; border-radius: 3px; background: var(--skel); overflow: hidden; }
+    .gauge-fill { height: 100%; width: 63%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--sage), var(--blue)); transform-origin: left;
+      animation: gaugeIn 9s ease-in-out infinite; }
+    @keyframes gaugeIn { 0%, 8% { transform: scaleX(0.55); } 40%, 100% { transform: scaleX(1); } }
+
+    /* ---------- shared mini-app chrome ---------- */
+    .chrome {
+      display: flex; align-items: center; gap: 6px;
+      padding: 9px 12px; border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.5);
+    }
+    .tl { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .tl.r { background: #f1968c; } .tl.y { background: #efc784; } .tl.g { background: #a5cf92; }
+    .chrome-title {
+      margin-left: 8px; font-size: 0.66rem; color: var(--faint); font-weight: 500;
+      letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .live { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 0.6rem; color: var(--faint); font-weight: 600; letter-spacing: 0.08em; }
+    .live i { width: 6px; height: 6px; border-radius: 50%; background: #7fae82; animation: pulse 2.4s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.75); } }
+
+    /* skeleton atoms */
+    .ln { height: 7px; border-radius: 4px; background: var(--skel); }
+    .ln.dk { background: var(--skel2); }
+
+    /* ---------- hero window internals ---------- */
+    .hw-body { display: grid; grid-template-columns: 148px 1.15fr 1fr; min-height: 330px; }
+    .hw-side { border-right: 1px solid var(--line); padding: 10px 8px; background: rgba(252, 250, 244, 0.55); }
+    .hw-chat { border-right: 1px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 10px; background: rgba(255, 255, 255, 0.52); }
+    .hw-page { padding: 12px; background: rgba(255, 255, 255, 0.45); }
+
+    .side-label { font-size: 0.56rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); padding: 6px 8px 4px; }
+    .side-row {
+      display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 8px;
+      font-size: 0.68rem; color: var(--muted); font-weight: 500; position: relative;
+    }
+    .side-row.on { background: rgba(49, 52, 45, 0.07); color: var(--ink); }
+    .fv { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+    .fv1 { background: var(--blue); } .fv2 { background: var(--sage); } .fv3 { background: var(--lilac); } .fv4 { background: var(--blush); }
+    .udot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); margin-left: auto; flex: none; }
+
+    .bubble { max-width: 88%; padding: 8px 11px; border-radius: 12px; font-size: 0.68rem; line-height: 1.5; }
+    .bub-user { align-self: flex-end; background: var(--ink); color: #f4f2ea; border-bottom-right-radius: 4px; }
+    .bub-agent { align-self: flex-start; background: rgba(49, 52, 45, 0.06); color: var(--ink); border-bottom-left-radius: 4px; }
+    .swap-slot { display: grid; }
+    .swap-slot > * { grid-area: 1 / 1; justify-self: start; }
+    .typing { display: inline-flex; gap: 4px; padding: 3px 2px; }
+    .typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); animation: tydot 1.3s ease-in-out infinite; }
+    .typing i:nth-child(2) { animation-delay: 0.18s; }
+    .typing i:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes tydot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-3px); opacity: 1; } }
+
+    /* hero loop: typing -> reply appears -> page refresh shimmer */
+    .hw-typing { animation: hwTyping 9s ease-in-out infinite; }
+    @keyframes hwTyping { 0%, 34% { opacity: 1; } 39%, 100% { opacity: 0; } }
+    .hw-reply { animation: hwReply 9s var(--ease) infinite; }
+    @keyframes hwReply {
+      0%, 36% { opacity: 0; transform: translateY(6px); }
+      42%, 96% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; }
+    }
+    .mini-page { background: var(--card); border: 1px solid var(--line); border-radius: 10px; height: 100%; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+    .mp-bar { display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-bottom: 1px solid var(--line); }
+    .mp-url { flex: 1; height: 12px; border-radius: 6px; background: var(--cream); border: 1px solid var(--line);
+      font-size: 0.5rem; color: var(--faint); display: flex; align-items: center; padding: 0 7px; font-family: var(--mono); }
+    .mp-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .mp-hero { height: 56px; border-radius: 8px; background: linear-gradient(120deg, var(--sage), var(--blue) 70%); opacity: 0.75; }
+    .hw-swap { animation: hwSwap 9s ease-in-out infinite; }
+    @keyframes hwSwap { 0%, 44% { opacity: 0.45; } 58%, 100% { opacity: 0.85; } }
+    .shimmer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: 10px; }
+    .shimmer::after {
+      content: ""; position: absolute; top: -20%; bottom: -20%; width: 46%;
+      background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.65) 50%, rgba(255,255,255,0) 100%);
+      transform: translateX(-160%) rotate(4deg);
+      animation: sweep 9s var(--ease) infinite;
+    }
+    @keyframes sweep { 0%, 46% { transform: translateX(-160%) rotate(4deg); } 62%, 100% { transform: translateX(320%) rotate(4deg); } }
+
+    /* ---------- sections: one feature per screen ---------- */
+    /* No left/right zigzag. Each feature owns a viewport and reads straight
+       down the middle, which hands the demo the full column instead of half. */
+    section.feature {
+      min-height: 100svh;
+      display: flex; align-items: center;
+      padding: clamp(56px, 9vh, 96px) 0;
+      /* the nav is fixed — keep rail jumps from tucking the kicker under it */
+      scroll-margin-top: 64px;
+    }
+    .feature .wrap { width: 100%; max-width: 1280px; }
+    .feat-grid {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 18px; text-align: center;
+    }
+    /* .flip is inert now — left on the markup so the sections stay diffable */
+    .feature.flip .feat-grid > .feat-copy,
+    .feature.flip .feat-grid > .pane-wrap { order: 0; }
+    .feat-copy { max-width: 88ch; }
+    .feat-copy h2 { font-size: clamp(1.95rem, 3.5vw, 2.8rem); line-height: 1.08; letter-spacing: -0.012em; }
+    /* Some ledes run to one line and some to two. Reserving two everywhere keeps
+       every stage exactly the same height, which is what the snap needs. */
+    .feat-copy p, .desk-head p { margin: 12px auto 0; color: var(--muted); font-size: 0.97rem; max-width: 82ch; min-height: 2.9em; }
+    /* The mockups are composed for a ~580px column. Widening the pane would
+       reflow them sparse, so the pane tracks a scale factor instead: the mini
+       keeps its proportions and simply renders bigger. */
+    .pane-wrap {
+      position: relative; --mz: 1.2;
+      width: 100%; max-width: calc(960px * var(--mz));
+    }
+    /* No card around the window — it is a window, so it just casts a shadow
+       on the page. Caption and specs sit straight on the background. */
+    .feature .pane {
+      padding: 0; background: none; border: 0; box-shadow: none;
+      -webkit-backdrop-filter: none; backdrop-filter: none;
+    }
+    .feature .pane::before { display: none; }
+    .feature .mini {
+      border: 1px solid rgba(49, 52, 45, 0.13);
+      border-radius: 13px;
+      box-shadow:
+        0 1px 2px rgba(49, 52, 45, 0.05),
+        0 8px 18px -8px rgba(56, 72, 84, 0.24),
+        0 34px 60px -26px rgba(56, 72, 84, 0.42);
+    }
+    .feature .pane-cap { margin-top: 22px; }
+    /* the stage centres its copy — the mockups inside must not inherit that */
+    /* transform, not zoom: iOS applies zoom to the box but not dependably to
+       everything inside it, which left the mockups' text at desktop size. */
+    .feature .scaler { width: 100%; height: calc(564.7px * var(--mz)); }
+    .feature .mini {
+      width: 960px; height: 564.7px; max-width: none; flex: none;
+      transform: scale(var(--mz)); transform-origin: top left;
+      text-align: left;
+      /* a Mac window is 16:10, not a letterbox — the demos fill it, not the
+         other way round */
+      display: flex; flex-direction: column;
+    }
+    .feature .mini > :last-child { margin-bottom: 0; }
+    /* Short laptop viewports: scale down so a stage still lands on one screen. */
+    /* Each step is the largest window that still leaves the stage on one screen:
+       grid height is roughly 234px of copy/caption plus 565px of window per unit
+       of scale, so the scale is solved against the viewport, not guessed. */
+    @media (max-height: 1080px) { .pane-wrap { --mz: 1.11; } section.feature { padding: 46px 0; } }
+    @media (max-height: 980px) { .pane-wrap { --mz: 1.03; } section.feature { padding: 42px 0; } }
+    @media (max-height: 900px) { .pane-wrap { --mz: 0.93; } section.feature { padding: 38px 0; } }
+    @media (max-height: 820px) { .pane-wrap { --mz: 0.88; } section.feature { padding: 32px 0; } }
+    @media (max-height: 750px) { .pane-wrap { --mz: 0.74; } section.feature { padding: 22px 0; } }
+    @media (max-height: 680px) { .pane-wrap { --mz: 0.68; } section.feature { padding: 20px 0; } }
+    .pane-cap {
+      margin-top: 10px; text-align: center;
+      font-family: var(--serif); font-style: italic; font-size: 1rem; color: var(--faint);
+    }
+    /* one line of specifics under each demo — the space a full page buys you */
+    .spec { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 0; margin-top: 14px; padding: 0; }
+    .spec li { list-style: none; font-size: 0.8rem; color: var(--faint); letter-spacing: 0.01em; }
+    .spec li + li::before { content: "·"; margin: 0 16px; color: rgba(49, 52, 45, 0.22); }
+
+    /* ---------- section rail ---------- */
+    .rail {
+      position: fixed; right: 24px; top: 50%; transform: translateY(-50%); z-index: 40;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 15px;
+    }
+    /* dots are always there; the labels only surface on hover or when active */
+    .rail a {
+      display: flex; align-items: center; gap: 10px; text-decoration: none;
+      color: var(--faint); font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase;
+      transition: color 0.3s var(--ease);
+    }
+    .rail a.on { color: var(--muted); }
+    .rail a span {
+      white-space: nowrap; opacity: 0; transform: translateX(8px);
+      transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+    }
+    .rail:hover a span, .rail a.on span { opacity: 1; transform: none; }
+    .rail i {
+      width: 7px; height: 7px; border-radius: 50%; flex: none;
+      background: rgba(49, 52, 45, 0.2);
+      transition: background 0.3s var(--ease), transform 0.3s var(--ease);
+    }
+    .rail a.on i { background: var(--deep); transform: scale(1.4); }
+    @media (max-width: 1240px) { .rail { display: none; } }
+    .mini { background: rgba(255, 255, 255, 0.62); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+
+    /* reveal */
+    .js [data-rv] { opacity: 0; transform: translateY(26px); }
+    .js .io.in [data-rv] {
+      opacity: 1; transform: none;
+      transition: opacity 1s var(--ease), transform 1s var(--ease);
+      transition-delay: var(--d, 0s);
+    }
+
+    /* ============ One app, six panes ============ */
+    /* Every feature section shows the SAME window — rail on the left, the real
+       toolbar across the top — and swaps only what is in the content area. */
+    .feature .mini { display: block; padding: 0; background: var(--card); }
+    .appwin {
+      display: grid; grid-template-columns: 194px 1fr;
+      height: 100%; font-size: 13px; color: var(--ink);
+      background: var(--card);
+    }
+
+    /* ---- the rail ---- */
+    .ap-side {
+      display: flex; flex-direction: column; min-width: 0;
+      background: rgba(246, 242, 233, 0.86);
+      border-right: 1px solid var(--line);
+    }
+    .ap-lights { display: flex; gap: 6px; padding: 11px 12px 6px; }
+    .ap-side .tl { width: 9px; height: 9px; }
+    .ap-scroll { flex: 1; padding: 4px 8px; overflow: hidden; }
+    .ap-group {
+      font-size: 0.5rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--faint); padding: 9px 6px 4px;
+    }
+    .ap-row {
+      display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+      border-radius: 6px; font-size: 0.62rem; font-weight: 550; line-height: 1.2;
+    }
+    .ap-row.on { background: rgba(49, 52, 45, 0.07); }
+    .ap-row.dim { color: var(--muted); font-weight: 500; }
+    .ap-row > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ap-caret {
+      width: 0; height: 0; flex: none; margin-left: 1px;
+      border-left: 3.5px solid var(--faint);
+      border-top: 3px solid transparent; border-bottom: 3px solid transparent;
+    }
+    .ap-caret.down { transform: rotate(90deg); }
+    .ap-side .fv { width: 8px; height: 8px; border-radius: 2px; margin-left: 1px; }
+    .ap-br {
+      margin-left: auto; flex: none;
+      font-size: 0.48rem; color: var(--faint); letter-spacing: 0.02em;
+      padding: 1px 5px; border-radius: 999px; border: 1px solid var(--line);
+    }
+    .ap-chats { position: relative; padding: 1px 0 2px 13px; }
+    .ap-crow {
+      display: flex; align-items: center; gap: 5px; padding: 4px 6px; margin-bottom: 1px;
+      border-radius: 6px; font-size: 0.6rem; color: var(--muted); line-height: 1.2;
+    }
+    .ap-crow.on { background: rgba(49, 52, 45, 0.07); color: var(--ink); font-weight: 550; }
+    .ap-clabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ap-wt {
+      flex: none; font-size: 0.44rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 1px 4px; border-radius: 3px;
+      background: rgba(196, 180, 214, 0.42); color: #6f5d87;
+    }
+    /* spinner while it works, dot when it wants you — as in the app */
+    .ap-spin {
+      width: 8px; height: 8px; border-radius: 50%; flex: none; margin-left: auto;
+      border: 1.5px solid rgba(147, 176, 135, 0.3); border-top-color: var(--sage);
+      animation: apspin 0.85s linear infinite;
+    }
+    @keyframes apspin { to { transform: rotate(360deg); } }
+    .ap-unread { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex: none; margin-left: auto; }
+    .ap-foot {
+      padding: 8px 14px; border-top: 1px solid var(--line);
+      font-size: 0.55rem; color: var(--faint);
+    }
+
+    /* ---- the toolbar, as it actually is ---- */
+    .ap-main { display: flex; flex-direction: column; min-width: 0; }
+    .ap-bar {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 11px; border-bottom: 1px solid var(--line);
+      background: rgba(252, 250, 244, 0.6);
+    }
+    .ap-btn {
+      display: inline-flex; align-items: center; gap: 4px; flex: none;
+      font-size: 0.56rem; font-weight: 600; color: var(--muted);
+      padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+    }
+    .ap-btn.ic-only { padding: 3px 6px; font-size: 0.62rem; }
+    .ic { width: 8px; height: 8px; flex: none; border-radius: 1.5px; }
+    .ic-files { background: var(--gold); border-radius: 1.5px 3px 1.5px 1.5px; }
+    .ic-todo { background: var(--blue); }
+    .ic-snip { background: var(--blush); }
+    .ap-title { font-size: 0.63rem; font-weight: 650; flex: none; margin-left: 3px; }
+    .ap-path {
+      font-family: var(--mono); font-size: 0.5rem; color: var(--faint);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+    }
+    .ap-branch {
+      flex: none; font-size: 0.5rem; color: var(--muted);
+      padding: 2px 6px; border-radius: 999px; border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.6);
+    }
+    .ap-branch i { font-style: normal; color: var(--faint); margin-right: 2px; }
+    .ap-server {
+      display: inline-flex; align-items: center; gap: 5px; flex: none;
+      font-size: 0.5rem; color: var(--muted); font-family: var(--mono);
+      padding: 2px 7px; border-radius: 999px;
+      background: rgba(169, 189, 159, 0.22); border: 1px solid rgba(147, 176, 135, 0.3);
+    }
+    .ap-server i { width: 5px; height: 5px; border-radius: 50%; background: #7fae82; animation: pulse 2.4s ease-in-out infinite; }
+    .ap-server em { font-style: normal; font-family: var(--sans); color: #55704e; font-weight: 600; }
+    .ap-spacer { flex: 1; }
+
+    /* ---- content area ---- */
+    .ap-content { flex: 1; min-height: 0; display: flex; }
+    .ap-split { flex: 1; display: flex; min-width: 0; }
+
+    .ap-chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .ap-chat.narrow { flex: none; width: 232px; border-left: 1px solid var(--line); }
+    .ap-stream {
+      flex: 1; min-height: 0; padding: 12px 13px;
+      display: flex; flex-direction: column; gap: 7px;
+      align-items: flex-start; justify-content: flex-end;
+    }
+    .ap-stream.ap-stack { position: relative; padding: 0; }
+    .ap-stream.ap-stack > .d1-pg {
+      position: absolute; inset: 0; padding: 12px 13px;
+      display: flex; flex-direction: column; gap: 7px;
+      align-items: flex-start; justify-content: flex-end;
+    }
+    .ap-chat .bubble { max-width: 82%; font-size: 0.61rem; padding: 6px 9px; border-radius: 10px; }
+    .ap-say { font-size: 0.61rem; line-height: 1.5; color: var(--ink); max-width: 94%; }
+    .ap-say code, .d1-say code {
+      font-family: var(--mono); font-size: 0.54rem; padding: 1px 4px; border-radius: 4px;
+      background: rgba(49, 52, 45, 0.07);
+    }
+    .ap-tool {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-family: var(--mono); font-size: 0.52rem; color: #55704e;
+      padding: 2px 7px; border-radius: 999px; background: rgba(169, 189, 159, 0.24);
+    }
+    .ap-tool i { width: 4px; height: 4px; border-radius: 50%; background: var(--sage); }
+    .ap-card {
+      align-self: stretch; background: rgba(49, 52, 45, 0.04);
+      border-radius: 10px; padding: 10px 12px 0; overflow: hidden;
+    }
+
+    /* ---- the composer ---- */
+    .ap-comp { border-top: 1px solid var(--line); padding: 8px 11px 9px; background: rgba(252, 250, 244, 0.4); }
+    .ap-input {
+      display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 9px; background: var(--card);
+      font-size: 0.58rem; color: var(--faint);
+    }
+    .ap-input .hint { font-size: 0.52rem; opacity: 0.72; }
+    .ap-chat.narrow .ap-input .hint { display: none; }
+    .ap-cursor { width: 1px; height: 10px; background: var(--muted); margin-right: -3px; animation: apblink 1.1s steps(1) infinite; }
+    @keyframes apblink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    .ap-send {
+      margin-left: auto; width: 15px; height: 15px; border-radius: 50%; flex: none;
+      background: var(--ink); color: var(--cream); font-size: 0.5rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ap-modes { display: flex; gap: 5px; margin-top: 6px; }
+    .ap-pill {
+      font-size: 0.5rem; color: var(--muted); padding: 2px 6px; border-radius: 5px;
+      border: 1px solid var(--line); background: rgba(255, 255, 255, 0.66);
+    }
+    .ap-pill b { color: var(--ink); font-weight: 650; }
+
+    /* ---- the pane beside the chat: preview, simulator, whatever it is ---- */
+    .ap-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: rgba(246, 242, 233, 0.4); }
+    .ap-pbar {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      border-bottom: 1px solid var(--line); background: rgba(252, 250, 244, 0.5);
+    }
+    .ap-purl {
+      flex: 1; font-family: var(--mono); font-size: 0.5rem; color: var(--faint);
+      padding: 2px 8px; border-radius: 999px; background: var(--cream); border: 1px solid var(--line);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ap-pdevice, .ap-vp {
+      font-size: 0.52rem; color: var(--muted); padding: 2px 7px; border-radius: 999px;
+      border: 1px solid var(--line); background: rgba(255, 255, 255, 0.66);
+    }
+    .ap-pdevice { flex: 1; text-align: left; border: 0; background: none; padding-left: 2px; }
+    .ap-vp b { color: var(--ink); font-weight: 650; }
+    .ap-live {
+      display: inline-flex; align-items: center; gap: 5px; flex: none;
+      font-size: 0.5rem; color: #55704e; font-weight: 600;
+    }
+    .ap-live i { width: 5px; height: 5px; border-radius: 50%; background: #7fae82; animation: pulse 2.4s ease-in-out infinite; }
+    .ap-pbody { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 14px; }
+    .ap-pane.sim .ap-pbody { padding: 12px; }
+    .ap-pane.sim { background: rgba(49, 52, 45, 0.05); }
+
+    /* ---- VI: the same window, seen from another app ---- */
+    .mini.scene { background: none; border: 0; overflow: visible; }
+    .d7-desk {
+      position: relative; height: 100%; border-radius: 13px; overflow: hidden;
+      background:
+        radial-gradient(80% 70% at 18% 8%, rgba(147, 176, 135, 0.5), transparent 70%),
+        radial-gradient(70% 65% at 88% 18%, rgba(134, 166, 198, 0.45), transparent 72%),
+        radial-gradient(75% 70% at 72% 96%, rgba(184, 163, 210, 0.36), transparent 72%),
+        linear-gradient(160deg, #e9e6da, #e4e9de 50%, #ece5e2);
+    }
+    .appwin.dim {
+      position: absolute; left: 30px; right: 78px; top: 26px; bottom: 40px;
+      height: auto; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+      box-shadow: 0 18px 44px -22px rgba(56, 72, 84, 0.55);
+      opacity: 0.55; filter: saturate(0.55);
+    }
+
+    /* On the sidebar stage the selection walks the three chats in step with
+       the transcript, so "click a session" is something you watch happen. */
+    #features .ap-crow.on { background: none; }
+    #features .ap-chats { z-index: 0; }
+    #features .ap-chats::before {
+      content: ""; position: absolute; left: 13px; right: 0; top: 0;
+      height: var(--rowh, 19.5px); border-radius: 6px; background: rgba(49, 52, 45, 0.08);
+      animation: aphl 12s var(--ease) infinite; z-index: -1;
+    }
+    @keyframes aphl {
+      0%, 30% { transform: translateY(0); }
+      34%, 63% { transform: translateY(calc(var(--rowh, 19.5px) + 1px)); }
+      67%, 95% { transform: translateY(calc((var(--rowh, 19.5px) + 1px) * 2)); }
+      100% { transform: translateY(0); }
+    }
+    #features .ap-crow { position: relative; z-index: 1; }
+
+    /* The branch graph rides inside a chat card now, so it has to reserve the
+       room its transform takes — transforms do not affect layout. */
+    .ap-card .d2-graph { transform: scale(1.2); transform-origin: center center; margin: 20px auto 26px; }
+    .ap-card .d2-files { border-top: 1px solid var(--line); background: none; padding: 8px 0 2px; margin-top: 2px; }
+    .ap-card .d2-fh { margin-bottom: 5px; }
+
+    /* ---- the transcript itself: three chats, cutting between each other ---- */
+    .d1-pg1 { animation: d1a 12s ease-in-out infinite; }
+    .d1-pg2 { animation: d1b 12s ease-in-out infinite; opacity: 0; }
+    .d1-pg3 { animation: d1c 12s ease-in-out infinite; opacity: 0; }
+    @keyframes d1a { 0%, 30% { opacity: 1; } 32%, 97% { opacity: 0; } 99%, 100% { opacity: 1; } }
+    @keyframes d1b { 0%, 32% { opacity: 0; } 34%, 63% { opacity: 1; } 65%, 100% { opacity: 0; } }
+    @keyframes d1c { 0%, 65% { opacity: 0; } 67%, 95% { opacity: 1; } 97%, 100% { opacity: 0; } }
+    .d1-say { font-size: 0.61rem; line-height: 1.5; color: var(--ink); max-width: 94%; }
+
+    /* the collapsed step summary, counting up while it works */
+    .d1-steps { display: flex; align-items: center; gap: 6px; font-size: 0.53rem; color: var(--muted); padding: 1px 0; }
+    .d1-steps .caret { color: var(--faint); }
+    .d1-steps b { font-weight: 650; color: var(--ink); }
+    .d1-swap { display: inline-grid; }
+    .d1-swap > span { grid-area: 1 / 1; white-space: nowrap; }
+    .d1-n1, .d1-s1 { animation: d1sw1 12s steps(1) infinite; }
+    .d1-n2, .d1-s2 { animation: d1sw2 12s steps(1) infinite; opacity: 0; }
+    .d1-n3, .d1-s3 { animation: d1sw3 12s steps(1) infinite; opacity: 0; }
+    @keyframes d1sw1 { 0%, 7% { opacity: 1; } 8%, 100% { opacity: 0; } }
+    @keyframes d1sw2 { 0%, 7% { opacity: 0; } 8%, 15% { opacity: 1; } 16%, 100% { opacity: 0; } }
+    @keyframes d1sw3 { 0%, 15% { opacity: 0; } 16%, 100% { opacity: 1; } }
+    .d1-live { display: inline-flex; align-items: center; gap: 4px; }
+    .d1-live i {
+      width: 4px; height: 4px; border-radius: 50%; background: var(--sage);
+      animation: d1pulse 1.4s ease-in-out infinite, d1workfade 12s ease-in-out infinite;
+    }
+    @keyframes d1pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+    @keyframes d1workfade { 0%, 20% { opacity: 1; } 26%, 100% { opacity: 0; } }
+
+    /* the answer, arriving once the steps finish */
+    .d1-card {
+      align-self: stretch; background: rgba(49, 52, 45, 0.045); border-radius: 9px;
+      padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
+      animation: d1card 12s var(--ease) infinite;
+    }
+    @keyframes d1card {
+      0%, 18% { opacity: 0; transform: translateY(5px); }
+      24%, 30% { opacity: 1; transform: none; }
+      32%, 100% { opacity: 0; transform: none; }
+    }
+    .d1-pg2 .d1-card, .d1-pg3 .d1-card { animation: none; opacity: 1; transform: none; }
+    .d1-bul { margin: 1px 0 0; padding-left: 13px; display: flex; flex-direction: column; gap: 2px; }
+    .d1-bul li { font-size: 0.58rem; line-height: 1.45; color: var(--muted); }
+    .d1-bul b { color: var(--ink); font-weight: 650; }
+    .d1-diff { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 0.5rem; color: var(--faint); margin-top: 2px; }
+    .d1-diff .add { color: #55704e; }
+    .d1-diff .del { color: #a3706f; }
+    .d1-late { animation: d1late 12s var(--ease) infinite; opacity: 0; }
+    @keyframes d1late {
+      0%, 24% { opacity: 0; transform: translateY(5px); }
+      29%, 30% { opacity: 1; transform: none; }
+      32%, 100% { opacity: 0; transform: none; }
+    }
+
+    /* ============ Demo 2: worktrees ============ */
+    .d2-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .tagchip {
+      font-family: var(--mono); font-size: 0.58rem; padding: 3px 8px; border-radius: 999px;
+      background: rgba(169, 189, 159, 0.28); color: #55704e; font-weight: 600; letter-spacing: 0.02em;
+    }
+    .tagchip.vio { background: rgba(196, 180, 214, 0.3); color: #6f5d87; }
+    .d2-stage { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .d2-graph {
+      position: relative; width: 300px; height: 130px; margin: 0 auto;
+      transform: scale(1.7); transform-origin: center center;
+    }
+    .d2-lbl { position: absolute; font-family: var(--mono); font-size: 0.56rem; color: var(--faint); }
+    .d2-lbl.main-l { left: 0; top: 84px; }
+    .d2-lbl.br-l { left: 136px; top: 68px; color: #6f5d87; }
+    .d2-line { position: absolute; height: 3px; border-radius: 2px; background: var(--skel2); }
+    .d2-main-line { left: 0; right: 0; top: 104px; }
+    .d2-diag {
+      left: 74px; top: 100px; width: 74px; background: var(--lilac);
+      transform-origin: left center; transform: rotate(-38deg) scaleX(1);
+      animation: d2diag 8s var(--ease) infinite;
+    }
+    @keyframes d2diag {
+      0%, 6% { transform: rotate(-38deg) scaleX(0); }
+      16%, 94% { transform: rotate(-38deg) scaleX(1); }
+      97%, 100% { transform: rotate(-38deg) scaleX(0); }
+    }
+    .d2-branch-line {
+      left: 132px; top: 54px; width: 158px; background: var(--lilac);
+      transform-origin: left center;
+      animation: d2br 8s var(--ease) infinite;
+    }
+    @keyframes d2br {
+      0%, 14% { transform: scaleX(0); }
+      26%, 94% { transform: scaleX(1); }
+      97%, 100% { transform: scaleX(0); }
+    }
+    .d2-c { position: absolute; width: 13px; height: 13px; border-radius: 50%; border: 3px solid #fff;
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.2); }
+    .d2-cm { background: var(--muted); top: 96px; }
+    .d2-cb { background: var(--lilac); top: 46px; }
+    .cm1 { left: 18px; } .cm2 { left: 52px; } .cm3 { left: 68px; top: 96px; background: var(--sage); }
+    .cb1 { left: 150px; } .cb2 { left: 196px; } .cb3 { left: 242px; }
+    .d2-pop1 { animation: d2pop 8s var(--ease) infinite; }
+    .d2-pop2 { animation: d2pop2 8s var(--ease) infinite; }
+    .d2-pop3 { animation: d2pop3 8s var(--ease) infinite; }
+    @keyframes d2pop { 0%, 30% { transform: scale(0); } 36% { transform: scale(1.35); } 40%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+    @keyframes d2pop2 { 0%, 44% { transform: scale(0); } 50% { transform: scale(1.35); } 54%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+    @keyframes d2pop3 { 0%, 58% { transform: scale(0); } 64% { transform: scale(1.35); } 68%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+    .d2-clean {
+      position: absolute; left: 6px; top: 118px;
+      font-size: 0.58rem; font-weight: 600; color: #55704e;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .d2-clean i { width: 12px; height: 12px; border-radius: 50%; background: var(--sage); color: #fff;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 0.5rem; font-style: normal;
+      animation: d2clean 8s ease-in-out infinite; }
+    @keyframes d2clean { 0%, 70% { transform: scale(1); } 75% { transform: scale(1.35); } 80%, 100% { transform: scale(1); } }
+    .d2-commit-msg {
+      position: absolute; right: 0; top: 0; font-family: var(--mono); font-size: 0.55rem; color: var(--muted);
+      background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px;
+      animation: d2msg 8s var(--ease) infinite;
+    }
+    @keyframes d2msg {
+      0%, 58% { opacity: 0; transform: translateY(5px); }
+      65%, 92% { opacity: 1; transform: translateY(0); }
+      96%, 100% { opacity: 0; }
+    }
+
+    /* ============ iPhone frame (shared) ============ */
+    .iphone {
+      position: relative; width: 148px; border-radius: 26px;
+      background: #2c2e2a; padding: 7px;
+      box-shadow: 0 3px 8px rgba(49, 52, 45, 0.2), 0 22px 44px -18px rgba(49, 52, 45, 0.45),
+        inset 0 0 0 2px #4a4c46;
+      flex: none;
+    }
+    .iphone-screen {
+      position: relative; border-radius: 20px; overflow: hidden;
+      background: var(--card);
+      /* 19.5:9, the same as the device it is standing in for */
+      aspect-ratio: 9 / 19.5;
+    }
+    .iphone .island {
+      position: absolute; top: 13px; left: 50%; transform: translateX(-50%);
+      width: 46px; height: 12px; border-radius: 999px; background: #2c2e2a; z-index: 6;
+    }
+
+    /* ============ Demo 3: simulator ============ */
+    .d3-flex { display: flex; flex: 1; align-items: center; justify-content: center; gap: 44px; padding: 18px 8px; flex-wrap: wrap; }
+    .d3-phone { width: 178px; }
+    .d3-app { display: flex; flex-direction: column; height: 100%; padding-top: 34px; }
+    .d3-navbar { padding: 0 12px 8px; display: flex; align-items: center; justify-content: space-between; }
+    .d3-title { font-size: 0.62rem; font-weight: 700; color: var(--ink); }
+    .d3-list { flex: 1; padding: 4px 10px; display: flex; flex-direction: column; gap: 8px; }
+    .d3-card { position: relative; background: var(--cream); border-radius: 10px; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; }
+    .d3-card.hl { animation: d3hl 8s ease-in-out infinite; }
+    @keyframes d3hl {
+      0%, 16% { background: var(--cream); }
+      22%, 30% { background: rgba(157, 182, 205, 0.35); }
+      38%, 100% { background: var(--cream); }
+    }
+    .d3-ripple {
+      position: absolute; right: 16px; top: 12px; width: 26px; height: 26px; border-radius: 50%;
+      border: 2.5px solid var(--blue); opacity: 0; pointer-events: none; z-index: 5;
+      animation: d3rip 8s var(--ease) infinite;
+    }
+    @keyframes d3rip {
+      0%, 17% { opacity: 0; transform: scale(0.25); }
+      20% { opacity: 0.75; transform: scale(0.45); }
+      32% { opacity: 0; transform: scale(1.9); }
+      100% { opacity: 0; transform: scale(0.25); }
+    }
+    .d3-sheet {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 62%;
+      background: #fff; border-radius: 16px 16px 0 0; z-index: 4;
+      box-shadow: 0 -8px 24px rgba(49, 52, 45, 0.14);
+      padding: 12px; display: flex; flex-direction: column; gap: 8px;
+      transform: translateY(106%);
+      animation: d3sheet 8s var(--ease) infinite;
+    }
+    @keyframes d3sheet {
+      0%, 26% { transform: translateY(106%); }
+      35%, 66% { transform: translateY(4%); }
+      76%, 100% { transform: translateY(106%); }
+    }
+    .d3-grab { width: 30px; height: 4px; border-radius: 2px; background: var(--skel2); margin: 0 auto 2px; }
+    .d3-btn { margin-top: auto; height: 26px; border-radius: 9px; background: var(--ink); color: #f4f2ea;
+      display: flex; align-items: center; justify-content: center; font-size: 0.58rem; font-weight: 600; }
+    .d3-aside { max-width: 224px; display: flex; flex-direction: column; gap: 10px; }
+    .d3-aside .fact { font-size: 0.74rem; color: var(--muted); display: flex; gap: 8px; align-items: baseline; }
+    .d3-aside .fact::before { content: "·"; font-family: var(--serif); font-size: 1rem; color: var(--sage); }
+
+
+    /* the point of this panel: you say the goal once, it does the rest */
+    .d3-chat { width: 300px; display: flex; flex-direction: column; gap: 8px; }
+    .d3-chat .who {
+      font-size: 0.54rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--faint); margin-bottom: 2px;
+    }
+    .d3-chat .bubble { max-width: 100%; font-size: 0.68rem; opacity: 0; }
+    .d3-chat .bub-user { align-self: flex-end; }
+    .d3-chat .tagchip { align-self: flex-start; opacity: 0; }
+    .d3-chat .step-note { font-size: 0.6rem; color: var(--faint); font-family: var(--mono); opacity: 0; }
+    .d3-m1 { animation: d3msg 8s var(--ease) infinite; }
+    .d3-m2 { animation: d3msg 8s var(--ease) infinite; animation-delay: 0.9s; }
+    .d3-m3 { animation: d3msg 8s var(--ease) infinite; animation-delay: 1.7s; }
+    .d3-m4 { animation: d3msg 8s var(--ease) infinite; animation-delay: 3.6s; }
+    @keyframes d3msg {
+      0% { opacity: 0; transform: translateY(6px); }
+      6%, 88% { opacity: 1; transform: none; }
+      96%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+
+    /* ============ Demo 4: two live views ============ */
+    .d4-flex { display: flex; flex: 1; align-items: center; justify-content: center; gap: 30px; padding: 18px 6px; }
+    .d4-desktop { width: min(392px, 58%); background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+      box-shadow: 0 2px 6px rgba(49,52,45,0.07), 0 18px 40px -20px rgba(73,82,94,0.35); }
+    .d4-view { height: 244px; overflow: hidden; position: relative; }
+    .d4-phone { width: 136px; }
+    .d4-phone .iphone-screen { padding-top: 0; }
+    .pm { display: flex; flex-direction: column; gap: 7px; padding: 11px; animation: d4scroll 8s var(--ease) infinite; }
+    @keyframes d4scroll {
+      0%, 22% { transform: translateY(0); }
+      36%, 58% { transform: translateY(-24%); }
+      72%, 100% { transform: translateY(0); }
+    }
+    .pm-nav { display: flex; gap: 6px; align-items: center; margin-bottom: 2px; }
+    .pm-logo { width: 12px; height: 12px; border-radius: 4px; background: var(--sage); }
+    .pm-hero { height: 64px; border-radius: 8px;
+      background: linear-gradient(115deg, var(--lilac), var(--blue) 60%, var(--sage)); opacity: 0.7; position: relative; overflow: hidden; }
+    .pm-btn { width: 74px; height: 20px; border-radius: 7px; background: var(--ink);
+      animation: d4btn 8s var(--ease) infinite; }
+    @keyframes d4btn {
+      0%, 58% { transform: scale(1); }
+      63% { transform: scale(1.1); }
+      68%, 100% { transform: scale(1); }
+    }
+    .pm-cards { display: flex; gap: 7px; }
+    .pm-card { flex: 1; height: 44px; border-radius: 7px; background: var(--cream); border: 1px solid var(--line); }
+    .d4-badge {
+      margin: 16px auto 0; width: fit-content;
+      display: flex; align-items: center; gap: 7px;
+      font-size: 0.62rem; font-weight: 600; letter-spacing: 0.06em; color: var(--muted);
+      background: rgba(255, 255, 255, 0.55); border: 1px solid var(--glass-edge);
+      padding: 5px 12px; border-radius: 999px;
+    }
+    .d4-badge i { width: 6px; height: 6px; border-radius: 50%; background: #7fae82; animation: pulse 2.4s ease-in-out infinite; }
+
+    /* ============ Demo 5: automation ============ */
+    .d5-stage { position: relative; width: 330px; height: 226px; margin: 14px auto 6px; }
+    .d5-page { position: absolute; inset: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .d5-form { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .d5-label { font-size: 0.58rem; font-weight: 600; color: var(--faint); letter-spacing: 0.08em; text-transform: uppercase; }
+    .d5-field {
+      height: 30px; border: 1.5px solid var(--skel2); border-radius: 8px; background: #fff;
+      display: flex; align-items: center; padding: 0 10px;
+      font-family: var(--mono); font-size: 0.66rem; color: var(--ink);
+      animation: d5field 10s ease-in-out infinite;
+    }
+    @keyframes d5field {
+      0%, 18% { border-color: var(--skel2); box-shadow: none; }
+      22%, 60% { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(157, 182, 205, 0.25); }
+      66%, 100% { border-color: var(--skel2); box-shadow: none; }
+    }
+    .d5-text {
+      display: inline-block; overflow: hidden; white-space: nowrap; width: 9ch;
+      animation: d5type 10s var(--ease) infinite;
+    }
+    @keyframes d5type {
+      0%, 22% { width: 0ch; animation-timing-function: steps(9, end); }
+      44%, 96% { width: 9ch; }
+      100% { width: 0ch; }
+    }
+    .d5-caret { display: inline-block; width: 1.5px; height: 12px; background: var(--ink); margin-left: 1px;
+      animation: d5caret 1.1s steps(1) infinite; }
+    @keyframes d5caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    .d5-go {
+      width: 96px; height: 30px; border-radius: 8px; background: var(--ink); color: #f4f2ea;
+      display: flex; align-items: center; justify-content: center; font-size: 0.64rem; font-weight: 600;
+      animation: d5go 10s var(--ease) infinite;
+    }
+    @keyframes d5go {
+      0%, 55% { transform: scale(1); }
+      58% { transform: scale(0.93); }
+      61%, 100% { transform: scale(1); }
+    }
+    .d5-cursor {
+      position: absolute; z-index: 8; left: 0; top: 0; width: 14px; height: 14px; pointer-events: none;
+      transform: translate(252px, 168px);
+      animation: d5cur 10s var(--ease) infinite;
+    }
+    /* a real arrow reads as "something is driving this"; a dot reads as a bug */
+    .d5-cursor::before {
+      content: ""; position: absolute; left: 0; top: 0; width: 13px; height: 17px;
+      background: var(--ink);
+      -webkit-clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      filter: drop-shadow(0 0 1.2px #fff) drop-shadow(0 0 1.2px #fff) drop-shadow(0 3px 5px rgba(49, 52, 45, 0.4));
+    }
+    @keyframes d5cur {
+      0%, 10% { transform: translate(268px, 186px); }
+      17%, 50% { transform: translate(150px, 80px); }
+      56%, 64% { transform: translate(64px, 112px); }
+      80%, 100% { transform: translate(268px, 186px); }
+    }
+    .d5-click { position: absolute; z-index: 7; width: 30px; height: 30px; border-radius: 50%;
+      border: 2.5px solid var(--blush); opacity: 0; pointer-events: none; }
+    .d5-click1 { left: 142px; top: 72px; animation: d5c1 10s var(--ease) infinite; }
+    .d5-click2 { left: 56px; top: 104px; animation: d5c2 10s var(--ease) infinite; }
+    @keyframes d5c1 { 0%, 18% { opacity: 0; transform: scale(0.25); } 20% { opacity: 0.85; transform: scale(0.4); } 30% { opacity: 0; transform: scale(1.8); } 100% { opacity: 0; } }
+    @keyframes d5c2 { 0%, 55% { opacity: 0; transform: scale(0.25); } 57% { opacity: 0.85; transform: scale(0.4); } 67% { opacity: 0; transform: scale(1.8); } 100% { opacity: 0; } }
+    .d5-flash { position: absolute; inset: 0; z-index: 6; border-radius: 12px; background: #fff; opacity: 0;
+      pointer-events: none; animation: d5flash 10s ease-out infinite; }
+    @keyframes d5flash { 0%, 66% { opacity: 0; } 69% { opacity: 0.9; } 75%, 100% { opacity: 0; } }
+    .d5-shot {
+      position: absolute; right: 10px; bottom: 10px; z-index: 9;
+      width: 74px; border-radius: 8px; background: #fff; border: 1px solid var(--line);
+      box-shadow: 0 6px 18px -6px rgba(49, 52, 45, 0.35); padding: 5px;
+      animation: d5shot 10s var(--ease) infinite;
+    }
+    @keyframes d5shot {
+      0%, 71% { opacity: 0; transform: translateY(10px) scale(0.8); }
+      76%, 93% { opacity: 1; transform: translateY(0) scale(1); }
+      98%, 100% { opacity: 0; transform: translateY(6px) scale(0.9); }
+    }
+    .d5-shot .thumb { height: 36px; border-radius: 4px; background: linear-gradient(115deg, var(--lilac), var(--blue)); opacity: 0.55; }
+    .d5-shot .cap { font-size: 0.48rem; color: var(--faint); font-family: var(--mono); margin-top: 4px; text-align: center; }
+
+    /* the click has to visibly cause something, or it reads as decoration */
+    .d5-results { display: flex; flex-direction: column; gap: 7px; margin-top: 2px; }
+    .d5-res {
+      display: flex; align-items: center; gap: 7px; opacity: 0;
+      font-size: 0.58rem; color: var(--muted);
+      animation: d5res 10s var(--ease) infinite;
+    }
+    .d5-res i {
+      width: 4px; height: 4px; border-radius: 50%; background: var(--accent, #7d9a84); flex: none;
+    }
+    .d5-res:nth-child(1) { animation-delay: 0s; }
+    .d5-res:nth-child(2) { animation-delay: 0.12s; }
+    .d5-res:nth-child(3) { animation-delay: 0.24s; }
+    @keyframes d5res {
+      0%, 60% { opacity: 0; transform: translateY(5px); }
+      65%, 94% { opacity: 1; transform: none; }
+      99%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+
+    /* the running commentary: which step is happening, right now */
+    .d5-steps {
+      margin: 16px auto 0; display: flex; flex-direction: column; gap: 2px;
+      width: fit-content; max-width: 100%;
+    }
+    .d5-step {
+      display: flex; align-items: center; gap: 9px;
+      font-size: 0.72rem; color: var(--faint);
+      padding: 4px 10px; border-radius: 999px;
+      animation: d5step 10s steps(1) infinite;
+    }
+    .d5-step .n {
+      font-family: var(--mono); font-size: 0.6rem; width: 15px; flex: none;
+    }
+    .d5-step b { font-weight: 600; }
+    .d5-step:nth-child(1) { animation-name: d5step1; }
+    .d5-step:nth-child(2) { animation-name: d5step2; }
+    .d5-step:nth-child(3) { animation-name: d5step3; }
+    .d5-step:nth-child(4) { animation-name: d5step4; }
+    @keyframes d5step1 { 0%, 17% { color: var(--ink); background: rgba(125, 154, 132, 0.14); } 18%, 100% { color: var(--faint); background: transparent; } }
+    @keyframes d5step2 { 0%, 17% { color: var(--faint); background: transparent; } 18%, 52% { color: var(--ink); background: rgba(125, 154, 132, 0.14); } 53%, 100% { color: var(--faint); background: transparent; } }
+    @keyframes d5step3 { 0%, 52% { color: var(--faint); background: transparent; } 53%, 65% { color: var(--ink); background: rgba(125, 154, 132, 0.14); } 66%, 100% { color: var(--faint); background: transparent; } }
+    @keyframes d5step4 { 0%, 65% { color: var(--faint); background: transparent; } 66%, 92% { color: var(--ink); background: rgba(125, 154, 132, 0.14); } 93%, 100% { color: var(--faint); background: transparent; } }
+
+    /* one instruction from you, then four steps it takes on its own */
+    .d5-goal {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      margin: 0 auto 14px; max-width: 340px; text-align: center;
+    }
+    .d5-goal .who {
+      font-size: 0.54rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--faint);
+    }
+    .d5-goal .said {
+      background: var(--ink); color: #f4f2ea; border-radius: 12px;
+      padding: 9px 13px; font-size: 0.74rem; line-height: 1.45;
+    }
+    .d5-then {
+      display: block; text-align: center; margin: 0 auto 8px;
+      font-size: 0.54rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--faint);
+    }
+    .d5-log {
+      margin: 14px auto 0; width: fit-content; max-width: 100%;
+      font-family: var(--mono); font-size: 0.62rem; color: var(--muted);
+      background: rgba(255, 255, 255, 0.55); border: 1px solid var(--glass-edge);
+      padding: 5px 12px; border-radius: 999px;
+    }
+
+    /* the branch's changed files, arriving one after another */
+    .d2-files { border-top: 1px solid var(--line); padding: 9px 12px 11px; background: rgba(252, 250, 244, 0.5); }
+    .d2-fh {
+      font-size: 0.53rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
+      color: var(--faint); margin-bottom: 6px;
+    }
+    .d2-f {
+      display: flex; align-items: center; gap: 10px; padding: 3px 0;
+      font-family: var(--mono); font-size: 0.56rem; color: var(--muted);
+      opacity: 0; transform: translateY(4px);
+    }
+    .d2-f .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .d2-f .add { color: #55704e; }
+    .d2-f .del { color: #a3706f; }
+    .d2-f1 { animation: d2file 9s var(--ease) infinite; animation-delay: 0.6s; }
+    .d2-f2 { animation: d2file 9s var(--ease) infinite; animation-delay: 1.5s; }
+    .d2-f3 { animation: d2file 9s var(--ease) infinite; animation-delay: 2.4s; }
+    @keyframes d2file {
+      0% { opacity: 0; transform: translateY(4px); }
+      8%, 88% { opacity: 1; transform: none; }
+      97%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+
+    /* demo 5 sits in the window now, so its own padding comes off */
+    .d5-mini { padding-bottom: 12px; justify-content: center; }
+    .d5-mini .d5-goal { padding-top: 12px; }
+
+    /* ============ VII: an actual desktop ============ */
+    .dk-desk {
+      position: relative; flex: 1; min-width: 0; overflow: hidden;
+      background:
+        radial-gradient(70% 60% at 15% 10%, rgba(147, 176, 135, 0.42), transparent 70%),
+        radial-gradient(65% 60% at 88% 15%, rgba(134, 166, 198, 0.4), transparent 72%),
+        radial-gradient(70% 65% at 75% 95%, rgba(184, 163, 210, 0.32), transparent 72%),
+        linear-gradient(160deg, #e7e4d8, #e3e8dd 50%, #eae4e1);
+    }
+
+    /* things sitting on the desk itself */
+    .dk-files { position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 12px; z-index: 1; }
+    .dk-file { width: 52px; text-align: center; font-size: 0.46rem; color: var(--muted); }
+    .dk-file i { display: block; width: 26px; height: 30px; margin: 0 auto 3px; border-radius: 4px; }
+    .dk-doc { background: #fdfcf8; border: 1px solid var(--line); box-shadow: 0 2px 5px rgba(49,52,45,0.1); }
+    .dk-folder { background: linear-gradient(#e6d7a8, #dcc98f); border-radius: 3px 5px 4px 4px !important; box-shadow: 0 2px 5px rgba(49,52,45,0.12); }
+
+    /* the windows — each drifts a touch so the surface feels alive */
+    .dk-win {
+      position: absolute; border-radius: 9px; overflow: hidden;
+      background: var(--card); border: 1px solid rgba(49, 52, 45, 0.14);
+      box-shadow: 0 2px 5px rgba(49,52,45,0.06), 0 14px 30px -12px rgba(56, 72, 84, 0.42);
+      display: flex; flex-direction: column;
+    }
+    .dk-bar {
+      display: flex; align-items: center; gap: 5px; padding: 5px 7px; flex: none;
+      border-bottom: 1px solid var(--line); background: rgba(252, 250, 244, 0.75);
+    }
+    .dk-bar .tl { width: 6px; height: 6px; }
+    .dk-url { font-family: var(--mono); font-size: 0.42rem; color: var(--faint); margin-left: 4px; }
+    .dk-name { font-size: 0.48rem; font-weight: 650; margin-left: 4px; }
+    .dk-bar .ap-spin { width: 7px; height: 7px; }
+
+    .dk-browser { left: 15%; top: 12%; width: 44%; height: 60%; z-index: 2; animation: dkFloatA 13s ease-in-out infinite; }
+    .dk-page { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+    .dk-hero { height: 34%; border-radius: 5px; background: linear-gradient(115deg, var(--lilac), var(--blue) 60%, var(--sage)); opacity: 0.62; }
+    .dk-page .ln { height: 4px; }
+    .dk-cards { display: flex; gap: 4px; margin-top: 1px; }
+    .dk-cards span { flex: 1; height: 20px; border-radius: 4px; background: var(--cream); border: 1px solid var(--line); }
+    .dk-cursor {
+      position: absolute; z-index: 5; width: 9px; height: 12px; background: var(--ink);
+      -webkit-clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      filter: drop-shadow(0 0 1px #fff) drop-shadow(0 2px 3px rgba(49,52,45,0.35));
+      animation: dkCursor 9s var(--ease) infinite;
+    }
+    @keyframes dkCursor {
+      0%, 8% { transform: translate(64px, 74px); }
+      22%, 40% { transform: translate(38px, 44px); }
+      54%, 72% { transform: translate(86px, 96px); }
+      88%, 100% { transform: translate(64px, 74px); }
+    }
+
+    .dk-chat { right: 6%; top: 7%; width: 32%; height: 46%; z-index: 3; animation: dkFloatB 15s ease-in-out infinite; }
+    .dk-chat2 { right: 13%; bottom: 12%; width: 27%; height: 27%; z-index: 2; animation: dkFloatA 17s ease-in-out infinite; }
+    .dk-body { flex: 1; min-height: 0; padding: 8px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+    .dk-body .bubble { font-size: 0.46rem; padding: 4px 6px; border-radius: 7px; max-width: 92%; }
+    .dk-body .ap-say { font-size: 0.46rem; line-height: 1.45; }
+    .dk-body .ap-tool { font-size: 0.4rem; padding: 1px 5px; }
+    .dk-body .ln { height: 4px; }
+    .dk-typing { display: flex; gap: 3px; padding: 2px 0; }
+    .dk-typing i { width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--faint); animation: dkDot 1.3s ease-in-out infinite; }
+    .dk-typing i:nth-child(2) { animation-delay: 0.16s; }
+    .dk-typing i:nth-child(3) { animation-delay: 0.32s; }
+    @keyframes dkDot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.45; } 30% { transform: translateY(-2px); opacity: 1; } }
+
+    .dk-dash { left: 6%; bottom: 13%; width: 21%; z-index: 3; padding: 9px 10px 10px; gap: 4px; animation: dkFloatB 12s ease-in-out infinite; }
+    .dk-dash-head { font-size: 0.42rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+    .dk-stat { display: flex; align-items: baseline; gap: 4px; }
+    .dk-stat b { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em; }
+    .dk-stat span { font-size: 0.44rem; color: var(--muted); }
+    .dk-bars { display: flex; align-items: flex-end; gap: 3px; height: 18px; margin-top: 2px; }
+    .dk-bars i { flex: 1; border-radius: 1.5px; background: var(--sage); opacity: 0.65; }
+    .dk-bars i:nth-child(1) { height: 34%; } .dk-bars i:nth-child(2) { height: 56%; }
+    .dk-bars i:nth-child(3) { height: 44%; } .dk-bars i:nth-child(4) { height: 78%; }
+    .dk-bars i:nth-child(5) { height: 62%; } .dk-bars i:nth-child(6) { height: 92%; }
+    .dk-bars i:nth-child(7) { height: 70%; }
+    .dk-delta { font-size: 0.42rem; color: #55704e; }
+
+    @keyframes dkFloatA { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes dkFloatB { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(2px); } }
+
+    /* the dock, with a running dot under whatever is open */
+    .dk-dock {
+      position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 6;
+      display: flex; align-items: flex-end; gap: 6px; padding: 5px 8px 7px; border-radius: 11px;
+      background: rgba(255, 254, 250, 0.62); border: 1px solid rgba(255, 255, 255, 0.7);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      box-shadow: 0 6px 18px -8px rgba(56, 72, 84, 0.4);
+    }
+    .dk-app { position: relative; width: 20px; height: 20px; border-radius: 6px; background: rgba(49, 52, 45, 0.15); }
+    .dk-app i { position: absolute; left: 50%; bottom: -5px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--muted); }
+    .dk-app.a1 { background: var(--ink); }
+    .dk-app.a2 { background: linear-gradient(140deg, var(--blue), var(--lilac)); }
+    .dk-app.a3 { background: linear-gradient(140deg, var(--sage), var(--blue)); }
+    .dk-app.a4 { background: rgba(196, 180, 214, 0.6); }
+    .dk-app.a5 { background: rgba(226, 190, 150, 0.6); }
+    .dk-app.a6 { background: rgba(169, 189, 159, 0.6); }
+
+    /* ============ V: Gmail, in a browser, driven for you ============ */
+    /* The pane is the browser, edge to edge — no card, no inset. */
+    .ap-pbody.flush { padding: 0; align-items: stretch; }
+    .br { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff; }
+    .br-tabs { display: flex; align-items: flex-end; gap: 5px; padding: 5px 7px 0; background: rgba(238,235,228,0.9); }
+    .br-tab {
+      display: inline-flex; align-items: center; gap: 5px; max-width: 78%;
+      font-size: 0.44rem; color: var(--ink); background: #fff;
+      border-radius: 6px 6px 0 0; padding: 4px 9px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .br-fav { width: 7px; height: 7px; border-radius: 1.5px; background: #d93025; flex: none; }
+    .br-plus { font-size: 0.5rem; color: var(--faint); padding: 0 4px 3px; }
+    .br-omni { display: flex; align-items: center; gap: 7px; padding: 5px 8px; background: #fff; border-bottom: 1px solid var(--line); }
+    .br-arrows { font-size: 0.5rem; color: var(--faint); letter-spacing: 2px; }
+    .br-url {
+      flex: 1; display: inline-flex; align-items: center; gap: 4px;
+      font-family: var(--mono); font-size: 0.44rem; color: var(--ink);
+      background: #f1f3f4; border-radius: 999px; padding: 3px 9px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .br-url em { font-style: normal; color: var(--faint); }
+    .br-lock { width: 5px; height: 6px; border-radius: 1px; background: var(--faint); flex: none; }
+
+    .gm { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 84px 1fr; background: #fff; }
+    .gm-side { padding: 8px 6px; }
+    .gm-compose {
+      display: flex; align-items: center; gap: 4px; justify-content: center;
+      font-size: 0.46rem; font-weight: 600; color: #3c4043;
+      background: #c2e7ff; border-radius: 999px; padding: 5px 0; margin-bottom: 8px;
+    }
+    .gm-compose i { width: 6px; height: 6px; border-radius: 1px; background: #3c4043; }
+    .gm-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.46rem; color: #444746; padding: 3px 7px; border-radius: 999px; margin-bottom: 1px;
+    }
+    .gm-nav.on { background: #d3e3fd; color: #0b57d0; font-weight: 700; }
+    .gm-nav span { font-size: 0.42rem; }
+
+    .gm-list { border-left: 1px solid #e8eaed; overflow: hidden; }
+    .gm-row {
+      display: flex; align-items: center; gap: 7px; padding: 5px 9px;
+      border-bottom: 1px solid #f1f3f4; font-size: 0.45rem; color: #5f6368;
+    }
+    .gm-from { width: 58px; flex: none; font-weight: 700; color: #202124; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gm-subj { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gm-subj b { color: #202124; font-weight: 600; }
+    .gm-when { font-size: 0.4rem; color: #5f6368; flex: none; }
+    .gm-done { flex: none; width: 8px; font-size: 0.44rem; color: transparent; }
+    .gm-row.done .gm-done { color: #1e8e3e; }
+    .gm-row.done { color: #9aa0a6; }
+    .gm-row.now { background: #f8fbff; }
+    .gm-row.now .gm-done { color: #1a73e8; animation: gmNow 1.4s ease-in-out infinite; }
+    @keyframes gmNow { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    /* the compose window docks bottom-right, the way Gmail's does */
+    .gm-comp {
+      position: absolute; right: 10px; bottom: 0; width: 47%; z-index: 5;
+      background: #fff; border-radius: 8px 8px 0 0;
+      box-shadow: 0 -1px 3px rgba(60,64,67,0.16), 0 8px 20px -6px rgba(60,64,67,0.4);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .gm-ch { font-size: 0.44rem; font-weight: 650; color: #fff; background: #404040; padding: 4px 9px; }
+    .gm-crow { display: flex; gap: 6px; padding: 4px 9px; border-bottom: 1px solid #f1f3f4; font-size: 0.44rem; color: #5f6368; }
+    .gm-crow span { width: 26px; flex: none; }
+    .gm-crow b { font-weight: 400; color: #202124; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gm-ctext { padding: 7px 9px; font-size: 0.44rem; line-height: 1.65; color: #202124; }
+    .gm-cfoot { display: flex; align-items: center; gap: 8px; padding: 6px 9px 8px; }
+    .gm-send {
+      font-size: 0.45rem; font-weight: 650; color: #fff; background: #0b57d0;
+      border-radius: 999px; padding: 3px 12px;
+      animation: mlSend 9s var(--ease) infinite;
+    }
+    @keyframes mlSend { 0%, 56% { transform: scale(1); } 60% { transform: scale(0.92); } 64%, 100% { transform: scale(1); } }
+    .gm-clip { font-family: var(--mono); font-size: 0.4rem; color: #5f6368; }
+
+    /* the same note, addressed to a different person on each pass */
+    .ml-swap { position: relative; display: inline-grid; }
+    .ml-swap > i { grid-area: 1 / 1; font-style: normal; white-space: nowrap; }
+    .ml-swap .n1 { animation: mlA 9s steps(1) infinite; }
+    .ml-swap .n2 { animation: mlB 9s steps(1) infinite; opacity: 0; }
+    .ml-swap .n3 { animation: mlC 9s steps(1) infinite; opacity: 0; }
+    @keyframes mlA { 0%, 32% { opacity: 1; } 33%, 100% { opacity: 0; } }
+    @keyframes mlB { 0%, 32% { opacity: 0; } 33%, 65% { opacity: 1; } 66%, 100% { opacity: 0; } }
+    @keyframes mlC { 0%, 65% { opacity: 0; } 66%, 100% { opacity: 1; } }
+
+    .ml-toast {
+      position: absolute; left: 12px; bottom: 12px; z-index: 6;
+      font-size: 0.44rem; font-weight: 600; color: #fff; background: #323232;
+      border-radius: 4px; padding: 4px 10px;
+      opacity: 0; transform: translateY(6px);
+      animation: mlToast 9s var(--ease) infinite;
+    }
+    @keyframes mlToast {
+      0%, 60% { opacity: 0; transform: translateY(6px); }
+      66%, 88% { opacity: 1; transform: none; }
+      94%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+    .ml-cursor {
+      position: absolute; z-index: 7; width: 10px; height: 13px; background: var(--ink);
+      -webkit-clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      filter: drop-shadow(0 0 1px #fff) drop-shadow(0 2px 4px rgba(49,52,45,0.4));
+      animation: mlCur 9s var(--ease) infinite;
+    }
+    @keyframes mlCur {
+      0%, 10% { transform: translate(120px, 60px); }
+      26%, 48% { transform: translate(190px, 128px); }
+      58%, 70% { transform: translate(168px, 176px); }
+      86%, 100% { transform: translate(120px, 60px); }
+    }
+    .ml-prog { font-size: 0.5rem; color: var(--muted); }
+    .ml-prog b { font-weight: 650; color: var(--ink); }
+
+    /* ============ Demo 6: notifications ============ */
+    /* You are in another app. SuperAgent does not come to you — it knocks. */
+    .d7-scene {
+      position: relative; flex: 1; overflow: hidden;
+      background:
+        radial-gradient(80% 70% at 20% 10%, rgba(147, 176, 135, 0.5), transparent 70%),
+        radial-gradient(70% 65% at 85% 20%, rgba(134, 166, 198, 0.45), transparent 72%),
+        radial-gradient(75% 70% at 70% 95%, rgba(184, 163, 210, 0.35), transparent 72%),
+        linear-gradient(160deg, #e9e6da, #e4e9de 50%, #ece5e2);
+    }
+    /* the window you are actually looking at, out of focus */
+    .d7-other {
+      position: absolute; left: 26px; right: 96px; top: 30px; bottom: 44px;
+      background: rgba(255, 254, 250, 0.82); border: 1px solid var(--line);
+      border-radius: 11px; overflow: hidden;
+      box-shadow: 0 18px 40px -22px rgba(56, 72, 84, 0.5);
+      opacity: 0.62; filter: saturate(0.6);
+    }
+    .d7-otop { display: flex; align-items: center; gap: 5px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    .d7-otop .chrome-title { margin-left: 6px; }
+    .d7-obody { display: grid; grid-template-columns: 96px 1fr; height: calc(100% - 33px); }
+    .d7-oside { border-right: 1px solid var(--line); padding: 10px 9px; display: flex; flex-direction: column; gap: 8px; }
+    .d7-code { padding: 11px 13px; display: flex; flex-direction: column; gap: 7px; }
+    .d7-code .ln { height: 6px; }
+
+    /* the banner itself */
+    .d7-note {
+      position: absolute; right: 14px; width: 268px;
+      display: flex; gap: 9px; padding: 10px 11px;
+      background: rgba(255, 254, 250, 0.92);
+      border: 1px solid var(--glass-edge); border-radius: 14px;
+      backdrop-filter: blur(14px) saturate(150%);
+      box-shadow: 0 2px 6px rgba(49, 52, 45, 0.07), 0 18px 40px -16px rgba(56, 72, 84, 0.45);
+      transform: translateX(300px); opacity: 0;
+    }
+    .d7-n1 { top: 16px; animation: d7a 12s var(--ease) infinite; }
+    .d7-n2 { top: 16px; animation: d7b 12s var(--ease) infinite; }
+    /* slide in, sit there a while, slide back out — nothing grabs focus */
+    @keyframes d7a {
+      0% { transform: translateX(300px); opacity: 0; }
+      5%, 32% { transform: translateX(0); opacity: 1; }
+      38%, 100% { transform: translateX(300px); opacity: 0; }
+    }
+    @keyframes d7b {
+      0%, 46% { transform: translateX(300px); opacity: 0; }
+      52%, 82% { transform: translateX(0); opacity: 1; }
+      88%, 100% { transform: translateX(300px); opacity: 0; }
+    }
+    .d7-icon {
+      width: 26px; height: 26px; border-radius: 7px; flex: none;
+      background: var(--ink); display: flex; align-items: center; justify-content: center;
+    }
+    .d7-icon i { width: 8px; height: 8px; border-radius: 2px; background: var(--cream); }
+    .d7-txt { min-width: 0; flex: 1; }
+    .d7-hd { display: flex; align-items: baseline; gap: 6px; }
+    .d7-hd b { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.02em; }
+    .d7-time { font-size: 0.53rem; color: var(--faint); margin-left: auto; }
+    .d7-ttl { font-size: 0.63rem; font-weight: 600; margin-top: 1px; line-height: 1.35; }
+    .d7-bd { font-size: 0.6rem; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+    .d7-bd code { font-family: var(--mono); font-size: 0.54rem; padding: 1px 4px; border-radius: 4px; background: rgba(49, 52, 45, 0.07); }
+    .d7-kind {
+      display: inline-block; font-size: 0.5rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 1px 6px; border-radius: 999px; margin-bottom: 3px;
+    }
+    .d7-kind.asks { background: rgba(196, 180, 214, 0.4); color: #6f5d87; }
+    .d7-kind.done { background: rgba(169, 189, 159, 0.4); color: #55704e; }
+
+    /* the dock, with the badge the notification also puts there */
+    .d7-dock {
+      position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+      display: flex; align-items: flex-end; gap: 7px;
+      padding: 6px 9px; border-radius: 13px;
+      background: rgba(255, 254, 250, 0.6); border: 1px solid var(--glass-edge);
+      backdrop-filter: blur(10px);
+    }
+    .d7-app { width: 21px; height: 21px; border-radius: 6px; background: rgba(49, 52, 45, 0.16); }
+    .d7-app.sa { background: var(--ink); position: relative; }
+    .d7-badge {
+      position: absolute; top: -4px; right: -4px; min-width: 13px; height: 13px;
+      border-radius: 999px; background: #c8797a; color: #fff;
+      font-size: 0.46rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      animation: d7badge 12s var(--ease) infinite; opacity: 0; transform: scale(0.3);
+    }
+    @keyframes d7badge {
+      0%, 4% { opacity: 0; transform: scale(0.3); }
+      9%, 100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* ============ Demo 6: the desk ============ */
+    /* padding comes from section.feature now — it is a stage like the rest */
+    .desk-head { text-align: center; max-width: 100%; margin: 0 auto; }
+    .desk-head h2 { font-size: clamp(1.95rem, 3.5vw, 2.8rem); line-height: 1.08; letter-spacing: -0.012em; }
+    .desk-head p { margin: 12px auto 0; color: var(--muted); font-size: 0.97rem; max-width: 82ch; }
+    .desk {
+      position: relative; border-radius: 26px; overflow: hidden;
+      border: 1px solid var(--glass-edge);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      background:
+        radial-gradient(60% 70% at 18% 20%, rgba(169, 189, 159, 0.55), rgba(169, 189, 159, 0) 70%),
+        radial-gradient(55% 65% at 85% 15%, rgba(157, 182, 205, 0.5), rgba(157, 182, 205, 0) 70%),
+        radial-gradient(50% 60% at 70% 90%, rgba(196, 180, 214, 0.45), rgba(196, 180, 214, 0) 70%),
+        radial-gradient(45% 55% at 15% 85%, rgba(228, 192, 193, 0.42), rgba(228, 192, 193, 0) 70%),
+        #f3efe4;
+    }
+    .desk-grid {
+      display: grid; gap: 16px;
+      grid-template-columns: 1.25fr 0.62fr 1fr;
+      grid-template-areas: "browser sim board" "browser sim dash";
+      grid-template-rows: auto auto;
+    }
+    .dk { border-radius: 16px; overflow: hidden; }
+    .js .io .dk { opacity: 0; transform: translateY(30px) scale(0.97); }
+    .js .io.in .dk {
+      opacity: 1; transform: none;
+      transition: opacity 1s var(--ease), transform 1s var(--ease);
+      transition-delay: var(--d, 0s);
+    }
+    .dk-browser { grid-area: browser; display: flex; flex-direction: column; min-height: 300px; background: var(--glass);
+      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--glass-edge); }
+    .dk-sim { grid-area: sim; display: flex; align-items: center; justify-content: center; padding: 8px 0; }
+    .dk-board { grid-area: board; background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-edge); padding: 12px; }
+    .dk-dash { grid-area: dash; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .dk-browser .mini-page { border: none; border-radius: 0; background: rgba(255, 255, 255, 0.75); }
+    .dk-phone { height: 286px; width: 140px; }
+    .dk-title { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 9px; }
+    .kb-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .kb-col { background: rgba(255, 255, 255, 0.55); border-radius: 10px; padding: 5px; min-height: 128px; }
+    .kb-col h4 { font-size: 0.52rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); padding: 3px 4px 5px; }
+    .kb-card { border-radius: 7px; background: #fff; border: 1px solid var(--line); padding: 6px; margin-bottom: 6px;
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.07); }
+    .kb-card .ln { height: 5px; }
+    .kb-card .ln + .ln { margin-top: 4px; }
+    .kb-mover {
+      position: relative; z-index: 3;
+      transform: translate(calc(100% + 18px), 50px);
+      animation: kbmove 10s var(--ease) infinite;
+    }
+    @keyframes kbmove {
+      0%, 30% { transform: translate(0, 0); opacity: 1; }
+      38%, 42% { transform: translate(calc(50% + 9px), 14px) scale(1.06); opacity: 1; }
+      50%, 88% { transform: translate(calc(100% + 18px), 50px) scale(1); opacity: 1; }
+      93% { transform: translate(calc(100% + 18px), 50px); opacity: 0; }
+      94% { transform: translate(0, 0); opacity: 0; }
+      100% { transform: translate(0, 0); opacity: 1; }
+    }
+    .kb-tag { display: inline-block; margin-top: 5px; font-size: 0.44rem; font-weight: 700; letter-spacing: 0.06em;
+      color: #55704e; background: rgba(169, 189, 159, 0.3); border-radius: 999px; padding: 1px 6px; }
+    .tile { background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-edge); border-radius: 14px; padding: 12px; }
+    .tile .big { font-family: var(--serif); font-size: 1.7rem; font-weight: 600; line-height: 1.1; }
+    .tile .sm { font-size: 0.58rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
+    .bars { display: flex; align-items: flex-end; gap: 4px; height: 34px; margin-top: 8px; }
+    .bar { flex: 1; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, var(--blue), var(--sage)); opacity: 0.8;
+      transform-origin: bottom; height: calc(var(--h) * 1%); }
+    .js .io .bar { transform: scaleY(0.12); }
+    .js .io.in .bar { transform: scaleY(1); transition: transform 0.9s var(--ease); transition-delay: var(--d, 0s); }
+    .tile .gauge-bar { width: 100%; margin-top: 10px; height: 6px; }
+    .tile .gauge-fill { animation: none; }
+    .js .io .tile .gauge-fill { transform: scaleX(0.1); }
+    .js .io.in .tile .gauge-fill { transform: scaleX(1); transition: transform 1.1s var(--ease) 0.7s; }
+
+    /* ---------- open & local ---------- */
+    .open { padding: 76px 0 20px; }
+    .open-head { text-align: center; margin-bottom: 40px; }
+    .open-head h2 { font-size: clamp(1.8rem, 3.2vw, 2.5rem); }
+    .open-head p { margin: 16px auto 0; max-width: 52ch; color: var(--muted); font-size: 1rem; }
+    .pillars { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .pillar { padding: 30px 30px 26px; }
+    .pillar .mark {
+      width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+      font-size: 1rem; margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.6); border: 1px solid var(--glass-edge);
+    }
+    .pillar h3 { font-family: var(--serif); font-size: 1.5rem; font-weight: 600; line-height: 1.15; }
+    .pillar h3 em { font-style: italic; font-weight: 500; }
+    .pillar > p { margin-top: 12px; color: var(--muted); font-size: 0.94rem; }
+    .pillar ul { list-style: none; margin-top: 18px; border-top: 1px solid var(--line); }
+    .pillar li {
+      display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line);
+      font-size: 0.88rem; color: var(--muted); line-height: 1.55;
+    }
+    .pillar li:last-child { border-bottom: none; }
+    .pillar li b { color: var(--ink); font-weight: 600; }
+    .pillar li .tick { flex: none; color: var(--sage); font-size: 0.8rem; padding-top: 2px; }
+    .open-foot {
+      margin-top: 22px; text-align: center;
+      font-family: var(--serif); font-style: italic; font-size: 1.05rem; color: var(--muted);
+    }
+    .open-foot a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+    .open-foot a:hover { border-color: var(--ink); }
+
+
+
+    /* ---------- hero: the real window ---------- */
+    .hero-shot { margin: 0; }
+    .hero-shot img { display: block; width: 100%; height: auto; border-radius: 16px; }
+    @media (max-width: 640px) { .hero-shot img { border-radius: 10px; } }
+    /* ---------- details grid ---------- */
+    .details { padding: 84px 0 26px; }
+    .det-head { text-align: center; margin-bottom: 40px; }
+    .det-head h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); }
+    .det-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .det {
+      position: relative; overflow: hidden;
+      padding: 20px 20px 18px; border-radius: 16px;
+      background: rgba(255, 254, 250, 0.72);
+      -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.05), 0 18px 36px -22px rgba(56, 72, 84, 0.42);
+      transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease);
+    }
+    /* each plate keeps a wash of a different pigment in its corner */
+    .det::after {
+      content: ""; position: absolute; right: -30px; top: -30px;
+      width: 110px; height: 110px; border-radius: 50%;
+      background: radial-gradient(closest-side, var(--tint, rgba(147, 176, 135, 0.4)), transparent 72%);
+      pointer-events: none;
+    }
+    .det:nth-child(1) { --tint: rgba(147, 176, 135, 0.42); }
+    .det:nth-child(2) { --tint: rgba(134, 166, 198, 0.42); }
+    .det:nth-child(3) { --tint: rgba(184, 163, 210, 0.42); }
+    .det:nth-child(4) { --tint: rgba(224, 174, 176, 0.42); }
+    .det:nth-child(5) { --tint: rgba(217, 193, 136, 0.42); }
+    .det:nth-child(6) { --tint: rgba(92, 122, 134, 0.32); }
+    .det:hover { transform: translateY(-5px); box-shadow: 0 2px 5px rgba(49, 52, 45, 0.06), 0 28px 48px -22px rgba(56, 72, 84, 0.5); }
+    .det .glyph { position: relative; font-family: var(--serif); font-style: italic; font-size: 1.5rem; color: var(--deep); line-height: 1; margin-bottom: 10px; opacity: 0.75; }
+    .det b { display: block; font-size: 0.88rem; font-weight: 600; letter-spacing: -0.01em; }
+    .det span { display: block; margin-top: 5px; font-size: 0.8rem; color: var(--muted); line-height: 1.55; }
+
+    /* ---------- closing cta ---------- */
+    .close-cta { padding: 92px 0 84px; text-align: center; }
+    .close-cta .plaque {
+      position: relative; max-width: 780px; margin: 0 auto; padding: 54px 40px 46px;
+      border-radius: 24px;
+      background: rgba(255, 254, 250, 0.6);
+      -webkit-backdrop-filter: blur(18px) saturate(1.35); backdrop-filter: blur(18px) saturate(1.35);
+      border: 1px solid var(--glass-edge);
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.05), 0 34px 70px -30px rgba(56, 72, 84, 0.5);
+    }
+    /* an inner gilt line, like a mount inside a frame */
+    .close-cta .plaque::before {
+      content: ""; position: absolute; inset: 9px; border-radius: 17px;
+      border: 1px solid rgba(217, 193, 136, 0.45); pointer-events: none;
+    }
+    .close-cta h2 { font-size: clamp(2.2rem, 5vw, 3.6rem); line-height: 1.08; }
+    .close-cta .hero-ctas { margin-top: 32px; }
+    .close-cta .note { margin-top: 18px; }
+    .how-line { margin-top: 26px; font-family: var(--serif); font-style: italic; font-size: 1.15rem; color: var(--muted); }
+    .how-line b { font-weight: 600; color: var(--ink); font-style: italic; }
+
+    /* ---------- footer ---------- */
+    footer { border-top: 1px solid var(--line); background: rgba(253, 252, 248, 0.5);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+    .foot {
+      max-width: 1080px; margin: 0 auto; padding: 30px 24px;
+      display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+      font-size: 0.84rem; color: var(--muted);
+    }
+    .foot .nav-logo { font-size: 0.9rem; }
+    .foot-links { margin-left: auto; display: flex; gap: 20px; }
+    .foot-links a { text-decoration: none; transition: color 0.25s var(--ease); }
+    .foot-links a:hover { color: var(--ink); }
+
+    /* ---------- play/pause gating (JS present) ---------- */
+    .js .demo * { animation-play-state: paused; }
+    .js .demo.play * { animation-play-state: running; }
+
+    /* ---------- responsive ---------- */
+    /* width now drives the scale on phones and tablets — 960px of window has to
+       fit inside the viewport, so the factor is simply that ratio. */
+    @media (max-width: 980px) { .pane-wrap { --mz: 0.92; } }
+    @media (max-width: 740px) { section.feature { min-height: 0; padding: 40px 0; } }
+
+    @media (max-width: 900px) { .pane-wrap { --mz: 0.84; } }
+    @media (max-width: 820px) { .pane-wrap { --mz: 0.76; } }
+    @media (max-width: 740px) { .pane-wrap { --mz: 0.67; } }
+    @media (max-width: 660px) { .pane-wrap { --mz: 0.59; } }
+    @media (max-width: 580px) { .pane-wrap { --mz: 0.51; } }
+    @media (max-width: 500px) { .pane-wrap { --mz: 0.44; } }
+    @media (max-width: 430px) { .pane-wrap { --mz: 0.36; } }
+    @media (max-width: 370px) { .pane-wrap { --mz: 0.3; } }
+
+    @media (max-width: 900px) {
+      .pillars { grid-template-columns: 1fr; }
+      section.feature { padding: 48px 0; }
+      .feat-grid { gap: 20px; }
+      .feat-copy p { max-width: 60ch; }
+      .desk-grid { grid-template-columns: 1fr 1fr; grid-template-areas: "browser sim" "board board" "dash dash"; }
+      .det-grid { grid-template-columns: 1fr 1fr; }
+      .hw-body { grid-template-columns: 132px 1fr; }
+      .hw-page { display: none; }
+      .chip-gauge { right: 2px; top: -22px; }
+      .chip-notif { left: 2px; bottom: -16px; }
+    }
+    @media (max-width: 560px) {
+      /* the floating chips have nowhere to sit beside a full-width window */
+      .chip-gauge, .chip-notif { display: none; }
+      .wrap { padding: 0 18px; }
+      .hero { padding: 64px 0 28px; }
+      section.feature { padding: 54px 0 14px; }
+      .desk-sec, .details { padding: 80px 0 20px; }
+      .det-grid { grid-template-columns: 1fr; }
+      .desk-grid { grid-template-columns: 1fr; grid-template-areas: "browser" "sim" "board" "dash"; }
+      .desk { padding: 14px; }
+      .d4-flex { gap: 14px; }
+      .d4-desktop { width: 55%; }
+      .d4-phone { width: 104px; height: 216px; }
+      .d3-flex { gap: 18px; }
+      .pane { padding: 12px; }
+      .hw-body { grid-template-columns: 1fr; min-height: 0; }
+      .hw-side { display: none; }
+      .nav-links a:not(.nav-btn) { display: none; }
+    }
+    @media (max-width: 380px) {
+      .d5-stage { transform: scale(0.92); transform-origin: center; }
+      .d2-graph { transform: scale(0.94); transform-origin: center; }
+    }
+
+    /* ---------- reduced motion ---------- */
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+      .js [data-rv], .rise, .js .io .dk { opacity: 1 !important; transform: none !important; }
+      .js .io .bar { transform: scaleY(1) !important; }
+      .js .io .tile .gauge-fill { transform: scaleX(1) !important; }
+      .d1-pg2, .d1-pg3, .d5-click, .d5-flash, .d3-ripple { opacity: 0 !important; }
+      .d3-sheet { transform: translateY(106%) !important; }
+      .kb-mover { transform: translate(calc(100% + 18px), 50px) !important; }
+      .d5-cursor { transform: translate(70px, 110px) !important; }
+    }
+
+    /* ============ quiet: one flat colour, no painting ============ */
+    :root {
+      --paper: #f4f3ef;
+      --ink: #23241f;
+      --muted: #6a6d64;
+      --faint: #9a9d92;
+      --line: rgba(35, 36, 31, 0.11);
+      --card: #ffffff;
+      --skel: #eceae4;
+      --skel2: #dddad1;
+      --accent: #5d7a63;
+      --shadow: none;
+    }
+    body { background: var(--paper); }
+    .pond, .dabs, .glaze, .linen, .top-scrim,
+    .blob, .pad, .stroke { display: none !important; }
+    /* the desk keeps its surface, but as one quiet tone rather than a wallpaper */
+    .desk {
+      background: #efeee9 !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 18px;
+    }
+    .desk-wall-note, .dk-wall { display: none !important; }
+
+    /* surfaces are paper on paper, told apart by a hairline */
+    .glass, .det, .pillar, .trust li, .nav-inner, footer, .close-cta .plaque {
+      background: var(--card) !important;
+      -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+      border: 1px solid var(--line) !important;
+      box-shadow: none !important;
+    }
+    .glass::before { display: none; }
+    .close-cta .plaque::before { display: none; }
+    .det::after { display: none; }
+    .mini, .hw-page, .hw-chat, .hw-side, .mini-page, .d1-pg, .d5-page, .d1-side { background: var(--card) !important; }
+    .hero-mark { box-shadow: none; border-radius: 15px; }
+    .bob { animation: none !important; }
+
+    /* nav sits flat on the page rather than floating */
+    .nav { top: 0; margin: 0; border-bottom: 1px solid var(--line); background: var(--paper); }
+    .nav-inner {
+      width: 100%; max-width: none; border: none !important; border-radius: 0;
+      background: transparent !important; padding: 16px 24px;
+    }
+    .nav-inner > * { max-width: 1080px; }
+    .nav-wrapped { max-width: 1080px; margin: 0 auto; width: 100%; display: flex; align-items: center; gap: 22px; }
+
+    /* flatter mockup accents */
+    .mp-hero, .pm-hero, .d3-hero { background: var(--skel) !important; }
+    .tile, .dk-board, .dk-pane { background: var(--card) !important; border: 1px solid var(--line) !important; }
+    .chip { background: var(--card) !important; border: 1px solid var(--line) !important; box-shadow: none !important; }
+    .trust .tk { stroke: var(--accent); }
+    .pillar li .tick { color: var(--accent); }
+    .pillar .mark { background: var(--paper); border: 1px solid var(--line); }
+    footer { background: var(--card) !important; border-left: none !important; border-right: none !important; border-bottom: none !important; }
+
+    /* a little more air, since there is no colour doing the work */
+    .feat-copy p, .open-head p { color: var(--muted); }
+    .pane-cap, .open-foot { color: var(--faint); }
+
+    /* ============ quiet type: one sans, no italics ============ */
+    h1, h2, h3, .serif {
+      font-family: var(--sans);
+      font-weight: 650;
+      letter-spacing: -0.035em;
+      font-style: normal;
+    }
+    h1 em, h2 em, h3 em, .serif em {
+      font-style: normal;
+      font-weight: 650;
+      color: var(--muted);
+    }
+    .hero h1 { font-size: clamp(2.3rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.045em; }
+    .feat-copy h2 { font-size: clamp(1.6rem, 2.8vw, 2.15rem); }
+    .close-cta h2 { font-size: clamp(1.9rem, 4vw, 2.7rem); letter-spacing: -0.04em; }
+    .det-head h2, .open-head h2 { font-size: clamp(1.5rem, 2.6vw, 2rem); }
+    .kicker .num { font-family: var(--mono); font-style: normal; font-size: 0.68rem; letter-spacing: 0.08em; }
+    .pane-cap, .open-foot, .how-line {
+      font-family: var(--sans); font-style: normal; font-size: 0.82rem;
+    }
+    .how-line { font-size: 0.95rem; }
+    .how-line b { font-style: normal; }
+    .det .glyph { font-family: var(--mono); font-style: normal; font-size: 0.72rem; letter-spacing: 0.08em; }
+    .stamp, .d3-chat .who { font-style: normal; }
+    .tile .big { font-family: var(--sans); font-weight: 700; letter-spacing: -0.03em; }
+
+    /* ============ option 08: a touch of Superdry ============ */
+    :root { --sd-orange: #ee6a1f; }
+    .jp { font-family: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; font-weight: 700; letter-spacing: 0.1em; }
+    .nav-logo .wm { display: flex; flex-direction: column; line-height: 1.1; }
+    .nav-logo .jp { font-size: 0.5rem; color: var(--faint); letter-spacing: 0.2em; margin-top: 2px; }
+    .hero-tag {
+      display: inline-flex; align-items: baseline; gap: 12px; margin: 16px auto 0;
+      padding: 5px 14px 6px; border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(255, 255, 255, 0.5); color: var(--ink); font-size: 0.86rem;
+    }
+    .hero-tag .jp b { color: var(--sd-orange); font-weight: 700; }
+    .hero-tag .en { font-family: var(--sans); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
+    .kicker .jp { text-transform: none; letter-spacing: 0.12em; margin-left: 10px; color: var(--muted); font-size: 0.72rem; }
+    .close-cta .jp.lead { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 8px; }
+    .foot .jp { font-size: 0.68rem; color: var(--faint); letter-spacing: 0.14em; }
+    /* the one brand accent: hero em picks up the orange underline */
+    .hero h1 em { text-decoration: underline; text-decoration-color: var(--sd-orange); text-decoration-thickness: 0.06em; text-underline-offset: 0.12em; }
+
+    /* ---- intro: logo + wordmark, then the logo flies to its seat in the hero ---- */
+    html.intro { overflow: hidden; }
+    html.intro .hero .rise { opacity: 0 !important; transform: translateY(34px) rotate(-0.6deg) !important; transition: none !important; }
+    #intro {
+      position: fixed; inset: 0; z-index: 100; background: var(--cream);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      transition: background 0.6s var(--ease);
+    }
+    html:not(.intro) #intro { display: none; }
+    .intro-box { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .intro-logo {
+      width: 96px; height: 96px; border-radius: 24px; will-change: transform;
+      box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.34), 0 2px 6px rgba(49, 52, 45, 0.14), 0 18px 40px -14px rgba(60, 74, 84, 0.44);
+      animation: i-logo 0.9s var(--ease) both;
+    }
+    @keyframes i-logo { from { opacity: 0; transform: scale(0.6) rotate(-8deg); } to { opacity: 1; transform: none; } }
+    .intro-word { margin-top: 28px; font-family: var(--sans); font-weight: 600; font-size: 2.3rem; letter-spacing: -0.03em; line-height: 1; overflow: hidden; padding: 0.06em 0; }
+    .intro-word span { display: inline-block; animation: i-up 0.7s var(--ease) both; animation-delay: calc(0.45s + var(--i) * 0.045s); }
+    @keyframes i-up { from { transform: translateY(110%); opacity: 0; } }
+    .intro-rule { width: 0; height: 1px; background: var(--ink); opacity: 0.5; margin-top: 16px; animation: i-rule 0.6s var(--ease) both 1s; }
+    @keyframes i-rule { to { width: 120px; } }
+    .intro-jp { margin-top: 12px; font-size: 0.8rem; letter-spacing: 0.36em; color: var(--muted); animation: i-fade 0.6s var(--ease) both 1.15s; }
+    @keyframes i-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .intro-tag {
+      margin-top: 22px; display: inline-flex; align-items: baseline; gap: 12px;
+      padding: 6px 16px 7px; border: 1.5px solid var(--ink); border-radius: 999px;
+      font-size: 0.95rem; color: var(--ink);
+      animation: i-stamp 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both 1.55s;
+    }
+    .intro-tag .jp b { color: var(--sd-orange); }
+    .intro-tag .en { font-family: var(--sans); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
+    @keyframes i-stamp { from { opacity: 0; transform: scale(1.7) rotate(-5deg); } to { opacity: 1; transform: rotate(-1.5deg); } }
+    .intro-skip { position: absolute; bottom: 28px; left: 0; right: 0; text-align: center; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); animation: i-fade 0.8s var(--ease) both 2s; }
+    /* leaving: text drops away, sheet clears, logo is carried to the hero mark by JS */
+    #intro.out { background: transparent; pointer-events: none; }
+    #intro.out .intro-word, #intro.out .intro-rule, #intro.out .intro-jp, #intro.out .intro-tag, #intro.out .intro-skip {
+      opacity: 0; transform: translateY(-8px); transition: opacity 0.3s var(--ease), transform 0.3s var(--ease); animation: none;
+    }
+    #intro.out .intro-logo { animation: none; transition: transform 0.75s var(--ease), border-radius 0.75s var(--ease), box-shadow 0.75s var(--ease); }
+  </style>
+</head>
+<body>
+  <div id="intro" aria-hidden="true">
+    <div class="intro-box">
+      <img class="intro-logo" src="logo.png" alt="" width="96" height="96" />
+      <div class="intro-word" aria-label="SuperAgent"><span style="--i:0">S</span><span style="--i:1">u</span><span style="--i:2">p</span><span style="--i:3">e</span><span style="--i:4">r</span><span style="--i:5">A</span><span style="--i:6">g</span><span style="--i:7">e</span><span style="--i:8">n</span><span style="--i:9">t</span></div>
+      <div class="intro-rule"></div>
+      <div class="intro-jp jp">スーパーエージェント</div>
+      <div class="intro-tag"><span class="jp">極度<b>代理人</b>(しなさい)</span><span class="en">Extreme agent · do it</span></div>
+    </div>
+    <div class="intro-skip">Click to skip</div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#"><img src="logo.png" alt="" /><span class="wm"><span>SuperAgent</span><span class="jp">スーパーエージェント</span></span></a>
+      <div class="nav-links">
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
+        <a class="nav-btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero io demo">
+    <div class="wrap">
+      <img class="hero-mark rise" src="logo.png" alt="SuperAgent logo" width="64" height="64" />
+      <h1 class="rise" style="--d:.08s">A <em>home</em> for your agent.</h1>
+      <div class="hero-tag rise" style="--d:.12s"><span class="jp">極度<b>代理人</b>(しなさい)</span><span class="en">Extreme agent · do it</span></div>
+      <p class="hero-sub rise" style="--d:.16s">
+        A Mac app where Claude Code lives: a real browser it drives, an iPhone in
+        the window, chats that survive restarts. Open source, on your own subscription.
+      </p>
+      <ul class="trust rise" style="--d:.2s">
+        <li><svg class="tk" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.2"/><path d="M1 12.6h14"/></svg> Nothing leaves your Mac</li>
+        <li><svg class="tk" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.6 8s2.6-4 6.4-4 6.4 4 6.4 4-2.6 4-6.4 4S1.6 8 1.6 8Z"/><circle cx="8" cy="8" r="1.7"/><path d="M2.6 13.4 13.4 2.6"/></svg> No account, no telemetry</li>
+        <li><svg class="tk" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.6 4.6 2 8l3.6 3.4"/><path d="M10.4 4.6 14 8l-3.6 3.4"/><path d="M9.3 3.2 6.7 12.8"/></svg> Open source</li>
+      </ul>
+      <div class="hero-ctas rise" style="--d:.24s">
+        <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple">&#63743;</span> Download for Mac</a>
+        <a class="link" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+      <p class="note rise" style="--d:.3s">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription</p>
+
+      <div class="hero-stage">
+        <figure class="hero-shot rise" style="--d:.4s">
+          <img src="hero.png" alt="The SuperAgent window: stripe.com open in the browser pane as a desktop card and an iPhone side by side, with the chat that opened it reporting what it found" width="2720" height="1800" fetchpriority="high" decoding="async" />
+        </figure>
+      </div>
+  </header>
+
+
+  <nav class="rail" aria-label="Sections">
+    <a href="#features"><span>Sidebar</span><i></i></a>
+    <a href="#worktrees"><span>Worktrees</span><i></i></a>
+    <a href="#simulator"><span>Simulator</span><i></i></a>
+    <a href="#twice"><span>Two screens</span><i></i></a>
+    <a href="#automation"><span>Automation</span><i></i></a>
+    <a href="#notifications"><span>Notifications</span><i></i></a>
+    <a href="#desk"><span>The desk</span><i></i></a>
+  </nav>
+
+  <!-- 1 · sidebar -->
+  <section class="feature io demo" id="features">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">I.</span>The sidebar<span class="jp">サイドバー</span></span>
+        <h2>Every session, <em>one rail.</em></h2>
+        <p>One chat per task. Each one keeps its own context and picks up mid&#8209;thought. A spinner means it is still going. A dot means it finished without you.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:10s">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group">Browsing</div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-group">Work</div>
+            <div class="ap-row on"><i class="ap-caret down"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">landing-page</span>
+            <span class="ap-path">~/work/landing-page</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span><span class="ap-server"><i></i>localhost:5173<em>Open preview</em></span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-chat">
+            <div class="ap-stream ap-stack">
+            <div class="d1-pg d1-pg1">
+            <div class="bubble bub-user">Tighten the hero copy, keep the serif on the emphasis.</div>
+            <div class="d1-say">Trimming the sub-headline and leaving the serif where it earns its keep.</div>
+            <div class="d1-steps">
+            <span class="caret">&rsaquo;</span>
+            <b class="d1-swap"><span class="d1-n1">3 steps</span><span class="d1-n2">7 steps</span><span class="d1-n3">11 steps</span></b>
+            <span>&middot; 1 edit</span>
+            <span class="d1-live"><i></i></span>
+            <span class="d1-st d1-swap"><span class="d1-s1">Reading index.html</span><span class="d1-s2">Editing hero copy</span><span class="d1-s3">Done in 24s</span></span>
+            </div>
+            <div class="d1-card">
+            <div class="d1-say"><code>docs/index.html</code> &mdash; the sub is one line now.</div>
+            <ul class="d1-bul">
+            <li><b>Sub-headline</b> &mdash; 34 words down to 12.</li>
+            <li><b>Serif</b> &mdash; kept on the emphasis, dropped elsewhere.</li>
+            </ul>
+            <div class="d1-diff"><span class="add">+12</span><span class="del">&minus;34</span><span>1 file changed</span></div>
+            </div>
+            <div class="bubble bub-user d1-late">Good. Commit it.</div>
+            <div class="d1-say d1-late">Committed as <code>Landing: shorter hero sub</code>.</div>
+            </div>
+            <div class="d1-pg d1-pg2">
+            <div class="bubble bub-user">Why is the login redirect looping?</div>
+            <div class="d1-say">Opened the page and walked the redirect chain in the browser pane.</div>
+            <div class="d1-steps">
+            <span class="caret">&rsaquo;</span><b>9 steps</b><span>&middot; 2 edits</span>
+            <span class="d1-st">Done in 1m 12s</span>
+            </div>
+            <div class="d1-card">
+            <div class="d1-say">The session cookie was set on <code>/login</code> but read on <code>/</code>, so the guard bounced you every time.</div>
+            <ul class="d1-bul">
+            <li><b>Cause</b> &mdash; cookie path scoped too narrowly.</li>
+            <li><b>Fix</b> &mdash; set <code>path=/</code> and added a regression test.</li>
+            </ul>
+            <div class="d1-diff"><span class="add">+31</span><span class="del">&minus;6</span><span>2 files changed</span></div>
+            </div>
+            <div class="bubble bub-user">Does the test cover the logout path too?</div>
+            <div class="d1-say">It does now &mdash; <code>tests/auth.spec.ts</code> asserts the cookie is cleared on sign&#8209;out.</div>
+            </div>
+            <div class="d1-pg d1-pg3">
+            <div class="bubble bub-user">Move us to pnpm, keep CI green.</div>
+            <div class="d1-say">Migrated the lockfile and reran the workflow until it passed.</div>
+            <div class="d1-steps">
+            <span class="caret">&rsaquo;</span><b>26 steps</b><span>&middot; 5 edits</span>
+            <span class="d1-st">Done in 4m 06s</span>
+            </div>
+            <div class="d1-card">
+            <div class="d1-say"><code>pnpm-lock.yaml</code> replaces <code>package-lock.json</code>; CI is green on the branch.</div>
+            <ul class="d1-bul">
+            <li><b>Workflow</b> &mdash; swapped the setup step and the cache key.</li>
+            <li><b>Install</b> &mdash; 41s down to 12s on a cold runner.</li>
+            </ul>
+            <div class="d1-diff"><span class="add">+248</span><span class="del">&minus;3,911</span><span>4 files changed</span></div>
+            </div>
+            <div class="bubble bub-user">Any peer-dep warnings?</div>
+            <div class="d1-say">Two, both from <code>eslint-config-next</code>. Pinned them in <code>.npmrc</code> and the install is clean.</div>
+            </div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+          <p class="pane-cap">Click a session. The whole conversation is already there.</p>
+          <ul class="spec"><li>One chat per task</li><li>Context survives a restart</li><li>Working and unread, at a glance</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · worktrees -->
+  <section class="feature flip io demo" id="worktrees">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">II.</span>Worktree chats<span class="jp">各チャット、各ブランチ</span></span>
+        <h2>Each chat, its <em>own branch.</em></h2>
+        <p>Start a chat on its own git worktree and it commits somewhere else entirely. Your checkout does not move. Not one file.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:11s; --bobo:-2s">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group">Browsing</div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-group">Work</div>
+            <div class="ap-row on"><i class="ap-caret down"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
+            <div class="ap-crow on"><span class="ap-clabel">Fix the flaky auth test</span><span class="ap-wt">worktree</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">landing-page</span>
+            <span class="ap-path">~/work/.worktrees/fix-auth</span>
+            <span class="ap-branch"><i>&#9095;</i>superagent/fix&#8209;auth</span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-chat">
+            <div class="ap-stream">
+            <div class="bubble bub-user">Fix the flaky auth test &mdash; on its own branch, don't touch my checkout.</div>
+            <div class="ap-say">Started this chat on a worktree at <code>superagent/fix-auth</code>. Commits land there; <code>main</code> stays where you left it.</div>
+            <div class="ap-card">
+            <div class="d2-graph">
+            <span class="d2-commit-msg">&#10003; stub clock in auth spec</span>
+            <span class="d2-lbl br-l">superagent/fix-auth</span>
+            <span class="d2-line d2-main-line"></span>
+            <span class="d2-line d2-diag"></span>
+            <span class="d2-line d2-branch-line"></span>
+            <span class="d2-c d2-cm cm1"></span>
+            <span class="d2-c d2-cm cm2"></span>
+            <span class="d2-c d2-cm cm3"></span>
+            <span class="d2-c d2-cb cb1 d2-pop1"></span>
+            <span class="d2-c d2-cb cb2 d2-pop2"></span>
+            <span class="d2-c d2-cb cb3 d2-pop3"></span>
+            <span class="d2-lbl main-l">main</span>
+            <span class="d2-clean"><i>&#10003;</i> your checkout · clean</span>
+            </div>
+            <div class="d2-files">
+            <div class="d2-fh">Changed on the branch</div>
+            <div class="d2-f d2-f1"><span class="fn">src/auth/session.ts</span><span class="add">+26</span><span class="del">&minus;4</span></div>
+            <div class="d2-f d2-f2"><span class="fn">src/auth/clock.ts</span><span class="add">+18</span><span class="del">&minus;0</span></div>
+            <div class="d2-f d2-f3"><span class="fn">tests/auth.spec.ts</span><span class="add">+41</span><span class="del">&minus;12</span></div>
+            </div>
+            </div>
+            <div class="ap-say">Three commits in. Your working tree is still clean.</div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+          <p class="pane-cap">Commits land on the branch. Main stays put.</p>
+          <ul class="spec"><li>Its own git worktree</li><li>Your checkout never moves</li><li>A branch named for the chat</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · simulator -->
+  <section class="feature io demo" id="simulator">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">III.</span>The simulator<span class="jp">シミュレーター</span></span>
+        <h2>An iPhone, <em>living</em> in the window.</h2>
+        <p>A real iOS Simulator, streamed from its own framebuffer. It taps. It types. It swipes. Nothing to install.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:9.5s; --bobo:-4s">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group">Browsing</div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-group">Work</div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-caret down"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow on"><span class="ap-clabel">Check the confirm flow</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Order sheet spacing</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Bump to iOS 18.2</span></div>
+            </div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">mobile-app</span>
+            <span class="ap-path">~/work/mobile-app</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-split">
+            <div class="ap-pane sim">
+            <div class="ap-pbar"><span class="ap-pdevice">iPhone 16 &middot; iOS 18.2</span><span class="ap-live"><i></i>streaming</span></div>
+            <div class="ap-pbody">
+            <div class="iphone d3-phone">
+            <span class="island"></span>
+            <div class="iphone-screen">
+            <div class="d3-app">
+            <div class="d3-navbar"><span class="d3-title">Orders</span><span class="ln dk" style="width:20px"></span></div>
+            <div class="d3-list">
+            <div class="d3-card hl">
+            <span class="d3-ripple"></span>
+            <span class="ln dk" style="width:52%"></span>
+            <span class="ln" style="width:76%"></span>
+            </div>
+            <div class="d3-card"><span class="ln dk" style="width:44%"></span><span class="ln" style="width:68%"></span></div>
+            <div class="d3-card"><span class="ln dk" style="width:58%"></span><span class="ln" style="width:72%"></span></div>
+            <div class="d3-card"><span class="ln dk" style="width:40%"></span><span class="ln" style="width:64%"></span></div>
+            </div>
+            </div>
+            <div class="d3-sheet">
+            <span class="d3-grab"></span>
+            <span class="ln dk" style="width:46%; height:9px"></span>
+            <span class="ln" style="width:82%"></span>
+            <span class="ln" style="width:70%"></span>
+            <span class="d3-btn">Confirm order</span>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            <div class="ap-chat narrow">
+            <div class="ap-stream">
+            <div class="bubble bub-user">Check the confirm button still works on iPhone.</div>
+            <div class="ap-say">Booting the simulator and opening Orders.</div>
+            <div class="ap-tool"><i></i>sim_boot &rsaquo; iPhone 16</div>
+            <div class="ap-tool"><i></i>sim_tap &rsaquo; row 2</div>
+            <div class="ap-say">Tapped it. The sheet opens and <b>Confirm order</b> is enabled.</div>
+            <div class="ap-tool"><i></i>sim_screen &rsaquo; captured</div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+          <p class="pane-cap">You ask once. It boots the device and reports back.</p>
+          <ul class="spec"><li>Streamed from the framebuffer</li><li>Tap, type and swipe</li><li>Nothing to install</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · two live views -->
+  <section class="feature flip io demo" id="twice">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">IV.</span>Desktop &amp; phone at once<span class="jp">二重表示</span></span>
+        <h2>One page, <em>seen twice.</em></h2>
+        <p>The same page as a desktop card and as a phone. One session, both live. Change something and it lands in both.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:10.5s; --bobo:-1s">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group">Browsing</div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-group">Work</div>
+            <div class="ap-row on"><i class="ap-caret down"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow on"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">landing-page</span>
+            <span class="ap-path">~/work/landing-page</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span><span class="ap-server"><i></i>localhost:5173<em>Open preview</em></span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-split">
+            <div class="ap-pane ">
+            <div class="ap-pbar"><span class="ap-purl">yoursite.dev/launch</span><span class="ap-vp"><b>Desktop</b> + Phone</span></div>
+            <div class="ap-pbody">
+            <div class="d4-flex">
+            <div class="d4-desktop">
+            <div class="mp-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="mp-url">yoursite.dev/launch</span></div>
+            <div class="d4-view">
+            <div class="pm">
+            <div class="pm-nav"><span class="pm-logo"></span><span class="ln" style="width:26px"></span><span class="ln" style="width:26px"></span><span class="ln dk" style="width:38px; margin-left:auto"></span></div>
+            <div class="pm-hero"></div>
+            <div class="ln dk" style="width:62%; height:9px"></div>
+            <div class="ln" style="width:84%"></div>
+            <div class="ln" style="width:52%"></div>
+            <div class="pm-btn"></div>
+            <div class="pm-cards"><span class="pm-card"></span><span class="pm-card"></span><span class="pm-card"></span></div>
+            <div class="ln" style="width:70%"></div>
+            <div class="ln" style="width:58%"></div>
+            </div>
+            </div>
+            </div>
+            <div class="iphone d4-phone">
+            <span class="island"></span>
+            <div class="iphone-screen">
+            <div class="pm" style="padding-top:30px">
+            <div class="pm-nav"><span class="pm-logo"></span><span class="ln dk" style="width:30px; margin-left:auto"></span></div>
+            <div class="pm-hero" style="height:52px"></div>
+            <div class="ln dk" style="width:74%; height:8px"></div>
+            <div class="ln" style="width:90%"></div>
+            <div class="ln" style="width:64%"></div>
+            <div class="pm-btn" style="width:64px; height:18px"></div>
+            <div class="pm-cards" style="flex-direction:column"><span class="pm-card" style="height:30px"></span><span class="pm-card" style="height:30px"></span></div>
+            <div class="ln" style="width:76%"></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            <div class="ap-chat narrow">
+            <div class="ap-stream">
+            <div class="bubble bub-user">Show me the launch page on both.</div>
+            <div class="ap-say">Same session, two viewports. Scroll one and the other follows.</div>
+            <div class="ap-tool"><i></i>browser_navigate &rsaquo; /launch</div>
+            <div class="ap-say">The hero holds up at 390pt; the card row stacks below 520.</div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+          <p class="pane-cap">Two screens. One truth.</p>
+          <ul class="spec"><li>One session, two viewports</li><li>Live, not screenshots</li><li>Every change lands in both</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · automation -->
+  <section class="feature io demo" id="automation">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">V.</span>Browser automation<span class="jp">自動操作</span></span>
+        <h2>Hands <em>on the page.</em></h2>
+        <p>Say what you want done. It opens the site you are already signed in to and works it the way you would &mdash; reading, writing, clicking, sending.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:11.5s; --bobo:-5s">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group">Browsing</div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-group">Work</div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-caret down"></i><span>outreach</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow on"><span class="ap-clabel">Pricing follow-ups</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Launch note draft</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Weekly digest</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">outreach</span>
+            <span class="ap-path">~/work/outreach</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-split">
+            <div class="ap-pane ">
+            <div class="ap-pbar"><span class="ap-pdevice">Signed in as you</span><span class="ml-prog"><b class="ml-swap"><i class="n1">5</i><i class="n2">6</i><i class="n3">7</i></b> of 8 sent</span><span class="ap-live"><i></i>Claude is browsing</span></div>
+            <div class="ap-pbody flush">
+                  <div class="br">
+                    <div class="br-tabs">
+                      <span class="br-tab"><i class="br-fav"></i>Inbox (12) &ndash; you@yourco.com &ndash; Gmail</span>
+                      <span class="br-plus">+</span>
+                    </div>
+                    <div class="br-omni">
+                      <span class="br-arrows">&lsaquo; &rsaquo;</span>
+                      <span class="br-url"><i class="br-lock"></i>mail.google.com<em>/mail/u/0/#inbox</em></span>
+                    </div>
+                    <div class="gm">
+                      <aside class="gm-side">
+                        <div class="gm-compose"><i></i>Compose</div>
+                        <div class="gm-nav on">Inbox<span>12</span></div>
+                        <div class="gm-nav">Starred</div>
+                        <div class="gm-nav">Snoozed</div>
+                        <div class="gm-nav">Sent<span class="ml-swap"><i class="n1">5</i><i class="n2">6</i><i class="n3">7</i></span></div>
+                        <div class="gm-nav">Drafts</div>
+                      </aside>
+                      <div class="gm-list">
+                        <div class="gm-row done"><span class="gm-from">Priya Raman</span><span class="gm-subj"><b>Pricing for a team of 12</b> &mdash; we are comparing a few options</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row done"><span class="gm-from">Daniel Ok</span><span class="gm-subj"><b>Re: the launch note</b> &mdash; is there a written version?</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row now"><span class="gm-from">Mei Sandoval</span><span class="gm-subj"><b>Quick question on tiers</b> &mdash; do you charge per seat or per repo?</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row "><span class="gm-from">Tomas Ilves</span><span class="gm-subj"><b>Following up</b> &mdash; no rush, whenever suits</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row "><span class="gm-from">Ana Beltr&aacute;n</span><span class="gm-subj"><b>Enterprise pricing?</b> &mdash; we would need SSO and audit logs</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row "><span class="gm-from">Ravi Menon</span><span class="gm-subj"><b>Pricing page question</b> &mdash; the middle tier is the one</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                      </div>
+                      <div class="gm-comp">
+                        <div class="gm-ch">New Message</div>
+                        <div class="gm-crow"><span>To</span><b class="ml-swap"><i class="n1">priya@northwind.co</i><i class="n2">daniel@aperture.io</i><i class="n3">mei@lantern.dev</i></b></div>
+                        <div class="gm-crow"><span>Subject</span><b>Pricing, and the launch note</b></div>
+                        <div class="gm-ctext">
+                          Hi <b class="ml-swap"><i class="n1">Priya</i><i class="n2">Daniel</i><i class="n3">Mei</i></b>,<br>
+                          You asked about pricing last week &mdash; the launch note is attached, and the team tier is the one you want.
+                        </div>
+                        <div class="gm-cfoot"><span class="gm-send">Send</span><span class="gm-clip">launch-note.pdf</span></div>
+                      </div>
+                      <div class="ml-toast">&#10003; Sent</div>
+                      <span class="ml-cursor"></span>
+                    </div>
+                  </div>
+                </div>
+            </div>
+            <div class="ap-chat narrow">
+                    <div class="ap-stream">
+                      <div class="bubble bub-user">Eight people asked about pricing this week. Send them each the launch note.</div>
+                      <div class="ap-say">Your inbox is already open and signed in. Working through them one at a time.</div>
+                      <div class="d5-steps" aria-hidden="true">
+                        <div class="d5-step"><span class="n">01</span><span><b>Reads</b> the eight threads</span></div>
+                        <div class="d5-step"><span class="n">02</span><span><b>Writes</b> each reply by name</span></div>
+                        <div class="d5-step"><span class="n">03</span><span><b>Attaches</b> the launch note</span></div>
+                        <div class="d5-step"><span class="n">04</span><span><b>Sends</b>, and lists who it wrote</span></div>
+                      </div>
+                      <div class="ap-say">Six away. Two are asking about the enterprise tier &mdash; I have left those for you.</div>
+                    </div>
+                    <div class="ap-comp">
+                      <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+                      <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+                    </div>
+                  </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+          <p class="pane-cap">You ask once. It does the rest, in your own browser.</p>
+          <ul class="spec"><li>Your own logged-in sessions</li><li>Click, type, read back</li><li>A stop button, always</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · the desk -->
+  <!-- 6 · notifications -->
+  <section class="feature io demo" id="notifications">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">VI.</span>Notifications<span class="jp">通知</span></span>
+        <h2>It knocks. <em>It never barges in.</em></h2>
+        <p>Your window stays exactly where it is. When the agent finishes, or needs a yes, it says so from the corner.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:10.5s; --bobo:-3s">
+          <div class="scaler"><div class="mini scene">
+            <div class="d7-desk">
+            <div class="appwin dim">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group">Browsing</div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-group">Work</div>
+            <div class="ap-row on"><i class="ap-caret down"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow on"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">landing-page</span>
+            <span class="ap-path">~/work/landing-page</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-chat">
+            <div class="ap-stream">
+            <div class="bubble bub-user">Push it when the tests pass.</div>
+            <div class="ap-say">Running the suite now. I'll ask before I push.</div>
+            <div class="ap-tool"><i></i>npm test &rsaquo; 24 passing</div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            <div class="d7-note d7-n1">
+            <span class="d7-icon"><i></i></span>
+            <div class="d7-txt">
+            <div class="d7-hd"><b>SuperAgent</b><span class="d7-time">now</span></div>
+            <span class="d7-kind asks">Wants you</span>
+            <div class="d7-ttl">Fix the flaky auth test</div>
+            <div class="d7-bd">Asking before it runs <code>git push --force-with-lease</code></div>
+            </div>
+            </div>
+            <div class="d7-note d7-n2">
+            <span class="d7-icon"><i></i></span>
+            <div class="d7-txt">
+            <div class="d7-hd"><b>SuperAgent</b><span class="d7-time">now</span></div>
+            <span class="d7-kind done">Finished</span>
+            <div class="d7-ttl">Migrate to pnpm</div>
+            <div class="d7-bd">26 steps, 4 files changed. CI is green on the branch.</div>
+            </div>
+            </div>
+            <div class="d7-dock">
+            <span class="d7-app"></span>
+            <span class="d7-app"></span>
+            <span class="d7-app sa"><span class="d7-badge">1</span></span>
+            <span class="d7-app"></span>
+            <span class="d7-app"></span>
+            </div>
+            </div>
+          </div></div>
+          <p class="pane-cap">It waits in the corner until you are ready.</p>
+          <ul class="spec"><li>A real macOS notification</li><li>Click lands in the chat that asked</li><li>The window never raises itself</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="feature desk-sec io demo" id="desk">
+    <div class="wrap feat-grid">
+      <div class="desk-head feat-copy" data-rv>
+        <span class="kicker"><span class="num">VII.</span>The finale<span class="jp">机</span></span>
+        <h2>The computer <em>inside</em> SuperAgent.</h2>
+        <p>A desktop, not a slot. Windows you can move, a dock, and more than one agent working at the same time.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.1s">
+        <div class="pane">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+              <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+              <div class="ap-group">Browsing</div>
+              <div class="ap-row dim"><i class="fv fv1"></i><span>stripe.com</span></div>
+              <div class="ap-group">Work</div>
+              <div class="ap-row on"><i class="ap-caret down"></i><span>Computer</span></div>
+              <div class="ap-chats">
+                <div class="ap-crow on"><span class="ap-clabel">Pricing page refresh</span><i class="ap-spin"></i></div>
+                <div class="ap-crow"><span class="ap-clabel">Ship the changelog</span><i class="ap-spin"></i></div>
+                <div class="ap-crow"><span class="ap-clabel">Weekly numbers</span><i class="ap-unread"></i></div>
+              </div>
+              <div class="ap-row dim"><i class="ap-caret"></i><span>landing-page</span><span class="ap-br">main</span></div>
+              <div class="ap-row dim"><i class="ap-caret"></i><span>docs-site</span><span class="ap-br">main</span></div>
+              <div class="ap-group">Personal</div>
+              <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+          </aside>
+              <div class="ap-main">
+                <div class="ap-bar">
+                  <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+                  <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+                  <span class="ap-title">Computer</span>
+                  <span class="ap-path">3 agents working</span>
+                  <span class="ap-spacer"></span>
+                  <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+                  <span class="ap-btn ic-only">&#9704;</span>
+                </div>
+                <div class="ap-content">
+                  <div class="dk-desk">
+
+                    <div class="dk-files">
+                      <div class="dk-file"><i class="dk-doc"></i><span>notes.md</span></div>
+                      <div class="dk-file"><i class="dk-folder"></i><span>screenshots</span></div>
+                    </div>
+
+                    <!-- the page one agent is working on -->
+                    <div class="dk-win dk-browser">
+                      <div class="dk-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="dk-url">stripe.com/pricing</span></div>
+                      <div class="dk-page">
+                        <div class="dk-hero"></div>
+                        <div class="ln dk" style="width:52%"></div>
+                        <div class="ln" style="width:78%"></div>
+                        <div class="dk-cards"><span></span><span></span><span></span></div>
+                        <div class="ln" style="width:64%"></div>
+                      </div>
+                      <span class="dk-cursor"></span>
+                    </div>
+
+                    <!-- an agent mid-sentence -->
+                    <div class="dk-win dk-chat">
+                      <div class="dk-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="dk-name">Pricing page refresh</span><i class="ap-spin"></i></div>
+                      <div class="dk-body">
+                        <div class="bubble bub-user">Make the tiers easier to compare.</div>
+                        <div class="ap-say">Three columns, same baseline, price up top.</div>
+                        <div class="ap-tool"><i></i>browser_click &rsaquo; Pricing</div>
+                        <div class="dk-typing"><i></i><i></i><i></i></div>
+                      </div>
+                    </div>
+
+                    <!-- a second agent, so it reads as more than one -->
+                    <div class="dk-win dk-chat2">
+                      <div class="dk-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="dk-name">Ship the changelog</span><i class="ap-spin"></i></div>
+                      <div class="dk-body">
+                        <div class="ap-tool"><i></i>git commit &rsaquo; 1.5.13</div>
+                        <div class="ln" style="width:82%"></div>
+                        <div class="ln" style="width:58%"></div>
+                      </div>
+                    </div>
+
+                    <div class="dk-win dk-dash">
+                      <div class="dk-dash-head">Today</div>
+                      <div class="dk-stat"><b>42</b><span>turns</span></div>
+                      <div class="dk-delta">&#9650; 8 on yesterday</div>
+                      <div class="dk-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                    </div>
+
+                    <div class="dk-dock">
+                      <span class="dk-app a1"><i></i></span>
+                      <span class="dk-app a2"><i></i></span>
+                      <span class="dk-app a3"><i></i></span>
+                      <span class="dk-app a4"></span>
+                      <span class="dk-app a5"></span>
+                      <span class="dk-app a6"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div></div>
+          <p class="pane-cap">Everything it is doing, on one surface, at the same time.</p>
+          <ul class="spec"><li>Windows you can move</li><li>Several agents at once</li><li>A dock for the rest</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- details -->
+  <section class="open io">
+    <div class="wrap">
+      <div class="open-head" data-rv>
+        <span class="kicker"><span class="num">VII.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
+        <h2>Open source. <em>No server.</em></h2>
+        <p>An agent with a browser is an agent with your logins. So you should be able
+          to see where it runs and read exactly what it does.</p>
+      </div>
+      <div class="pillars">
+        <div class="pillar glass" data-rv>
+          <div class="mark">&#9671;</div>
+          <h3>Open source, <em>end to end.</em></h3>
+          <p>Not a wrapper with a peek at the source. The whole app is on GitHub under MIT.</p>
+          <ul>
+            <li><span class="tick">&#10003;</span><span><b>Read how it touches your browser.</b> The part that matters most is the part you can audit.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Build it yourself.</b> Clone it, change it, ship your own. MIT means MIT.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Signed and notarized by Apple</b>, so the build you download is the one that was published.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Issues in the open.</b> Bugs, roadmap and arguments all happen in public.</span></li>
+          </ul>
+        </div>
+        <div class="pillar glass" data-rv style="--d:.1s">
+          <div class="mark">&#8962;</div>
+          <h3>It never <em>phones home.</em></h3>
+          <p>There is no SuperAgent server. There is nowhere for your work to go but your own disk.</p>
+          <ul>
+            <li><span class="tick">&#10003;</span><span><b>Your chats, code and pages stay local.</b> Nothing is uploaded, because there is nothing to upload it to.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Your own Claude subscription.</b> The agent talks to Anthropic directly, with no proxy of ours in between and no second bill.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>No account, no analytics, no tracking.</b> There is no sign-up screen and no telemetry SDK in the build.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Your logins stay yours.</b> Browser sessions live in a profile on your Mac, the same as any browser.</span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="open-foot" data-rv>It's all public. <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">read the source</a>.</p>
+    </div>
+  </section>
+
+  <section class="details io">
+    <div class="wrap">
+      <div class="det-head" data-rv>
+        <span class="kicker">The small things<span class="jp">小さな事</span></span>
+        <h2>Done <em>properly.</em></h2>
+      </div>
+      <div class="det-grid">
+        <div class="det" data-rv style="--d:.05s"><div class="glyph">a.</div><b>Survives restarts</b><span>Panes, open files, active chat, exactly where you left them, even through updates.</span></div>
+        <div class="det" data-rv style="--d:.12s"><div class="glyph">b.</div><b>Never steals focus</b><span>Agents finish quietly in the background. The window comes forward only when you ask.</span></div>
+        <div class="det" data-rv style="--d:.19s"><div class="glyph">c.</div><b>Interject mid-turn</b><span>Type while the agent works and it sees your message before it finishes, just like the terminal.</span></div>
+        <div class="det" data-rv style="--d:.26s"><div class="glyph">d.</div><b>Context gauge</b><span>Every conversation shows how much of the context window it has used.</span></div>
+        <div class="det" data-rv style="--d:.33s"><div class="glyph">e.</div><b>Useful notifications</b><span>Done or has a question, with a summary of the agent's actual last reply.</span></div>
+        <div class="det" data-rv style="--d:.4s"><div class="glyph">f.</div><b>Updates itself</b><span>Signed, notarized, delivered in the background. Restart when it suits you.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- closing -->
+  <section class="close-cta io">
+    <div class="wrap">
+      <div class="plaque" data-rv>
+        <span class="jp lead">画面を与えなさい</span>
+        <h2>Give your agent <em>a screen.</em></h2>
+        <p class="how-line" data-rv style="--d:.1s"><b>Install.</b> Point it at something. <b>Talk.</b> Then watch it work in the pane next door.</p>
+        <div class="hero-ctas" data-rv style="--d:.2s">
+          <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple">&#63743;</span> Download for Mac</a>
+          <a class="link" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">All releases</a>
+        </div>
+        <p class="note" data-rv style="--d:.3s">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription<br />Apple Silicon · .dmg · auto-updates</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot">
+      <a class="nav-logo" href="#"><img src="logo.png" alt="" style="width:20px;height:20px" /><span class="wm"><span>SuperAgent</span><span class="jp">株式会社</span></span></a>
+      <span>MIT licensed</span>
+      <div class="foot-links">
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      document.documentElement.classList.add("js");
+      var sections = document.querySelectorAll(".io");
+      if (!("IntersectionObserver" in window)) {
+        sections.forEach(function (el) { el.classList.add("in", "play"); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) {
+            e.target.classList.add("in", "play");
+          } else {
+            e.target.classList.remove("play");
+          }
+        });
+      }, { threshold: 0.15, rootMargin: "0px 0px -5% 0px" });
+      sections.forEach(function (el) { io.observe(el); });
+
+      // Rail: light the dot for whichever stage is crossing the middle.
+      var links = [].slice.call(document.querySelectorAll('.rail a'));
+      var stages = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+      var railIo = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (e) {
+            var i = stages.indexOf(e.target);
+            if (i >= 0 && e.isIntersecting) {
+              links.forEach(function (a, j) { a.classList.toggle('on', j === i); });
+            }
+          });
+        },
+        { rootMargin: '-50% 0px -50% 0px' }
+      );
+      stages.forEach(function (el) { if (el) railIo.observe(el); });
+    })();
+  </script>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var intro = document.getElementById("intro");
+      if (!intro || !root.classList.contains("intro")) return;
+      window.scrollTo(0, 0);
+      // ?hold keeps the splash up until a click or key, for tuning it
+      var hold = /[?&]hold\b/.test(location.search);
+      var done = false, timer = hold ? 0 : setTimeout(leave, 2700);
+      function leave() {
+        if (done) return; done = true; clearTimeout(timer);
+        var logo = intro.querySelector(".intro-logo");
+        var mark = document.querySelector(".hero-mark");
+        var from = logo.getBoundingClientRect();
+        var to = mark ? mark.getBoundingClientRect() : null;
+        intro.classList.add("out");
+        var wait = 750;
+        if (to && to.top >= 0 && to.bottom <= window.innerHeight) {
+          // FLIP: carry the intro logo onto the hero mark, then swap them
+          var dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+          var dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+          var k = to.width / from.width;
+          logo.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + k + ")";
+          logo.style.boxShadow = getComputedStyle(mark).boxShadow;
+        } else {
+          logo.style.transition = "opacity 0.4s var(--ease), transform 0.4s var(--ease)";
+          logo.style.opacity = "0"; logo.style.transform = "scale(0.9)";
+          wait = 400;
+        }
+        setTimeout(function () {
+          if (mark) { mark.style.transition = "none"; mark.style.opacity = "1"; mark.style.transform = "none"; }
+          root.classList.remove("intro");
+          intro.remove();
+        }, wait);
+      }
+      intro.addEventListener("click", leave);
+      window.addEventListener("keydown", leave, { once: true });
+    })();
+  </script>
+</body>
+</html>
