@@ -850,6 +850,14 @@ export function BrowserPane({
       : { position: 'absolute', left: 0, top: 0, width: '100%', height: CARD_OMNIBAR_H }
     : undefined
 
+  // Whether the below-card ✂ dock has the ~40px it needs between the card's
+  // bottom edge and the pane's — a height-constrained card leaves only its 22px
+  // pad, and the pill then hung out of the pane over the content underneath.
+  const dockFits =
+    !!simFrame &&
+    !!hostRef.current &&
+    simFrame.top + simFrame.height + 40 <= hostRef.current.clientHeight
+
   return (
     <div className="browser-pane">
       <div className={`browser-toolbar ${onCard ? 'on-card' : ''}`} style={toolbarStyle}>
@@ -1000,8 +1008,11 @@ export function BrowserPane({
           ↗
         </button>
         {/* Fit mode fills edge-to-edge — no margin outside the page for a floating
-            dock — so keep ✂ in the omnibar there. Card modes use the outside dock. */}
-        {!onCard && (
+            dock — so keep ✂ in the omnibar there. Card modes use the outside dock
+            when the card leaves room for it; a height-constrained card keeps only
+            ~22px below itself, so the pill hung out of the pane over whatever sat
+            underneath — in that case ✂ comes back into the omnibar too. */}
+        {(!onCard || !dockFits) && (
           <button
             className="browser-nav-btn"
             onClick={() =>
@@ -1158,7 +1169,7 @@ export function BrowserPane({
           hugs the browser rather than floating off in the pane corner). Card modes
           only — fit mode is edge-to-edge, so ✂ stays in the omnibar there. Never
           over the native view. Row layout so more tools can sit alongside later. */}
-      {onCard && simFrame && (
+      {onCard && simFrame && dockFits && (
         <div
           className="pane-dock"
           style={{

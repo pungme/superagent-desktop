@@ -115,37 +115,14 @@ function hostOfUrl(url: string): string {
 }
 
 /**
- * The branch chip, truncated in the row. On hover — and ONLY when the name is
- * actually clipped — the same pill grows in place to show the full branch,
- * rather than popping a separate tooltip that just repeats a name already fully
- * visible. The expansion is position:fixed and styled like the chip, pinned to
- * the chip's own spot, so it reads as the pill widening; fixed positioning
- * escapes the sidebar scroller's horizontal overflow clip.
+ * The branch chip, truncated in the row. On hover the SAME pill simply widens in
+ * place to show the full name (max-width lifts, the row's name span gives way) —
+ * no clone, no tooltip, nothing floating. A fixed-position "expansion" pinned
+ * over the chip was tried and read as a popup: different background, a shadow,
+ * and any misalignment showed both pills at once.
  */
 function BranchChip({ branch }: { branch: string }): React.JSX.Element {
-  const [tip, setTip] = useState<{ x: number; y: number } | null>(null)
-  return (
-    <>
-      <span
-        className="sidebar-item-branch"
-        onMouseEnter={(e) => {
-          const el = e.currentTarget
-          // A branch that already fits ("main") needs nothing on hover.
-          if (el.scrollWidth <= el.clientWidth + 1) return
-          const r = el.getBoundingClientRect()
-          setTip({ x: r.left, y: r.top })
-        }}
-        onMouseLeave={() => setTip(null)}
-      >
-        ⎇ {branch}
-      </span>
-      {tip && (
-        <span className="branch-expand" style={{ left: tip.x, top: tip.y }} role="tooltip">
-          ⎇ {branch}
-        </span>
-      )}
-    </>
-  )
+  return <span className="sidebar-item-branch">⎇ {branch}</span>
 }
 
 function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.JSX.Element {

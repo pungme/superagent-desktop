@@ -783,6 +783,12 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Hovering the ROW un-clamps the pill so the whole branch shows in place — the
+   name span yields (it has min-width 0 + ellipsis). Same pill, just wider; no
+   floating clone. */
+.sidebar-item:hover .sidebar-item-branch {
+  max-width: none;
+}
 /* "Something to pull/push" badge next to the branch: ↓N behind (accent, the one
    that matters), ↑N ahead (muted). Small and quiet — a status, not a button. */
 .sidebar-item-git {
@@ -808,21 +814,6 @@ button {
    left/top, so it reads as the chip widening in place rather than a tooltip.
    position:fixed escapes the sidebar's horizontal overflow clip; a soft shadow
    lifts it clear of whatever it overlaps. */
-.branch-expand {
-  position: fixed;
-  z-index: 200;
-  max-width: 340px;
-  font-size: 10px;
-  color: var(--text-secondary);
-  background: var(--bg-panel);
-  border-radius: 999px;
-  padding: 1px 7px;
-  box-shadow: 0 3px 12px var(--shadow);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
-}
 
 .routine-tree-run {
   flex: 0 0 auto;
@@ -1794,6 +1785,17 @@ button {
 }
 .easy-assistant .easy-msg-reply {
   right: -34px;
+}
+/* Narrow chat column: the bubble runs nearly edge to edge, so a button 34px
+   OUTSIDE it lands past the scroller's edge and overflow-x clips it — you
+   simply couldn't see (or reach) Reply. Tuck it just inside the bubble edge
+   instead, the same treatment as Copy. It has its own pill background, and
+   it's hover-only, so it doesn't sit over text at rest. */
+.easy-chat.narrow .easy-user .easy-msg-reply {
+  left: 6px;
+}
+.easy-chat.narrow .easy-assistant .easy-msg-reply {
+  right: 6px;
 }
 .easy-msg:hover .easy-msg-reply {
   opacity: 1;
