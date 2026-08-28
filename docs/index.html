@@ -3,13 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SuperAgent · a home for your agent</title>
+  <title>SuperAgent · スーパーエージェント · a home for your agent</title>
   <meta
     name="description"
     content="SuperAgent is a Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work."
   />
   <link rel="canonical" href="https://superagent.computer/" />
   <link rel="icon" href="logo.png" />
+  <script>
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("intro");
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    }
+  </script>
   <meta property="og:title" content="SuperAgent, a home for your agent" />
   <meta property="og:description" content="A Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work." />
   <meta property="og:image" content="https://superagent.computer/hero.png" />
@@ -18,7 +24,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Sans+JP:wght@700&amp;display=swap" rel="stylesheet" />
   <style>
     /* ============ The Monet Desk ============ */
     :root {
@@ -1806,14 +1812,81 @@
     .det .glyph { font-family: var(--mono); font-style: normal; font-size: 0.72rem; letter-spacing: 0.08em; }
     .stamp, .d3-chat .who { font-style: normal; }
     .tile .big { font-family: var(--sans); font-weight: 700; letter-spacing: -0.03em; }
+
+    /* ============ option 08: a touch of Superdry ============ */
+    :root { --sd-orange: #ee6a1f; }
+    .jp { font-family: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; font-weight: 700; letter-spacing: 0.1em; }
+    .nav-logo .wm { display: flex; flex-direction: column; line-height: 1.1; }
+    .nav-logo .jp { font-size: 0.5rem; color: var(--faint); letter-spacing: 0.2em; margin-top: 2px; }
+    .hero-tag {
+      display: inline-flex; align-items: baseline; gap: 12px; margin: 16px auto 0;
+      padding: 5px 14px 6px; border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(255, 255, 255, 0.5); color: var(--ink); font-size: 0.86rem;
+    }
+    .hero-tag .jp b { color: var(--sd-orange); font-weight: 700; }
+    .hero-tag .en { font-family: var(--sans); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
+    .kicker .jp { text-transform: none; letter-spacing: 0.12em; margin-left: 10px; color: var(--muted); font-size: 0.72rem; }
+    .close-cta .jp.lead { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 8px; }
+    .foot .jp { font-size: 0.68rem; color: var(--faint); letter-spacing: 0.14em; }
+    /* the one brand accent: hero em picks up the orange underline */
+    .hero h1 em { text-decoration: underline; text-decoration-color: var(--sd-orange); text-decoration-thickness: 0.06em; text-underline-offset: 0.12em; }
+
+    /* ---- intro: logo + wordmark, then the logo flies to its seat in the hero ---- */
+    html.intro { overflow: hidden; }
+    html.intro .hero .rise { opacity: 0 !important; transform: translateY(34px) rotate(-0.6deg) !important; transition: none !important; }
+    #intro {
+      position: fixed; inset: 0; z-index: 100; background: var(--cream);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      transition: background 0.6s var(--ease);
+    }
+    html:not(.intro) #intro { display: none; }
+    .intro-box { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .intro-logo {
+      width: 96px; height: 96px; border-radius: 24px; will-change: transform;
+      box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.34), 0 2px 6px rgba(49, 52, 45, 0.14), 0 18px 40px -14px rgba(60, 74, 84, 0.44);
+      animation: i-logo 0.9s var(--ease) both;
+    }
+    @keyframes i-logo { from { opacity: 0; transform: scale(0.6) rotate(-8deg); } to { opacity: 1; transform: none; } }
+    .intro-word { margin-top: 28px; font-family: var(--sans); font-weight: 600; font-size: 2.3rem; letter-spacing: -0.03em; line-height: 1; overflow: hidden; padding: 0.06em 0; }
+    .intro-word span { display: inline-block; animation: i-up 0.7s var(--ease) both; animation-delay: calc(0.45s + var(--i) * 0.045s); }
+    @keyframes i-up { from { transform: translateY(110%); opacity: 0; } }
+    .intro-rule { width: 0; height: 1px; background: var(--ink); opacity: 0.5; margin-top: 16px; animation: i-rule 0.6s var(--ease) both 1s; }
+    @keyframes i-rule { to { width: 120px; } }
+    .intro-jp { margin-top: 12px; font-size: 0.8rem; letter-spacing: 0.36em; color: var(--muted); animation: i-fade 0.6s var(--ease) both 1.15s; }
+    @keyframes i-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .intro-tag {
+      margin-top: 22px; display: inline-flex; align-items: baseline; gap: 12px;
+      padding: 6px 16px 7px; border: 1.5px solid var(--ink); border-radius: 999px;
+      font-size: 0.95rem; color: var(--ink);
+      animation: i-stamp 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both 1.55s;
+    }
+    .intro-tag .jp b { color: var(--sd-orange); }
+    .intro-tag .en { font-family: var(--sans); font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
+    @keyframes i-stamp { from { opacity: 0; transform: scale(1.7) rotate(-5deg); } to { opacity: 1; transform: rotate(-1.5deg); } }
+    .intro-skip { position: absolute; bottom: 28px; left: 0; right: 0; text-align: center; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); animation: i-fade 0.8s var(--ease) both 2s; }
+    /* leaving: text drops away, sheet clears, logo is carried to the hero mark by JS */
+    #intro.out { background: transparent; pointer-events: none; }
+    #intro.out .intro-word, #intro.out .intro-rule, #intro.out .intro-jp, #intro.out .intro-tag, #intro.out .intro-skip {
+      opacity: 0; transform: translateY(-8px); transition: opacity 0.3s var(--ease), transform 0.3s var(--ease); animation: none;
+    }
+    #intro.out .intro-logo { animation: none; transition: transform 0.75s var(--ease), border-radius 0.75s var(--ease), box-shadow 0.75s var(--ease); }
   </style>
 </head>
 <body>
+  <div id="intro" aria-hidden="true">
+    <div class="intro-box">
+      <img class="intro-logo" src="logo.png" alt="" width="96" height="96" />
+      <div class="intro-word" aria-label="SuperAgent"><span style="--i:0">S</span><span style="--i:1">u</span><span style="--i:2">p</span><span style="--i:3">e</span><span style="--i:4">r</span><span style="--i:5">A</span><span style="--i:6">g</span><span style="--i:7">e</span><span style="--i:8">n</span><span style="--i:9">t</span></div>
+      <div class="intro-rule"></div>
+      <div class="intro-jp jp">スーパーエージェント</div>
+      <div class="intro-tag"><span class="jp">極度<b>代理人</b>(しなさい)</span><span class="en">Extreme agent · do it</span></div>
+    </div>
+    <div class="intro-skip">Click to skip</div>
   </div>
 
   <nav class="nav">
     <div class="nav-inner">
-      <a class="nav-logo" href="#"><img src="logo.png" alt="" /><span>SuperAgent</span></a>
+      <a class="nav-logo" href="#"><img src="logo.png" alt="" /><span class="wm"><span>SuperAgent</span><span class="jp">スーパーエージェント</span></span></a>
       <div class="nav-links">
         <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
@@ -1826,6 +1899,7 @@
     <div class="wrap">
       <img class="hero-mark rise" src="logo.png" alt="SuperAgent logo" width="64" height="64" />
       <h1 class="rise" style="--d:.08s">A <em>home</em> for your agent.</h1>
+      <div class="hero-tag rise" style="--d:.12s"><span class="jp">極度<b>代理人</b>(しなさい)</span><span class="en">Extreme agent · do it</span></div>
       <p class="hero-sub rise" style="--d:.16s">
         A Mac app where Claude Code lives: a real browser it drives, an iPhone in
         the window, chats that survive restarts. Open source, on your own subscription.
@@ -1863,7 +1937,7 @@
   <section class="feature io demo" id="features">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">I.</span>The sidebar</span>
+        <span class="kicker"><span class="num">I.</span>The sidebar<span class="jp">サイドバー</span></span>
         <h2>Every session, <em>one rail.</em></h2>
         <p>One chat per task. Each one keeps its own context and picks up mid&#8209;thought. A spinner means it is still going. A dot means it finished without you.</p>
       </div>
@@ -1984,7 +2058,7 @@
   <section class="feature flip io demo" id="worktrees">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">II.</span>Worktree chats</span>
+        <span class="kicker"><span class="num">II.</span>Worktree chats<span class="jp">各チャット、各ブランチ</span></span>
         <h2>Each chat, its <em>own branch.</em></h2>
         <p>Start a chat on its own git worktree and it commits somewhere else entirely. Your checkout does not move. Not one file.</p>
       </div>
@@ -2074,7 +2148,7 @@
   <section class="feature io demo" id="simulator">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">III.</span>The simulator</span>
+        <span class="kicker"><span class="num">III.</span>The simulator<span class="jp">シミュレーター</span></span>
         <h2>An iPhone, <em>living</em> in the window.</h2>
         <p>A real iOS Simulator, streamed from its own framebuffer. It taps. It types. It swipes. Nothing to install.</p>
       </div>
@@ -2176,7 +2250,7 @@
   <section class="feature flip io demo" id="twice">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">IV.</span>Desktop &amp; phone at once</span>
+        <span class="kicker"><span class="num">IV.</span>Desktop &amp; phone at once<span class="jp">二重表示</span></span>
         <h2>One page, <em>seen twice.</em></h2>
         <p>The same page as a desktop card and as a phone. One session, both live. Change something and it lands in both.</p>
       </div>
@@ -2284,7 +2358,7 @@
   <section class="feature io demo" id="automation">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">V.</span>Browser automation</span>
+        <span class="kicker"><span class="num">V.</span>Browser automation<span class="jp">自動操作</span></span>
         <h2>Hands <em>on the page.</em></h2>
         <p>Say what you want done. It opens the site you are already signed in to and works it the way you would &mdash; reading, writing, clicking, sending.</p>
       </div>
@@ -2406,7 +2480,7 @@
   <section class="feature io demo" id="notifications">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">VI.</span>Notifications</span>
+        <span class="kicker"><span class="num">VI.</span>Notifications<span class="jp">通知</span></span>
         <h2>It knocks. <em>It never barges in.</em></h2>
         <p>Your window stays exactly where it is. When the agent finishes, or needs a yes, it says so from the corner.</p>
       </div>
@@ -2499,7 +2573,7 @@
   <section class="feature desk-sec io demo" id="desk">
     <div class="wrap feat-grid">
       <div class="desk-head feat-copy" data-rv>
-        <span class="kicker"><span class="num">VII.</span>The finale</span>
+        <span class="kicker"><span class="num">VII.</span>The finale<span class="jp">机</span></span>
         <h2>The computer <em>inside</em> SuperAgent.</h2>
         <p>A desktop, not a slot. Windows you can move, a dock, and more than one agent working at the same time.</p>
       </div>
@@ -2609,7 +2683,7 @@
   <section class="open io">
     <div class="wrap">
       <div class="open-head" data-rv>
-        <span class="kicker"><span class="num">VII.</span> Open &amp; local</span>
+        <span class="kicker"><span class="num">VII.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
         <h2>Open source. <em>No server.</em></h2>
         <p>An agent with a browser is an agent with your logins. So you should be able
           to see where it runs and read exactly what it does.</p>
@@ -2645,7 +2719,7 @@
   <section class="details io">
     <div class="wrap">
       <div class="det-head" data-rv>
-        <span class="kicker">The small things</span>
+        <span class="kicker">The small things<span class="jp">小さな事</span></span>
         <h2>Done <em>properly.</em></h2>
       </div>
       <div class="det-grid">
@@ -2663,6 +2737,7 @@
   <section class="close-cta io">
     <div class="wrap">
       <div class="plaque" data-rv>
+        <span class="jp lead">画面を与えなさい</span>
         <h2>Give your agent <em>a screen.</em></h2>
         <p class="how-line" data-rv style="--d:.1s"><b>Install.</b> Point it at something. <b>Talk.</b> Then watch it work in the pane next door.</p>
         <div class="hero-ctas" data-rv style="--d:.2s">
@@ -2676,7 +2751,7 @@
 
   <footer>
     <div class="foot">
-      <a class="nav-logo" href="#"><img src="logo.png" alt="" style="width:20px;height:20px" /><span>SuperAgent</span></a>
+      <a class="nav-logo" href="#"><img src="logo.png" alt="" style="width:20px;height:20px" /><span class="wm"><span>SuperAgent</span><span class="jp">株式会社</span></span></a>
       <span>MIT licensed</span>
       <div class="foot-links">
         <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
@@ -2720,6 +2795,45 @@
         { rootMargin: '-50% 0px -50% 0px' }
       );
       stages.forEach(function (el) { if (el) railIo.observe(el); });
+    })();
+  </script>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var intro = document.getElementById("intro");
+      if (!intro || !root.classList.contains("intro")) return;
+      window.scrollTo(0, 0);
+      // ?hold keeps the splash up until a click or key, for tuning it
+      var hold = /[?&]hold\b/.test(location.search);
+      var done = false, timer = hold ? 0 : setTimeout(leave, 2700);
+      function leave() {
+        if (done) return; done = true; clearTimeout(timer);
+        var logo = intro.querySelector(".intro-logo");
+        var mark = document.querySelector(".hero-mark");
+        var from = logo.getBoundingClientRect();
+        var to = mark ? mark.getBoundingClientRect() : null;
+        intro.classList.add("out");
+        var wait = 750;
+        if (to && to.top >= 0 && to.bottom <= window.innerHeight) {
+          // FLIP: carry the intro logo onto the hero mark, then swap them
+          var dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+          var dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+          var k = to.width / from.width;
+          logo.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + k + ")";
+          logo.style.boxShadow = getComputedStyle(mark).boxShadow;
+        } else {
+          logo.style.transition = "opacity 0.4s var(--ease), transform 0.4s var(--ease)";
+          logo.style.opacity = "0"; logo.style.transform = "scale(0.9)";
+          wait = 400;
+        }
+        setTimeout(function () {
+          if (mark) { mark.style.transition = "none"; mark.style.opacity = "1"; mark.style.transform = "none"; }
+          root.classList.remove("intro");
+          intro.remove();
+        }, wait);
+      }
+      intro.addEventListener("click", leave);
+      window.addEventListener("keydown", leave, { once: true });
     })();
   </script>
 </body>
