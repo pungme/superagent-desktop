@@ -902,6 +902,20 @@ export function EasyChat({
   const [commandDescs, setCommandDescs] = useState<Record<string, string>>(() => ({
     ...BUILTIN_COMMAND_DESCRIPTIONS
   }))
+  /**
+   * The "Running in background" strip can be put away as a whole — one line
+   * with the dot and a count — and brought back. Nothing is forgotten or
+   * stopped by hiding it, which is what made the old per-pill Hide and the
+   * Clear button confusing: both silently dropped jobs the app was tracking.
+   */
+  const [runsHidden, setRunsHidden] = useState(
+    () => localStorage.getItem('cove.runsHidden') === '1'
+  )
+  const toggleRuns = (): void =>
+    setRunsHidden((v) => {
+      localStorage.setItem('cove.runsHidden', v ? '0' : '1')
+      return !v
+    })
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
@@ -3582,6 +3596,22 @@ export function EasyChat({
           : 0
         const remainS = Math.ceil(remainMs / 1000)
         const remainLabel = remainS >= 60 ? `${Math.round(remainS / 60)}m` : `${remainS}s`
+        const count = jobs.length + runningAgents.length + (waits.length ? 1 : 0)
+        if (runsHidden) {
+          return (
+            <div className="easy-runs collapsed">
+              <button
+                className="easy-runs-toggle"
+                onClick={toggleRuns}
+                title="Show what's running in the background"
+              >
+                <span className="easy-runs-label-pulse" />
+                {count} running in background
+                <span className="easy-runs-toggle-hint">Show</span>
+              </button>
+            </div>
+          )
+        }
         return (
           <div className="easy-runs">
             <span className="easy-runs-label">
@@ -3629,18 +3659,6 @@ export function EasyChat({
                         <span className="easy-control-item-label">⏹ Stop it</span>
                         <span className="easy-control-item-hint">Ask the agent to kill it</span>
                       </button>
-                      <button
-                        className="easy-control-item"
-                        onClick={() => {
-                          setControlMenu(null)
-                          setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
-                        }}
-                      >
-                        <span className="easy-control-item-label">Hide</span>
-                        <span className="easy-control-item-hint">
-                          Just remove this pill; leaves it running
-                        </span>
-                      </button>
                     </div>
                   )}
                 </div>
@@ -3676,18 +3694,15 @@ export function EasyChat({
                 </span>
               </div>
             )}
-            {/* Clear the whole strip in one go — these are the agent's shells, and
-              once a build has finished the pill is just clutter. Doesn't stop
-              anything still live; it just stops tracking it here. */}
-            {bgTasks.length > 0 && (
-              <button
-                className="easy-runs-clear"
-                title="Hide all — this doesn't stop anything still running"
-                onClick={() => setBgTasks([])}
-              >
-                Clear
-              </button>
-            )}
+            {/* Put the whole strip away. Nothing is stopped or forgotten: it
+                folds to one line with a count, and Show brings it back. */}
+            <button
+              className="easy-runs-clear"
+              title="Hide this strip — nothing is stopped; it folds to a one-line count"
+              onClick={toggleRuns}
+            >
+              Hide
+            </button>
           </div>
         )
       })()}
