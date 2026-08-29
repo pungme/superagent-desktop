@@ -201,20 +201,22 @@ button {
   height: 0;
 }
 
-/* Each project group sits on its own faint card. Proximity alone was tried
-   first (20px of air and a muted header) and then a hairline rule between
-   groups; with three groups of a dozen projects neither made the boundaries
-   findable — air between groups looks like air between projects, and a rule
-   reads as one more row. A card is a shape: where it ends, the group ends.
-   The rows inside stay compact. The Browse tabs at the top are not a project
-   group and stay off-card. */
+/* Each project group is a card that shows itself on hover: rest the pointer
+   anywhere in a group and a faint tint outlines exactly what belongs to it.
+   Proximity alone was tried first (20px of air and a muted header), then a
+   hairline rule, then cards tinted all the time; the first two didn't make
+   the boundaries findable and the last made the column heavy. The padding is
+   always there, so the tint appears without anything moving. The rows inside
+   stay compact. The Browse tabs at the top are not a project group. */
 .sidebar-group {
   border-radius: 10px;
   transition: background 0.12s ease;
 }
 .sidebar-group:not(:has(.tabs-head)) {
-  background: var(--group-card);
   padding: 6px 6px 6px 4px;
+}
+.sidebar-group:not(:has(.tabs-head)):hover {
+  background: var(--group-card);
 }
 
 .sidebar-group + .sidebar-group {
@@ -223,7 +225,8 @@ button {
 
 /* Dropping INTO a group is a different gesture from reordering, so it gets a
    different signal: the whole group outlined, not a line between rows. */
-.sidebar-group.drop-target {
+.sidebar-group.drop-target,
+.sidebar-group.drop-target:hover {
   background: var(--hover);
   border-radius: 10px;
   box-shadow: inset 0 0 0 1.5px var(--accent);
