@@ -99,6 +99,28 @@ export function _resetLogForTests(): void {
   ring.clear()
   backfilled.clear()
   projectors.clear()
+  generating.clear()
+}
+
+/**
+ * Chats with a turn in flight: from the prompt going in until the `result`
+ * event (or the process leaving). This is what the desktop's sidebar spinner
+ * means by "working" — not "the claude process exists", which it does between
+ * turns too.
+ */
+const generating = new Map<string, string | undefined>() // chatId → workspaceId
+export function isGenerating(chatId: string): boolean {
+  return generating.has(chatId)
+}
+export function generatingIn(workspaceId: string): boolean {
+  for (const w of generating.values()) if (w === workspaceId) return true
+  return false
+}
+function setGenerating(chatId: string, workspaceId: string | undefined, on: boolean): void {
+  const was = generating.has(chatId)
+  if (on) generating.set(chatId, workspaceId)
+  else generating.delete(chatId)
+  if (was !== on) logBus.emit('busy', { chatId, workspaceId })
 }
 
 export function startCompanionLog(): void {
@@ -114,15 +136,18 @@ export function startCompanionLog(): void {
     ({
       id,
       chatId,
+      workspaceId,
       event,
       owned
     }: {
       id: string
       chatId?: string
+      workspaceId?: string
       event: Record<string, unknown>
       owned?: boolean
     }) => {
       if (!chatId) return
+      if (event.type === 'result') setGenerating(chatId, workspaceId, false)
       let p = projectors.get(id)
       if (!p) {
         p = new TranscriptProjector()
@@ -147,6 +172,7 @@ export function startCompanionLog(): void {
     ({
       id,
       chatId,
+      workspaceId,
       text,
       images,
       from,
@@ -155,6 +181,7 @@ export function startCompanionLog(): void {
     }: {
       id: string
       chatId?: string
+      workspaceId?: string
       text: string
       images: { mediaType: string; size: number }[]
       from: 'desktop' | 'ios'
@@ -162,6 +189,7 @@ export function startCompanionLog(): void {
       owned?: boolean
     }) => {
       if (!chatId) return
+      setGenerating(chatId, workspaceId, true)
       const data: WireEventData = {
         kind: 'user',
         id: localId ?? `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -182,9 +210,13 @@ export function startCompanionLog(): void {
       })
   })
 
-  agentBus.on('exit', ({ id }: { id: string }) => {
-    projectors.delete(id)
-  })
+  agentBus.on(
+    'exit',
+    ({ id, chatId, workspaceId }: { id: string; chatId?: string; workspaceId?: string }) => {
+      projectors.delete(id)
+      if (chatId) setGenerating(chatId, workspaceId, false)
+    }
+  )
 }
 
 // Ownership is asked lazily so a session adopted mid-turn is seen as owned.

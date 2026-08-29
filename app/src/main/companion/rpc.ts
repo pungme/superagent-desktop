@@ -54,6 +54,7 @@ import {
 import { listRoutines, runRoutine, setRoutineEnabled } from '../routines'
 import { resolveGate } from '../hooks'
 import { workspaceStatuses } from './status'
+import { isGenerating } from './log'
 import { pushChats } from './index'
 import { broadcastToWindows } from '../util'
 import type {
@@ -640,7 +641,7 @@ export function listChats(): WireChat[] {
     workspaceId: c.workspaceId,
     title: c.title,
     updatedAt: c.updatedAt,
-    live: !!findSessionByChat(c.id),
+    live: isGenerating(c.id),
     preview: lastChatPreview(c.id)
   }))
 }
