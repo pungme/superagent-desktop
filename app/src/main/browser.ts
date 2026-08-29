@@ -13,6 +13,7 @@ import {
 import { connect as tcpConnect } from 'net'
 import { fileURLToPath } from 'url'
 import { basename, join } from 'path'
+import { EventEmitter } from 'events'
 import { appendFileSync, renameSync, statSync } from 'fs'
 import { execFile } from 'child_process'
 import { normalizeUrl, broadcastToWindows, workspaceIdFromPane } from './util'
@@ -60,6 +61,67 @@ export function paneLog(event: string, id: string, detail = ''): void {
 // inconsistent fake Chrome — and a fully consistent Chrome is out of reach
 // anyway: Electron's TLS handshake lacks three post-quantum signature
 // algorithms Chrome's has compiled in, which is not fixable from here.
+
+/**
+ * Pane states as they change, for anything outside the window that needs to
+ * know what a conversation currently has open — the phone shows the page above
+ * its chat, the way the desktop shows it beside one.
+ */
+export const browserBus = new EventEmitter()
+const lastState = new Map<string, BrowserPaneState>()
+
+export interface BrowserPaneState {
+  url: string
+  title: string
+  canGoBack: boolean
+  canGoForward: boolean
+  loading: boolean
+}
+
+/**
+ * Publish what a pane is showing: to anything outside the window (the phone),
+ * and — for a pane the window owns — to its omnibar. Every pane reports,
+ * including the hidden ones a phone drives, or its page would never appear.
+ */
+function emitPaneState(id: string, wc: Electron.WebContents, window?: BrowserWindow): void {
+  if (wc.isDestroyed()) return
+  const empty = emptyPanes.has(id)
+  const errUrl = errorUrlByPane.get(id)
+  const state: BrowserPaneState = {
+    url: empty ? '' : (errUrl ?? wc.getURL()),
+    title: empty ? 'New tab' : errUrl ? `Couldn't load ${hostOf(errUrl)}` : wc.getTitle(),
+    canGoBack: !empty && wc.navigationHistory.canGoBack(),
+    canGoForward: !empty && wc.navigationHistory.canGoForward(),
+    loading: !empty && wc.isLoading()
+  }
+  lastState.set(id, state)
+  browserBus.emit('state', { paneId: id, state })
+  if (window && !window.isDestroyed()) {
+    window.webContents.send(`browser:state:${id}`, {
+      ...state,
+      favicon: empty ? undefined : faviconByPane.get(id)
+    })
+  }
+}
+
+/** Report navigation on a pane, whether or not anything is showing it. */
+function watchPaneState(id: string, wc: Electron.WebContents, window?: BrowserWindow): void {
+  const send = (): void => emitPaneState(id, wc, window)
+  wc.on('did-navigate', send)
+  wc.on('did-navigate-in-page', send)
+  wc.on('page-title-updated', send)
+  wc.on('did-start-loading', send)
+  wc.on('did-stop-loading', send)
+}
+
+/** The live panes and what they are showing (a page, not the empty state). */
+export function openPanes(): { paneId: string; state: BrowserPaneState }[] {
+  const out: { paneId: string; state: BrowserPaneState }[] = []
+  for (const [id, state] of lastState) {
+    if (panes.has(id) && /^https?:/i.test(state.url)) out.push({ paneId: id, state })
+  }
+  return out
+}
 
 // Latest favicon per pane, inlined as a data: URI (the app CSP allows data: but
 // not remote https: images, so we fetch the bytes here rather than in the renderer).
@@ -680,16 +742,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   applyBrowserIdentity(wc)
   const sendState = (): void => {
     if (window.isDestroyed()) return
-    const empty = emptyPanes.has(id)
-    const errUrl = errorUrlByPane.get(id)
-    window.webContents.send(`browser:state:${id}`, {
-      url: empty ? '' : (errUrl ?? wc.getURL()),
-      title: empty ? 'New tab' : errUrl ? `Couldn't load ${hostOf(errUrl)}` : wc.getTitle(),
-      canGoBack: !empty && wc.navigationHistory.canGoBack(),
-      canGoForward: !empty && wc.navigationHistory.canGoForward(),
-      loading: !empty && wc.isLoading(),
-      favicon: empty ? undefined : faviconByPane.get(id)
-    })
+    emitPaneState(id, wc, window)
   }
   wc.on('did-navigate', sendState)
   wc.on('did-navigate-in-page', sendState)
@@ -789,6 +842,7 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
   view.setBounds({ x: -20000, y: -20000, width: 1280, height: 800 })
   applyBrowserIdentity(view.webContents)
   panes.set(id, { id, view, window, visible: false, partition, radius: 0 })
+  watchPaneState(id, view.webContents)
 }
 
 /**
@@ -825,6 +879,8 @@ export function destroyBrowserPane(id: string): void {
   const pane = panes.get(id)
   if (!pane) return
   panes.delete(id)
+  lastState.delete(id)
+  browserBus.emit('state', { paneId: id, state: null })
   zoomFactors.delete(id)
   faviconByPane.delete(id)
   errorUrlByPane.delete(id)

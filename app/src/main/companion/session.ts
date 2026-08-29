@@ -6,6 +6,8 @@ import { addDevice, allDeviceKeys, tokenMatches, touchDevice, setPushToken } fro
 import { pendingPairing, offerPairing, cancelPairing, prettyHostname } from './pairing'
 import { eventsAfter } from './log'
 import { handleRpc, listTree, listChats } from './rpc'
+import { openPanes } from '../browser'
+import { wireBrowser } from './index'
 import type { RelayClient } from './relay-client'
 import {
   PROTOCOL_VERSION,
@@ -164,6 +166,12 @@ export class ClientConn {
       }
       touchDevice(this.deviceId)
       this.send({ t: 'welcome', machine: machineInfo(), tree: listTree(), chats: listChats() })
+      // What each conversation already has open, so the phone can show the page
+      // above its chat without waiting for the next navigation.
+      for (const { paneId, state } of openPanes()) {
+        const browser = wireBrowser(paneId, state)
+        if (browser?.open) this.send({ t: 'browser', browser })
+      }
       this.onAuthed(this)
       return
     }
