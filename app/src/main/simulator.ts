@@ -687,11 +687,25 @@ export function registerSimulatorIpc(): void {
     currentUdid = udid && udid.length ? udid : null
     return true
   })
-  // A single still of the device, for the snip tool — the frame stream is live,
-  // this grabs one on demand.
+  // A single still of the device for the snip tool, at the device's native
+  // resolution — the stream's frames are halved for IPC, which is right for a
+  // live picture and wrong for a crop someone will read text off.
   ipcMain.handle('sim:screenshot', async (_e, udid: string) => {
-    const f = await grabFrame(udid)
-    return f?.url ?? null
+    const file = join(tmpdir(), `sa-sim-still-${udid.slice(0, 8)}.jpg`)
+    try {
+      await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], {
+        timeout: 15_000
+      })
+      return `data:image/jpeg;base64,${readFileSync(file).toString('base64')}`
+    } catch {
+      return null
+    } finally {
+      try {
+        unlinkSync(file)
+      } catch {
+        /* it may never have been written */
+      }
+    }
   })
   ipcMain.handle('sim:attach-ready', () => ({
     trusted: systemPreferences.isTrustedAccessibilityClient(false)
