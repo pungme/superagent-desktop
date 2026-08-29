@@ -105,6 +105,35 @@ export function SimulatorPane({
   const [ripple, setRipple] = useState<{ x: number; y: number; id: number } | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const shotRef = useRef<HTMLImageElement>(null)
+
+  // --- In-place snip ----------------------------------------------------------
+  // The same construction as the browser's: the picture freezes where it is
+  // and a crosshair layer sits exactly over it, so you drag right on the phone.
+  // There used to be a separate popup that lifted a still out of the pane and
+  // centred it over everything — a second, brighter phone floating beside the
+  // real one, offset from it, and you had to work out which one to drag on.
+  const [snipping, setSnipping] = useState(false)
+  /**
+   * What the picture is frozen on while snipping: the frame at the moment the
+   * snip began, swapped for a native-resolution still once one arrives (the
+   * mirror's frames are downscaled for IPC; the crop deserves the real pixels).
+   */
+  const [snipStill, setSnipStill] = useState<string | null>(null)
+  /** Where the picture sits in the stage, so the layer can cover exactly it. */
+  const [snipBox, setSnipBox] = useState<{
+    left: number
+    top: number
+    width: number
+    height: number
+  } | null>(null)
+  const [snipRect, setSnipRect] = useState<{ x: number; y: number; w: number; h: number } | null>(
+    null
+  )
+  const snipStartRef = useRef<{ x: number; y: number } | null>(null)
+  const snipLayerRef = useRef<HTMLDivElement>(null)
+  /** Bumped when a snip starts or ends, so a still that arrives late is dropped. */
+  const snipSeq = useRef(0)
+  const frameUrlRef = useRef<string | null>(null)
   const dragRef = useRef<{ x: number; y: number; at: number } | null>(null)
   /** Where the device has been dragged to so far, and where the pointer is now. */
   const sentRef = useRef<{ x: number; y: number } | null>(null)
@@ -125,6 +154,133 @@ export function SimulatorPane({
     },
     []
   )
+
+  useEffect(() => {
+    frameUrlRef.current = frame?.url ?? null
+  }, [frame])
+
+  const endSnip = useCallback((): void => {
+    snipSeq.current++
+    snipStartRef.current = null
+    setSnipping(false)
+    setSnipStill(null)
+    setSnipRect(null)
+    setSnipBox(null)
+  }, [])
+
+  /** Measure the picture against the stage — the layer is positioned in the stage. */
+  const placeSnip = useCallback((): void => {
+    const shot = shotRef.current
+    const stage = stageRef.current
+    if (!shot || !stage) return
+    const r = shot.getBoundingClientRect()
+    const st = stage.getBoundingClientRect()
+    if (!r.width || !r.height) return
+    setSnipBox({ left: r.left - st.left, top: r.top - st.top, width: r.width, height: r.height })
+  }, [])
+
+  // The ✂ button on this pane and ⌘⇧S both arrive here, scoped to the workspace.
+  useEffect(() => {
+    const onStart = (e: Event): void => {
+      const d = (e as CustomEvent<{ workspaceId?: string; source: string }>).detail
+      if (d?.source !== 'sim' || d.workspaceId !== workspaceId) return
+      if (!udid || !frameUrlRef.current) return
+      const seq = ++snipSeq.current
+      // Keys go to the device while the picture has focus; not during a snip.
+      shotRef.current?.blur()
+      setSnipStill(frameUrlRef.current)
+      setSnipRect(null)
+      snipStartRef.current = null
+      setSnipping(true)
+      void window.cove.simScreenshot(udid).then((url) => {
+        if (url && seq === snipSeq.current) setSnipStill(url)
+      })
+    }
+    window.addEventListener('cove:start-snip', onStart)
+    return () => window.removeEventListener('cove:start-snip', onStart)
+  }, [workspaceId, udid])
+  useEffect(() => {
+    if (!snipping) return
+    placeSnip()
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') endSnip()
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('resize', placeSnip)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', placeSnip)
+    }
+  }, [snipping, placeSnip, endSnip])
+  const snipRel = (e: React.PointerEvent): { x: number; y: number } => {
+    const box = snipLayerRef.current!.getBoundingClientRect()
+    return {
+      x: Math.max(0, Math.min(e.clientX - box.left, box.width)),
+      y: Math.max(0, Math.min(e.clientY - box.top, box.height))
+    }
+  }
+  const snipDown = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const p = snipRel(e)
+    snipStartRef.current = p
+    setSnipRect({ x: p.x, y: p.y, w: 0, h: 0 })
+  }
+  const snipMove = (e: React.PointerEvent): void => {
+    const st = snipStartRef.current
+    if (!st) return
+    const p = snipRel(e)
+    setSnipRect({
+      x: Math.min(st.x, p.x),
+      y: Math.min(st.y, p.y),
+      w: Math.abs(p.x - st.x),
+      h: Math.abs(p.y - st.y)
+    })
+  }
+  const snipUp = (): void => {
+    const st = snipStartRef.current
+    snipStartRef.current = null
+    const rect = snipRect
+    const layer = snipLayerRef.current
+    const still = snipStill
+    // A too-small box is a mis-click, not a selection.
+    if (!st || !rect || rect.w < 6 || rect.h < 6 || !still || !layer) {
+      endSnip()
+      return
+    }
+    const layerW = layer.clientWidth
+    const layerH = layer.clientHeight
+    const img = new Image()
+    img.onload = (): void => {
+      // The still fills the layer (the picture's rect); selection → its pixels.
+      const sx = img.naturalWidth / layerW
+      const sy = img.naturalHeight / layerH
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(rect.w * sx))
+      canvas.height = Math.max(1, Math.round(rect.h * sy))
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(
+          img,
+          rect.x * sx,
+          rect.y * sy,
+          rect.w * sx,
+          rect.h * sy,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        )
+        // Hand the crop to the active chat's composer (it listens and focuses).
+        window.dispatchEvent(
+          new CustomEvent('cove:attach-image', { detail: { url: canvas.toDataURL('image/png') } })
+        )
+      }
+      endSnip()
+    }
+    img.onerror = endSnip
+    img.src = still
+  }
 
   const device = devices.find((d) => d.udid === udid)
 
@@ -472,6 +628,17 @@ export function SimulatorPane({
     </button>
   )
 
+  // Percentages, so the corner keeps its proportions at every size the pane
+  // draws. The second value is the same physical radius expressed against the
+  // height, which is what keeps it circular rather than an ellipse on a tall
+  // screen. Shared by the picture and the snip layer that covers it.
+  const screenRadius = ((): string | number => {
+    if (!frame) return 0
+    const rx = cornerShareOfWidth(frame.width, frame.height) * 100
+    if (!rx) return 0
+    return `${rx.toFixed(2)}% / ${(rx * (frame.width / frame.height)).toFixed(2)}%`
+  })()
+
   return (
     <div className="sim-pane">
       <div className="sim-toolbar">
@@ -573,18 +740,14 @@ export function SimulatorPane({
           <img
             ref={shotRef}
             className={`sim-screen ${tappable ? 'live' : ''}`}
-            // Percentages, so the corner keeps its proportions at every size
-            // the pane draws. The second value is the same physical radius
-            // expressed against the height, which is what keeps it circular
-            // rather than an ellipse on a tall screen.
             style={{
-              borderRadius: (() => {
-                const rx = cornerShareOfWidth(frame.width, frame.height) * 100
-                if (!rx) return 0
-                return `${rx.toFixed(2)}% / ${(rx * (frame.width / frame.height)).toFixed(2)}%`
-              })()
+              borderRadius: screenRadius,
+              // Pinned to its measured size while snipping, so swapping in the
+              // native-resolution still cannot resize the picture under the
+              // selection layer.
+              ...(snipping && snipBox ? { width: snipBox.width, height: snipBox.height } : {})
             }}
-            src={frame.url}
+            src={snipStill ?? frame.url}
             alt={`${device?.name ?? 'iOS Simulator'} screen`}
             draggable={false}
             tabIndex={0}
@@ -592,7 +755,7 @@ export function SimulatorPane({
             onPointerMove={onMove}
             onPointerUp={onUp}
             onPointerCancel={onUp}
-            onKeyDown={onKeyDown}
+            onKeyDown={snipping ? undefined : onKeyDown}
           />
         ) : (
           <div className="sim-empty">
@@ -606,6 +769,33 @@ export function SimulatorPane({
                   Pick a simulator to mirror it here
                 </button>
               ))}
+          </div>
+        )}
+        {snipping && snipBox && (
+          // In-place snip: a crosshair layer sitting exactly over the frozen
+          // picture, so you drag right on the phone — no separate popup.
+          <div
+            className="sim-snip"
+            ref={snipLayerRef}
+            style={{ ...snipBox, borderRadius: screenRadius }}
+            onPointerDown={snipDown}
+            onPointerMove={snipMove}
+            onPointerUp={snipUp}
+          >
+            {snipRect ? (
+              <div
+                className="sim-snip-rect"
+                style={{
+                  left: snipRect.x,
+                  top: snipRect.y,
+                  width: snipRect.w,
+                  height: snipRect.h
+                }}
+              />
+            ) : (
+              <div className="sim-snip-scrim" />
+            )}
+            {!snipRect && <div className="sim-snip-hint">Drag to snip · Esc to cancel</div>}
           </div>
         )}
         {busy && frame && <div className="sim-status">{busy}</div>}
