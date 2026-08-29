@@ -4,7 +4,7 @@
 
 <h1 align="center">SuperAgent</h1>
 
-<p align="center"><b>The desktop home for Claude Code — one chat, your real browser, and tasks that run themselves.</b></p>
+<p align="center"><b>The desktop home for Claude Code — one chat per project, a real browser your agent drives, an iPhone in the window, and your phone in your pocket.</b></p>
 
 <p align="center">
   <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><b>⬇ Download for Mac</b></a> ·
@@ -12,13 +12,17 @@
   Apple Silicon · free &amp; open source
 </p>
 
-Your coding agent already writes the code. SuperAgent gives it a place to work:
-a persistent chat per project, a real browser it can **drive on the sites you're
-already logged into**, files you read next to the chat, and routines that keep
-running on a timer. Everything runs locally on your Mac, on your own Claude
-subscription — no middleman server, and the whole app is open source, so you can
-read exactly how it touches your browser. Quiet, keyboard-driven, and built to
-look like it belongs on a Mac.
+Claude Code already writes the code. SuperAgent gives it a place to work — and
+gives you a place to watch. Every project is a chat sitting next to the thing
+being built: a real browser on the sites you're already logged into, the files
+it's editing, an iOS Simulator streamed straight into the window. Every chat
+works in its own copy of the project, so nothing collides. And when you leave
+the desk, the iPhone app follows the conversation and lets you answer the
+agent's questions from anywhere.
+
+Everything runs locally on your Mac, on the Claude subscription you already
+have. No middleman server, no API key, no AI of its own — and the whole app is
+open source, so you can read exactly how it touches your browser.
 
 ![SuperAgent — a Monet at the Met open in the browser pane as a desktop page and an iPhone side by side, with the agent that opened it explaining the painting in the chat beside them](docs/hero.png)
 
@@ -26,26 +30,80 @@ look like it belongs on a Mac.
 
 ## Build it and watch it, side by side
 
-The chat sits next to a real browser. Ask for a change and watch the page update
-in the same window — no alt-tabbing to find out whether it worked. Point it at a
-local dev server or any live site.
+The chat sits next to a real browser. Ask for a change and watch the page
+update in the same window — no alt-tabbing to find out whether it worked.
+Point it at a local dev server or any live site; the agent can start the dev
+server itself and iterate while you watch, with the server one click away in
+the toolbar.
 
 ![The chat next to the code it's editing — the file tree, grouped steps and edits, model and mode pickers](docs/chat.png)
+
+**One click shows the page as a desktop card and an iPhone frame at once** —
+same session, both live.
 
 ## An agent that can use the browser
 
 Claude drives that same browser: open a page, click, type, read it back. Not a
 hidden browser it describes to you second-hand — the one on your screen, with
 your logged-in session. You watch it work, and you can take over any time.
+Automation only ever happens in SuperAgent's own browser pane, never in your
+personal browser.
 
-<!-- docs/browser.png — the agent mid-navigation, "Claude is browsing…" showing -->
+## Every chat is its own checkout
+
+On a git project, every conversation automatically gets a private copy of the
+project on its own branch. Two chats on the same repo can edit, branch, and
+commit side by side without touching each other — or your checkout.
+
+- **Keep / Throw away.** When a chat has changes, two buttons appear at the
+  top: *Keep* adds everything it did to the project as one change, named after
+  the chat; *Throw away* deletes it all. Deleting a chat with unkept work asks
+  first.
+- **Branches named after the conversation.** "Fix the flaky auth test" becomes
+  `fix-the-flaky-auth-test`, and follows renames. The sidebar shows the branch
+  each chat is on.
+- **Work lands where it came from.** Keep merges onto the branch the chat was
+  started from, even if you've switched the project since.
+- **No re-installs.** Dependency folders (`node_modules`, `.venv`, `vendor`,
+  `target`) are shared into each chat's copy.
+
+## An iPhone in the window
+
+An iOS Simulator streamed *inside* the app from its own framebuffer — the real
+device, live at the rate it renders. Tap, swipe, and type on it; the agent can
+too (`sim_boot`, `sim_tap`, `sim_screenshot`, …), so it builds, launches, and
+checks its own app. Nothing to install: the input helper ships with
+SuperAgent. Apple's own Simulator window stays shut unless you ask for it.
+
+The simulator and the page you're on sit side by side on the same surface,
+over a Monet you can switch off.
+
+## Your Mac's agent, on your phone
+
+Pair the [SuperAgent iOS app](https://github.com/pungme/superagent-ios) once
+from **Settings → Phone** and it follows your Mac from anywhere: live
+transcripts, send a prompt, start a chat, and approve what the agent asks —
+with a push notification when it's done or needs you.
+
+- **Ask mode.** A permission mode where the agent checks with you before it
+  acts — on the Mac, or on your phone if that's where you are.
+- **Private by construction.** Everything between the phone and the Mac is
+  end-to-end encrypted with a per-device key from the pairing QR. Both sides
+  dial out to a tiny blind relay ([superagent-relay](https://github.com/pungme/superagent-relay))
+  that forwards ciphertext and stores nothing, so it works behind any network
+  with no setup. Run your own relay with one command and change the URL in
+  Settings → Phone.
+- **Quiet in the menu bar** while a phone is paired: relay status, open, pair.
+
+The iOS app is built from source for now (see its README).
 
 ## Everything in its place
 
 Plain browser tabs sit at the top of the sidebar — browse first, summon the
-agent when you need it. Below them, projects group the way you think about
-them, with each conversation nested underneath. A spinner while the agent
-works, a dot when it needs you, the git branch where you'd expect it.
+agent when you need it. Below them, projects are grouped the way you think
+about them, with each conversation nested underneath. A spinner while the
+agent works, a dot when it needs you, a green dot when a background job is
+running, and the git branch where you'd expect it.
 
 <p align="center"><img src="docs/sidebar.png" width="300" alt="The sidebar: grouped projects with nested chats and branch chips"></p>
 
@@ -56,25 +114,18 @@ allowed to do without asking.
 
 ## The bigger things
 
-- **Desktop & phone at once.** One click shows the same page in a desktop card
-  and an iPhone frame — same session, both live.
-- **A desk, not a slot.** The page you're on and an iOS Simulator sit side by
-  side on the same surface, over a Monet you can switch off.
 - **A board the agent keeps.** Backlog, next, doing, done — per project, and
   Claude moves the cards as it works. Watch them move while you talk to it.
-- **Worktree chats.** Start a chat on its own git worktree; the agent works on
-  an isolated branch while your checkout stays clean.
+- **Routines.** "Check this site every hour," in plain language, on a timer.
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
   actually got your time. Computed locally.
-- **An iPhone in the window.** An iOS Simulator streamed *inside* the app from
-  its own framebuffer — the real device, live at the rate it renders, tap and
-  type included. No permission to grant, and Apple's own window stays shut.
-- **Files & PDFs.** Drag files into the chat and annotate PDFs in place, right
-  beside the tree.
+- **Files & PDFs.** Click any file to read it — PDFs, images, markdown, source —
+  right beside the tree; annotate PDFs in place; drag files into the chat.
+- **Snip to attach.** ✂ on the browser or the simulator (or ⌘⇧S): drag a box
+  right on the page or the phone screen and the crop lands in your message, at
+  full resolution.
 - **Context gauge.** Every conversation shows how much of the context window
   it has used.
-- **Dev server strip.** The agent starts your dev server and iterates while
-  you watch the page change, with the server one click away.
 
 ## The small things
 
@@ -83,45 +134,56 @@ allowed to do without asking.
 - **Never steals your focus.** Agents finish quietly in the background; the
   window comes forward only when you ask.
 - **Light on memory.** Sessions start on your first message and wind down when
-  idle — agents only run while conversations do.
+  idle; preview panes are released when a chat is in the background.
 - **Interject mid-turn.** Type while the agent works and it sees your message
   before it finishes — like the terminal.
-- **Notifications that say something** — done or has a question, with a summary
-  of the agent's actual last reply.
+- **Notifications that say something** — done or has a question, with a
+  summary of the agent's actual last reply.
 - **Many chats per project.** They name themselves after what the conversation
   turned out to be about. Starting a new one never loses the old.
-- **Click any file to read it** — PDFs, images, markdown, source — right beside
-  the tree.
 - **Talk instead of typing.** Hold <kbd>⌥</kbd><kbd>Space</kbd>, speak, let go.
   Your voice is transcribed on your own Mac and never leaves it.
 - **Quiet by default.** A burst of activity folds into one line you can open,
   instead of a wall of noise.
 - **See every edit** the moment it happens, with just the change highlighted.
-- **Routines.** "Check this site every hour," in plain language, on a timer.
+- **Model and mode pickers** that match Claude Code's own.
 - **Updates itself.** Signed, notarized, delivered in the background — restart
-  when it suits you.
+  when it suits you, with a "What's new" for each release.
 - **Light and dark**, following your system.
 
-## Phone companion
+## What it needs — and what it talks to
 
-SuperAgent has an iPhone app ([superagent-ios](https://github.com/pungme/superagent-ios)) that follows your Mac from anywhere: live transcripts, send prompts, approve what the agent asks. Both sides dial out to a tiny blind relay ([superagent-relay](https://github.com/pungme/superagent-relay)), so it works behind any network with no setup — pair once from **Settings → Phone**.
+- A Mac with Apple Silicon.
+- [Claude Code](https://claude.com/claude-code), installed and signed in. Your
+  subscription is the only thing SuperAgent runs on — nothing extra to buy, no
+  key to paste.
+- Xcode, only if you want the simulator.
+- An iPhone with the companion app, only if you want your phone in the loop.
 
-- Everything between the phone and the Mac is end-to-end encrypted with a per-device key from the pairing QR; the relay forwards ciphertext and stores nothing.
-- Run your own relay with one Docker command and change the URL in Settings → Phone.
-- The **Ask** permission mode makes the agent check with you before it acts — on the Mac or on your phone.
+Network, in full: Claude Code's own connection to Anthropic; a check of this
+repo's releases for updates; and, for the phone companion, one outbound
+connection to the relay (the project's by default — swap in your own in
+Settings → Phone). Nothing else leaves the machine.
 
-Design notes: `docs/SPEC-companion.md`.
+## Run it from source
+
+```bash
+cd app
+npm install
+npm run dev
+```
+
+`npm test` runs the unit tests, `npm run test:e2e` builds the app and drives it
+with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Roadmap
 
 - **Other agents.** SuperAgent wraps Claude Code today, but in the end it's an
   LLM driving a home — the plan is an agent layer that other CLIs and local
   models can plug into.
-- **A desktop.** Right now a project is a chat beside one pane. The idea is a
-  workspace that behaves like a real computer: several things open at once —
-  browser, files, a terminal, a simulator — arranged the way you left them,
-  with the agent working across all of them, over a background you'd want to
-  look at.
+- **A desktop.** A workspace that behaves like a real computer: several things
+  open at once — browser, files, a terminal, a simulator — arranged the way you
+  left them, with the agent working across all of them.
 - **Memory that writes itself.** Your agent relearns the same things in every
   new session — your conventions, a project's traps, which command actually
   deploys. SuperAgent should notice those and carry them across projects, in a
@@ -129,9 +191,15 @@ Design notes: `docs/SPEC-companion.md`.
 - **Watchers.** Routines already run on a schedule and the browser already
   reads pages. Point one at a page and get told what changed, with a before
   and after.
-- **A board the agent keeps.** Kanban/backlog inside the app, maintained by
-  the agent as it works: cards move themselves, each links to the chat,
-  worktree or PR that did the work, and you can ask what's left.
+
+## License
+
+[MIT](LICENSE)
+
+The desk background is Claude Monet, *Water Lilies* (1906), from the Art
+Institute of Chicago's open-access collection — public domain (CC0).
+
+<!-- Maintainer notes below: not user-facing, kept so they aren't rediscovered the hard way. -->
 
 <!--
   Maintainer note — how the embedded iOS Simulator works, and every route that
@@ -258,23 +326,6 @@ Design notes: `docs/SPEC-companion.md`.
   phase-1 tools, so the agent drives the device the same way the user does.
 -->
 
-
-## What you need
-
-- A Mac
-- [Claude Code](https://claude.com/claude-code), installed and signed in
-
-SuperAgent runs on the subscription you already have — there's nothing extra to
-buy and no API key to paste.
-
-## Run it
-
-```bash
-cd app
-npm install
-npm run dev
-```
-
 <!--
   Maintainer note — cutting a Mac release. Not user-facing; kept here so it isn't
   rediscovered the hard way. Signing uses the Developer ID cert in the login
@@ -303,10 +354,3 @@ npm run dev
   Publishing is not just a file upload: the app auto-updates, so a release rolls
   out to everyone already running it.
 -->
-
-## License
-
-[MIT](LICENSE)
-
-The desk background is Claude Monet, *Water Lilies* (1906), from the Art
-Institute of Chicago's open-access collection — public domain (CC0).
