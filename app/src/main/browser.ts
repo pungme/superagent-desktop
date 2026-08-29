@@ -1,4 +1,15 @@
-import { BrowserWindow, WebContentsView, Notification, ipcMain, shell, app, net } from 'electron'
+import {
+  BrowserWindow,
+  WebContentsView,
+  Notification,
+  ipcMain,
+  shell,
+  app,
+  net,
+  Menu,
+  clipboard,
+  dialog
+} from 'electron'
 import { connect as tcpConnect } from 'net'
 import { fileURLToPath } from 'url'
 import { basename, join } from 'path'
@@ -169,6 +180,134 @@ function wirePdfSaveBack(ses: Electron.Session): void {
     } catch {
       // fall through to the default save dialog
     }
+  })
+}
+
+/**
+ * Where a right-clicked image should be written, and under what name. Electron
+ * hands us `suggestedFilename` for a real URL; a data: URI (an inlined icon, a
+ * canvas export) has no path to take a name from, so one is built from its MIME
+ * type instead.
+ */
+function suggestedImageName(url: string, suggested?: string): string {
+  if (suggested) return suggested
+  const dataMatch = /^data:image\/([a-zA-Z0-9.+-]+)/.exec(url)
+  if (dataMatch) return `image.${dataMatch[1].split('+')[0]}`
+  try {
+    return basename(new URL(url).pathname) || 'image.png'
+  } catch {
+    return 'image.png'
+  }
+}
+
+/**
+ * "Save Image As…" for a context menu: ask where, then let the session's own
+ * download machinery fetch it (cookies and referrer intact, so this also works
+ * on images gated behind a login) straight to that path.
+ */
+async function saveImageAs(
+  window: BrowserWindow,
+  wc: Electron.WebContents,
+  url: string,
+  suggested?: string
+): Promise<void> {
+  const { canceled, filePath } = await dialog.showSaveDialog(window, {
+    defaultPath: suggestedImageName(url, suggested)
+  })
+  if (canceled || !filePath) return
+  const ses = wc.session
+  const onWillDownload = (_e: Electron.Event, item: Electron.DownloadItem): void => {
+    item.setSavePath(filePath)
+    ses.removeListener('will-download', onWillDownload)
+  }
+  ses.on('will-download', onWillDownload)
+  wc.downloadURL(url)
+}
+
+/**
+ * The page's own right-click menu. A WebContentsView gets none of Chromium's
+ * built-in one — that belongs to a top-level browser window, which this isn't —
+ * so without this, right-clicking the pane did nothing at all. Built from the
+ * event's params rather than one fixed list, so a link, an image, a text field
+ * and a plain page each offer only what actually applies; several can combine
+ * (an image inside a link gets both).
+ */
+function wireContextMenu(view: WebContentsView, window: BrowserWindow): void {
+  const wc = view.webContents
+  wc.on('context-menu', (_e, params) => {
+    const template: Electron.MenuItemConstructorOptions[] = []
+    const sep = (): void => {
+      if (template.length) template.push({ type: 'separator' })
+    }
+
+    if (params.linkURL) {
+      template.push({ label: 'Copy Link', click: () => clipboard.writeText(params.linkURL) })
+    }
+
+    if (params.mediaType === 'image' && params.srcURL) {
+      sep()
+      template.push(
+        {
+          label: 'Save Image As…',
+          click: () => void saveImageAs(window, wc, params.srcURL, params.suggestedFilename)
+        },
+        // The rendered pixels, not a re-fetch — works even behind a login the
+        // agent's own network fetch wouldn't carry, and never fights hotlink
+        // protection.
+        { label: 'Copy Image', click: () => wc.copyImageAt(params.x, params.y) },
+        { label: 'Copy Image Address', click: () => clipboard.writeText(params.srcURL) }
+      )
+    }
+
+    if (params.isEditable) {
+      sep()
+      const { editFlags } = params
+      template.push(
+        { label: 'Cut', enabled: editFlags.canCut, click: () => wc.cut() },
+        { label: 'Copy', enabled: editFlags.canCopy, click: () => wc.copy() },
+        { label: 'Paste', enabled: editFlags.canPaste, click: () => wc.paste() },
+        { type: 'separator' },
+        { label: 'Select All', enabled: editFlags.canSelectAll, click: () => wc.selectAll() }
+      )
+    } else if (params.selectionText) {
+      sep()
+      const query = params.selectionText.trim().slice(0, 60)
+      template.push(
+        { label: 'Copy', click: () => wc.copy() },
+        {
+          label: `Search Google for “${query}”`,
+          click: () => wc.loadURL(`https://www.google.com/search?q=${encodeURIComponent(query)}`)
+        }
+      )
+    }
+
+    if (!template.length) {
+      // Nothing more specific applied: the handful of things a right-click
+      // offers on a plain browser page.
+      template.push(
+        {
+          label: 'Back',
+          enabled: wc.navigationHistory.canGoBack(),
+          click: () => wc.navigationHistory.goBack()
+        },
+        {
+          label: 'Forward',
+          enabled: wc.navigationHistory.canGoForward(),
+          click: () => wc.navigationHistory.goForward()
+        },
+        {
+          label: 'Reload',
+          click: () => {
+            if (wc.isLoading()) wc.stop()
+            wc.reload()
+          }
+        },
+        { type: 'separator' },
+        { label: 'Copy Page URL', click: () => clipboard.writeText(wc.getURL()) }
+      )
+    }
+
+    Menu.buildFromTemplate(template).popup({ window })
   })
 }
 
@@ -532,6 +671,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // rounded bottom from the card showing beneath it. Default square; the
   // renderer sets the real value on the first bounds sync.
   view.setBorderRadius?.(0)
+  wireContextMenu(view, window)
 
   const pane: BrowserPane = { id, view, window, visible: false, partition, radius: 0 }
   panes.set(id, pane)
@@ -924,6 +1064,7 @@ export function registerBrowserIpc(): void {
         })
         view.setBackgroundColor('#ffffff')
         view.setBorderRadius?.(10)
+        wireContextMenu(view, pane.window)
         const wc = pane.view.webContents
         const sync = (): void => {
           const url = wc.getURL()
