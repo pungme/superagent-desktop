@@ -7,7 +7,7 @@
 <p align="center"><b>The desktop home for Claude Code — one chat per project, a real browser your agent drives, an iPhone in the window, and your phone in your pocket.</b></p>
 
 <p align="center">
-  <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/Superagent.dmg"><b>⬇ Download for Mac</b></a> ·
+  <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><b>⬇ Download for Mac</b></a> ·
   <a href="https://superagent.computer/">Website</a> ·
   Apple Silicon · free &amp; open source
 </p>
