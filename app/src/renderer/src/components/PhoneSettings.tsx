@@ -79,8 +79,12 @@ export function PhoneSettings(): React.JSX.Element {
   const qrUrl = qr && payload && qr.k === payload.k ? qr.url : null
   const secondsLeft =
     pairing.open && pairing.expiresAt ? Math.max(0, Math.ceil((pairing.expiresAt - now) / 1000)) : 0
-  const relayLabel =
-    state.relay.state === 'connected'
+  // No phone paired and none being paired: the Mac isn't dialling the relay
+  // at all, on purpose — that is idle, not a failure.
+  const relayIdle = state.devices.length === 0 && !pairing.open
+  const relayLabel = relayIdle
+    ? 'Not connected'
+    : state.relay.state === 'connected'
       ? 'Connected'
       : state.relay.state === 'reconnecting'
         ? 'Reconnecting…'
@@ -253,13 +257,15 @@ export function PhoneSettings(): React.JSX.Element {
               {relayLabel}
             </strong>
             <span>
-              {state.relay.state === 'connected'
-                ? 'This Mac is reachable by your phone.'
-                : state.relay.error || 'Trying to reach the relay…'}
+              {relayIdle
+                ? 'Connects when you pair a phone.'
+                : state.relay.state === 'connected'
+                  ? 'This Mac is reachable by your phone.'
+                  : state.relay.error || 'Trying to reach the relay…'}
               {state.keepAwake ? ' Staying awake while a phone is watching.' : ''}
             </span>
           </div>
-          {state.relay.state !== 'connected' && (
+          {!relayIdle && state.relay.state !== 'connected' && (
             <button className="phone-btn" onClick={() => window.cove.companionReconnect()}>
               Retry
             </button>

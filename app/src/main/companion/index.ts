@@ -9,6 +9,7 @@ import { broadcastToWindows } from '../util'
 import { listDevices, removeDevice } from './devices'
 import {
   startPairing,
+  pendingPairing,
   cancelPairing,
   decidePairing,
   state as pairingState,
@@ -168,10 +169,39 @@ export function startCompanion(): void {
   powerMonitor.on('resume', () => relay.kick())
   powerMonitor.on('unlock-screen', () => relay.kick())
 
-  relay.start(relayUrl())
+  // The relay is only dialled when there is a phone to talk to. Pairing
+  // starting, finishing, expiring, and a phone being revoked all pass through
+  // here, so the connection follows the answer to "is a phone involved?".
+  pairingBus.on('changed', syncRelay)
+  syncRelay()
+}
+
+/** A phone is paired, or one is being paired right now. */
+function relayWanted(): boolean {
+  return listDevices().length > 0 || pendingPairing() !== null
+}
+
+let relayUp = false
+/**
+ * Bring the relay connection in line with whether a phone is involved. An
+ * install that never pairs a phone never opens a socket, never announces its
+ * machine id, and never occupies a room on the relay — the companion costs
+ * nothing until it is used. Idempotent, so it can be called on every change.
+ */
+function syncRelay(): void {
+  const want = relayWanted()
+  if (want && !relayUp) {
+    relayUp = true
+    relay.start(relayUrl())
+  } else if (!want && relayUp) {
+    relayUp = false
+    relay.stop()
+    broadcastState()
+  }
 }
 
 export function stopCompanion(): void {
+  relayUp = false
   relay.stop()
   for (const c of conns.values()) c.dispose()
   conns.clear()
@@ -311,15 +341,19 @@ export function registerCompanionIpc(): void {
   ipcMain.on('companion:revoke', (_e, id: string) => {
     removeDevice(id)
     for (const c of conns.values()) if (c.deviceId === id) c.close()
+    syncRelay()
     broadcastState()
   })
   ipcMain.on('companion:set-relay', (_e, url: string) => {
     const clean = url.trim().replace(/\/+$/, '')
     kvSet(RELAY_KEY, clean === DEFAULT_RELAY ? '' : clean)
-    relay.restart(relayUrl())
+    if (relayUp) relay.restart(relayUrl())
     broadcastState()
   })
-  ipcMain.on('companion:reconnect', () => relay.kick())
+  ipcMain.on('companion:reconnect', () => {
+    if (relayUp) relay.kick()
+    else syncRelay()
+  })
   ipcMain.on('companion:set-keep-awake', (_e, always: boolean) => {
     kvSet(KEEP_AWAKE_KEY, always ? '1' : '')
     updateKeepAwake()
