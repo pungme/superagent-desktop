@@ -372,6 +372,95 @@ function ChatRow({
   )
 }
 
+/**
+ * The Computer's conversations, listed under its row the way a project's are
+ * listed under the project. They were only reachable inside the Computer's
+ * Chat window — this is the same list, one click closer: pick one here and
+ * the Computer opens with that conversation in front.
+ */
+function ComputerChats(): React.JSX.Element | null {
+  const [home, setHome] = useState<{ workspaceId: string; cwd: string } | null>(null)
+  const loadChats = useStore((s) => s.loadChats)
+  useEffect(() => {
+    let alive = true
+    void window.cove.desktopChatHome?.().then((h) => {
+      if (!alive || !h) return
+      setHome(h)
+      void loadChats(h.workspaceId)
+    })
+    return () => {
+      alive = false
+    }
+  }, [loadChats])
+  const wsId = home?.workspaceId ?? ''
+  const chats = useStore((s) => (wsId ? (s.chats[wsId] ?? EMPTY_CHATS) : EMPTY_CHATS))
+  const activeChatId = useStore((s) => (wsId ? s.activeChatId[wsId] : undefined))
+  const overlay = useStore((s) => s.overlay)
+  const selectChat = useStore((s) => s.selectChat)
+  const newChat = useStore((s) => s.newChat)
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem('cove.computerChatsCollapsed') === '1'
+  )
+  if (!home) return null
+  // Newest first, as the Computer's own list orders them.
+  const ordered = [...chats].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+  const showComputerChat = (): void => {
+    // The Computer may not be on screen yet, and its panel only listens once
+    // mounted — leave the request where it will find it on mount, and also
+    // send it now for the case where it is already up.
+    sessionStorage.setItem('cove.openDesktopApp', 'chat')
+    window.dispatchEvent(new CustomEvent('cove:open-computer'))
+    window.dispatchEvent(new CustomEvent('cove:open-desktop-app', { detail: { app: 'chat' } }))
+  }
+  return (
+    <div className="sidebar-group computer-chats">
+      <div className="sidebar-group-head tabs-head">
+        <button
+          className="group-caret"
+          onClick={() =>
+            setCollapsed((v) => {
+              localStorage.setItem('cove.computerChatsCollapsed', v ? '0' : '1')
+              return !v
+            })
+          }
+          style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
+          aria-label={collapsed ? 'Expand chats' : 'Collapse chats'}
+          aria-expanded={!collapsed}
+        >
+          <Chevron />
+        </button>
+        <span className="sidebar-group-title">Chats</span>
+        <button
+          className="group-add"
+          title="New chat on the Computer"
+          onClick={() => {
+            void newChat(wsId)
+            showComputerChat()
+          }}
+        >
+          +
+        </button>
+      </div>
+      {!collapsed && ordered.length > 0 && (
+        <div className="routine-tree">
+          {ordered.map((c) => (
+            <ChatRow
+              key={c.id}
+              chat={c}
+              workspaceId={wsId}
+              active={overlay === 'computer' && c.id === activeChatId}
+              onOpen={() => {
+                selectChat(wsId, c.id)
+                showComputerChat()
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id && s.overlay === null)
   // Live only — no localStorage fallback. What was remembered is "the pane was
@@ -929,6 +1018,7 @@ export function Sidebar(): React.JSX.Element {
             </svg>
             Computer
           </button>
+          <ComputerChats />
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">
               <span className="sidebar-group-title">Browse</span>

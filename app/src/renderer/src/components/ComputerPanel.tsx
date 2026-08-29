@@ -93,7 +93,15 @@ export function ComputerPanel({
   const refreshDesk = useCallback(async (): Promise<void> => {
     const entries = await window.cove.deskList?.()
     if (!entries) return
-    setFiles(entries.map((e) => ({ path: e.path, name: e.name, dir: e.dir, link: e.link, target: e.target })))
+    setFiles(
+      entries.map((e) => ({
+        path: e.path,
+        name: e.name,
+        dir: e.dir,
+        link: e.link,
+        target: e.target
+      }))
+    )
   }, [])
 
   // Any window that changes the desk (a folder window moving something out to
@@ -313,9 +321,7 @@ export function ComputerPanel({
         // Opening something already open brings it forward rather than piling a
         // second copy on top — the same as clicking an app in the Dock.
         if (existing) {
-          return ws.map((w) =>
-            w.id === existing.id ? { ...w, minimized: false, z: maxZ + 1 } : w
-          )
+          return ws.map((w) => (w.id === existing.id ? { ...w, minimized: false, z: maxZ + 1 } : w))
         }
         const { w: iw, h: ih } = appById(app).initial
         const width = Math.min(iw, Math.max(360, bounds.w - 80))
@@ -611,7 +617,8 @@ export function ComputerPanel({
               }
             }
             if (c.position === 'minimize') return { ...w, minimized: true }
-            if (c.position === 'full') return { ...w, minimized: false, maximized: true, z: maxZ + 1 }
+            if (c.position === 'full')
+              return { ...w, minimized: false, maximized: true, z: maxZ + 1 }
             const rect =
               (c.position && preset[c.position]) ||
               // An explicit rectangle: whatever it does not say keeps its
@@ -629,13 +636,20 @@ export function ComputerPanel({
     })
   }, [openApp, add, bounds.w, bounds.h])
 
-  // The sidebar's Computer row can ask for a particular app.
+  // The sidebar's Computer row can ask for a particular app — while this is on
+  // screen, as an event; before it is, as a note left for mount (the sidebar's
+  // Chats list opens the Computer and its Chat window in one click).
   useEffect(() => {
     const onOpen = (e: Event): void => {
       const app = (e as CustomEvent<{ app?: AppId }>).detail?.app
       if (app) openApp(app)
     }
     window.addEventListener('cove:open-desktop-app', onOpen)
+    const pending = sessionStorage.getItem('cove.openDesktopApp') as AppId | null
+    if (pending) {
+      sessionStorage.removeItem('cove.openDesktopApp')
+      openApp(pending)
+    }
     return () => window.removeEventListener('cove:open-desktop-app', onOpen)
   }, [openApp])
 
@@ -669,9 +683,7 @@ export function ComputerPanel({
   const pickIcon = (path: string, e: React.MouseEvent): void => {
     const order = sorted.map((f) => f.path)
     if (e.metaKey || e.ctrlKey) {
-      setSelected((cur) =>
-        cur.includes(path) ? cur.filter((p) => p !== path) : [...cur, path]
-      )
+      setSelected((cur) => (cur.includes(path) ? cur.filter((p) => p !== path) : [...cur, path]))
       anchorRef.current = path
       return
     }
@@ -879,10 +891,20 @@ export function ComputerPanel({
           </button>
           {menu === 'view' && (
             <div className="computer-menu-drop">
-              <button onClick={() => { setSort('name'); setMenu(null) }}>
+              <button
+                onClick={() => {
+                  setSort('name')
+                  setMenu(null)
+                }}
+              >
                 {sort === 'name' ? '✓ ' : '  '}Sort by name
               </button>
-              <button onClick={() => { setSort('kind'); setMenu(null) }}>
+              <button
+                onClick={() => {
+                  setSort('kind')
+                  setMenu(null)
+                }}
+              >
                 {sort === 'kind' ? '✓ ' : '  '}Sort by kind
               </button>
             </div>
@@ -890,7 +912,9 @@ export function ComputerPanel({
         </div>
         <div className="computer-head-spacer" />
         <span className="computer-sub">
-          {files.length === 0 ? 'Drop files here' : `${files.length} item${files.length === 1 ? '' : 's'}`}
+          {files.length === 0
+            ? 'Drop files here'
+            : `${files.length} item${files.length === 1 ? '' : 's'}`}
         </span>
         <button className="computer-close" onClick={onClose} title="Close">
           ✕
@@ -1076,33 +1100,31 @@ export function ComputerPanel({
           {windows
             .filter((w) => !w.minimized)
             .map((w) => (
-            <DesktopWindow
-              key={w.id}
-              title={
-                (w.file || w.dir)?.split('/').pop() || appById(w.app).name
-              }
-              icon={<span className="dw-title-icon">{appById(w.app).icon}</span>}
-              rect={clampToDesk(w.rect)}
-              z={w.z}
-              active={top?.id === w.id}
-              maximized={w.maximized}
-              bounds={bounds}
-              onFocus={() => focus(w.id)}
-              onChange={(rect) =>
-                setWindows((ws) => ws.map((x) => (x.id === w.id ? { ...x, rect } : x)))
-              }
-              onClose={() => setWindows((ws) => ws.filter((x) => x.id !== w.id))}
-              onMinimize={() =>
-                setWindows((ws) => ws.map((x) => (x.id === w.id ? { ...x, minimized: true } : x)))
-              }
-              onToggleMaximize={() =>
-                setWindows((ws) =>
-                  ws.map((x) => (x.id === w.id ? { ...x, maximized: !x.maximized } : x))
-                )
-              }
-            >
-              {renderApp(w)}
-            </DesktopWindow>
+              <DesktopWindow
+                key={w.id}
+                title={(w.file || w.dir)?.split('/').pop() || appById(w.app).name}
+                icon={<span className="dw-title-icon">{appById(w.app).icon}</span>}
+                rect={clampToDesk(w.rect)}
+                z={w.z}
+                active={top?.id === w.id}
+                maximized={w.maximized}
+                bounds={bounds}
+                onFocus={() => focus(w.id)}
+                onChange={(rect) =>
+                  setWindows((ws) => ws.map((x) => (x.id === w.id ? { ...x, rect } : x)))
+                }
+                onClose={() => setWindows((ws) => ws.filter((x) => x.id !== w.id))}
+                onMinimize={() =>
+                  setWindows((ws) => ws.map((x) => (x.id === w.id ? { ...x, minimized: true } : x)))
+                }
+                onToggleMaximize={() =>
+                  setWindows((ws) =>
+                    ws.map((x) => (x.id === w.id ? { ...x, maximized: !x.maximized } : x))
+                  )
+                }
+              >
+                {renderApp(w)}
+              </DesktopWindow>
             ))}
         </div>
       </div>
