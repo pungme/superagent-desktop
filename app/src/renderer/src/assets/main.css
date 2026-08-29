@@ -2591,7 +2591,9 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 13px;
+  /* No left inset: the mark sits on the same edge as the bubbles above it,
+     not a text-padding's width in from it. */
+  padding: 10px 13px 10px 0;
 }
 
 /* On-brand thinking indicator: the app mark (a light dot on a black tile) with
@@ -2952,9 +2954,8 @@ button {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.4;
-  /* Right padding clears the mic; left clears the attach button, which sits on
-     the leading edge like every other chat app. */
-  padding: 10px 42px 10px 40px;
+  /* Right padding clears the mic pinned inside the box. */
+  padding: 10px 42px 10px 12px;
   outline: none;
 }
 
@@ -2974,28 +2975,11 @@ button {
 
 /* Attach button, pinned inside the box to the left of the mic. */
 .easy-attach {
-  /* Leading edge, where attach lives in every chat app — parked between the
-     mic and send it read as one more "voice-ish" control. */
-  position: absolute;
-  left: 6px;
-  bottom: 6px;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition:
-    background 0.12s ease,
-    color 0.12s ease;
+  /* A pill in the controls row, same as Model and Mode. */
+  color: var(--text-secondary);
 }
 .easy-attach:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 .easy-attach:disabled {
   opacity: 0.4;
