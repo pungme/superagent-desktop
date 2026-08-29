@@ -28,6 +28,9 @@ import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
+import { startCompanionLog } from './companion/log'
+import { startCompanion, stopCompanion, registerCompanionIpc, companionBus } from './companion'
+import { startTray, refreshTray } from './tray'
 import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
@@ -179,6 +182,8 @@ app.whenReady().then(() => {
   registerHookIpc()
   registerAutomationIpc()
   registerAgentIpc()
+  // Must attach before any session starts: it is what the phone reads from.
+  startCompanionLog()
   registerSkillsIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
@@ -187,6 +192,12 @@ app.whenReady().then(() => {
   buildMenu()
   startHookServer()
   startRoutines()
+  // The phone companion: an outbound relay connection that stays up.
+  registerCompanionIpc()
+  startCompanion()
+  // Menu-bar presence while a phone is paired; follows pairing/relay changes.
+  startTray()
+  companionBus.on('state', refreshTray)
 
   // Which SuperAgent this is. Worth surfacing now that builds auto-update in the
   // background — otherwise there's no way to tell what you're running, or to say
@@ -383,6 +394,7 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  stopCompanion()
   killAllAgents()
   stopRoutines()
   stopAllSimStreams()

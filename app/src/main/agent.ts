@@ -1,5 +1,6 @@
 import { ipcMain, WebContents } from 'electron'
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process'
+import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
 import os from 'os'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
@@ -21,12 +22,76 @@ import { findClaude } from './claude-cli'
 interface AgentSession {
   id: string
   proc: ChildProcessWithoutNullStreams
-  owner: WebContents
+  /**
+   * The window that drives this session, if any. A session the phone started
+   * has none until a window opens its chat and adopts it (see agent:start).
+   */
+  owner: WebContents | null
   buffer: string
   killed?: boolean
+  chatId?: string
+  workspaceId?: string
+  opts: AgentStartOptions
+  /** The last `system/init` event, replayed to a window that adopts the session. */
+  lastInit?: Record<string, unknown>
 }
 
 const sessions = new Map<string, AgentSession>()
+
+/**
+ * Everything a session says, for anyone in main who cares — the companion's
+ * event log first of all. The renderer bridge below is just one subscriber.
+ *
+ *  - 'event'       { id, chatId, workspaceId, event }   raw stream-json object
+ *  - 'stderr'      { id, chatId, workspaceId, text }
+ *  - 'exit'        { id, chatId, workspaceId, code }
+ *  - 'resume-lost' { id, chatId, workspaceId }
+ *  - 'user'        { id, chatId, workspaceId, text, images, from, localId }
+ *  - 'started'     { id, chatId, workspaceId }
+ */
+export const agentBus = new EventEmitter()
+agentBus.setMaxListeners(50)
+
+export interface AgentSessionInfo {
+  id: string
+  chatId?: string
+  workspaceId?: string
+  owned: boolean
+}
+
+export function findSessionByChat(chatId: string): AgentSessionInfo | undefined {
+  for (const s of sessions.values()) {
+    if (s.chatId === chatId)
+      return { id: s.id, chatId: s.chatId, workspaceId: s.workspaceId, owned: !!s.owner }
+  }
+  return undefined
+}
+
+export function listSessions(): AgentSessionInfo[] {
+  return [...sessions.values()].map((s) => ({
+    id: s.id,
+    chatId: s.chatId,
+    workspaceId: s.workspaceId,
+    owned: !!s.owner
+  }))
+}
+
+/**
+ * A window takes over a session that was running without one (started from
+ * the phone). From here on it streams to that window like any other session,
+ * and dies with it on reload — the renderer's own lifecycle rules apply.
+ */
+function adoptSession(session: AgentSession, owner: WebContents): void {
+  session.owner = owner
+  watchOwner(owner)
+  const init = session.lastInit
+  if (init) {
+    // The renderer waits for init to enable its composer; it already happened.
+    setTimeout(() => {
+      if (!owner.isDestroyed()) owner.send(`agent:event:${session.id}`, init)
+    }, 0)
+  }
+}
 
 export interface AgentStartOptions {
   cwd?: string
@@ -43,7 +108,7 @@ export interface AgentStartOptions {
    * are offered: under -p there is nowhere to answer one, so anything that
    * would ask is auto-denied and the tool silently fails.
    */
-  permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'
+  permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
   /** Model to run on (e.g. 'opus', 'sonnet'); '' / undefined = Claude's default. */
   model?: string
 }
@@ -282,7 +347,10 @@ export function buildAgentArgs(
     // gives the agent the same reach it has in a terminal session where the
     // user approves prompts themselves. --disallowedTools below still applies.
     '--permission-mode',
-    opts.permissionMode ?? 'bypassPermissions'
+    // "ask" is SuperAgent's name for Claude Code's default mode: every tool
+    // that would prompt in a terminal asks the app via the PermissionRequest
+    // hook instead, and the app asks the user (Mac or phone).
+    opts.permissionMode === 'ask' ? 'default' : (opts.permissionMode ?? 'bypassPermissions')
   ]
   // Pin the model only when the user picked one. "Default" ('') means "whatever
   // your account uses" — passing no --model lets the CLI resolve the account
@@ -291,6 +359,10 @@ export function buildAgentArgs(
   // on a resumed session, pick a concrete model — that DOES send --model and
   // overrides.
   if (opts.model) args.push('--model', opts.model)
+  // Ask mode: headless claude can't show a prompt, so it asks our MCP server,
+  // which asks the user (Mac modal or phone). See mcp.ts permission_prompt.
+  if (opts.permissionMode === 'ask')
+    args.push('--permission-prompt-tool', 'mcp__cove-browser__permission_prompt')
   if (ctx.resume) args.unshift('--resume', ctx.resume)
   if (ctx.mcpConfig) args.push('--mcp-config', ctx.mcpConfig)
   const appended = [
@@ -317,16 +389,18 @@ export function buildAgentArgs(
   return args
 }
 
-export function startAgent(owner: WebContents, opts: AgentStartOptions): string {
-  watchOwner(owner)
+export function startAgent(owner: WebContents | null, opts: AgentStartOptions): string {
+  if (owner) watchOwner(owner)
   const id = randomUUID()
+  const meta = { id, chatId: opts.chatId, workspaceId: opts.workspaceId }
   // A project folder that has been moved or deleted fails as a spawn ENOENT
   // naming the *binary*, which reads as "Claude Code is broken" when it isn't.
   // Catch it here so the chat can say what actually happened.
   if (opts.cwd && !existsSync(opts.cwd)) {
     markDead(id, 1, 'missing-cwd')
     setTimeout(() => {
-      if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, 1)
+      agentBus.emit('exit', { ...meta, code: 1 })
+      if (owner && !owner.isDestroyed()) owner.send(`agent:exit:${id}`, 1)
     }, 0)
     return id
   }
@@ -356,8 +430,17 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       shell: false
     }) as ChildProcessWithoutNullStreams
 
-    const session: AgentSession = { id, proc, owner, buffer: '' }
+    const session: AgentSession = {
+      id,
+      proc,
+      owner,
+      buffer: '',
+      chatId: opts.chatId,
+      workspaceId: opts.workspaceId,
+      opts
+    }
     sessions.set(id, session)
+    agentBus.emit('started', meta)
 
     // Writing to a claude that has already closed stdin throws EPIPE; without a
     // listener that becomes an unhandled 'error' and crashes the main process.
@@ -372,8 +455,13 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
         if (!line) continue
         try {
           const event = JSON.parse(line)
-          if (event?.type === 'system' && event?.subtype === 'init') sawInit = true
-          if (!owner.isDestroyed()) owner.send(`agent:event:${id}`, event)
+          if (event?.type === 'system' && event?.subtype === 'init') {
+            sawInit = true
+            session.lastInit = event
+          }
+          agentBus.emit('event', { ...meta, event })
+          const o = session.owner
+          if (o && !o.isDestroyed()) o.send(`agent:event:${id}`, event)
         } catch {
           // partial or non-JSON line; ignore
         }
@@ -383,7 +471,9 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
     let stderr = ''
     proc.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString('utf8')
-      if (!owner.isDestroyed()) owner.send(`agent:stderr:${id}`, chunk.toString('utf8'))
+      agentBus.emit('stderr', { ...meta, text: chunk.toString('utf8') })
+      const o = session.owner
+      if (o && !o.isDestroyed()) o.send(`agent:stderr:${id}`, chunk.toString('utf8'))
     })
 
     // spawn failures (e.g. ENOENT when the binary can't be found) emit 'error',
@@ -393,12 +483,14 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       sessions.delete(id)
       if (session.killed) return
       if (resume && !sawInit) {
-        notifyResumeLost(owner, id)
+        notifyResumeLost(session.owner, meta)
         spawnProc(null)
         return
       }
       markDead(id, 1)
-      if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, 1)
+      agentBus.emit('exit', { ...meta, code: 1 })
+      const o = session.owner
+      if (o && !o.isDestroyed()) o.send(`agent:exit:${id}`, 1)
     })
 
     proc.on('exit', (code) => {
@@ -408,12 +500,14 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
       if (resume && !sawInit) {
         // The resume target was unavailable (claude exited before emitting
         // anything) — retry once with a fresh session.
-        notifyResumeLost(owner, id)
+        notifyResumeLost(session.owner, meta)
         spawnProc(null)
         return
       }
       markDead(id, code ?? 0, meaningfulStderr(stderr))
-      if (!owner.isDestroyed()) owner.send(`agent:exit:${id}`, code ?? 0)
+      agentBus.emit('exit', { ...meta, code: code ?? 0 })
+      const o = session.owner
+      if (o && !o.isDestroyed()) o.send(`agent:exit:${id}`, code ?? 0)
     })
   }
 
@@ -457,14 +551,38 @@ function saveImageForAgent(im: AgentImage): string | null {
  * model behind it no longer had any of. The one case where "does it still
  * remember?" has a surprising answer, and nothing said so.
  */
-function notifyResumeLost(owner: WebContents, id: string): void {
-  markResumeLost(id)
-  if (!owner.isDestroyed()) owner.send(`agent:resume-lost:${id}`)
+function notifyResumeLost(
+  owner: WebContents | null,
+  meta: { id: string; chatId?: string; workspaceId?: string }
+): void {
+  markResumeLost(meta.id)
+  agentBus.emit('resume-lost', meta)
+  if (owner && !owner.isDestroyed()) owner.send(`agent:resume-lost:${meta.id}`)
 }
 
-export function sendToAgent(id: string, text: string, images: AgentImage[] = []): void {
+export function sendToAgent(
+  id: string,
+  text: string,
+  images: AgentImage[] = [],
+  origin: { from: 'desktop' | 'ios'; localId?: string } = { from: 'desktop' }
+): boolean {
   const session = sessions.get(id)
-  if (!session || !session.proc.stdin.writable) return
+  if (!session || !session.proc.stdin.writable) return false
+  // Announce before writing, so the log has the prompt ahead of any reply.
+  agentBus.emit('user', {
+    id,
+    chatId: session.chatId,
+    workspaceId: session.workspaceId,
+    text,
+    images: images.map((im) => ({ mediaType: im.mediaType, size: im.data.length })),
+    from: origin.from,
+    localId: origin.localId
+  })
+  // A prompt from the phone also has to reach the window showing this chat.
+  if (origin.from !== 'desktop') {
+    const o = session.owner
+    if (o && !o.isDestroyed()) o.send(`agent:user:${id}`, { text, from: origin.from })
+  }
   if (images.length > 0) {
     const paths = images.map((im) => saveImageForAgent(im)).filter(Boolean)
     if (paths.length > 0) {
@@ -488,6 +606,7 @@ export function sendToAgent(id: string, text: string, images: AgentImage[] = [])
   ]
   const message = { type: 'user', message: { role: 'user', content } }
   session.proc.stdin.write(JSON.stringify(message) + '\n')
+  return true
 }
 
 /** Interrupt the current generation without ending the session (keeps context). */
@@ -555,7 +674,7 @@ export function killAllAgents(): void {
  * request never lands in the transcript. Tools are off — this is pure text in,
  * text out — and a failure is silent: the caller keeps its fallback title.
  */
-function suggestTitle(cwd: string, excerpt: string): Promise<string | null> {
+export function suggestTitle(cwd: string, excerpt: string): Promise<string | null> {
   return new Promise((resolve) => {
     const proc = spawn(
       findClaude(),
@@ -616,7 +735,19 @@ export function registerAgentIpc(): void {
   ipcMain.handle('agent:suggestTitle', (_e, cwd: string, excerpt: string) =>
     suggestTitle(cwd, excerpt)
   )
-  ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => startAgent(e.sender, opts))
+  ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => {
+    // The phone may already be running this chat's agent. Adopt it rather than
+    // spawning a second claude on the same conversation.
+    if (opts.chatId) {
+      for (const s of sessions.values()) {
+        if (s.chatId === opts.chatId && !s.owner) {
+          adoptSession(s, e.sender)
+          return s.id
+        }
+      }
+    }
+    return startAgent(e.sender, opts)
+  })
   // Asked once, right after the renderer subscribes: did this session already
   // die in the gap? Returns the exit code, or null if it's alive.
   ipcMain.handle('agent:died', (_e, id: string) => deadSessions.get(id) ?? null)
@@ -628,7 +759,7 @@ export function registerAgentIpc(): void {
     return lost
   })
   ipcMain.on('agent:send', (_e, id: string, text: string, images?: AgentImage[]) =>
-    sendToAgent(id, text, images ?? [])
+    sendToAgent(id, text, images ?? [], { from: 'desktop' })
   )
   ipcMain.on('agent:interrupt', (_e, id: string) => interruptAgent(id))
   ipcMain.on('agent:stop', (_e, id: string) => stopAgent(id))

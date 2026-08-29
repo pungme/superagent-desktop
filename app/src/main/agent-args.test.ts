@@ -71,7 +71,10 @@ describe('buildAgentArgs', () => {
   })
 
   it('appends the browser briefing only for browser projects', () => {
-    const withBrowser = valueAfter(buildAgentArgs({ browserProject: true }), '--append-system-prompt')
+    const withBrowser = valueAfter(
+      buildAgentArgs({ browserProject: true }),
+      '--append-system-prompt'
+    )
     const without = valueAfter(buildAgentArgs({}), '--append-system-prompt')
     expect(withBrowser).toMatch(/browser pane/i)
     expect(without).not.toMatch(/browser pane/i)
@@ -82,5 +85,13 @@ describe('buildAgentArgs', () => {
   it('sends exactly one --append-system-prompt, not one per fragment', () => {
     const args = buildAgentArgs({ browserProject: true })
     expect(args.filter((a) => a === '--append-system-prompt')).toHaveLength(1)
+  })
+
+  it('ask mode maps to the default permission mode and names our prompt tool', () => {
+    const args = buildAgentArgs({ permissionMode: 'ask' })
+    const i = args.indexOf('--permission-mode')
+    expect(args[i + 1]).toBe('default')
+    const j = args.indexOf('--permission-prompt-tool')
+    expect(args[j + 1]).toBe('mcp__cove-browser__permission_prompt')
   })
 })

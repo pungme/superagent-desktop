@@ -12,7 +12,8 @@ describe('mergeCoveHooks', () => {
       'Notification',
       'Stop',
       'SubagentStop',
-      'PreToolUse'
+      'PreToolUse',
+      'PermissionRequest'
     ])
   })
 
@@ -26,6 +27,16 @@ describe('mergeCoveHooks', () => {
     // Running twice must not duplicate it.
     const twice = mergeCoveHooks(out, SCRIPT)
     expect((twice.hooks!.PreToolUse as unknown[]).length).toBe(1)
+  })
+
+  it('registers the Ask-mode PermissionRequest hook with a long timeout', () => {
+    const out = mergeCoveHooks({}, '/x/cove-hook.sh')
+    const entries = out.hooks!.PermissionRequest as {
+      hooks: { command: string; timeout: number }[]
+    }[]
+    expect(entries).toHaveLength(1)
+    expect(entries[0].hooks[0].command).toBe("sh '/x/cove-hook.sh' PermissionRequest")
+    expect(entries[0].hooks[0].timeout).toBe(600)
   })
 
   it("preserves the user's existing hooks on the same event", () => {

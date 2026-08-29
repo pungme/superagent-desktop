@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Notification, ipcMain } from 'electron'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
+import { EventEmitter } from 'events'
 import { randomBytes } from 'crypto'
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, chmodSync } from 'fs'
 import { join, dirname } from 'path'
@@ -7,7 +8,14 @@ import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
 import { getWorkspaceName, getChatTitleBySession, recordEvent } from './store'
 import { paneLog, allowUserFocus } from './browser'
-import { classifyTool, gateDecision, markTainted, clearTurn, trustTurn, toolPreview } from './guardrail'
+import {
+  classifyTool,
+  gateDecision,
+  markTainted,
+  clearTurn,
+  trustTurn,
+  toolPreview
+} from './guardrail'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -43,6 +51,15 @@ const EVENT_STATUS: Record<string, WorkspaceStatus> = {
 let hookPort = 0
 let hookSecret = ''
 
+/**
+ * Hook traffic for the rest of main (the companion, first of all):
+ *  'event'         { workspaceId, event, status?, sessionId }
+ *  'approval'      { requestId, workspaceId, sessionId, toolName, preview, expiresAt }
+ *  'approval-end'  { requestId, outcome, by }
+ */
+export const hookBus = new EventEmitter()
+hookBus.setMaxListeners(50)
+
 // --- Prompt-injection gate: held approvals -------------------------------
 // When a tainted turn tries to run a machine-acting tool, the PreToolUse hook
 // blocks on the app while a human decides. One entry per outstanding prompt.
@@ -57,22 +74,94 @@ let gateSeq = 0
 // a web page may have planted. Bounded so the agent never hangs indefinitely.
 const GATE_TIMEOUT_MS = 120_000
 
-function requestApproval(
+export type ApprovalKind = 'guardrail' | 'permission'
+
+// A real permission prompt can wait as long as a person might be away from
+// both screens; the injection gate self-denies sooner (an unattended machine
+// should not run a planted command).
+const PERMISSION_TIMEOUT_MS = 580_000
+
+export function requestApproval(
   workspaceId: string,
   sessionId: string,
   toolName: string,
-  preview: string
+  preview: string,
+  kind: ApprovalKind = 'guardrail'
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const requestId = `gate-${++gateSeq}`
+    const timeoutMs = kind === 'permission' ? PERMISSION_TIMEOUT_MS : GATE_TIMEOUT_MS
     const timer = setTimeout(() => {
       pendingGates.delete(requestId)
       broadcastToWindows('guardrail:resolved', { requestId })
+      hookBus.emit('approval-end', { requestId, outcome: 'expired', by: 'desktop' })
       resolve(false)
-    }, GATE_TIMEOUT_MS)
+    }, timeoutMs)
     pendingGates.set(requestId, { sessionId, resolve, timer })
-    broadcastToWindows('guardrail:ask', { requestId, workspaceId, sessionId, toolName, preview })
+    broadcastToWindows('guardrail:ask', {
+      requestId,
+      workspaceId,
+      sessionId,
+      toolName,
+      preview,
+      kind
+    })
+    hookBus.emit('approval', {
+      requestId,
+      workspaceId,
+      sessionId,
+      toolName,
+      preview,
+      kind,
+      expiresAt: Date.now() + timeoutMs
+    })
   })
+}
+
+/**
+ * The PermissionRequest verdict for chats in "Ask" mode. Unlike the gate, a
+ * denial here is the user's plain answer, so the message stays neutral.
+ */
+async function decidePermission(
+  workspaceId: string,
+  body: Record<string, unknown>
+): Promise<string> {
+  const sessionId = typeof body.session_id === 'string' ? body.session_id : ''
+  const toolName = typeof body.tool_name === 'string' ? body.tool_name : ''
+  if (!sessionId || !toolName) return ''
+  const preview = toolPreview(toolName, body.tool_input)
+  const approved = await requestApproval(workspaceId, sessionId, toolName, preview, 'permission')
+  return JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'PermissionRequest',
+      decision: approved
+        ? { behavior: 'allow' }
+        : { behavior: 'deny', message: 'The user declined this action in SuperAgent.' }
+    }
+  })
+}
+
+/**
+ * Answer a held approval — from the window or from a paired phone. First
+ * answer wins; a late one reports false so the caller can say "already
+ * decided". `trustRest` waves through the rest of this (tainted) turn.
+ */
+export function resolveGate(
+  requestId: string,
+  approve: boolean,
+  trustRest: boolean,
+  by: 'desktop' | 'ios'
+): boolean {
+  const p = pendingGates.get(requestId)
+  if (!p) return false
+  pendingGates.delete(requestId)
+  clearTimeout(p.timer)
+  if (approve && trustRest) trustTurn(p.sessionId)
+  p.resolve(!!approve)
+  // Whoever didn't answer sees it settle.
+  broadcastToWindows('guardrail:resolved', { requestId })
+  hookBus.emit('approval-end', { requestId, outcome: approve ? 'approved' : 'denied', by })
+  return true
 }
 
 const DENY_JSON = (reason: string): string =>
@@ -134,6 +223,11 @@ export function startHookServer(): Promise<string> {
       res.writeHead(200, { 'content-type': 'application/json' }).end(verdict)
       return
     }
+    if (event === 'PermissionRequest') {
+      const verdict = await decidePermission(workspaceId, body)
+      res.writeHead(200, { 'content-type': 'application/json' }).end(verdict)
+      return
+    }
     res.writeHead(200).end('ok')
 
     // A fresh user turn clears any untrusted-web-content taint from the last one.
@@ -146,6 +240,18 @@ export function startHookServer(): Promise<string> {
     const sessionId = typeof body.session_id === 'string' ? body.session_id : undefined
 
     broadcastToWindows('hook:event', { workspaceId, event, status, sessionId, body })
+    hookBus.emit('event', {
+      workspaceId,
+      event,
+      status,
+      sessionId,
+      detail:
+        event === 'Notification' && typeof body.message === 'string'
+          ? body.message
+          : event === 'Stop'
+            ? lastReplies.get(workspaceId)
+            : undefined
+    })
 
     if (event === 'Notification') {
       const focused = BrowserWindow.getFocusedWindow()
@@ -230,7 +336,7 @@ const HOOK_SCRIPT = `#!/bin/sh
 # Installed by SuperAgent. Forwards Claude Code hook events to the SuperAgent app.
 # No-ops entirely unless COVE_HOOK_URL is set (i.e. this claude was launched by SuperAgent).
 [ -z "$COVE_HOOK_URL" ] && exit 0
-if [ "$1" = "PreToolUse" ]; then
+if [ "$1" = "PreToolUse" ] || [ "$1" = "PermissionRequest" ]; then
   # Decision hook. The app replies with an empty body to allow the tool, or a
   # PreToolUse permissionDecision JSON to block it — forward that verbatim to
   # stdout, which is how Claude Code reads the verdict. Fail open: if the app is
@@ -239,7 +345,7 @@ if [ "$1" = "PreToolUse" ]; then
   resp=$(curl -sS -X POST "$COVE_HOOK_URL/$1" \\
     -H "x-cove-workspace: \${COVE_WORKSPACE_ID:-}" \\
     -H "content-type: application/json" \\
-    --max-time 150 -d @- 2>/dev/null)
+    --max-time 590 -d @- 2>/dev/null)
   [ -n "$resp" ] && printf '%s' "$resp"
   exit 0
 fi
@@ -251,7 +357,6 @@ exit 0
 `
 
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Notification', 'Stop', 'SubagentStop']
-
 
 type HookSettings = { hooks?: Record<string, unknown[]> } & Record<string, unknown>
 
@@ -275,6 +380,12 @@ export function mergeCoveHooks(settings: HookSettings, scriptPath: string): Hook
   addEntry('PreToolUse', {
     matcher: 'Bash|Write|Edit|MultiEdit|NotebookEdit|mcp__cove-browser__browser_read_page',
     hooks: [{ type: 'command', command: `sh ${quoted} PreToolUse`, timeout: 600 }]
+  })
+  // Real tool approvals, for chats running in the "Ask" mode: Claude Code asks
+  // the app instead of a terminal prompt, and the app asks the user — on the
+  // Mac or on a paired phone. Other modes never emit this event.
+  addEntry('PermissionRequest', {
+    hooks: [{ type: 'command', command: `sh ${quoted} PermissionRequest`, timeout: 600 }]
   })
   return next
 }
@@ -321,9 +432,11 @@ export function hooksInstalled(): boolean {
     // re-merged (idempotently) on launch, picking up the gate.
     const stop = settings?.hooks?.Stop
     const pre = settings?.hooks?.PreToolUse
+    const perm = settings?.hooks?.PermissionRequest
     return (
       JSON.stringify(stop ?? '').includes('cove-hook.sh') &&
-      JSON.stringify(pre ?? '').includes('cove-hook.sh')
+      JSON.stringify(pre ?? '').includes('cove-hook.sh') &&
+      JSON.stringify(perm ?? '').includes('cove-hook.sh')
     )
   } catch {
     return false
@@ -375,16 +488,8 @@ export function registerHookIpc(): void {
   // The user answered a prompt-injection gate. `trustRest` waves through the rest
   // of this (tainted) turn so a legitimate browse-then-code flow isn't a tap per
   // command.
-  ipcMain.on(
-    'guardrail:resolve',
-    (_e, requestId: string, approve: boolean, trustRest: boolean) => {
-      const p = pendingGates.get(requestId)
-      if (!p) return
-      pendingGates.delete(requestId)
-      clearTimeout(p.timer)
-      if (approve && trustRest) trustTurn(p.sessionId)
-      p.resolve(!!approve)
-    }
+  ipcMain.on('guardrail:resolve', (_e, requestId: string, approve: boolean, trustRest: boolean) =>
+    resolveGate(requestId, approve, trustRest, 'desktop')
   )
   ipcMain.handle('hooks:status', () => hooksInstalled())
   ipcMain.handle('hooks:install', () => installHooks())

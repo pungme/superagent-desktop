@@ -569,7 +569,7 @@ function shortModel(id: string): string {
 
 // Agent modes (permission-mode). Plan = read-only planning, no changes made.
 const MODE_OPTIONS: {
-  value: 'bypassPermissions' | 'acceptEdits' | 'plan'
+  value: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
   label: string
   hint: string
 }[] = [
@@ -577,6 +577,11 @@ const MODE_OPTIONS: {
     value: 'bypassPermissions',
     label: 'Full',
     hint: 'Runs commands and edits, like your terminal'
+  },
+  {
+    value: 'ask',
+    label: 'Ask',
+    hint: 'Asks before commands and edits — approve here or on your phone'
   },
   {
     value: 'acceptEdits',
@@ -2173,6 +2178,7 @@ export function EasyChat({
     if (suspendedRef.current) return
     let disposed = false
     let offEvent: (() => void) | undefined
+    let offUser: (() => void) | undefined
     let offStderr: (() => void) | undefined
     let offExit: (() => void) | undefined
     let offResumeLost: (() => void) | undefined
@@ -2217,6 +2223,19 @@ export function EasyChat({
         // them carries the recap if this session came up without its memory).
         for (const q of pendingSendsRef.current.splice(0)) sendToAgent(id, q.text, q.images)
         offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
+        // A prompt typed on the paired phone: show it here too, and treat the
+        // turn as ours to render (generating/thinking, exactly like a local send).
+        offUser = window.cove.onAgentUser?.(id, ({ text }) => {
+          setItems((prev) => [
+            ...prev,
+            {
+              kind: 'msg',
+              msg: { id: `u-${Date.now()}-${Math.random()}`, at: Date.now(), role: 'user', text }
+            }
+          ])
+          setGenerating(true)
+          setThinking(true)
+        })
         // Keep the CLI's real diagnostic around so a failed turn can quote it
         // instead of the generic note (see the result handler).
         offStderr = window.cove.onAgentStderr?.(id, (chunk) => {
@@ -2280,6 +2299,7 @@ export function EasyChat({
       disposed = true
       offResumeLost?.()
       offEvent?.()
+      offUser?.()
       offStderr?.()
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)

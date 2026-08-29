@@ -113,7 +113,11 @@ function stepsFromAssistant(event: {
   for (const block of content) {
     if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
       steps.push({ kind: 'text', text: block.text })
-    } else if (block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim()) {
+    } else if (
+      block.type === 'thinking' &&
+      typeof block.thinking === 'string' &&
+      block.thinking.trim()
+    ) {
       steps.push({ kind: 'thinking', text: block.thinking })
     } else if (block.type === 'tool_use' && typeof block.name === 'string') {
       // Strip the mcp__cove-browser__ prefix so the tool reads as e.g. "browser_navigate".
@@ -228,9 +232,9 @@ export async function runRoutine(routine: Routine): Promise<void> {
     // real page to act on. Without this it starts on about:blank, so a prompt like
     // "refresh the Instagram page and follow 5 people" has no page — the agent reads
     // blank and stalls. Best-effort: if it fails, the agent can still navigate itself.
-    const wsRow = db.prepare('SELECT browserUrl FROM workspaces WHERE id = ?').get(
-      routine.workspaceId
-    ) as { browserUrl?: string } | undefined
+    const wsRow = db
+      .prepare('SELECT browserUrl FROM workspaces WHERE id = ?')
+      .get(routine.workspaceId) as { browserUrl?: string } | undefined
     if (wsRow?.browserUrl) {
       try {
         await navigate(paneId, wsRow.browserUrl)
