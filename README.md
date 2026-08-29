@@ -102,6 +102,16 @@ allowed to do without asking.
   when it suits you.
 - **Light and dark**, following your system.
 
+## Phone companion
+
+SuperAgent has an iPhone app ([superagent-ios](https://github.com/pungme/superagent-ios)) that follows your Mac from anywhere: live transcripts, send prompts, approve what the agent asks. Both sides dial out to a tiny blind relay ([superagent-relay](https://github.com/pungme/superagent-relay)), so it works behind any network with no setup — pair once from **Settings → Phone**.
+
+- Everything between the phone and the Mac is end-to-end encrypted with a per-device key from the pairing QR; the relay forwards ciphertext and stores nothing.
+- Run your own relay with one Docker command and change the URL in Settings → Phone.
+- The **Ask** permission mode makes the agent check with you before it acts — on the Mac or on your phone.
+
+Design notes: `docs/SPEC-companion.md`.
+
 ## Roadmap
 
 - **Other agents.** SuperAgent wraps Claude Code today, but in the end it's an
