@@ -310,7 +310,10 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           return fail('unavailable', 'the browser is not open for this conversation')
         if (p.data.action === 'back') wc.navigationHistory.goBack()
         else if (p.data.action === 'forward') wc.navigationHistory.goForward()
-        else wc.reload()
+        else {
+          if (wc.isLoading()) wc.stop()
+          wc.reload()
+        }
         return { ok: true }
       }
       case 'files.list': {
