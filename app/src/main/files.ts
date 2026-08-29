@@ -13,7 +13,7 @@ import {
   readSync,
   closeSync
 } from 'fs'
-import { join, relative, basename, extname } from 'path'
+import { join, relative, basename, extname, resolve, sep } from 'path'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
 
@@ -166,6 +166,70 @@ export function gitSubrepos(root: string): SubRepo[] {
 // Cap the in-app text viewer so a stray huge/binary file can't lock up the
 // renderer. Bigger files fall back to opening in the OS.
 const MAX_TEXT_BYTES = 2 * 1024 * 1024
+
+/** Local branches, the current one flagged, with the worktree that holds each. */
+export function gitBranches(cwd: string): Promise<GitBranch[]> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['for-each-ref', '--format=%(refname:short)|%(HEAD)|%(worktreepath)', 'refs/heads/'],
+      { cwd, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) return resolve([])
+        const rows = stdout
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .map((l) => {
+            const [name, head, wt] = l.split('|')
+            return { name, current: head === '*', worktree: wt ? wt.trim() || null : null }
+          })
+        resolve(rows)
+      }
+    )
+  })
+}
+
+export interface GitBranch {
+  name: string
+  current: boolean
+  worktree: string | null
+}
+
+export function gitCheckout(cwd: string, branch: string): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    execFile('git', ['checkout', branch], { cwd }, (err, _stdout, stderr) =>
+      resolve(err ? { ok: false, error: (stderr || '').trim() } : { ok: true })
+    )
+  })
+}
+
+/**
+ * A text file for a viewer/editor, or null if it's missing, too large, or not
+ * decodable as UTF-8 text (so the caller can fall back to something else).
+ */
+export function readTextFile(path: string, maxBytes = MAX_TEXT_BYTES): string | null {
+  try {
+    if (statSync(path).size > maxBytes) return null
+    const buf = readFileSync(path)
+    // A NUL byte in the first chunk is a reliable "this is binary" signal.
+    if (buf.subarray(0, 8000).includes(0)) return null
+    return buf.toString('utf8')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve a project-relative path and refuse anything that escapes the project
+ * — a phone may only read what the project holds, never `../../.ssh`.
+ */
+export function resolveInside(root: string, rel: string): string | null {
+  const base = resolve(root)
+  const full = resolve(base, rel)
+  if (full === base) return full
+  return full.startsWith(base + sep) ? full : null
+}
 
 export function registerFilesIpc(): void {
   // Background shells write their output to a file, and the Bash result says
@@ -365,36 +429,10 @@ export function registerFilesIpc(): void {
   // Local branches, with the current one flagged and any already checked out in a
   // worktree marked (git won't check the same branch out twice). Powers the
   // branch picker + the toolbar switcher.
-  ipcMain.handle('git:branches', (_e, cwd: string) => {
-    return new Promise((resolve) => {
-      execFile(
-        'git',
-        ['for-each-ref', '--format=%(refname:short)|%(HEAD)|%(worktreepath)', 'refs/heads/'],
-        { cwd, maxBuffer: 4 * 1024 * 1024 },
-        (err, stdout) => {
-          if (err) return resolve([])
-          const rows = stdout
-            .split('\n')
-            .map((l) => l.trim())
-            .filter(Boolean)
-            .map((l) => {
-              const [name, head, wt] = l.split('|')
-              return { name, current: head === '*', worktree: wt ? wt.trim() || null : null }
-            })
-          resolve(rows)
-        }
-      )
-    })
-  })
+  ipcMain.handle('git:branches', (_e, cwd: string) => gitBranches(cwd))
   // Switch the checkout to another branch. Fails cleanly if the tree is dirty or
   // the branch is checked out in a worktree — git returns non-zero and we surface it.
-  ipcMain.handle('git:checkout', (_e, cwd: string, branch: string) => {
-    return new Promise((resolve) => {
-      execFile('git', ['checkout', branch], { cwd }, (err, _stdout, stderr) =>
-        resolve(err ? { ok: false, error: (stderr || '').trim() } : { ok: true })
-      )
-    })
-  })
+  ipcMain.handle('git:checkout', (_e, cwd: string, branch: string) => gitCheckout(cwd, branch))
   ipcMain.handle('worktree:remove', (_e, projectPath: string, wtPath: string) => {
     return new Promise((resolve) => {
       execFile('git', ['worktree', 'remove', '--force', wtPath], { cwd: projectPath }, (err) =>
@@ -570,17 +608,7 @@ export function registerFilesIpc(): void {
   ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))
   // Read a text file for the in-app viewer/editor. Returns null if it's missing,
   // too large, or not decodable as UTF-8 text (so the caller can fall back to the OS).
-  ipcMain.handle('files:read', (_e, path: string): string | null => {
-    try {
-      if (statSync(path).size > MAX_TEXT_BYTES) return null
-      const buf = readFileSync(path)
-      // A NUL byte in the first chunk is a reliable "this is binary" signal.
-      if (buf.subarray(0, 8000).includes(0)) return null
-      return buf.toString('utf8')
-    } catch {
-      return null
-    }
-  })
+  ipcMain.handle('files:read', (_e, path: string): string | null => readTextFile(path))
   // Save edits from the in-app editor. Returns true on success.
   ipcMain.handle('files:write', (_e, path: string, content: string): boolean => {
     try {

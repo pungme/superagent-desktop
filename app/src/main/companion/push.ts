@@ -19,7 +19,7 @@ export interface PushRequest {
   pushType?: 'alert'
 }
 
-export type PushKind = 'approval' | 'done' | 'needs-you'
+export type PushKind = 'approval' | 'done' | 'needs-you' | 'test'
 
 export interface PushEvent {
   kind: PushKind
@@ -50,6 +50,11 @@ export function composePush(e: PushEvent): {
     case 'done':
       title = 'Claude is done'
       body = e.detail ? e.detail.slice(0, 140) : 'Tap to see what it did.'
+      category = 'DONE'
+      break
+    case 'test':
+      title = 'Notifications are on'
+      body = `This phone will hear from ${e.machineName} when Claude needs you.`
       category = 'DONE'
       break
     default:
@@ -85,9 +90,19 @@ export function pushTargets(
   kind: PushKind,
   activeDeviceIds: Set<string>
 ): { deviceId: string; token: string; env: 'production' | 'sandbox' }[] {
+  // A test goes to the one phone that asked for it, even while it's on screen.
+  if (kind === 'test') return []
   if (kind === 'done' && !notifyPrefs.done) return []
   if (kind !== 'done' && !notifyPrefs.needsYou) return []
   return devicesWithPush()
     .filter((d) => !activeDeviceIds.has(d.id) && d.pushToken)
     .map((d) => ({ deviceId: d.id, token: d.pushToken!, env: d.pushEnv }))
+}
+
+/** The one phone a "Test notification" button points at, if it can be pushed to. */
+export function testPushTarget(
+  deviceId: string
+): { deviceId: string; token: string; env: 'production' | 'sandbox' } | null {
+  const d = devicesWithPush().find((x) => x.id === deviceId)
+  return d?.pushToken ? { deviceId: d.id, token: d.pushToken, env: d.pushEnv } : null
 }

@@ -506,6 +506,7 @@ function agentLoadedRecently(paneId: string): boolean {
 function attachPaneView(pane: BrowserPane): void {
   if (pane.window.isDestroyed()) return
   pane.window.contentView.addChildView(pane.view)
+  compositingHidden.delete(pane.id)
   pane.visible = true
 }
 
@@ -708,11 +709,37 @@ export function destroyWorkspacePanes(workspaceId: string): void {
 
 function hidePane(pane: BrowserPane): void {
   detachedWhileAway.delete(pane.id)
-  if (pane.visible && !pane.window.isDestroyed()) {
+  if ((pane.visible || compositingHidden.has(pane.id)) && !pane.window.isDestroyed()) {
     pane.window.contentView.removeChildView(pane.view)
     if (twin?.forPane === pane.id) destroyTwin(pane.window)
   }
+  compositingHidden.delete(pane.id)
   pane.visible = false
+}
+
+// Panes kept in the window's view tree but parked off-screen, so they keep
+// compositing. A WebContentsView that isn't in the tree never produces a
+// frame, and a debugger screenshot of it never returns — the phone's live
+// browser view would hang on exactly the panes it needs most: chats the Mac
+// isn't currently showing.
+const compositingHidden = new Set<string>()
+
+/**
+ * Make sure a pane composites even though nothing shows it: attach it to the
+ * window off-screen. A no-op for a visible pane; the show path later re-adds
+ * the same view where it belongs, and hidePane detaches it again.
+ */
+export function ensureCompositing(paneId: string): void {
+  const pane = panes.get(paneId)
+  if (!pane || pane.visible || compositingHidden.has(paneId) || pane.window.isDestroyed()) return
+  // Not off-window — a view outside the window's bounds is culled and never
+  // paints either. Inside the window, underneath the app's own view (index 0),
+  // it is fully covered yet still composited.
+  const { width, height } = pane.window.getContentBounds()
+  pane.view.setBounds({ x: 0, y: 0, width: Math.max(800, width), height: Math.max(600, height) })
+  pane.window.contentView.addChildView(pane.view, 0)
+  compositingHidden.add(paneId)
+  paneLog('composite-hidden', paneId)
 }
 
 export function getPaneWebContents(id: string): Electron.WebContents | undefined {

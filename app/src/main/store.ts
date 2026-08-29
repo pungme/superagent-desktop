@@ -416,6 +416,71 @@ export function getChat(chatId: string): ChatRow | undefined {
     .get(chatId) as ChatRow | undefined
 }
 
+/**
+ * Messages that mention `query`, newest first — what the phone's search box
+ * shows. Only what people and the agent said; tool noise stays out.
+ */
+export function searchChats(
+  query: string,
+  limit = 30
+): {
+  chatId: string
+  workspaceId: string
+  title: string | null
+  ts: number
+  role: 'user' | 'assistant'
+  snippet: string
+}[] {
+  const q = query.trim()
+  if (!q) return []
+  const rows = db
+    .prepare(
+      `SELECT e.chatId, c.workspaceId, c.title, e.ts, e.kind, e.data
+       FROM chat_events e JOIN chats c ON c.id = e.chatId
+       WHERE e.kind IN ('user', 'assistant') AND e.data LIKE ? ESCAPE '\\'
+       ORDER BY e.ts DESC LIMIT ?`
+    )
+    .all(`%${q.replace(/[\\%_]/g, (m) => '\\' + m)}%`, limit * 3) as {
+    chatId: string
+    workspaceId: string
+    title: string | null
+    ts: number
+    kind: 'user' | 'assistant'
+    data: string
+  }[]
+  const out: ReturnType<typeof searchChats> = []
+  const seen = new Set<string>()
+  for (const r of rows) {
+    let text = ''
+    try {
+      text = String((JSON.parse(r.data) as { text?: string }).text ?? '')
+    } catch {
+      continue
+    }
+    const at = text.toLowerCase().indexOf(q.toLowerCase())
+    if (at < 0) continue
+    // One hit per chat per role keeps the list a list of conversations, not lines.
+    const key = r.chatId + ':' + r.kind
+    if (seen.has(key)) continue
+    seen.add(key)
+    const start = Math.max(0, at - 40)
+    const snippet =
+      (start > 0 ? '…' : '') +
+      text.slice(start, at + q.length + 80).replace(/\s+/g, ' ') +
+      (at + q.length + 80 < text.length ? '…' : '')
+    out.push({
+      chatId: r.chatId,
+      workspaceId: r.workspaceId,
+      title: r.title,
+      ts: r.ts,
+      role: r.kind,
+      snippet
+    })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 export function listAllChats(): ChatRow[] {
   return db
     .prepare(

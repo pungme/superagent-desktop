@@ -1,4 +1,4 @@
-import type { DiffHunk, WireEventData } from '../shared/companion-protocol'
+import type { DiffHunk, WireEventData, TaskInfo } from '../shared/companion-protocol'
 
 /**
  * Turns Claude Code's stream-json into the companion's event vocabulary.
@@ -108,7 +108,16 @@ export class TranscriptProjector {
         this.emitted.add(id)
         const name = typeof block.name === 'string' ? block.name : 'tool'
         const diff = toolDiff(name, id, block.input)
-        out.push(diff ?? { kind: 'tool', id, name, detail: toolDetail(block.input) })
+        const task = taskInfo(name, block.input)
+        out.push(
+          diff ?? {
+            kind: 'tool',
+            id,
+            name,
+            detail: toolDetail(block.input),
+            ...(task ? { task } : {})
+          }
+        )
       }
     })
     if (out.length) this.streamed = ''
@@ -152,6 +161,36 @@ export function toolDetail(input: unknown): string {
   if (typeof pick === 'string') return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
   if (typeof o.file_path === 'string') return o.file_path.split('/').pop() ?? ''
   return ''
+}
+
+/** The plan a planning tool call carries; undefined for every other tool. */
+export function taskInfo(name: string, input: unknown): TaskInfo | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const o = input as Record<string, unknown>
+  const str = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.trim() ? v.trim() : undefined
+  if (name === 'TodoWrite' && Array.isArray(o.todos)) {
+    const todos = o.todos
+      .map((t) => {
+        const r = (t ?? {}) as Record<string, unknown>
+        const text = str(r.content) ?? str(r.activeForm)
+        return text ? { text: text.slice(0, 200), status: str(r.status) ?? 'pending' } : null
+      })
+      .filter((t): t is { text: string; status: string } => !!t)
+    return todos.length ? { todos } : undefined
+  }
+  if (name === 'TaskCreate') {
+    const subject = str(o.subject)
+    return subject
+      ? { subject: subject.slice(0, 200), description: str(o.description)?.slice(0, 500) }
+      : undefined
+  }
+  if (name === 'TaskUpdate') {
+    const taskId = str(o.taskId) ?? (typeof o.taskId === 'number' ? String(o.taskId) : undefined)
+    const status = str(o.status)
+    return taskId || status ? { taskId, status, subject: str(o.subject)?.slice(0, 200) } : undefined
+  }
+  return undefined
 }
 
 function trimCommon(removed: string[], added: string[]): DiffHunk {
