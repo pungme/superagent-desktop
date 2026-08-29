@@ -7,15 +7,21 @@ import {
   kvGet,
   listCards,
   createChat,
+  deleteChat,
+  setChatTitle,
+  lastChatPreview,
   DESKTOP_WORKSPACE_ID
 } from '../store'
 import {
   startAgent,
+  stopAgent,
   sendToAgent,
   hardInterruptAgent,
   findSessionByChat,
+  getSessionOpts,
   AgentStartOptions
 } from '../agent'
+import { gitBranch } from '../files'
 import { listRoutines, runRoutine } from '../routines'
 import { resolveGate } from '../hooks'
 import { workspaceStatuses } from './status'
@@ -43,6 +49,7 @@ const fail = (code: RpcErrorCode, message: string): RpcResult => ({
   error: { code, message }
 })
 
+const permissionModes = z.enum(['bypassPermissions', 'acceptEdits', 'plan', 'ask'])
 const chatSend = z.object({
   chatId: z.string().min(1),
   text: z.string().max(200_000),
@@ -50,8 +57,11 @@ const chatSend = z.object({
     .array(z.object({ mediaType: z.string().regex(/^image\//), data: z.string().max(5_000_000) }))
     .max(6)
     .optional(),
-  localId: z.string().max(80).optional()
+  localId: z.string().max(80).optional(),
+  model: z.string().max(60).optional(),
+  permissionMode: permissionModes.optional()
 })
+const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatId = z.object({ chatId: z.string().min(1) })
 const chatCreate = z.object({ workspaceId: z.string().min(1) })
 const approvalAnswer = z.object({
@@ -91,6 +101,26 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         broadcastToWindows('projects:changed')
         pushChats()
         return { ok: true, result: { chatId: id } }
+      }
+      case 'chat.rename': {
+        const p = chatRename.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        setChatTitle(p.data.chatId, p.data.title.trim())
+        broadcastToWindows('projects:changed')
+        pushChats()
+        return { ok: true }
+      }
+      case 'chat.delete': {
+        const p = chatId.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        const s = findSessionByChat(p.data.chatId)
+        if (s) stopAgent(s.id)
+        deleteChat(p.data.chatId)
+        broadcastToWindows('projects:changed')
+        pushChats()
+        return { ok: true }
       }
       case 'approval.answer': {
         const p = approvalAnswer.safeParse(params)
@@ -138,7 +168,9 @@ export function listTree(): WireGroup[] {
       name: w.name,
       path: w.path,
       kind: w.kind,
-      status: statuses.get(w.id) ?? 'idle'
+      status: statuses.get(w.id) ?? 'idle',
+      branch: w.kind === 'app' ? gitBranch(w.path) : null,
+      browserUrl: w.browserUrl ?? null
     }))
   }))
 }
@@ -151,7 +183,8 @@ export function listChats(): WireChat[] {
       workspaceId: c.workspaceId,
       title: c.title,
       updatedAt: c.updatedAt,
-      live: !!findSessionByChat(c.id)
+      live: !!findSessionByChat(c.id),
+      preview: lastChatPreview(c.id)
     }))
 }
 
@@ -163,6 +196,20 @@ function sendToChat(p: ChatSendParams): RpcResult {
   const chat = getChat(p.chatId)
   if (!chat) return fail('not-found', 'no such chat')
   let session = findSessionByChat(p.chatId)
+  // A different model or mode than the running agent's: restart it on the
+  // same claude session, exactly as the desktop does when its pickers change.
+  if (session && !session.owned && (p.model !== undefined || p.permissionMode !== undefined)) {
+    const cur = getSessionOpts(session.id)
+    const wantModel = p.model ?? cur?.model ?? ''
+    const wantMode = p.permissionMode ?? cur?.permissionMode ?? 'bypassPermissions'
+    if (
+      (cur?.model ?? '') !== wantModel ||
+      (cur?.permissionMode ?? 'bypassPermissions') !== wantMode
+    ) {
+      stopAgent(session.id)
+      session = undefined
+    }
+  }
   if (!session) {
     const ws = getWorkspace(chat.workspaceId)
     if (!ws) return fail('not-found', 'no such project')
@@ -170,10 +217,10 @@ function sendToChat(p: ChatSendParams): RpcResult {
       cwd: chat.cwd ?? ws.path,
       workspaceId: ws.id,
       chatId: chat.id,
-      resumeSessionId: chat.claudeSessionId,
+      resumeSessionId: getChat(chat.id)?.claudeSessionId ?? chat.claudeSessionId,
       browserProject: ws.kind === 'browser',
-      permissionMode: permissionModeSetting(),
-      model: kvGet('cove.model') || undefined
+      permissionMode: p.permissionMode ?? permissionModeSetting(),
+      model: p.model ?? (kvGet('cove.model') || undefined)
     }
     const id = startAgent(null, opts)
     session = { id, chatId: chat.id, workspaceId: ws.id, owned: false }

@@ -8,9 +8,10 @@ import type { ServerFrame, WireEvent, WireEventKind } from './companion-protocol
  * against the TypeScript types (a compile-time check, via the casts below) and
  * a few runtime invariants, so editing a fixture by hand can't silently drift.
  */
-const fx = JSON.parse(
-  readFileSync(join(__dirname, 'fixtures/companion/frames.json'), 'utf8')
-) as { server: ServerFrame[]; events: WireEvent[] }
+const fx = JSON.parse(readFileSync(join(__dirname, 'fixtures/companion/frames.json'), 'utf8')) as {
+  server: ServerFrame[]
+  events: WireEvent[]
+}
 
 const KINDS: WireEventKind[] = [
   'user',

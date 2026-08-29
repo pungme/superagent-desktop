@@ -30,8 +30,18 @@ export class TranscriptProjector {
     if (type === 'system' && raw.subtype === 'init') {
       const sid = raw.session_id as string | undefined
       if (!sid) return NO_OUTPUT
+      const commands = Array.isArray(raw.slash_commands)
+        ? (raw.slash_commands as unknown[]).filter((c): c is string => typeof c === 'string')
+        : undefined
       return {
-        persist: [{ kind: 'session', claudeSessionId: sid, model: raw.model as string | undefined }]
+        persist: [
+          {
+            kind: 'session',
+            claudeSessionId: sid,
+            model: raw.model as string | undefined,
+            ...(commands?.length ? { commands } : {})
+          }
+        ]
       }
     }
     if (type === 'stream_event') {

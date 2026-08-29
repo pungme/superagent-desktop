@@ -67,6 +67,11 @@ export function findSessionByChat(chatId: string): AgentSessionInfo | undefined 
   return undefined
 }
 
+/** What a session was started with — to tell whether a requested change needs a restart. */
+export function getSessionOpts(id: string): AgentStartOptions | undefined {
+  return sessions.get(id)?.opts
+}
+
 export function listSessions(): AgentSessionInfo[] {
   return [...sessions.values()].map((s) => ({
     id: s.id,

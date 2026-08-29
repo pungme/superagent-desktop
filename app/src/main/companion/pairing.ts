@@ -1,4 +1,5 @@
 import { hostname } from 'os'
+import { execFileSync } from 'child_process'
 import { EventEmitter } from 'events'
 import { newSecret, deriveKeys, pairingDigest, DeviceKeys } from './crypto'
 import { machineId } from './identity'
@@ -136,12 +137,23 @@ export function state(): {
   }
 }
 
-/** "Pungs-MacBook-Pro.local" → "Pungs MacBook Pro". */
+let cachedName: string | null = null
+/** The name the Mac calls itself in System Settings ("Pung's MacBook Pro"), else the hostname. */
 export function prettyHostname(): string {
-  return (
-    hostname()
+  if (cachedName) return cachedName
+  let name = ''
+  if (process.platform === 'darwin') {
+    try {
+      name = execFileSync('scutil', ['--get', 'ComputerName'], { timeout: 2000 }).toString().trim()
+    } catch {
+      name = ''
+    }
+  }
+  if (!name)
+    name = hostname()
       .replace(/\.local$/i, '')
       .replace(/-/g, ' ')
-      .trim() || 'Mac'
-  )
+      .trim()
+  cachedName = name || 'Mac'
+  return cachedName
 }

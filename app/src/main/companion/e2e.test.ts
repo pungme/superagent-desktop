@@ -106,6 +106,10 @@ vi.mock('../store', () => ({
   kvSet: (k: string, v: string) => h.kv.set(k, v),
   listCards: () => [],
   createChat: () => 'c-new',
+  deleteChat: () => undefined,
+  setChatTitle: () => undefined,
+  setChatSession: () => undefined,
+  lastChatPreview: () => null,
   appendChatEvent: (chatId: string, kind: string, data: unknown) => {
     const buf = h.events.get(chatId) ?? []
     const seq = buf.length + 1
@@ -184,7 +188,9 @@ vi.mock('../agent', () => ({
     })
     return true
   },
-  hardInterruptAgent: async () => true
+  hardInterruptAgent: async () => true,
+  stopAgent: (id: string) => h.sessions.delete(id),
+  getSessionOpts: () => ({})
 }))
 
 vi.mock('../hooks', () => ({
@@ -202,6 +208,7 @@ vi.mock('../hooks', () => ({
   }
 }))
 vi.mock('../routines', () => ({ listRoutines: () => [], runRoutine: async () => {} }))
+vi.mock('../files', () => ({ gitBranch: () => 'main' }))
 
 // Identity: a fixed Ed25519 key, no disk.
 vi.mock('./identity', async () => {

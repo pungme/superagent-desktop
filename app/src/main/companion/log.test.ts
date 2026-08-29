@@ -35,6 +35,7 @@ vi.mock('../store', () => ({
       .map((e) => ({ chatId, ...e })),
   chatEventCount: (chatId: string) => (mem.events.get(chatId) ?? []).length,
   loadChatItems: (chatId: string) => mem.items.get(chatId) ?? [],
+  setChatSession: () => undefined,
   appendChatItems: (chatId: string, items: unknown[]) =>
     mem.items.set(chatId, [...(mem.items.get(chatId) ?? []), ...items])
 }))

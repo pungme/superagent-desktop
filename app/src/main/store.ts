@@ -424,6 +424,31 @@ export function listAllChats(): ChatRow[] {
     .all() as ChatRow[]
 }
 
+/** The last thing said in a chat, from the companion log, for list rows. */
+export function lastChatPreview(chatId: string): string | null {
+  const row = db
+    .prepare(
+      "SELECT data FROM chat_events WHERE chatId = ? AND kind IN ('assistant', 'user') ORDER BY seq DESC LIMIT 1"
+    )
+    .get(chatId) as { data: string } | undefined
+  if (!row) return null
+  try {
+    const text = String((JSON.parse(row.data) as { text?: string }).text ?? '')
+    return text.replace(/\s+/g, ' ').trim().slice(0, 140) || null
+  } catch {
+    return null
+  }
+}
+
+export function deleteChat(chatId: string): void {
+  db.prepare('DELETE FROM chats WHERE id = ?').run(chatId)
+}
+
+/** Remember the resumable claude session for a chat (the renderer does this for its own). */
+export function setChatSession(chatId: string, claudeSessionId: string): void {
+  db.prepare('UPDATE chats SET claudeSessionId = ? WHERE id = ?').run(claudeSessionId, chatId)
+}
+
 export function setChatTitle(chatId: string, title: string): void {
   db.prepare('UPDATE chats SET title = ? WHERE id = ?').run(title, chatId)
 }
