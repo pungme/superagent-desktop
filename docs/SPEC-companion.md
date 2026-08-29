@@ -103,7 +103,7 @@ v1 methods (each maps onto an existing main-process function; nothing new is inv
 ```
 Mac UI: Settings → Phone → "Pair a phone" → shows QR + 6-digit code, 120 s TTL, single use
 QR payload (base64url JSON, ≈ 180 bytes):
-  { v:1, name, relay: "wss://relay.superagent.dev", m: "<machineId>", k: "<32-byte device secret, base64url>" }
+  { v:1, name, relay: "wss://superagent-relay.superagent-relay.workers.dev", m: "<machineId>", k: "<32-byte device secret, base64url>" }
 
 Phone: scans → connects to relay /c/<machineId> → derives keys from k → sends (encrypted)
 → pair     { t, device: { id, name, model, pushToken? } }

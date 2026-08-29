@@ -164,7 +164,7 @@ export interface PairPayload {
   v: number
   /** Human name of the Mac, for the phone's list. */
   name: string
-  /** Relay URL, e.g. wss://relay.superagent.dev */
+  /** Relay URL, e.g. wss://superagent-relay.superagent-relay.workers.dev */
   relay: string
   /** Machine id — hex of the Mac's Ed25519 public key. */
   m: string
