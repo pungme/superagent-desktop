@@ -3344,26 +3344,6 @@ export function EasyChat({
             }}
           />
           <button
-            className="easy-attach"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!ready && !suspended}
-            title="Attach a file or image"
-            aria-label="Attach a file"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.49" />
-            </svg>
-          </button>
-          <button
             className={`easy-mic ${dictation.state === 'recording' ? 'recording' : ''}`}
             // Hold to talk, or tap for hands-free — the shape Wispr Flow settled
             // on, and the reason a stuck mic used to have no way out.
@@ -3432,6 +3412,33 @@ export function EasyChat({
         )}
       </div>
       <div className="easy-controls">
+        {/* Attach sits with the other secondary controls, not inside the text
+            box: parked in there (either edge) it crowded the first line of
+            every message and read as one more mic-like control. */}
+        <div className="easy-control">
+          <button
+            className="easy-control-btn easy-attach"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!ready && !suspended}
+            title="Attach a file or image"
+            aria-label="Attach a file"
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.49" />
+            </svg>
+            <span className="easy-control-val">Attach</span>
+          </button>
+        </div>
         <div className="easy-control">
           <button
             className={`easy-control-btn ${controlMenu === 'model' ? 'open' : ''}`}
