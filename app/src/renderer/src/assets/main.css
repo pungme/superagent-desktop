@@ -199,16 +199,20 @@ button {
   height: 0;
 }
 
-/* Grouping comes from proximity: the header sits tight above its own projects,
-   with generous space before the next section. No dividers/rails (they read
-   cheap) — a muted uppercase header + spacing + a subtle indent do the work. */
+/* The header sits tight above its own projects, and each further group starts
+   under a hairline rule. Proximity alone was tried first — 20px of air and a
+   muted header — and with three groups of a dozen projects the boundaries
+   still disappeared: air between groups looks like air between projects. A
+   rule is unambiguous, and lets the rows stay compact. */
 .sidebar-group {
   border-radius: 10px;
   transition: background 0.12s ease;
 }
 
 .sidebar-group + .sidebar-group {
-  margin-top: 20px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-strong);
 }
 
 /* Dropping INTO a group is a different gesture from reordering, so it gets a
@@ -281,7 +285,9 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: var(--text-tertiary);
+  /* A step darker than the tertiary it was: the label is the group's name and
+     has to be found in a long column, not merely present. */
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -356,14 +362,6 @@ button {
   padding-left: 4px; /* subtle indent under the section header, no rail */
 }
 
-/* One project + its chats/repos/routines is a BLOCK. With many projects the
-   rows ran edge-to-edge and the tree read as one undifferentiated list — the
-   gap between blocks is what makes each project's cluster scannable, and the
-   heavier project name anchors it over its lighter children. */
-.sidebar-item-wrap + .sidebar-item-wrap {
-  margin-top: 8px;
-}
-
 .sidebar-item {
   position: relative;
   display: flex;
@@ -423,9 +421,7 @@ button {
 .sidebar-item-name {
   flex: 1;
   font-size: 13.5px;
-  /* Heavier than the 400-weight chat/repo children, so with many projects each
-     name anchors its own cluster. */
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
