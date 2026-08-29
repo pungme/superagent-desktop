@@ -22,6 +22,8 @@ export class RelayClient extends EventEmitter {
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private authed = false
+  /** When the relay last answered a ping; a silent relay is a dead socket. */
+  private lastPong = 0
   state: RelayState = 'offline'
   lastError = ''
 
@@ -115,8 +117,17 @@ export class RelayClient extends EventEmitter {
           this.attempt = 0
           this.lastError = ''
           this.setState('connected')
+          this.lastPong = Date.now()
           this.pingTimer = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) ws.send('{"t":"ping"}')
+            if (ws.readyState !== WebSocket.OPEN) return
+            // Two unanswered pings (relay restarted, network changed under us)
+            // means the TCP socket is half-open: kill it and reconnect.
+            if (Date.now() - this.lastPong > 60_000) {
+              this.lastError = 'relay stopped answering'
+              ws.terminate()
+              return
+            }
+            ws.send('{"t":"ping"}')
           }, 25_000)
           return
         case 'open':
@@ -128,6 +139,9 @@ export class RelayClient extends EventEmitter {
           return
         case 'close':
           if (frame.c) this.emit('close', { conn: frame.c })
+          return
+        case 'pong':
+          this.lastPong = Date.now()
           return
         case 'bye':
           this.lastError = frame.reason ?? 'bye'

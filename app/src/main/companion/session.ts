@@ -80,6 +80,9 @@ export class ClientConn {
     }
     const plain = this.opener!.open(data)
     if (plain === null) {
+      console.log(
+        `[companion] conn ${this.id}: frame from ${this.deviceId ?? 'pairing'} did not open (${data.length} chars) — closing`
+      )
       this.close()
       return
     }
