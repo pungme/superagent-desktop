@@ -75,25 +75,25 @@ test('the file tree lists project files', async () => {
   await window.click('.toolbar-btn:has-text("Files")')
 })
 
-test('the browser preview pane can be toggled on', async () => {
-  await window.click('.toolbar-btn:has-text("Show preview")')
+test('a browser tab opens from the sidebar', async () => {
+  await window.click('button:has-text("Open a tab to browse")')
   await window.waitForSelector('.browser-pane', { timeout: 10_000 })
-  await expect(window.locator('.browser-address')).toBeVisible()
+  await expect(window.locator('.browser-address').first()).toBeVisible()
 })
 
-test('the Settings panel opens from the sidebar gear', async () => {
-  await window.click('.sidebar-settings')
-  await window.waitForSelector('.settings-panel', { timeout: 5_000 })
-  await expect(window.locator('.settings-panel')).toContainText('Settings')
-  await window.click('.skills-close')
+test('Settings opens from the sidebar gear and closes with Done', async () => {
+  await window.click('.sidebar-settings[title="Settings"]')
+  const heading = window.locator('main h1', { hasText: 'Settings' })
+  await expect(heading).toBeVisible({ timeout: 5_000 })
+  await expect(window.locator('main')).toContainText('Phone')
+  await window.click('main button:has-text("Done")')
+  await expect(heading).toHaveCount(0)
 })
 
-test('the new-project dialog offers Code and Browser projects', async () => {
-  await window.hover('.sidebar-group-header')
-  await window.click('.group-add')
-  await window.waitForSelector('.new-project', { timeout: 5_000 })
-  await expect(window.locator('.new-project')).toContainText('Code project')
-  await expect(window.locator('.new-project')).toContainText('Browser project')
-  await window.click('.new-project-cancel')
-  await expect(window.locator('.new-project')).toHaveCount(0)
+test('hovering a group reveals its New project button', async () => {
+  const header = window.locator('.sidebar-group-header').first()
+  await header.hover()
+  // Clicking it would open the native folder picker, which e2e can't drive —
+  // the affordance being there on hover is the contract.
+  await expect(header.locator('.group-add[title="New project"]')).toBeVisible()
 })
