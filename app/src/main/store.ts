@@ -424,6 +424,10 @@ export function listAllChats(): ChatRow[] {
     .all() as ChatRow[]
 }
 
+export function setChatTitle(chatId: string, title: string): void {
+  db.prepare('UPDATE chats SET title = ? WHERE id = ?').run(title, chatId)
+}
+
 /** The chat a claude session belongs to (sessions are recorded on their chat rows). */
 export function getChatIdBySession(sessionId: string): string | undefined {
   const row = db

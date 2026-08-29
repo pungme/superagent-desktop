@@ -674,7 +674,7 @@ export function killAllAgents(): void {
  * request never lands in the transcript. Tools are off — this is pure text in,
  * text out — and a failure is silent: the caller keeps its fallback title.
  */
-function suggestTitle(cwd: string, excerpt: string): Promise<string | null> {
+export function suggestTitle(cwd: string, excerpt: string): Promise<string | null> {
   return new Promise((resolve) => {
     const proc = spawn(
       findClaude(),
