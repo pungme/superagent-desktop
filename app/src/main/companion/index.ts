@@ -29,7 +29,7 @@ import type { WireEvent } from '../../shared/companion-protocol'
  * keep-awake rule (never let the Mac nap while a phone is watching).
  */
 
-export const DEFAULT_RELAY = 'wss://relay.superagent.dev'
+export const DEFAULT_RELAY = 'wss://superagent-relay.superagent-relay.workers.dev'
 
 /** 'state' whenever companionState() changed — the tray listens here. */
 export const companionBus = new EventEmitter()

@@ -8,7 +8,7 @@ import type { CompanionState } from '../../../preload'
  * their own relay — point the Mac at it.
  */
 
-const DEFAULT_RELAY = 'wss://relay.superagent.dev'
+const DEFAULT_RELAY = 'wss://superagent-relay.superagent-relay.workers.dev'
 
 function encodePayload(p: object): string {
   const json = JSON.stringify(p)
