@@ -4,7 +4,8 @@ import {
   projectLegacyItems,
   toLegacyItems,
   toolDiff,
-  taskInfo
+  taskInfo,
+  userDisplayText
 } from './transcript'
 
 const init = { type: 'system', subtype: 'init', session_id: 'sess-1', model: 'claude-fable-5' }
@@ -187,5 +188,24 @@ describe('taskInfo', () => {
       name: 'TaskCreate',
       task: { subject: 'Ship it' }
     })
+  })
+})
+
+describe('userDisplayText', () => {
+  it('drops the mid-turn course-correction wrapper the window adds', () => {
+    const wrapped =
+      '[The user sent this WHILE you are still working on the previous request. ' +
+      'Treat it as a course-correction: pause at the next safe point, re-read it, and ' +
+      'act on it now rather than finishing the earlier plan unchanged. If it changes ' +
+      'what you should do, adjust; if it reorders priorities, follow the new order.]\n\n' +
+      'please double check everything'
+    expect(userDisplayText(wrapped)).toBe('please double check everything')
+  })
+
+  it('leaves an ordinary message alone, brackets of your own included', () => {
+    expect(userDisplayText('ship it')).toBe('ship it')
+    expect(userDisplayText('[note] ship it')).toBe('[note] ship it')
+    const quoted = '> Replying to your earlier message:\n> "ok"\n\nyes'
+    expect(userDisplayText(quoted)).toBe(quoted)
   })
 })

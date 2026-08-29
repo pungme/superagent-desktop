@@ -1,6 +1,12 @@
 import { EventEmitter } from 'events'
 import { agentBus, listSessions } from '../agent'
-import { TranscriptProjector, projectLegacyItems, toLegacyItems, LegacyItem } from '../transcript'
+import {
+  TranscriptProjector,
+  projectLegacyItems,
+  toLegacyItems,
+  LegacyItem,
+  userDisplayText
+} from '../transcript'
 import {
   appendChatEvent,
   appendChatItems,
@@ -193,7 +199,7 @@ export function startCompanionLog(): void {
       const data: WireEventData = {
         kind: 'user',
         id: localId ?? `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        text,
+        text: userDisplayText(text),
         from,
         ...(images.length ? { images } : {})
       }

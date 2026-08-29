@@ -205,6 +205,20 @@ function trimCommon(removed: string[], added: string[]): DiffHunk {
   return { removed: removed.slice(start, endR), added: added.slice(start, endA) }
 }
 
+/**
+ * What the user actually typed. The window wraps a message sent mid-turn in a
+ * course-correction instruction before handing it to claude (EasyChat.tsx) —
+ * that wrapper is addressed to the agent, and the desktop's own chat never
+ * shows it. Anything reading the transcript (a phone, the stored items of an
+ * unowned session) should see the same clean message.
+ */
+export function userDisplayText(text: string): string {
+  return text.replace(
+    /^\[The user sent this WHILE you are still working on the previous request\.[\s\S]*?\]\n\n/,
+    ''
+  )
+}
+
 /** A diff card from an Edit/Write/MultiEdit input; null for any other tool. */
 export function toolDiff(
   name: string,
