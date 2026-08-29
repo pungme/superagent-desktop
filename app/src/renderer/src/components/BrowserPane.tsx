@@ -276,6 +276,10 @@ export function BrowserPane({
   }, [workspaceId])
   useEffect(() => {
     if (!snipping) return
+    // The page view is hidden for the snip but keeps keyboard focus unless
+    // told otherwise — and then Esc goes to a page nobody can see, which looks
+    // like the app has locked up. Take focus first.
+    window.cove.browserFocusShell?.()
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') setSnipping(false)
     }
@@ -1140,6 +1144,15 @@ export function BrowserPane({
               <div className="browser-snip-scrim" />
             )}
             {!snipRect && <div className="browser-snip-hint">Drag to snip · Esc to cancel</div>}
+            {/* A way out that needs no keyboard: focus can be anywhere. */}
+            <button
+              className="browser-snip-cancel"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setSnipping(false)}
+              title="Cancel (Esc)"
+            >
+              ✕ Cancel
+            </button>
           </div>
         )}
         {browsing && (
