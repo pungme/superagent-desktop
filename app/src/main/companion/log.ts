@@ -6,7 +6,8 @@ import {
   appendChatItems,
   chatEventCount,
   listChatEvents,
-  loadChatItems
+  loadChatItems,
+  setChatSession
 } from '../store'
 import type { WireEvent, WireEventData } from '../../shared/companion-protocol'
 
@@ -131,9 +132,12 @@ export function startCompanionLog(): void {
       if (out.delta) logBus.emit('delta', { chatId, text: out.delta })
       if (!out.persist.length) return
       const stored = out.persist.map((data) => record(chatId, data))
-      // No window is showing this chat: keep the desktop transcript in step.
+      // No window is showing this chat: keep the desktop transcript in step,
+      // and remember the claude session so it can be resumed later.
       if (!isOwned(id, owned)) {
         appendChatItems(chatId, toLegacyItems(stored.map((e) => e.data)))
+        for (const e of stored)
+          if (e.data.kind === 'session') setChatSession(chatId, e.data.claudeSessionId)
       }
     }
   )

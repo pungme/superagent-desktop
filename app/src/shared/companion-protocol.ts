@@ -47,7 +47,7 @@ export type WireEventData =
   | { kind: 'tool_result'; toolId: string; ok: boolean; summary: string }
   | { kind: 'diff'; id: string; file: string; hunks: DiffHunk[] }
   | { kind: 'turn_end'; ok: boolean; subtype: string; costUsd?: number; tokens?: number }
-  | { kind: 'session'; claudeSessionId: string; model?: string }
+  | { kind: 'session'; claudeSessionId: string; model?: string; commands?: string[] }
   | { kind: 'notice'; text: string }
   | {
       kind: 'approval'
@@ -87,6 +87,10 @@ export interface WireWorkspace {
   path: string
   kind: 'app' | 'browser'
   status: 'idle' | 'working' | 'needs-you'
+  /** Current git branch, when the project is a repository. */
+  branch?: string | null
+  /** Browser projects: the site they live on (for a favicon). */
+  browserUrl?: string | null
 }
 
 export interface WireChat {
@@ -96,6 +100,8 @@ export interface WireChat {
   updatedAt: number
   /** Whether a claude process is alive for this chat right now. */
   live: boolean
+  /** The last thing said in it, for the list row. */
+  preview?: string | null
 }
 
 export interface WireMachine {
@@ -134,6 +140,8 @@ export type RpcMethod =
   | 'chat.send'
   | 'chat.interrupt'
   | 'chat.create'
+  | 'chat.rename'
+  | 'chat.delete'
   | 'approval.answer'
   | 'routines.list'
   | 'routines.runNow'
@@ -149,6 +157,9 @@ export interface ChatSendParams {
   images?: { mediaType: string; data: string }[]
   /** Client-generated id, echoed in the resulting `user` event for dedupe. */
   localId?: string
+  /** Per-chat overrides; a running agent is restarted (resumed) if they differ. */
+  model?: string
+  permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
 }
 
 export interface ApprovalAnswerParams {

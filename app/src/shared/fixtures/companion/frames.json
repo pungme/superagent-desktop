@@ -3,8 +3,9 @@
   "server": [
     { "t": "welcome", "machine": { "name": "Fixture Mac", "appVersion": "1.6.1", "protocol": 1 },
       "tree": [ { "id": "g1", "name": "My projects", "color": "#8b8ff8", "workspaces": [
-        { "id": "w1", "name": "rowfill", "path": "/Users/me/rowfill", "kind": "app", "status": "working" } ] } ],
-      "chats": [ { "id": "c1", "workspaceId": "w1", "title": "Fix login", "updatedAt": 1756400000000, "live": true } ] },
+        { "id": "w1", "name": "rowfill", "path": "/Users/me/rowfill", "kind": "app", "status": "working", "branch": "main", "browserUrl": null },
+        { "id": "w2", "name": "wikipedia", "path": "", "kind": "browser", "status": "idle", "branch": null, "browserUrl": "https://en.wikipedia.org/wiki/Monet" } ] } ],
+      "chats": [ { "id": "c1", "workspaceId": "w1", "title": "Fix login", "updatedAt": 1756400000000, "live": true, "preview": "Done — tests pass." } ] },
     { "t": "paired", "token": "tok_abc", "machine": { "name": "Fixture Mac", "appVersion": "1.6.1", "protocol": 1 } },
     { "t": "bye", "reason": "unauthorized" },
     { "t": "delta", "chatId": "c1", "text": "On " },
@@ -15,7 +16,7 @@
     { "t": "pong" }
   ],
   "events": [
-    { "chatId": "c1", "seq": 1, "ts": 1756400000000, "data": { "kind": "session", "claudeSessionId": "sess-1", "model": "claude-fable-5" } },
+    { "chatId": "c1", "seq": 1, "ts": 1756400000000, "data": { "kind": "session", "claudeSessionId": "sess-1", "model": "claude-fable-5", "commands": ["compact", "review"] } },
     { "chatId": "c1", "seq": 2, "ts": 1756400001000, "data": { "kind": "user", "id": "L-1", "text": "ship it", "from": "ios", "images": [ { "mediaType": "image/jpeg", "size": 12345 } ] } },
     { "chatId": "c1", "seq": 3, "ts": 1756400002000, "data": { "kind": "thinking", "id": "m1-0", "text": "Let me look." } },
     { "chatId": "c1", "seq": 4, "ts": 1756400003000, "data": { "kind": "tool", "id": "t1", "name": "Bash", "detail": "npm test" } },
