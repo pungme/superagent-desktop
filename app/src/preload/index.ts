@@ -498,6 +498,8 @@ export interface CoveApi {
   /** Open Terminal running `claude` for the one-time sign-in. */
   openClaudeLogin: () => void
   filesList: (root: string) => Promise<string[]>
+  /** Entries of the folder an absolute or ~ path points into, for @-mentions outside the project. */
+  filesComplete: (prefix: string) => Promise<string[]>
   /** A downscaled data URI for an image on disk, or null if it isn't one. */
   filesThumb: (path: string) => Promise<string | null>
   filesOpenExternal: (path: string) => Promise<string>
@@ -796,6 +798,7 @@ const cove: CoveApi = {
   },
   openClaudeLogin: () => ipcRenderer.send('env:open-login'),
   filesList: (root) => ipcRenderer.invoke('files:list', root),
+  filesComplete: (prefix) => ipcRenderer.invoke('files:complete', prefix),
   filesThumb: (path) => ipcRenderer.invoke('files:thumb', path),
   filesOpenExternal: (path) => ipcRenderer.invoke('files:openExternal', path),
   fileRead: (path) => ipcRenderer.invoke('files:read', path),
