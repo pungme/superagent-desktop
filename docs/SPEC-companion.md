@@ -95,8 +95,24 @@ v1 methods (each maps onto an existing main-process function; nothing new is inv
 | `approval.answer` | `resolveGate` in `hooks.ts` (the function behind `guardrail:resolve` (`hooks.ts:379`)) | `{ id, approve, trustRest }`; idempotent, first answer wins, expired → error `gone` |
 | `routines.list` / `routines.runNow` | `routines.ts` | |
 | `board.list` | `listCards` (`store.ts:689`) | read-only |
-| `screenshot.take` | `browser:shoot` handler (`browser.ts:867`) | JPEG, ≤ 512 KB, only for browser workspaces |
 | `device.presence` | — | `{ active: bool }`; suppresses push while the phone is on screen |
+
+Phase 2 (as built, Aug 2026) — the phone reaches the rest of the desktop through the same adapters the agent uses:
+
+| method | maps to | notes |
+|---|---|---|
+| `chat.rename` / `chat.delete` | `setChatTitle` / `deleteChat` | |
+| `chat.search` | `searchChats` (`store.ts`) | user + assistant text only, one hit per chat per role, newest first |
+| `browser.open` | `automation.navigate` on the chat's pane (`<ws>::<chat>`) | creates a hidden pane if the Mac isn't showing that chat (`ensureBackgroundPane` + `ensureCompositing`) |
+| `browser.screenshot` | `automation.screenshot` → `nativeImage` resize/JPEG | ≤ 600 KB; 8 s cap. A pane must be in the window's view tree to composite — hidden panes are parked under the app view |
+| `browser.nav` | `navigationHistory.goBack/goForward`, `reload` | |
+| `files.list` / `files.read` | `listProjectFiles`, `readTextFile`, `nativeImage` | paths resolved with `resolveInside` — never outside the project; text ≤ 400 KB (truncated flag), pictures re-encoded ≤ 600 KB |
+| `git.branches` / `git.checkout` | `gitBranches`, `gitCheckout` (`files.ts`) | git's own refusal is surfaced verbatim |
+| `board.add` / `board.update` / `board.move` | `addCard`, `updateCard`, `moveCard` | broadcasts `board:changed` so the Mac redraws |
+| `routines.setEnabled` | `setRoutineEnabled` | |
+| `screenshot.take` | — | superseded by `browser.screenshot` |
+
+Tool events carry `task?: TaskInfo` (TodoWrite list / TaskCreate subject / TaskUpdate status) so the phone can show a Tasks panel without parsing tool inputs.
 
 ### 2.4 Pairing
 

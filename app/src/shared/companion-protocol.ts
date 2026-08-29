@@ -43,7 +43,7 @@ export type WireEventData =
     }
   | { kind: 'assistant'; id: string; text: string }
   | { kind: 'thinking'; id: string; text: string }
-  | { kind: 'tool'; id: string; name: string; detail: string }
+  | { kind: 'tool'; id: string; name: string; detail: string; task?: TaskInfo }
   | { kind: 'tool_result'; toolId: string; ok: boolean; summary: string }
   | { kind: 'diff'; id: string; file: string; hunks: DiffHunk[] }
   | { kind: 'turn_end'; ok: boolean; subtype: string; costUsd?: number; tokens?: number }
@@ -134,6 +134,19 @@ export type ServerFrame =
   | { t: 'res'; id: string; ok: false; error: { code: RpcErrorCode; message: string } }
   | { t: 'pong' }
 
+/**
+ * What a planning tool call said, so the phone can keep a Tasks panel without
+ * parsing tool inputs itself: TodoWrite carries the whole list, TaskCreate one
+ * new item, TaskUpdate a status change.
+ */
+export interface TaskInfo {
+  todos?: { text: string; status: string }[]
+  subject?: string
+  description?: string
+  taskId?: string
+  status?: string
+}
+
 export type RpcMethod =
   | 'tree.list'
   | 'chat.list'
@@ -146,6 +159,18 @@ export type RpcMethod =
   | 'routines.list'
   | 'routines.runNow'
   | 'board.list'
+  | 'board.add'
+  | 'board.update'
+  | 'board.move'
+  | 'routines.setEnabled'
+  | 'browser.open'
+  | 'browser.screenshot'
+  | 'browser.nav'
+  | 'files.list'
+  | 'files.read'
+  | 'git.branches'
+  | 'git.checkout'
+  | 'chat.search'
   | 'screenshot.take'
   | 'device.presence'
 
@@ -189,4 +214,38 @@ export function pairingCodeFromDigest(digestHex: string): string {
   // sides, no locale surprises. Callers pass SHA-256(k || m) as hex.
   const n = BigInt('0x' + digestHex.slice(0, 16))
   return (n % 1000000n).toString().padStart(6, '0')
+}
+
+/** `browser.screenshot`: what the conversation's browser pane shows right now. */
+export interface WireBrowserShot {
+  url: string
+  title: string
+  canGoBack: boolean
+  canGoForward: boolean
+  width: number
+  height: number
+  /** JPEG, base64. Sized to fit one relay frame. */
+  jpeg: string
+}
+
+/** `files.read`: a project file, in whichever form the phone can show. */
+export type WireFileContent =
+  | { kind: 'text'; path: string; size: number; text: string; truncated: boolean }
+  | { kind: 'image'; path: string; size: number; mediaType: string; data: string }
+  | { kind: 'binary'; path: string; size: number }
+
+export interface WireBranch {
+  name: string
+  current: boolean
+  worktree: string | null
+}
+
+/** `chat.search`: one matching message, newest first. */
+export interface WireSearchHit {
+  chatId: string
+  workspaceId: string
+  title: string | null
+  ts: number
+  role: 'user' | 'assistant'
+  snippet: string
 }

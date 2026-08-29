@@ -65,4 +65,13 @@ describe('push', () => {
     h.prefs.needsYou = false
     expect(pushTargets('approval', new Set())).toEqual([])
   })
+
+  it('composes a test banner and never fans it out', () => {
+    const { payload } = composePush({ kind: 'test', machineName: 'Mac' })
+    expect(payload).toMatchObject({
+      aps: { alert: { title: 'Notifications are on' }, category: 'DONE' },
+      sa: { kind: 'test' }
+    })
+    expect(pushTargets('test', new Set())).toEqual([])
+  })
 })

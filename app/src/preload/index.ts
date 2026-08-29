@@ -568,6 +568,8 @@ export interface CoveApi {
   companionRevoke: (deviceId: string) => void
   companionSetRelay: (url: string) => void
   companionReconnect: () => void
+  /** One test banner to that phone; false if it never registered for push. */
+  companionTestPush: (deviceId: string) => Promise<boolean>
   /** A tool is gated pending the user's approval (browse-then-execute guard). */
   onGuardrailAsk: (cb: (a: GuardrailAsk) => void) => () => void
   /** A pending gate was resolved elsewhere (e.g. timed out) — dismiss its prompt. */
@@ -840,6 +842,7 @@ const cove: CoveApi = {
   companionRevoke: (id) => ipcRenderer.send('companion:revoke', id),
   companionSetRelay: (url) => ipcRenderer.send('companion:set-relay', url),
   companionReconnect: () => ipcRenderer.send('companion:reconnect'),
+  companionTestPush: (id) => ipcRenderer.invoke('companion:test-push', id),
   onGuardrailAsk: (cb) => subscribe('guardrail:ask', (a) => cb(a as GuardrailAsk)),
   onGuardrailResolved: (cb) =>
     subscribe('guardrail:resolved', (r) => cb((r as { requestId: string }).requestId)),

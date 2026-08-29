@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { TranscriptProjector, projectLegacyItems, toLegacyItems, toolDiff } from './transcript'
+import {
+  TranscriptProjector,
+  projectLegacyItems,
+  toLegacyItems,
+  toolDiff,
+  taskInfo
+} from './transcript'
 
 const init = { type: 'system', subtype: 'init', session_id: 'sess-1', model: 'claude-fable-5' }
 const delta = (text: string): Record<string, unknown> => ({
@@ -134,5 +140,52 @@ describe('toolDiff', () => {
       })
     ).toMatchObject({ hunks: [{ removed: ['1'], added: ['2'] }] })
     expect(toolDiff('Bash', 'b', { command: 'ls' })).toBeNull()
+  })
+})
+
+describe('taskInfo', () => {
+  it('lifts a TodoWrite list, a TaskCreate subject and a TaskUpdate status', () => {
+    expect(
+      taskInfo('TodoWrite', {
+        todos: [
+          { content: 'Write tests', status: 'in_progress', activeForm: 'Writing tests' },
+          { content: '', status: 'pending' },
+          { activeForm: 'Shipping', status: 'completed' }
+        ]
+      })
+    ).toEqual({
+      todos: [
+        { text: 'Write tests', status: 'in_progress' },
+        { text: 'Shipping', status: 'completed' }
+      ]
+    })
+    expect(
+      taskInfo('TaskCreate', { subject: 'Fix login', description: 'The button 500s' })
+    ).toEqual({
+      subject: 'Fix login',
+      description: 'The button 500s'
+    })
+    expect(taskInfo('TaskUpdate', { taskId: 3, status: 'completed' })).toEqual({
+      taskId: '3',
+      status: 'completed',
+      subject: undefined
+    })
+    expect(taskInfo('Bash', { command: 'ls' })).toBeUndefined()
+    expect(taskInfo('TodoWrite', { todos: [] })).toBeUndefined()
+  })
+
+  it('rides along on the tool event the projector emits', () => {
+    const p = new TranscriptProjector()
+    const { persist } = p.project({
+      type: 'assistant',
+      message: {
+        content: [{ type: 'tool_use', id: 't1', name: 'TaskCreate', input: { subject: 'Ship it' } }]
+      }
+    })
+    expect(persist[0]).toMatchObject({
+      kind: 'tool',
+      name: 'TaskCreate',
+      task: { subject: 'Ship it' }
+    })
   })
 })

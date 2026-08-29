@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import type { CompanionState } from '../../../preload'
 
@@ -24,10 +24,29 @@ export function PhoneSettings(): React.JSX.Element {
   const [qr, setQr] = useState<{ k: string; url: string } | null>(null)
   const [relayDraft, setRelayDraft] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [copied, setCopied] = useState(false)
+  // Short-lived feedback: which phone just got a test banner, and the phone
+  // that just paired (so accepting doesn't silently collapse into the list).
+  const [tested, setTested] = useState<{ id: string; ok: boolean } | null>(null)
+  const [justPaired, setJustPaired] = useState<string | null>(null)
+  const knownIds = useRef<Set<string> | null>(null)
 
   useEffect(() => {
-    void window.cove.companionState().then(setState)
-    const off = window.cove.onCompanionState(setState)
+    // A device that shows up while the page is open just paired: say so,
+    // instead of letting Accept silently collapse into the list.
+    const absorb = (s: CompanionState): void => {
+      const ids = new Set(s.devices.map((d) => d.id))
+      const known = knownIds.current
+      const fresh = known ? s.devices.find((d) => !known.has(d.id)) : undefined
+      knownIds.current = ids
+      if (fresh) {
+        setJustPaired(fresh.name)
+        setTimeout(() => setJustPaired(null), 8000)
+      }
+      setState(s)
+    }
+    void window.cove.companionState().then(absorb)
+    const off = window.cove.onCompanionState(absorb)
     const tick = setInterval(() => setNow(Date.now()), 1000)
     return () => {
       off()
@@ -142,11 +161,14 @@ export function PhoneSettings(): React.JSX.Element {
                   {/* No camera handy (or a simulator)? The same link, as text. */}
                   <button
                     className="phone-btn"
-                    onClick={() =>
-                      pairing.payload && window.cove.clipboardWrite(encodePayload(pairing.payload))
-                    }
+                    onClick={() => {
+                      if (!pairing.payload) return
+                      window.cove.clipboardWrite(encodePayload(pairing.payload))
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 1800)
+                    }}
                   >
-                    Copy link
+                    {copied ? 'Copied ✓' : 'Copy link'}
                   </button>
                 </div>
               </>
@@ -158,6 +180,12 @@ export function PhoneSettings(): React.JSX.Element {
       {/* Devices */}
       <div className="phone-devices">
         <div className="phone-subhead">Paired phones</div>
+        {justPaired && (
+          <div className="phone-just-paired" role="status">
+            <span className="phone-dot on" aria-hidden />
+            Paired with {justPaired}. It&apos;s connected and follows this Mac from anywhere now.
+          </div>
+        )}
         {state.devices.length === 0 ? (
           <div className="phone-muted phone-empty">No phone paired yet.</div>
         ) : (
@@ -176,15 +204,36 @@ export function PhoneSettings(): React.JSX.Element {
                       : d.lastSeenAt
                         ? `Last seen ${relative(d.lastSeenAt, now)}`
                         : 'Never connected'}
-                    {d.pushToken ? ' · notifications on' : ''}
+                    {d.pushToken
+                      ? ' · notifications on'
+                      : ' · no notifications yet — open the app on the phone and allow them'}
                   </span>
                 </div>
-                <button
-                  className="phone-btn danger"
-                  onClick={() => window.cove.companionRevoke(d.id)}
-                >
-                  Remove
-                </button>
+                <div className="phone-device-actions">
+                  {d.pushToken && (
+                    <button
+                      className="phone-btn"
+                      onClick={() => {
+                        void window.cove.companionTestPush(d.id).then((ok) => {
+                          setTested({ id: d.id, ok })
+                          setTimeout(() => setTested(null), 4000)
+                        })
+                      }}
+                    >
+                      {tested?.id === d.id
+                        ? tested.ok
+                          ? 'Sent — check the phone'
+                          : "Couldn't send"
+                        : 'Test notification'}
+                    </button>
+                  )}
+                  <button
+                    className="phone-btn danger"
+                    onClick={() => window.cove.companionRevoke(d.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             )
           })

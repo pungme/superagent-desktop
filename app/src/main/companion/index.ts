@@ -16,7 +16,7 @@ import {
 } from './pairing'
 import { watchStatuses } from './status'
 import { startReaper } from './reaper'
-import { composePush, pushTargets, type PushKind } from './push'
+import { composePush, pushTargets, testPushTarget, type PushKind } from './push'
 import { prettyHostname } from './pairing'
 import { EventEmitter } from 'events'
 import { machineId } from './identity'
@@ -312,4 +312,13 @@ export function registerCompanionIpc(): void {
     broadcastState()
   })
   ipcMain.on('companion:reconnect', () => relay.kick())
+  // "Test notification": one banner to one phone, so you can see it works
+  // before you rely on it. False when that phone never registered for push.
+  ipcMain.handle('companion:test-push', (_e, id: string): boolean => {
+    const t = testPushTarget(id)
+    if (!t) return false
+    const { payload, collapseId } = composePush({ kind: 'test', machineName: prettyHostname() })
+    relay.push({ token: t.token, env: t.env, payload, collapseId: collapseId + ':test' })
+    return true
+  })
 }
