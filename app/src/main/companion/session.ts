@@ -74,7 +74,9 @@ export class ClientConn {
         this.close()
         return
       }
-      console.log(`[companion] conn ${this.id}: identified as ${this.pairing ? 'pairing' : this.deviceId}`)
+      console.log(
+        `[companion] conn ${this.id}: identified as ${this.pairing ? 'pairing' : this.deviceId}`
+      )
     }
     const plain = this.opener!.open(data)
     if (plain === null) {

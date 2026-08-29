@@ -61,7 +61,8 @@ export interface AgentSessionInfo {
 
 export function findSessionByChat(chatId: string): AgentSessionInfo | undefined {
   for (const s of sessions.values()) {
-    if (s.chatId === chatId) return { id: s.id, chatId: s.chatId, workspaceId: s.workspaceId, owned: !!s.owner }
+    if (s.chatId === chatId)
+      return { id: s.id, chatId: s.chatId, workspaceId: s.workspaceId, owned: !!s.owner }
   }
   return undefined
 }
@@ -107,7 +108,7 @@ export interface AgentStartOptions {
    * are offered: under -p there is nowhere to answer one, so anything that
    * would ask is auto-denied and the tool silently fails.
    */
-  permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'
+  permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
   /** Model to run on (e.g. 'opus', 'sonnet'); '' / undefined = Claude's default. */
   model?: string
 }
@@ -346,7 +347,10 @@ export function buildAgentArgs(
     // gives the agent the same reach it has in a terminal session where the
     // user approves prompts themselves. --disallowedTools below still applies.
     '--permission-mode',
-    opts.permissionMode ?? 'bypassPermissions'
+    // "ask" is SuperAgent's name for Claude Code's default mode: every tool
+    // that would prompt in a terminal asks the app via the PermissionRequest
+    // hook instead, and the app asks the user (Mac or phone).
+    opts.permissionMode === 'ask' ? 'default' : (opts.permissionMode ?? 'bypassPermissions')
   ]
   // Pin the model only when the user picked one. "Default" ('') means "whatever
   // your account uses" — passing no --model lets the CLI resolve the account

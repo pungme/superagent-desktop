@@ -186,5 +186,7 @@ function sendToChat(p: ChatSendParams): RpcResult {
 
 function permissionModeSetting(): AgentStartOptions['permissionMode'] {
   const v = kvGet('cove.permissionMode')
-  return v === 'acceptEdits' || v === 'plan' || v === 'bypassPermissions' ? v : 'bypassPermissions'
+  return v === 'acceptEdits' || v === 'plan' || v === 'bypassPermissions' || v === 'ask'
+    ? v
+    : 'bypassPermissions'
 }

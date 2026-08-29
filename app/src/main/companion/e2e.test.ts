@@ -101,6 +101,7 @@ vi.mock('../store', () => ({
         }
       : undefined,
   getChatIdBySession: (sid: string) => (sid === 'sess-1' ? 'c1' : undefined),
+  getWorkspaceName: (id: string) => (id === 'w1' ? 'rowfill' : undefined),
   kvGet: (k: string) => h.kv.get(k),
   kvSet: (k: string, v: string) => h.kv.set(k, v),
   listCards: () => [],
@@ -188,6 +189,7 @@ vi.mock('../agent', () => ({
 
 vi.mock('../hooks', () => ({
   hookBus: h.hookBus,
+  notifyPrefs: { done: true, needsYou: true },
   resolveGate: (id: string, approve: boolean) => {
     if (!h.gates.has(id)) return false
     h.gates.delete(id)

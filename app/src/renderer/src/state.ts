@@ -129,7 +129,7 @@ export function keepErrorText(reason: string, detail?: string): string {
  * nowhere to answer a permission request, so an asking mode would silently deny
  * and the tool would just fail.
  */
-export type PermissionMode = 'bypassPermissions' | 'acceptEdits' | 'plan'
+export type PermissionMode = 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
 
 /** A task from Claude's TodoWrite tool, surfaced live in the chat. */
 export interface TodoItem {
