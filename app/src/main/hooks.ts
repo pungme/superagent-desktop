@@ -81,7 +81,7 @@ export type ApprovalKind = 'guardrail' | 'permission'
 // should not run a planted command).
 const PERMISSION_TIMEOUT_MS = 580_000
 
-function requestApproval(
+export function requestApproval(
   workspaceId: string,
   sessionId: string,
   toolName: string,

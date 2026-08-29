@@ -86,4 +86,12 @@ describe('buildAgentArgs', () => {
     const args = buildAgentArgs({ browserProject: true })
     expect(args.filter((a) => a === '--append-system-prompt')).toHaveLength(1)
   })
+
+  it('ask mode maps to the default permission mode and names our prompt tool', () => {
+    const args = buildAgentArgs({ permissionMode: 'ask' })
+    const i = args.indexOf('--permission-mode')
+    expect(args[i + 1]).toBe('default')
+    const j = args.indexOf('--permission-prompt-tool')
+    expect(args[j + 1]).toBe('mcp__cove-browser__permission_prompt')
+  })
 })

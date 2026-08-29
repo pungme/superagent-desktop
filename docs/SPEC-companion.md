@@ -193,12 +193,12 @@ New directory `src/main/companion/`:
 - Tray item (new `src/main/tray.ts`): status dot (idle / working / needs-you), "Open SuperAgent", "Pair a phone…", "Quit". Opt-in via Settings ("Show in menu bar").
 - `keepalive.ts` above. Document the lid-closed-on-battery limitation in onboarding copy.
 
-### 3.6 `ask` permission mode (D7)
+### 3.6 `ask` permission mode (D7) — as built
 
-- `PermissionMode` gains `'ask'` (`state.ts:335`, `EasyChat.tsx:572` picker, `agent.ts:38` type). `buildAgentArgs` passes `--permission-mode default` for it.
-- `HOOK_EVENTS` (`hooks.ts:253`) gains `PermissionRequest`; the hook script's synchronous branch (`hooks.ts:234`, currently `PreToolUse` only) also handles `PermissionRequest` with `--max-time 600`. `decidePermission()` reuses `requestApproval` with `kind: "permission"` and answers `{ hookSpecificOutput: { hookEventName: "PermissionRequest", decision: { behavior: "allow"|"deny" } } }`.
-- `GuardrailPrompt.tsx` becomes the generic approval modal (copy differs by `kind`).
-- Unit tests in `hooks.test.ts` for the new merge (idempotent, preserves user hooks) and the decision JSON.
+- `PermissionMode` gains `'ask'` (`state.ts`, picker in `EasyChat.tsx`, `agent.ts`). `buildAgentArgs` passes `--permission-mode default` **and** `--permission-prompt-tool mcp__cove-browser__permission_prompt`: headless `claude -p` cannot show a prompt, so Claude Code calls that MCP tool instead (verified on 2.1.251 — the `PermissionRequest` hook alone is *not* consulted in `-p` mode; the write was auto-denied).
+- `mcp.ts` registers `permission_prompt`: it calls `requestApproval(…, 'permission')` (580 s budget), which broadcasts to the window (`GuardrailPrompt` in its Ask copy) and records an `approval` event for phones; the first answer — Mac modal or `approval.answer` from a phone — wins, and the tool returns `{behavior:"allow", updatedInput}` / `{behavior:"deny", message}`.
+- The `PermissionRequest` hook is also registered in `~/.claude/settings.json` (interactive sessions launched elsewhere could use it later); `hooksInstalled()` requires it so older installs re-merge.
+- Verified live: Ask mode, "create hello.txt" from the phone → approval card on the phone → Approve → file written → reply.
 
 ### 3.7 Desktop test plan
 
@@ -265,7 +265,7 @@ SuperAgent/Sources/
 | **M1 · Foundations (desktop)** | §3.1 agent bus, §3.2 event log + projector + backfill, shared protocol types + fixtures | `chat_events` fills for every live chat; old chats backfill; renderer unchanged; unit tests green | 1 wk |
 | **M2 · Relay + pair + stream from anywhere** | The relay (repo, Docker, deployed default instance); §3.3 identity, relay client, crypto, pairing, devices, RPC; Settings "Phone"; iOS: app skeleton, QR pairing, relay transport + crypto, transcript view, composer | On LTE, anywhere: scan the QR shown on the Mac, watch a live turn, send a prompt from the phone and see it on the desktop; background the app and come back to a correct replay. Same flow works against a self-hosted relay by changing one URL on the Mac | 2.5 wks |
 | **M3 · Always on + approvals** | Tray + keepalive (§3.5), relay reconnect hardening (sleep/wake, network flaps), approvals over the wire (guardrail kind), in-app approval UI, "Mac unreachable" states | Close the lid and reopen, switch Wi-Fi↔LTE: the phone recovers without user action. Approve a guardrail prompt from the phone; desktop modal closes | 1 wk |
-| **M4 · Push + `ask` mode** | §3.4 direct APNs with user's `.p8`, presence suppression, notification actions; §3.6 `ask` permission mode | Phone locked in another room: agent asks for Bash approval → push with Approve/Deny → tap Approve → tool runs; "done" push arrives after the turn | 2 wks |
+| **M4 · Push + `ask` mode** | Push composed on the Mac, sent by the relay (holds the APNs key); presence suppression; notification actions; §3.6 `ask` permission mode via the MCP prompt tool | Phone locked in another room: agent asks for approval → push with Approve/Deny → tap Approve → tool runs; "done" push arrives after the turn. Built; push verified with `simctl push` (real APNs needs the signed build + key) | 2 wks |
 | **M5 · Polish** | Live Activity for a running turn, NSE for richer/encrypted push content, screenshots for browser workspaces, routines run-now, GRDB store if needed, TestFlight; optional direct-reach fast path (router mapping / IPv6) dialed in parallel with the relay; forward-secrecy ratchet | Nice-to-haves; each independently shippable | ongoing |
 
 Total to "usable from anywhere with approvals": ~6.5 weeks of focused work. M1+M2 alone (≈ 3.5 weeks) gives a phone that follows your Mac from anywhere, on any network, with no configuration beyond scanning a QR.

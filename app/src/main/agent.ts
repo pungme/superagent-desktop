@@ -359,6 +359,10 @@ export function buildAgentArgs(
   // on a resumed session, pick a concrete model — that DOES send --model and
   // overrides.
   if (opts.model) args.push('--model', opts.model)
+  // Ask mode: headless claude can't show a prompt, so it asks our MCP server,
+  // which asks the user (Mac modal or phone). See mcp.ts permission_prompt.
+  if (opts.permissionMode === 'ask')
+    args.push('--permission-prompt-tool', 'mcp__cove-browser__permission_prompt')
   if (ctx.resume) args.unshift('--resume', ctx.resume)
   if (ctx.mcpConfig) args.push('--mcp-config', ctx.mcpConfig)
   const appended = [
