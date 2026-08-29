@@ -209,7 +209,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
           {section === 'about' && (
             <section className="settings-section">
               <div className="settings-about">
-                <div className="settings-about-app">SuperAgent</div>
+                <div className="settings-about-app">Superagent</div>
                 <div className="settings-about-ver">
                   Version {appVersion ?? '—'}
                   <span className="settings-about-sep">·</span>

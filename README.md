@@ -1,18 +1,18 @@
 <p align="center">
-  <img src="docs/logo.png" width="112" alt="SuperAgent logo" />
+  <img src="docs/logo.png" width="112" alt="Superagent logo" />
 </p>
 
-<h1 align="center">SuperAgent</h1>
+<h1 align="center">Superagent</h1>
 
 <p align="center"><b>The desktop home for Claude Code — one chat per project, a real browser your agent drives, an iPhone in the window, and your phone in your pocket.</b></p>
 
 <p align="center">
-  <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><b>⬇ Download for Mac</b></a> ·
+  <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/Superagent.dmg"><b>⬇ Download for Mac</b></a> ·
   <a href="https://superagent.computer/">Website</a> ·
   Apple Silicon · free &amp; open source
 </p>
 
-Claude Code already writes the code. SuperAgent gives it a place to work — and
+Claude Code already writes the code. Superagent gives it a place to work — and
 gives you a place to watch. Every project is a chat sitting next to the thing
 being built: a real browser on the sites you're already logged into, the files
 it's editing, an iOS Simulator streamed straight into the window. Every chat
@@ -24,7 +24,7 @@ Everything runs locally on your Mac, on the Claude subscription you already
 have. No middleman server, no API key, no AI of its own — and the whole app is
 open source, so you can read exactly how it touches your browser.
 
-![SuperAgent — a Monet at the Met open in the browser pane as a desktop page and an iPhone side by side, with the agent that opened it explaining the painting in the chat beside them](docs/hero.png)
+![Superagent — a Monet at the Met open in the browser pane as a desktop page and an iPhone side by side, with the agent that opened it explaining the painting in the chat beside them](docs/hero.png)
 
 ---
 
@@ -46,7 +46,7 @@ same session, both live.
 Claude drives that same browser: open a page, click, type, read it back. Not a
 hidden browser it describes to you second-hand — the one on your screen, with
 your logged-in session. You watch it work, and you can take over any time.
-Automation only ever happens in SuperAgent's own browser pane, never in your
+Automation only ever happens in Superagent's own browser pane, never in your
 personal browser.
 
 ## Every chat is its own checkout
@@ -73,14 +73,14 @@ An iOS Simulator streamed *inside* the app from its own framebuffer — the real
 device, live at the rate it renders. Tap, swipe, and type on it; the agent can
 too (`sim_boot`, `sim_tap`, `sim_screenshot`, …), so it builds, launches, and
 checks its own app. Nothing to install: the input helper ships with
-SuperAgent. Apple's own Simulator window stays shut unless you ask for it.
+Superagent. Apple's own Simulator window stays shut unless you ask for it.
 
 The simulator and the page you're on sit side by side on the same surface,
 over a Monet you can switch off.
 
 ## Your Mac's agent, on your phone
 
-Pair the [SuperAgent iOS app](https://github.com/pungme/superagent-ios) once
+Pair the [Superagent iOS app](https://github.com/pungme/superagent-ios) once
 from **Settings → Phone** and it follows your Mac from anywhere: live
 transcripts, send a prompt, start a chat, and approve what the agent asks —
 with a push notification when it's done or needs you.
@@ -163,7 +163,7 @@ allowed to do without asking.
 
 - A Mac with Apple Silicon.
 - [Claude Code](https://claude.com/claude-code), installed and signed in. Your
-  subscription is the only thing SuperAgent runs on — nothing extra to buy, no
+  subscription is the only thing Superagent runs on — nothing extra to buy, no
   key to paste.
 - Xcode, only if you want the simulator.
 - An iPhone with the companion app, only if you want your phone in the loop.
@@ -196,7 +196,7 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
 
 ## Roadmap
 
-- **Other agents.** SuperAgent wraps Claude Code today, but in the end it's an
+- **Other agents.** Superagent wraps Claude Code today, but in the end it's an
   LLM driving a home — the plan is an agent layer that other CLIs and local
   models can plug into.
 - **A desktop.** A workspace that behaves like a real computer: several things
@@ -204,7 +204,7 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
   left them, with the agent working across all of them.
 - **Memory that writes itself.** Your agent relearns the same things in every
   new session — your conventions, a project's traps, which command actually
-  deploys. SuperAgent should notice those and carry them across projects, in a
+  deploys. Superagent should notice those and carry them across projects, in a
   list you can read, edit and delete.
 - **Watchers.** Routines already run on a schedule and the browser already
   reads pages. Point one at a page and get told what changed, with a before
@@ -359,15 +359,15 @@ Institute of Chicago's open-access collection — public domain (CC0).
      passes spctl on the build machine and is blocked by Gatekeeper everywhere
      else. Verify before publishing — wants a stapled ticket and
      "Notarized Developer ID", not plain "Developer ID":
-         xcrun stapler validate dist/mac-arm64/SuperAgent.app
-         spctl -a -vvv -t exec dist/mac-arm64/SuperAgent.app
+         xcrun stapler validate dist/mac-arm64/Superagent.app
+         spctl -a -vvv -t exec dist/mac-arm64/Superagent.app
 
   2. `notarize: true` covers the app, not the DMG around it. Submit and staple
      the DMG separately, then regenerate latest-mac.yml — stapling changes the
      file, and a stale sha512/size fails the auto-updater's integrity check:
-         xcrun notarytool submit dist/SuperAgent-<v>.dmg --apple-id "$APPLE_ID" \
+         xcrun notarytool submit dist/Superagent-<v>.dmg --apple-id "$APPLE_ID" \
            --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
-         xcrun stapler staple dist/SuperAgent-<v>.dmg
+         xcrun stapler staple dist/Superagent-<v>.dmg
 
   Publishing is not just a file upload: the app auto-updates, so a release rolls
   out to everyone already running it.

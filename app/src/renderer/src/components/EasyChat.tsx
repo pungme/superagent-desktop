@@ -452,7 +452,7 @@ const IDLE_REAP_MS = 5 * 60 * 1000
 // One-liners for Claude's built-in slash commands, so the "/" menu explains each
 // like the terminal does. The session's init event only reports command *names*;
 // the user's own skills carry their own descriptions (from SKILL.md), so these
-// only fill in the built-ins. /loop's blurb tells the SuperAgent truth: it becomes
+// only fill in the built-ins. /loop's blurb tells the Superagent truth: it becomes
 // a Routine here (the cloud/session schedulers can't reach this app's browser).
 const BUILTIN_COMMAND_DESCRIPTIONS: Record<string, string> = {
   clear: 'Reset the conversation context, keeping project memory',
@@ -1263,7 +1263,7 @@ export function EasyChat({
   }, [cwd])
 
   // Restore the persisted transcript on mount, then save it (debounced) as it
-  // changes — so the conversation is still here after SuperAgent is reopened.
+  // changes — so the conversation is still here after Superagent is reopened.
   const hydratedRef = useRef(false)
   useEffect(() => {
     let alive = true
@@ -2649,7 +2649,7 @@ export function EasyChat({
     // A process exists but isn't accepting (crash) — the Retry UI owns that.
     if (id && !ready) return
     if (!id && !suspendedRef.current) return // already spawning; drop rather than double-send
-    // /loop — SuperAgent's in-chat loop, like the terminal: re-run this prompt in
+    // /loop — Superagent's in-chat loop, like the terminal: re-run this prompt in
     // this conversation until you stop. Intercept it here so the literal command
     // is never sent to Claude as a message.
     const loopCmd = /^\/loop(\s|$)/i.test(text.trim()) ? parseLoopCmd(text) : null

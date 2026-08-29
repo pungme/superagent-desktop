@@ -158,7 +158,7 @@ export class RelayClient extends EventEmitter {
       this.authed = false
       if (wasAuthed) this.emit('disconnected')
       if (code === 4401) this.lastError = 'relay refused our identity'
-      else if (code === 4409) this.lastError = 'another SuperAgent connected with this identity'
+      else if (code === 4409) this.lastError = 'another Superagent connected with this identity'
       else if (reason?.length) this.lastError = reason.toString()
       this.scheduleReconnect()
     })

@@ -65,7 +65,7 @@ export function GuardrailPrompt(): React.JSX.Element | null {
         <p className="guard-why">
           {isPermission
             ? 'This chat is in Ask mode, so the agent checks with you before it acts. You can also answer this from your phone.'
-            : `This turn read a web page, and a page can hide instructions meant to steer the agent. SuperAgent paused before it ${isShell ? 'runs a command' : 'changes a file'} so you can check it’s what you intended.`}
+            : `This turn read a web page, and a page can hide instructions meant to steer the agent. Superagent paused before it ${isShell ? 'runs a command' : 'changes a file'} so you can check it’s what you intended.`}
         </p>
         <pre className="guard-preview">{current.preview}</pre>
         <div className="guard-actions">

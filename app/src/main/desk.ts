@@ -27,7 +27,7 @@ import { join, basename, dirname, resolve, relative, isAbsolute } from 'path'
  * moves the link rather than the file.
  *
  * It lives inside the app's own space rather than ~/Desktop: this is
- * SuperAgent's desk, not the one macOS already owns.
+ * Superagent's desk, not the one macOS already owns.
  */
 
 export function deskRoot(): string {

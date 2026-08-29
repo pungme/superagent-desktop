@@ -1,5 +1,5 @@
 /**
- * Wire protocol between SuperAgent desktop and its phone companion.
+ * Wire protocol between Superagent desktop and its phone companion.
  *
  * Everything the phone ever sees is described here, and only here. The Swift
  * side (superagent-ios, Sources/Protocol/Frames.swift) mirrors these shapes;

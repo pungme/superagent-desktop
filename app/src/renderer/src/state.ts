@@ -125,7 +125,7 @@ export function keepErrorText(reason: string, detail?: string): string {
 }
 
 /**
- * Only modes that need no prompt: SuperAgent drives `claude -p`, where there is
+ * Only modes that need no prompt: Superagent drives `claude -p`, where there is
  * nowhere to answer a permission request, so an asking mode would silently deny
  * and the tool would just fail.
  */

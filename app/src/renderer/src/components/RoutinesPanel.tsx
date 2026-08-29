@@ -123,7 +123,7 @@ export function RoutinesPanel({ ws, onClose, embedded = false }: RoutinesPanelPr
       </div>
 
       <div className="skills-footer">
-        <span className="routine-note">Routines run only while SuperAgent is open.</span>
+        <span className="routine-note">Routines run only while Superagent is open.</span>
       </div>
     </SectionView>
   )

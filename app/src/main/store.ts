@@ -17,7 +17,7 @@ import { broadcastToWindows } from './util'
 import { deskRoot } from './desk'
 
 /**
- * SuperAgent persistence: groups → workspaces → tabs.
+ * Superagent persistence: groups → workspaces → tabs.
  * A workspace = a project folder. A tab = a claude/shell/browser pane.
  */
 
