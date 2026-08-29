@@ -7,6 +7,7 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
 import { GuardrailPrompt } from './components/GuardrailPrompt'
 import { ComputerPanel } from './components/ComputerPanel'
+import { ChatsView } from './components/ChatsView'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { useStore, keepErrorText } from './state'
@@ -180,6 +181,7 @@ function App(): React.JSX.Element {
   const overlay = useStore((s) => s.overlay)
   const setOverlay = useStore((s) => s.setOverlay)
   const computerOpen = overlay === 'computer'
+  const chatsOpen = overlay === 'chats'
   // Once opened it stays in the tree; before that there is nothing to keep.
   const [computerEverOpened, setComputerEverOpened] = useState(false)
   if (computerOpen && !computerEverOpened) setComputerEverOpened(true)
@@ -192,6 +194,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     // One value, so opening either inherently closes the other.
     const openComputer = (): void => setOverlay('computer')
+    const openChats = (): void => setOverlay('chats')
     // These live on the desktop now. Show it, then let it raise the window —
     // after a tick, so a freshly mounted desktop is listening by then.
     const openOnDesktop = (app: 'dashboard' | 'skills' | 'routines') => (): void => {
@@ -213,6 +216,7 @@ function App(): React.JSX.Element {
     }
     window.addEventListener('cove:open-dashboard', open)
     window.addEventListener('cove:open-computer', openComputer)
+    window.addEventListener('cove:open-chats', openChats)
     window.addEventListener('cove:open-skills', openSkills)
     window.addEventListener('cove:open-routines', openRoutines)
     window.addEventListener('cove:close-dashboard', close)
@@ -221,6 +225,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('cove:open-routines', openRoutines)
       window.removeEventListener('cove:open-dashboard', open)
       window.removeEventListener('cove:open-computer', openComputer)
+      window.removeEventListener('cove:open-chats', openChats)
       window.removeEventListener('cove:close-dashboard', close)
     }
   }, [])
@@ -392,6 +397,12 @@ function App(): React.JSX.Element {
         )}
         {/* A full page (not a modal): covers the content area, above the hosts,
             with the native panes already detached via contentCovered. */}
+        {/* Chats, plain: the Computer's conversations without the desktop. */}
+        {chatsOpen && !settingsOpen && (
+          <div className="chats-host">
+            <ChatsView />
+          </div>
+        )}
         {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       </main>
       <PreviewToast />

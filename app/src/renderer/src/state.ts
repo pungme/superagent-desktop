@@ -158,8 +158,8 @@ interface CoveState {
   /** Projects with the simulator pane open, so the sidebar can say so. */
   simOpen: Record<string, boolean>
   setSimOpen: (workspaceId: string, open: boolean) => void
-  overlay: 'computer' | null
-  setOverlay: (o: 'computer' | null) => void
+  overlay: 'computer' | 'chats' | null
+  setOverlay: (o: 'computer' | 'chats' | null) => void
   // Routines grouped by workspace id, shown nested under each project in the sidebar.
   routines: Record<string, Routine[]>
   refreshRoutines: () => Promise<void>
