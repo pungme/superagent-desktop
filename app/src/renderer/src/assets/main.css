@@ -1671,8 +1671,18 @@ button {
    fifth of every line empty down the right-hand side. The user's bubble keeps
    the inset — it is right-aligned and usually short, and that asymmetry is what
    tells the two apart at a glance. Two classes so it does not depend on which
-   of the .easy-assistant blocks comes last. */
+   of the .easy-assistant blocks comes last.
+
+   Not quite the full column, though: ↩ Reply hangs 34px outside the bubble's
+   right edge, and at 100% that put it past the scroller's edge, where
+   overflow-x clipped it to a sliver. The 28px gutter is reserved all the time,
+   so the bubble never jumps when Reply appears, and the button (26px wide,
+   ending 34px out) lands 10px short of the clip edge. In the narrow layout
+   Reply moves inside the bubble, so the gutter goes back to the text. */
 .easy-msg.easy-assistant {
+  max-width: calc(100% - 28px);
+}
+.easy-chat.narrow .easy-msg.easy-assistant {
   max-width: 100%;
 }
 
