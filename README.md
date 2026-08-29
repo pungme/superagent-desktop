@@ -4,7 +4,9 @@
 
 <h1 align="center">Superagent</h1>
 
-<p align="center"><b>The desktop home for Claude Code — one chat per project, a real browser your agent drives, an iPhone in the window, and your phone in your pocket.</b></p>
+<p align="center"><b>A home for your coding agent — one chat per project, a real browser it drives, an iPhone in the window, and your phone in your pocket.</b></p>
+
+<p align="center">Works with <b>Claude Code</b> today · Codex and Antigravity coming soon</p>
 
 <p align="center">
   <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><b>⬇ Download for Mac</b></a> ·
@@ -12,7 +14,7 @@
   Apple Silicon · free &amp; open source
 </p>
 
-Claude Code already writes the code. Superagent gives it a place to work — and
+Your agent already writes the code. Superagent gives it a place to work — and
 gives you a place to watch. Every project is a chat sitting next to the thing
 being built: a real browser on the sites you're already logged into, the files
 it's editing, an iOS Simulator streamed straight into the window. Every chat
@@ -359,8 +361,8 @@ Institute of Chicago's open-access collection — public domain (CC0).
      passes spctl on the build machine and is blocked by Gatekeeper everywhere
      else. Verify before publishing — wants a stapled ticket and
      "Notarized Developer ID", not plain "Developer ID":
-         xcrun stapler validate dist/mac-arm64/Superagent.app
-         spctl -a -vvv -t exec dist/mac-arm64/Superagent.app
+         xcrun stapler validate dist/mac-arm64/SuperAgent.app
+         spctl -a -vvv -t exec dist/mac-arm64/SuperAgent.app
 
   2. `notarize: true` covers the app, not the DMG around it. Submit and staple
      the DMG separately, then regenerate latest-mac.yml — stapling changes the

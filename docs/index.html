@@ -6,7 +6,7 @@
   <title>Superagent · スーパーエージェント · a home for your agent</title>
   <meta
     name="description"
-    content="Superagent is a Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work."
+    content="Superagent is a Mac app that gives your coding agent a home: a real browser it drives, chats that survive restarts, your phone in the loop, and a place to watch it work. Claude Code today; Codex and Antigravity coming."
   />
   <link rel="canonical" href="https://superagent.computer/" />
   <link rel="icon" href="logo.png" />
@@ -17,7 +17,7 @@
     }
   </script>
   <meta property="og:title" content="Superagent, a home for your agent" />
-  <meta property="og:description" content="A Mac app that gives your agent a home: a real browser it drives, chats that survive restarts, and a place to watch it work." />
+  <meta property="og:description" content="A Mac app that gives your coding agent a home: a real browser it drives, chats that survive restarts, your phone in the loop. Claude Code today; Codex and Antigravity coming." />
   <meta property="og:image" content="https://superagent.computer/hero.png" />
   <meta property="og:url" content="https://superagent.computer/" />
   <meta property="og:type" content="website" />
@@ -1867,6 +1867,15 @@
     /* no mark on screen to land on: the logo fades out instead */
     #intro.out .intro-logo.fade { opacity: 0; transform: scale(0.9); transition-duration: 0.4s; }
   
+    /* --- supported agents ------------------------------------------------ */
+    .agents { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin: 14px 0 0; font-size: 0.78rem; }
+    .ag-label { color: var(--faint); margin-right: 2px; letter-spacing: 0.02em; }
+    .ag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: var(--glass); }
+    .ag.on::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); }
+    .ag.soon { color: var(--muted); border-style: dashed; background: transparent; }
+    .ag.soon i { font-style: normal; font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+    .close-cta .agents { margin-bottom: 4px; }
+
     /* --- VIII. The finale: the sidebar gets out of the way ----------------- */
     /* ⌘\ in the app hides the sidebar; here it hides itself every few seconds so
        the desktop is seen the way it is used — full width. Flex instead of the
@@ -1977,8 +1986,9 @@
       <h1 class="rise" style="--d:.08s">A <em>home</em> for your agent.</h1>
       <p class="hero-jp jp rise" style="--d:.12s" lang="ja">エージェントの帰る場所。</p>
       <p class="hero-sub rise" style="--d:.16s">
-        A Mac app where Claude Code lives: a real browser it drives, an iPhone in
-        the window, chats that survive restarts. Open source, on your own subscription.
+        A Mac app where your coding agent lives: a real browser it drives, an iPhone in
+        the window, chats that survive restarts, your phone in the loop. Open source, on the
+        subscription you already have.
       </p>
       <ul class="trust rise" style="--d:.2s">
         <li><svg class="tk" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.2"/><path d="M1 12.6h14"/></svg> Nothing leaves your Mac</li>
@@ -1989,7 +1999,8 @@
         <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple">&#63743;</span> Download for Mac</a>
         <a class="link" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub</a>
       </div>
-      <p class="note rise" style="--d:.3s">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription</p>
+      <p class="agents rise" style="--d:.28s" aria-label="Supported agents"><span class="ag-label">Works with</span><span class="ag on">Claude Code</span><span class="ag soon">Codex <i>soon</i></span><span class="ag soon">Antigravity <i>soon</i></span></p>
+      <p class="note rise" style="--d:.3s">Free &amp; open source · runs locally · notarized by Apple · uses the subscription you already have</p>
 
       <div class="hero-stage">
         <figure class="hero-shot rise" style="--d:.4s">
@@ -2837,7 +2848,7 @@
           <p>There is no Superagent server. There is nowhere for your work to go but your own disk &mdash; and you don't have to believe that either: it's in the code.</p>
           <ul>
             <li><span class="tick">&#10003;</span><span><b>Your chats, code and pages stay local.</b> Nothing is uploaded, because there is nothing to upload it to.</span></li>
-            <li><span class="tick">&#10003;</span><span><b>Your own Claude subscription.</b> The agent talks to Anthropic directly, with no proxy of ours in between and no second bill.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>Your own subscription.</b> The agent talks to its maker directly &mdash; Claude Code to Anthropic today, Codex and Antigravity next &mdash; with no proxy of ours in between and no second bill.</span></li>
             <li><span class="tick">&#10003;</span><span><b>No account, no analytics, no tracking.</b> There is no sign-up screen and no telemetry SDK in the build.</span></li>
             <li><span class="tick">&#10003;</span><span><b>Your logins stay yours.</b> Browser sessions live in a profile on your Mac, the same as any browser.</span></li>
             <li><span class="tick">&#10003;</span><span><b>The phone is the one exception, and it's yours too.</b> Pair a phone and the Mac talks to a blind relay &mdash; ciphertext only, keys that exist only in your pairing QR, and not at all until you pair. Run the relay yourself with one command.</span></li>
@@ -2876,7 +2887,8 @@
           <a class="btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple">&#63743;</span> Download for Mac</a>
           <a class="link" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">All releases</a>
         </div>
-        <p class="note" data-rv style="--d:.3s">Free &amp; open source · runs locally · notarized by Apple · uses your Claude subscription<br />Apple Silicon · .dmg · auto-updates</p>
+        <p class="agents" data-rv style="--d:.2s" aria-label="Supported agents"><span class="ag-label">Works with</span><span class="ag on">Claude Code</span><span class="ag soon">Codex <i>soon</i></span><span class="ag soon">Antigravity <i>soon</i></span></p>
+        <p class="note" data-rv style="--d:.3s">Free &amp; open source · runs locally · notarized by Apple · uses the subscription you already have<br />Apple Silicon · .dmg · auto-updates</p>
       </div>
     </div>
   </section>
