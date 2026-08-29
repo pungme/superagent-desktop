@@ -1867,9 +1867,47 @@
     /* no mark on screen to land on: the logo fades out instead */
     #intro.out .intro-logo.fade { opacity: 0; transform: scale(0.9); transition-duration: 0.4s; }
   
+    /* --- VIII. The finale: the sidebar gets out of the way ----------------- */
+    /* ⌘\ in the app hides the sidebar; here it hides itself every few seconds so
+       the desktop is seen the way it is used — full width. Flex instead of the
+       grid so the window pane can take the space the rail gives up. */
+    .desk-sec .appwin { display: flex; overflow: hidden; }
+    .desk-sec .appwin .ap-side { width: 194px; flex: none; animation: dkSide 14s var(--ease) infinite; }
+    .desk-sec .appwin .ap-main { flex: 1; min-width: 0; }
+    @keyframes dkSide {
+      0%, 24% { margin-left: 0; opacity: 1; }
+      31%, 76% { margin-left: -194px; opacity: 0.4; }
+      83%, 100% { margin-left: 0; opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) { .desk-sec .appwin .ap-side { animation: none; } }
+
     /* --- VII. The phone ------------------------------------------------- */
     #phone .pane { display: flex; flex-direction: column; align-items: center; }
-    .ph-stage { display: flex; justify-content: center; padding: 6px 0 0; }
+    .ph-stage { display: flex; justify-content: center; align-items: center; gap: 18px; padding: 6px 0 0; }
+    /* the Mac it is paired to — the same conversation, waiting on the phone */
+    .mac { width: 330px; flex: none; text-align: center; animation: bob 10.5s ease-in-out infinite; animation-delay: -5s; }
+    .mac-scr {
+      aspect-ratio: 16 / 10; border: 7px solid #1c1d1a; border-bottom-width: 12px; border-radius: 12px 12px 4px 4px;
+      background: var(--card); overflow: hidden;
+      box-shadow: 0 2px 6px rgba(49, 52, 45, 0.1), 0 30px 50px -26px rgba(56, 72, 84, 0.5);
+    }
+    .mac-base { height: 9px; margin: 0 -14px; border-radius: 0 0 10px 10px; background: linear-gradient(#e6e3da, #cfcbbf); }
+    .mac-name { margin-top: 12px; font-size: 0.78rem; color: var(--faint); letter-spacing: 0.01em; }
+    .mac-ui { display: grid; grid-template-columns: 30% 1fr; height: 100%; text-align: left; }
+    .mac-side { background: rgba(246, 242, 233, 0.9); border-right: 1px solid var(--line); padding: 14px 8px; display: flex; flex-direction: column; gap: 7px; }
+    .mac-side i { display: block; height: 7px; border-radius: 4px; background: var(--skel); width: 70%; }
+    .mac-side i.on { background: var(--ink); opacity: 0.55; width: 85%; }
+    .mac-main { padding: 14px 12px; display: flex; flex-direction: column; gap: 7px; }
+    .mac-main b { display: block; height: 8px; border-radius: 4px; background: var(--skel); width: 72%; }
+    .mac-main b.me { align-self: flex-end; width: 44%; background: var(--ink); opacity: 0.7; }
+    .mac-main b.w { width: 58%; }
+    .mac-ask { margin-top: auto; padding: 7px 9px; border-radius: 9px; background: var(--cream); border: 1px solid var(--line); font-size: 9.5px; color: var(--ink); }
+    .mac-ask code { font-family: var(--mono); font-size: 9px; }
+    .mac-ask em { display: block; font-style: normal; font-size: 8.5px; color: var(--muted); margin-top: 2px; }
+    .ph-link { display: flex; align-items: center; gap: 6px; flex: none; color: var(--muted); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    .ph-link i { width: 34px; height: 0; border-top: 1.5px dashed rgba(49, 52, 45, 0.3); }
+    .ph-link span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    @media (max-width: 860px) { .mac, .ph-link { display: none; } }
     .ph {
       width: 250px; height: 512px; border-radius: 40px; padding: 9px;
       background: #1c1d1a;
@@ -2619,12 +2657,26 @@
       <div class="pane-wrap" data-rv style="--d:.15s">
         <div class="pane">
           <div class="ph-stage">
+            <div class="mac">
+              <div class="mac-scr">
+                <div class="mac-ui">
+                  <div class="mac-side"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+                  <div class="mac-main">
+                    <b></b><b class="me"></b><b class="w"></b>
+                    <div class="mac-ask"><span>Allow <code>git push</code>?</span><em>waiting on your phone</em></div>
+                  </div>
+                </div>
+              </div>
+              <div class="mac-base"></div>
+              <div class="mac-name">Your Mac &middot; at home</div>
+            </div>
+            <div class="ph-link"><i></i><span><svg viewBox="0 0 12 14" width="9" height="11" aria-hidden="true"><rect x="1" y="6" width="10" height="7" rx="1.6" fill="currentColor"/><path d="M3.2 6V4a2.8 2.8 0 0 1 5.6 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>end-to-end</span><i></i></div>
             <div class="ph">
               <div class="ph-scr">
                 <div class="ph-island"></div>
                 <div class="ph-push"><i></i><div><b>SuperAgent</b><span>Done — hero copy tightened, tests green.</span></div></div>
                 <div class="ph-head">
-                  <div class="ph-mac"><i></i>Mac mini &middot; connected</div>
+                  <div class="ph-mac"><i></i>Your Mac &middot; connected</div>
                   <div class="ph-title">Tighten the hero copy</div>
                 </div>
                 <div class="ph-stream">
