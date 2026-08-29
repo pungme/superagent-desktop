@@ -58,6 +58,8 @@ vi.mock('../store', () => ({
     throw new Error('not used in e2e')
   },
   DESKTOP_WORKSPACE_ID: '__desktop_chat__',
+  TABS_GROUP: '__tabs',
+  ensureDesktopWorkspace: () => ({ workspaceId: '__desktop_chat__', cwd: '/tmp' }),
   getTree: () => [
     {
       id: 'g1',
@@ -208,7 +210,7 @@ vi.mock('../hooks', () => ({
   }
 }))
 vi.mock('../routines', () => ({ listRoutines: () => [], runRoutine: async () => {} }))
-vi.mock('../files', () => ({ gitBranch: () => 'main' }))
+vi.mock('../files', () => ({ gitBranch: () => 'main', gitSubrepos: () => [] }))
 
 // Identity: a fixed Ed25519 key, no disk.
 vi.mock('./identity', async () => {

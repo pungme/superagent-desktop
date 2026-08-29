@@ -9792,6 +9792,19 @@ button {
   gap: 8px;
   margin-top: 8px;
 }
+.phone-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.phone-switch input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
 .phone-device-actions {
   display: flex;
   gap: 8px;

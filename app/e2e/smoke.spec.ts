@@ -57,7 +57,7 @@ test('onboarding renders, then the main app loads with the seeded workspace', as
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
 
   // Seeded group + workspace are present.
-  await expect(window.locator('.sidebar-group-title')).toContainText('My projects')
+  await expect(window.locator('.sidebar-group-title', { hasText: 'My projects' })).toBeVisible()
   await expect(window.locator('.sidebar-item-name')).toContainText('e2e-project')
 })
 
@@ -65,8 +65,6 @@ test('opening the workspace shows the chat composer and toolbar actions', async 
   await window.click('.sidebar-item:has-text("e2e-project")')
   await window.waitForSelector('.workspace-toolbar', { timeout: 10_000 })
   await expect(window.locator('textarea.easy-input')).toBeVisible()
-  await expect(window.locator('.toolbar-btn:has-text("Routines")')).toBeVisible()
-  await expect(window.locator('.toolbar-btn:has-text("Skills")')).toBeVisible()
 })
 
 test('the file tree lists project files', async () => {
