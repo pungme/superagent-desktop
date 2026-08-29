@@ -5867,17 +5867,8 @@ button {
 .browser-reload-glyph {
   display: inline-flex;
 }
-.browser-reload-stop {
-  display: none;
-}
 .browser-reload-btn.loading .browser-reload-glyph {
   animation: browser-reload-spin 0.7s linear infinite;
-}
-.browser-reload-btn.loading:hover .browser-reload-glyph {
-  display: none;
-}
-.browser-reload-btn.loading:hover .browser-reload-stop {
-  display: inline-flex;
 }
 @keyframes browser-reload-spin {
   to {

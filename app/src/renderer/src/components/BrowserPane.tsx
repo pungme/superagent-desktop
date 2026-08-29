@@ -884,16 +884,14 @@ export function BrowserPane({
         </button>
         <button
           className={`browser-nav-btn browser-reload-btn ${state.loading ? 'loading' : ''}`}
-          onClick={() =>
-            state.loading ? window.cove.browserStop?.(paneId) : window.cove.browserReload(paneId)
-          }
-          title={state.loading ? 'Stop loading' : 'Reload'}
+          onClick={() => window.cove.browserReload(paneId)}
+          title="Reload (⌘R · ⇧⌘R ignores the cache)"
         >
-          {/* The reload glyph spins while the page loads — the unmistakable "it's
-              working" signal even for a fast reload; on hover it becomes × to
-              stop. Idle: a plain reload arrow. */}
+          {/* The glyph spins while the page loads. It used to turn into × and
+              STOP the load when clicked mid-load — and a page with one request
+              that never finishes is mid-load forever, so the reload button read
+              as broken. Now a click always reloads. */}
           <span className="browser-reload-glyph">⟳</span>
-          <span className="browser-reload-stop">×</span>
         </button>
         <div className="browser-omnibox">
           <input

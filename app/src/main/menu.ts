@@ -90,6 +90,11 @@ export function buildMenu(): void {
           click: () => send('menu:reload-page')
         },
         {
+          label: 'Reload Page Ignoring Cache',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => send('menu:reload-page-hard')
+        },
+        {
           label: 'Toggle Preview',
           accelerator: 'CmdOrCtrl+B',
           click: () => send('menu:toggle-preview')

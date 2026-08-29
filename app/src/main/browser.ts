@@ -975,8 +975,15 @@ export function registerBrowserIpc(): void {
   ipcMain.on('browser:stop', (_e, id: string) => {
     getPaneWebContents(id)?.stop()
   })
-  ipcMain.on('browser:reload', (_e, id: string) => {
-    getPaneWebContents(id)?.reload()
+  // Reload means reload. A page with one request that never finishes (a dev
+  // server's live-reload poll, a stalled asset) stays "loading" forever, and a
+  // reload that only stopped it looked like a button that did nothing.
+  ipcMain.on('browser:reload', (_e, id: string, hard?: boolean) => {
+    const wc = getPaneWebContents(id)
+    if (!wc || wc.isDestroyed()) return
+    if (wc.isLoading()) wc.stop()
+    if (hard) wc.reloadIgnoringCache()
+    else wc.reload()
   })
   ipcMain.handle('browser:zoom', (_e, id: string, action: 'in' | 'out' | 'reset') =>
     applyZoom(id, action)
