@@ -1866,6 +1866,49 @@
     }
     /* no mark on screen to land on: the logo fades out instead */
     #intro.out .intro-logo.fade { opacity: 0; transform: scale(0.9); transition-duration: 0.4s; }
+  
+    /* --- VII. The phone ------------------------------------------------- */
+    #phone .pane { display: flex; flex-direction: column; align-items: center; }
+    .ph-stage { display: flex; justify-content: center; padding: 6px 0 0; }
+    .ph {
+      width: 250px; height: 512px; border-radius: 40px; padding: 9px;
+      background: #1c1d1a;
+      box-shadow: 0 2px 6px rgba(49, 52, 45, 0.12), 0 36px 64px -28px rgba(56, 72, 84, 0.55);
+      animation: bob 10.5s ease-in-out infinite;
+    }
+    .ph-scr {
+      position: relative; height: 100%; border-radius: 32px; overflow: hidden;
+      background: var(--cream); font-family: var(--sans); text-align: left;
+      display: flex; flex-direction: column; color: var(--ink);
+    }
+    .ph-island { position: absolute; top: 10px; left: 50%; width: 74px; height: 20px; border-radius: 12px; background: #1c1d1a; transform: translateX(-50%); }
+    .ph-push {
+      margin: 40px 10px 0; display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px;
+      background: rgba(255, 254, 250, 0.96); border: 1px solid var(--glass-edge); border-radius: 14px;
+      box-shadow: 0 2px 6px rgba(49, 52, 45, 0.07), 0 14px 30px -14px rgba(56, 72, 84, 0.4);
+      font-size: 10px; line-height: 1.3;
+    }
+    .ph-push i { flex: none; width: 18px; height: 18px; border-radius: 5px; background: var(--ink); }
+    .ph-push b { display: block; font-size: 10px; }
+    .ph-push span { color: var(--muted); }
+    .ph-head { padding: 14px 16px 8px; }
+    .ph-mac { display: flex; align-items: center; gap: 5px; font-size: 9.5px; color: var(--muted); }
+    .ph-mac i { width: 6px; height: 6px; border-radius: 50%; background: var(--sage); }
+    .ph-title { margin-top: 4px; font-family: var(--serif); font-style: italic; font-size: 19px; line-height: 1.1; }
+    .ph-stream { flex: 1; padding: 4px 12px; display: flex; flex-direction: column; gap: 7px; font-size: 10.5px; line-height: 1.35; }
+    .ph-me { align-self: flex-end; max-width: 82%; padding: 6px 9px; border-radius: 12px 12px 3px 12px; background: var(--ink); color: var(--cream); }
+    .ph-bub { max-width: 90%; padding: 6px 9px; border-radius: 12px 12px 12px 3px; background: rgba(49, 52, 45, 0.06); }
+    .ph-tool { font-family: var(--mono); font-size: 9px; color: var(--faint); padding-left: 2px; }
+    .ph-ask { margin-top: 2px; padding: 8px 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 16px -10px rgba(56, 72, 84, 0.35); }
+    .ph-ask-t { font-size: 9px; color: var(--muted); }
+    .ph-ask code { display: block; margin: 3px 0 7px; font-family: var(--mono); font-size: 10px; }
+    .ph-ask-b { display: flex; gap: 6px; }
+    .ph-ask-b span { flex: 1; text-align: center; padding: 5px 0; border-radius: 8px; font-size: 10px; font-weight: 600; background: rgba(49, 52, 45, 0.06); }
+    .ph-ask-b .yes { background: var(--sage); color: #fff; }
+    .ph-comp { margin: 6px 10px 12px; display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 999px; background: rgba(49, 52, 45, 0.06); font-size: 10px; color: var(--faint); }
+    .ph-comp i { width: 16px; height: 16px; border-radius: 50%; background: var(--ink); }
+    @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+    @media (prefers-reduced-motion: reduce) { .ph { animation: none; } }
   </style>
 </head>
 <body>
@@ -2565,10 +2608,49 @@
     </div>
   </section>
 
+  <section class="feature flip io demo" id="phone">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">VII.</span>The phone<span class="jp">電話</span></span>
+        <h2>Your Mac's agent, <em>in your pocket.</em></h2>
+        <p>Pair the iPhone app once and it follows your Mac from anywhere: the conversation as it happens, a prompt from the sofa, a yes or no when the agent asks. End-to-end encrypted, through a relay that can't read a word of it.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane">
+          <div class="ph-stage">
+            <div class="ph">
+              <div class="ph-scr">
+                <div class="ph-island"></div>
+                <div class="ph-push"><i></i><div><b>SuperAgent</b><span>Done — hero copy tightened, tests green.</span></div></div>
+                <div class="ph-head">
+                  <div class="ph-mac"><i></i>Mac mini &middot; connected</div>
+                  <div class="ph-title">Tighten the hero copy</div>
+                </div>
+                <div class="ph-stream">
+                  <div class="ph-me">Make the headline shorter, keep the tone.</div>
+                  <div class="ph-bub">Two lines instead of three. Cut &ldquo;for teams of any size&rdquo; &mdash; it was doing nothing.</div>
+                  <div class="ph-tool">Edit &rsaquo; src/hero.tsx</div>
+                  <div class="ph-ask">
+                    <div class="ph-ask-t">Claude wants to run</div>
+                    <code>git push origin main</code>
+                    <div class="ph-ask-b"><span>Deny</span><span class="yes">Allow</span></div>
+                  </div>
+                </div>
+                <div class="ph-comp"><span>Message&hellip;</span><i></i></div>
+              </div>
+            </div>
+          </div>
+          <p class="pane-cap">Live while it's open. A push when it isn't. Nothing in between can read it.</p>
+          <ul class="spec"><li>Pair with a QR</li><li>Ask mode: approve from anywhere</li><li>End-to-end encrypted</li><li>Run your own relay</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="feature desk-sec io demo" id="desk">
     <div class="wrap feat-grid">
       <div class="desk-head feat-copy" data-rv>
-        <span class="kicker"><span class="num">VII.</span>The finale<span class="jp">机</span></span>
+        <span class="kicker"><span class="num">VIII.</span>The finale<span class="jp">机</span></span>
         <h2>The computer <em>inside</em> SuperAgent.</h2>
         <p>A desktop, not a slot. Windows you can move, a dock, and more than one agent working at the same time.</p>
       </div>
@@ -2678,7 +2760,7 @@
   <section class="open io">
     <div class="wrap">
       <div class="open-head" data-rv>
-        <span class="kicker"><span class="num">VII.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
+        <span class="kicker"><span class="num">IX.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
         <h2>Open source. <em>No server.</em></h2>
         <p>An agent with a browser is an agent with your logins. So you should be able
           to see where it runs and read exactly what it does.</p>
@@ -2704,10 +2786,11 @@
             <li><span class="tick">&#10003;</span><span><b>Your own Claude subscription.</b> The agent talks to Anthropic directly, with no proxy of ours in between and no second bill.</span></li>
             <li><span class="tick">&#10003;</span><span><b>No account, no analytics, no tracking.</b> There is no sign-up screen and no telemetry SDK in the build.</span></li>
             <li><span class="tick">&#10003;</span><span><b>Your logins stay yours.</b> Browser sessions live in a profile on your Mac, the same as any browser.</span></li>
+            <li><span class="tick">&#10003;</span><span><b>The phone is the one exception, and it's yours too.</b> Pair a phone and the Mac talks to a blind relay &mdash; ciphertext only, keys that exist only in your pairing QR, and not at all until you pair. Run the relay yourself with one command.</span></li>
           </ul>
         </div>
       </div>
-      <p class="open-foot" data-rv>It's all public. <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">read the source</a>.</p>
+      <p class="open-foot" data-rv>It's all public &mdash; the <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">desktop app</a>, the <a href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">iPhone app</a> and the <a href="https://github.com/pungme/superagent-relay" target="_blank" rel="noopener">relay</a>. <a href="https://github.com/pungme?tab=repositories&amp;q=superagent" target="_blank" rel="noopener">All three in one place</a>.</p>
     </div>
   </section>
 

@@ -93,15 +93,20 @@ with a push notification when it's done or needs you.
   that forwards ciphertext and stores nothing, so it works behind any network
   with no setup. Run your own relay with one command and change the URL in
   Settings → Phone.
+- **Connects only when it's used.** The Mac opens its relay connection when
+  a phone is paired or being paired. An install that never pairs a phone never
+  connects anywhere.
 - **Quiet in the menu bar** while a phone is paired: relay status, open, pair.
 
 The iOS app is built from source for now (see its README).
 
 ## Everything in its place
 
-Plain browser tabs sit at the top of the sidebar — browse first, summon the
-agent when you need it. Below them, projects are grouped the way you think
-about them, with each conversation nested underneath. A spinner while the
+The Computer sits at the top of the sidebar with its own conversations listed
+under it — the same list its Chat window shows, one click closer. Plain
+browser tabs come next: browse first, summon the agent when you need it.
+Below them, projects are grouped the way you think about them, with each
+conversation nested underneath. A spinner while the
 agent works, a dot when it needs you, a green dot when a background job is
 running, and the git branch where you'd expect it.
 
@@ -124,6 +129,9 @@ allowed to do without asking.
 - **Snip to attach.** ✂ on the browser or the simulator (or ⌘⇧S): drag a box
   right on the page or the phone screen and the crop lands in your message, at
   full resolution.
+- **`@` reaches everything.** Type `@` for this project's files, the other
+  projects in your sidebar by name, or any folder on the disk (`@/`, `@~/`) —
+  and drill into folders one level at a time.
 - **Context gauge.** Every conversation shows how much of the context window
   it has used.
 
@@ -161,9 +169,19 @@ allowed to do without asking.
 - An iPhone with the companion app, only if you want your phone in the loop.
 
 Network, in full: Claude Code's own connection to Anthropic; a check of this
-repo's releases for updates; and, for the phone companion, one outbound
-connection to the relay (the project's by default — swap in your own in
-Settings → Phone). Nothing else leaves the machine.
+repo's releases for updates; and — only once you pair a phone — one outbound
+connection to the companion relay (the project's by default; swap in your own
+in Settings → Phone). Nothing else leaves the machine.
+
+## The three repositories
+
+| | |
+|---|---|
+| [superagent-desktop](https://github.com/pungme/superagent-desktop) | this app — Electron, TypeScript, React |
+| [superagent-ios](https://github.com/pungme/superagent-ios) | the iPhone companion — SwiftUI |
+| [superagent-relay](https://github.com/pungme/superagent-relay) | the blind relay between them — a Cloudflare Worker, also runs as plain Node |
+
+All of them in one place: [github.com/pungme?q=superagent](https://github.com/pungme?tab=repositories&q=superagent).
 
 ## Run it from source
 
