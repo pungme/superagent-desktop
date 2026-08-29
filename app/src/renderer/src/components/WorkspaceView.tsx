@@ -2,7 +2,6 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserPane } from './BrowserPane'
-import { SnipOverlay } from './SnipOverlay'
 import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
@@ -160,56 +159,13 @@ export function WorkspaceView({
 
   const paneOpen = browserOpen || !!openFilePath || simOpen || boardOpen
 
-  // Snip-to-attach: freeze the current pane surface to a still, let the user drag
-  // a region out of it, and drop that crop straight into the chat composer.
+  // Snip-to-attach lives on the panes themselves now: the browser and the
+  // simulator each freeze in place and draw the selection right on their own
+  // picture (BrowserPane / SimulatorPane), then hand the crop to the composer.
+  // The ✂ button on each pane dispatches cove:start-snip with its source; ⌘⇧S
+  // does the same for whichever pane is on screen.
   const enterOverlay = useStore((s) => s.enterOverlay)
   const exitOverlay = useStore((s) => s.exitOverlay)
-  const [snipStill, setSnipStill] = useState<string | null>(null)
-  const snipObjectUrl = useRef<string | null>(null)
-  const snippingRef = useRef(false) // guards against a double-click starting two snips
-  // The ✂ Snip button now lives ON each pane (the browser omnibar, the simulator
-  // chrome) — more intuitive than a far-off toolbar button. Each pane dispatches
-  // cove:start-snip with its source; this runs the freeze → overlay → attach flow.
-  const startSnip = useCallback(
-    async (source: 'browser' | 'sim'): Promise<void> => {
-      if (snippingRef.current) return
-      snippingRef.current = true
-      let still: string | null = null
-      if (source === 'browser') {
-        const bytes = await window.cove.browserFreeze(browserPaneId)
-        if (bytes && bytes.length) {
-          const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/jpeg' }))
-          snipObjectUrl.current = url
-          still = url
-        }
-      } else {
-        const udid = localStorage.getItem(`cove.simDevice:${ws.id}`)
-        if (udid) still = await window.cove.simScreenshot(udid)
-      }
-      if (!still) {
-        snippingRef.current = false
-        return
-      }
-      setSnipStill(still) // the effect below acquires the overlay lock
-    },
-    [browserPaneId, ws.id]
-  )
-  const finishSnip = (): void => {
-    snippingRef.current = false
-    setSnipStill(null) // the effect cleanup releases the lock + revokes the URL
-  }
-  // A pane asked to start a snip (scoped to this workspace).
-  useEffect(() => {
-    const onStart = (e: Event): void => {
-      const d = (e as CustomEvent<{ workspaceId: string; source: 'browser' | 'sim' }>).detail
-      // The browser snips itself in place (BrowserPane); only the simulator uses
-      // this overlay-based path.
-      if (d?.workspaceId === ws.id && d.source === 'sim') void startSnip('sim')
-    }
-    window.addEventListener('cove:start-snip', onStart)
-    return () => window.removeEventListener('cove:start-snip', onStart)
-  }, [ws.id, startSnip])
-  // ⌘⇧S snips whatever pane is on screen (the browser page or the simulator).
   useEffect(() => {
     if (!visible) return
     const onKey = (e: KeyboardEvent): void => {
@@ -218,28 +174,13 @@ export function WorkspaceView({
         browserOpen && !boardOpen && !openFilePath ? 'browser' : simOpen ? 'sim' : null
       if (!source) return
       e.preventDefault()
-      void startSnip(source)
+      window.dispatchEvent(
+        new CustomEvent('cove:start-snip', { detail: { workspaceId: ws.id, source } })
+      )
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visible, browserOpen, boardOpen, openFilePath, simOpen, startSnip])
-  // Hold the overlay lock — which detaches the native browser view so the HTML
-  // snip overlay is visible over it — and the freeze object URL for exactly as
-  // long as the snip is on screen. Binding both to this effect's lifetime means
-  // they're released when the snip ends OR the workspace unmounts/hides mid-snip,
-  // so a lock can never leak (a leaked lock keeps EVERY browser preview frozen
-  // until restart) and the JPEG blob URL can never leak.
-  useEffect(() => {
-    if (!snipStill) return
-    enterOverlay()
-    return () => {
-      exitOverlay()
-      if (snipObjectUrl.current) {
-        URL.revokeObjectURL(snipObjectUrl.current)
-        snipObjectUrl.current = null
-      }
-    }
-  }, [snipStill, enterOverlay, exitOverlay])
+  }, [visible, browserOpen, boardOpen, openFilePath, simOpen, ws.id])
 
   // The board and a file preview share the one working surface, and the board
   // was drawn on top — so clicking a file while the board was open did nothing
@@ -823,19 +764,6 @@ export function WorkspaceView({
           </div>
         </div>
       </div>
-      {/* Gated on `visible` too: a hidden workspace must not keep a slide-over
-          mounted, or its overlay lock would blank the active workspace's preview. */}
-      {snipStill && (
-        <SnipOverlay
-          still={snipStill}
-          onCancel={finishSnip}
-          onCapture={(dataUrl) => {
-            // Hand the crop to the active chat's composer (it listens and focuses).
-            window.dispatchEvent(new CustomEvent('cove:attach-image', { detail: { url: dataUrl } }))
-            finishSnip()
-          }}
-        />
-      )}
     </div>
   )
 }
