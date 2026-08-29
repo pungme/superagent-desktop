@@ -291,10 +291,10 @@ beforeAll(async () => {
   h.kv.set('companion.relay', `ws://127.0.0.1:${port()}`)
   startCompanionLog()
   startCompanion()
-  // Wait for the Mac to authenticate with the relay.
-  for (let i = 0; i < 100 && companionState().relay.state !== 'connected'; i++)
-    await new Promise((r) => setTimeout(r, 20))
-  expect(companionState().relay.state).toBe('connected')
+  // No phone paired and none being paired: the Mac does not dial the relay at
+  // all. An install that never uses the companion never opens a socket.
+  await new Promise((r) => setTimeout(r, 100))
+  expect(companionState().relay.state).toBe('offline')
 })
 afterAll(() => {
   stopCompanion()
@@ -307,6 +307,11 @@ describe('desktop ⇄ relay ⇄ phone', () => {
 
   it('pairs a phone: QR secret → pair frame → Accept on the Mac → token', async () => {
     const { payload, code } = startPairing(`ws://127.0.0.1:${port()}`)
+    // Starting a pairing is what brings the relay connection up; wait for the
+    // Mac to authenticate before the phone shows up.
+    for (let i = 0; i < 100 && companionState().relay.state !== 'connected'; i++)
+      await new Promise((r) => setTimeout(r, 20))
+    expect(companionState().relay.state).toBe('connected')
     const p: PairPayload = payload
     expect(p.m).toBe(machineId())
     secret = Buffer.from(p.k, 'base64url')
