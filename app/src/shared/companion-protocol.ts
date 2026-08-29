@@ -141,9 +141,25 @@ export type ServerFrame =
   | { t: 'delta'; chatId: string; text: string }
   | { t: 'status'; workspaceId: string; status: 'idle' | 'working' | 'needs-you' }
   | { t: 'chats'; chats: WireChat[] }
+  | { t: 'browser'; browser: WireBrowser }
   | { t: 'res'; id: string; ok: true; result?: unknown }
   | { t: 'res'; id: string; ok: false; error: { code: RpcErrorCode; message: string } }
   | { t: 'pong' }
+
+/**
+ * What a conversation currently has open in the Mac's browser pane — the phone
+ * shows the page above its chat the way the desktop shows it beside one.
+ * `open: false` means the pane went away.
+ */
+export interface WireBrowser {
+  chatId: string
+  open: boolean
+  url: string
+  title: string
+  canGoBack: boolean
+  canGoForward: boolean
+  loading: boolean
+}
 
 /**
  * What a planning tool call said, so the phone can keep a Tasks panel without

@@ -2,6 +2,7 @@ import { ipcMain, powerMonitor, powerSaveBlocker } from 'electron'
 import { RelayClient } from './relay-client'
 import { ClientConn } from './session'
 import { logBus, record, eventsAfter } from './log'
+import { browserBus, type BrowserPaneState } from '../browser'
 import { hookBus } from '../hooks'
 import { listSessions, findSessionByChat, suggestTitle } from '../agent'
 import { kvGet, kvSet, getChatIdBySession, getChat, getWorkspace, setChatTitle } from '../store'
@@ -22,7 +23,7 @@ import { prettyHostname } from './pairing'
 import { EventEmitter } from 'events'
 import { loadedMachineId } from './identity'
 import { listChats } from './rpc'
-import type { WireEvent } from '../../shared/companion-protocol'
+import type { WireEvent, WireBrowser } from '../../shared/companion-protocol'
 
 /**
  * Wires the companion together: one relay connection, one ClientConn per
@@ -93,6 +94,17 @@ export function startCompanion(): void {
     for (const c of conns.values())
       if (c.authenticated && c.subs.has(chatId)) c.send({ t: 'delta', chatId, text })
   })
+  // What each conversation has open in the browser: the phone puts the page
+  // above its chat, so it needs to hear the same state the window's omnibar does.
+  browserBus.on(
+    'state',
+    ({ paneId, state }: { paneId: string; state: BrowserPaneState | null }) => {
+      const browser = wireBrowser(paneId, state)
+      if (!browser) return
+      for (const c of conns.values()) if (c.authenticated) c.send({ t: 'browser', browser })
+    }
+  )
+
   // A turn starting or ending in any chat: the project's status and each
   // chat's `live` flag follow it (see log.ts — this is what the desktop's own
   // spinner means by working; the claude process stays alive between turns).
@@ -343,6 +355,26 @@ function notifyPhones(
   if (!targets.length) return
   const { payload, collapseId } = composePush({ kind, machineName: prettyHostname(), ...e })
   for (const t of targets) relay.push({ token: t.token, env: t.env, payload, collapseId })
+}
+
+/**
+ * A pane state as the phone sees it. A pane is per conversation
+ * (`<workspace>::<chat>`); a bare workspace id belongs to no single chat, so
+ * there is nothing to show against.
+ */
+export function wireBrowser(paneId: string, state: BrowserPaneState | null): WireBrowser | null {
+  const [, chatId] = paneId.split('::')
+  if (!chatId || chatId === 'routine') return null
+  const live = !!state && /^https?:/i.test(state.url)
+  return {
+    chatId,
+    open: live,
+    url: live ? state!.url : '',
+    title: live ? state!.title : '',
+    canGoBack: live ? state!.canGoBack : false,
+    canGoForward: live ? state!.canGoForward : false,
+    loading: live ? state!.loading : false
+  }
 }
 
 export function registerCompanionIpc(): void {
