@@ -241,11 +241,17 @@ export function pushChats(): void {
  * Stay awake while a phone is connected, or while any agent is working and a
  * phone is paired (it may be waiting on the result). Release otherwise.
  */
+const KEEP_AWAKE_KEY = 'companion.keepAwakeAlways'
+/** Settings → Phone: hold the assertion whenever a phone is paired at all (a Mac left at home). */
+export function keepAwakeAlways(): boolean {
+  return kvGet(KEEP_AWAKE_KEY) === '1'
+}
+
 function updateKeepAwake(): void {
   const phoneConnected = [...conns.values()].some((c) => c.authenticated)
   const paired = listDevices().length > 0
   const working = paired && listSessions().length > 0
-  const want = phoneConnected || working
+  const want = phoneConnected || working || (paired && keepAwakeAlways())
   if (want && blockerId === null) blockerId = powerSaveBlocker.start('prevent-app-suspension')
   if (!want && blockerId !== null) {
     powerSaveBlocker.stop(blockerId)
@@ -260,6 +266,7 @@ export interface CompanionState {
   connected: string[]
   pairing: ReturnType<typeof pairingState>
   keepAwake: boolean
+  keepAwakeAlways: boolean
 }
 
 export function companionState(): CompanionState {
@@ -269,7 +276,8 @@ export function companionState(): CompanionState {
     devices: listDevices(),
     connected: [...conns.values()].filter((c) => c.authenticated).map((c) => c.deviceId!),
     pairing: pairingState(),
-    keepAwake: blockerId !== null
+    keepAwake: blockerId !== null,
+    keepAwakeAlways: keepAwakeAlways()
   }
 }
 
@@ -312,6 +320,11 @@ export function registerCompanionIpc(): void {
     broadcastState()
   })
   ipcMain.on('companion:reconnect', () => relay.kick())
+  ipcMain.on('companion:set-keep-awake', (_e, always: boolean) => {
+    kvSet(KEEP_AWAKE_KEY, always ? '1' : '')
+    updateKeepAwake()
+    broadcastState()
+  })
   // "Test notification": one banner to one phone, so you can see it works
   // before you rely on it. False when that phone never registered for push.
   ipcMain.handle('companion:test-push', (_e, id: string): boolean => {

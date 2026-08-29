@@ -85,12 +85,23 @@ export interface WireWorkspace {
   id: string
   name: string
   path: string
-  kind: 'app' | 'browser'
+  /** 'desktop' is the Computer row: the agent that drives the whole Mac. */
+  kind: 'app' | 'browser' | 'desktop'
   status: 'idle' | 'working' | 'needs-you'
   /** Current git branch, when the project is a repository. */
   branch?: string | null
   /** Browser projects: the site they live on (for a favicon). */
   browserUrl?: string | null
+  /** Git repos one level inside a code project (a folder of repos), as the sidebar's tree. */
+  subrepos?: { name: string; path: string; branch: string | null }[]
+}
+
+/** `fs.dirs`: one folder on the Mac, for picking a project. */
+export interface WireDir {
+  name: string
+  path: string
+  /** It has a .git — the sidebar would show a branch chip. */
+  repo: boolean
 }
 
 export interface WireChat {
@@ -171,6 +182,13 @@ export type RpcMethod =
   | 'git.branches'
   | 'git.checkout'
   | 'chat.search'
+  | 'workspace.add'
+  | 'workspace.createBrowser'
+  | 'workspace.remove'
+  | 'group.create'
+  | 'group.rename'
+  | 'group.delete'
+  | 'fs.dirs'
   | 'screenshot.take'
   | 'device.presence'
 

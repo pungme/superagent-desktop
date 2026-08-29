@@ -267,6 +267,24 @@ export function PhoneSettings(): React.JSX.Element {
         </div>
         <div className="settings-row">
           <div className="settings-label">
+            <strong>Keep this Mac awake while a phone is paired</strong>
+            <span>
+              Normally it stays awake only while a phone is connected or an agent is working. Turn
+              this on for a Mac that lives at home as the agent box. Closing the lid still sleeps it
+              (macOS rule) unless it&apos;s on power with a display attached.
+            </span>
+          </div>
+          <label className="phone-switch">
+            <input
+              type="checkbox"
+              checked={state.keepAwakeAlways}
+              onChange={(e) => window.cove.companionSetKeepAwake(e.target.checked)}
+            />
+            <span>{state.keepAwakeAlways ? 'On' : 'Off'}</span>
+          </label>
+        </div>
+        <div className="settings-row">
+          <div className="settings-label">
             <strong>Relay</strong>
             <span>
               The meeting point both devices dial out to. It only ever sees encrypted data. Running

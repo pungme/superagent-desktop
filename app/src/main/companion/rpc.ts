@@ -15,13 +15,24 @@ import {
   updateCard,
   moveCard,
   getWorkspacePath,
-  DESKTOP_WORKSPACE_ID
+  createGroup,
+  updateGroup,
+  deleteGroup,
+  createWorkspace,
+  createBrowserWorkspace,
+  deleteWorkspace,
+  tabsGroupId,
+  ensureDesktopWorkspace,
+  DESKTOP_WORKSPACE_ID,
+  TABS_GROUP
 } from '../store'
+import { homedir } from 'os'
+import { readdirSync, existsSync } from 'fs'
 import * as auto from '../automation'
 import { getPaneWebContents, ensureBackgroundPane, ensureCompositing } from '../browser'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
-import { extname } from 'path'
+import { extname, resolve, sep } from 'path'
 import {
   startAgent,
   stopAgent,
@@ -35,6 +46,7 @@ import {
   gitBranch,
   gitBranches,
   gitCheckout,
+  gitSubrepos,
   listProjectFiles,
   readTextFile,
   resolveInside
@@ -52,7 +64,8 @@ import type {
   ChatSendParams,
   ApprovalAnswerParams,
   WireBrowserShot,
-  WireFileContent
+  WireFileContent,
+  WireDir
 } from '../../shared/companion-protocol'
 
 /**
@@ -130,6 +143,17 @@ const chatSearch = z.object({
   limit: z.number().int().min(1).max(100).optional()
 })
 
+const workspaceAdd = z.object({
+  groupId: z.string().min(1),
+  name: z.string().min(1).max(120),
+  path: z.string().min(1).max(4000)
+})
+const browserCreate = z.object({ url: z.string().max(4000).optional() })
+const idParam = z.object({ id: z.string().min(1) })
+const groupCreate = z.object({ name: z.string().max(80).optional() })
+const groupRename = z.object({ id: z.string().min(1), name: z.string().min(1).max(80) })
+const dirsParams = z.object({ path: z.string().max(4000).optional() })
+
 /** How much of a text file a phone gets; the rest is marked truncated. */
 const PHONE_TEXT_BYTES = 400_000
 /** The largest picture a phone gets back, before base64 and the frame wrapper. */
@@ -161,7 +185,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!getWorkspace(p.data.workspaceId)) return fail('not-found', 'no such project')
         const id = createChat(p.data.workspaceId)
         // Every phone (and the desktop sidebar) learns about the new row now.
-        broadcastToWindows('projects:changed')
+        broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true, result: { chatId: id } }
       }
@@ -170,7 +194,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
         setChatTitle(p.data.chatId, p.data.title.trim())
-        broadcastToWindows('projects:changed')
+        broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true }
       }
@@ -181,7 +205,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const s = findSessionByChat(p.data.chatId)
         if (s) stopAgent(s.id)
         deleteChat(p.data.chatId)
-        broadcastToWindows('projects:changed')
+        broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true }
       }
@@ -319,7 +343,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!root) return fail('not-found', 'no such project')
         const r = await gitCheckout(root, p.data.branch)
         if (!r.ok) return fail('unavailable', r.error || 'git refused')
-        broadcastToWindows('projects:changed')
+        broadcastToWindows('projects:changed', {})
         return { ok: true, result: { branch: gitBranch(root) } }
       }
       case 'chat.search': {
@@ -331,6 +355,75 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
             (h) => h.workspaceId !== DESKTOP_WORKSPACE_ID
           )
         }
+      }
+      case 'workspace.add': {
+        const p = workspaceAdd.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        // Under the home folder, or inside a project that is already open (a
+        // repo nested in a folder-of-repos lives wherever that project does).
+        const dir = insideHome(p.data.path) ?? insideProject(p.data.path)
+        if (!dir || !existsSync(dir))
+          return fail(
+            'bad-params',
+            'that folder is not under your home directory or an open project'
+          )
+        const existing = getTree()
+          .flatMap((g) => g.workspaces)
+          .find((w) => w.path === dir)
+        const id = existing?.id ?? createWorkspace(p.data.groupId, p.data.name, dir)
+        broadcastToWindows('projects:changed', {})
+        return { ok: true, result: { workspaceId: id, tree: listTree() } }
+      }
+      case 'workspace.createBrowser': {
+        const p = browserCreate.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const id = createBrowserWorkspace(tabsGroupId(), 'New Tab', p.data.url)
+        broadcastToWindows('projects:changed', {})
+        return { ok: true, result: { workspaceId: id, tree: listTree() } }
+      }
+      case 'workspace.remove': {
+        const p = idParam.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getWorkspace(p.data.id) || p.data.id === DESKTOP_WORKSPACE_ID)
+          return fail('not-found', 'no such project')
+        for (const c of listAllChats()) {
+          if (c.workspaceId !== p.data.id) continue
+          const s = findSessionByChat(c.id)
+          if (s) stopAgent(s.id)
+        }
+        deleteWorkspace(p.data.id)
+        broadcastToWindows('projects:changed', {})
+        pushChats()
+        return { ok: true, result: { tree: listTree() } }
+      }
+      case 'group.create': {
+        const p = groupCreate.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const id = createGroup(p.data.name ?? 'New group')
+        broadcastToWindows('projects:changed', {})
+        return { ok: true, result: { groupId: id, tree: listTree() } }
+      }
+      case 'group.rename': {
+        const p = groupRename.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!updateGroup(p.data.id, { name: p.data.name }))
+          return fail('not-found', 'no such group')
+        broadcastToWindows('projects:changed', {})
+        return { ok: true, result: { tree: listTree() } }
+      }
+      case 'group.delete': {
+        const p = idParam.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!deleteGroup(p.data.id)) return fail('unavailable', 'the last group stays')
+        broadcastToWindows('projects:changed', {})
+        return { ok: true, result: { tree: listTree() } }
+      }
+      case 'fs.dirs': {
+        const p = dirsParams.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const dir = insideHome(p.data.path ?? homedir())
+        if (!dir) return fail('bad-params', 'only folders under your home directory')
+        return { ok: true, result: { path: dir, dirs: listDirs(dir) } }
       }
       case 'screenshot.take':
         return fail('unavailable', 'use browser.screenshot')
@@ -449,10 +542,55 @@ function readForPhone(abs: string, rel: string): WireFileContent {
   }
 }
 
-/** The sidebar, as the phone sees it. */
+/** A path a phone may name: absolute, under the home directory, no escapes. */
+function insideHome(path: string): string | null {
+  const home = resolve(homedir())
+  const full = resolve(path.startsWith('~') ? home + path.slice(1) : path)
+  return full === home || full.startsWith(home + sep) ? full : null
+}
+
+/** A path inside one of the open projects' folders, or null. */
+function insideProject(path: string): string | null {
+  const full = resolve(path)
+  for (const w of getTree().flatMap((g) => g.workspaces)) {
+    const root = resolve(w.path)
+    if (full === root || full.startsWith(root + sep)) return full
+  }
+  return null
+}
+
+/** Visible sub-folders of one directory, repos flagged, as the Mac's picker would show. */
+function listDirs(dir: string): WireDir[] {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !e.name.startsWith('.') && !SKIP_DIRS.has(e.name))
+      .map((e) => {
+        const path = `${dir}${sep}${e.name}`
+        return { name: e.name, path, repo: existsSync(`${path}${sep}.git`) }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 400)
+  } catch {
+    return []
+  }
+}
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'Library',
+  'Applications',
+  'Music',
+  'Movies',
+  'Pictures'
+])
+
+/**
+ * The sidebar, as the phone sees it — same rows in the same order: the
+ * Computer entry first, then the browser tabs group, then every project group
+ * with each project's nested repos.
+ */
 export function listTree(): WireGroup[] {
   const statuses = workspaceStatuses()
-  return getTree().map((g) => ({
+  const groups: WireGroup[] = getTree().map((g) => ({
     id: g.id,
     name: g.name,
     color: g.color,
@@ -463,22 +601,45 @@ export function listTree(): WireGroup[] {
       kind: w.kind,
       status: statuses.get(w.id) ?? 'idle',
       branch: w.kind === 'app' ? gitBranch(w.path) : null,
-      browserUrl: w.browserUrl ?? null
+      browserUrl: w.browserUrl ?? null,
+      subrepos: w.kind === 'app' ? gitSubrepos(w.path) : []
     }))
   }))
+  // The Computer row exists on the Mac from its first click; a phone may be first.
+  ensureDesktopWorkspace()
+  const computer = getWorkspace(DESKTOP_WORKSPACE_ID)
+  if (computer) {
+    groups.unshift({
+      id: 'computer',
+      name: 'Computer',
+      color: '',
+      workspaces: [
+        {
+          id: DESKTOP_WORKSPACE_ID,
+          name: 'Computer',
+          path: computer.path,
+          kind: 'desktop',
+          status: statuses.get(DESKTOP_WORKSPACE_ID) ?? 'idle',
+          branch: null,
+          browserUrl: null,
+          subrepos: []
+        }
+      ]
+    })
+  }
+  // The tabs group keeps its internal name; the phone labels it like the Mac does.
+  return groups.map((g) => (g.name === TABS_GROUP ? { ...g, name: TABS_GROUP } : g))
 }
 
 export function listChats(): WireChat[] {
-  return listAllChats()
-    .filter((c) => c.workspaceId !== DESKTOP_WORKSPACE_ID)
-    .map((c) => ({
-      id: c.id,
-      workspaceId: c.workspaceId,
-      title: c.title,
-      updatedAt: c.updatedAt,
-      live: !!findSessionByChat(c.id),
-      preview: lastChatPreview(c.id)
-    }))
+  return listAllChats().map((c) => ({
+    id: c.id,
+    workspaceId: c.workspaceId,
+    title: c.title,
+    updatedAt: c.updatedAt,
+    live: !!findSessionByChat(c.id),
+    preview: lastChatPreview(c.id)
+  }))
 }
 
 /**

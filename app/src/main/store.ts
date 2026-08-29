@@ -279,6 +279,90 @@ export interface TreeGroup extends Group {
 export const DESKTOP_GROUP_ID = '__desktop__'
 export const DESKTOP_WORKSPACE_ID = '__desktop_chat__'
 
+/** The sidebar section that holds browser tabs (the renderer names it too). */
+export const TABS_GROUP = '__tabs'
+
+export function createGroup(name: string): string {
+  const id = randomUUID()
+  const color = COLORS[nextPosition('groups') % COLORS.length]
+  db.prepare(
+    'INSERT INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, ?)'
+  ).run(id, name || 'New group', color, nextPosition('groups'))
+  return id
+}
+
+export function updateGroup(
+  id: string,
+  patch: Partial<Pick<Group, 'name' | 'color' | 'collapsed'>>
+): boolean {
+  const cur = db.prepare('SELECT * FROM groups WHERE id = ?').get(id) as Group | undefined
+  if (!cur) return false
+  db.prepare('UPDATE groups SET name = ?, color = ?, collapsed = ? WHERE id = ?').run(
+    patch.name ?? cur.name,
+    patch.color ?? cur.color,
+    patch.collapsed ?? cur.collapsed,
+    id
+  )
+  return true
+}
+
+/** Deletes a group, moving its projects to the next one; the last group stays. */
+export function deleteGroup(id: string): boolean {
+  const n = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
+  if (n <= 1) return false
+  // Reassign this group's projects to the next group (by position) so they're
+  // never orphaned — deleting a group must not lose projects.
+  const other = db
+    .prepare('SELECT id FROM groups WHERE id != ? ORDER BY position LIMIT 1')
+    .get(id) as { id: string } | undefined
+  const tx = db.transaction(() => {
+    if (other) db.prepare('UPDATE workspaces SET groupId = ? WHERE groupId = ?').run(other.id, id)
+    db.prepare('DELETE FROM groups WHERE id = ?').run(id)
+  })
+  tx()
+  return true
+}
+
+export function createWorkspace(groupId: string, name: string, path: string): string {
+  const id = randomUUID()
+  db.prepare(
+    "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, ?, ?, ?, NULL, NULL, 'app')"
+  ).run(id, groupId, name, path, nextPosition('workspaces', ['groupId', groupId]))
+  return id
+}
+
+/** The group browser tabs live in, created on first use. */
+export function tabsGroupId(): string {
+  const g = db.prepare('SELECT id FROM groups WHERE name = ?').get(TABS_GROUP) as
+    { id: string } | undefined
+  return g?.id ?? createGroup(TABS_GROUP)
+}
+
+// Browser project: no folder to pick — give Claude a private scratch cwd so
+// headless runs/routines have somewhere to work, and mark it kind='browser'.
+export function createBrowserWorkspace(groupId: string, name: string, url?: string): string {
+  const id = randomUUID()
+  const path = join(app.getPath('userData'), 'browser-projects', id)
+  mkdirSync(path, { recursive: true })
+  db.prepare(
+    "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, ?, ?, ?, ?, NULL, 'browser')"
+  ).run(id, groupId, name, path, nextPosition('workspaces', ['groupId', groupId]), url ?? null)
+  return id
+}
+
+export function deleteWorkspace(id: string): void {
+  db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
+  db.prepare('DELETE FROM chats WHERE workspaceId = ?').run(id)
+  // Routines have no FK cascade, so a deleted project used to leave its routines
+  // behind — orphans that kept running hourly, invisible in the UI (no project
+  // to show them under) and driving the browser in the background. Delete them.
+  try {
+    db.prepare('DELETE FROM routines WHERE workspaceId = ?').run(id)
+  } catch {
+    // routines table not created yet (no routine ever made) — nothing to clean.
+  }
+}
+
 export function getTree(): TreeGroup[] {
   const groups = (db.prepare('SELECT * FROM groups ORDER BY position').all() as Group[]).filter(
     (g) => g.id !== DESKTOP_GROUP_ID
@@ -1296,42 +1380,20 @@ export function registerStoreIpc(): void {
   })
 
   ipcMain.handle('store:createGroup', (_e, name: string) => {
-    const id = randomUUID()
-    const color = COLORS[nextPosition('groups') % COLORS.length]
-    db.prepare(
-      'INSERT INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, ?)'
-    ).run(id, name || 'New group', color, nextPosition('groups'))
+    createGroup(name)
     return getTree()
   })
 
   ipcMain.handle(
     'store:updateGroup',
     (_e, id: string, patch: Partial<Pick<Group, 'name' | 'color' | 'collapsed'>>) => {
-      const cur = db.prepare('SELECT * FROM groups WHERE id = ?').get(id) as Group | undefined
-      if (!cur) return getTree()
-      db.prepare('UPDATE groups SET name = ?, color = ?, collapsed = ? WHERE id = ?').run(
-        patch.name ?? cur.name,
-        patch.color ?? cur.color,
-        patch.collapsed ?? cur.collapsed,
-        id
-      )
+      updateGroup(id, patch)
       return getTree()
     }
   )
 
   ipcMain.handle('store:deleteGroup', (_e, id: string) => {
-    const n = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
-    if (n <= 1) return getTree() // keep at least one group
-    // Reassign this group's projects to the next group (by position) so they're
-    // never orphaned — deleting a group must not lose projects.
-    const other = db
-      .prepare('SELECT id FROM groups WHERE id != ? ORDER BY position LIMIT 1')
-      .get(id) as { id: string } | undefined
-    const tx = db.transaction(() => {
-      if (other) db.prepare('UPDATE workspaces SET groupId = ? WHERE groupId = ?').run(other.id, id)
-      db.prepare('DELETE FROM groups WHERE id = ?').run(id)
-    })
-    tx()
+    deleteGroup(id)
     return getTree()
   })
 
@@ -1342,7 +1404,20 @@ export function registerStoreIpc(): void {
    * user's home — the agent has to run somewhere, and somewhere it can write
    * scratch files without leaving them in the middle of anything.
    */
-  ipcMain.handle('desktop:chat-home', () => {
+  ipcMain.handle('desktop:chat-home', () => ensureDesktopWorkspace())
+  registerStoreIpcTail()
+}
+
+/**
+ * The desktop chat's home: a workspace that is not a project.
+ *
+ * Its working directory is a folder of ours under userData rather than the
+ * user's home — the agent has to run somewhere, and somewhere it can write
+ * scratch files without leaving them in the middle of anything. Created the
+ * first time anything (the window's Computer row, or a phone's) asks for it.
+ */
+export function ensureDesktopWorkspace(): { workspaceId: string; cwd: string } {
+  {
     const cwd = join(app.getPath('userData'), 'desktop-chat')
     mkdirSync(cwd, { recursive: true })
     // The chat reads the desktop through ./files. The desk is a real folder
@@ -1377,44 +1452,27 @@ export function registerStoreIpc(): void {
       db.prepare('UPDATE workspaces SET path = ? WHERE id = ?').run(cwd, DESKTOP_WORKSPACE_ID)
     }
     return { workspaceId: DESKTOP_WORKSPACE_ID, cwd }
-  })
+  }
+}
 
+function registerStoreIpcTail(): void {
   // The desk is a real folder and ./files links straight to it (see chat-home),
   // so there is nothing per-file to sync. Kept as a no-op because the renderer
   // still calls it after the one-time migration; it simply confirms the link.
   ipcMain.handle('desktop:sync-files', () => join(app.getPath('userData'), 'desktop-chat', 'files'))
 
   ipcMain.handle('store:createWorkspace', (_e, groupId: string, name: string, path: string) => {
-    const id = randomUUID()
-    db.prepare(
-      "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, ?, ?, ?, NULL, NULL, 'app')"
-    ).run(id, groupId, name, path, nextPosition('workspaces', ['groupId', groupId]))
-    return { tree: getTree(), workspaceId: id }
+    return { tree: getTree(), workspaceId: createWorkspace(groupId, name, path) }
   })
 
   // Browser project: no folder to pick — give Claude a private scratch cwd so
   // headless runs/routines have somewhere to work, and mark it kind='browser'.
   ipcMain.handle('store:createBrowserWorkspace', (_e, groupId: string, name: string) => {
-    const id = randomUUID()
-    const path = join(app.getPath('userData'), 'browser-projects', id)
-    mkdirSync(path, { recursive: true })
-    db.prepare(
-      "INSERT INTO workspaces (id, groupId, name, path, position, browserUrl, lastSessionId, kind) VALUES (?, ?, ?, ?, ?, NULL, NULL, 'browser')"
-    ).run(id, groupId, name, path, nextPosition('workspaces', ['groupId', groupId]))
-    return { tree: getTree(), workspaceId: id }
+    return { tree: getTree(), workspaceId: createBrowserWorkspace(groupId, name) }
   })
 
   ipcMain.handle('store:deleteWorkspace', (_e, id: string) => {
-    db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
-    db.prepare('DELETE FROM chats WHERE workspaceId = ?').run(id)
-    // Routines have no FK cascade, so a deleted project used to leave its routines
-    // behind — orphans that kept running hourly, invisible in the UI (no project
-    // to show them under) and driving the browser in the background. Delete them.
-    try {
-      db.prepare('DELETE FROM routines WHERE workspaceId = ?').run(id)
-    } catch {
-      // routines table not created yet (no routine ever made) — nothing to clean.
-    }
+    deleteWorkspace(id)
     return getTree()
   })
 

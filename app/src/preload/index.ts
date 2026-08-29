@@ -95,6 +95,7 @@ export interface CompanionState {
     request?: { device: { id: string; name: string; model: string } }
   }
   keepAwake: boolean
+  keepAwakeAlways: boolean
 }
 
 /** A prompt-injection gate awaiting the user's tap before a tool runs. */
@@ -570,6 +571,7 @@ export interface CoveApi {
   companionReconnect: () => void
   /** One test banner to that phone; false if it never registered for push. */
   companionTestPush: (deviceId: string) => Promise<boolean>
+  companionSetKeepAwake: (always: boolean) => void
   /** A tool is gated pending the user's approval (browse-then-execute guard). */
   onGuardrailAsk: (cb: (a: GuardrailAsk) => void) => () => void
   /** A pending gate was resolved elsewhere (e.g. timed out) — dismiss its prompt. */
@@ -843,6 +845,7 @@ const cove: CoveApi = {
   companionSetRelay: (url) => ipcRenderer.send('companion:set-relay', url),
   companionReconnect: () => ipcRenderer.send('companion:reconnect'),
   companionTestPush: (id) => ipcRenderer.invoke('companion:test-push', id),
+  companionSetKeepAwake: (always) => ipcRenderer.send('companion:set-keep-awake', always),
   onGuardrailAsk: (cb) => subscribe('guardrail:ask', (a) => cb(a as GuardrailAsk)),
   onGuardrailResolved: (cb) =>
     subscribe('guardrail:resolved', (r) => cb((r as { requestId: string }).requestId)),
