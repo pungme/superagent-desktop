@@ -86,7 +86,19 @@ export class RelayClient extends EventEmitter {
     if (this.stopped) return
     this.clearTimers()
     this.authed = false
-    const url = `${this.url}/m/${machineId()}`
+    // The identity lives in the keychain (safeStorage). A denied or timed-out
+    // keychain prompt must not take the whole relay client down — report it
+    // and try again later.
+    let id: string
+    try {
+      id = machineId()
+    } catch (e) {
+      this.lastError = `can't read this Mac's identity from the keychain: ${(e as Error).message}`
+      this.setState('reconnecting')
+      this.scheduleReconnect()
+      return
+    }
+    const url = `${this.url}/m/${id}`
     let ws: WebSocket
     try {
       ws = new WebSocket(url, { handshakeTimeout: 10_000 })

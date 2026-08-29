@@ -23,6 +23,8 @@ export function PhoneSettings(): React.JSX.Element {
   const [state, setState] = useState<CompanionState | null>(null)
   const [qr, setQr] = useState<{ k: string; url: string } | null>(null)
   const [relayDraft, setRelayDraft] = useState<string | null>(null)
+  /** Why pairing couldn't start — the keychain said no, most likely. */
+  const [pairError, setPairError] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [copied, setCopied] = useState(false)
   // Short-lived feedback: which phone just got a test banner, and the phone
@@ -106,12 +108,20 @@ export function PhoneSettings(): React.JSX.Element {
           <div className="settings-label">
             <strong>Pair a phone</strong>
             <span>
-              Open Superagent on your iPhone, tap Pair, and scan the code that appears here.
+              Open Superagent on your iPhone, tap Pair, and scan the code that appears here.{' '}
+              <b>macOS will ask once</b> to let Superagent use your login keychain &mdash; that is
+              where the pairing key is kept. Choose <b>Always Allow</b>.
             </span>
+            {pairError && <span className="phone-error">{pairError}</span>}
           </div>
           <button
             className="phone-btn primary"
-            onClick={() => void window.cove.companionPairStart()}
+            onClick={() => {
+              setPairError(null)
+              window.cove.companionPairStart().catch((e: unknown) => {
+                setPairError(e instanceof Error ? e.message : String(e))
+              })
+            }}
           >
             Show pairing code
           </button>
@@ -318,7 +328,11 @@ export function PhoneSettings(): React.JSX.Element {
             )}
           </div>
         </div>
-        <div className="phone-muted phone-machine">Machine id {state.machineId.slice(0, 12)}…</div>
+        <div className="phone-muted phone-machine">
+          {state.machineId
+            ? `Machine id ${state.machineId.slice(0, 12)}…`
+            : 'This Mac gets its id the first time you pair a phone — nothing is created, and the keychain is not touched, before that.'}
+        </div>
       </div>
     </section>
   )

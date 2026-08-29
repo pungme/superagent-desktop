@@ -15,12 +15,12 @@ import {
   state as pairingState,
   pairingBus
 } from './pairing'
-import { watchStatuses } from './status'
+import { watchStatuses, effectiveStatus } from './status'
 import { startReaper } from './reaper'
 import { composePush, pushTargets, testPushTarget, type PushKind } from './push'
 import { prettyHostname } from './pairing'
 import { EventEmitter } from 'events'
-import { machineId } from './identity'
+import { loadedMachineId } from './identity'
 import { listChats } from './rpc'
 import type { WireEvent } from '../../shared/companion-protocol'
 
@@ -92,6 +92,18 @@ export function startCompanion(): void {
   logBus.on('delta', ({ chatId, text }: { chatId: string; text: string }) => {
     for (const c of conns.values())
       if (c.authenticated && c.subs.has(chatId)) c.send({ t: 'delta', chatId, text })
+  })
+  // A turn starting or ending in any chat: the project's status and each
+  // chat's `live` flag follow it (see log.ts — this is what the desktop's own
+  // spinner means by working; the claude process stays alive between turns).
+  logBus.on('busy', ({ workspaceId }: { chatId: string; workspaceId?: string }) => {
+    if (workspaceId) {
+      const status = effectiveStatus(workspaceId)
+      for (const c of conns.values())
+        if (c.authenticated) c.send({ t: 'status', workspaceId, status })
+    }
+    pushChats()
+    updateKeepAwake()
   })
   hookBus.on(
     'event',
@@ -301,7 +313,7 @@ export interface CompanionState {
 
 export function companionState(): CompanionState {
   return {
-    machineId: machineId(),
+    machineId: loadedMachineId(),
     relay: { url: relay.relayUrl, state: relay.state, error: relay.lastError },
     devices: listDevices(),
     connected: [...conns.values()].filter((c) => c.authenticated).map((c) => c.deviceId!),
