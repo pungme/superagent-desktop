@@ -184,7 +184,7 @@ New directory `src/main/companion/`:
 
 - `src/main/companion/push.ts`: HTTP/2 client (`node:http2`) to `api.push.apple.com` / `api.sandbox.push.apple.com`; ES256 JWT from the user's `.p8` (`crypto.sign('sha256', …, { dsaEncoding: 'ieee-p1363' })`), cached ≤ 50 min. Payload: `{ aps: { alert: { title, subtitle, body }, category, "interruption-level": "time-sensitive", "thread-id": chatId }, chatId, approvalId?, machine }`.
 - Triggers: `approval` event (always, unless the device reported `presence.active` in the last 30 s); `Stop` hook with the existing `notifyPrefs.done` (`hooks.ts:29`); `Notification` hook (`needsYou`).
-- Settings UI (renderer `Settings.tsx`, new "Phone" section): relay status (connected / reconnecting) and URL; paired devices + Revoke; "Pair a phone" (QR modal); push: key file picker (`.p8` copied into `userData/companion/`), Key ID, Team ID, bundle id (default `dev.superagent.ios`), sandbox/production toggle, "Send test push".
+- Settings UI (renderer `Settings.tsx`, new "Phone" section): relay status (connected / reconnecting) and URL; paired devices + Revoke; "Pair a phone" (QR modal); push: key file picker (`.p8` copied into `userData/companion/`), Key ID, Team ID, bundle id (default `dev.pungme.superagent.ios`), sandbox/production toggle, "Send test push".
 - Everything push-related is optional: without a key the phone still works whenever it is open.
 
 ### 3.5 Staying reachable
