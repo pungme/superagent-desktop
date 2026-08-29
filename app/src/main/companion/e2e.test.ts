@@ -222,6 +222,8 @@ vi.mock('./identity', async () => {
   const id = pub.toString('hex')
   return {
     machineId: () => id,
+    loadedMachineId: () => id,
+    KeychainDeniedError: class extends Error {},
     loadIdentity: () => ({ machineId: id, privateKey }),
     signNonce: (nonce: Buffer) => sign(null, nonce, privateKey).toString('base64'),
     protect: (b: Buffer) => b,
