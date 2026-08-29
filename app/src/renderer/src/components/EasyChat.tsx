@@ -3100,7 +3100,7 @@ export function EasyChat({
                 <>
                   <button
                     className="easy-newchat easy-keep"
-                    title="Add this chat's changes to the project as one change, then close the chat"
+                    data-tip="Adds everything this chat changed to the project as one change, named after the chat, then closes the chat. Your other chats and your checkout aren't touched."
                     onClick={() =>
                       window.cove.chatKeepRequest({
                         chatId,
@@ -3114,14 +3114,18 @@ export function EasyChat({
                   </button>
                   <button
                     className="easy-newchat easy-throw"
-                    title="Delete everything this chat did"
+                    data-tip="Deletes everything this chat changed — its branch and its working copy. Can't be undone."
                     onClick={() => window.cove.chatThrowRequest({ chatId, workspaceId })}
                   >
                     Throw away
                   </button>
                 </>
               )}
-              <button className="easy-newchat" onClick={newChat} title="Start a new conversation">
+              <button
+                className="easy-newchat"
+                onClick={newChat}
+                data-tip="Starts a new conversation. On a git project it gets its own copy of the project."
+              >
                 ✎ New chat
               </button>
               {/* One button. A new chat on a repo IS its own checkout now (the

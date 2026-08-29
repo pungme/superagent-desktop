@@ -1400,6 +1400,45 @@ button {
 }
 
 /* Keep / Throw away — the worktree chat's two exits, in the pinned band. */
+/* Instant tooltip UNDER the pill. These sit pinned at the top of the
+   scroller, so a tooltip above (the dashboard's) would be clipped; below
+   it hangs over the transcript where there is room. Wraps: what Keep and
+   Throw away do deserves a sentence, not a label. */
+.easy-newchat[data-tip] {
+  pointer-events: auto;
+}
+.easy-newchat[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  width: max-content;
+  max-width: 280px;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 6px 18px var(--shadow);
+  /* Not on the first pixel of a pass-over, but well before a native title. */
+  animation: easy-tip-in 0.12s ease-out 0.25s both;
+}
+@keyframes easy-tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 .easy-keep {
   color: var(--accent, #4a7cff) !important;
   font-weight: 600;
@@ -6456,7 +6495,8 @@ button {
   pointer-events: auto;
 }
 .easy-newchat-group .easy-newchat {
-  position: static;
+  /* Relative, not static: each pill anchors its own tooltip. */
+  position: relative;
   top: auto;
   right: auto;
 }
