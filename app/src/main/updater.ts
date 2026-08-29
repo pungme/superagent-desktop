@@ -145,7 +145,7 @@ export function startAutoUpdate(): void {
     }
     if (Notification.isSupported()) {
       new Notification({
-        title: 'SuperAgent update ready',
+        title: 'Superagent update ready',
         body: `Version ${info.version} will install the next time you quit — or restart now.`
       }).show()
     }
@@ -218,7 +218,7 @@ export function startAutoUpdate(): void {
     try {
       const res = await fetch(
         `https://api.github.com/repos/pungme/superagent-desktop/releases/tags/v${v}`,
-        { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SuperAgent' } }
+        { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Superagent' } }
       )
       if (!res.ok) {
         notesCache.set(v, null)

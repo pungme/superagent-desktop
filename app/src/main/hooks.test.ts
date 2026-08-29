@@ -50,7 +50,7 @@ describe('mergeCoveHooks', () => {
     expect((out.hooks!.Stop as unknown[]).length).toBe(2)
   })
 
-  it('is idempotent — running twice does not duplicate SuperAgent entries', () => {
+  it('is idempotent — running twice does not duplicate Superagent entries', () => {
     const once = mergeCoveHooks({}, SCRIPT)
     const twice = mergeCoveHooks(once, SCRIPT)
     expect((twice.hooks!.Stop as unknown[]).length).toBe(1)
@@ -93,13 +93,13 @@ describe('removeCoveHooks', () => {
     const settings = {
       hooks: {
         Stop: [{ hooks: [{ type: 'command', command: `sh '${SCRIPT}' Stop` }] }],
-        // A shape SuperAgent doesn't produce — must survive an uninstall untouched.
+        // A shape Superagent doesn't produce — must survive an uninstall untouched.
         Custom: { weird: true }
       }
     } as unknown as Parameters<typeof removeCoveHooks>[0]
     const restored = removeCoveHooks(settings)
     expect((restored.hooks as Record<string, unknown>).Custom).toEqual({ weird: true })
-    // The SuperAgent-only Stop entry is still stripped (array becomes empty → dropped).
+    // The Superagent-only Stop entry is still stripped (array becomes empty → dropped).
     expect(restored.hooks!.Stop).toBeUndefined()
   })
 })

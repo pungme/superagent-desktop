@@ -818,11 +818,11 @@ export function ComputerPanel({
       <div className="computer-menubar" onClick={(e) => e.stopPropagation()}>
         {/* The app's own mark, the same rounded square the splash uses — a
             desktop's top-left corner is where you look to know whose it is. */}
-        <span className="computer-brand" title="SuperAgent">
+        <span className="computer-brand" title="Superagent">
           <span className="computer-brand-mark">
             <span className="computer-brand-inner" />
           </span>
-          SuperAgent
+          Superagent
         </span>
         <div className="computer-menu">
           <button

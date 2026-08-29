@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 /**
- * Brief launch animation that plays with the SuperAgent mark, then dissolves into
+ * Brief launch animation that plays with the Superagent mark, then dissolves into
  * the app. The mark is drawn in CSS (rounded square + inner square) from the
  * theme's accent tokens so it reads on both light and dark, and each part
  * animates independently. Plays once per launch (sessionStorage guard survives
@@ -26,7 +26,7 @@ export function IntroSplash(): React.JSX.Element | null {
         <div className="intro-mark">
           <span className="intro-inner" />
         </div>
-        <div className="intro-word">SuperAgent</div>
+        <div className="intro-word">Superagent</div>
       </div>
     </div>
   )

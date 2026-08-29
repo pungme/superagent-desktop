@@ -26,7 +26,7 @@ describe('buildAgentArgs', () => {
     )
   })
 
-  it('blocks the schedulers that cannot reach SuperAgent, on every invocation', () => {
+  it('blocks the schedulers that cannot reach Superagent, on every invocation', () => {
     for (const opts of [{}, { model: 'opus' }, { browserProject: true }]) {
       const args = buildAgentArgs(opts)
       expect(args).toContain('CronCreate')

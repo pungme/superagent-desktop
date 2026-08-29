@@ -42,7 +42,7 @@ import { startAutoUpdate, isUpdateDownloaded } from './updater'
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
 // productName, but dev runs would otherwise fall back to the package.json name.
-app.setName('SuperAgent')
+app.setName('Superagent')
 
 // Opt-in only: an open remote-debugging port is a live DevTools-protocol endpoint
 // that bot-detection (Cloudflare et al.) flags as automation and challenges on, so
@@ -199,7 +199,7 @@ app.whenReady().then(() => {
   startTray()
   companionBus.on('state', refreshTray)
 
-  // Which SuperAgent this is. Worth surfacing now that builds auto-update in the
+  // Which Superagent this is. Worth surfacing now that builds auto-update in the
   // background — otherwise there's no way to tell what you're running, or to say
   // so in a bug report.
   ipcMain.handle('app:version', () => app.getVersion())

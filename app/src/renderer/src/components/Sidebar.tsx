@@ -695,7 +695,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             the sidebar row was too cramped next to the branch + close button. */}
         <button
           className="sidebar-item-remove"
-          title="Remove from SuperAgent"
+          title="Remove from Superagent"
           onClick={(e) => {
             e.stopPropagation()
             removeWorkspace(ws.id)

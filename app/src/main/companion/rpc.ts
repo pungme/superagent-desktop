@@ -278,7 +278,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         // the chat, so the page is already there.
         if (!getPaneWebContents(pane)) {
           const win = BrowserWindow.getAllWindows()[0]
-          if (!win) return fail('unavailable', 'SuperAgent has no window open')
+          if (!win) return fail('unavailable', 'Superagent has no window open')
           ensureBackgroundPane(win, pane)
         }
         ensureCompositing(pane)

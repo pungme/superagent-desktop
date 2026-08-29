@@ -14,13 +14,13 @@ import { broadcastToWindows, partitionFor, routinePaneId } from './util'
  * Routines — scheduled natural-language browser tasks.
  * "Check my site every hour" typed once, run on a local ticker.
  *
- * Design (from the servus-ai learnings, adapted to SuperAgent + Claude):
+ * Design (from the servus-ai learnings, adapted to Superagent + Claude):
  *  - the NL prompt IS the stored artifact, re-planned fresh each run
  *  - a 60s main-process ticker (survives renderer reloads), one catch-up run max
  *  - each run = headless `claude -p` scoped to an offscreen browser pane that
  *    shares the workspace's cookies, so scheduled runs never steal the viewport
  *  - guardrails: wall-clock timeout + max turns
- *  - honest limit: only runs while SuperAgent is open (session cookies are local)
+ *  - honest limit: only runs while Superagent is open (session cookies are local)
  */
 
 export const MIN_INTERVAL_MS = 60 * 60 * 1000 // 60 minutes — enforced floor
@@ -31,7 +31,7 @@ const MAX_TURNS = 50
 // directly and stop re-verifying — obsessive re-checks used to burn the whole
 // turn budget before the task finished (so it ended with no summary → "error").
 const ROUTINE_SYSTEM_PROMPT =
-  'You are running as an automated background routine in SuperAgent — headless, with no user ' +
+  'You are running as an automated background routine in Superagent — headless, with no user ' +
   'watching. Work efficiently and finish within your turn budget: take the needed actions directly, ' +
   'and verify results at most once. Do NOT repeatedly re-read the page or re-check state after each ' +
   'step. When the task is done (or as done as it can be), stop and end with a one-line summary of ' +
@@ -173,8 +173,8 @@ export function createRoutineForWorkspace(
   return {
     ok: true,
     message: floored
-      ? `Created a routine that runs every 60 minutes (the minimum). It only runs while SuperAgent is open.`
-      : `Created a routine that runs every ${intervalMinutes} minutes. It only runs while SuperAgent is open.`
+      ? `Created a routine that runs every 60 minutes (the minimum). It only runs while Superagent is open.`
+      : `Created a routine that runs every ${intervalMinutes} minutes. It only runs while Superagent is open.`
   }
 }
 
@@ -394,7 +394,7 @@ export async function runRoutine(routine: Routine): Promise<void> {
   }
 
   if (!result.ok) {
-    notify('SuperAgent routine failed', result.summary.slice(0, 120))
+    notify('Superagent routine failed', result.summary.slice(0, 120))
   }
 }
 

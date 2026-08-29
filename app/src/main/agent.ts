@@ -119,7 +119,7 @@ export interface AgentStartOptions {
 }
 
 const BROWSER_SYSTEM_PROMPT =
-  'You are working inside SuperAgent, a desktop app with a live Chromium browser pane open and ' +
+  'You are working inside Superagent, a desktop app with a live Chromium browser pane open and ' +
   'visible to the user, right next to this chat. To browse the web or interact with ANY ' +
   'website, use the cove-browser tools (browser_navigate, browser_read_page, browser_click, ' +
   'browser_type, browser_press_key, browser_screenshot, browser_wait_for) — they drive the ' +
@@ -127,12 +127,12 @@ const BROWSER_SYSTEM_PROMPT =
   'localhost. Strongly prefer these tools over WebSearch and WebFetch. To run a web search, ' +
   'navigate the browser to the search engine and type the query rather than calling WebSearch.'
 
-// SuperAgent surfaces Claude's task list in its Tasks panel by watching the
+// Superagent surfaces Claude's task list in its Tasks panel by watching the
 // TaskCreate/TaskUpdate tools (this build has no TodoWrite). Nudge Claude to keep
 // that list current so the panel reflects real progress.
 const TODO_PROMPT =
   'When you plan or track a multi-step task, use your task-tracking tools: TaskCreate to add each ' +
-  'step and TaskUpdate to move it through in_progress → completed. SuperAgent shows that list to ' +
+  'step and TaskUpdate to move it through in_progress → completed. Superagent shows that list to ' +
   'the user live in its Tasks panel, so create the tasks up front and keep their status current as ' +
   'you work.'
 
@@ -162,14 +162,14 @@ const BOARD_PROMPT =
   'the user wrote the item themselves, sharpen it rather than replacing what they ' +
   'meant; if you would be changing the intent, ask instead.'
 
-// Scheduling MUST go through SuperAgent's own routines — cloud/loop schedulers run
+// Scheduling MUST go through Superagent's own routines — cloud/loop schedulers run
 // elsewhere and can't reach this browser or the user's logged-in session.
 const SCHEDULING_PROMPT =
   'To run something on a schedule or repeatedly for this project (e.g. "every 30 minutes…", ' +
   '"each morning…", "keep doing this"), use the create_routine tool. It re-runs the task inside ' +
-  "SuperAgent — for a browser project, against THIS browser with the user's logged-in session — " +
-  'on a timer while SuperAgent is open. Do NOT use CronCreate, the /loop skill, ScheduleWakeup, or ' +
-  'any external/cloud scheduler for this: those run elsewhere and cannot see or drive SuperAgent, ' +
+  "Superagent — for a browser project, against THIS browser with the user's logged-in session — " +
+  'on a timer while Superagent is open. Do NOT use CronCreate, the /loop skill, ScheduleWakeup, or ' +
+  'any external/cloud scheduler for this: those run elsewhere and cannot see or drive Superagent, ' +
   "its browser, or the user's session, so the task would silently never touch this page. " +
   'Before creating a routine, call list_routines to see what already exists — if one already covers ' +
   'the task, update it by calling delete_routine on the old one and create_routine with the new ' +
@@ -183,7 +183,7 @@ const SCHEDULING_PROMPT =
   "create_routine's minimum interval is 60 minutes — if the user asks for less, tell them you are " +
   'using 60 and continue.'
 
-// Headless `claude -p` has no AskUserQuestion tool, so SuperAgent gives Claude a
+// Headless `claude -p` has no AskUserQuestion tool, so Superagent gives Claude a
 // plain-text convention instead: a ```ask fenced block renders as clickable
 // options in the chat, and the user's pick returns as their next message.
 const CHOICES_PROMPT =
@@ -192,25 +192,25 @@ const CHOICES_PROMPT =
   'fenced code block tagged `ask` containing a single JSON object: ' +
   '{"question": string, "multiple": boolean, "options": [{"label": string, "hint"?: string}]}. ' +
   'Set "multiple": true when several options can be picked together. Keep labels short; put any ' +
-  'extra explanation in "hint". SuperAgent renders these as buttons and sends the user\'s ' +
+  'extra explanation in "hint". Superagent renders these as buttons and sends the user\'s ' +
   'selection back as their next message. Use this only for genuine small multiple-choice decisions ' +
   '(2–4 options); for anything open-ended, just ask in prose as normal. Example:\n' +
   '```ask\n{"question": "Which theme?", "multiple": false, "options": [{"label": "Dark"}, ' +
   '{"label": "Light"}, {"label": "Match system", "hint": "Follow macOS appearance"}]}\n```'
 
-// Files the user should see belong INSIDE SuperAgent, not a separate OS window.
+// Files the user should see belong INSIDE Superagent, not a separate OS window.
 const FILE_OPEN_PROMPT =
   'When the user asks you to open or show them a file (a PDF, an image, a document, ' +
   'a markdown/text/code file), use the open_file tool — it displays the file inside ' +
-  'SuperAgent (the in-app viewer for text/markdown/code, the preview pane for PDFs and ' +
+  'Superagent (the in-app viewer for text/markdown/code, the preview pane for PDFs and ' +
   'images), right next to this chat. Do NOT use the shell `open` (macOS) or `xdg-open` ' +
   'command to launch a file in an external app when open_file can show it in-app; only ' +
-  'fall back to the shell for file types SuperAgent cannot display (e.g. .docx, .xlsx, archives).'
+  'fall back to the shell for file types Superagent cannot display (e.g. .docx, .xlsx, archives).'
 
-// The simulator the user is watching lives INSIDE SuperAgent, in a pane beside
+// The simulator the user is watching lives INSIDE Superagent, in a pane beside
 // this chat. Apple's Simulator app is a separate window they did not ask for.
 const SIMULATOR_PROMPT =
-  'SuperAgent shows a live iOS Simulator in a pane next to this chat, and the user is ' +
+  'Superagent shows a live iOS Simulator in a pane next to this chat, and the user is ' +
   'watching THAT. Use the sim_* tools for anything simulator-related: sim_list_devices, ' +
   'sim_boot, sim_install_and_launch and sim_open_url to set it up, then drive it like a ' +
   'device — sim_screen to SEE it (it returns the screen as an image; there is no DOM, so ' +
@@ -352,7 +352,7 @@ export function buildAgentArgs(
     // gives the agent the same reach it has in a terminal session where the
     // user approves prompts themselves. --disallowedTools below still applies.
     '--permission-mode',
-    // "ask" is SuperAgent's name for Claude Code's default mode: every tool
+    // "ask" is Superagent's name for Claude Code's default mode: every tool
     // that would prompt in a terminal asks the app via the PermissionRequest
     // hook instead, and the app asks the user (Mac or phone).
     opts.permissionMode === 'ask' ? 'default' : (opts.permissionMode ?? 'bypassPermissions')
@@ -385,7 +385,7 @@ export function buildAgentArgs(
     .filter(Boolean)
     .join(' ')
   args.push('--append-system-prompt', appended)
-  // Hard stops: cloud/loop schedulers can't reach SuperAgent's browser (scheduling
+  // Hard stops: cloud/loop schedulers can't reach Superagent's browser (scheduling
   // must use create_routine). The Task* tools are Claude's task-tracking surface
   // that the Tasks panel now reads, so they're allowed. Unknown names are no-ops.
   // Variadic, so this must stay last — it would otherwise swallow whatever

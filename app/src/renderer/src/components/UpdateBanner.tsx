@@ -70,7 +70,7 @@ export function UpdateBanner(): React.JSX.Element | null {
       <div className="update-banner" role="status">
         <span className="update-banner-dot" />
         <span className="update-banner-text">
-          Downloading SuperAgent{progress.version ? ' ' : ''}
+          Downloading Superagent{progress.version ? ' ' : ''}
           <b>{progress.version ?? ''}</b> — {Math.round(progress.percent)}%
         </span>
         <button className="update-banner-close" onClick={() => setDismissed(true)} title="Hide">
@@ -167,7 +167,7 @@ export function UpdateBanner(): React.JSX.Element | null {
     <div className="update-banner" role="status">
       <span className="update-banner-dot" />
       <span className="update-banner-text">
-        SuperAgent <b>{version}</b> is ready to install.
+        Superagent <b>{version}</b> is ready to install.
       </span>
       <span className="update-notes-wrap" onMouseEnter={openNotes} onMouseLeave={scheduleClose}>
         <button

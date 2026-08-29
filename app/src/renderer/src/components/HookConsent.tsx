@@ -3,7 +3,7 @@ import { useStore } from '../state'
 
 /**
  * One-time consent banner to enable status detection.
- * Adds SuperAgent's hooks to ~/.claude/settings.json (additive, reversible).
+ * Adds Superagent's hooks to ~/.claude/settings.json (additive, reversible).
  */
 export function HookConsent(): React.JSX.Element | null {
   const hooksEnabled = useStore((s) => s.hooksEnabled)
@@ -32,7 +32,7 @@ export function HookConsent(): React.JSX.Element | null {
       <div className="consent-text">
         <strong>Turn on status badges?</strong>
         <span>
-          SuperAgent can show when Claude is working or needs you, and notify you when a background
+          Superagent can show when Claude is working or needs you, and notify you when a background
           project finishes. This adds a small, reversible hook to your Claude Code settings.
         </span>
       </div>

@@ -12,9 +12,9 @@ import { execFile } from 'child_process'
 import { tmpdir } from 'os'
 
 /**
- * SuperAgent's browser-automation MCP server.
+ * Superagent's browser-automation MCP server.
  * HTTP transport on 127.0.0.1 with a per-launch secret in the path.
- * Each SuperAgent-launched claude session gets a config whose URL carries ?ws=<id>,
+ * Each Superagent-launched claude session gets a config whose URL carries ?ws=<id>,
  * so tool calls are scoped to that session's own workspace browser pane.
  */
 
@@ -100,7 +100,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'permission_prompt',
     {
       description:
-        'Internal: SuperAgent asks the user whether a tool may run. Claude Code calls this automatically in Ask mode; never call it yourself.',
+        'Internal: Superagent asks the user whether a tool may run. Claude Code calls this automatically in Ask mode; never call it yourself.',
       inputSchema: {
         tool_name: z.string(),
         input: z.record(z.string(), z.unknown()).optional(),
@@ -114,7 +114,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const approved = await requestApproval(workspaceId, sessionId, tool_name, preview, 'permission')
       const verdict = approved
         ? { behavior: 'allow', updatedInput: input ?? {} }
-        : { behavior: 'deny', message: 'The user declined this action in SuperAgent.' }
+        : { behavior: 'deny', message: 'The user declined this action in Superagent.' }
       return { content: [{ type: 'text', text: JSON.stringify(verdict) }] }
     }
   )
@@ -162,7 +162,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'sim_boot',
     {
       description:
-        "Boot an iOS Simulator by UDID (from sim_list_devices) and show it in SuperAgent's own simulator pane, where the user is watching. Do NOT open Apple's Simulator app for this — the pane is the point.",
+        "Boot an iOS Simulator by UDID (from sim_list_devices) and show it in Superagent's own simulator pane, where the user is watching. Do NOT open Apple's Simulator app for this — the pane is the point.",
       inputSchema: { udid: z.string() }
     },
     async ({ udid }) => {
@@ -210,7 +210,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
             type: 'text',
             text: live
               ? `Simulator screenshot saved to ${file}. The pane is already showing this device live, so it was not opened as a file.`
-              : `Simulator screenshot saved to ${file} and opened in SuperAgent.`
+              : `Simulator screenshot saved to ${file} and opened in Superagent.`
           }
         ]
       }
@@ -514,7 +514,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'browser_navigate',
     {
       description:
-        "Open a URL in SuperAgent's browser pane (visible to the user). Bare hosts get https://, localhost gets http://.",
+        "Open a URL in Superagent's browser pane (visible to the user). Bare hosts get https://, localhost gets http://.",
       inputSchema: { url: z.string() }
     },
     async ({ url }) => ({
@@ -526,7 +526,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'open_file',
     {
       description:
-        'Show a file to the user inside SuperAgent — text/markdown/code open in the in-app viewer, PDFs and images preview in the pane. ALWAYS prefer this over the shell `open`/`xdg-open` command for any file the user should see; it keeps them in the app instead of a separate OS window.',
+        'Show a file to the user inside Superagent — text/markdown/code open in the in-app viewer, PDFs and images preview in the pane. ALWAYS prefer this over the shell `open`/`xdg-open` command for any file the user should see; it keeps them in the app instead of a separate OS window.',
       inputSchema: { path: z.string().describe('Absolute or workspace-relative path to the file') }
     },
     async ({ path }) => {
@@ -537,7 +537,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         abs = root ? resolve(root, abs) : resolve(abs)
       }
       await openFileInApp(ws, abs, CHAT_ID)
-      return { content: [{ type: 'text', text: `Opened ${abs} in SuperAgent.` }] }
+      return { content: [{ type: 'text', text: `Opened ${abs} in Superagent.` }] }
     }
   )
 
@@ -545,7 +545,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'clone_repo',
     {
       description:
-        "Clone a git repository and add it to SuperAgent as a project, so it appears in the sidebar and the user can chat with it immediately. Use this when the user asks to clone / pull / open a repo (e.g. a GitHub URL). Prefer this over a bare `git clone` in the shell — that leaves files on disk that never become a project. Private repos need the user's git credentials to already be set up; if the clone fails for auth, say so.",
+        "Clone a git repository and add it to Superagent as a project, so it appears in the sidebar and the user can chat with it immediately. Use this when the user asks to clone / pull / open a repo (e.g. a GitHub URL). Prefer this over a bare `git clone` in the shell — that leaves files on disk that never become a project. Private repos need the user's git credentials to already be set up; if the clone fails for auth, say so.",
       inputSchema: {
         url: z
           .string()
@@ -720,7 +720,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'create_routine',
     {
       description:
-        'Schedule a recurring task for this project (e.g. "check the homepage loads"). Store the user\'s own wording as the prompt, minus the recurrence phrase. Minimum interval is 60 minutes — if the user asks for less, tell them you are using 60 and continue. Routines only run while SuperAgent is open.',
+        'Schedule a recurring task for this project (e.g. "check the homepage loads"). Store the user\'s own wording as the prompt, minus the recurrence phrase. Minimum interval is 60 minutes — if the user asks for less, tell them you are using 60 and continue. Routines only run while Superagent is open.',
       inputSchema: {
         prompt: z.string().describe("The task to run each time, in the user's own words"),
         intervalMinutes: z.number().describe('How often to run, in minutes (min 60)')

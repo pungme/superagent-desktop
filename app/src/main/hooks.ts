@@ -21,10 +21,10 @@ import {
  * Receives Claude Code hook events and turns them into workspace status.
  *
  * How it works:
- *  - SuperAgent spawns `claude` with COVE_HOOK_URL + COVE_WORKSPACE_ID in the env.
+ *  - Superagent spawns `claude` with COVE_HOOK_URL + COVE_WORKSPACE_ID in the env.
  *  - A tiny shell hook (installed once, with consent, into ~/.claude/settings.json)
  *    POSTs the hook JSON to COVE_HOOK_URL/<Event>. It no-ops when the env var is
- *    absent, so non-SuperAgent claude sessions are unaffected.
+ *    absent, so non-Superagent claude sessions are unaffected.
  *  - We map events → status and push to the renderer; Notification events also
  *    raise a native notification when the window is unfocused.
  */
@@ -136,7 +136,7 @@ async function decidePermission(
       hookEventName: 'PermissionRequest',
       decision: approved
         ? { behavior: 'allow' }
-        : { behavior: 'deny', message: 'The user declined this action in SuperAgent.' }
+        : { behavior: 'deny', message: 'The user declined this action in Superagent.' }
     }
   })
 }
@@ -196,7 +196,7 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
   const approved = await requestApproval(workspaceId, sessionId, toolName, preview)
   if (approved) return ''
   return DENY_JSON(
-    'Blocked by SuperAgent: this turn read untrusted web content, and the user did not ' +
+    'Blocked by Superagent: this turn read untrusted web content, and the user did not ' +
       'approve this action. Do not retry it. Tell the user plainly what you were about to do ' +
       'and let them decide.'
   )
@@ -262,7 +262,7 @@ export function startHookServer(): Promise<string> {
         // Which project, and which conversation within it — with several agents
         // running, "Claude needs you" alone doesn't say where to look.
         const n = new Notification({
-          title: name ? `Claude needs you — ${name}` : 'SuperAgent — Claude needs you',
+          title: name ? `Claude needs you — ${name}` : 'Superagent — Claude needs you',
           subtitle: about,
           body: message
         })
@@ -293,7 +293,7 @@ export function startHookServer(): Promise<string> {
         const about = sessionId ? getChatTitleBySession(sessionId) : undefined
         const reply = lastReplies.get(workspaceId)
         const n = new Notification({
-          title: name ? `Claude is done — ${name}` : 'SuperAgent — Claude is done',
+          title: name ? `Claude is done — ${name}` : 'Superagent — Claude is done',
           subtitle: about,
           // The reply's opening line is the closest thing to "what happened";
           // when there's none (a turn that ended on tool calls, say), invite the
@@ -333,8 +333,8 @@ export function getHookUrl(): string {
 }
 
 const HOOK_SCRIPT = `#!/bin/sh
-# Installed by SuperAgent. Forwards Claude Code hook events to the SuperAgent app.
-# No-ops entirely unless COVE_HOOK_URL is set (i.e. this claude was launched by SuperAgent).
+# Installed by Superagent. Forwards Claude Code hook events to the Superagent app.
+# No-ops entirely unless COVE_HOOK_URL is set (i.e. this claude was launched by Superagent).
 [ -z "$COVE_HOOK_URL" ] && exit 0
 if [ "$1" = "PreToolUse" ] || [ "$1" = "PermissionRequest" ]; then
   # Decision hook. The app replies with an empty body to allow the tool, or a
@@ -360,7 +360,7 @@ const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Notification', 'Stop',
 
 type HookSettings = { hooks?: Record<string, unknown[]> } & Record<string, unknown>
 
-/** Pure: additively merge SuperAgent's hooks into a settings object. Idempotent; preserves the user's own hooks. */
+/** Pure: additively merge Superagent's hooks into a settings object. Idempotent; preserves the user's own hooks. */
 export function mergeCoveHooks(settings: HookSettings, scriptPath: string): HookSettings {
   const next: HookSettings = { ...settings, hooks: { ...(settings.hooks ?? {}) } }
   // Single-quote the path — userData lives under "~/Library/Application Support" (has a space).
@@ -390,7 +390,7 @@ export function mergeCoveHooks(settings: HookSettings, scriptPath: string): Hook
   return next
 }
 
-/** Pure: strip every SuperAgent hook back out, dropping now-empty event arrays. */
+/** Pure: strip every Superagent hook back out, dropping now-empty event arrays. */
 export function removeCoveHooks(settings: HookSettings): HookSettings {
   if (!settings.hooks) return settings
   const hooks: Record<string, unknown> = {}
@@ -443,7 +443,7 @@ export function hooksInstalled(): boolean {
   }
 }
 
-/** Additively merge SuperAgent's hooks into ~/.claude/settings.json. Reversible via uninstallHooks. */
+/** Additively merge Superagent's hooks into ~/.claude/settings.json. Reversible via uninstallHooks. */
 export function installHooks(): { ok: boolean; error?: string } {
   try {
     const scriptPath = hookScriptPath()

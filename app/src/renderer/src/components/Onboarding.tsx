@@ -85,11 +85,11 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element {
             />
           </svg>
         </div>
-        <h1>Welcome to SuperAgent</h1>
+        <h1>Welcome to Superagent</h1>
         <p className="onboarding-sub">The desktop home for Claude Code.</p>
 
         <p className="onboarding-intro">
-          SuperAgent runs on <b>Claude Code</b> — Anthropic&rsquo;s AI coding agent that works on
+          Superagent runs on <b>Claude Code</b> — Anthropic&rsquo;s AI coding agent that works on
           your own Claude subscription. New to it? These two steps get you set up.{' '}
           <a href="https://claude.com/claude-code" target="_blank" rel="noopener noreferrer">
             What&rsquo;s Claude Code? →

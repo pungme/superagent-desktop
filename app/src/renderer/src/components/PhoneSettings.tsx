@@ -95,7 +95,7 @@ export function PhoneSettings(): React.JSX.Element {
       <div className="phone-intro">
         <strong>Your iPhone, anywhere.</strong>
         <span>
-          Pair the SuperAgent app on your phone once. From then on it follows this Mac from any
+          Pair the Superagent app on your phone once. From then on it follows this Mac from any
           network — no accounts, no router settings.
         </span>
       </div>
@@ -106,7 +106,7 @@ export function PhoneSettings(): React.JSX.Element {
           <div className="settings-label">
             <strong>Pair a phone</strong>
             <span>
-              Open SuperAgent on your iPhone, tap Pair, and scan the code that appears here.
+              Open Superagent on your iPhone, tap Pair, and scan the code that appears here.
             </span>
           </div>
           <button
@@ -151,7 +151,7 @@ export function PhoneSettings(): React.JSX.Element {
             ) : (
               <>
                 <strong>Scan with your iPhone</strong>
-                <span>In the SuperAgent app: Pair a Mac → point the camera here.</span>
+                <span>In the Superagent app: Pair a Mac → point the camera here.</span>
                 <div className="phone-code" aria-label="Pairing code">
                   {pairing.code?.slice(0, 3)} {pairing.code?.slice(3)}
                 </div>

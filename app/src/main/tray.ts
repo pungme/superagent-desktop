@@ -6,7 +6,7 @@ import { broadcastToWindows } from './util'
 
 /**
  * A menu-bar presence for when a phone is watching this Mac. Closing the
- * window keeps SuperAgent alive on macOS anyway; the tray makes that visible,
+ * window keeps Superagent alive on macOS anyway; the tray makes that visible,
  * shows whether the relay link is up, and is a one-click way back.
  */
 let tray: Tray | null = null
@@ -48,7 +48,7 @@ function rebuild(): void {
   tray.setImage(icon(status, linked))
   const phones = s.devices.length
   tray.setToolTip(
-    `SuperAgent — ${linked ? 'reachable by your phone' : 'not connected to the relay'}`
+    `Superagent — ${linked ? 'reachable by your phone' : 'not connected to the relay'}`
   )
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -59,7 +59,7 @@ function rebuild(): void {
         enabled: false
       },
       { type: 'separator' },
-      { label: 'Open SuperAgent', click: showWindow },
+      { label: 'Open Superagent', click: showWindow },
       {
         label: 'Pair a phone…',
         click: () => {
@@ -68,7 +68,7 @@ function rebuild(): void {
         }
       },
       { type: 'separator' },
-      { label: 'Quit SuperAgent', role: 'quit' }
+      { label: 'Quit Superagent', role: 'quit' }
     ])
   )
 }

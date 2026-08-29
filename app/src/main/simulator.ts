@@ -129,7 +129,7 @@ async function frontmostApp(): Promise<string> {
  * macOS only enables an app's menus while it is frontmost, so the click cannot
  * land from the background — the item reads `enabled:false` and nothing
  * happens. Simulator therefore has to come forward for a moment, and
- * SuperAgent takes the focus straight back.
+ * Superagent takes the focus straight back.
  */
 async function unpinSimulator(): Promise<void> {
   if (!pinnedOnce) return
@@ -146,7 +146,7 @@ async function unpinSimulator(): Promise<void> {
        end try
      end tell`
   ]).catch(() => {})
-  // You clicked a button in SuperAgent, so SuperAgent is where you should still
+  // You clicked a button in Superagent, so Superagent is where you should still
   // be — bringing Simulator forward was our doing, not yours.
   const win = BrowserWindow.getAllWindows()[0]
   if (win && !win.isDestroyed()) win.show()
@@ -735,7 +735,7 @@ export function registerSimulatorIpc(): void {
       if (!pinnedOnce) {
         pinnedOnce = true
         // Two Simulator settings make an attached window behave: "Stay On Top"
-        // (otherwise clicking back into SuperAgent to type sends the device
+        // (otherwise clicking back into Superagent to type sends the device
         // behind our window and the pane looks empty) and bezels off.
         await run('osascript', [
           '-e',
@@ -810,7 +810,7 @@ export function registerSimulatorIpc(): void {
       timeout: 20_000
     }).catch(() => {})
     // The whole reason it "did nothing": while mirroring we set the Simulator
-    // process invisible, and SuperAgent fills the screen — so a plain `open`
+    // process invisible, and Superagent fills the screen — so a plain `open`
     // left the window hidden behind us. Make it visible and bring it forward.
     await run('osascript', [
       '-e',
