@@ -966,7 +966,20 @@ export function registerBrowserIpc(): void {
     const pane = panes.get(id)
     if (!pane || pane.window.isDestroyed()) return
     if (!pane.visible) {
-      if (focusGuardActive || detachedWhileAway.size > 0) {
+      // `focusGuardActive`/`detachedWhileAway` record a PAST decision to
+      // detach, and stayed the only signal here — but they can still say
+      // "away" for a moment after the window is genuinely focused again,
+      // when another background action re-engages the guard before the
+      // renderer's resync for an EARLIER release has gotten this far. This
+      // pane's own resync then lands after the flags already flipped back to
+      // "away", trusts them, and re-detaches itself — nothing asks it to
+      // resync a second time, so it stays off-window until the user blurs and
+      // refocuses the app (the blank-pane reports this matches). The window's
+      // live focus can't be stale the same way: a set-bounds call means the
+      // caller wants this pane on screen, and attaching into an
+      // already-focused window can never steal anything, whatever the flags
+      // still say.
+      if (!pane.window.isFocused() && (focusGuardActive || detachedWhileAway.size > 0)) {
         // Away: keep it out of the window until the user returns.
         detachedWhileAway.add(id)
       } else {
