@@ -34,6 +34,8 @@ import {
 } from './store'
 import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
 import { gitBranch } from './files'
+import { requestApproval } from './hooks'
+import { toolPreview } from './guardrail'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 import { isAbsolute, resolve } from 'path'
 import { homedir } from 'os'
@@ -89,6 +91,33 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
    * everywhere else.
    */
   const browserPane = (): string => (isDesktop ? (activeDesktopTab() ?? PANE_ID) : PANE_ID)
+
+  // --- Ask mode: Claude Code's permission prompt, answered by a person --------
+  // Headless `claude -p` has no terminal to ask in; --permission-prompt-tool
+  // names this tool instead. It holds the call while the Mac (or a paired
+  // phone) decides, and answers in the shape the CLI expects.
+  server.registerTool(
+    'permission_prompt',
+    {
+      description:
+        'Internal: SuperAgent asks the user whether a tool may run. Claude Code calls this automatically in Ask mode; never call it yourself.',
+      inputSchema: {
+        tool_name: z.string(),
+        input: z.record(z.string(), z.unknown()).optional(),
+        tool_use_id: z.string().optional()
+      }
+    },
+    async ({ tool_name, input }) => {
+      const workspaceId = workspaceIdFromPane(PANE_ID)
+      const sessionId = CHAT_ID ?? PANE_ID
+      const preview = toolPreview(tool_name, input)
+      const approved = await requestApproval(workspaceId, sessionId, tool_name, preview, 'permission')
+      const verdict = approved
+        ? { behavior: 'allow', updatedInput: input ?? {} }
+        : { behavior: 'deny', message: 'The user declined this action in SuperAgent.' }
+      return { content: [{ type: 'text', text: JSON.stringify(verdict) }] }
+    }
+  )
 
   // --- iOS Simulator (phase 1: simctl, public APIs only) -------------------
   const simctl = (args: string[]): Promise<string> =>

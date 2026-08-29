@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
+import { PhoneSettings } from './PhoneSettings'
 
 interface SettingsProps {
   onClose: () => void
 }
 
-type SectionId = 'general' | 'notifications' | 'advanced' | 'about'
+type SectionId = 'general' | 'phone' | 'notifications' | 'advanced' | 'about'
 
 const SECTIONS: { id: SectionId; label: string; icon: string }[] = [
   { id: 'general', label: 'General', icon: '⚙︎' },
+  { id: 'phone', label: 'Phone', icon: '📱' },
   { id: 'notifications', label: 'Notifications', icon: '🔔' },
   { id: 'advanced', label: 'Advanced', icon: '🧪' },
   { id: 'about', label: 'About', icon: 'ⓘ' }
@@ -193,6 +195,8 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
               </Row>
             </section>
           )}
+
+          {section === 'phone' && <PhoneSettings />}
 
           {section === 'advanced' && (
             <section className="settings-section">
