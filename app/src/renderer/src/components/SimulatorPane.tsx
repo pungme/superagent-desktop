@@ -796,6 +796,14 @@ export function SimulatorPane({
               <div className="sim-snip-scrim" />
             )}
             {!snipRect && <div className="sim-snip-hint">Drag to snip · Esc to cancel</div>}
+            <button
+              className="sim-snip-cancel"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={endSnip}
+              title="Cancel (Esc)"
+            >
+              ✕ Cancel
+            </button>
           </div>
         )}
         {busy && frame && <div className="sim-status">{busy}</div>}

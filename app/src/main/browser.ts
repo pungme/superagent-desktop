@@ -287,7 +287,7 @@ h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
  * drives it. A non-focusable window cannot be raised by anyone.
  *
  * Only engages when the app is already in the background: if the user is
- * sitting in SuperAgent, nothing changes for them. Ref-counted so overlapping
+ * sitting in Superagent, nothing changes for them. Ref-counted so overlapping
  * tool calls can't restore it early, with a hard timeout so a hung load can
  * never leave the window permanently unclickable.
  */
@@ -941,6 +941,13 @@ export function registerBrowserIpc(): void {
     }
   )
 
+  // A snip freezes the page and hides its view — but keyboard focus stays with
+  // the hidden view, so Esc went to a page nobody could see. Hand focus to the
+  // shell so the overlay's own keys work.
+  ipcMain.on('browser:focus-shell', (e) => {
+    const w = BrowserWindow.fromWebContents(e.sender)
+    if (w && !w.isDestroyed()) w.webContents.focus()
+  })
   ipcMain.on('browser:hide', (_e, id: string) => {
     const pane = panes.get(id)
     if (pane) hidePane(pane)

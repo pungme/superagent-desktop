@@ -497,6 +497,8 @@ export interface CoveApi {
   installClaude: (onLine: (line: string) => void) => Promise<{ ok: boolean; error?: string }>
   /** Open Terminal running `claude` for the one-time sign-in. */
   openClaudeLogin: () => void
+  /** Give the app's own renderer keyboard focus (a hidden page view otherwise keeps it). */
+  browserFocusShell: () => void
   filesList: (root: string) => Promise<string[]>
   /** Entries of the folder an absolute or ~ path points into, for @-mentions outside the project. */
   filesComplete: (prefix: string) => Promise<string[]>
@@ -581,7 +583,7 @@ export interface CoveApi {
   /** Answer a gate: approve/deny, and whether to trust the rest of this turn. */
   guardrailResolve: (requestId: string, approve: boolean, trustRest: boolean) => void
   onFocusWorkspace: (cb: (workspaceId: string) => void) => () => void
-  /** SuperAgent's own version (package.json / bundle), not Claude Code's. */
+  /** Superagent's own version (package.json / bundle), not Claude Code's. */
   appVersion: () => Promise<string>
   /** Ask the updater to check now. latest=null means up to date (or dev build). */
   updateCheck: () => Promise<{ current: string; latest: string | null; error?: string }>
@@ -797,6 +799,7 @@ const cove: CoveApi = {
       .finally(() => ipcRenderer.removeListener('env:install-progress', listener))
   },
   openClaudeLogin: () => ipcRenderer.send('env:open-login'),
+  browserFocusShell: () => ipcRenderer.send('browser:focus-shell'),
   filesList: (root) => ipcRenderer.invoke('files:list', root),
   filesComplete: (prefix) => ipcRenderer.invoke('files:complete', prefix),
   filesThumb: (path) => ipcRenderer.invoke('files:thumb', path),
