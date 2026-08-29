@@ -49,6 +49,7 @@ export function GuardrailPrompt(): React.JSX.Element | null {
   }
 
   const isShell = current.toolName === 'Bash'
+  const isPermission = current.kind === 'permission'
 
   return (
     <div className="guard-backdrop">
@@ -57,12 +58,14 @@ export function GuardrailPrompt(): React.JSX.Element | null {
           <span className="guard-shield" aria-hidden>
             🛡️
           </span>
-          <strong>Approve this action?</strong>
+          <strong>
+            {isPermission ? `Claude wants to use ${current.toolName}` : 'Approve this action?'}
+          </strong>
         </div>
         <p className="guard-why">
-          This turn read a web page, and a page can hide instructions meant to steer the agent.
-          SuperAgent paused before it {isShell ? 'runs a command' : 'changes a file'} so you can
-          check it&rsquo;s what you intended.
+          {isPermission
+            ? 'This chat is in Ask mode, so the agent checks with you before it acts. You can also answer this from your phone.'
+            : `This turn read a web page, and a page can hide instructions meant to steer the agent. SuperAgent paused before it ${isShell ? 'runs a command' : 'changes a file'} so you can check it’s what you intended.`}
         </p>
         <pre className="guard-preview">{current.preview}</pre>
         <div className="guard-actions">

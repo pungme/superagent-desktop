@@ -82,5 +82,9 @@ export function toolPreview(toolName: string, input: unknown): string {
   if (toolName === 'Write') return `Write ${s(o.file_path) || '(file)'}`
   if (toolName === 'Edit' || toolName === 'MultiEdit') return `Edit ${s(o.file_path) || '(file)'}`
   if (toolName === 'NotebookEdit') return `Edit ${s(o.notebook_path) || '(notebook)'}`
+  // Ask mode can prompt for any tool; show the most telling argument.
+  const pick =
+    o.command ?? o.url ?? o.query ?? o.pattern ?? o.prompt ?? o.description ?? o.file_path
+  if (typeof pick === 'string' && pick.trim()) return `${toolName}: ${pick.slice(0, 300)}`
   return toolName
 }

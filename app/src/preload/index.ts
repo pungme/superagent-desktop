@@ -104,6 +104,8 @@ export interface GuardrailAsk {
   sessionId: string
   toolName: string
   preview: string
+  /** 'permission' = a real Ask-mode prompt; 'guardrail' = the prompt-injection gate. */
+  kind?: 'guardrail' | 'permission'
 }
 
 export interface BoardCard {
@@ -532,7 +534,7 @@ export interface CoveApi {
     chatId?: string
     resumeSessionId?: string | null
     browserProject?: boolean
-    permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'
+    permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
     model?: string
   }) => Promise<string>
   agentSuggestTitle: (cwd: string, excerpt: string) => Promise<string | null>

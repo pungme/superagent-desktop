@@ -569,7 +569,7 @@ function shortModel(id: string): string {
 
 // Agent modes (permission-mode). Plan = read-only planning, no changes made.
 const MODE_OPTIONS: {
-  value: 'bypassPermissions' | 'acceptEdits' | 'plan'
+  value: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
   label: string
   hint: string
 }[] = [
@@ -577,6 +577,11 @@ const MODE_OPTIONS: {
     value: 'bypassPermissions',
     label: 'Full',
     hint: 'Runs commands and edits, like your terminal'
+  },
+  {
+    value: 'ask',
+    label: 'Ask',
+    hint: 'Asks before commands and edits — approve here or on your phone'
   },
   {
     value: 'acceptEdits',

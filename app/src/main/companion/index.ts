@@ -15,6 +15,10 @@ import {
   pairingBus
 } from './pairing'
 import { watchStatuses } from './status'
+import { startReaper } from './reaper'
+import { composePush, pushTargets, type PushKind } from './push'
+import { prettyHostname } from './pairing'
+import { EventEmitter } from 'events'
 import { machineId } from './identity'
 import { listChats } from './rpc'
 import type { WireEvent } from '../../shared/companion-protocol'
@@ -26,6 +30,9 @@ import type { WireEvent } from '../../shared/companion-protocol'
  */
 
 export const DEFAULT_RELAY = 'wss://relay.superagent.dev'
+
+/** 'state' whenever companionState() changed — the tray listens here. */
+export const companionBus = new EventEmitter()
 const RELAY_KEY = 'companion.relay'
 
 const relay = new RelayClient()
@@ -39,6 +46,7 @@ export function relayUrl(): string {
 
 export function startCompanion(): void {
   watchStatuses()
+  startReaper()
 
   relay.on('open', ({ conn }: { conn: string }) => {
     conns.set(
@@ -83,33 +91,56 @@ export function startCompanion(): void {
     for (const c of conns.values())
       if (c.authenticated && c.subs.has(chatId)) c.send({ t: 'delta', chatId, text })
   })
-  hookBus.on('event', (e: { workspaceId: string; status?: 'idle' | 'working' | 'needs-you' }) => {
-    if (!e.workspaceId || !e.status) return
-    for (const c of conns.values())
-      if (c.authenticated) c.send({ t: 'status', workspaceId: e.workspaceId, status: e.status })
-    updateKeepAwake()
-  })
+  hookBus.on(
+    'event',
+    (e: {
+      workspaceId: string
+      event: string
+      status?: 'idle' | 'working' | 'needs-you'
+      sessionId?: string
+      detail?: string
+    }) => {
+      if (!e.workspaceId || !e.status) return
+      for (const c of conns.values())
+        if (c.authenticated) c.send({ t: 'status', workspaceId: e.workspaceId, status: e.status })
+      updateKeepAwake()
+      const chatId = e.sessionId ? chatForSession(e.sessionId) : undefined
+      if (e.event === 'Stop')
+        notifyPhones('done', { workspaceId: e.workspaceId, chatId, detail: e.detail })
+      if (e.event === 'Notification')
+        notifyPhones('needs-you', { workspaceId: e.workspaceId, chatId, detail: e.detail })
+    }
+  )
   // Approvals become log events, so a phone sees them live or on catch-up.
   const approvalChats = new Map<string, string>()
   hookBus.on(
     'approval',
     (a: {
       requestId: string
+      workspaceId: string
       sessionId: string
       toolName: string
       preview: string
+      kind?: 'guardrail' | 'permission'
       expiresAt: number
     }) => {
       const chatId = chatForSession(a.sessionId)
-      if (!chatId) return
-      approvalChats.set(a.requestId, chatId)
-      record(chatId, {
-        kind: 'approval',
-        id: a.requestId,
-        toolName: a.toolName,
-        preview: a.preview,
-        approvalKind: 'guardrail',
-        expiresAt: a.expiresAt
+      if (chatId) {
+        approvalChats.set(a.requestId, chatId)
+        record(chatId, {
+          kind: 'approval',
+          id: a.requestId,
+          toolName: a.toolName,
+          preview: a.preview,
+          approvalKind: a.kind ?? 'guardrail',
+          expiresAt: a.expiresAt
+        })
+      }
+      notifyPhones('approval', {
+        workspaceId: a.workspaceId,
+        chatId,
+        approvalId: a.requestId,
+        detail: a.preview
       })
     }
   )
@@ -207,6 +238,24 @@ export function companionState(): CompanionState {
 
 function broadcastState(): void {
   broadcastToWindows('companion:state', companionState())
+  companionBus.emit('state')
+}
+
+/**
+ * Push a nudge to every paired phone that isn't looking at the app right now.
+ * The relay does the APNs call; the Mac never holds the key.
+ */
+function notifyPhones(
+  kind: PushKind,
+  e: { workspaceId?: string; chatId?: string; approvalId?: string; detail?: string }
+): void {
+  const active = new Set(
+    [...conns.values()].filter((c) => c.presenceActive && c.deviceId).map((c) => c.deviceId!)
+  )
+  const targets = pushTargets(kind, active)
+  if (!targets.length) return
+  const { payload, collapseId } = composePush({ kind, machineName: prettyHostname(), ...e })
+  for (const t of targets) relay.push({ token: t.token, env: t.env, payload, collapseId })
 }
 
 export function registerCompanionIpc(): void {

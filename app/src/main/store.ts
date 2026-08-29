@@ -361,7 +361,9 @@ export function chatEventCount(chatId: string): number {
 
 export function lastChatEventSeq(chatId: string): number {
   return (
-    db.prepare('SELECT COALESCE(MAX(seq), 0) AS s FROM chat_events WHERE chatId = ?').get(chatId) as {
+    db
+      .prepare('SELECT COALESCE(MAX(seq), 0) AS s FROM chat_events WHERE chatId = ?')
+      .get(chatId) as {
       s: number
     }
   ).s
@@ -408,7 +410,9 @@ export interface ChatRow {
 
 export function getChat(chatId: string): ChatRow | undefined {
   return db
-    .prepare('SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd FROM chats WHERE id = ?')
+    .prepare(
+      'SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd FROM chats WHERE id = ?'
+    )
     .get(chatId) as ChatRow | undefined
 }
 
@@ -422,8 +426,9 @@ export function listAllChats(): ChatRow[] {
 
 /** The chat a claude session belongs to (sessions are recorded on their chat rows). */
 export function getChatIdBySession(sessionId: string): string | undefined {
-  const row = db.prepare('SELECT id FROM chats WHERE claudeSessionId = ? LIMIT 1').get(sessionId) as
-    { id: string } | undefined
+  const row = db
+    .prepare('SELECT id FROM chats WHERE claudeSessionId = ? LIMIT 1')
+    .get(sessionId) as { id: string } | undefined
   return row?.id
 }
 
@@ -432,9 +437,8 @@ export function createChat(workspaceId: string, cwd?: string): string {
   const id = randomUUID()
   const next =
     ((
-      db
-        .prepare('SELECT MAX(position) AS p FROM chats WHERE workspaceId = ?')
-        .get(workspaceId) as { p: number | null } | undefined
+      db.prepare('SELECT MAX(position) AS p FROM chats WHERE workspaceId = ?').get(workspaceId) as
+        { p: number | null } | undefined
     )?.p ?? -1) + 1
   db.prepare(
     'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data, cwd) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?)'
@@ -454,10 +458,9 @@ export function kvGet(key: string): string | undefined {
 }
 
 export function kvSet(key: string, value: string): void {
-  db.prepare('INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
-    key,
-    value
-  )
+  db.prepare(
+    'INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+  ).run(key, value)
 }
 
 /**
@@ -1058,7 +1061,7 @@ export function listCalendarEvents(from?: string, to?: string): CalendarEvent[] 
     from && to
       ? db
           .prepare(
-            "SELECT * FROM calendar_events WHERE substr(start,1,10) < ? AND substr(COALESCE(end,start),1,10) >= ? ORDER BY start ASC"
+            'SELECT * FROM calendar_events WHERE substr(start,1,10) < ? AND substr(COALESCE(end,start),1,10) >= ? ORDER BY start ASC'
           )
           .all(to, from)
       : db.prepare('SELECT * FROM calendar_events ORDER BY start ASC').all()
@@ -1186,9 +1189,7 @@ export function registerStoreIpc(): void {
       return null
     }
   })
-  ipcMain.handle('calendar:list', (_e, from?: string, to?: string) =>
-    listCalendarEvents(from, to)
-  )
+  ipcMain.handle('calendar:list', (_e, from?: string, to?: string) => listCalendarEvents(from, to))
   ipcMain.handle('calendar:add', (_e, e) => addCalendarEvent(e))
   ipcMain.handle('calendar:update', (_e, id: string, patch) => updateCalendarEvent(id, patch))
   ipcMain.handle('calendar:remove', (_e, id: string) => removeCalendarEvent(id))

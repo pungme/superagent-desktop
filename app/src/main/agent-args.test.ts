@@ -71,7 +71,10 @@ describe('buildAgentArgs', () => {
   })
 
   it('appends the browser briefing only for browser projects', () => {
-    const withBrowser = valueAfter(buildAgentArgs({ browserProject: true }), '--append-system-prompt')
+    const withBrowser = valueAfter(
+      buildAgentArgs({ browserProject: true }),
+      '--append-system-prompt'
+    )
     const without = valueAfter(buildAgentArgs({}), '--append-system-prompt')
     expect(withBrowser).toMatch(/browser pane/i)
     expect(without).not.toMatch(/browser pane/i)

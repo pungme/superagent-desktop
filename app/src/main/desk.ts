@@ -135,7 +135,8 @@ export function registerDeskIpc(): void {
     // '.' and '..' are path traversal, not names — Finder rejects them and so do
     // we (otherwise freeName turns them into stray ". 2" / ".. 2" entries).
     const clean = name.trim()
-    if (!inDesk(path) || !clean || clean === '.' || clean === '..' || clean.includes('/')) return null
+    if (!inDesk(path) || !clean || clean === '.' || clean === '..' || clean.includes('/'))
+      return null
     const next = join(dirname(path), freeName(dirname(path), clean))
     renameSync(path, next)
     return next
