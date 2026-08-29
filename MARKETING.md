@@ -1,4 +1,4 @@
-# SuperAgent — Positioning & Launch Strategy
+# Superagent — Positioning & Launch Strategy
 
 _Working doc. Competitor landscape, the differentiation wedge, and a Product Hunt plan._
 
@@ -6,7 +6,7 @@ _Working doc. Competitor landscape, the differentiation wedge, and a Product Hun
 
 ## TL;DR — the one line
 
-> **SuperAgent is an AI agent that lives on your own computer — it browses the web signed in as you, builds and runs real apps, and works on a schedule, all on your machine and your own Claude subscription. You watch it happen.**
+> **Superagent is an AI agent that lives on your own computer — it browses the web signed in as you, builds and runs real apps, and works on a schedule, all on your machine and your own Claude subscription. You watch it happen.**
 
 The wedge, in three words: **local, logged-in, watchable.**
 
@@ -14,7 +14,7 @@ The wedge, in three words: **local, logged-in, watchable.**
 
 ## The competitor landscape (two camps, and the gap between them)
 
-Everyone building agents falls into one of two camps. SuperAgent is the only thing in the gap.
+Everyone building agents falls into one of two camps. Superagent is the only thing in the gap.
 
 ### Camp 1 — Cloud "computer-use" agents (run in a remote sandbox)
 
@@ -32,11 +32,11 @@ Conductor (YC), Crystal / Nimbalyst, Claude Squad, and Anthropic's own redesigne
 - No browser signed in as you. No iOS simulator. No "watch it use the web." No schedule.
 - Anthropic's own desktop app recently added an in-app browser — a signal the browser matters, but it's still a coding tool with a preview, not an agent that *uses* your computer.
 
-### The gap SuperAgent owns
+### The gap Superagent owns
 
-SuperAgent is the **only** one that is:
+Superagent is the **only** one that is:
 
-| | Cloud agents (Manus/Operator) | Claude Code GUIs (Conductor/Crystal) | **SuperAgent** |
+| | Cloud agents (Manus/Operator) | Claude Code GUIs (Conductor/Crystal) | **Superagent** |
 |---|---|---|---|
 | Runs on **your** machine | ❌ remote sandbox | ✅ | ✅ |
 | Uses **your real logins** | ❌ fresh/no session | ❌ no browser | ✅ your own browser session |
@@ -51,13 +51,13 @@ SuperAgent is the **only** one that is:
 
 ## Why this timing is right
 
-Product Hunt in 2026 is rewarding exactly what SuperAgent is:
+Product Hunt in 2026 is rewarding exactly what Superagent is:
 
 - **Execution over assistance** — winners "execute on your behalf," not "think with you."
 - **Local-first & privacy** architectures are featuring prominently in launches and resonating.
 - The **Mac desktop has become the new agent battlefield** (mid-2026 trend).
 
-SuperAgent is local-first, it owns real tasks, and it's a Mac desktop agent. It's swimming with the current, not against it.
+Superagent is local-first, it owns real tasks, and it's a Mac desktop agent. It's swimming with the current, not against it.
 
 ---
 
@@ -84,7 +84,7 @@ Lead recommendation: **#1** for reach (normie-legible), **#2** if the launch-day
 
 Frame it as the gap:
 
-> Every agent today is either a cloud sandbox that can't touch your real accounts, or a coding tool trapped in a terminal. I wanted one that just... uses my computer. So SuperAgent runs locally on your Mac, drives a real browser signed in as *you*, builds and runs real apps (with a live preview and an iOS simulator), and can work on a schedule — and you watch the whole thing. It runs on your own Claude subscription, so nothing leaves your machine and there's no new bill. Open source.
+> Every agent today is either a cloud sandbox that can't touch your real accounts, or a coding tool trapped in a terminal. I wanted one that just... uses my computer. So Superagent runs locally on your Mac, drives a real browser signed in as *you*, builds and runs real apps (with a live preview and an iOS simulator), and can work on a schedule — and you watch the whole thing. It runs on your own Claude subscription, so nothing leaves your machine and there's no new bill. Open source.
 
 ### Proof-shots (the launch gallery — tie to the screenshot pass)
 

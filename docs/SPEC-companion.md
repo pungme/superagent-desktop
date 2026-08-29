@@ -1,4 +1,4 @@
-# SuperAgent iOS companion — implementation plan
+# Superagent iOS companion — implementation plan
 
 Status: plan, 2026-08-28. Covers both repos: `superagent/desktop` (Electron) and `superagent/ios` (SwiftUI).
 Research behind the choices: https://claude.ai/code/artifact/006cb8ac-1128-4238-b190-6119c1e2f497
@@ -21,7 +21,7 @@ Non-goals for v1: multiple Macs per phone (schema allows it, UI doesn't), file e
 ## 1. Topology
 
 ```
- iPhone (anywhere) ── wss:// ──►  RELAY  ◄── wss:// (outbound, always on) ── Mac · SuperAgent
+ iPhone (anywhere) ── wss:// ──►  RELAY  ◄── wss:// (outbound, always on) ── Mac · Superagent
         │                      blind pipe                                        │
         │                    per machine id                                      │
         │  (app closed)                                                          │  APNs HTTP/2, user's own .p8
@@ -206,7 +206,7 @@ New directory `src/main/companion/`:
 ### 3.5 Staying reachable
 
 - Window close no longer quits on macOS (already true via `window-all-closed`, `index.ts:392`), but `before-quit` (`index.ts:385`) still kills agents — unchanged; Cmd-Q means quit.
-- Tray item (new `src/main/tray.ts`): status dot (idle / working / needs-you), "Open SuperAgent", "Pair a phone…", "Quit". Opt-in via Settings ("Show in menu bar").
+- Tray item (new `src/main/tray.ts`): status dot (idle / working / needs-you), "Open Superagent", "Pair a phone…", "Quit". Opt-in via Settings ("Show in menu bar").
 - `keepalive.ts` above. Document the lid-closed-on-battery limitation in onboarding copy.
 
 ### 3.6 `ask` permission mode (D7) — as built
@@ -229,18 +229,18 @@ New directory `src/main/companion/`:
 
 | target | purpose | milestone |
 |---|---|---|
-| `SuperAgent` (app) | everything below | M1 |
-| `SuperAgentTests` | protocol fixtures, connection state machine, store | M1 |
-| `SuperAgentNotifications` (Notification Service Extension) | later: decrypt / enrich pushes; v1 pushes are plaintext metadata so this is deferred | M5 |
-| `SuperAgentActivity` (Widget extension) | Live Activity for a running turn with Approve button | M5 |
+| `Superagent` (app) | everything below | M1 |
+| `SuperagentTests` | protocol fixtures, connection state machine, store | M1 |
+| `SuperagentNotifications` (Notification Service Extension) | later: decrypt / enrich pushes; v1 pushes are plaintext metadata so this is deferred | M5 |
+| `SuperagentActivity` (Widget extension) | Live Activity for a running turn with Approve button | M5 |
 
 Capabilities: Push Notifications, Time Sensitive Notifications, App Groups (`group.dev.superagent`) once the extensions land. Info.plist: `NSCameraUsageDescription` (QR). No local-network keys, no ATS exceptions.
 
 ### 4.2 Source layout
 
 ```
-SuperAgent/Sources/
-  App/            SuperAgentApp.swift, AppState.swift (single @Observable root), Router
+Superagent/Sources/
+  App/            SuperagentApp.swift, AppState.swift (single @Observable root), Router
   Protocol/       Frames.swift (Codable mirrors of §2), WireEvent.swift, Fixtures decoding tests
   Connection/     RelayTransport.swift (URLSessionWebSocketTask to wss://<relay>/c/<machineId>, envelope codec),
                   Crypto.swift (HKDF + ChaChaPoly seal/open, counter nonces, AAD — mirrors §2.5),

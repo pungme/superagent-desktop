@@ -1,4 +1,4 @@
-# SuperAgent — Product Hunt Launch Plan
+# Superagent — Product Hunt Launch Plan
 
 _Everything ready to paste. Positioning is the "local, logged-in, watchable" wedge (see MARKETING.md)._
 
@@ -10,7 +10,7 @@ Launch on the **gap**, not the crowd. Not "another Claude Code GUI" (Conductor, 
 
 > **The open-source Claude Code UX — a computer you watch, not a terminal you read.**
 
-Every other Claude Code app is code + chat — a prettier terminal. SuperAgent gives Claude a whole computer you watch it use: a real browser (logged in as you), a real iPhone simulator it taps through, your files, a calendar, scheduled routines. It's the difference between *reading what an AI did* and *watching it work* — a teammate at a desk, not a wall of text.
+Every other Claude Code app is code + chat — a prettier terminal. Superagent gives Claude a whole computer you watch it use: a real browser (logged in as you), a real iPhone simulator it taps through, your files, a calendar, scheduled routines. It's the difference between *reading what an AI did* and *watching it work* — a teammate at a desk, not a wall of text.
 
 And because you can read every line of it, "watch it work" isn't a promise — it's verifiable. That's the whole pitch: **the most powerful thing you can give an AI is your real computer, and the only honest way to ship that is in the open.**
 
@@ -29,10 +29,10 @@ Everything below serves that line.
 
 ## 2. Product name & tagline
 
-**Name:** `SuperAgent`
+**Name:** `Superagent`
 
 **Tagline** (PH limit ~60 chars):
-- `The open-source Claude Code UX` ✅ decided — renders as **SuperAgent — The open-source Claude Code UX** (30 chars)
+- `The open-source Claude Code UX` ✅ decided — renders as **Superagent — The open-source Claude Code UX** (30 chars)
 
 Alternates if you want to test the feel:
 - `Best Claude Code UX — open source` (33)
@@ -43,11 +43,11 @@ Alternates if you want to test the feel:
 
 ### 2a. Why open source is the wedge (not just a badge)
 
-Most products list "open source" as a footer virtue. For SuperAgent it's the **answer to the objection the product itself creates**:
+Most products list "open source" as a footer virtue. For Superagent it's the **answer to the objection the product itself creates**:
 
 > "You want me to let an AI drive my browser, signed into my bank, my CRM, my GitHub?"
 
-There are only two possible answers. A closed app says *trust us*. SuperAgent says **read the code** — every line that touches your session is on GitHub. That's not a nicer answer to the same question; it's the only one that actually resolves it.
+There are only two possible answers. A closed app says *trust us*. Superagent says **read the code** — every line that touches your session is on GitHub. That's not a nicer answer to the same question; it's the only one that actually resolves it.
 
 Three things follow, and each is a launch asset:
 
@@ -69,12 +69,12 @@ Three things follow, and each is a launch asset:
 
 ## 3a. The killer demo: "it builds AND tests, end to end"
 
-This is the most *differentiated, demoable* thing SuperAgent does, and neither camp can match it:
+This is the most *differentiated, demoable* thing Superagent does, and neither camp can match it:
 
 - **Cloud agents (Manus/Operator)** can't build or run your code — they're browser sandboxes.
 - **Claude Code GUIs (Conductor/Crystal)** can write code, but they can't *drive* a browser or *tap through* an iOS simulator to test it.
 
-**SuperAgent does the whole loop on your machine:** write the code → run it → **open the web app in a real browser and click through it** / **launch the iOS app in a real simulator and tap through it** → see what broke → fix → repeat. Lead the launch with this — it's the "wait, it actually *tests* it?" moment.
+**Superagent does the whole loop on your machine:** write the code → run it → **open the web app in a real browser and click through it** / **launch the iOS app in a real simulator and tap through it** → see what broke → fix → repeat. Lead the launch with this — it's the "wait, it actually *tests* it?" moment.
 
 Suggested framing for the tagline/first-line if you want to lead with it:
 - **"An AI agent that builds your app — and tests it, in a real browser and iOS simulator."**
@@ -106,9 +106,9 @@ _Keep captions short. Show it *doing*, never a settings screen._
 
 ## 6. First comment — the maker's note (paste as your first comment the moment it goes live)
 
-> Hey Product Hunt 👋 I'm [name], I built SuperAgent.
+> Hey Product Hunt 👋 I'm [name], I built Superagent.
 >
-> Claude Code is incredible — and stuck in a terminal. SuperAgent gives it a **screen**. Think **Claude Code meets Arc**: a beautiful, sidebar-and-panes Mac app where you don't read what the AI did — you **watch it do it**: open your site, click through it, tap your app on a real iPhone simulator, fix what broke.
+> Claude Code is incredible — and stuck in a terminal. Superagent gives it a **screen**. Think **Claude Code meets Arc**: a beautiful, sidebar-and-panes Mac app where you don't read what the AI did — you **watch it do it**: open your site, click through it, tap your app on a real iPhone simulator, fix what broke.
 >
 > It runs **locally on your Mac**, drives a real browser signed in as **you** (check your dashboards, pull your data), runs your iOS app in a **real simulator and taps through it**, edits your files next to the chat, and can work on a **schedule**. Setup is one click — no terminal, no npm. It uses your **own Claude subscription**, so there's no new bill.
 >
@@ -157,7 +157,7 @@ _Keep captions short. Show it *doing*, never a settings screen._
 ## 9. Where else to post (day-of cross-promotion)
 
 - **X/Twitter:** a thread — lead with the demo GIF and the cool line: _"Claude Code meets Arc. You don't read what the AI did — you watch it do it: open your site, click through it, tap your app on a phone, fix what broke. It's Claude Code, made human."_ Then "we're live on PH [link]."
-- **Hacker News:** "Show HN: SuperAgent — an open-source AI agent that runs on your Mac and uses your real browser." This is where open source pays off most — HN's audience reads the repo before the landing page, so link GitHub *first* and the site second, and lead the post body with the trust argument (§2a) rather than the feature list. Do NOT mention PH there.
+- **Hacker News:** "Show HN: Superagent — an open-source AI agent that runs on your Mac and uses your real browser." This is where open source pays off most — HN's audience reads the repo before the landing page, so link GitHub *first* and the site second, and lead the post body with the trust argument (§2a) rather than the feature list. Do NOT mention PH there.
 - **r/opensource and r/selfhosted** — add these to the Reddit list; "open source" is the entire reason those communities will care.
 - **Awesome-lists & OSS aggregators:** submit to awesome-claude / awesome-ai-agents style lists and OSS newsletters in the days *after* launch — that's the tail that keeps stars coming once the PH page goes quiet.
 - **Reddit:** r/LocalLLaMA, r/ClaudeAI, r/macapps — genuine "I built this" posts, not ads.
