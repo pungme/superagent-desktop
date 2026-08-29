@@ -66,6 +66,7 @@ for (const [name, css] of Object.entries(process.env.SNIP_PLAIN ? { final: '' } 
   await win.waitForSelector('.sidebar-item:has-text("wepush-portal")', { timeout: 20000 })
   if (css) await win.addStyleTag({ content: css })
   await win.waitForTimeout(400)
+  if (process.env.SNIP_PLAIN) await win.locator('.sidebar-group:has-text("Levantto")').hover()
   const b = await win.locator('.sidebar').boundingBox()
   await win.screenshot({
     path: join(S, `sb-${name}.png`),
