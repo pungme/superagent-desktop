@@ -905,6 +905,40 @@ export function EasyChat({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionKind, setMentionKind] = useState<'file' | 'cmd'>('file')
   const [mentionIndex, setMentionIndex] = useState(0)
+  /**
+   * Filesystem completions for an absolute or ~ path typed after "@", tagged
+   * with the prefix they answer so a list for "/Users/a" is never shown for
+   * "/Users/b" while the newer one is still on its way.
+   */
+  const [pathMatches, setPathMatches] = useState<{ prefix: string; list: string[] }>({
+    prefix: '',
+    list: []
+  })
+  // The other projects in the sidebar are @-mentionable too: "@levantto" used
+  // to find only files in THIS project with "levantto" in their name, when the
+  // thing you meant was the levantto project next door. Picking one inserts
+  // its absolute path and keeps the menu open on its top level.
+  const tree = useStore((s) => s.tree)
+  const projectRoot = cwd.split('/.worktrees/')[0]
+  const otherProjects = useMemo(
+    () =>
+      tree
+        .flatMap((g) => g.workspaces)
+        .filter((w) => w.path && w.path !== projectRoot && w.path !== cwd)
+        .map((w) => ({ name: w.name, path: w.path })),
+    [tree, projectRoot, cwd]
+  )
+  useEffect(() => {
+    if (mentionKind !== 'file' || !mentionQuery || !/^[~/]/.test(mentionQuery)) return
+    let stale = false
+    const prefix = mentionQuery
+    void window.cove.filesComplete(prefix).then((list) => {
+      if (!stale) setPathMatches({ prefix, list })
+    })
+    return () => {
+      stale = true
+    }
+  }, [mentionKind, mentionQuery])
   const [atBottom, setAtBottom] = useState(true)
   // Whether this worktree chat has anything unkept (uncommitted edits, or
   // commits past its base) — drives the Keep / Throw away buttons at the top of
@@ -1464,29 +1498,67 @@ export function EasyChat({
     }
     const el = inputRef.current
     const caret = el ? el.selectionStart : value.length
-    const m = /(^|\s)@([\w./-]*)$/.exec(value.slice(0, caret))
+    const m = /(^|\s)@([\w./~-]*)$/.exec(value.slice(0, caret))
     setMentionKind('file')
     setMentionQuery(m ? m[2] : null)
     setMentionIndex(0)
   }
 
-  const mentionMatches =
+  /** One row of the @ / slash menu: what gets inserted, and how it reads. */
+  interface Mention {
+    text: string
+    label: string
+    hint?: string
+  }
+  const mentionMatches: Mention[] =
     mentionQuery === null
       ? []
       : (() => {
-          const pool = mentionKind === 'cmd' ? commands : files
           const q = mentionQuery.toLowerCase()
-          return (q === '' ? pool : pool.filter((f) => f.toLowerCase().includes(q))).slice(0, 8)
+          if (mentionKind === 'cmd') {
+            const pool = q === '' ? commands : commands.filter((c) => c.toLowerCase().includes(q))
+            return pool.slice(0, 8).map((c) => ({ text: c, label: c }))
+          }
+          // An absolute or ~ path: the disk, not the project.
+          if (/^[~/]/.test(mentionQuery)) {
+            // The answer for exactly this prefix; until it lands, the previous
+            // list narrowed by what has been typed since.
+            const list =
+              pathMatches.prefix === mentionQuery
+                ? pathMatches.list
+                : pathMatches.list.filter((p) => p.toLowerCase().startsWith(q))
+            return list.slice(0, 8).map((p) => ({ text: p, label: p }))
+          }
+          // Other projects rank first — there are few and a name match is
+          // almost always the one you meant — then this project's files.
+          const projects =
+            q === ''
+              ? []
+              : otherProjects
+                  .filter((p) => p.name.toLowerCase().includes(q))
+                  .map((p) => ({
+                    text: p.path + '/',
+                    label: p.name + '/',
+                    hint: `project · ${p.path}`
+                  }))
+          const own = (q === '' ? files : files.filter((f) => f.toLowerCase().includes(q))).map(
+            (f) => ({ text: f, label: f })
+          )
+          return [...projects, ...own].slice(0, 8)
         })()
 
-  const pickMention = (item: string): void => {
+  const pickMention = (item: Mention): void => {
     if (mentionKind === 'cmd') {
-      setInput(`/${item} `)
+      setInput(`/${item.text} `)
+      setMentionQuery(null)
     } else {
-      // Replace the trailing "@query" with "@path ".
-      setInput((prev) => prev.replace(/@[\w./-]*$/, `@${item} `))
+      // Replace the trailing "@query" with "@path ". A folder gets no trailing
+      // space and keeps the menu open, now listing what's inside it.
+      const folder = item.text.endsWith('/')
+      setInput(input.replace(/@[\w./~-]*$/, `@${item.text}${folder ? '' : ' '}`))
+      setMentionQuery(folder ? item.text : null)
+      setMentionIndex(0)
     }
-    setMentionQuery(null)
     inputRef.current?.focus()
   }
 
@@ -3157,20 +3229,25 @@ export function EasyChat({
           <div className="easy-mention-menu">
             {mentionMatches.map((f, idx) => (
               <button
-                key={f}
+                key={f.text}
                 className={`easy-mention-item ${idx === mentionIndex ? 'active' : ''}`}
                 onMouseEnter={() => setMentionIndex(idx)}
                 onClick={() => pickMention(f)}
               >
                 {mentionKind === 'cmd' ? (
                   <>
-                    <span className="easy-mention-name">/{f}</span>
-                    {commandDescs[f] && (
-                      <span className="easy-mention-desc">{commandDescs[f]}</span>
+                    <span className="easy-mention-name">/{f.text}</span>
+                    {commandDescs[f.text] && (
+                      <span className="easy-mention-desc">{commandDescs[f.text]}</span>
                     )}
                   </>
+                ) : f.hint ? (
+                  <>
+                    <span className="easy-mention-name">{f.label}</span>
+                    <span className="easy-mention-desc">{f.hint}</span>
+                  </>
                 ) : (
-                  f
+                  f.label
                 )}
               </button>
             ))}

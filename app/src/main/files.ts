@@ -13,7 +13,8 @@ import {
   readSync,
   closeSync
 } from 'fs'
-import { join, relative, basename, extname, resolve, sep } from 'path'
+import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
+import { homedir } from 'os'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
 
@@ -86,6 +87,46 @@ export function listProjectFiles(root: string, max = 8000): string[] {
     level = next
   }
   return out.sort()
+}
+
+/**
+ * Completions for an absolute (or ~) path typed into an @-mention: the entries
+ * of the directory the prefix is in, filtered by what has been typed of the
+ * last segment. Directories carry a trailing "/" so the picker can keep
+ * drilling. This is the one place the file picker looks outside the project —
+ * for the other project in the sidebar that has the asset you mean, or any
+ * folder on the disk.
+ */
+export function completePath(prefix: string, max = 40): string[] {
+  const expanded = prefix.startsWith('~') ? join(homedir(), prefix.slice(1)) : prefix
+  if (!expanded.startsWith('/')) return []
+  const dir = expanded.endsWith('/') ? expanded : dirname(expanded)
+  const partial = expanded.endsWith('/') ? '' : basename(expanded).toLowerCase()
+  let entries: string[]
+  try {
+    entries = readdirSync(dir)
+  } catch {
+    return []
+  }
+  const out: string[] = []
+  for (const entry of entries.sort()) {
+    // Hidden entries only when the user starts typing the dot.
+    if (!partial && entry.startsWith('.')) continue
+    if (!entry.toLowerCase().startsWith(partial)) continue
+    const full = join(dir, entry)
+    let st: ReturnType<typeof statSync>
+    try {
+      st = statSync(full)
+    } catch {
+      continue
+    }
+    out.push(st.isDirectory() ? full + '/' : full)
+    if (out.length >= max) break
+  }
+  // Folders first: they are what you drill into.
+  return out.sort((a, b) =>
+    a.endsWith('/') === b.endsWith('/') ? a.localeCompare(b) : a.endsWith('/') ? -1 : 1
+  )
 }
 
 /**
@@ -254,6 +295,7 @@ export function registerFilesIpc(): void {
   })
 
   ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
+  ipcMain.handle('files:complete', (_e, prefix: string) => completePath(prefix))
   // Finder drops onto the file tree: copy into the project (folders included),
   // renaming on collision rather than overwriting someone's work.
   // A chat's private git worktree under <project>/.worktrees/<slug>, on its own
