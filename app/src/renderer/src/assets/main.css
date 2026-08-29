@@ -5289,6 +5289,35 @@ button {
     animation: none;
   }
 }
+/* Folded: one quiet line — the beacon, a count, and Show. */
+.easy-runs.collapsed {
+  padding: 4px 10px 5px;
+}
+.easy-runs-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #45b46a 70%, var(--text-secondary));
+  cursor: pointer;
+}
+.easy-runs-toggle:hover {
+  background: var(--hover, rgba(127, 127, 127, 0.12));
+}
+.easy-runs-toggle-hint {
+  margin-left: 4px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-tertiary);
+}
 .easy-runs-clear {
   border: none;
   background: transparent;
