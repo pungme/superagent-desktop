@@ -42,7 +42,13 @@ import { startAutoUpdate, isUpdateDownloaded } from './updater'
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
 // productName, but dev runs would otherwise fall back to the package.json name.
-app.setName('Superagent')
+// IDENTIFIER — never change this string. Electron derives the user-data folder
+// (~/Library/Application Support/<name>) and the keychain item that encrypts
+// cookies and companion secrets (<name> Safe Storage) from it. 1.7.2 changed it
+// to the new spelling and every updated install came up empty: data and
+// logins were still on disk, under the old name, unreachable. The visible
+// brand is "Superagent"; this is not the visible brand.
+app.setName('SuperAgent')
 
 // Opt-in only: an open remote-debugging port is a live DevTools-protocol endpoint
 // that bot-detection (Cloudflare et al.) flags as automation and challenges on, so
