@@ -134,3 +134,11 @@ test('@ mentions reach other projects and folders outside this one', async () =>
   await expect(input).toHaveValue(`see @${other}/public/logo/mark.svg `)
   rmSync(other, { recursive: true, force: true })
 })
+
+test('Chats is a plain chat app — no desktop around it', async () => {
+  await window.click('.sidebar-dash-row:has-text("Chats")')
+  await expect(window.locator('.chats-host .dchat')).toBeVisible({ timeout: 10_000 })
+  // The Computer's desktop is not what is on screen.
+  await expect(window.locator('.computer-host:visible')).toHaveCount(0)
+  await expect(window.locator('.chats-host .dchat-new')).toBeVisible()
+})

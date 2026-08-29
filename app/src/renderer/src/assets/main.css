@@ -7885,6 +7885,23 @@ button {
 }
 
 /* Dashboard entry pinned above everything in the sidebar. */
+/* Chats, plain: fills the content area like the Computer host does. */
+.chats-host,
+.chats-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.chats-view-empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+}
+.phone-error {
+  display: block;
+  margin-top: 6px;
+  color: var(--danger, #e5484d);
+}
 .sidebar-dash-row {
   display: flex;
   align-items: center;
