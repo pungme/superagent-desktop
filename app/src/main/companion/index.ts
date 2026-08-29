@@ -1,10 +1,10 @@
 import { ipcMain, powerMonitor, powerSaveBlocker } from 'electron'
 import { RelayClient } from './relay-client'
 import { ClientConn } from './session'
-import { logBus, record } from './log'
+import { logBus, record, eventsAfter } from './log'
 import { hookBus } from '../hooks'
-import { listSessions, findSessionByChat } from '../agent'
-import { kvGet, kvSet, getChatIdBySession } from '../store'
+import { listSessions, findSessionByChat, suggestTitle } from '../agent'
+import { kvGet, kvSet, getChatIdBySession, getChat, getWorkspace, setChatTitle } from '../store'
 import { broadcastToWindows } from '../util'
 import { listDevices, removeDevice } from './devices'
 import {
@@ -86,6 +86,7 @@ export function startCompanion(): void {
       if (c.authenticated && c.subs.has(event.chatId)) c.send({ t: 'event', event })
     // A chat's first event makes it "live"/renames it — keep the list fresh.
     if (event.data.kind === 'session' || event.data.kind === 'turn_end') pushChats()
+    if (event.data.kind === 'turn_end') void nameIfNeeded(event.chatId)
   })
   logBus.on('delta', ({ chatId, text }: { chatId: string; text: string }) => {
     for (const c of conns.values())
@@ -193,6 +194,42 @@ function chatForSession(sessionId: string): string | undefined {
     }
   }
   return undefined
+}
+
+/**
+ * A conversation the phone started has no window to name it. After its first
+ * turn, ask the agent for a title the way the desktop chat does, then tell
+ * both the phones and the sidebar.
+ */
+const naming = new Set<string>()
+async function nameIfNeeded(chatId: string): Promise<void> {
+  const chat = getChat(chatId)
+  if (!chat || chat.title || naming.has(chatId)) return
+  const session = findSessionByChat(chatId)
+  if (session?.owned) return // the window names its own chats
+  naming.add(chatId)
+  try {
+    const ws = getWorkspace(chat.workspaceId)
+    const { events } = eventsAfter(chatId, 0)
+    const excerpt = events
+      .flatMap((e) =>
+        e.data.kind === 'user'
+          ? [`User: ${e.data.text}`]
+          : e.data.kind === 'assistant'
+            ? [`Assistant: ${e.data.text}`]
+            : []
+      )
+      .join('\n')
+      .slice(0, 1200)
+    if (!excerpt) return
+    const title = await suggestTitle(chat.cwd ?? ws?.path ?? '', excerpt)
+    if (!title || getChat(chatId)?.title) return
+    setChatTitle(chatId, title)
+    broadcastToWindows('projects:changed')
+    pushChats()
+  } finally {
+    naming.delete(chatId)
+  }
 }
 
 export function pushChats(): void {
