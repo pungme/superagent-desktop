@@ -1,0 +1,3 @@
+## Superagent 1.7.7
+
+- **Fixed: the browser pane sometimes went blank and stayed that way.** The toolbar and address bar were fine — the page area itself just stopped rendering, with no error. Root-caused from a real occurrence: the app detaches a browser pane while it isn't focused (so a page load can't pull the window forward) and reattaches it when focus returns; two such cycles landing close together could leave a pane thinking it should still stay away even after the window was genuinely focused again, with nothing left to ask it to try again. Fixed by trusting the window's actual focus state over that bookkeeping.
