@@ -1,9 +1,9 @@
-# Contributing to SuperAgent
+# Contributing to Superagent
 
-Thanks for your interest! SuperAgent is an Electron + React + TypeScript desktop
+Thanks for your interest! Superagent is an Electron + React + TypeScript desktop
 app that wraps AI coding agents (Claude Code first). It ships **no AI of its
 own** — all intelligence comes from the user's own agent subscription — so
-contributions should keep that principle: SuperAgent is plumbing (chat UI,
+contributions should keep that principle: Superagent is plumbing (chat UI,
 browser, scheduler), not a model.
 
 ## Getting started
