@@ -259,12 +259,17 @@ function ChatRow({
   chat,
   workspaceId,
   active,
-  onOpen
+  onOpen,
+  folderBranch
 }: {
   chat: Chat
   workspaceId: string
   active: boolean
   onOpen: () => void
+  /** The branch the PROJECT FOLDER is on, for a chat that has no copy of its
+   *  own. Without it a chat working in the folder itself showed no branch at
+   *  all, so you could not tell what it was about to change. */
+  folderBranch?: string | null
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const removeChat = useStore((s) => s.removeChat)
@@ -351,9 +356,12 @@ function ChatRow({
             )
           )}
           <span className="chat-tree-label">{label}</span>
-          {chat.cwd && wtBranch && (
-            <span className="chat-tree-wt" title={`Worktree: ${chat.cwd}`}>
-              ⎇ {wtBranch.replace(/^superagent\//, '')}
+          {(chat.cwd ? wtBranch : folderBranch) && (
+            <span
+              className="chat-tree-wt"
+              title={chat.cwd ? `Its own copy: ${chat.cwd}` : 'Your folder'}
+            >
+              ⎇ {(chat.cwd ? wtBranch : folderBranch)!.replace(/^superagent\//, '')}
             </span>
           )}
         </span>
@@ -412,6 +420,32 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const pageHere = Boolean(pageUrl)
   const routines = useStore((s) => s.routines[ws.id] ?? EMPTY_ROUTINES)
   const chats = useStore((s) => s.chats[ws.id] ?? EMPTY_CHATS)
+  /**
+   * The branches, straight from git rather than from what the app remembered:
+   * the folder you opened first, then every extra checkout. A worktree made by
+   * hand, or one whose chat was deleted, used to be invisible and unreachable —
+   * now it is simply in the list. Re-read when a turn ends, since that is when
+   * one is most likely to have appeared or gone.
+   */
+  const [worktrees, setWorktrees] = useState<
+    { path: string; branch: string | null; main: boolean; base: string | null }[]
+  >([])
+  useEffect(() => {
+    if (ws.kind === 'browser') return
+    let alive = true
+    const refresh = (): void => {
+      window.cove.worktreeList(ws.path).then((list) => {
+        if (alive) setWorktrees(list)
+      })
+    }
+    refresh()
+    window.addEventListener('cove:workspace-idle', refresh)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', refresh)
+    }
+  }, [ws.path, ws.kind])
+  const openBranch = useStore((s) => s.openBranch)
   /**
    * Something finished here that you have not read. Shown on the project too,
    * because a collapsed project is exactly when you would otherwise miss it.
@@ -662,18 +696,22 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             ))}
         </div>
       )}
-      {/* A project holds many conversations; show them only once there's a
-          choice to make, so a single-chat project stays as quiet as before. */}
-      {chats.length > 1 && (
+      {/* The branches. Each one is a real git worktree: its own copy of the
+          project on its own branch, able to run its own agent at the same time
+          as the others. The first is the folder you opened — always present, so
+          there is always a way back to it. A chat is how you talk to a branch,
+          so they nest underneath, and only when there is a choice to make. */}
+      {/* A folder that is not a repo has no branches to list — and cannot be
+          given any. It still has conversations, so fall back to showing them
+          plainly, exactly as before. Without this the whole block rendered
+          null and a non-git project lost its chat list entirely. */}
+      {worktrees.length === 0 && chats.length > 1 && (
         <div className="routine-tree">
           {chats.map((c) => (
             <ChatRow
               key={c.id}
               chat={c}
               workspaceId={ws.id}
-              // Selected only when this PROJECT is the active one too — every
-              // workspace remembers its own last chat, so without the guard each
-              // project keeps a stuck-looking highlight after you move elsewhere.
               active={active && c.id === activeChatId}
               onOpen={() => {
                 window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
@@ -684,6 +722,82 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           ))}
         </div>
       )}
+      {/* One row per place you can work: a conversation on the left, the branch
+          it is on down the right — the same shape as the project row above it.
+          A branch nobody has talked to yet still gets a row, so it can be
+          opened. With only one row there is no choice to make and the project's
+          own branch chip already says it, so the list stays hidden. */}
+      {worktrees.length > 0 &&
+        (() => {
+          // Worktrees nobody has opened a chat on yet.
+          const untouched = worktrees.filter(
+            (w) => !chats.some((c) => (c.cwd ?? null) === (w.main ? null : w.path))
+          )
+          // Two separate rules, conflated once already and it cost the ability
+          // to rename or delete a chat:
+          //  - CHATS show from two upward, exactly as they always did. Their row
+          //    is the only place to rename (double-click) or delete (right-click),
+          //    so hiding it because a project also happened to have one branch
+          //    took those away.
+          //  - BRANCH rows show only once there is a second worktree. A lone
+          //    "main" says nothing the project's own branch chip doesn't.
+          // "New chat" is outside both, or a project could reach a state with no
+          // way to start one.
+          return (
+            <div className="routine-tree">
+              {/* ChatRow, not a bespoke button: it already carries double-click
+                  rename, the right-click menu (Keep / Throw away / Delete), the
+                  working spinner, the unread dot and the branch chip down the
+                  right. Hand-rolling a row here silently dropped all of it. */}
+              {/* Once branches are on show, every chat must be too: a chat IS a
+                  branch, so hiding a lone one left its branch with no row at all
+                  and only "main" visible. Below that, the old rule stands —
+                  a single chat on a single worktree needs no list. */}
+              {(chats.length > 1 || worktrees.length > 1) &&
+                chats.map((c) => (
+                <ChatRow
+                  key={c.id}
+                  chat={c}
+                  workspaceId={ws.id}
+                  folderBranch={selfBranch}
+                  active={active && c.id === activeChatId}
+                  onOpen={() => {
+                    window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+                    setActive(ws.id)
+                    selectChat(ws.id, c.id)
+                  }}
+                />
+              ))}
+              {worktrees.length > 1 &&
+                untouched.map((wt) => (
+                <button
+                  key={wt.path}
+                  className="sidebar-branch"
+                  title={wt.main ? `${ws.path} — the folder you opened` : wt.path}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    // Never on the main row: that is the user's own folder, and
+                    // "delete this branch" must not be offered for it.
+                    if (wt.main) return
+                    window.cove.worktreeMenu({
+                      projectPath: ws.path,
+                      wtPath: wt.path,
+                      branch: wt.branch,
+                      base: wt.base
+                    })
+                  }}
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+                    openBranch(ws.id, wt.main ? null : wt.path)
+                  }}
+                >
+                  <span className="sidebar-branch-name muted">New chat</span>
+                  <span className="sidebar-branch-tag">⎇ {wt.branch ?? 'detached'}</span>
+                </button>
+              ))}
+            </div>
+          )
+        })()}
       {routines.length > 0 && (
         <div className="routine-tree">
           {routines.map((r) => (

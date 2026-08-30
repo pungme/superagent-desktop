@@ -786,6 +786,74 @@ button {
   height: 11px;
 }
 
+/* A branch in the sidebar: one row per git worktree. The row IS the place you
+   work — clicking it opens that branch's conversation — so it looks like the
+   routine rows it sits beside rather than like the read-only chip above. */
+.sidebar-branch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 8px 3px 10px;
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-family: inherit;
+  text-align: left;
+  position: relative;
+}
+.sidebar-branch:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.sidebar-branch.on {
+  background: var(--active);
+  color: var(--text-primary);
+}
+.sidebar-branch-glyph {
+  flex: none;
+  opacity: 0.55;
+  font-size: 10px;
+}
+.sidebar-branch-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The folder the user actually opened. Marked, because it is the one row that
+   is never a copy and can never be removed. */
+.sidebar-branch-tag {
+  flex: none;
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--text-tertiary);
+  background: var(--hover);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+.sidebar-branch-name.muted {
+  color: var(--text-tertiary);
+}
+.sidebar-branch.new {
+  color: var(--text-tertiary);
+}
+.sidebar-branch-input {
+  width: 100%;
+  padding: 3px 8px 3px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 11.5px;
+  font-family: inherit;
+  outline: none;
+}
+
 .sidebar-item-branch {
   /* No fixed clamp: max-width 90px truncated "wepush-dev-env" in a row full of
      empty space. Natural width when the row has room; when it doesn't, the
