@@ -28,6 +28,7 @@ import {
   TABS_GROUP,
   setChatCwd
 } from '../store'
+import { createHash } from 'crypto'
 import { homedir } from 'os'
 import { readdirSync, existsSync, openSync, readSync, closeSync } from 'fs'
 import * as auto from '../automation'
@@ -352,7 +353,11 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
             8000,
             'the browser did not produce a frame'
           )
-          return { ok: true, result: shrinkShot(wc, png, p.data.maxWidth ?? 900) }
+          const shot = shrinkShot(wc, png, p.data.maxWidth ?? 900)
+          if (!frameIsNew('browser:' + p.data.chatId, shot.jpeg)) {
+            return { ok: true, result: { ...shot, jpeg: '', unchanged: true } }
+          }
+          return { ok: true, result: shot }
         } finally {
           releaseCompositing(pane)
         }
@@ -368,7 +373,11 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           'the simulator did not produce a frame'
         )
         if (!url) return fail('unavailable', 'the simulator did not produce a frame')
-        return { ok: true, result: { udid, device: await deviceLabel(udid), url } }
+        const device = await deviceLabel(udid)
+        if (!frameIsNew('sim:' + p.data.chatId, url)) {
+          return { ok: true, result: { udid, device, url: '', unchanged: true } }
+        }
+        return { ok: true, result: { udid, device, url } }
       }
       case 'sim.input': {
         const p = simInput.safeParse(params)
@@ -584,6 +593,23 @@ function withTimeout<T>(p: Promise<T>, ms: number, why: string): Promise<T> {
 }
 
 /** A PNG capture, resized and re-encoded so the whole frame fits the relay. */
+/**
+ * The digest of the last frame each mirror was sent. A mirror polls about once
+ * a second; a page or a simulator that is not moving produced an identical
+ * JPEG every time and every one of them crossed the relay. That is how a day's
+ * byte budget went in an evening, and on the free plan it is also 4% of a
+ * day's Durable Object requests for one person watching a still page.
+ */
+const lastFrameSent = new Map<string, string>()
+
+/** True when this frame differs from the last one sent for that mirror. */
+function frameIsNew(key: string, payload: string): boolean {
+  const digest = createHash('sha1').update(payload).digest('hex')
+  if (lastFrameSent.get(key) === digest) return false
+  lastFrameSent.set(key, digest)
+  return true
+}
+
 function shrinkShot(
   wc: Electron.WebContents,
   pngBase64: string,
