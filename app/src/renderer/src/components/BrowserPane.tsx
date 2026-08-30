@@ -257,6 +257,42 @@ export function BrowserPane({
   // on it, with everything else dimmed. On release, crop that region out of the
   // freeze still and drop it into the composer.
   const [snipping, setSnipping] = useState(false)
+  // A reload of an already-cached local page can finish in a couple of
+  // milliseconds — well under a frame — so `state.loading` can flip true and
+  // false again without React ever painting the spin, and a click reads as
+  // "nothing happened." Force the spin on for a minimum, actually-visible
+  // stretch every time the button is pressed, regardless of how fast the real
+  // load is.
+  const [reloadFeedback, setReloadFeedback] = useState(false)
+  const reloadFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showReloadFeedback = useCallback((): void => {
+    setReloadFeedback(true)
+    if (reloadFeedbackTimer.current) clearTimeout(reloadFeedbackTimer.current)
+    reloadFeedbackTimer.current = setTimeout(() => setReloadFeedback(false), 600)
+  }, [])
+  const doReload = useCallback((): void => {
+    showReloadFeedback()
+    window.cove.browserReload(paneId)
+  }, [paneId, showReloadFeedback])
+  useEffect(
+    () => () => {
+      if (reloadFeedbackTimer.current) clearTimeout(reloadFeedbackTimer.current)
+    },
+    []
+  )
+  // ⌘R/⇧⌘R are handled up in WorkspaceView (it knows which pane is really on
+  // screen for this chat) and call browserReload directly — this only mirrors
+  // the same "you pressed it, here's the spin" feedback the button gives, so
+  // the keyboard shortcut doesn't feel like it did nothing on a page that
+  // reloads faster than a frame.
+  useEffect(() => {
+    const onFeedback = (e: Event): void => {
+      const detail = (e as CustomEvent<{ paneId?: string }>).detail
+      if (detail?.paneId === paneId) showReloadFeedback()
+    }
+    window.addEventListener('cove:browser-reload-feedback', onFeedback)
+    return () => window.removeEventListener('cove:browser-reload-feedback', onFeedback)
+  }, [paneId, showReloadFeedback])
   const snipStartRef = useRef<{ x: number; y: number } | null>(null)
   const [snipRect, setSnipRect] = useState<{ x: number; y: number; w: number; h: number } | null>(
     null
@@ -883,9 +919,9 @@ export function BrowserPane({
           ›
         </button>
         <button
-          className={`browser-nav-btn browser-reload-btn ${state.loading ? 'loading' : ''}`}
-          onClick={() => window.cove.browserReload(paneId)}
-          title="Reload (⌘R · ⇧⌘R ignores the cache)"
+          className={`browser-nav-btn browser-reload-btn ${state.loading || reloadFeedback ? 'loading' : ''}`}
+          onClick={() => doReload()}
+          title="Reload — always fetches fresh, never the cache (⌘R)"
         >
           {/* The glyph spins while the page loads. It used to turn into × and
               STOP the load when clicked mid-load — and a page with one request
@@ -1200,6 +1236,7 @@ export function BrowserPane({
           >
             <span className="pane-dock-icon">✂</span>
             <span>Snip</span>
+            <span className="pane-dock-shortcut">⌘⇧S</span>
           </button>
         </div>
       )}

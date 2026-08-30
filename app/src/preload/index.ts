@@ -155,8 +155,8 @@ export interface CoveApi {
   browserNavigate: (id: string, url: string) => void
   browserBack: (id: string) => void
   browserForward: (id: string) => void
-  /** Reload the page; `hard` bypasses the cache (⇧⌘R). Always reloads, even mid-load. */
-  browserReload: (id: string, hard?: boolean) => void
+  /** Reload the page, bypassing the cache — the pane is always a dev server or a page the agent just edited, so a cached reload has no use here. Always reloads, even mid-load. */
+  browserReload: (id: string) => void
   browserOpenExternal: (id: string) => void
   /** Main asks every mounted pane to re-push its bounds (e.g. after the user returns). */
   onBrowserResync: (cb: () => void) => () => void
@@ -621,7 +621,7 @@ const cove: CoveApi = {
   browserNavigate: (id, url) => ipcRenderer.send('browser:navigate', id, url),
   browserBack: (id) => ipcRenderer.send('browser:back', id),
   browserForward: (id) => ipcRenderer.send('browser:forward', id),
-  browserReload: (id, hard) => ipcRenderer.send('browser:reload', id, hard === true),
+  browserReload: (id) => ipcRenderer.send('browser:reload', id),
   browserOpenExternal: (id) => ipcRenderer.send('browser:open-external', id),
   onBrowserResync: (cb) => subscribe('browser:resync', () => cb()),
   onAppFocus: (cb) => subscribe('app:focus', (v) => cb(v as boolean)),

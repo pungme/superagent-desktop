@@ -355,24 +355,27 @@ export function WorkspaceView({
     // Cmd+R: reload the page when the browser pane is on screen; otherwise a
     // no-op rather than surprising the user with an app reload. The pane is
     // per chat (workspace::chat), so it has to be browserPaneId — reloading
-    // ws.id reached nothing in any chat with its own pane.
+    // ws.id reached nothing in any chat with its own pane. Always bypasses the
+    // cache (browserReload does), so ⇧⌘R is bound to the same handler — there
+    // is no meaningfully different "harder" reload to offer here.
     const onReload = (): void => {
-      if (browserOpen) window.cove.browserReload(browserPaneId)
-    }
-    const onReloadHard = (): void => {
-      if (browserOpen) window.cove.browserReload(browserPaneId, true)
+      if (!browserOpen) return
+      window.cove.browserReload(browserPaneId)
+      window.dispatchEvent(
+        new CustomEvent('cove:browser-reload-feedback', { detail: { paneId: browserPaneId } })
+      )
     }
     window.addEventListener('cove:menu-skills', onSkills)
     window.addEventListener('cove:menu-routines', onRoutines)
     window.addEventListener('cove:menu-toggle-preview', onToggle)
     window.addEventListener('cove:menu-reload-page', onReload)
-    window.addEventListener('cove:menu-reload-page-hard', onReloadHard)
+    window.addEventListener('cove:menu-reload-page-hard', onReload)
     return () => {
       window.removeEventListener('cove:menu-skills', onSkills)
       window.removeEventListener('cove:menu-routines', onRoutines)
       window.removeEventListener('cove:menu-toggle-preview', onToggle)
       window.removeEventListener('cove:menu-reload-page', onReload)
-      window.removeEventListener('cove:menu-reload-page-hard', onReloadHard)
+      window.removeEventListener('cove:menu-reload-page-hard', onReload)
     }
   }, [ws.id, browserPaneId, toggleBrowser, visible, browserOpen])
 

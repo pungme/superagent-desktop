@@ -361,7 +361,7 @@ function wireContextMenu(view: WebContentsView, window: BrowserWindow): void {
           label: 'Reload',
           click: () => {
             if (wc.isLoading()) wc.stop()
-            wc.reload()
+            wc.reloadIgnoringCache()
           }
         },
         { type: 'separator' },
@@ -1202,15 +1202,25 @@ export function registerBrowserIpc(): void {
   ipcMain.on('browser:stop', (_e, id: string) => {
     getPaneWebContents(id)?.stop()
   })
-  // Reload means reload. A page with one request that never finishes (a dev
-  // server's live-reload poll, a stalled asset) stays "loading" forever, and a
-  // reload that only stopped it looked like a button that did nothing.
-  ipcMain.on('browser:reload', (_e, id: string, hard?: boolean) => {
+  // Reload means reload. Two bugs lived here:
+  //
+  // 1. A page with one request that never finishes (a dev server's live-reload
+  //    poll, a stalled asset) stays "loading" forever, and a reload that only
+  //    stopped it looked like a button that did nothing.
+  // 2. Plain reload() respects the HTTP cache — and every pane here is either
+  //    a live dev server or a page the agent just edited, so a normal-browser
+  //    "soft" reload can silently serve back exactly the stale response it
+  //    cached a moment ago. The report that pinned this down: "I asked the
+  //    agent to update the site, clicked reload, nothing changed — opened it
+  //    in another browser and the change was there." There is no scenario in
+  //    this app where a cached reload is what anyone wants, so reload always
+  //    bypasses the cache now; `hard` (⇧⌘R) no longer means anything different
+  //    from a plain reload, which is fine — the distinction had no real use here.
+  ipcMain.on('browser:reload', (_e, id: string) => {
     const wc = getPaneWebContents(id)
     if (!wc || wc.isDestroyed()) return
     if (wc.isLoading()) wc.stop()
-    if (hard) wc.reloadIgnoringCache()
-    else wc.reload()
+    wc.reloadIgnoringCache()
   })
   ipcMain.handle('browser:zoom', (_e, id: string, action: 'in' | 'out' | 'reset') =>
     applyZoom(id, action)
