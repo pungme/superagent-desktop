@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import { agentBus, listSessions } from '../agent'
+import { broadcastToWindows } from '../util'
 import {
   TranscriptProjector,
   projectLegacyItems,
@@ -169,6 +170,9 @@ export function startCompanionLog(): void {
         appendChatItems(chatId, toLegacyItems(stored.map((e) => e.data)))
         for (const e of stored)
           if (e.data.kind === 'session') setChatSession(chatId, e.data.claudeSessionId)
+        // A window may be sitting on this chat with an older copy in memory,
+        // which it would write back over what the phone just added.
+        broadcastToWindows('chat:appended', { chatId })
       }
     }
   )
@@ -204,7 +208,10 @@ export function startCompanionLog(): void {
         ...(images.length ? { images } : {})
       }
       const ev = record(chatId, data)
-      if (!isOwned(id, owned)) appendChatItems(chatId, toLegacyItems([ev.data]))
+      if (!isOwned(id, owned)) {
+        appendChatItems(chatId, toLegacyItems([ev.data]))
+        broadcastToWindows('chat:appended', { chatId })
+      }
     }
   )
 

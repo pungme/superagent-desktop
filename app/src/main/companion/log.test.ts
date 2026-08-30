@@ -18,7 +18,9 @@ const { mem, fakeBus } = vi.hoisted(() => {
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/tmp' },
-  ipcMain: { handle: () => undefined, on: () => undefined }
+  ipcMain: { handle: () => undefined, on: () => undefined },
+  // The log tells any open window when a phone extends a chat it isn't driving.
+  BrowserWindow: { getAllWindows: () => [] }
 }))
 vi.mock('../store', () => ({
   appendChatEvent: (chatId: string, kind: string, data: unknown) => {

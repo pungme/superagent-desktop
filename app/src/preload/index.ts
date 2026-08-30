@@ -63,6 +63,16 @@ export interface Chat {
   cwd: string | null
 }
 
+/** One message matching a search query — chat.search's shape, shared with the phone. */
+export interface ChatSearchHit {
+  chatId: string
+  workspaceId: string
+  title: string | null
+  ts: number
+  role: 'user' | 'assistant'
+  snippet: string
+}
+
 export interface HookEvent {
   workspaceId: string
   event: string
@@ -291,6 +301,8 @@ export interface CoveApi {
   ) => () => void
   /** The project list changed in main (e.g. the agent cloned a repo) — refresh. */
   onProjectsChanged: (cb: (p: { activate?: string }) => void) => () => void
+  /** A chat's stored transcript grew while no window owned it (the phone). */
+  onChatAppended: (cb: (p: { chatId: string }) => void) => () => void
   /** The agent booted or launched something on a simulator — reveal the pane. */
   onOpenSimulator: (
     cb: (p: { workspaceId: string; udid?: string; chatId?: string | null }) => void
@@ -417,6 +429,8 @@ export interface CoveApi {
 
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
+  /** Messages mentioning `query` across every conversation, newest first. */
+  chatSearch: (query: string, limit?: number) => Promise<ChatSearchHit[]>
   chatCreate: (workspaceId: string, cwd?: string) => Promise<string>
   /** The desktop's own chat: a workspace that belongs to no project. */
   desktopChatHome: () => Promise<{ workspaceId: string; cwd: string }>
@@ -728,6 +742,7 @@ const cove: CoveApi = {
       cb(p as { workspaceId: string; path: string; chatId?: string | null })
     ),
   onProjectsChanged: (cb) => subscribe('projects:changed', (p) => cb(p as { activate?: string })),
+  onChatAppended: (cb) => subscribe('chat:appended', (p) => cb(p as { chatId: string })),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
   createGroup: (name) => ipcRenderer.invoke('store:createGroup', name),
@@ -746,6 +761,7 @@ const cove: CoveApi = {
 
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
+  chatSearch: (query, limit) => ipcRenderer.invoke('chat:search', query, limit),
   chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
   desktopChatHome: () => ipcRenderer.invoke('desktop:chat-home'),
   desktopSyncFiles: (paths) => ipcRenderer.invoke('desktop:sync-files', paths),
