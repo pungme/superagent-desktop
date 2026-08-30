@@ -53,8 +53,11 @@ export function PhoneSettings(): React.JSX.Element {
     return () => {
       off()
       clearInterval(tick)
-      // Leaving the page ends any pairing in progress — the QR is gone anyway.
-      window.cove.companionPairCancel()
+      // Deliberately not cancelling the pairing here. Copy link exists so you
+      // can pair a phone with no camera, which means opening that link
+      // somewhere else — and leaving this pane was killing the pairing before
+      // the phone ever got there. It expires on its own after two minutes, and
+      // Cancel is right there for ending one on purpose.
     }
   }, [])
 
