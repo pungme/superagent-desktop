@@ -311,6 +311,48 @@ export function resolveInside(root: string, rel: string): string | null {
   return full.startsWith(base + sep) ? full : null
 }
 
+export interface WorktreeRow {
+  path: string
+  branch: string | null
+  main: boolean
+  base: string | null
+}
+
+/**
+ * Every worktree git knows about, main folder first. Shared by the window's
+ * sidebar and by the phone, so both see the same list: git is the source of
+ * truth, not anything the app recorded.
+ */
+export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['worktree', 'list', '--porcelain'],
+      { cwd: projectPath, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) return resolve([])
+        // git always reports the RESOLVED path (/private/var/… on macOS, and
+        // anywhere a project sits behind a symlink) while the app stores the
+        // path the user gave it. Compared as strings the two never match, so
+        // every branch looked as though it had no chat. Re-root each entry on
+        // the app's spelling, using git's own main worktree as the prefix.
+        const entries = parseWorktreeList(stdout)
+        const gitRoot = entries[0]?.path
+        const reroot = (p: string): string =>
+          gitRoot && p.startsWith(gitRoot) ? projectPath + p.slice(gitRoot.length) : p
+        resolve(
+          entries.map((w) => ({
+            ...w,
+            path: reroot(w.path),
+            // Where this branch goes home to, recorded when it was cut.
+            base: w.main ? null : readBase(w.path)
+          }))
+        )
+      }
+    )
+  })
+}
+
 export function registerFilesIpc(): void {
   // Background shells write their output to a file, and the Bash result says
   // where. Reading it directly means the strip can show what a job is doing
@@ -485,41 +527,7 @@ export function registerFilesIpc(): void {
    * chat was deleted, was invisible and could never be reached or cleaned up.
    * Git is the source of truth; ask it rather than keeping a second list.
    */
-  ipcMain.handle('worktree:list', (_e, projectPath: string) => {
-    return new Promise((resolve) => {
-      execFile(
-        'git',
-        ['worktree', 'list', '--porcelain'],
-        { cwd: projectPath, maxBuffer: 4 * 1024 * 1024 },
-        (err, stdout) => {
-          if (err) return resolve([])
-          // Porcelain is stanzas separated by a blank line: "worktree <path>",
-          // then "HEAD <sha>", then "branch refs/heads/<name>" (absent when
-          // detached, and "bare" for a bare repo — neither is a place to work).
-          // git always reports the RESOLVED path (/private/var/... on macOS,
-          // and anywhere a project sits behind a symlink), while the app stores
-          // the path the user actually gave it. Compared as strings the two
-          // never match, so every branch looked as though it had no chat — and
-          // clicking one made a second chat on the same worktree. Re-root each
-          // entry on the app's spelling, using git's own main worktree as the
-          // prefix to swap out, so this holds for any symlink and not just
-          // /private.
-          const entries = parseWorktreeList(stdout)
-          const gitRoot = entries[0]?.path
-          const reroot = (p: string): string =>
-            gitRoot && p.startsWith(gitRoot) ? projectPath + p.slice(gitRoot.length) : p
-          const out = entries.map((w) => ({
-            ...w,
-            path: reroot(w.path),
-            // Where this branch goes home to, recorded when it was cut. Needed
-            // to label "Merge into <base>" for a worktree whose chat is gone.
-            base: w.main ? null : readBase(w.path)
-          }))
-          resolve(out)
-        }
-      )
-    })
-  })
+  ipcMain.handle('worktree:list', (_e, projectPath: string) => listWorktrees(projectPath))
   /**
    * Rename the worktree's branch to follow the chat's title. Only auto-named
    * superagent/* branches are touched — if the user asked the agent for a branch
