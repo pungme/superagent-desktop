@@ -56,8 +56,13 @@ const gitBranches = (): string[] =>
     .filter((b): b is string => Boolean(b))
 
 /** Every branch name the sidebar is showing, from either kind of row. */
-const shownBranches = async (): Promise<string[]> =>
-  (await window.locator('.sidebar-branch-name').allInnerTexts()).map((t) => t.trim())
+const shownBranches = async (): Promise<string[]> => {
+  // A row with a chat carries its branch down the right (.sidebar-branch-chat);
+  // a row with no chat yet puts the branch where the name would go.
+  const right = await window.locator('.sidebar-branch-chat').allInnerTexts()
+  const left = await window.locator('.sidebar-branch-name').allInnerTexts()
+  return [...right, ...left].map((t) => t.replace(/^⎇\s*/, '').trim()).filter(Boolean)
+}
 const chatRows = (): ReturnType<Page['locator']> => window.locator('.sidebar-branch')
 
 test.describe.configure({ mode: 'serial' })
@@ -122,12 +127,15 @@ test('the first message cuts the branch, named after what was asked for', async 
     .toContain(created)
 })
 
-test('main is reachable, and every row says which branch it is on', async () => {
-  // main is a place you can work, whether it already has a chat (a ChatRow) or
-  // not (a plain branch row). Either way it must be visible and labelled.
-  await expect
-    .poll(async () => (await shownBranches()).join('|'), { timeout: 10_000 })
-    .toContain('main')
+test('the folder\'s own chat lives on the project row, not in the list', async () => {
+  // The project row IS the root conversation, and says which branch the folder
+  // is on. Repeating it as a child of itself made the root look like just
+  // another branch beneath it.
+  await expect(window.locator('.sidebar-item-branch', { hasText: 'main' }).first()).toBeVisible()
+  const listed = await shownBranches()
+  expect(listed).not.toContain('main')
+  // Everything in the list below is an extra.
+  expect(listed.length).toBeGreaterThan(0)
 })
 
 test('the auto-named branch carries no superagent/ prefix', async () => {
@@ -135,12 +143,12 @@ test('the auto-named branch carries no superagent/ prefix', async () => {
   expect(branches).not.toContain('superagent/')
 })
 
-test('clicking main opens it, and the list survives', async () => {
-  const mainRow = branchRows().filter({ hasText: 'main' }).first()
+test('clicking the project row opens the folder chat, and the list survives', async () => {
   const before = await branchRows().count()
-  await mainRow.click()
-  // The regression: clicking changed the row count and the guard hid the whole
-  // block, taking every row with it.
+  await window.locator('.sidebar-item:has-text("e2e-project")').first().click()
+  await window.waitForTimeout(500)
+  // The regression this guards: clicking changed the row count and the guard
+  // hid the whole block, taking every row with it.
   await expect.poll(() => branchRows().count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(
     Math.max(before - 1, 1)
   )
@@ -155,12 +163,18 @@ test('every worktree git has is reachable in the sidebar — none hidden', async
   const expected = gitBranches()
   // The invariant that matters: you can never end up with a branch on disk that
   // has no row, which is how work became unreachable in the first place.
+  // main lives on the project row, not in the list; every OTHER worktree must
+  // have a row, or work becomes unreachable — which is how it started.
+  const mustBeListed = expected.filter((b) => b !== 'main')
+  expect(mustBeListed.length).toBeGreaterThan(0)
   await expect
     .poll(async () => {
       const shown = (await shownBranches()).join('|')
-      return expected.every((b) => shown.includes(b))
+      return mustBeListed.every((b) => shown.includes(b))
     }, { timeout: 15_000 })
     .toBe(true)
+  // And the folder's own branch is on the project row.
+  await expect(window.locator('.sidebar-item-branch', { hasText: 'main' }).first()).toBeVisible()
 })
 
 test('a chat row can still be renamed by double-clicking it', async () => {
@@ -280,14 +294,24 @@ test('a chat whose copy was removed behind its back says so', async () => {
 test('rows stay distinguishable even when every chat is still untitled', async () => {
   // Three "New chat" rows with nothing to tell them apart was the complaint.
   // Whatever the titles, each row must carry either a branch or the gone mark.
-  const rows = chatRows()
+  const rows = window.locator('.sidebar-branch')
   const n = await rows.count()
   expect(n).toBeGreaterThan(1)
   for (let i = 0; i < n; i++) {
     const row = rows.nth(i)
-    const marks = await row.locator('.sidebar-branch-name').count()
-    expect(marks).toBe(1)
+    // The branch is on the right when the row has a conversation, and takes the
+    // left when it has none — but it is always somewhere, or two untitled chats
+    // are indistinguishable, which was the complaint.
+    const named =
+      (await row.locator('.sidebar-branch-chat').count()) +
+      (await row.locator('.sidebar-branch-name').count())
+    expect(named).toBeGreaterThanOrEqual(1)
   }
+  // And no branch is listed twice — one row per branch.
+  const names = (await shownBranches()).filter(
+    (b) => b !== 'copy gone' && b !== 'no branch yet'
+  )
+  expect(new Set(names).size).toBe(names.length)
 })
 
 test('deleting a chat takes its branch and its row with it', async () => {
@@ -390,13 +414,15 @@ test('a chat you open and never use leaves no branch behind', async () => {
 
 test('the project folder never gets a second chat', async () => {
   // Two chats in the folder itself means two agents editing one set of files —
-  // the one configuration with no isolation, and how two sessions trampled each
-  // other for real. Opening main repeatedly must always land on the same chat.
-  const mainRow = branchRows().filter({ hasText: 'main' }).first()
+  // the one configuration with no isolation. Opening it repeatedly must always
+  // land on the same conversation, never make another.
+  const worktreesBefore = gitBranches().length
+  const rowsBefore = await branchRows().count()
   for (let i = 0; i < 3; i++) {
-    await mainRow.click()
-    await window.waitForTimeout(300)
+    await window.locator('.sidebar-item:has-text("e2e-project")').first().click()
+    await window.waitForTimeout(400)
   }
-  const names = await shownBranches()
-  expect(names.filter((n) => n === 'main').length).toBe(1)
+  // No new branch, and no new row: the extra chats are unchanged.
+  expect(gitBranches().length).toBe(worktreesBefore)
+  expect(await branchRows().count()).toBe(rowsBefore)
 })
