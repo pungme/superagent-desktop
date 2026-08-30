@@ -1322,6 +1322,29 @@ export function EasyChat({
     window.cove.chatSave(chatId, json)
   }, [chatId])
 
+  /**
+   * The phone can drive this chat while this window sits here with an older
+   * copy in memory — and this component writes that copy back, so anything the
+   * phone added vanished from the Mac the moment something saved. Main says
+   * when the stored transcript grew under us; read it again.
+   */
+  useEffect(() => {
+    return window.cove.onChatAppended?.(({ chatId: id }) => {
+      if (id !== chatId || !hydratedRef.current || turnInFlightRef.current) return
+      void window.cove.chatLoad(chatId).then((json) => {
+        if (!json) return
+        try {
+          const saved = JSON.parse(json) as Item[]
+          if (!saved.length) return
+          lastSavedRef.current = json
+          setItems(saved)
+        } catch {
+          // Ignore a corrupt blob — keep what's on screen.
+        }
+      })
+    })
+  }, [chatId])
+
   useEffect(() => {
     // Idle edits (sending, editing, clearing) settle quickly.
     if (!chatId || !hydratedRef.current || generating) return
