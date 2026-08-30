@@ -1,0 +1,243 @@
+import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
+import { join } from 'path'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'fs'
+import { execFileSync } from 'child_process'
+import { tmpdir } from 'os'
+
+/**
+ * The sidebar's branch list, clicked for real against a real repo. Every case
+ * here is one that actually broke while it was being built: the list vanishing
+ * on click, chat rows losing rename, a branch created on disk that never showed
+ * a row, and a lone "main" cluttering a project with nothing to choose between.
+ *
+ * Prereq: `npm run build`.
+ */
+
+let app: ElectronApplication
+let window: Page
+let userDataDir: string
+let projectDir: string
+
+const git = (args: string[]): string =>
+  execFileSync('git', args, { cwd: projectDir, encoding: 'utf8' })
+
+/** The real "New Chat" path — the same IPC the project's right-click menu sends. */
+const newChat = async (): Promise<void> => {
+  const id = await window.evaluate(() => localStorage.getItem('activeWorkspace'))
+  await app.evaluate(({ BrowserWindow }, wsId) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('workspace:menu-action', {
+      action: 'new-chat',
+      id: wsId
+    })
+  }, id)
+}
+
+// A row is a place to work. Chats render as ChatRow (which carries rename and
+// the context menu); worktrees nobody has opened yet render as a plain branch
+// row. Both are rows, so both count.
+const branchRows = (): ReturnType<Page['locator']> =>
+  window.locator('.sidebar-branch, .chat-tree-row')
+
+/** Branch names git currently has a worktree for, main's included. */
+const gitBranches = (): string[] =>
+  git(['worktree', 'list', '--porcelain'])
+    .split(/\n\s*\n/)
+    .map((st) => /^branch refs\/heads\/(.+)$/m.exec(st)?.[1])
+    .filter((b): b is string => Boolean(b))
+
+/** Every branch name the sidebar is showing, from either kind of row. */
+const shownBranches = async (): Promise<string[]> => {
+  const text = await window.locator('.routine-tree').allInnerTexts()
+  return text.join('\n').split('\n').map((t) => t.replace(/^⎇\s*/, '').trim()).filter(Boolean)
+}
+const chatRows = (): ReturnType<Page['locator']> => window.locator('.chat-tree-row')
+
+test.describe.configure({ mode: 'serial' })
+
+test.beforeAll(async () => {
+  userDataDir = mkdtempSync(join(tmpdir(), 'cove-e2e-data-'))
+  projectDir = mkdtempSync(join(tmpdir(), 'cove-e2e-git-'))
+  mkdirSync(projectDir, { recursive: true })
+  writeFileSync(join(projectDir, 'README.md'), '# branch e2e\n')
+  // A real repo with a commit — a worktree cannot be cut from an empty one.
+  git(['init', '-b', 'main'])
+  git(['config', 'user.email', 'e2e@example.com'])
+  git(['config', 'user.name', 'e2e'])
+  git(['add', '-A'])
+  git(['commit', '-m', 'first'])
+
+  app = await electron.launch({
+    args: [join(__dirname, '..', 'out', 'main', 'index.js')],
+    env: {
+      ...process.env,
+      COVE_USER_DATA: userDataDir,
+      COVE_E2E_PROJECT: projectDir,
+      NODE_ENV: 'production'
+    }
+  })
+  window = await app.firstWindow()
+  await window.waitForLoadState('domcontentloaded')
+  await window.evaluate(() => localStorage.setItem('cove.onboarded', '1'))
+  await window.reload()
+  await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  await window.click('.sidebar-item:has-text("e2e-project")')
+  await window.waitForSelector('.workspace-toolbar', { timeout: 10_000 })
+})
+
+test.afterAll(async () => {
+  await app?.close()
+  for (const dir of [userDataDir, projectDir]) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // best effort
+    }
+  }
+})
+
+test('a lone main is not listed — the project row already says the branch', async () => {
+  await expect.poll(() => branchRows().count(), { timeout: 10_000 }).toBe(0)
+})
+
+test('New Chat cuts a real branch, and a row appears for it without a reload', async () => {
+  const before = gitBranches()
+  await newChat()
+  // git is the source of truth: a new worktree on a new branch.
+  await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
+  const created = gitBranches().find((b) => !before.includes(b))!
+  expect(created).toBeTruthy()
+  // The bug this catches: the branch existed on disk but the sidebar's list was
+  // only refreshed on an unrelated event, so no row ever appeared for it.
+  await expect
+    .poll(async () => (await shownBranches()).join('|'), { timeout: 15_000 })
+    .toContain(created)
+})
+
+test('main is reachable, and every row says which branch it is on', async () => {
+  // main is a place you can work, whether it already has a chat (a ChatRow) or
+  // not (a plain branch row). Either way it must be visible and labelled.
+  await expect
+    .poll(async () => (await shownBranches()).join('|'), { timeout: 10_000 })
+    .toContain('main')
+})
+
+test('the auto-named branch carries no superagent/ prefix', async () => {
+  const branches = git(['branch', '--list'])
+  expect(branches).not.toContain('superagent/')
+})
+
+test('clicking main opens it, and the list survives', async () => {
+  const mainRow = branchRows().filter({ hasText: 'main' }).first()
+  const before = await branchRows().count()
+  await mainRow.click()
+  // The regression: clicking changed the row count and the guard hid the whole
+  // block, taking every row with it.
+  await expect.poll(() => branchRows().count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(
+    Math.max(before - 1, 1)
+  )
+})
+
+test('every worktree git has is reachable in the sidebar — none hidden', async () => {
+  const before = gitBranches().length
+  await newChat()
+  // newChat() only SENDS the menu IPC; the worktree is cut asynchronously in
+  // the renderer, so reading git immediately raced it.
+  await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before + 1)
+  const expected = gitBranches()
+  // The invariant that matters: you can never end up with a branch on disk that
+  // has no row, which is how work became unreachable in the first place.
+  await expect
+    .poll(async () => {
+      const shown = (await shownBranches()).join('|')
+      return expected.every((b) => shown.includes(b))
+    }, { timeout: 15_000 })
+    .toBe(true)
+})
+
+test('a chat row can still be renamed by double-clicking it', async () => {
+  await expect.poll(() => chatRows().count(), { timeout: 10_000 }).toBeGreaterThan(1)
+  // Deliberately a chat with a branch of its own: renaming the one on main is a
+  // no-op branch-wise, which is correct but tests nothing about the next case.
+  await chatRows().filter({ hasText: 'wt-' }).first().dblclick()
+  const rename = window.locator('input.chat-tree-rename')
+  await expect(rename).toBeVisible()
+  await rename.fill('renamed by e2e')
+  await rename.press('Enter')
+  await expect(window.locator('.chat-tree-row', { hasText: 'renamed by e2e' })).toBeVisible()
+})
+
+test('renaming a chat renames its branch to match', async () => {
+  // The chat's title is the branch's name — that is the whole mental model.
+  await expect
+    .poll(() => git(['branch', '--list']), { timeout: 15_000 })
+    .toContain('renamed-by-e2e')
+})
+
+/** Fire a branch row's context-menu verb, as the native menu does. */
+const worktreeAction = async (
+  action: 'merge' | 'delete',
+  wtPath: string,
+  branch: string,
+  base: string | null
+): Promise<void> => {
+  await app.evaluate(
+    ({ BrowserWindow }, p) => {
+      BrowserWindow.getAllWindows()[0].webContents.send('worktree:menu-action', p)
+    },
+    { action, projectPath: projectDir, wtPath, branch, base }
+  )
+}
+
+/** Worktree paths keyed by the branch checked out in them. */
+const worktreePaths = (): Record<string, string> => {
+  const out: Record<string, string> = {}
+  for (const st of git(['worktree', 'list', '--porcelain']).split(/\n\s*\n/)) {
+    const p = /^worktree (.+)$/m.exec(st)?.[1]
+    const b = /^branch refs\/heads\/(.+)$/m.exec(st)?.[1]
+    if (p && b) out[b] = p
+  }
+  return out
+}
+
+test('right-click Merge lands a branch\'s commit on main and clears the branch', async () => {
+  window.on('dialog', (d) => void d.accept())
+  const before = gitBranches()
+  await newChat()
+  await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
+  const branch = gitBranches().find((b) => !before.includes(b))!
+  const wtPath = worktreePaths()[branch]
+  expect(wtPath).toBeTruthy()
+
+  // Real work on the branch, committed the way the agent would leave it.
+  writeFileSync(join(wtPath, 'from-branch.txt'), 'made on the branch\n')
+  execFileSync('git', ['add', '-A'], { cwd: wtPath })
+  execFileSync('git', ['commit', '-m', 'work on the branch'], { cwd: wtPath })
+
+  await worktreeAction('merge', wtPath, branch, 'main')
+
+  // The merge SQUASHES, so the branch's own commit message does not survive —
+  // what must survive is the work. Assert the file arrives in the real folder,
+  // and that main gained a commit for it.
+  await expect
+    .poll(() => existsSync(join(projectDir, 'from-branch.txt')), { timeout: 20_000 })
+    .toBe(true)
+  expect(git(['log', '--oneline', 'main'])).toContain(branch)
+  await expect.poll(() => gitBranches(), { timeout: 20_000 }).not.toContain(branch)
+  expect(existsSync(wtPath)).toBe(false)
+})
+
+test('right-click Delete removes a branch and its folder, leaving main alone', async () => {
+  const mainBefore = git(['rev-parse', 'main']).trim()
+  const before = gitBranches()
+  await newChat()
+  await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
+  const branch = gitBranches().find((b) => !before.includes(b))!
+  const wtPath = worktreePaths()[branch]
+
+  await worktreeAction('delete', wtPath, branch, 'main')
+
+  await expect.poll(() => gitBranches(), { timeout: 20_000 }).not.toContain(branch)
+  expect(existsSync(wtPath)).toBe(false)
+  // Deleting a branch must never move main.
+  expect(git(['rev-parse', 'main']).trim()).toBe(mainBefore)
+})

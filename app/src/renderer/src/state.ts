@@ -266,6 +266,19 @@ interface CoveState {
    * a chat is a checkout — falling back to a plain chat if git refuses.
    */
   newChat: (workspaceId: string) => Promise<void>
+  /** Open a branch's conversation, creating one if that branch has none. null = the project folder. */
+  openBranch: (workspaceId: string, cwd: string | null) => Promise<void>
+  /**
+   * A named branch: its own checkout, its own conversation, running alongside
+   * whatever else is open. This is the only thing that makes a worktree now.
+   */
+  newBranch: (
+    workspaceId: string,
+    name: string
+  ) => Promise<
+    | { ok: true; branch: string; path: string }
+    | { ok: false; reason: 'not-a-project' | 'not-a-repo' | 'git-refused' }
+  >
   selectChat: (workspaceId: string, chatId: string) => void
   /**
    * Delete a conversation. A worktree chat with unkept changes gets the native
@@ -790,12 +803,11 @@ export const useStore = create<CoveState>((set, get) => ({
     }
   },
   newChat: async (workspaceId) => {
-    // A chat is a checkout. On a git repo, every conversation silently gets its
-    // own worktree on its own branch (cut from the project's current branch), so
-    // two agents can never move one HEAD under each other. Non-repo folders have
-    // nothing to isolate and keep plain chats. If git refuses (no commits yet, an
-    // index it won't branch from), fall back to a plain chat — the chat explains
-    // itself once, inline, instead of an alert.
+    // On a repo every conversation is a branch: its own checkout, its own
+    // agent, running beside the others without touching your folder. That was
+    // always right — what was missing is that the folder itself was not in the
+    // list, so there was no way back to it. It is now a row you can click.
+    // A non-repo folder has nothing to isolate and just gets a plain chat.
     const ws = get()
       .tree.flatMap((g) => g.workspaces)
       .find((w) => w.id === workspaceId)
@@ -810,8 +822,56 @@ export const useStore = create<CoveState>((set, get) => ({
       }
     }
     const id = await window.cove.chatCreate(workspaceId, cwd)
-    // One-shot flag the chat reads on first mount to show its inline note.
     if (fellBack) localStorage.setItem(`wtFallback:${id}`, '1')
+    const list = await window.cove.chatList(workspaceId)
+    set((s) => ({
+      chats: { ...s.chats, [workspaceId]: list },
+      activeChatId: { ...s.activeChatId, [workspaceId]: id }
+    }))
+    // The sidebar reads its branches from git, and a new worktree is exactly
+    // the moment that list is stale. Without this the branch existed on disk
+    // but no row appeared until some unrelated turn ended. Caught by e2e.
+    window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
+  },
+  newBranch: async (workspaceId, name) => {
+    // A branch is a second checkout of the project, on its own branch, with its
+    // own conversation — the thing you make when you want the agent kept off
+    // your files, or two of them running at once. The name is the user's, so
+    // renameChat's auto-rename (superagent/* only) will not touch it later.
+    const ws = get()
+      .tree.flatMap((g) => g.workspaces)
+      .find((w) => w.id === workspaceId)
+    if (!ws || ws.kind === 'browser') return { ok: false as const, reason: 'not-a-project' as const }
+    if ((await window.cove.gitBranch(ws.path)) === null) {
+      return { ok: false as const, reason: 'not-a-repo' as const }
+    }
+    const wt = await window.cove.worktreeCreate(ws.path, { newBranch: name })
+    // git refuses on a repo with no commits yet, or a name already taken.
+    if (!wt) return { ok: false as const, reason: 'git-refused' as const }
+    const id = await window.cove.chatCreate(workspaceId, wt.path)
+    await window.cove.chatUpdate(id, { title: name })
+    const list = await window.cove.chatList(workspaceId)
+    set((s) => ({
+      chats: { ...s.chats, [workspaceId]: list },
+      activeChatId: { ...s.activeChatId, [workspaceId]: id }
+    }))
+    window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
+    return { ok: true as const, branch: wt.branch, path: wt.path }
+  },
+  openBranch: async (workspaceId, cwd) => {
+    // Clicking a branch opens its conversation. A branch you have never talked
+    // to yet has no chat, so make one there rather than showing an empty row —
+    // the branch is the place, the chat is how you speak to it. `cwd === null`
+    // is the project folder itself, which is what "main" in the list means.
+    const existing = (get().chats[workspaceId] ?? []).find(
+      (c) => (c.cwd ?? null) === (cwd ?? null)
+    )
+    get().setActive(workspaceId)
+    if (existing) {
+      get().selectChat(workspaceId, existing.id)
+      return
+    }
+    const id = await window.cove.chatCreate(workspaceId, cwd ?? undefined)
     const list = await window.cove.chatList(workspaceId)
     set((s) => ({
       chats: { ...s.chats, [workspaceId]: list },
@@ -851,8 +911,7 @@ export const useStore = create<CoveState>((set, get) => ({
         const choice = await window.cove.chatConfirmUnkept()
         if (choice === 'cancel') return
         if (choice === 'keep') {
-          const res = await get().keepWorktreeChat(workspaceId, chatId)
-          if (!res.ok) window.alert(keepErrorText(res.reason, res.detail))
+          await keepChatChanges(workspaceId, chatId)
           return // kept (and removed), or failed and the chat stays
         }
         // 'throw' falls through to the normal delete
@@ -899,7 +958,7 @@ export const useStore = create<CoveState>((set, get) => ({
         .slice(0, 40)
         .replace(/-+$/, '')
       if (slug) {
-        void window.cove.worktreeRename(chat.cwd, `superagent/${slug}`).then(() => {
+        void window.cove.worktreeRename(chat.cwd, slug).then(() => {
           // Nudge the sidebar chip (it re-reads the branch on this event).
           window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
         })
@@ -1107,4 +1166,35 @@ export function useOverlayLock(active = true): void {
     enterOverlay()
     return exitOverlay
   }, [active, enterOverlay, exitOverlay])
+}
+
+/**
+ * Keep a chat's changes, and when they clash, offer the one thing that can
+ * actually fix it: the agent that wrote them. A conflict leaves everything
+ * untouched, so there is nothing to undo first — the agent merges the base into
+ * its own branch, resolves, and commits, after which Keep goes through. Every
+ * other failure is just reported; they are things only the user can settle.
+ */
+export async function keepChatChanges(workspaceId: string, chatId: string): Promise<void> {
+  const s = useStore.getState()
+  const res = await s.keepWorktreeChat(workspaceId, chatId)
+  if (res.ok) return
+  if (res.reason !== 'conflict') {
+    window.alert(keepErrorText(res.reason, res.detail))
+    return
+  }
+  const ask = window.confirm(
+    "These changes clash with something already in the project.\n\n" +
+      'Nothing has been changed. Shall the agent in this chat sort it out for you?'
+  )
+  if (!ask) return
+  s.setActive(workspaceId)
+  s.selectChat(workspaceId, chatId)
+  s.sendToClaude(
+    workspaceId,
+    'Keeping this chat\'s changes failed: they conflict with what is already on the branch ' +
+      'this chat was created from. Please merge that base branch into this one, resolve every ' +
+      'conflict, check the project still builds, and commit the result. Tell me when it is ready ' +
+      'to keep again.'
+  )
 }

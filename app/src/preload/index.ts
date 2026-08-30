@@ -254,6 +254,26 @@ export interface CoveApi {
       tokens: number
     }
   }>
+  /** Every worktree git knows about, main folder first. The branch list the user sees. */
+  worktreeList: (
+    projectPath: string
+  ) => Promise<{ path: string; branch: string | null; main: boolean; base: string | null }[]>
+  /** Right-click a branch row. Native menu; the chosen verb comes back on onWorktreeMenuAction. */
+  worktreeMenu: (p: {
+    projectPath: string
+    wtPath: string
+    branch: string | null
+    base: string | null
+  }) => void
+  onWorktreeMenuAction: (
+    cb: (p: {
+      action: 'merge' | 'delete'
+      projectPath: string
+      wtPath: string
+      branch: string | null
+      base: string | null
+    }) => void
+  ) => () => void
   /** New git worktree under <project>/.worktrees; null if git refused. */
   worktreeCreate: (
     projectPath: string,
@@ -666,6 +686,13 @@ const cove: CoveApi = {
   kvSet: (key, value) => ipcRenderer.send('kv:set', key, value),
   kvDel: (key) => ipcRenderer.send('kv:del', key),
   eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
+  worktreeList: (projectPath) => ipcRenderer.invoke('worktree:list', projectPath),
+  worktreeMenu: (p) => ipcRenderer.send('worktree:menu', p),
+  onWorktreeMenuAction: (cb) => {
+    const h = (_e: unknown, p: Parameters<typeof cb>[0]): void => cb(p)
+    ipcRenderer.on('worktree:menu-action', h)
+    return () => ipcRenderer.removeListener('worktree:menu-action', h)
+  },
   worktreeCreate: (projectPath, opts) => ipcRenderer.invoke('worktree:create', projectPath, opts),
   worktreeRename: (wtPath, newBranch) => ipcRenderer.invoke('worktree:rename', wtPath, newBranch),
   worktreeStatus: (projectPath, wtPath) =>

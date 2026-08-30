@@ -340,6 +340,34 @@ app.whenReady().then(() => {
     Menu.buildFromTemplate(template).popup({ window: win })
   })
 
+  // Right-click a branch row. These actions have to live here rather than only
+  // inside a chat: a worktree whose chat was deleted still exists on disk, and
+  // used to be both invisible and unreachable — you could see the work but had
+  // no way to land it or bin it.
+  ipcMain.on(
+    'worktree:menu',
+    (
+      e,
+      p: { projectPath: string; wtPath: string; branch: string | null; base: string | null }
+    ) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      const send = (action: 'merge' | 'delete'): void =>
+        win.webContents.send('worktree:menu-action', { action, ...p })
+      const template: Electron.MenuItemConstructorOptions[] = [
+        {
+          label: p.base ? `Merge into ${p.base}…` : 'Merge…',
+          click: () => send('merge')
+        },
+        { label: 'Delete branch…', click: () => send('delete') },
+        { type: 'separator' },
+        { label: 'Reveal in Finder', click: () => shell.showItemInFolder(p.wtPath) },
+        { label: 'Copy Path', click: () => clipboard.writeText(p.wtPath) }
+      ]
+      Menu.buildFromTemplate(template).popup({ window: win })
+    }
+  )
+
   // Right-click a project row in the sidebar. Worktree chats are the point —
   // a sibling conversation on a fresh git worktree of the project, so two lines
   // of work don't step on each other's files. Only offered for a real repo.

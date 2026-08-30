@@ -1,5 +1,5 @@
 import { ipcMain, shell, nativeImage } from 'electron'
-import { execFile } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import {
   readdirSync,
   lstatSync,
@@ -134,6 +134,45 @@ export function completePath(prefix: string, max = 40): string[] {
  * .git/HEAD directly (fast, no spawn); handles worktrees/submodules (.git is a
  * file "gitdir: <path>") and detached HEAD (returns a short SHA).
  */
+export interface WorktreeEntry {
+  path: string
+  branch: string | null
+  main: boolean
+}
+
+/**
+ * Parse `git worktree list --porcelain`. Stanzas separated by a blank line:
+ * "worktree <path>", "HEAD <sha>", then "branch refs/heads/<name>" — absent when
+ * the worktree is detached, and a lone "bare" line for a bare repo, which is not
+ * a place anyone can work. The FIRST stanza is always the main working tree: the
+ * folder the user opened, which must never be offered for removal.
+ */
+export function parseWorktreeList(stdout: string): WorktreeEntry[] {
+  const out: WorktreeEntry[] = []
+  for (const stanza of stdout.split(/\n\s*\n/)) {
+    const path = /^worktree (.+)$/m.exec(stanza)?.[1]
+    if (!path || /^bare$/m.test(stanza)) continue
+    const branch = /^branch refs\/heads\/(.+)$/m.exec(stanza)?.[1] ?? null
+    out.push({ path, branch, main: out.length === 0 })
+  }
+  return out
+}
+
+/** The branch a worktree was cut from, recorded in its own gitdir at creation. */
+function readBase(wtPath: string): string | null {
+  try {
+    const gd = execFileSync('git', ['rev-parse', '--git-dir'], {
+      cwd: wtPath,
+      encoding: 'utf8'
+    }).trim()
+    const marker = join(gd, 'superagent-base')
+    return existsSync(marker) ? readFileSync(marker, 'utf8').trim() || null : null
+  } catch {
+    // a worktree git can no longer stat: leave the base unknown
+    return null
+  }
+}
+
 export function gitBranch(cwd: string): string | null {
   try {
     let gitDir = join(cwd, '.git')
@@ -351,16 +390,27 @@ export function registerFilesIpc(): void {
         branch = opts.newBranch
         args = ['worktree', 'add', dir, '-b', branch, ...(opts.base ? [opts.base] : [])]
       } else {
-        branch = `superagent/${slug}`
+        // No prefix. The branch is named for the chat, and `superagent/…` in a
+        // list of your own branches reads as if it belonged to some other
+        // project. Whether the app chose the name is recorded below instead.
+        branch = slug
         args = ['worktree', 'add', dir, '-b', branch, ...(base ? [base] : [])]
       }
+      const autoNamed = !opts?.branch && !opts?.newBranch
       const added = await run(args, projectPath)
       if (added.code !== 0) return null
       // Record the base inside the worktree's own gitdir. `git worktree remove`
       // deletes it with everything else, and merge/status read it back.
       try {
         const gd = await run(['rev-parse', '--git-dir'], dir)
-        if (gd.code === 0) writeFileSync(join(gd.out.trim(), 'superagent-base'), base)
+        if (gd.code === 0) {
+          writeFileSync(join(gd.out.trim(), 'superagent-base'), base)
+          // "The app picked this name, so it may rename it when the chat gets a
+          // title." A branch the USER named has no marker and is never touched.
+          // This replaces the old superagent/ prefix as the way to tell them
+          // apart, so the prefix can go without losing the guard.
+          if (autoNamed) writeFileSync(join(gd.out.trim(), 'superagent-autoname'), '1')
+        }
       } catch {
         // merge falls back to the project's current branch without it
       }
@@ -410,6 +460,9 @@ export function registerFilesIpc(): void {
    * worktree:create in the worktree's gitdir). Null when missing — pre-existing
    * worktrees from before the marker, or a stripped gitdir.
    */
+  /** A worktree's gitdir (<project>/.git/worktrees/<slug>), synchronously. */
+  const gitDirOf = (wtPath: string): string =>
+    execFileSync('git', ['rev-parse', '--git-dir'], { cwd: wtPath, encoding: 'utf8' }).trim()
   const readWorktreeBase = (wtPath: string): Promise<string | null> =>
     new Promise((resolve) => {
       execFile('git', ['rev-parse', '--git-dir'], { cwd: wtPath }, (err, stdout) => {
@@ -423,6 +476,35 @@ export function registerFilesIpc(): void {
       })
     })
   /**
+   * Every worktree git knows about, straight from `git worktree list` — the
+   * main folder first, then each extra checkout. The app used to know only the
+   * worktrees it had recorded against a chat, so one made by hand, or one whose
+   * chat was deleted, was invisible and could never be reached or cleaned up.
+   * Git is the source of truth; ask it rather than keeping a second list.
+   */
+  ipcMain.handle('worktree:list', (_e, projectPath: string) => {
+    return new Promise((resolve) => {
+      execFile(
+        'git',
+        ['worktree', 'list', '--porcelain'],
+        { cwd: projectPath, maxBuffer: 4 * 1024 * 1024 },
+        (err, stdout) => {
+          if (err) return resolve([])
+          // Porcelain is stanzas separated by a blank line: "worktree <path>",
+          // then "HEAD <sha>", then "branch refs/heads/<name>" (absent when
+          // detached, and "bare" for a bare repo — neither is a place to work).
+          const out = parseWorktreeList(stdout).map((w) => ({
+            ...w,
+            // Where this branch goes home to, recorded when it was cut. Needed
+            // to label "Merge into <base>" for a worktree whose chat is gone.
+            base: w.main ? null : readBase(w.path)
+          }))
+          resolve(out)
+        }
+      )
+    })
+  })
+  /**
    * Rename the worktree's branch to follow the chat's title. Only auto-named
    * superagent/* branches are touched — if the user asked the agent for a branch
    * of their own, a title change must not yank it out from under them. Renaming
@@ -432,7 +514,19 @@ export function registerFilesIpc(): void {
     return new Promise((resolve) => {
       execFile('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: wtPath }, (err, stdout) => {
         const current = err ? '' : stdout.trim()
-        if (!current || !current.startsWith('superagent/')) {
+        // Rename only what the app named. The marker says so; the legacy
+        // superagent/ prefix still counts, so worktrees made before the prefix
+        // was dropped keep following their chat's title.
+        const auto =
+          current.startsWith('superagent/') ||
+          (() => {
+            try {
+              return existsSync(join(gitDirOf(wtPath), 'superagent-autoname'))
+            } catch {
+              return false
+            }
+          })()
+        if (!current || !auto) {
           return resolve({ ok: false, branch: current || null })
         }
         if (current === newBranch) return resolve({ ok: true, branch: current })
