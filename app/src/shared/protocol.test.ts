@@ -30,7 +30,7 @@ const KINDS: WireEventKind[] = [
 describe('companion fixtures', () => {
   it('covers every server frame type', () => {
     const types = new Set(fx.server.map((f) => f.t))
-    for (const t of ['welcome', 'paired', 'bye', 'delta', 'status', 'chats', 'res', 'pong'])
+    for (const t of ['welcome', 'paired', 'bye', 'delta', 'status', 'chats', 'res', 'pong', 'openFile'])
       expect(types.has(t as ServerFrame['t'])).toBe(true)
   })
 
