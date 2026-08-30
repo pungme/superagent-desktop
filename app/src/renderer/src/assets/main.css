@@ -842,9 +842,24 @@ button {
    is never a copy and can never be removed. */
 /* The conversation happening in this branch, down the right. Secondary: the
    branch is what the row IS, the chat is what is going on in it. */
-.sidebar-branch-chat {
-  flex: 0 3 auto;
+/* The conversation's own name, reading first. Takes the room; the branch beside
+   it gives way. */
+.sidebar-branch-title {
+  flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-branch-chat {
+  /* Shrinks, but not to nothing: a branch clipped to "m…" identifies nothing,
+     which is the whole reason it is on the row. The title gives way first — it
+     is the longer of the two and the one you are already reading. */
+  flex: 0 1 auto;
+  min-width: 64px;
   margin-left: auto;
   padding-left: 10px;
   overflow: hidden;

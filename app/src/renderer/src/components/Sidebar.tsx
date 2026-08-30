@@ -300,8 +300,11 @@ function BranchRow({
       }}
       title={branch}
     >
-      <span className="sidebar-branch-glyph">⎇</span>
-      <span className="sidebar-branch-name">{branch}</span>
+      {/* The conversation is what you look for, so it reads first; the branch it
+          runs in sits down the right. A row with no chat yet has nothing to put
+          on the left, so the branch takes that place instead of leaving a gap. */}
+      {!chat && <span className="sidebar-branch-glyph">⎇</span>}
+      {!chat && <span className="sidebar-branch-name">{branch}</span>}
       {editing && chat ? (
         <input
           className="sidebar-item-rename chat-tree-rename"
@@ -323,10 +326,17 @@ function BranchRow({
           }}
         />
       ) : (
-        <span className="sidebar-branch-chat">
-          {running && <span className="chat-tree-spinner" title="Working…" />}
-          {unread && !running && <span className="sidebar-unread" />}
-          {label}
+        chat && (
+          <span className="sidebar-branch-title">
+            {running && <span className="chat-tree-spinner" title="Working…" />}
+            {unread && !running && <span className="sidebar-unread" />}
+            {label}
+          </span>
+        )
+      )}
+      {chat && (
+        <span className="sidebar-branch-chat" title={branch}>
+          ⎇ {branch}
         </span>
       )}
     </div>
@@ -648,6 +658,11 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         onClick={() => {
           window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
           setActive(ws.id)
+          // This row IS the conversation in the folder itself — the root chat.
+          // It used to be repeated as a nested child of itself, which made the
+          // root look like just another branch beneath it. A browser tab has no
+          // folder to hold a chat.
+          if (ws.kind !== 'browser') void openBranch(ws.id, null)
         }}
         onContextMenu={(e) => {
           // Browser tabs have no folder to branch; the menu is a code-project thing.
@@ -833,7 +848,21 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                 !isPendingBranch(c.id) && normalizeCwd(c.cwd ?? null) === normalizeCwd(wtPath)
             )
           const pending = chats.filter((c) => isPendingBranch(c.id))
-          if (worktrees.length < 2 && pending.length === 0 && chats.length < 2) return null
+          // The folder's own chat lives on the project row now, so the list
+          // below exists only for the extras: branches, chats waiting for one,
+          // and chats whose copy has gone.
+          const extras =
+            worktrees.filter((w) => !w.main).length +
+            pending.length +
+            chats.filter(
+              (c) =>
+                !isPendingBranch(c.id) &&
+                c.cwd &&
+                !worktrees.some(
+                  (w) => normalizeCwd(w.main ? null : w.path) === normalizeCwd(c.cwd ?? null)
+                )
+            ).length
+          if (extras === 0) return null
           const row = (
             key: string,
             branch: string,
@@ -853,7 +882,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           )
           return (
             <div className="routine-tree">
-              {worktrees.map((wt) => {
+              {worktrees
+                .filter((wt) => !wt.main)
+                .map((wt) => {
                 const cwd = wt.main ? null : wt.path
                 const chat = chatOn(cwd)
                 return row(wt.path, wt.branch ?? 'detached', chat, {
