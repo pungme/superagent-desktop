@@ -142,6 +142,7 @@ export type ServerFrame =
   | { t: 'status'; workspaceId: string; status: 'idle' | 'working' | 'needs-you' }
   | { t: 'chats'; chats: WireChat[] }
   | { t: 'browser'; browser: WireBrowser }
+  | { t: 'simulator'; simulator: WireSimulator }
   | { t: 'res'; id: string; ok: true; result?: unknown }
   | { t: 'res'; id: string; ok: false; error: { code: RpcErrorCode; message: string } }
   | { t: 'pong' }
@@ -159,6 +160,23 @@ export interface WireBrowser {
   canGoBack: boolean
   canGoForward: boolean
   loading: boolean
+}
+
+/** The iOS Simulator a conversation has open on the Mac, mirrored to the phone. */
+export interface WireSimulator {
+  chatId: string
+  open: boolean
+  udid: string
+  /** "iPhone 17 Pro · iOS 26.5", for the mirror's title. */
+  device: string
+}
+
+/** `sim.screenshot`: a still of the device the conversation has open. */
+export interface WireSimulatorShot {
+  udid: string
+  device: string
+  /** A whole `data:image/jpeg;base64,…` URL, as the Mac's own pane uses. */
+  url: string
 }
 
 /**
@@ -193,6 +211,8 @@ export type RpcMethod =
   | 'browser.open'
   | 'browser.screenshot'
   | 'browser.nav'
+  | 'sim.screenshot'
+  | 'sim.input'
   | 'files.list'
   | 'files.read'
   | 'git.branches'

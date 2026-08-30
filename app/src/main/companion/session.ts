@@ -8,6 +8,7 @@ import { eventsAfter } from './log'
 import { handleRpc, listTree, listChats } from './rpc'
 import { openPanes } from '../browser'
 import { wireBrowser } from './index'
+import { openSimulators, deviceLabel } from '../simulator'
 import type { RelayClient } from './relay-client'
 import {
   PROTOCOL_VERSION,
@@ -171,6 +172,13 @@ export class ClientConn {
       for (const { paneId, state } of openPanes()) {
         const browser = wireBrowser(paneId, state)
         if (browser?.open) this.send({ t: 'browser', browser })
+      }
+      // And the simulators, so a phone opening a chat with a device on screen
+      // shows it straight away rather than after the next boot.
+      for (const { chatId, udid } of openSimulators()) {
+        void deviceLabel(udid).then((device) =>
+          this.send({ t: 'simulator', simulator: { chatId, open: true, udid, device } })
+        )
       }
       this.onAuthed(this)
       return

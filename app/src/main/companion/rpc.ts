@@ -30,6 +30,7 @@ import { homedir } from 'os'
 import { readdirSync, existsSync } from 'fs'
 import * as auto from '../automation'
 import { getPaneWebContents, ensureBackgroundPane, ensureCompositing } from '../browser'
+import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { extname, resolve, sep } from 'path'
@@ -128,6 +129,12 @@ const browserOpen = z.object({ chatId: z.string().min(1), url: z.string().min(1)
 const browserShot = z.object({
   chatId: z.string().min(1),
   maxWidth: z.number().int().min(200).max(1600).optional()
+})
+const simShot = z.object({ chatId: z.string().min(1) })
+const simInput = z.object({
+  chatId: z.string().min(1),
+  // Passed through to the Mac's own injector; it validates the shape.
+  action: z.record(z.string(), z.unknown())
 })
 const browserNav = z.object({
   chatId: z.string().min(1),
@@ -301,6 +308,23 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           'the browser did not produce a frame'
         )
         return { ok: true, result: shrinkShot(wc, png, p.data.maxWidth ?? 900) }
+      }
+      case 'sim.screenshot': {
+        const p = simShot.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const udid = openSimulators().find((x) => x.chatId === p.data.chatId)?.udid
+        if (!udid) return fail('not-found', 'no simulator open for this conversation')
+        const url = await withTimeout(simStill(udid), 20000, 'the simulator did not produce a frame')
+        if (!url) return fail('unavailable', 'the simulator did not produce a frame')
+        return { ok: true, result: { udid, device: await deviceLabel(udid), url } }
+      }
+      case 'sim.input': {
+        const p = simInput.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const udid = openSimulators().find((x) => x.chatId === p.data.chatId)?.udid
+        if (!udid) return fail('not-found', 'no simulator open for this conversation')
+        const res = await sendSimInput(udid, p.data.action as never)
+        return res.ok ? { ok: true, result: {} } : fail('unavailable', res.error ?? 'input failed')
       }
       case 'browser.nav': {
         const p = browserNav.safeParse(params)
