@@ -111,6 +111,16 @@ function browserKey(s: { activeChatId: Record<string, string> }, workspaceId: st
  * Why a Keep failed, in words a user can act on — no branch/worktree/merge
  * jargon. Shared by the menu flow (App.tsx) and the delete guard.
  */
+/**
+ * Two paths mean the same working copy. git and the app build these strings
+ * separately, so a trailing slash on one side was enough to make a branch look
+ * like it had no chat — and clicking it then made a duplicate.
+ */
+export function normalizeCwd(p: string | null | undefined): string {
+  if (!p) return ''
+  return p.replace(/\/+$/, '')
+}
+
 export function keepErrorText(reason: string, detail?: string): string {
   const map: Record<string, string> = {
     'base-dirty':
@@ -859,22 +869,24 @@ export const useStore = create<CoveState>((set, get) => ({
     return { ok: true as const, branch: wt.branch, path: wt.path }
   },
   openBranch: async (workspaceId, cwd) => {
-    // Clicking a branch opens its conversation. A branch you have never talked
-    // to yet has no chat, so make one there rather than showing an empty row —
-    // the branch is the place, the chat is how you speak to it. `cwd === null`
-    // is the project folder itself, which is what "main" in the list means.
-    const existing = (get().chats[workspaceId] ?? []).find(
-      (c) => (c.cwd ?? null) === (cwd ?? null)
-    )
+    // Clicking a branch opens its conversation, and makes one only if it truly
+    // has none. The check used to read the store's chat list, which can lag the
+    // database by a tick — so a branch whose chat had just been created looked
+    // empty, and clicking it made a SECOND chat on the same worktree. Ask the
+    // database, not the cache. `cwd === null` is the project folder itself.
+    const want = normalizeCwd(cwd)
     get().setActive(workspaceId)
+    const list = await window.cove.chatList(workspaceId)
+    const existing = list.find((c) => normalizeCwd(c.cwd ?? null) === want)
+    set((s) => ({ chats: { ...s.chats, [workspaceId]: list } }))
     if (existing) {
       get().selectChat(workspaceId, existing.id)
       return
     }
     const id = await window.cove.chatCreate(workspaceId, cwd ?? undefined)
-    const list = await window.cove.chatList(workspaceId)
+    const fresh = await window.cove.chatList(workspaceId)
     set((s) => ({
-      chats: { ...s.chats, [workspaceId]: list },
+      chats: { ...s.chats, [workspaceId]: fresh },
       activeChatId: { ...s.activeChatId, [workspaceId]: id }
     }))
   },
@@ -894,6 +906,7 @@ export const useStore = create<CoveState>((set, get) => ({
     const message = title && title !== 'New chat' ? title : 'Keep chat changes'
     const res = await window.cove.worktreeMerge(projectPath, chat.cwd, message)
     if (res.ok) {
+      window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
       // The merge already removed the worktree; force skips the unkept-guard.
       await get().removeChat(workspaceId, chatId, true)
       get().setActive(workspaceId)
@@ -924,7 +937,11 @@ export const useStore = create<CoveState>((set, get) => ({
     const dying = get().chats[workspaceId]?.find((c) => c.id === chatId)
     if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
       const projectPath = dying.cwd.split('/.worktrees/')[0]
-      void window.cove.worktreeRemove(projectPath, dying.cwd)
+      // Await it, then tell the sidebar. Firing and forgetting left the branch
+      // row on screen after its worktree was gone — the list is read from git,
+      // and nothing had asked git again.
+      await window.cove.worktreeRemove(projectPath, dying.cwd)
+      window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
     }
     await window.cove.chatDelete(chatId)
     const list = await window.cove.chatList(workspaceId)

@@ -241,3 +241,129 @@ test('right-click Delete removes a branch and its folder, leaving main alone', a
   // Deleting a branch must never move main.
   expect(git(['rev-parse', 'main']).trim()).toBe(mainBefore)
 })
+
+test('a chat whose copy was removed behind its back says so', async () => {
+  // The real-data case: worktrees removed by hand (or reaped after a merge)
+  // while their chats live on. These used to render with no chip at all, so a
+  // project full of them was a list of identical "New chat" rows with nothing
+  // to tell them apart or mark them as dead.
+  const before = gitBranches()
+  await newChat()
+  await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
+  const branch = gitBranches().find((b) => !before.includes(b))!
+  const wtPath = worktreePaths()[branch]
+
+  // Pull the copy out from under the chat, the way `git worktree remove` would.
+  execFileSync('git', ['worktree', 'remove', '--force', wtPath], { cwd: projectDir })
+  execFileSync('git', ['branch', '-D', branch], { cwd: projectDir })
+  await window.evaluate(() =>
+    window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: {} }))
+  )
+
+  // At least this one. Merging and deleting in the tests above orphaned their
+  // chats too, which is the very situation being reported — a project whose
+  // rows are all leftovers from branches that are gone.
+  await expect
+    .poll(async () => await window.locator('.chat-tree-wt.gone').count(), { timeout: 20_000 })
+    .toBeGreaterThanOrEqual(1)
+})
+
+test('rows stay distinguishable even when every chat is still untitled', async () => {
+  // Three "New chat" rows with nothing to tell them apart was the complaint.
+  // Whatever the titles, each row must carry either a branch or the gone mark.
+  const rows = chatRows()
+  const n = await rows.count()
+  expect(n).toBeGreaterThan(1)
+  for (let i = 0; i < n; i++) {
+    const row = rows.nth(i)
+    const marks = await row.locator('.chat-tree-wt').count()
+    expect(marks).toBe(1)
+  }
+})
+
+test('deleting a chat takes its branch and its row with it', async () => {
+  // The reported bug: the worktree was removed but the branch survived, and the
+  // sidebar kept showing a row for it because nothing asked git again.
+  const before = gitBranches()
+  await newChat()
+  await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
+  const branch = gitBranches().find((b) => !before.includes(b))!
+  const wtPath = worktreePaths()[branch]
+
+  const rowsBefore = await branchRows().count()
+  await app.evaluate(({ BrowserWindow }, p) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('worktree:menu-action', p)
+  }, { action: 'delete', projectPath: projectDir, wtPath, branch, base: 'main' })
+
+  // Branch gone from git...
+  await expect.poll(() => gitBranches(), { timeout: 20_000 }).not.toContain(branch)
+  expect(existsSync(wtPath)).toBe(false)
+  // ...and its row gone from the sidebar, without needing any other event.
+  await expect
+    .poll(async () => (await shownBranches()).join('|'), { timeout: 20_000 })
+    .not.toContain(branch)
+  expect(await branchRows().count()).toBeLessThanOrEqual(rowsBefore)
+})
+
+test('no branch is left behind pointing at nothing', async () => {
+  // Every local branch must either be checked out in a worktree git knows about,
+  // or be the base the others came from. Stragglers are what filled the real
+  // repo with test/testbranch/wt-… that no longer existed anywhere.
+  const live = new Set(gitBranches())
+  const all = git(['branch', '--list', '--format=%(refname:short)'])
+    .split('\n')
+    .map((b) => b.trim())
+    .filter(Boolean)
+  const orphans = all.filter((b) => !live.has(b) && b !== 'main')
+  expect(orphans).toEqual([])
+})
+
+test('one branch never ends up with two chats', async () => {
+  // The reported bug: New Chat made a branch and its chat, the sidebar's copy of
+  // the chat list lagged, so the branch rendered as "no chat yet" — and clicking
+  // it made a SECOND chat on the same worktree.
+  const before = gitBranches()
+  await newChat()
+  await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
+  const branch = gitBranches().find((b) => !before.includes(b))!
+  const wtPath = worktreePaths()[branch]
+
+  // Open that same branch repeatedly, the way clicking its row does.
+  for (let i = 0; i < 3; i++) {
+    await window.evaluate(
+      ([wsKey, p]) => {
+        const id = localStorage.getItem(wsKey)
+        window.dispatchEvent(
+          new CustomEvent('cove:e2e-open-branch', { detail: { id, cwd: p } })
+        )
+      },
+      ['activeWorkspace', wtPath] as const
+    )
+  }
+
+  // Exactly one row carries this branch — never two.
+  await expect
+    .poll(
+      async () =>
+        (await window.locator('.chat-tree-wt').allInnerTexts()).filter((t) =>
+          t.includes(branch)
+        ).length,
+      { timeout: 15_000 }
+    )
+    .toBeLessThanOrEqual(1)
+})
+
+test('two chats on one project are genuinely independent copies', async () => {
+  // The whole point: same folder, different branches, different working copies.
+  const paths = worktreePaths()
+  const branches = Object.keys(paths).filter((b) => b !== 'main')
+  expect(branches.length).toBeGreaterThanOrEqual(1)
+  for (const b of branches) {
+    // Each branch has its own directory on disk, not a shared one.
+    expect(paths[b]).not.toBe(projectDir)
+    expect(existsSync(paths[b])).toBe(true)
+  }
+  // And they are all distinct from each other.
+  const dirs = branches.map((b) => paths[b])
+  expect(new Set(dirs).size).toBe(dirs.length)
+})

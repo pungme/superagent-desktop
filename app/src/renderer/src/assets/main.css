@@ -789,6 +789,15 @@ button {
 /* A branch in the sidebar: one row per git worktree. The row IS the place you
    work — clicking it opens that branch's conversation — so it looks like the
    routine rows it sits beside rather than like the read-only chip above. */
+/* A chat whose working copy no longer exists. Not an error — the transcript is
+   still there — but it can no longer change any files, so it must not look like
+   a chat that can. */
+.chat-tree-wt.gone {
+  color: var(--text-tertiary);
+  font-style: italic;
+  opacity: 0.8;
+}
+
 .sidebar-branch {
   display: flex;
   align-items: center;

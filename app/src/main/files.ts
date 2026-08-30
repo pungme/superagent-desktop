@@ -571,8 +571,29 @@ export function registerFilesIpc(): void {
   ipcMain.handle('git:checkout', (_e, cwd: string, branch: string) => gitCheckout(cwd, branch))
   ipcMain.handle('worktree:remove', (_e, projectPath: string, wtPath: string) => {
     return new Promise((resolve) => {
-      execFile('git', ['worktree', 'remove', '--force', wtPath], { cwd: projectPath }, (err) =>
-        resolve(!err)
+      // The branch has to go with the folder. Removing only the worktree left
+      // the branch behind for ever — "throw away" says everything it did is
+      // deleted, and a repo slowly filled with test/testbranch/wt-… branches
+      // that pointed at nothing. Read it BEFORE the folder goes, or there is
+      // nothing left to ask.
+      execFile(
+        'git',
+        ['rev-parse', '--abbrev-ref', 'HEAD'],
+        { cwd: wtPath },
+        (headErr, headOut) => {
+          const branch = headErr ? '' : headOut.trim()
+          execFile(
+            'git',
+            ['worktree', 'remove', '--force', wtPath],
+            { cwd: projectPath },
+            (err) => {
+              if (err || !branch || branch === 'HEAD') return resolve(!err)
+              // Best effort: a branch that is merged, or shared with another
+              // worktree, may refuse — the folder is already gone either way.
+              execFile('git', ['branch', '-D', branch], { cwd: projectPath }, () => resolve(true))
+            }
+          )
+        }
       )
     })
   })
