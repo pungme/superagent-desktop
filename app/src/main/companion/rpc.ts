@@ -30,7 +30,12 @@ import {
 import { homedir } from 'os'
 import { readdirSync, existsSync, openSync, readSync, closeSync } from 'fs'
 import * as auto from '../automation'
-import { getPaneWebContents, ensureBackgroundPane, ensureCompositing } from '../browser'
+import {
+  getPaneWebContents,
+  ensureBackgroundPane,
+  ensureCompositing,
+  releaseCompositing
+} from '../browser'
 import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
@@ -316,9 +321,16 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           if (!win) return fail('unavailable', 'Superagent has no window open')
           ensureBackgroundPane(win, pane)
         }
+        // Composited only for the navigation itself. Screenshots park it again
+        // when they need to; leaving it parked is what put a desktop-width page
+        // in the Mac's window.
         ensureCompositing(pane)
-        const url = await auto.navigate(pane, p.data.url)
-        return { ok: true, result: { url } }
+        try {
+          const url = await auto.navigate(pane, p.data.url)
+          return { ok: true, result: { url } }
+        } finally {
+          releaseCompositing(pane)
+        }
       }
       case 'browser.screenshot': {
         const p = browserShot.safeParse(params)
@@ -328,13 +340,20 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const wc = getPaneWebContents(pane)
         if (!wc || wc.isDestroyed() || !/^https?:/i.test(wc.getURL()))
           return fail('unavailable', 'the browser is not open for this conversation')
+        // Park it in the tree only for as long as the capture needs, and put it
+        // back however that goes. A pane left composited keeps the page at
+        // desktop width in the Mac's window.
         ensureCompositing(pane)
-        const png = await withTimeout(
-          auto.screenshot(pane),
-          8000,
-          'the browser did not produce a frame'
-        )
-        return { ok: true, result: shrinkShot(wc, png, p.data.maxWidth ?? 900) }
+        try {
+          const png = await withTimeout(
+            auto.screenshot(pane),
+            8000,
+            'the browser did not produce a frame'
+          )
+          return { ok: true, result: shrinkShot(wc, png, p.data.maxWidth ?? 900) }
+        } finally {
+          releaseCompositing(pane)
+        }
       }
       case 'sim.screenshot': {
         const p = simShot.safeParse(params)
