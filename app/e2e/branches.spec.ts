@@ -426,3 +426,26 @@ test('the project folder never gets a second chat', async () => {
   expect(gitBranches().length).toBe(worktreesBefore)
   expect(await branchRows().count()).toBe(rowsBefore)
 })
+
+test('exactly one row is highlighted at a time', async () => {
+  // The project row is the folder's conversation, so it lit up whenever the
+  // project was active — at the same time as whichever branch row you had
+  // open. Two things looked selected at once.
+  const selected = async (): Promise<number> =>
+    (await window.locator('.sidebar-item.active').count()) +
+    (await window.locator('.sidebar-branch.on').count())
+
+  // On a branch: the branch row is selected, the project row is not.
+  await branchRows().first().click()
+  await window.waitForTimeout(400)
+  await expect.poll(selected, { timeout: 10_000 }).toBe(1)
+  expect(await window.locator('.sidebar-branch.on').count()).toBe(1)
+  expect(await window.locator('.sidebar-item.active').count()).toBe(0)
+
+  // On the folder: the project row is selected, no branch row is.
+  await window.locator('.sidebar-item:has-text("e2e-project")').first().click()
+  await window.waitForTimeout(600)
+  await expect.poll(selected, { timeout: 10_000 }).toBe(1)
+  expect(await window.locator('.sidebar-item.active').count()).toBe(1)
+  expect(await window.locator('.sidebar-branch.on').count()).toBe(0)
+})
