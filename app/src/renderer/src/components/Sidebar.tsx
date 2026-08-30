@@ -562,6 +562,20 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   // every project row re-render on any chat's read/unread flip anywhere.
   const unreadHere = useStore((s) => (s.chats[ws.id] ?? []).some((c) => Boolean(s.unread[c.id])))
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
+  /**
+   * The project row is the folder's own conversation, so it highlights only
+   * when THAT chat is the one on screen. Highlighting it whenever the project
+   * was active lit it and a branch row at the same time, which read as two
+   * things selected at once.
+   */
+  const rootSelected = useStore((s) => {
+    if (s.activeWorkspaceId !== ws.id || s.overlay !== null) return false
+    const id = s.activeChatId[ws.id]
+    if (!id) return true
+    const chat = s.chats[ws.id]?.find((c) => c.id === id)
+    // No chat loaded yet, or one that lives in the folder itself.
+    return !chat || !chat.cwd
+  })
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
   const browsingHere = useStore((s) => s.browsingWorkspaceId === ws.id)
@@ -654,7 +668,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     <div className="sidebar-item-wrap">
       <div
         ref={setRefs}
-        className={`sidebar-item ${active ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver && !draggingGroup ? 'drop-before' : ''}`}
+        className={`sidebar-item ${rootSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver && !draggingGroup ? 'drop-before' : ''}`}
         onClick={() => {
           window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
           setActive(ws.id)
