@@ -35,8 +35,18 @@ const newChat = async (): Promise<void> => {
 // A row is a place to work. Chats render as ChatRow (which carries rename and
 // the context menu); worktrees nobody has opened yet render as a plain branch
 // row. Both are rows, so both count.
-const branchRows = (): ReturnType<Page['locator']> =>
-  window.locator('.sidebar-branch, .chat-tree-row')
+/** The real path a branch is born on: open a chat, then actually say something. */
+const startChat = async (text: string): Promise<void> => {
+  await newChat()
+  // Every visited workspace stays mounted, so several composers exist at once —
+  // only one of them is on screen.
+  const box = window.locator('textarea.easy-input:visible').first()
+  await box.waitFor({ state: 'visible', timeout: 20_000 })
+  await box.fill(text)
+  await box.press('Enter')
+}
+
+const branchRows = (): ReturnType<Page['locator']> => window.locator('.sidebar-branch')
 
 /** Branch names git currently has a worktree for, main's included. */
 const gitBranches = (): string[] =>
@@ -46,11 +56,9 @@ const gitBranches = (): string[] =>
     .filter((b): b is string => Boolean(b))
 
 /** Every branch name the sidebar is showing, from either kind of row. */
-const shownBranches = async (): Promise<string[]> => {
-  const text = await window.locator('.routine-tree').allInnerTexts()
-  return text.join('\n').split('\n').map((t) => t.replace(/^⎇\s*/, '').trim()).filter(Boolean)
-}
-const chatRows = (): ReturnType<Page['locator']> => window.locator('.chat-tree-row')
+const shownBranches = async (): Promise<string[]> =>
+  (await window.locator('.sidebar-branch-name').allInnerTexts()).map((t) => t.trim())
+const chatRows = (): ReturnType<Page['locator']> => window.locator('.sidebar-branch')
 
 test.describe.configure({ mode: 'serial' })
 
@@ -99,13 +107,14 @@ test('a lone main is not listed — the project row already says the branch', as
   await expect.poll(() => branchRows().count(), { timeout: 10_000 }).toBe(0)
 })
 
-test('New Chat cuts a real branch, and a row appears for it without a reload', async () => {
+test('the first message cuts the branch, named after what was asked for', async () => {
   const before = gitBranches()
-  await newChat()
+  await startChat('make the header dark')
   // git is the source of truth: a new worktree on a new branch.
   await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
   const created = gitBranches().find((b) => !before.includes(b))!
-  expect(created).toBeTruthy()
+  // Named from the message, not from a timestamp.
+  expect(created).toBe('make-the-header-dark')
   // The bug this catches: the branch existed on disk but the sidebar's list was
   // only refreshed on an unrelated event, so no row ever appeared for it.
   await expect
@@ -139,7 +148,7 @@ test('clicking main opens it, and the list survives', async () => {
 
 test('every worktree git has is reachable in the sidebar — none hidden', async () => {
   const before = gitBranches().length
-  await newChat()
+  await startChat('second piece of work')
   // newChat() only SENDS the menu IPC; the worktree is cut asynchronously in
   // the renderer, so reading git immediately raced it.
   await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before + 1)
@@ -158,12 +167,12 @@ test('a chat row can still be renamed by double-clicking it', async () => {
   await expect.poll(() => chatRows().count(), { timeout: 10_000 }).toBeGreaterThan(1)
   // Deliberately a chat with a branch of its own: renaming the one on main is a
   // no-op branch-wise, which is correct but tests nothing about the next case.
-  await chatRows().filter({ hasText: 'wt-' }).first().dblclick()
+  await chatRows().filter({ hasText: 'make-the-header-dark' }).first().dblclick()
   const rename = window.locator('input.chat-tree-rename')
   await expect(rename).toBeVisible()
   await rename.fill('renamed by e2e')
   await rename.press('Enter')
-  await expect(window.locator('.chat-tree-row', { hasText: 'renamed by e2e' })).toBeVisible()
+  await expect(window.locator('.sidebar-branch', { hasText: 'renamed by e2e' })).toBeVisible()
 })
 
 test('renaming a chat renames its branch to match', async () => {
@@ -202,7 +211,7 @@ const worktreePaths = (): Record<string, string> => {
 test('right-click Merge lands a branch\'s commit on main and clears the branch', async () => {
   window.on('dialog', (d) => void d.accept())
   const before = gitBranches()
-  await newChat()
+  await startChat('work to merge')
   await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
   const branch = gitBranches().find((b) => !before.includes(b))!
   const wtPath = worktreePaths()[branch]
@@ -229,7 +238,7 @@ test('right-click Merge lands a branch\'s commit on main and clears the branch',
 test('right-click Delete removes a branch and its folder, leaving main alone', async () => {
   const mainBefore = git(['rev-parse', 'main']).trim()
   const before = gitBranches()
-  await newChat()
+  await startChat('work to delete')
   await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
   const branch = gitBranches().find((b) => !before.includes(b))!
   const wtPath = worktreePaths()[branch]
@@ -248,7 +257,7 @@ test('a chat whose copy was removed behind its back says so', async () => {
   // project full of them was a list of identical "New chat" rows with nothing
   // to tell them apart or mark them as dead.
   const before = gitBranches()
-  await newChat()
+  await startChat('work whose copy vanishes')
   await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
   const branch = gitBranches().find((b) => !before.includes(b))!
   const wtPath = worktreePaths()[branch]
@@ -264,7 +273,7 @@ test('a chat whose copy was removed behind its back says so', async () => {
   // chats too, which is the very situation being reported — a project whose
   // rows are all leftovers from branches that are gone.
   await expect
-    .poll(async () => await window.locator('.chat-tree-wt.gone').count(), { timeout: 20_000 })
+    .poll(async () => await window.locator('.sidebar-branch').count(), { timeout: 20_000 })
     .toBeGreaterThanOrEqual(1)
 })
 
@@ -276,7 +285,7 @@ test('rows stay distinguishable even when every chat is still untitled', async (
   expect(n).toBeGreaterThan(1)
   for (let i = 0; i < n; i++) {
     const row = rows.nth(i)
-    const marks = await row.locator('.chat-tree-wt').count()
+    const marks = await row.locator('.sidebar-branch-name').count()
     expect(marks).toBe(1)
   }
 })
@@ -285,7 +294,7 @@ test('deleting a chat takes its branch and its row with it', async () => {
   // The reported bug: the worktree was removed but the branch survived, and the
   // sidebar kept showing a row for it because nothing asked git again.
   const before = gitBranches()
-  await newChat()
+  await startChat('work to throw away')
   await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
   const branch = gitBranches().find((b) => !before.includes(b))!
   const wtPath = worktreePaths()[branch]
@@ -323,7 +332,7 @@ test('one branch never ends up with two chats', async () => {
   // the chat list lagged, so the branch rendered as "no chat yet" — and clicking
   // it made a SECOND chat on the same worktree.
   const before = gitBranches()
-  await newChat()
+  await startChat('work opened repeatedly')
   await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
   const branch = gitBranches().find((b) => !before.includes(b))!
   const wtPath = worktreePaths()[branch]
@@ -345,7 +354,7 @@ test('one branch never ends up with two chats', async () => {
   await expect
     .poll(
       async () =>
-        (await window.locator('.chat-tree-wt').allInnerTexts()).filter((t) =>
+        (await window.locator('.sidebar-branch-name').allInnerTexts()).filter((t) =>
           t.includes(branch)
         ).length,
       { timeout: 15_000 }
@@ -366,4 +375,28 @@ test('two chats on one project are genuinely independent copies', async () => {
   // And they are all distinct from each other.
   const dirs = branches.map((b) => paths[b])
   expect(new Set(dirs).size).toBe(dirs.length)
+})
+
+test('a chat you open and never use leaves no branch behind', async () => {
+  // The point of cutting branches late: every stray wt-… in the real repo came
+  // from a chat that was opened and never spoken to.
+  const before = gitBranches()
+  await newChat()
+  await window.waitForTimeout(1500)
+  expect(gitBranches()).toEqual(before)
+  // And it says so rather than pretending to be on main.
+  await expect(window.locator('.sidebar-branch', { hasText: 'no branch yet' }).first()).toBeVisible()
+})
+
+test('the project folder never gets a second chat', async () => {
+  // Two chats in the folder itself means two agents editing one set of files —
+  // the one configuration with no isolation, and how two sessions trampled each
+  // other for real. Opening main repeatedly must always land on the same chat.
+  const mainRow = branchRows().filter({ hasText: 'main' }).first()
+  for (let i = 0; i < 3; i++) {
+    await mainRow.click()
+    await window.waitForTimeout(300)
+  }
+  const names = await shownBranches()
+  expect(names.filter((n) => n === 'main').length).toBe(1)
 })

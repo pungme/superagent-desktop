@@ -2361,17 +2361,29 @@ export function EasyChat({
       contextLostRef.current = true
     }
 
-    window.cove
-      .agentStart({
-        cwd,
-        workspaceId,
-        chatId,
-        resumeSessionId: resumeIdRef.current,
-        browserProject,
-        permissionMode: useStore.getState().permissionMode,
-        model: useStore.getState().model
-      })
-      .then((id) => {
+    // A chat cuts its branch here, on the way to its first turn — not when it
+    // was opened. The name comes from what was actually asked for, and a chat
+    // that never sends anything never makes one. The agent's cwd is fixed for
+    // the life of the process, so this has to settle BEFORE agentStart.
+    void (async () => {
+      const opening =
+        itemsRef.current
+          .filter((it) => it.kind === 'msg' && it.msg.role === 'user')
+          .map((it) => (it.kind === 'msg' ? it.msg.text : ''))
+          .find((t) => t && t.trim()) ?? ''
+      const cut = await useStore.getState().materializeBranch(workspaceId, chatId, opening)
+      if (disposed) return
+      window.cove
+        .agentStart({
+          cwd: cut ?? cwd,
+          workspaceId,
+          chatId,
+          resumeSessionId: resumeIdRef.current,
+          browserProject,
+          permissionMode: useStore.getState().permissionMode,
+          model: useStore.getState().model
+        })
+        .then((id) => {
         if (disposed) {
           window.cove.agentStop(id)
           return
@@ -2455,7 +2467,8 @@ export function EasyChat({
         void window.cove.agentResumeLostCheck?.(id).then((lost) => {
           if (!disposed && lost) resumeLost()
         })
-      })
+        })
+    })()
 
     return () => {
       disposed = true

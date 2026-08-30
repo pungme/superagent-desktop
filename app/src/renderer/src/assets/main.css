@@ -792,6 +792,10 @@ button {
 /* A chat whose working copy no longer exists. Not an error — the transcript is
    still there — but it can no longer change any files, so it must not look like
    a chat that can. */
+.chat-tree-wt.pending {
+  color: var(--text-tertiary);
+  opacity: 0.75;
+}
 .chat-tree-wt.gone {
   color: var(--text-tertiary);
   font-style: italic;
@@ -836,6 +840,23 @@ button {
 }
 /* The folder the user actually opened. Marked, because it is the one row that
    is never a copy and can never be removed. */
+/* The conversation happening in this branch, down the right. Secondary: the
+   branch is what the row IS, the chat is what is going on in it. */
+.sidebar-branch-chat {
+  flex: 0 3 auto;
+  min-width: 0;
+  margin-left: auto;
+  padding-left: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+/* Branches cut from the folder sit under it, the way they do in the sketch. */
+.sidebar-branch.nested {
+  padding-left: 22px;
+}
 .sidebar-branch-tag {
   flex: none;
   margin-left: auto;

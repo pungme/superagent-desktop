@@ -10,7 +10,7 @@ import {
   useDroppable,
   useDndContext
 } from '@dnd-kit/core'
-import { useStore, normalizeCwd, WorkspaceStatus } from '../state'
+import { useStore, normalizeCwd, isPendingBranch, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
@@ -255,6 +255,84 @@ function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
 }
 
 /** One conversation under a project. Double-click the title to rename it. */
+/**
+ * One place to work: the branch on the left, the conversation happening in it
+ * on the right. Double-click renames that conversation (and its branch follows),
+ * right-click gives the chat's menu — or the branch's, when no chat has been
+ * started in it yet. Rebuilding this as a plain button twice cost the rename
+ * both times; it lives here so it cannot be dropped again.
+ */
+function BranchRow({
+  branch,
+  chat,
+  workspaceId,
+  nested,
+  active,
+  onOpen,
+  onMenu
+}: {
+  branch: string
+  chat: Chat | undefined
+  workspaceId: string
+  nested: boolean
+  active: boolean
+  onOpen: () => void
+  onMenu: () => void
+}): React.JSX.Element {
+  const renameChat = useStore((s) => s.renameChat)
+  const running = useStore((st) => Boolean(chat && st.busy[chat.id]?.generating))
+  const unread = useStore((st) => Boolean(chat && st.unread[chat.id]))
+  const label = chat?.title ?? (chat ? 'New chat' : '')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(label)
+  return (
+    <div
+      className={`sidebar-branch${nested ? ' nested' : ''}${active ? ' on' : ''}`}
+      onClick={onOpen}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onMenu()
+      }}
+      onDoubleClick={() => {
+        if (!chat) return
+        setDraft(label)
+        setEditing(true)
+      }}
+      title={branch}
+    >
+      <span className="sidebar-branch-glyph">⎇</span>
+      <span className="sidebar-branch-name">{branch}</span>
+      {editing && chat ? (
+        <input
+          className="sidebar-item-rename chat-tree-rename"
+          value={draft}
+          autoFocus
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            const n = draft.trim()
+            if (n && n !== label) renameChat(workspaceId, chat.id, n)
+            setEditing(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+            if (e.key === 'Escape') {
+              setDraft(label)
+              setEditing(false)
+            }
+          }}
+        />
+      ) : (
+        <span className="sidebar-branch-chat">
+          {running && <span className="chat-tree-spinner" title="Working…" />}
+          {unread && !running && <span className="sidebar-unread" />}
+          {label}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function ChatRow({
   chat,
   workspaceId,
@@ -356,7 +434,13 @@ function ChatRow({
             )
           )}
           <span className="chat-tree-label">{label}</span>
-          {chat.cwd && !wtBranch ? (
+          {!chat.cwd && isPendingBranch(chat.id) ? (
+            /* Waiting for its first message. It is NOT on main — saying so would
+               be a lie about where the agent is about to write. */
+            <span className="chat-tree-wt pending" title="Its branch is cut when you send the first message">
+              not started
+            </span>
+          ) : chat.cwd && !wtBranch ? (
             /* Its copy is gone — removed by hand, or the branch merged and
                reaped while the chat outlived it. Say so: rendering nothing made
                a dead chat look exactly like a live one on the folder itself,
@@ -736,86 +820,101 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           ))}
         </div>
       )}
-      {/* One row per place you can work: a conversation on the left, the branch
-          it is on down the right — the same shape as the project row above it.
-          A branch nobody has talked to yet still gets a row, so it can be
-          opened. With only one row there is no choice to make and the project's
-          own branch chip already says it, so the list stays hidden. */}
+      {/* The branch is the row; the conversation happening in it is the label
+          on the right. main first, the branches cut from it indented beneath —
+          one chat each, which is what a chat IS: a branch with someone talking
+          to it. A chat that has not sent anything yet has no branch, so it sits
+          at the end until its first message cuts one. */}
       {worktrees.length > 0 &&
         (() => {
-          // Worktrees nobody has opened a chat on yet.
-          const untouched = worktrees.filter(
-            (w) =>
-              !chats.some(
-                (c) => normalizeCwd(c.cwd ?? null) === normalizeCwd(w.main ? null : w.path)
-              )
+          const chatOn = (wtPath: string | null): Chat | undefined =>
+            chats.find(
+              (c) =>
+                !isPendingBranch(c.id) && normalizeCwd(c.cwd ?? null) === normalizeCwd(wtPath)
+            )
+          const pending = chats.filter((c) => isPendingBranch(c.id))
+          if (worktrees.length < 2 && pending.length === 0 && chats.length < 2) return null
+          const row = (
+            key: string,
+            branch: string,
+            chat: Chat | undefined,
+            opts: { main?: boolean; onOpen: () => void; onMenu?: () => void }
+          ): React.JSX.Element => (
+            <BranchRow
+              key={key}
+              branch={branch}
+              chat={chat}
+              workspaceId={ws.id}
+              nested={!opts.main}
+              active={Boolean(active && chat && chat.id === activeChatId)}
+              onOpen={opts.onOpen}
+              onMenu={opts.onMenu ?? ((): void => undefined)}
+            />
           )
-          // Two separate rules, conflated once already and it cost the ability
-          // to rename or delete a chat:
-          //  - CHATS show from two upward, exactly as they always did. Their row
-          //    is the only place to rename (double-click) or delete (right-click),
-          //    so hiding it because a project also happened to have one branch
-          //    took those away.
-          //  - BRANCH rows show only once there is a second worktree. A lone
-          //    "main" says nothing the project's own branch chip doesn't.
-          // "New chat" is outside both, or a project could reach a state with no
-          // way to start one.
           return (
             <div className="routine-tree">
-              {/* ChatRow, not a bespoke button: it already carries double-click
-                  rename, the right-click menu (Keep / Throw away / Delete), the
-                  working spinner, the unread dot and the branch chip down the
-                  right. Hand-rolling a row here silently dropped all of it. */}
-              {/* Once branches are on show, every chat must be too: a chat IS a
-                  branch, so hiding a lone one left its branch with no row at all
-                  and only "main" visible. Below that, the old rule stands —
-                  a single chat on a single worktree needs no list. */}
-              {(chats.length > 1 || worktrees.length > 1) &&
-                chats.map((c) => (
-                <ChatRow
-                  key={c.id}
-                  chat={c}
-                  workspaceId={ws.id}
-                  folderBranch={selfBranch}
-                  active={active && c.id === activeChatId}
-                  onOpen={() => {
+              {worktrees.map((wt) => {
+                const cwd = wt.main ? null : wt.path
+                const chat = chatOn(cwd)
+                return row(wt.path, wt.branch ?? 'detached', chat, {
+                  main: wt.main,
+                  onOpen: () => {
                     window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
-                    setActive(ws.id)
-                    selectChat(ws.id, c.id)
-                  }}
-                />
-              ))}
-              {worktrees.length > 1 &&
-                untouched.map((wt) => (
-                <button
-                  key={wt.path}
-                  className="sidebar-branch"
-                  title={wt.main ? `${ws.path} — the folder you opened` : wt.path}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    // Never on the main row: that is the user's own folder, and
-                    // "delete this branch" must not be offered for it.
+                    if (chat) {
+                      setActive(ws.id)
+                      selectChat(ws.id, chat.id)
+                    } else {
+                      openBranch(ws.id, cwd)
+                    }
+                  },
+                  onMenu: () => {
                     if (wt.main) return
+                    if (chat) {
+                      window.cove.chatMenu(chat.id, ws.id, chat.cwd)
+                      return
+                    }
                     window.cove.worktreeMenu({
                       projectPath: ws.path,
                       wtPath: wt.path,
                       branch: wt.branch,
                       base: wt.base
                     })
-                  }}
-                  onClick={() => {
+                  }
+                })
+              })}
+              {/* Chats whose copy is gone — merged and reaped, or removed by
+                  hand. They match no worktree and are not pending, so without a
+                  row of their own they vanished from the sidebar entirely,
+                  taking their transcript with them. */}
+              {chats
+                .filter(
+                  (c) =>
+                    !isPendingBranch(c.id) &&
+                    c.cwd &&
+                    !worktrees.some(
+                      (w) => normalizeCwd(w.main ? null : w.path) === normalizeCwd(c.cwd ?? null)
+                    )
+                )
+                .map((c) =>
+                  row(c.id, 'copy gone', c, {
+                    onOpen: () => {
+                      window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+                      setActive(ws.id)
+                      selectChat(ws.id, c.id)
+                    },
+                    onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd)
+                  })
+                )}
+              {pending.map((c) =>
+                row(c.id, 'no branch yet', c, {
+                  onOpen: () => {
                     window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
-                    openBranch(ws.id, wt.main ? null : wt.path)
-                  }}
-                >
-                  {/* A branch nobody has talked to yet has no title to show, so
-                      the branch IS the name. Labelling these "New chat" put two
-                      rows on screen that read identically to a real untitled
-                      chat — you could not tell a conversation from a branch. */}
-                  <span className="sidebar-branch-glyph">⎇</span>
-                  <span className="sidebar-branch-name muted">{wt.branch ?? 'detached'}</span>
-                </button>
-              ))}
+                    setActive(ws.id)
+                    selectChat(ws.id, c.id)
+                  },
+                  onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd)
+                })
+              )}
             </div>
           )
         })()}
