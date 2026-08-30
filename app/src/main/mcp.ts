@@ -4,7 +4,13 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 import * as auto from './automation'
-import { simTarget, isMirroring, keepSimulatorHidden, sendSimInput } from './simulator'
+import {
+  simTarget,
+  isMirroring,
+  keepSimulatorHidden,
+  sendSimInput,
+  noteSimulatorOpen
+} from './simulator'
 import { withoutStealingFocus } from './browser'
 import { nativeImage } from 'electron'
 import { readFileSync, unlinkSync } from 'fs'
@@ -179,6 +185,8 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         chatId: CHAT_ID,
         udid
       })
+      // Phones mirror it too, and they cannot see the window's localStorage.
+      noteSimulatorOpen(CHAT_ID, udid)
       // A build with a simulator destination opens Apple's window by itself.
       if (isMirroring(udid)) keepSimulatorHidden()
       return { content: [{ type: 'text', text: `Booted ${udid}.` }] }
@@ -246,6 +254,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         chatId: CHAT_ID,
         udid: simTarget()
       })
+      noteSimulatorOpen(CHAT_ID, simTarget())
       if (isMirroring(simTarget())) keepSimulatorHidden()
       return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
     }
@@ -280,6 +289,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       chatId: CHAT_ID,
       udid
     })
+    noteSimulatorOpen(CHAT_ID, udid)
   }
 
   const inputTarget = async (): Promise<{ udid: string } | { error: string }> => {

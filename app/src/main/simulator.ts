@@ -6,6 +6,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { readFileSync, unlinkSync, existsSync } from 'fs'
 import { createHash } from 'crypto'
+import { EventEmitter } from 'events'
 
 const run = promisify(execFile)
 
@@ -425,6 +426,63 @@ export function isMirroring(udid: string): boolean {
 }
 
 /**
+ * Which conversation has a simulator on screen, so a phone can mirror it the
+ * way it mirrors the browser. The window keeps this in localStorage per chat,
+ * which main cannot read, so the agent's own open events are recorded here too.
+ */
+const simByChat = new Map<string, string>()
+export const simBus = new EventEmitter()
+
+export function noteSimulatorOpen(chatId: string | null | undefined, udid: string): void {
+  if (!chatId) return
+  if (simByChat.get(chatId) === udid) return
+  simByChat.set(chatId, udid)
+  simBus.emit('changed', { chatId, udid, open: true })
+}
+
+export function noteSimulatorClosed(udid: string): void {
+  for (const [chatId, id] of simByChat) {
+    if (id !== udid) continue
+    simByChat.delete(chatId)
+    simBus.emit('changed', { chatId, udid, open: false })
+  }
+}
+
+export function openSimulators(): { chatId: string; udid: string }[] {
+  return [...simByChat].map(([chatId, udid]) => ({ chatId, udid }))
+}
+
+/** A readable name for the mirror's title, best effort. */
+export async function deviceLabel(udid: string): Promise<string> {
+  try {
+    const all = await listDevices()
+    const d = all.find((x) => x.udid === udid)
+    if (!d) return 'Simulator'
+    const runtime = d.runtime.replace(/^com\.apple\.CoreSimulator\.SimRuntime\./, '').replace(/-/g, ' ')
+    return runtime ? `${d.name} · ${runtime}` : d.name
+  } catch {
+    return 'Simulator'
+  }
+}
+
+/** One still of a device, as a data URL. The phone polls this for its mirror. */
+export async function simStill(udid: string): Promise<string | null> {
+  const file = join(tmpdir(), `sa-sim-companion-${udid.slice(0, 8)}.jpg`)
+  try {
+    await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], { timeout: 15_000 })
+    return `data:image/jpeg;base64,${readFileSync(file).toString('base64')}`
+  } catch {
+    return null
+  } finally {
+    try {
+      unlinkSync(file)
+    } catch {
+      /* the still is disposable */
+    }
+  }
+}
+
+/**
  * Whether a navigation replaces the page the pane lives on.
  *
  * Only a real main-frame load does. Same-document navigation keeps the
@@ -523,6 +581,7 @@ function startNativeStream(window: BrowserWindow, udid: string, name: string): b
       // It was working and stopped — almost always the device shutting down.
       // Say so rather than leaving a frozen picture on screen.
       window.webContents.send(`sim:gone:${udid}`)
+      noteSimulatorClosed(udid)
       return
     }
     // Never produced a frame — the private API probably moved. Say why once,

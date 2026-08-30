@@ -3,6 +3,7 @@ import { RelayClient } from './relay-client'
 import { ClientConn } from './session'
 import { logBus, record, eventsAfter } from './log'
 import { browserBus, type BrowserPaneState } from '../browser'
+import { simBus, deviceLabel } from '../simulator'
 import { hookBus } from '../hooks'
 import { listSessions, findSessionByChat, suggestTitle } from '../agent'
 import { kvGet, kvSet, getChatIdBySession, getChat, getWorkspace, setChatTitle } from '../store'
@@ -96,6 +97,11 @@ export function startCompanion(): void {
   })
   // What each conversation has open in the browser: the phone puts the page
   // above its chat, so it needs to hear the same state the window's omnibar does.
+  // A conversation's simulator, the same way its browser is mirrored.
+  simBus.on('changed', async ({ chatId, udid, open }) => {
+    const simulator = { chatId, open, udid, device: open ? await deviceLabel(udid) : '' }
+    for (const c of conns.values()) if (c.authenticated) c.send({ t: 'simulator', simulator })
+  })
   browserBus.on(
     'state',
     ({ paneId, state }: { paneId: string; state: BrowserPaneState | null }) => {
