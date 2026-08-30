@@ -15,6 +15,7 @@ import {
   updateCard,
   moveCard,
   getWorkspacePath,
+  chatCwd,
   createGroup,
   updateGroup,
   deleteGroup,
@@ -27,7 +28,7 @@ import {
   TABS_GROUP
 } from '../store'
 import { homedir } from 'os'
-import { readdirSync, existsSync } from 'fs'
+import { readdirSync, existsSync, openSync, readSync, closeSync } from 'fs'
 import * as auto from '../automation'
 import { getPaneWebContents, ensureBackgroundPane, ensureCompositing } from '../browser'
 import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
@@ -67,8 +68,10 @@ import type {
   ApprovalAnswerParams,
   WireBrowserShot,
   WireFileContent,
+  WireFileChunk,
   WireDir
 } from '../../shared/companion-protocol'
+import { FILE_CHUNK_BYTES, FILE_CHUNK_MAX_BYTES } from '../../shared/companion-protocol'
 
 /**
  * What the phone may ask the Mac to do. Every method is a thin adapter onto a
@@ -141,7 +144,31 @@ const browserNav = z.object({
   action: z.enum(['back', 'forward', 'reload'])
 })
 const workspaceId = z.object({ workspaceId: z.string().min(1) })
-const fileRead = z.object({ workspaceId: z.string().min(1), path: z.string().min(1).max(4000) })
+const fileRead = z.object({
+  workspaceId: z.string().min(1),
+  path: z.string().min(1).max(4000),
+  /** The conversation asking. On a worktree chat its files live there, not in the project. */
+  chatId: z.string().min(1).optional()
+})
+const fileChunk = z.object({
+  workspaceId: z.string().min(1),
+  path: z.string().min(1).max(4000),
+  index: z.number().int().min(0).max(10_000),
+  chatId: z.string().min(1).optional()
+})
+const fileList = z.object({
+  workspaceId: z.string().min(1),
+  chatId: z.string().min(1).optional()
+})
+
+/**
+ * Where to look for a conversation's files: its worktree when the chat has one,
+ * the project otherwise. A chat on a worktree writes there and nowhere else, so
+ * rooting on the project shows main and hides everything the agent just made.
+ */
+function rootFor(p: { workspaceId: string; chatId?: string }): string | undefined {
+  return (p.chatId ? chatCwd(p.chatId) : undefined) ?? getWorkspacePath(p.workspaceId)
+}
 const gitCheckoutParams = z.object({
   workspaceId: z.string().min(1),
   branch: z.string().min(1).max(200)
@@ -350,20 +377,31 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         return { ok: true }
       }
       case 'files.list': {
-        const p = workspaceId.safeParse(params)
+        const p = fileList.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
-        const root = getWorkspacePath(p.data.workspaceId)
+        const root = rootFor(p.data)
         if (!root) return fail('not-found', 'no such project')
         return { ok: true, result: { root, files: listProjectFiles(root, 8000) } }
       }
       case 'files.read': {
         const p = fileRead.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
-        const root = getWorkspacePath(p.data.workspaceId)
+        const root = rootFor(p.data)
         if (!root) return fail('not-found', 'no such project')
         const abs = resolveInside(root, p.data.path)
         if (!abs) return fail('bad-params', 'that path is outside the project')
         return { ok: true, result: readForPhone(abs, p.data.path) }
+      }
+      case 'files.chunk': {
+        const p = fileChunk.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const root = rootFor(p.data)
+        if (!root) return fail('not-found', 'no such project')
+        const abs = resolveInside(root, p.data.path)
+        if (!abs) return fail('bad-params', 'that path is outside the project')
+        const chunk = readChunk(abs, p.data.path, p.data.index)
+        if (!chunk) return fail('not-found', 'no such slice of that file')
+        return { ok: true, result: chunk }
       }
       case 'git.branches': {
         const p = workspaceId.safeParse(params)
@@ -566,6 +604,11 @@ function readForPhone(abs: string, rel: string): WireFileContent {
       data: jpeg.toString('base64')
     }
   }
+  // A PDF goes over whole, in slices: the phone renders it with PDFKit, which
+  // keeps the text selectable and searchable — pictures of pages would not.
+  if (extname(abs).toLowerCase() === '.pdf' && size > 0 && size <= FILE_CHUNK_MAX_BYTES) {
+    return { kind: 'pdf', path: rel, size, chunks: Math.ceil(size / FILE_CHUNK_BYTES) }
+  }
   const text = readTextFile(abs, 2 * 1024 * 1024)
   if (text === null) return { kind: 'binary', path: rel, size }
   const truncated = Buffer.byteLength(text) > PHONE_TEXT_BYTES
@@ -576,6 +619,33 @@ function readForPhone(abs: string, rel: string): WireFileContent {
     text: truncated ? text.slice(0, PHONE_TEXT_BYTES) : text,
     truncated
   }
+}
+
+/** One slice of a file's bytes, base64. Read at an offset rather than loading
+ *  the whole file, so a big PDF costs one chunk of memory, not all of it. */
+function readChunk(abs: string, rel: string, index: number): WireFileChunk | null {
+  let size = 0
+  try {
+    size = statSync(abs).size
+  } catch {
+    return null
+  }
+  if (size <= 0 || size > FILE_CHUNK_MAX_BYTES) return null
+  const chunks = Math.ceil(size / FILE_CHUNK_BYTES)
+  if (index >= chunks) return null
+  const offset = index * FILE_CHUNK_BYTES
+  const length = Math.min(FILE_CHUNK_BYTES, size - offset)
+  const buf = Buffer.alloc(length)
+  let fd: number | null = null
+  try {
+    fd = openSync(abs, 'r')
+    readSync(fd, buf, 0, length, offset)
+  } catch {
+    return null
+  } finally {
+    if (fd !== null) closeSync(fd)
+  }
+  return { path: rel, index, chunks, data: buf.toString('base64') }
 }
 
 /** A path a phone may name: absolute, under the home directory, no escapes. */
@@ -727,3 +797,6 @@ function permissionModeSetting(): AgentStartOptions['permissionMode'] {
     ? v
     : 'bypassPermissions'
 }
+
+/** Internals the companion tests reach for; not part of the RPC surface. */
+export const __testing = { readForPhone, readChunk }
