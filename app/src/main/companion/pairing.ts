@@ -51,7 +51,11 @@ export function startPairing(relay: string): {
   code: string
   expiresAt: number
 } {
-  cancelPairing()
+  // Idempotent while a pairing is still live. Rotating the secret here meant a
+  // link copied a moment ago stopped matching the code on screen, and the phone
+  // that opened it was dropped by a Mac that no longer held its key.
+  const live = pendingPairing()
+  if (live) return { payload: live.payload, code: live.code, expiresAt: live.expiresAt }
   const secret = newSecret()
   const m = machineId()
   const payload: PairPayload = {
