@@ -37,6 +37,7 @@ import {
   releaseCompositing
 } from '../browser'
 import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
+import { listWorktrees } from '../files'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { extname, resolve, sep } from 'path'
@@ -421,6 +422,28 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const chunk = readChunk(abs, p.data.path, p.data.index)
         if (!chunk) return fail('not-found', 'no such slice of that file')
         return { ok: true, result: chunk }
+      }
+      case 'worktrees.list': {
+        const p = workspaceId.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const root = getWorkspacePath(p.data.workspaceId)
+        if (!root) return fail('not-found', 'no such project')
+        // The same list the window's sidebar draws, paired with the chats that
+        // are in them. Each is only meaningful against the other: a branch with
+        // no conversation is a row you can still open, and a chat whose copy
+        // has been merged away should say so rather than vanish.
+        const rows = await listWorktrees(root)
+        // From the store, not listChats(): the wire shape has no cwd, and the
+        // cwd is what says which copy of the project a chat is in.
+        const chats = listAllChats().filter((c) => c.workspaceId === p.data.workspaceId)
+        const norm = (v: string): string => v.replace(/\/+$/, '')
+        return {
+          ok: true,
+          result: rows.map((w) => {
+            const chat = chats.find((c) => c.cwd && norm(c.cwd) === norm(w.path))
+            return { ...w, chatId: chat?.id, chatTitle: chat?.title ?? undefined }
+          })
+        }
       }
       case 'git.branches': {
         const p = workspaceId.safeParse(params)

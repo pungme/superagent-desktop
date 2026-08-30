@@ -214,6 +214,22 @@ export interface TaskInfo {
   status?: string
 }
 
+/**
+ * One checkout of a project: the folder you opened, or a branch cut from it.
+ * The desktop's sidebar is a row per one of these, so the phone's is too.
+ */
+export interface WireWorktree {
+  path: string
+  branch: string | null
+  /** The folder the project was opened as, rather than a branch cut from it. */
+  main: boolean
+  /** Where this branch merges home to. Null for main. */
+  base: string | null
+  /** The conversation happening in it, when there is one. */
+  chatId?: string
+  chatTitle?: string
+}
+
 export type RpcMethod =
   | 'tree.list'
   | 'chat.list'
@@ -239,6 +255,7 @@ export type RpcMethod =
   | 'files.read'
   | 'files.chunk'
   | 'git.branches'
+  | 'worktrees.list'
   | 'git.checkout'
   | 'chat.search'
   | 'workspace.add'
