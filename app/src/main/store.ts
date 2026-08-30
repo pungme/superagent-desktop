@@ -501,6 +501,18 @@ export function getChat(chatId: string): ChatRow | undefined {
 }
 
 /**
+ * Where a conversation actually works: its own worktree when it has one, the
+ * project otherwise. Files created by a chat on a worktree live there and
+ * nowhere else, so anything that lists or reads files for a chat has to root
+ * here rather than on the project, or it shows main and the work is invisible.
+ */
+export function chatCwd(chatId: string): string | undefined {
+  const chat = getChat(chatId)
+  if (!chat) return undefined
+  return chat.cwd ?? getWorkspacePath(chat.workspaceId)
+}
+
+/**
  * Messages that mention `query`, newest first — what the phone's search box
  * shows. Only what people and the agent said; tool noise stays out.
  */
@@ -1495,6 +1507,13 @@ function registerStoreIpcTail(): void {
          FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC`
       )
       .all()
+  )
+  // The same search the phone uses (chat.search over the companion RPC),
+  // exposed to the app's own sidebar. Unlike the phone, Computer's own
+  // conversations are included — there's no separate "open Computer" step in
+  // the way here, so hiding them would just be a hole in the results.
+  ipcMain.handle('chat:search', (_e, query: string, limit?: number) =>
+    searchChats(query, limit ?? 30)
   )
   ipcMain.on('events:record', (_e, kind: string, workspaceId?: string, n?: number) =>
     recordEvent(kind, workspaceId, n)

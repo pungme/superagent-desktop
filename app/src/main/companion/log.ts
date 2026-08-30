@@ -1,6 +1,9 @@
 import { EventEmitter } from 'events'
+import { basename, extname, isAbsolute, relative } from 'path'
+import { statSync } from 'fs'
 import { agentBus, listSessions } from '../agent'
 import { broadcastToWindows } from '../util'
+import { getWorkspacePath, chatCwd } from '../store'
 import {
   TranscriptProjector,
   projectLegacyItems,
@@ -52,6 +55,58 @@ export function record(chatId: string, data: WireEventData): WireEvent {
   remember(ev)
   logBus.emit('event', { event: ev })
   return ev
+}
+
+/**
+ * The agent handing a file to the user: a generated PDF, an export, a report.
+ * Kept in the transcript so it outlives the moment it was opened, and so the
+ * phone gets it at all — the live nudge only reaches whoever is looking.
+ *
+ * The path is stored relative to the project when it sits inside one, because
+ * that is what the phone's file RPCs take.
+ */
+export function recordFileHandover(chatId: string, workspaceId: string, abs: string): void {
+  // The chat's own copy of the project when it has one: a file the agent just
+  // wrote lives in the worktree, and a path relative to the project would not
+  // find it.
+  const root = chatCwd(chatId) ?? getWorkspacePath(workspaceId)
+  const inside = root ? relative(root, abs) : ''
+  const usable = inside && !inside.startsWith('..') && !isAbsolute(inside)
+  let size: number | undefined
+  try {
+    size = statSync(abs).size
+  } catch {
+    // A file the agent is still writing, or one it named but never made. The
+    // card is still worth keeping; it just will not say how big.
+  }
+  record(chatId, {
+    kind: 'file',
+    id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    path: usable ? inside : abs,
+    name: basename(abs),
+    workspaceId: usable ? workspaceId : undefined,
+    size,
+    mediaType: mediaTypeFor(abs)
+  })
+}
+
+const MEDIA_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.md': 'text/markdown',
+  '.txt': 'text/plain',
+  '.zip': 'application/zip'
+}
+
+function mediaTypeFor(abs: string): string | undefined {
+  return MEDIA_TYPES[extname(abs).toLowerCase()]
 }
 
 /**

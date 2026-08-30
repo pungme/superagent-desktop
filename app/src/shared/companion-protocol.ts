@@ -49,6 +49,22 @@ export type WireEventData =
   | { kind: 'turn_end'; ok: boolean; subtype: string; costUsd?: number; tokens?: number }
   | { kind: 'session'; claudeSessionId: string; model?: string; commands?: string[] }
   | { kind: 'notice'; text: string }
+  /**
+   * A file the agent handed to the user: a generated PDF, an export, a report.
+   * Recorded when it opens one, so the conversation keeps it rather than the
+   * file existing only as a path in some tool call. `workspaceId` and `path`
+   * are what the phone needs to fetch it; `path` is relative to the project
+   * when it sits inside one, absolute when it does not.
+   */
+  | {
+      kind: 'file'
+      id: string
+      path: string
+      name: string
+      workspaceId?: string
+      size?: number
+      mediaType?: string
+    }
   | {
       kind: 'approval'
       id: string
@@ -141,6 +157,12 @@ export type ServerFrame =
   | { t: 'delta'; chatId: string; text: string }
   | { t: 'status'; workspaceId: string; status: 'idle' | 'working' | 'needs-you' }
   | { t: 'chats'; chats: WireChat[] }
+  /**
+   * The agent called `open_file` and wants the user to see a file. `chatId`
+   * scopes it to the conversation that asked, so a background chat's file does
+   * not open over the one you are reading; null means the workspace's agent.
+   */
+  | { t: 'openFile'; workspaceId: string; path: string; chatId: string | null }
   | { t: 'browser'; browser: WireBrowser }
   | { t: 'simulator'; simulator: WireSimulator }
   | { t: 'res'; id: string; ok: true; result?: unknown }
@@ -215,6 +237,7 @@ export type RpcMethod =
   | 'sim.input'
   | 'files.list'
   | 'files.read'
+  | 'files.chunk'
   | 'git.branches'
   | 'git.checkout'
   | 'chat.search'
@@ -286,7 +309,29 @@ export interface WireBrowserShot {
 export type WireFileContent =
   | { kind: 'text'; path: string; size: number; text: string; truncated: boolean }
   | { kind: 'image'; path: string; size: number; mediaType: string; data: string }
+  /**
+   * A PDF: the phone renders it itself with PDFKit, so it wants the bytes, not
+   * pictures of pages — that keeps the text selectable and searchable. The
+   * relay caps a frame at 1 MB, so the bytes come in `chunks` pulls of
+   * `files.chunk` instead of riding along here.
+   */
+  | { kind: 'pdf'; path: string; size: number; chunks: number }
   | { kind: 'binary'; path: string; size: number }
+
+/** `files.chunk`: one slice of a file's bytes, base64, indexed from 0. */
+export interface WireFileChunk {
+  path: string
+  index: number
+  chunks: number
+  data: string
+}
+
+/** Bytes per `files.chunk` pull, before base64. Sized so a chunk plus its JSON
+ *  envelope stays under the relay's 1 MB frame ceiling. */
+export const FILE_CHUNK_BYTES = 480_000
+
+/** The largest file the phone will pull in chunks; past this it just gets a size. */
+export const FILE_CHUNK_MAX_BYTES = 25 * 1024 * 1024
 
 export interface WireBranch {
   name: string

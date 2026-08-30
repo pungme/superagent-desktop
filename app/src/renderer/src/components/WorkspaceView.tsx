@@ -35,6 +35,15 @@ export function WorkspaceView({
   // before a chat is selected. The native browser view + its login session stay
   // keyed by ws.id, so switching chats swaps what's shown, not who you're as.
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
+  // Where the conversation on screen actually works. A chat on its own worktree
+  // writes there and nowhere else, so Files rooted on the project showed main
+  // and hid everything the agent had just made.
+  const chatCwd = useStore((s) => {
+    const id = s.activeChatId[ws.id]
+    if (!id) return null
+    return s.chats[ws.id]?.find((c) => c.id === id)?.cwd ?? null
+  })
+  const filesRoot = chatCwd ?? ws.path
   const deskKey = activeChatId ?? ws.id
   // The native browser view is per CHAT (workspace::chat), so two conversations
   // in one project don't share one pane — chat A can sit on a PDF while chat B is
@@ -136,7 +145,7 @@ export function WorkspaceView({
       }}
     />
   ) : openFilePath ? (
-    <FileViewer path={openFilePath} cwd={ws.path} onClose={() => closeFile(ws.id)} />
+    <FileViewer path={openFilePath} cwd={filesRoot} onClose={() => closeFile(ws.id)} />
   ) : browserOpen ? (
     <BrowserPane
       paneId={browserPaneId}
@@ -682,7 +691,7 @@ export function WorkspaceView({
       <div ref={containerRef} className="content-split">
         {filesOpen && ws.kind !== 'browser' && (
           <div className="files-side" style={{ flexBasis: filesWidth }}>
-            <FileTree cwd={ws.path} workspaceId={ws.id} />
+            <FileTree cwd={filesRoot} workspaceId={ws.id} />
             <div className="files-divider" onPointerDown={onFilesDividerDown} />
           </div>
         )}

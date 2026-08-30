@@ -12,6 +12,7 @@ import {
   noteSimulatorOpen
 } from './simulator'
 import { withoutStealingFocus } from './browser'
+import { recordFileHandover } from './companion/log'
 import { nativeImage } from 'electron'
 import { readFileSync, unlinkSync } from 'fs'
 import { execFile } from 'child_process'
@@ -40,6 +41,7 @@ import {
 } from './store'
 import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
 import { gitBranch } from './files'
+import { pushOpenFile } from './companion'
 import { requestApproval } from './hooks'
 import { toolPreview } from './guardrail'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
@@ -70,6 +72,12 @@ function openFileInApp(workspaceId: string, path: string, chatId: string | null)
     // (async) broadcast lands — otherwise a background chat's file opened over the
     // one you switched to. null → workspace-level (the desktop agent).
     broadcastToWindows('app:open-file', { workspaceId, path, chatId })
+    // …and the phone, which has the same viewer.
+    pushOpenFile(workspaceId, path, chatId)
+    // And leave it in the conversation. The nudge above opens the file for
+    // whoever is looking right now; this is how the file is still there
+    // tomorrow, in the transcript, on whichever surface you come back on.
+    if (chatId) recordFileHandover(chatId, workspaceId, path)
     // Long enough for the renderer to mount the pane and the viewer to start —
     // the guard adds its own short tail on release.
     await new Promise((r) => setTimeout(r, 1500))
