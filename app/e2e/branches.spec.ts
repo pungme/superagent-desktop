@@ -342,13 +342,18 @@ test('no branch is left behind pointing at nothing', async () => {
   // Every local branch must either be checked out in a worktree git knows about,
   // or be the base the others came from. Stragglers are what filled the real
   // repo with test/testbranch/wt-… that no longer existed anywhere.
-  const live = new Set(gitBranches())
-  const all = git(['branch', '--list', '--format=%(refname:short)'])
-    .split('\n')
-    .map((b) => b.trim())
-    .filter(Boolean)
-  const orphans = all.filter((b) => !live.has(b) && b !== 'main')
-  expect(orphans).toEqual([])
+  // Poll: removing the worktree and deleting its branch are two git calls, so
+  // there is a brief moment when the branch outlives its folder. Asserting the
+  // instant the worktree vanished caught that gap under load.
+  const orphansNow = (): string[] => {
+    const live = new Set(gitBranches())
+    return git(['branch', '--list', '--format=%(refname:short)'])
+      .split('\n')
+      .map((b) => b.trim())
+      .filter(Boolean)
+      .filter((b) => !live.has(b) && b !== 'main')
+  }
+  await expect.poll(orphansNow, { timeout: 15_000 }).toEqual([])
 })
 
 test('one branch never ends up with two chats', async () => {
