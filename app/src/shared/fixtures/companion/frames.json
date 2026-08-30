@@ -1,32 +1,252 @@
 {
-  "note": "Sample Mac → phone frames (ServerFrame) and one event of every kind. Decoded by superagent-desktop protocol.test.ts and superagent-ios ProtocolTests.",
+  "note": "Sample Mac \u2192 phone frames (ServerFrame) and one event of every kind. Decoded by superagent-desktop protocol.test.ts and superagent-ios ProtocolTests.",
   "server": [
-    { "t": "welcome", "machine": { "name": "Fixture Mac", "appVersion": "1.6.1", "protocol": 1 },
-      "tree": [ { "id": "g1", "name": "My projects", "color": "#8b8ff8", "workspaces": [
-        { "id": "w1", "name": "rowfill", "path": "/Users/me/rowfill", "kind": "app", "status": "working", "branch": "main", "browserUrl": null },
-        { "id": "w2", "name": "wikipedia", "path": "", "kind": "browser", "status": "idle", "branch": null, "browserUrl": "https://en.wikipedia.org/wiki/Monet" } ] } ],
-      "chats": [ { "id": "c1", "workspaceId": "w1", "title": "Fix login", "updatedAt": 1756400000000, "live": true, "preview": "Done — tests pass." } ] },
-    { "t": "paired", "token": "tok_abc", "machine": { "name": "Fixture Mac", "appVersion": "1.6.1", "protocol": 1 } },
-    { "t": "bye", "reason": "unauthorized" },
-    { "t": "delta", "chatId": "c1", "text": "On " },
-    { "t": "status", "workspaceId": "w1", "status": "needs-you" },
-    { "t": "chats", "chats": [] },
-    { "t": "res", "id": "r1", "ok": true, "result": { "chatId": "c9" } },
-    { "t": "res", "id": "r2", "ok": false, "error": { "code": "gone", "message": "already decided" } },
-    { "t": "pong" }
+    {
+      "t": "welcome",
+      "machine": {
+        "name": "Fixture Mac",
+        "appVersion": "1.6.1",
+        "protocol": 1
+      },
+      "tree": [
+        {
+          "id": "g1",
+          "name": "My projects",
+          "color": "#8b8ff8",
+          "workspaces": [
+            {
+              "id": "w1",
+              "name": "rowfill",
+              "path": "/Users/me/rowfill",
+              "kind": "app",
+              "status": "working",
+              "branch": "main",
+              "browserUrl": null
+            },
+            {
+              "id": "w2",
+              "name": "wikipedia",
+              "path": "",
+              "kind": "browser",
+              "status": "idle",
+              "branch": null,
+              "browserUrl": "https://en.wikipedia.org/wiki/Monet"
+            }
+          ]
+        }
+      ],
+      "chats": [
+        {
+          "id": "c1",
+          "workspaceId": "w1",
+          "title": "Fix login",
+          "updatedAt": 1756400000000,
+          "live": true,
+          "preview": "Done \u2014 tests pass."
+        }
+      ]
+    },
+    {
+      "t": "paired",
+      "token": "tok_abc",
+      "machine": {
+        "name": "Fixture Mac",
+        "appVersion": "1.6.1",
+        "protocol": 1
+      }
+    },
+    {
+      "t": "bye",
+      "reason": "unauthorized"
+    },
+    {
+      "t": "delta",
+      "chatId": "c1",
+      "text": "On "
+    },
+    {
+      "t": "status",
+      "workspaceId": "w1",
+      "status": "needs-you"
+    },
+    {
+      "t": "chats",
+      "chats": []
+    },
+    {
+      "t": "res",
+      "id": "r1",
+      "ok": true,
+      "result": {
+        "chatId": "c9"
+      }
+    },
+    {
+      "t": "res",
+      "id": "r2",
+      "ok": false,
+      "error": {
+        "code": "gone",
+        "message": "already decided"
+      }
+    },
+    {
+      "t": "pong"
+    },
+    {
+      "t": "openFile",
+      "workspaceId": "w1",
+      "path": "docs/spec.pdf",
+      "chatId": "c1"
+    }
   ],
   "events": [
-    { "chatId": "c1", "seq": 1, "ts": 1756400000000, "data": { "kind": "session", "claudeSessionId": "sess-1", "model": "claude-fable-5", "commands": ["compact", "review"] } },
-    { "chatId": "c1", "seq": 2, "ts": 1756400001000, "data": { "kind": "user", "id": "L-1", "text": "ship it", "from": "ios", "images": [ { "mediaType": "image/jpeg", "size": 12345 } ] } },
-    { "chatId": "c1", "seq": 3, "ts": 1756400002000, "data": { "kind": "thinking", "id": "m1-0", "text": "Let me look." } },
-    { "chatId": "c1", "seq": 4, "ts": 1756400003000, "data": { "kind": "tool", "id": "t1", "name": "Bash", "detail": "npm test" } },
-    { "chatId": "c1", "seq": 5, "ts": 1756400004000, "data": { "kind": "tool_result", "toolId": "t1", "ok": false, "summary": "1 failing" } },
-    { "chatId": "c1", "seq": 6, "ts": 1756400005000, "data": { "kind": "diff", "id": "t2", "file": "app.ts", "hunks": [ { "removed": ["y"], "added": ["z"] } ] } },
-    { "chatId": "c1", "seq": 7, "ts": 1756400006000, "data": { "kind": "approval", "id": "gate-1", "toolName": "Bash", "preview": "rm -rf build", "approvalKind": "guardrail", "expiresAt": 1756400126000 } },
-    { "chatId": "c1", "seq": 8, "ts": 1756400007000, "data": { "kind": "approval_end", "id": "gate-1", "outcome": "approved", "by": "ios" } },
-    { "chatId": "c1", "seq": 9, "ts": 1756400008000, "data": { "kind": "assistant", "id": "m2-0", "text": "Done — **tests pass**." } },
-    { "chatId": "c1", "seq": 10, "ts": 1756400009000, "data": { "kind": "notice", "text": "You have hit your limit" } },
-    { "chatId": "c1", "seq": 11, "ts": 1756400010000, "data": { "kind": "turn_end", "ok": true, "subtype": "success", "costUsd": 0.12, "tokens": 15 } },
-    { "chatId": "c1", "seq": 12, "ts": 1756400011000, "data": { "kind": "something_new", "x": 1 } }
+    {
+      "chatId": "c1",
+      "seq": 1,
+      "ts": 1756400000000,
+      "data": {
+        "kind": "session",
+        "claudeSessionId": "sess-1",
+        "model": "claude-fable-5",
+        "commands": [
+          "compact",
+          "review"
+        ]
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 2,
+      "ts": 1756400001000,
+      "data": {
+        "kind": "user",
+        "id": "L-1",
+        "text": "ship it",
+        "from": "ios",
+        "images": [
+          {
+            "mediaType": "image/jpeg",
+            "size": 12345
+          }
+        ]
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 3,
+      "ts": 1756400002000,
+      "data": {
+        "kind": "thinking",
+        "id": "m1-0",
+        "text": "Let me look."
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 4,
+      "ts": 1756400003000,
+      "data": {
+        "kind": "tool",
+        "id": "t1",
+        "name": "Bash",
+        "detail": "npm test"
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 5,
+      "ts": 1756400004000,
+      "data": {
+        "kind": "tool_result",
+        "toolId": "t1",
+        "ok": false,
+        "summary": "1 failing"
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 6,
+      "ts": 1756400005000,
+      "data": {
+        "kind": "diff",
+        "id": "t2",
+        "file": "app.ts",
+        "hunks": [
+          {
+            "removed": [
+              "y"
+            ],
+            "added": [
+              "z"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 7,
+      "ts": 1756400006000,
+      "data": {
+        "kind": "approval",
+        "id": "gate-1",
+        "toolName": "Bash",
+        "preview": "rm -rf build",
+        "approvalKind": "guardrail",
+        "expiresAt": 1756400126000
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 8,
+      "ts": 1756400007000,
+      "data": {
+        "kind": "approval_end",
+        "id": "gate-1",
+        "outcome": "approved",
+        "by": "ios"
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 9,
+      "ts": 1756400008000,
+      "data": {
+        "kind": "assistant",
+        "id": "m2-0",
+        "text": "Done \u2014 **tests pass**."
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 10,
+      "ts": 1756400009000,
+      "data": {
+        "kind": "notice",
+        "text": "You have hit your limit"
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 11,
+      "ts": 1756400010000,
+      "data": {
+        "kind": "turn_end",
+        "ok": true,
+        "subtype": "success",
+        "costUsd": 0.12,
+        "tokens": 15
+      }
+    },
+    {
+      "chatId": "c1",
+      "seq": 12,
+      "ts": 1756400011000,
+      "data": {
+        "kind": "something_new",
+        "x": 1
+      }
+    }
   ]
 }

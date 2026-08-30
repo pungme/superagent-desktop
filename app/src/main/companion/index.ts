@@ -298,6 +298,17 @@ export function pushChats(): void {
 }
 
 /**
+ * The agent asked to show a file (`open_file`). The Mac opens it in its own
+ * viewer; this tells any watching phone to do the same, so following along on
+ * the phone shows what following along on the Mac shows.
+ */
+export function pushOpenFile(workspaceId: string, path: string, chatId: string | null): void {
+  for (const c of conns.values()) {
+    if (c.authenticated) c.send({ t: 'openFile', workspaceId, path, chatId })
+  }
+}
+
+/**
  * Stay awake while a phone is connected, or while any agent is working and a
  * phone is paired (it may be waiting on the result). Release otherwise.
  */
