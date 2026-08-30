@@ -37,6 +37,8 @@ export function loginShellExecAsync(cmd: string, timeoutMs = 8000): Promise<stri
   })
 }
 
+let cachedAgyPath: string | null = null
+
 /** Absolute path to `claude`, resolved once via a login shell. Falls back to bare `claude`. */
 export function findClaude(): string {
   if (cachedPath) return cachedPath
@@ -52,4 +54,27 @@ export function findClaude(): string {
     // fall through to the un-cached fallback
   }
   return 'claude'
+}
+
+/** Absolute path to `agy` or `antigravity`, resolved once via a login shell. */
+export function findAgy(): string {
+  if (cachedAgyPath) return cachedAgyPath
+  try {
+    const resolved = loginShellExec('command -v agy || command -v antigravity').split('\n').pop()
+    if (resolved && resolved.length > 0) {
+      cachedAgyPath = resolved
+      return cachedAgyPath
+    }
+  } catch {
+    // fall through to fallback
+  }
+  return 'agy'
+}
+
+/** Resolve binary path based on agent provider ('claude' vs 'antigravity'). */
+export function findAgentBinary(agentProvider?: string): string {
+  if (agentProvider === 'antigravity') {
+    return findAgy()
+  }
+  return findClaude()
 }

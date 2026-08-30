@@ -282,6 +282,8 @@ interface CoveState {
   // Model to run agents on ('' = Claude's default). Passed as --model at spawn.
   model: string
   setModel: (m: string) => void
+  agentProvider: 'claude' | 'antigravity'
+  setAgentProvider: (p: 'claude' | 'antigravity') => void
 
   theme: 'system' | 'light' | 'dark'
   setTheme: (t: 'system' | 'light' | 'dark') => void
@@ -406,6 +408,12 @@ export const useStore = create<CoveState>((set, get) => ({
   // A preference saved before the picker moved to the 1M variants would name a
   // model the menu no longer lists — it would still run, but the pill would
   // label it "Default" and it would quietly be the 200K window.
+  agentProvider:
+    (localStorage.getItem('cove.agentProvider') as 'claude' | 'antigravity') || 'claude',
+  setAgentProvider: (p) => {
+    localStorage.setItem('cove.agentProvider', p)
+    set({ agentProvider: p })
+  },
   model: ((): string => {
     const saved = localStorage.getItem('cove.model') || ''
     const moved: Record<string, string> = { opus: 'opus[1m]', sonnet: 'sonnet[1m]' }

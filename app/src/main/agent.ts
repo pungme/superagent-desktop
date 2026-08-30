@@ -7,14 +7,14 @@ import { join } from 'path'
 import { getHookUrl } from './hooks'
 import { getMcpUrl, writeWorkspaceMcpConfig } from './mcp'
 import { DESKTOP_WORKSPACE_ID } from './store'
-import { findClaude } from './claude-cli'
+import { findClaude, findAgy, findAgentBinary } from './claude-cli'
 
 /**
- * "Easy mode" — drives the real `claude` binary in streaming-JSON mode so we can
+ * "Easy mode" — drives the real `claude` or `agy` binary in streaming-JSON mode so we can
  * render a clean chat UI instead of the terminal TUI. Same binary, same
  * subscription; we just parse the event stream and forward it to the renderer.
  *
- * Multi-turn: claude runs with --input-format stream-json, staying alive and
+ * Multi-turn: agent runs with --input-format stream-json, staying alive and
  * reading one JSON user message per line from stdin.
  */
 
@@ -46,6 +46,8 @@ export interface AgentStartOptions {
   permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'
   /** Model to run on (e.g. 'opus', 'sonnet'); '' / undefined = Claude's default. */
   model?: string
+  /** AI agent CLI provider: 'claude' or 'antigravity'. Default: 'claude'. */
+  agentProvider?: 'claude' | 'antigravity'
 }
 
 const BROWSER_SYSTEM_PROMPT =
@@ -269,6 +271,22 @@ export function buildAgentArgs(
   opts: AgentStartOptions,
   ctx: { resume?: string | null; mcpConfig?: string } = {}
 ): string[] {
+  if (opts.agentProvider === 'antigravity') {
+    const args = ['-p=', '--output-format', 'stream-json', '--input-format', 'stream-json']
+    const pm = opts.permissionMode ?? 'bypassPermissions'
+    if (pm === 'bypassPermissions') {
+      args.push('--dangerously-skip-permissions')
+    } else if (pm === 'acceptEdits') {
+      args.push('--mode', 'accept-edits')
+    } else if (pm === 'plan') {
+      args.push('--mode', 'plan')
+    }
+    if (opts.model) args.push('--model', opts.model)
+    if (ctx.resume) args.push('--conversation', ctx.resume)
+    if (opts.cwd) args.push('--add-dir', opts.cwd)
+    return args
+  }
+
   const args = [
     '-p',
     '--output-format',
@@ -344,7 +362,8 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
   const spawnProc = (resume: string | null): void => {
     const args = buildAgentArgs(opts, { resume, mcpConfig })
 
-    const proc = spawn(findClaude(), args, {
+    const binary = findAgentBinary(opts.agentProvider)
+    const proc = spawn(binary, args, {
       cwd: opts.cwd || os.homedir(),
       env: {
         ...process.env,
@@ -372,7 +391,8 @@ export function startAgent(owner: WebContents, opts: AgentStartOptions): string 
         if (!line) continue
         try {
           const event = JSON.parse(line)
-          if (event?.type === 'system' && event?.subtype === 'init') sawInit = true
+          if ((event?.type === 'system' && event?.subtype === 'init') || event?.event === 'init')
+            sawInit = true
           if (!owner.isDestroyed()) owner.send(`agent:event:${id}`, event)
         } catch {
           // partial or non-JSON line; ignore
@@ -486,7 +506,7 @@ export function sendToAgent(id: string, text: string, images: AgentImage[] = [])
     })),
     ...(text ? [{ type: 'text', text }] : [])
   ]
-  const message = { type: 'user', message: { role: 'user', content } }
+  const message = { event: 'user', type: 'user', message: { role: 'user', content } }
   session.proc.stdin.write(JSON.stringify(message) + '\n')
 }
 
@@ -551,11 +571,54 @@ export function killAllAgents(): void {
 
 /**
  * Names a conversation the way its own agent would describe it, via a throwaway
- * one-shot `claude -p`. Deliberately separate from the chat's session so the
+ * one-shot `claude -p` or `agy -p`. Deliberately separate from the chat's session so the
  * request never lands in the transcript. Tools are off — this is pure text in,
  * text out — and a failure is silent: the caller keeps its fallback title.
  */
-function suggestTitle(cwd: string, excerpt: string): Promise<string | null> {
+function suggestTitle(
+  cwd: string,
+  excerpt: string,
+  agentProvider?: 'claude' | 'antigravity'
+): Promise<string | null> {
+  if (agentProvider === 'antigravity') {
+    return new Promise((resolve) => {
+      const prompt =
+        'Summarize what this conversation is about as a title of at most 6 words. Reply with the title only — no quotes, no trailing punctuation.\n\n' +
+        excerpt
+      const proc = spawn(
+        findAgy(),
+        [`-p=${prompt}`, '--output-format', 'text', '--effort', 'low'],
+        { cwd: cwd || os.homedir(), env: process.env, shell: false }
+      )
+      let out = ''
+      const done = (value: string | null): void => {
+        clearTimeout(timer)
+        try {
+          proc.kill()
+        } catch {
+          // already gone
+        }
+        resolve(value)
+      }
+      const timer = setTimeout(() => done(null), 20_000)
+      proc.stdout.on('data', (c: Buffer) => {
+        out += c.toString('utf8')
+      })
+      proc.on('error', () => done(null))
+      proc.on('close', (code) => {
+        if (code !== 0) return done(null)
+        const title = out
+          .trim()
+          .split('\n')
+          .filter(Boolean)
+          .pop()
+          ?.replace(/^["']|["']$/g, '')
+        if (title && /^(error|⚠|warning)\b|rate limit/i.test(title)) return done(null)
+        done(title && title.length <= 80 ? title : null)
+      })
+    })
+  }
+
   return new Promise((resolve) => {
     const proc = spawn(
       findClaude(),
@@ -613,8 +676,10 @@ function suggestTitle(cwd: string, excerpt: string): Promise<string | null> {
 }
 
 export function registerAgentIpc(): void {
-  ipcMain.handle('agent:suggestTitle', (_e, cwd: string, excerpt: string) =>
-    suggestTitle(cwd, excerpt)
+  ipcMain.handle(
+    'agent:suggestTitle',
+    (_e, cwd: string, excerpt: string, agentProvider?: 'claude' | 'antigravity') =>
+      suggestTitle(cwd, excerpt, agentProvider)
   )
   ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => startAgent(e.sender, opts))
   // Asked once, right after the renderer subscribes: did this session already

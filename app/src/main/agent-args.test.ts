@@ -71,7 +71,10 @@ describe('buildAgentArgs', () => {
   })
 
   it('appends the browser briefing only for browser projects', () => {
-    const withBrowser = valueAfter(buildAgentArgs({ browserProject: true }), '--append-system-prompt')
+    const withBrowser = valueAfter(
+      buildAgentArgs({ browserProject: true }),
+      '--append-system-prompt'
+    )
     const without = valueAfter(buildAgentArgs({}), '--append-system-prompt')
     expect(withBrowser).toMatch(/browser pane/i)
     expect(without).not.toMatch(/browser pane/i)
@@ -82,5 +85,27 @@ describe('buildAgentArgs', () => {
   it('sends exactly one --append-system-prompt, not one per fragment', () => {
     const args = buildAgentArgs({ browserProject: true })
     expect(args.filter((a) => a === '--append-system-prompt')).toHaveLength(1)
+  })
+
+  it('builds valid arguments for Antigravity agent provider', () => {
+    const args = buildAgentArgs(
+      { agentProvider: 'antigravity', permissionMode: 'bypassPermissions' },
+      { resume: 'conv-123' }
+    )
+    expect(valueAfter(args, '--output-format')).toBe('stream-json')
+    expect(valueAfter(args, '--input-format')).toBe('stream-json')
+    expect(args).toContain('--dangerously-skip-permissions')
+    expect(valueAfter(args, '--conversation')).toBe('conv-123')
+  })
+
+  it('maps permission modes correctly for Antigravity', () => {
+    const acceptEdits = buildAgentArgs({
+      agentProvider: 'antigravity',
+      permissionMode: 'acceptEdits'
+    })
+    expect(valueAfter(acceptEdits, '--mode')).toBe('accept-edits')
+
+    const plan = buildAgentArgs({ agentProvider: 'antigravity', permissionMode: 'plan' })
+    expect(valueAfter(plan, '--mode')).toBe('plan')
   })
 })

@@ -77,6 +77,8 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
   const progress = useStore((s) => s.updateProgress)
   const updateError = useStore((s) => s.updateError)
+  const agentProvider = useStore((s) => s.agentProvider)
+  const setAgentProvider = useStore((s) => s.setAgentProvider)
 
   const checkUpdates = async (): Promise<void> => {
     setChecking(true)
@@ -138,6 +140,25 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
         <div className="settings-content">
           {section === 'general' && (
             <section className="settings-section">
+              <Row
+                title="AI Agent CLI"
+                desc="Choose which AI agent CLI drives your workspace sessions."
+              >
+                <div className="mode-switch">
+                  <button
+                    className={`mode-switch-btn ${agentProvider === 'claude' ? 'active' : ''}`}
+                    onClick={() => setAgentProvider('claude')}
+                  >
+                    Claude Code
+                  </button>
+                  <button
+                    className={`mode-switch-btn ${agentProvider === 'antigravity' ? 'active' : ''}`}
+                    onClick={() => setAgentProvider('antigravity')}
+                  >
+                    Antigravity (agy)
+                  </button>
+                </div>
+              </Row>
               <Row title="Appearance" desc="Light, dark, or match your system.">
                 <div className="mode-switch">
                   {(['light', 'dark', 'system'] as const).map((t) => (

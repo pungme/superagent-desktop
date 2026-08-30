@@ -420,8 +420,15 @@ export interface CoveApi {
     claudeInstalled: boolean
     claudeVersion: string | null
     loggedIn: boolean
+    agyInstalled?: boolean
+    agyVersion?: string | null
   }>
-  envVersion: () => Promise<{ claudeInstalled: boolean; claudeVersion: string | null }>
+  envVersion: () => Promise<{
+    claudeInstalled: boolean
+    claudeVersion: string | null
+    agyInstalled?: boolean
+    agyVersion?: string | null
+  }>
   /** Install Claude Code via Anthropic's native installer; onLine streams progress. */
   installClaude: (onLine: (line: string) => void) => Promise<{ ok: boolean; error?: string }>
   /** Open Terminal running `claude` for the one-time sign-in. */
@@ -466,8 +473,13 @@ export interface CoveApi {
     browserProject?: boolean
     permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan'
     model?: string
+    agentProvider?: 'claude' | 'antigravity'
   }) => Promise<string>
-  agentSuggestTitle: (cwd: string, excerpt: string) => Promise<string | null>
+  agentSuggestTitle: (
+    cwd: string,
+    excerpt: string,
+    agentProvider?: 'claude' | 'antigravity'
+  ) => Promise<string | null>
   agentSend: (id: string, text: string, images?: { mediaType: string; data: string }[]) => void
   agentInterrupt: (id: string) => void
   agentStop: (id: string) => void
@@ -709,7 +721,8 @@ const cove: CoveApi = {
   skillsInstallStarters: () => ipcRenderer.invoke('skills:installStarters'),
 
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
-  agentSuggestTitle: (cwd, excerpt) => ipcRenderer.invoke('agent:suggestTitle', cwd, excerpt),
+  agentSuggestTitle: (cwd, excerpt, agentProvider) =>
+    ipcRenderer.invoke('agent:suggestTitle', cwd, excerpt, agentProvider),
   agentSend: (id, text, images) => ipcRenderer.send('agent:send', id, text, images),
   agentInterrupt: (id) => ipcRenderer.send('agent:interrupt', id),
   agentStop: (id) => ipcRenderer.send('agent:stop', id),

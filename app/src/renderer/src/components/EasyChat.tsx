@@ -151,15 +151,39 @@ function trimCommon(removed: string[], added: string[]): DiffHunk {
 function toolDiff(name: string, id: string, input: unknown): FileDiff | null {
   if (!input || typeof input !== 'object') return null
   const o = input as Record<string, unknown>
-  const file = typeof o.file_path === 'string' ? (o.file_path.split('/').pop() ?? '') : ''
+  const file =
+    typeof o.file_path === 'string'
+      ? (o.file_path.split('/').pop() ?? '')
+      : typeof o.TargetFile === 'string'
+        ? (o.TargetFile.split('/').pop() ?? '')
+        : typeof o.target_file === 'string'
+          ? (o.target_file.split('/').pop() ?? '')
+          : typeof o.AbsolutePath === 'string'
+            ? (o.AbsolutePath.split('/').pop() ?? '')
+            : ''
   // Drop one trailing newline so a spurious empty "+"/"-" line isn't shown.
   const lines = (s: unknown): string[] =>
     typeof s === 'string' && s ? s.replace(/\n$/, '').split('\n') : []
-  if (name === 'Edit' && (o.old_string || o.new_string)) {
+  if ((name === 'Edit' || name === 'edit_file') && (o.old_string || o.new_string)) {
     return { id, file, hunks: [trimCommon(lines(o.old_string), lines(o.new_string))] }
   }
-  if (name === 'Write' && o.content) {
-    return { id, file, hunks: [{ removed: [], added: lines(o.content) }] }
+  if ((name === 'Write' || name === 'write_to_file') && (o.content || o.CodeContent)) {
+    return { id, file, hunks: [{ removed: [], added: lines(o.content || o.CodeContent) }] }
+  }
+  if (
+    name === 'replace_file_content' &&
+    (o.TargetContent || o.targetContent || o.ReplacementContent || o.replacementContent)
+  ) {
+    return {
+      id,
+      file,
+      hunks: [
+        trimCommon(
+          lines(o.TargetContent ?? o.targetContent),
+          lines(o.ReplacementContent ?? o.replacementContent)
+        )
+      ]
+    }
   }
   if (name === 'MultiEdit' && Array.isArray(o.edits)) {
     const hunks = (o.edits as Record<string, unknown>[]).map((e) =>
@@ -220,16 +244,35 @@ function toolLabel(name: string): { icon: string; verb: string } {
     // "Terminal", not "Running": this label shows in a finished turn's collapsed
     // summary too ("2 steps · …"), where a gerund read as "still running now".
     Bash: { icon: '⌘', verb: 'Terminal' },
+    run_command: { icon: '⌘', verb: 'Terminal' },
     Read: { icon: '📄', verb: 'Reading' },
+    view_file: { icon: '📄', verb: 'Reading' },
+    read_file: { icon: '📄', verb: 'Reading' },
     Edit: { icon: '✏️', verb: 'Editing' },
+    edit_file: { icon: '✏️', verb: 'Editing' },
+    replace_file_content: { icon: '✏️', verb: 'Editing' },
+    multi_replace_file_content: { icon: '✏️', verb: 'Editing' },
     Write: { icon: '✏️', verb: 'Writing' },
+    write_to_file: { icon: '✏️', verb: 'Writing' },
     MultiEdit: { icon: '✏️', verb: 'Editing' },
     Glob: { icon: '🔎', verb: 'Finding files' },
+    find_by_name: { icon: '🔎', verb: 'Finding files' },
+    list_dir: { icon: '📁', verb: 'Listing directory' },
     Grep: { icon: '🔎', verb: 'Searching' },
+    grep_search: { icon: '🔎', verb: 'Searching' },
     WebFetch: { icon: '🌐', verb: 'Fetching' },
+    read_url_content: { icon: '🌐', verb: 'Fetching' },
     WebSearch: { icon: '🔎', verb: 'Searching the web' },
+    search_web: { icon: '🔎', verb: 'Searching the web' },
     TodoWrite: { icon: '✓', verb: 'Planning' },
     Task: { icon: '🤖', verb: 'Sub-agent' },
+    invoke_subagent: { icon: '🤖', verb: 'Subagent' },
+    define_subagent: { icon: '🤖', verb: 'Defining subagent' },
+    manage_subagents: { icon: '🤖', verb: 'Managing subagents' },
+    manage_task: { icon: '⚡', verb: 'Task' },
+    schedule: { icon: '⏰', verb: 'Scheduling' },
+    ask_question: { icon: '❓', verb: 'Asking' },
+    generate_image: { icon: '🎨', verb: 'Generating image' },
     ToolSearch: { icon: '🧰', verb: 'Finding tools' }
   }
   // Any other MCP tool: strip the mcp__server__ prefix so it reads as words, not
@@ -358,7 +401,16 @@ function bgLabel(command: string): string {
 // genuinely look different, so the idle-reload should fire. (Bash is excluded
 // on purpose: it's mostly read-only inspection, and reloading on every command
 // is the noise we're trying to remove.)
-const FILE_WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'edit_file'])
+const FILE_WRITE_TOOLS = new Set([
+  'Write',
+  'Edit',
+  'MultiEdit',
+  'NotebookEdit',
+  'edit_file',
+  'write_to_file',
+  'replace_file_content',
+  'multi_replace_file_content'
+])
 
 function msgAt(msg: { id: string; at?: number }): number | null {
   if (typeof msg.at === 'number' && Number.isFinite(msg.at)) return msg.at
@@ -407,12 +459,34 @@ function msgTime(ms: number): string {
 function toolDetail(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
   const o = input as Record<string, unknown>
-  const pick = o.query ?? o.url ?? o.pattern ?? o.command ?? o.prompt ?? o.description ?? o.text
+  const pick =
+    o.query ??
+    o.Query ??
+    o.url ??
+    o.Url ??
+    o.pattern ??
+    o.Pattern ??
+    o.command ??
+    o.CommandLine ??
+    o.prompt ??
+    o.Prompt ??
+    o.description ??
+    o.Description ??
+    o.Instruction ??
+    o.text
   if (typeof pick === 'string') {
     if (pick.startsWith('select:')) return friendlyToolNames(pick)
     return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
   }
-  if (typeof o.file_path === 'string') return o.file_path.split('/').pop() ?? ''
+  const f =
+    o.file_path ??
+    o.TargetFile ??
+    o.target_file ??
+    o.AbsolutePath ??
+    o.DirectoryPath ??
+    o.SearchPath ??
+    o.SearchDirectory
+  if (typeof f === 'string') return f.split('/').pop() ?? ''
   return ''
 }
 
@@ -1269,7 +1343,11 @@ export function EasyChat({
         ? `\n\nAssistant: ${firstReply.msg.text.slice(0, 600)}`
         : '')
 
-    const title = await window.cove.agentSuggestTitle(cwd, excerpt)
+    const title = await window.cove.agentSuggestTitle(
+      cwd,
+      excerpt,
+      useStore.getState().agentProvider
+    )
     if (!title) return
     const latest = useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)
     if (latest && latest.title !== placeholderTitleRef.current) return // renamed while we waited
@@ -1300,19 +1378,23 @@ export function EasyChat({
     (event: Record<string, unknown>) => {
       const type = event.type as string
 
-      if (type === 'system' && (event.subtype as string) === 'init') {
+      if (
+        (type === 'system' && (event.subtype as string) === 'init') ||
+        (event.event as string) === 'init'
+      ) {
         setReady(true)
         // What the CLI actually resolved to. With the picker on "Default" this
         // is the only way to know which model you are spending — the reason
         // "Default" could silently be Fable and the limit message came as a
         // surprise.
-        const m = event.model as string | undefined
+        const m =
+          (event.model as string | undefined) ??
+          ((event.init as Record<string, unknown> | undefined)?.model as string | undefined)
         if (m) setActiveModel(m)
-        // Claude reports every slash command this session can actually run (built-ins
-        // like /compact, /review plus the user's own skills; interactive TUI-only ones
-        // are already excluded). Fold them into the "/" autocomplete pool so the menu
-        // covers all of Claude's commands, not just the skill folders we scanned.
-        const slash = event.slash_commands as string[] | undefined
+        // Claude / Antigravity reports available commands / tools
+        const slash =
+          (event.slash_commands as string[] | undefined) ??
+          ((event.init as Record<string, unknown> | undefined)?.tools as string[] | undefined)
         if (Array.isArray(slash) && slash.length) {
           setCommands((prev) => Array.from(new Set([...prev, ...slash])).sort())
           // Fill in descriptions for the built-ins (skills already brought their own).
@@ -1325,11 +1407,132 @@ export function EasyChat({
           })
         }
         // Remember the session id so we can resume this conversation next launch.
-        const sid = event.session_id as string | undefined
+        const sid =
+          (event.session_id as string | undefined) ?? (event.conversation_id as string | undefined)
         if (sid && sid !== resumeIdRef.current) {
           resumeIdRef.current = sid
           window.cove.chatUpdate(chatId, { claudeSessionId: sid })
           useStore.getState().touchChat(workspaceId, chatId, { claudeSessionId: sid })
+        }
+        return
+      }
+
+      if (event.event === 'step_update' && event.step_update) {
+        const su = event.step_update as Record<string, unknown>
+        const stepType = su.step_type as string
+        const state = su.state as string
+
+        if (stepType === 'agent_response') {
+          const delta = typeof su.text_delta === 'string' ? su.text_delta : ''
+          if (delta) {
+            setThinking(false)
+            streamedThisTurnRef.current = true
+            if (!streamingIdRef.current) {
+              const id = `a-${Date.now()}-${Math.random()}`
+              streamingIdRef.current = id
+              setItems((prev) => [
+                ...prev,
+                {
+                  kind: 'msg',
+                  msg: { id, role: 'assistant', text: delta, streaming: true, at: Date.now() }
+                }
+              ])
+            } else {
+              const sid = streamingIdRef.current
+              setItems((prev) =>
+                prev.map((it) =>
+                  it.kind === 'msg' && it.msg.id === sid
+                    ? { ...it, msg: { ...it.msg, text: it.msg.text + delta } }
+                    : it
+                )
+              )
+            }
+          }
+          if (state === 'DONE') {
+            const sid = streamingIdRef.current
+            if (sid) {
+              setItems((prev) =>
+                prev.map((it) =>
+                  it.kind === 'msg' && it.msg.id === sid
+                    ? { ...it, msg: { ...it.msg, streaming: false } }
+                    : it
+                )
+              )
+              streamingIdRef.current = null
+            }
+            const usage = su.usage as Record<string, number> | undefined
+            if (usage?.total_tokens) {
+              setCtxTokens(usage.total_tokens)
+            }
+          }
+        } else if (stepType === 'tool') {
+          setThinking(false)
+          streamedThisTurnRef.current = true
+          const toolInfo = (su.tool_info as Record<string, unknown>) ?? {}
+          const name = (su.tool_name as string) ?? (toolInfo.name as string) ?? 'tool'
+          const params = (toolInfo.parameters as Record<string, unknown>) ?? {}
+          const stepIndex = su.step_index as number
+          const toolId = `tool-${stepIndex ?? Date.now()}`
+
+          if (FILE_WRITE_TOOLS.has(name)) {
+            useStore.getState().markPreviewDirty(workspaceId)
+          }
+
+          if (name === 'invoke_subagent' || name === 'Task') {
+            const label =
+              (typeof params.description === 'string' && params.description.trim()) ||
+              (typeof params.Role === 'string' && params.Role) ||
+              (Array.isArray(params.Subagents) &&
+                ((params.Subagents[0] as Record<string, unknown>)?.Role as string)) ||
+              'subagent'
+            if (state === 'ACTIVE') {
+              setRunningAgents((prev) => [
+                ...prev.filter((a) => a.toolUseId !== toolId),
+                { toolUseId: toolId, label: String(label), startedAt: Date.now() }
+              ])
+            } else {
+              setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== toolId))
+            }
+          }
+
+          if (name === 'run_command' || name === 'Bash') {
+            const cmd =
+              typeof params.CommandLine === 'string'
+                ? params.CommandLine
+                : typeof params.command === 'string'
+                  ? params.command
+                  : ''
+            if (state === 'ACTIVE' && isBackgrounded(cmd)) {
+              const dur = sleepDurationSec(cmd)
+              const startedAt = Date.now()
+              setBgTasks((prev) => [
+                ...prev,
+                {
+                  toolUseId: toolId,
+                  command: cmd,
+                  description:
+                    typeof params.toolSummary === 'string'
+                      ? params.toolSummary
+                      : typeof params.description === 'string'
+                        ? params.description
+                        : undefined,
+                  startedAt,
+                  manual: true,
+                  ...(dur != null ? { expiresAt: startedAt + dur * 1000 + 1500 } : {})
+                }
+              ])
+            }
+          }
+
+          if (state === 'ACTIVE') {
+            const diff = toolDiff(name, toolId, params)
+            setItems((prev) => [
+              ...prev,
+              diff
+                ? { kind: 'diff', diff }
+                : { kind: 'tool', tool: { id: toolId, name, detail: toolDetail(params) } }
+            ])
+          }
         }
         return
       }
@@ -1693,16 +1896,26 @@ export function EasyChat({
         return
       }
 
-      if (type === 'result') {
-        const u = (event as { usage?: Record<string, number> }).usage
+      if (type === 'result' || (event.event as string) === 'result') {
+        const resObj = ((event.result as Record<string, unknown>) ?? event) as {
+          usage?: Record<string, number>
+          status?: string
+          error?: string
+          response?: string
+        }
+        const u = resObj.usage
         if (u) {
           const processed =
             (u.input_tokens ?? 0) +
             (u.cache_read_input_tokens ?? 0) +
+            (u.cache_read_tokens ?? 0) +
             (u.cache_creation_input_tokens ?? 0)
           // Everything this turn processed — the dashboard's chart, not the meter.
-          const total = processed + (u.output_tokens ?? 0)
-          if (total > 0) window.cove.eventsRecord?.('tokens', workspaceId, total)
+          const total = u.total_tokens ?? processed + (u.output_tokens ?? 0)
+          if (total > 0) {
+            window.cove.eventsRecord?.('tokens', workspaceId, total)
+            setCtxTokens(total)
+          }
         }
         // A completed turn means the session genuinely works — clear the guard so
         // a future crash gets a resume-retry before falling back to fresh.
@@ -1758,7 +1971,8 @@ export function EasyChat({
         // message like "continue" looks like it did nothing at all.
         const isError =
           (event.is_error as boolean) ||
-          (typeof event.subtype === 'string' && event.subtype !== 'success')
+          (typeof event.subtype === 'string' && event.subtype !== 'success') ||
+          resObj.status === 'ERROR'
         // A turn we cut short reports itself as an error; that's expected, not
         // something to put in front of the user.
         if (interruptedRef.current) {
@@ -1796,15 +2010,16 @@ export function EasyChat({
           // If the CLI wrote a real reason to stderr this turn — an org-access or
           // auth problem, a bad key — that's exactly what the user needs to see,
           // so show it verbatim instead of guessing with the generic note.
-          const real = isError ? lastStderrRef.current : null
+          const real = isError ? lastStderrRef.current || resObj.error || null : null
+          const isAgy = useStore.getState().agentProvider === 'antigravity'
+          const agentName = isAgy ? 'Antigravity' : 'Claude'
           let note = real
             ? real
-            : 'Claude ended the turn without a response. Try sending your message again.'
+            : `${agentName} ended the turn without a response. Try sending your message again.`
           if (!real && sub === 'error_max_turns')
-            note =
-              'Claude reached its step limit for this turn. Send “continue” to let it keep going.'
+            note = `${agentName} reached its step limit for this turn. Send “continue” to let it keep going.`
           else if (!real && sub === 'error_during_execution')
-            note = 'Claude hit an error partway through this turn. Send “continue” to retry.'
+            note = `${agentName} hit an error partway through this turn. Send “continue” to retry.`
           const errs = event.errors as unknown[] | undefined
           // The CLI's internal diagnostics ([ede_diagnostic] …) mean nothing to
           // the user; only attach error detail for cases where it's actionable,
@@ -1934,7 +2149,8 @@ export function EasyChat({
         resumeSessionId: resumeIdRef.current,
         browserProject,
         permissionMode: useStore.getState().permissionMode,
-        model: useStore.getState().model
+        model: useStore.getState().model,
+        agentProvider: useStore.getState().agentProvider
       })
       .then((id) => {
         if (disposed) {

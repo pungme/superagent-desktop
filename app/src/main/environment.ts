@@ -11,52 +11,103 @@ export interface EnvStatus {
   claudeInstalled: boolean
   claudeVersion: string | null
   loggedIn: boolean
+  agyInstalled?: boolean
+  agyVersion?: string | null
 }
 
-// The CLI's version can't change mid-run, so one probe serves the whole session.
-// Uncached, every Settings open paid for an interactive zsh + the claude CLI's
-// startup — synchronously, on main.
-let versionCache: { claudeInstalled: boolean; claudeVersion: string | null } | null = null
+let versionCache: {
+  claudeInstalled: boolean
+  claudeVersion: string | null
+  agyInstalled: boolean
+  agyVersion: string | null
+} | null = null
 
 /** Async + cached: never blocks main. A miss (not installed) is not cached, so onboarding's Re-check still works. */
 export async function detectVersionAsync(): Promise<{
   claudeInstalled: boolean
   claudeVersion: string | null
+  agyInstalled: boolean
+  agyVersion: string | null
 }> {
   if (versionCache) return versionCache
+  let claudeInstalled = false
+  let claudeVersion: string | null = null
+  let agyInstalled = false
+  let agyVersion: string | null = null
+
   try {
     const version = await loginShellExecAsync('claude --version')
     if (version) {
       const m = version.match(/\d+\.\d+\.\d+\S*/)
-      versionCache = { claudeInstalled: true, claudeVersion: m ? m[0] : version }
-      return versionCache
+      claudeInstalled = true
+      claudeVersion = m ? m[0] : version
     }
   } catch {
     // not installed
   }
-  return { claudeInstalled: false, claudeVersion: null }
+
+  try {
+    const version = await loginShellExecAsync('agy --version || antigravity --version')
+    if (version) {
+      const m = version.match(/\d+\.\d+\.\d+\S*/)
+      agyInstalled = true
+      agyVersion = m ? m[0] : version.trim()
+    }
+  } catch {
+    // not installed
+  }
+
+  if (claudeInstalled || agyInstalled) {
+    versionCache = { claudeInstalled, claudeVersion, agyInstalled, agyVersion }
+    return versionCache
+  }
+  return { claudeInstalled: false, claudeVersion: null, agyInstalled: false, agyVersion: null }
 }
 
-/** Cheap check: is claude installed, and what version? No inference call. */
-export function detectVersion(): { claudeInstalled: boolean; claudeVersion: string | null } {
+/** Cheap check: is claude / agy installed, and what version? No inference call. */
+export function detectVersion(): {
+  claudeInstalled: boolean
+  claudeVersion: string | null
+  agyInstalled: boolean
+  agyVersion: string | null
+} {
   if (versionCache) return versionCache
+  let claudeInstalled = false
+  let claudeVersion: string | null = null
+  let agyInstalled = false
+  let agyVersion: string | null = null
+
   try {
     const version = loginShellExec('claude --version')
     if (version) {
-      // e.g. "2.1.220 (Claude Code)" → "2.1.220"; regex rather than first-word,
-      // since an interactive shell may print rc noise before the real output.
       const m = version.match(/\d+\.\d+\.\d+\S*/)
-      versionCache = { claudeInstalled: true, claudeVersion: m ? m[0] : version }
-      return versionCache
+      claudeInstalled = true
+      claudeVersion = m ? m[0] : version
     }
   } catch {
     // not installed
   }
-  return { claudeInstalled: false, claudeVersion: null }
+
+  try {
+    const version = loginShellExec('agy --version || antigravity --version')
+    if (version) {
+      const m = version.match(/\d+\.\d+\.\d+\S*/)
+      agyInstalled = true
+      agyVersion = m ? m[0] : version.trim()
+    }
+  } catch {
+    // not installed
+  }
+
+  if (claudeInstalled || agyInstalled) {
+    versionCache = { claudeInstalled, claudeVersion, agyInstalled, agyVersion }
+    return versionCache
+  }
+  return { claudeInstalled: false, claudeVersion: null, agyInstalled: false, agyVersion: null }
 }
 
 export function detectEnvironment(): EnvStatus {
-  const { claudeInstalled, claudeVersion } = detectVersion()
+  const { claudeInstalled, claudeVersion, agyInstalled, agyVersion } = detectVersion()
   let loggedIn = false
 
   if (claudeInstalled) {
@@ -68,9 +119,11 @@ export function detectEnvironment(): EnvStatus {
     } catch {
       loggedIn = false
     }
+  } else if (agyInstalled) {
+    loggedIn = true
   }
 
-  return { claudeInstalled, claudeVersion, loggedIn }
+  return { claudeInstalled, claudeVersion, agyInstalled, agyVersion, loggedIn }
 }
 
 /**
