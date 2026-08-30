@@ -91,21 +91,51 @@ function createWindow(): BrowserWindow {
   // and never reproduced on demand — nothing in our code raises the window
   // outside notification clicks. These lines land in pane-debug.log next to the
   // agent's actions, so the next occurrence shows what immediately preceded it.
+  //
+  // Releasing the focus guard (which restores the Dock icon and Mission
+  // Control presence — the ONLY thing that stops a background page load from
+  // raising the window, per the note by setPolicy) used to happen the instant
+  // this event fired. During active browser automation, real focus flickers
+  // constantly between this window and whatever else is open (a terminal, the
+  // Simulator) — each flicker released the guard, and the very next automation
+  // call re-engaged it, which is what a real capture showed as 70+ Dock
+  // in/out cycles in two minutes: not a runaway timer, genuine fast alt-
+  // tabbing hitting a guard that reacted to every single glance. The fix is
+  // not to remove the guard (that brings back the window actually jumping to
+  // the front, which is the bug this exists for) — it's to only release once
+  // focus has actually held for a moment, so a flicker that reverses itself
+  // within a couple of frames never touches the Dock at all.
+  let focusSettleTimer: ReturnType<typeof setTimeout> | null = null
   mainWindow.on('focus', () => {
     paneLog('window-focus', 'window')
     mainWindow.webContents.send('app:focus', true)
-    // If this focus arrived during agent work, the user didn't ask for it.
+    // If this focus arrived during agent work, the user didn't ask for it —
+    // this is separately guarded to fire at most once per guard cycle, so it's
+    // safe to run on every focus event rather than only the settled one.
     returnFocusToUser()
-    // The user is here now — the app is frontmost, so attaching the panes we
-    // kept out of the window can no longer steal anything.
-    releaseFocusGuard()
-    attachPanesOnReturn()
+    if (focusSettleTimer) clearTimeout(focusSettleTimer)
+    focusSettleTimer = setTimeout(() => {
+      focusSettleTimer = null
+      // Blurred again before settling: a flicker, not a real return. Leave the
+      // guard exactly as it was — nothing to undo, since releaseFocusGuard()
+      // never ran for it.
+      if (!mainWindow.isFocused()) return
+      // The user is here, and has been for a beat — the app is frontmost, so
+      // attaching the panes we kept out of the window can no longer steal
+      // anything.
+      releaseFocusGuard()
+      attachPanesOnReturn()
+    }, 250)
   })
   mainWindow.on('blur', () => {
     noteUserLeftApp()
     // The renderer can't tell: document.hasFocus() stays true in an unfocused
     // app window, so the pane's freeze-while-away has to be driven from here.
     mainWindow.webContents.send('app:focus', false)
+    if (focusSettleTimer) {
+      clearTimeout(focusSettleTimer)
+      focusSettleTimer = null
+    }
   })
   mainWindow.on('show', () => paneLog('window-show', 'window'))
   app.on('activate', () => paneLog('app-activate', 'window'))
