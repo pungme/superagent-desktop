@@ -632,6 +632,15 @@ export function releaseFocusGuard(): void {
   setPolicy('regular')
   guardEndedAt = Date.now()
   paneLog('focus-guard', 'window', 'released')
+  // A release triggered by the guarded work finishing — not by the user
+  // clicking back in — used to leave every detached pane waiting for a real
+  // focus event that might never come (the user can easily stay in another
+  // app for the rest of an agent's session). attachPanesOnReturn() only
+  // broadcasts if something is actually still marked away, and the renderer's
+  // own bounds sync still won't act while it genuinely believes the window is
+  // unfocused — so asking here, unconditionally, is safe; it just stops
+  // reattachment from depending on which of the two release paths fired.
+  attachPanesOnReturn()
 }
 
 export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> {
@@ -661,11 +670,19 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
     if (engage && myGen === guardGen) {
       guardDepth = Math.max(0, guardDepth - 1)
       if (guardDepth === 0) {
-        // The grab lands ~100ms after the load settles; a short tail covers it
-        // without leaving the app un-clickable between chained calls.
+        // Measured against a real session: consecutive guarded calls from an
+        // active agent are commonly 600ms-2s apart (the model thinking between
+        // tool calls), well past the 500ms this tail used to give them. Each
+        // gap that missed it tore the app out of the Dock and Mission Control
+        // and back in — a real capture showed 70+ of these cycles in under two
+        // minutes, which reads as "the app keeps disappearing" and "I have to
+        // fight to open it." Long enough to coalesce a realistic burst into one
+        // engaged period; still short enough that the guard's actual job —
+        // keeping a load from raising the window — lets go promptly once the
+        // agent is genuinely idle.
         setTimeout(() => {
           if (guardDepth === 0 && myGen === guardGen) releaseFocusGuard()
-        }, 500)
+        }, 2500)
       }
     }
   }
