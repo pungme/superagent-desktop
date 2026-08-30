@@ -10,7 +10,7 @@ import {
   useDroppable,
   useDndContext
 } from '@dnd-kit/core'
-import { useStore, WorkspaceStatus } from '../state'
+import { useStore, normalizeCwd, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
@@ -356,13 +356,23 @@ function ChatRow({
             )
           )}
           <span className="chat-tree-label">{label}</span>
-          {(chat.cwd ? wtBranch : folderBranch) && (
-            <span
-              className="chat-tree-wt"
-              title={chat.cwd ? `Its own copy: ${chat.cwd}` : 'Your folder'}
-            >
-              ⎇ {(chat.cwd ? wtBranch : folderBranch)!.replace(/^superagent\//, '')}
+          {chat.cwd && !wtBranch ? (
+            /* Its copy is gone — removed by hand, or the branch merged and
+               reaped while the chat outlived it. Say so: rendering nothing made
+               a dead chat look exactly like a live one on the folder itself,
+               and a project full of them read as a list of identical rows. */
+            <span className="chat-tree-wt gone" title={`Its copy is gone: ${chat.cwd}`}>
+              copy gone
             </span>
+          ) : (
+            (chat.cwd ? wtBranch : folderBranch) && (
+              <span
+                className="chat-tree-wt"
+                title={chat.cwd ? `Its own copy: ${chat.cwd}` : 'Your folder'}
+              >
+                ⎇ {(chat.cwd ? wtBranch : folderBranch)!.replace(/^superagent\//, '')}
+              </span>
+            )
           )}
         </span>
       )}
@@ -437,6 +447,10 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       window.cove.worktreeList(ws.path).then((list) => {
         if (alive) setWorktrees(list)
       })
+      // Re-read the chats at the same moment. The two lists are compared against
+      // each other to decide which branches have a conversation, so refreshing
+      // one without the other is what made a branch with a chat look empty.
+      void useStore.getState().loadChats(ws.id)
     }
     refresh()
     window.addEventListener('cove:workspace-idle', refresh)
@@ -731,7 +745,10 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         (() => {
           // Worktrees nobody has opened a chat on yet.
           const untouched = worktrees.filter(
-            (w) => !chats.some((c) => (c.cwd ?? null) === (w.main ? null : w.path))
+            (w) =>
+              !chats.some(
+                (c) => normalizeCwd(c.cwd ?? null) === normalizeCwd(w.main ? null : w.path)
+              )
           )
           // Two separate rules, conflated once already and it cost the ability
           // to rename or delete a chat:
@@ -791,8 +808,12 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                     openBranch(ws.id, wt.main ? null : wt.path)
                   }}
                 >
-                  <span className="sidebar-branch-name muted">New chat</span>
-                  <span className="sidebar-branch-tag">⎇ {wt.branch ?? 'detached'}</span>
+                  {/* A branch nobody has talked to yet has no title to show, so
+                      the branch IS the name. Labelling these "New chat" put two
+                      rows on screen that read identically to a real untitled
+                      chat — you could not tell a conversation from a branch. */}
+                  <span className="sidebar-branch-glyph">⎇</span>
+                  <span className="sidebar-branch-name muted">{wt.branch ?? 'detached'}</span>
                 </button>
               ))}
             </div>
