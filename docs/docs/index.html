@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Docs · Superagent · スーパーエージェント</title>
+  <meta name="description" content="How to install and use Superagent: the browser it drives, the iPhone in the window, chats that get their own branch, your phone in the loop, and exactly what leaves your Mac." />
+  <link rel="canonical" href="https://superagent.computer/docs/" />
+  <link rel="icon" href="../logo.png" />
+  <meta property="og:title" content="Superagent docs" />
+  <meta property="og:description" content="Install it, point it at something, talk. Everything the app does, written for someone who doesn't write code." />
+  <meta property="og:url" content="https://superagent.computer/docs/" />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Noto+Sans+JP:wght@700&amp;display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --paper: #f4f3ef;
+      --ink: #23241f;
+      --muted: #6a6d64;
+      --faint: #9a9d92;
+      --line: rgba(35, 36, 31, 0.11);
+      --card: #ffffff;
+      --accent: #5d7a63;
+      --orange: #ee6a1f;
+      --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+      --nav-h: 57px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: calc(var(--nav-h) + 20px); }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      font-family: var(--sans); background: var(--paper); color: var(--ink);
+      line-height: 1.65; -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    img { max-width: 100%; display: block; border-radius: 10px; border: 1px solid var(--line); }
+    .jp { font-family: "Noto Sans JP", "Hiragino Sans", sans-serif; font-weight: 700; letter-spacing: 0.1em; }
+
+    /* ---------- top bar ---------- */
+    .nav {
+      position: sticky; top: 0; z-index: 40; background: rgba(244, 243, 239, 0.9);
+      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner {
+      max-width: 1180px; margin: 0 auto; padding: 12px 24px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; letter-spacing: -0.02em; }
+    .nav-logo img { width: 22px; height: 22px; border: none; border-radius: 5px; }
+    .nav-logo .wm { display: flex; flex-direction: column; line-height: 1.1; }
+    .nav-logo .jp { font-size: 0.5rem; color: var(--faint); letter-spacing: 0.2em; margin-top: 2px; font-weight: 700; }
+    .nav-tag { font-size: 0.78rem; color: var(--faint); padding-left: 14px; border-left: 1px solid var(--line); }
+    .nav-links { margin-left: auto; display: flex; align-items: center; gap: 18px; font-size: 0.85rem; }
+    .nav-links a { text-decoration: none; color: var(--muted); }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-btn {
+      background: var(--ink); color: var(--paper) !important; padding: 7px 15px;
+      border-radius: 8px; font-weight: 600; font-size: 0.82rem;
+    }
+
+    /* ---------- shell ---------- */
+    .shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 52px; }
+    .side {
+      position: sticky; top: var(--nav-h); align-self: start;
+      max-height: calc(100vh - var(--nav-h)); overflow-y: auto;
+      padding: 34px 0 60px; font-size: 0.84rem;
+    }
+    .side h4 {
+      font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--faint); font-weight: 600; margin: 22px 0 8px;
+    }
+    .side h4:first-child { margin-top: 0; }
+    .side a {
+      display: block; padding: 4px 10px; margin-left: -10px; border-radius: 6px;
+      text-decoration: none; color: var(--muted); line-height: 1.45;
+    }
+    .side a:hover { color: var(--ink); background: rgba(35, 36, 31, 0.045); }
+    .side a.on { color: var(--ink); font-weight: 600; box-shadow: inset 2px 0 0 var(--orange); border-radius: 0 6px 6px 0; }
+
+    .doc { padding: 34px 0 110px; max-width: 720px; }
+    .doc h1 { font-size: clamp(1.9rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; }
+    .doc .lede { margin-top: 14px; font-size: 1.08rem; color: var(--muted); }
+    .doc section { padding-top: 44px; }
+    .doc h2 {
+      font-size: 1.32rem; font-weight: 650; letter-spacing: -0.03em;
+      padding-bottom: 10px; border-bottom: 1px solid var(--line);
+    }
+    .doc h3 { font-size: 1rem; font-weight: 600; letter-spacing: -0.015em; margin-top: 26px; }
+    .doc p { margin-top: 12px; color: var(--muted); }
+    .doc p strong, .doc li strong { color: var(--ink); font-weight: 600; }
+    .doc ul, .doc ol { margin: 12px 0 0 20px; color: var(--muted); }
+    .doc li { margin-top: 7px; }
+    .doc h2 + p, .doc h3 + p { margin-top: 10px; }
+    .doc a:not(.card) { color: var(--ink); text-decoration: underline; text-decoration-color: var(--orange); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+
+    code {
+      font-family: var(--mono); font-size: 0.86em; background: rgba(35, 36, 31, 0.055);
+      padding: 1px 5px; border-radius: 5px; color: var(--ink);
+    }
+    kbd {
+      font-family: var(--sans); font-size: 0.76em; font-weight: 600; background: var(--card);
+      border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+      padding: 1px 6px; color: var(--ink);
+    }
+    pre {
+      margin-top: 14px; background: var(--card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 14px 16px; overflow-x: auto;
+    }
+    pre code { background: none; padding: 0; font-size: 0.82rem; line-height: 1.7; }
+
+    .note, .warn {
+      margin-top: 16px; padding: 13px 16px; border-radius: 10px; font-size: 0.9rem;
+      background: var(--card); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+      color: var(--muted);
+    }
+    .warn { border-left-color: var(--orange); }
+    .note b, .warn b { color: var(--ink); }
+    .note p, .warn p { margin-top: 6px; }
+
+    .steps { list-style: none; margin: 18px 0 0; counter-reset: s; }
+    .steps li {
+      counter-increment: s; position: relative; padding-left: 34px; margin-top: 16px; color: var(--muted);
+    }
+    .steps li::before {
+      content: counter(s); position: absolute; left: 0; top: 1px;
+      width: 22px; height: 22px; border-radius: 50%; background: var(--card);
+      border: 1px solid var(--line); font-size: 0.7rem; font-weight: 600; color: var(--ink);
+      display: grid; place-items: center;
+    }
+    .steps li b { color: var(--ink); }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+    .card {
+      display: block; background: var(--card); border: 1px solid var(--line);
+      border-radius: 12px; padding: 15px 17px; text-decoration: none;
+    }
+    a.card:hover { border-color: rgba(35, 36, 31, 0.24); }
+    .card b { display: block; font-size: 0.9rem; }
+    .card span { display: block; margin-top: 4px; font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+
+    table.t { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 16px; font-size: 0.87rem;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    table.t th, table.t td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    table.t tr:last-child th, table.t tr:last-child td { border-bottom: none; }
+    table.t thead th { font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+    table.t tbody th { font-weight: 600; white-space: nowrap; width: 1%; }
+    table.t td { color: var(--muted); }
+
+    .qa { margin-top: 20px; }
+    .qa summary {
+      cursor: pointer; font-weight: 600; font-size: 0.95rem; padding: 12px 0;
+      border-bottom: 1px solid var(--line); list-style: none;
+    }
+    .qa summary::-webkit-details-marker { display: none; }
+    .qa summary::before { content: "+"; display: inline-block; width: 18px; color: var(--orange); font-weight: 700; }
+    .qa[open] summary::before { content: "\2013"; }
+    .qa p { margin: 0 0 14px 18px; padding-top: 10px; }
+
+    .doc-foot { margin-top: 66px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--faint); }
+    .doc-foot a { color: var(--muted); }
+
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; gap: 0; }
+      .side {
+        position: static; max-height: none; overflow: visible; padding: 18px 0 4px;
+        display: flex; gap: 6px; overflow-x: auto; border-bottom: 1px solid var(--line);
+        -webkit-overflow-scrolling: touch;
+      }
+      .side h4 { display: none; }
+      .side a { white-space: nowrap; padding: 6px 11px; margin: 0; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
+      .side a.on { box-shadow: none; border-color: var(--orange); border-radius: 999px; }
+      .doc { padding-top: 26px; }
+      .grid2 { grid-template-columns: 1fr; }
+      .nav-tag { display: none; }
+    }
+    @media (max-width: 560px) {
+      .shell { padding: 0 18px; }
+      .nav-inner { padding: 11px 18px; gap: 12px; }
+      .nav-links { gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="../"><img src="../logo.png" alt="" /><span class="wm"><span>Superagent</span><span class="jp">スーパーエージェント</span></span></a>
+    <span class="nav-tag">Docs</span>
+    <div class="nav-links">
+      <a href="../">Home</a>
+      <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
+      <a class="nav-btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download</a>
+    </div>
+  </div>
+</nav>
+
+<div class="shell">
+
+  <aside class="side">
+    <h4>Start here</h4>
+    <a href="#what">What Superagent is</a>
+    <a href="#who">Who it's for</a>
+    <a href="#install">Install it</a>
+    <a href="#first">Your first five minutes</a>
+    <h4>The window</h4>
+    <a href="#sidebar">The sidebar</a>
+    <a href="#chats">Chats &amp; branches</a>
+    <a href="#browser">The browser</a>
+    <a href="#simulator">The iPhone</a>
+    <a href="#files">Files, @ and snips</a>
+    <h4>Working with it</h4>
+    <a href="#modes">What it's allowed to do</a>
+    <a href="#board">Board, routines, dashboard</a>
+    <a href="#phone">Your phone</a>
+    <a href="#shortcuts">Shortcuts</a>
+    <h4>The fine print</h4>
+    <a href="#privacy">What leaves your Mac</a>
+    <a href="#trouble">When something's wrong</a>
+    <a href="#faq">Questions</a>
+  </aside>
+
+  <main class="doc">
+    <h1>Superagent, explained.</h1>
+    <p class="lede">Install it, point it at something, and talk. Everything below is written
+      for someone who has never opened a terminal &mdash; and stays true for someone who
+      lives in one.</p>
+
+    <div class="grid2">
+      <a class="card" href="#install"><b>Install it &rarr;</b><span>What you need, and the four minutes it takes.</span></a>
+      <a class="card" href="#first"><b>First five minutes &rarr;</b><span>Point it at a project and watch it work.</span></a>
+    </div>
+
+    <!-- ============ what ============ -->
+    <section id="what">
+      <h2>What Superagent is</h2>
+      <p>Superagent is a Mac app that gives a coding agent a place to work &mdash; and gives
+        you a place to watch. Every project is a chat sitting next to the thing being built:
+        a real browser on the sites you're already logged into, the files it's editing, and
+        an iOS Simulator streamed straight into the window.</p>
+      <p>It is not an AI of its own. It runs <b>Claude Code</b>, on the Claude subscription
+        you already pay for, entirely on your Mac. There is no Superagent server, no account
+        and no API key.</p>
+      <div class="note"><b>The one-line version.</b>
+        <p>You describe a thing; it gets built on your machine, on your accounts; you watch it
+          happen in the pane next door.</p></div>
+    </section>
+
+    <!-- ============ who ============ -->
+    <section id="who">
+      <h2>Who it's for</h2>
+      <p>Superagent is designed for <b>the person who doesn't write code first, and the person
+        who does second.</b> That order is deliberate, and it's the opposite of how most tools
+        in this category are built.</p>
+      <p>It doesn't get there by hiding the code &mdash; the files, the diffs and the branches
+        are all right there when you want them. It gets there by putting <b>the thing being
+        built</b> on screen next to the chat, so you can judge it the way you judge anything
+        else: by looking at it.</p>
+      <h3>You'll get on with it if&hellip;</h3>
+      <ul>
+        <li>You'd rather see the page than read the diff.</li>
+        <li>You want the agent on <b>your</b> accounts &mdash; your dashboard, your admin panel,
+          your half-finished site &mdash; not a clean sandbox that's logged into nothing.</li>
+        <li>You want it on your own machine, on the subscription you already have.</li>
+        <li>You're building something on your phone and want to watch it run on a real device.</li>
+      </ul>
+      <h3>You might want something else if&hellip;</h3>
+      <ul>
+        <li><b>You want a fleet.</b> If the job is fanning one prompt across a dozen agents and
+          racing them, a parallel-worktree tool like <a href="https://www.onorca.dev/" target="_blank" rel="noopener">Orca</a>
+          is built for exactly that, and it runs on Windows and Linux too.</li>
+        <li><b>You have no Mac and no repo.</b> A hosted builder like Lovable or Bolt will get
+          you a new app tonight without installing anything.</li>
+        <li><b>You want errands, not software.</b> Booking, forms, research round-ups &mdash;
+          that's a different kind of agent.</li>
+      </ul>
+      <p><a href="../#who">The full comparison is on the home page &rarr;</a></p>
+    </section>
+
+    <!-- ============ install ============ -->
+    <section id="install">
+      <h2>Install it</h2>
+      <h3>What you need</h3>
+      <table class="t">
+        <tbody>
+          <tr><th>A Mac</th><td>Apple Silicon (M1 or later). Intel Macs aren't supported.</td></tr>
+          <tr><th>Claude Code</th><td><b>Required.</b> Installed and signed in. Your Claude subscription is the only thing Superagent runs on &mdash; nothing extra to buy, no key to paste. <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Get Claude Code</a>.</td></tr>
+          <tr><th>Xcode</th><td>Optional. Only if you want the iPhone simulator in the window.</td></tr>
+          <tr><th>An iPhone</th><td>Optional. Only if you want the companion app in your pocket.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>The steps</h3>
+      <ol class="steps">
+        <li><b>Install Claude Code and sign in.</b> Open it once and make sure it answers you.
+          Superagent drives it, so if it isn't working there, it won't work here.</li>
+        <li><b>Download Superagent.</b> <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">the .dmg</a>
+          &mdash; signed and notarized by Apple, so it opens without arguing.</li>
+        <li><b>Drag it to Applications</b> and open it. macOS will ask once whether you're sure.</li>
+        <li><b>Add a project.</b> Point it at any folder on your disk &mdash; a git repo, a
+          website, a pile of documents. It doesn't have to be code.</li>
+        <li><b>Say what you want.</b> That's the whole interface.</li>
+      </ol>
+
+      <div class="note"><b>It updates itself.</b>
+        <p>New versions arrive signed and notarized in the background, with a "What's new" for
+          each release. Restart whenever it suits you.</p></div>
+
+      <h3>Or run it from source</h3>
+      <pre><code>git clone https://github.com/pungme/superagent-desktop
+cd superagent-desktop/app
+npm install
+npm run dev</code></pre>
+    </section>
+
+    <!-- ============ first ============ -->
+    <section id="first">
+      <h2>Your first five minutes</h2>
+      <p>The fastest way to understand the app is to give it something with a screen.</p>
+      <ol class="steps">
+        <li><b>Add the project</b> you're working on, or make an empty folder and add that.</li>
+        <li><b>Ask for something visible.</b> "Build me a one-page site for a coffee shop and
+          show it to me." It will write the files, start a dev server itself, and open the page
+          in the browser pane beside the chat.</li>
+        <li><b>Ask for a change.</b> "Make the header dark." Watch the page update in the same
+          window &mdash; no alt-tabbing to find out whether it worked.</li>
+        <li><b>Press the two-views button</b> in the browser toolbar to see the same page as a
+          desktop card and an iPhone frame at once, both live.</li>
+        <li><b>Keep it or throw it away.</b> On a git project, two buttons appear at the top of
+          the chat when it has made changes. That's the whole review step.</li>
+      </ol>
+      <div class="note"><b>Talk instead of typing.</b>
+        <p>Hold <kbd>&#8997;</kbd> <kbd>Space</kbd>, speak, let go. Transcribed on your own Mac;
+          your voice never leaves it.</p></div>
+    </section>
+
+    <!-- ============ sidebar ============ -->
+    <section id="sidebar">
+      <h2>The sidebar</h2>
+      <p>Everything the app is doing lives in one rail down the left.</p>
+      <ul>
+        <li><b>The Computer</b> sits at the top, with its own conversations under it.</li>
+        <li><b>Plain browser tabs</b> come next &mdash; browse first, summon the agent when you
+          need it.</li>
+        <li><b>Projects</b> are grouped the way you think about them, each with its
+          conversations nested underneath and the git branch shown where you'd expect it.</li>
+      </ul>
+      <p>The dots tell you where things stand: a spinner while the agent works, a dot when it
+        needs you, and a green dot when a background job is running.</p>
+      <img src="../sidebar.png" alt="The Superagent sidebar: grouped projects with nested chats and branch chips" width="300" style="margin-top:16px" />
+      <h3>Many chats per project</h3>
+      <p>Chats name themselves after whatever the conversation turned out to be about. Starting
+        a new one never loses the old one, and each keeps its own place: panes, open files and
+        scroll position all survive a restart &mdash; even through an update.</p>
+    </section>
+
+    <!-- ============ chats ============ -->
+    <section id="chats">
+      <h2>Chats &amp; branches</h2>
+      <p>On a git project, <b>every conversation automatically gets a private copy of the
+        project on its own branch.</b> Two chats on the same repo can edit, branch and commit
+        side by side without touching each other &mdash; or your own checkout.</p>
+      <p>You don't have to know what any of that means to use it. It shows up as two buttons.</p>
+
+      <table class="t">
+        <tbody>
+          <tr><th>Keep</th><td>Adds everything the chat did to the project as one change, named after the chat. It lands on the branch the chat was started from, even if you've switched the project since.</td></tr>
+          <tr><th>Throw away</th><td>Deletes all of it. Deleting a chat that still has unkept work asks you first.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>The details, if you want them</h3>
+      <ul>
+        <li><b>Branches are named after the conversation.</b> "Fix the flaky auth test" becomes
+          <code>fix-the-flaky-auth-test</code>, and follows renames.</li>
+        <li><b>No re-installs.</b> Dependency folders (<code>node_modules</code>,
+          <code>.venv</code>, <code>vendor</code>, <code>target</code>) are shared into each
+          chat's copy rather than downloaded again.</li>
+        <li><b>It's a real git worktree.</b> You can <code>cd</code> into it and use plain git
+          any time you like.</li>
+      </ul>
+      <div class="note"><b>Not a git project?</b>
+        <p>Then there are no branches and no Keep button &mdash; the agent just works in the
+          folder, like any other program.</p></div>
+    </section>
+
+    <!-- ============ browser ============ -->
+    <section id="browser">
+      <h2>The browser</h2>
+      <p>The chat sits next to a real browser, and Claude can drive it: open a page, click,
+        type, read it back. Not a hidden browser it describes to you second-hand &mdash; the
+        one on your screen, with your logged-in session. You watch it work, and you can take
+        over at any moment.</p>
+      <ul>
+        <li><b>Your logins are your logins.</b> Browser sessions live in a profile on your Mac,
+          the same as any browser. That's what makes it useful on your real dashboard.</li>
+        <li><b>Automation stays in here.</b> The agent only ever drives Superagent's own browser
+          pane, never your personal Chrome or Safari.</li>
+        <li><b>Dev servers.</b> Point it at localhost, or ask it to start the server itself
+          &mdash; it stays one click away in the toolbar.</li>
+        <li><b>One page, seen twice.</b> One click shows the page as a desktop card and an
+          iPhone frame at the same time, same session, both live.</li>
+      </ul>
+      <img src="../browser-view.png" alt="The browser pane beside the chat" style="margin-top:16px" />
+    </section>
+
+    <!-- ============ simulator ============ -->
+    <section id="simulator">
+      <h2>The iPhone in the window</h2>
+      <p>An iOS Simulator streamed <em>inside</em> the app from its own framebuffer &mdash; the
+        real device, live at the rate it renders. Tap, swipe and type on it. So can the agent,
+        which means it builds, launches and checks its own app without you playing courier.</p>
+      <ul>
+        <li><b>Nothing to install</b> beyond Xcode: the input helper ships with Superagent.</li>
+        <li><b>Apple's own Simulator window stays shut</b> unless you ask for it, so you're
+          never watching the wrong device.</li>
+        <li><b>The pane reveals itself</b> when the agent boots or launches something.</li>
+      </ul>
+      <p>The simulator and the page you're on sit side by side on the same surface.</p>
+    </section>
+
+    <!-- ============ files ============ -->
+    <section id="files">
+      <h2>Files, <code>@</code> and snips</h2>
+      <ul>
+        <li><b>Click any file to read it</b> &mdash; PDFs, images, markdown, source &mdash;
+          right beside the tree. You can annotate PDFs in place, and drag files into the chat.</li>
+        <li><b><code>@</code> reaches everything.</b> Type <code>@</code> for this project's
+          files, the other projects in your sidebar by name, or any folder on the disk
+          (<code>@/</code>, <code>@~/</code>), drilling in one level at a time.</li>
+        <li><b>Snip to attach.</b> The scissors on the browser or the simulator (or
+          <kbd>&#8984;</kbd> <kbd>&#8679;</kbd> <kbd>S</kbd>): drag a box on the page or the
+          phone screen and the crop lands in your message at full resolution.</li>
+        <li><b>See every edit</b> the moment it happens, with just the change highlighted.</li>
+      </ul>
+    </section>
+
+    <!-- ============ modes ============ -->
+    <section id="modes">
+      <h2>What the agent is allowed to do</h2>
+      <p>One picker in the composer decides how much rope it gets. It matches Claude Code's own
+        modes, and you can change it mid-conversation.</p>
+      <table class="t">
+        <thead><tr><th>Mode</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><th>Full</th><td>Runs commands and edits files, like your terminal. The default.</td></tr>
+          <tr><th>Ask</th><td>Asks before commands and edits &mdash; approve on the Mac, or on your phone if that's where you are.</td></tr>
+          <tr><th>Edits</th><td>Applies file edits; some commands may be refused.</td></tr>
+          <tr><th>Plan</th><td>Read-only. It plans without changing anything.</td></tr>
+        </tbody>
+      </table>
+      <div class="warn"><b>Start on Ask if you're not sure.</b>
+        <p>It's the mode that lets you learn what the agent wants to do before it does it, and
+          it's the one that makes the phone useful.</p></div>
+      <h3>Interject mid-turn</h3>
+      <p>Type while the agent is working and it sees your message before it finishes &mdash;
+        the same as the terminal. You don't have to wait for it to be wrong in peace.</p>
+    </section>
+
+    <!-- ============ board ============ -->
+    <section id="board">
+      <h2>The board, routines and the dashboard</h2>
+      <h3>A board the agent keeps</h3>
+      <p>Each project has a list of work in four stages &mdash; <b>todo, doing, testing,
+        done</b> &mdash; and Claude moves the cards as it goes. Watch them move while you talk
+        to it. Add your own; it will pick them up.</p>
+      <h3>Routines</h3>
+      <p>"Check this site every hour," in plain language, on a timer. Routines run inside
+        Superagent against this browser and your logged-in session, so they see what you'd see.
+        They run while the app is open.</p>
+      <h3>Dashboard</h3>
+      <p>Turns per day, tasks done, a streak, and which projects actually got your time.
+        Computed locally &mdash; the numbers never leave the machine.</p>
+    </section>
+
+    <!-- ============ phone ============ -->
+    <section id="phone">
+      <h2>Your phone</h2>
+      <p>Pair the <a href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">Superagent iOS app</a>
+        once from <b>Settings &rarr; Phone</b> and it follows your Mac from anywhere: live
+        transcripts, send a prompt, start a chat, and approve what the agent asks &mdash; with a
+        push notification when it's done or needs you.</p>
+      <h3>How to pair</h3>
+      <ol class="steps">
+        <li>Open <b>Settings &rarr; Phone</b> on the Mac.</li>
+        <li>Scan the QR code with the iPhone app.</li>
+        <li>That's it. The key in that QR is the only key that exists.</li>
+      </ol>
+      <h3>How private it actually is</h3>
+      <p>Everything between the phone and the Mac is <b>end-to-end encrypted</b> with a
+        per-device key from the pairing QR. Both sides dial out to a tiny <b>blind relay</b>
+        that forwards ciphertext and stores nothing, which is why it works behind any network
+        with no setup. You can <a href="https://github.com/pungme/superagent-relay" target="_blank" rel="noopener">run your own relay</a>
+        with one command and change the URL in Settings.</p>
+      <div class="note"><b>It connects only when it's used.</b>
+        <p>The Mac opens its relay connection when a phone is paired or being paired. An install
+          that never pairs a phone never connects anywhere.</p></div>
+      <p class="note" style="border-left-color:var(--orange)"><b>Note:</b> the iOS app is built
+        from source for now &mdash; see its README.</p>
+    </section>
+
+    <!-- ============ shortcuts ============ -->
+    <section id="shortcuts">
+      <h2>Shortcuts &amp; small things</h2>
+      <table class="t">
+        <tbody>
+          <tr><th><kbd>&#8997;</kbd> <kbd>Space</kbd></th><td>Hold to talk. Transcribed on your Mac.</td></tr>
+          <tr><th><kbd>&#8984;</kbd> <kbd>&#8679;</kbd> <kbd>S</kbd></th><td>Snip the browser or the simulator into your message.</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li><b>It never steals your focus.</b> Agents finish quietly in the background; the
+          window comes forward only when you ask.</li>
+        <li><b>Notifications that say something</b> &mdash; done, or has a question, with a
+          summary of the agent's actual last reply.</li>
+        <li><b>A context gauge</b> on every conversation, showing how much of the context window
+          it has used.</li>
+        <li><b>Quiet by default.</b> A burst of activity folds into one line you can open,
+          instead of a wall of noise.</li>
+        <li><b>Light on memory.</b> Sessions start on your first message and wind down when
+          idle; preview panes are released when a chat is in the background.</li>
+        <li><b>Light and dark</b>, following your system.</li>
+      </ul>
+    </section>
+
+    <!-- ============ privacy ============ -->
+    <section id="privacy">
+      <h2>What leaves your Mac</h2>
+      <p>The honest answer, in full. There is no Superagent server, so there is nowhere for your
+        work to go but your own disk &mdash; and you don't have to take that on trust, because
+        every line is public.</p>
+      <table class="t">
+        <thead><tr><th>Connection</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><th>Claude Code &rarr; Anthropic</th><td>Its own connection, on your subscription. Nothing of ours in between and no second bill.</td></tr>
+          <tr><th>Release check</th><td>This repo's releases, to see whether there's an update.</td></tr>
+          <tr><th>The companion relay</th><td><b>Only once you pair a phone.</b> One outbound connection, ciphertext only.</td></tr>
+        </tbody>
+      </table>
+      <p>Nothing else. No account, no sign-up screen, no analytics, no telemetry SDK in the
+        build. Your browser logins live in a profile on your Mac, the same as any browser.</p>
+      <h3>Read it yourself</h3>
+      <p>All three repositories are MIT, every line:
+        <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">the desktop app</a>,
+        <a href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">the iPhone app</a> and
+        <a href="https://github.com/pungme/superagent-relay" target="_blank" rel="noopener">the relay</a>.
+        Builds are signed and notarized by Apple, so the one you download is the one that was
+        published.</p>
+    </section>
+
+    <!-- ============ trouble ============ -->
+    <section id="trouble">
+      <h2>When something's wrong</h2>
+      <details class="qa"><summary>The agent won't answer at all</summary>
+        <p>Superagent runs Claude Code; it isn't an AI of its own. Open Claude Code on its own
+          and check it responds and is signed in. If it doesn't work there, it can't work here.</p></details>
+      <details class="qa"><summary>The simulator pane never appears</summary>
+        <p>It needs Xcode installed, and it reveals itself when the agent boots or launches
+          something &mdash; there's no button to summon an empty one. Ask the agent to boot a
+          device.</p></details>
+      <details class="qa"><summary>The simulator is frozen on one picture</summary>
+        <p>A shut-down device keeps its last frame. Ask it to boot again; the stream restarts
+          with it.</p></details>
+      <details class="qa"><summary>A page in the browser pane isn't logged in</summary>
+        <p>The pane has its own browser profile on your Mac, separate from Chrome or Safari.
+          Sign in once inside the pane and it stays signed in.</p></details>
+      <details class="qa"><summary>My phone won't pair</summary>
+        <p>Pairing needs both devices online at the same time. Re-open Settings &rarr; Phone to
+          generate a fresh QR &mdash; the old one's key is gone once you leave the screen.</p></details>
+      <details class="qa"><summary>A chat's changes have vanished</summary>
+        <p>Each chat works on its own branch, so its changes aren't in your main checkout until
+          you press <b>Keep</b>. If you pressed Throw away, they're gone on purpose.</p></details>
+      <details class="qa"><summary>Something else</summary>
+        <p>Bugs, roadmap and arguments all happen in public &mdash;
+          <a href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">open an issue</a>.</p></details>
+    </section>
+
+    <!-- ============ faq ============ -->
+    <section id="faq">
+      <h2>Questions</h2>
+      <details class="qa"><summary>Do I need to know how to code?</summary>
+        <p>No. That's the point of the browser pane and the simulator: you judge the work by
+          looking at it. The code is there when you want it, and ignorable when you don't.</p></details>
+      <details class="qa"><summary>Do I need an API key?</summary>
+        <p>No. It runs on the Claude subscription you already have. There's no key to paste and
+          no second bill.</p></details>
+      <details class="qa"><summary>Is it a Claude Code wrapper?</summary>
+        <p>It's Claude Code with a computer: a browser on your logins, an iPhone, a file tree, a
+          board, a scheduler and a phone in your pocket. The agent can finally do things rather
+          than print them.</p></details>
+      <details class="qa"><summary>Windows or Linux?</summary>
+        <p>Not today &mdash; it's a Mac app, Apple Silicon, and the simulator is a macOS thing.
+          If cross-platform matters more to you than the browser and the phone, use
+          <a href="https://www.onorca.dev/" target="_blank" rel="noopener">Orca</a>.</p></details>
+      <details class="qa"><summary>Can it use agents other than Claude Code?</summary>
+        <p>Claude Code today. Codex and Antigravity are next &mdash; the plan is an agent layer
+          other CLIs and local models can plug into.</p></details>
+      <details class="qa"><summary>Will it touch my personal browser?</summary>
+        <p>Never. Automation only happens in Superagent's own browser pane.</p></details>
+      <details class="qa"><summary>Is my code sent anywhere?</summary>
+        <p>Only where Claude Code itself sends it, on your own subscription. There is no
+          Superagent server. See <a href="#privacy">what leaves your Mac</a>.</p></details>
+      <details class="qa"><summary>What does it cost?</summary>
+        <p>Nothing. It's free and MIT-licensed. You pay Anthropic for Claude, as you already do.</p></details>
+    </section>
+
+    <p class="doc-foot">
+      Something here wrong or out of date?
+      <a href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Tell us</a>
+      &mdash; these docs live in the repo, under <code>docs/docs/</code>.
+      <br />MIT licensed · <a href="../">superagent.computer</a>
+    </p>
+  </main>
+</div>
+
+<script>
+  // light the sidebar link for whatever section is crossing the middle of the screen
+  (function () {
+    var links = [].slice.call(document.querySelectorAll('.side a'));
+    var targets = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+    if (!('IntersectionObserver' in window)) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        var i = targets.indexOf(e.target);
+        if (i >= 0 && e.isIntersecting) {
+          links.forEach(function (a, j) { a.classList.toggle('on', j === i); });
+        }
+      });
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    targets.forEach(function (el) { if (el) io.observe(el); });
+  })();
+</script>
+</body>
+</html>
