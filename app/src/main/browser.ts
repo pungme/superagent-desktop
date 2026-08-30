@@ -955,6 +955,22 @@ export function ensureCompositing(paneId: string): void {
   paneLog('composite-hidden', paneId)
 }
 
+/**
+ * Undo `ensureCompositing`. Only ever touches a pane this module parked in the
+ * tree itself: one the user had not opened, sized to the window so it would
+ * paint for a phone's screenshot. Left there it keeps the page laid out at
+ * desktop width in a view the window is still compositing, which is how a chat
+ * opened on the phone put a full-width page on the Mac.
+ */
+export function releaseCompositing(paneId: string): void {
+  if (!compositingHidden.has(paneId)) return
+  const pane = panes.get(paneId)
+  compositingHidden.delete(paneId)
+  if (!pane || pane.visible || pane.window.isDestroyed()) return
+  pane.window.contentView.removeChildView(pane.view)
+  paneLog('composite-release', paneId)
+}
+
 export function getPaneWebContents(id: string): Electron.WebContents | undefined {
   return panes.get(id)?.view.webContents
 }
