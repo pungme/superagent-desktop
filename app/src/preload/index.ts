@@ -255,6 +255,8 @@ export interface CoveApi {
     }
   }>
   /** Every worktree git knows about, main folder first. The branch list the user sees. */
+  /** Cut this chat its own copy of the project, named from the first message. */
+  chatEnsureBranch: (chatId: string, projectPath: string, hint: string) => Promise<string | null>
   worktreeList: (
     projectPath: string
   ) => Promise<{ path: string; branch: string | null; main: boolean; base: string | null }[]>
@@ -686,6 +688,8 @@ const cove: CoveApi = {
   kvSet: (key, value) => ipcRenderer.send('kv:set', key, value),
   kvDel: (key) => ipcRenderer.send('kv:del', key),
   eventsDashboard: (rangeDays) => ipcRenderer.invoke('events:dashboard', rangeDays),
+  chatEnsureBranch: (chatId, projectPath, hint) =>
+    ipcRenderer.invoke('chat:ensure-branch', chatId, projectPath, hint),
   worktreeList: (projectPath) => ipcRenderer.invoke('worktree:list', projectPath),
   worktreeMenu: (p) => ipcRenderer.send('worktree:menu', p),
   onWorktreeMenuAction: (cb) => {

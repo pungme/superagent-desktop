@@ -210,7 +210,14 @@ vi.mock('../hooks', () => ({
   }
 }))
 vi.mock('../routines', () => ({ listRoutines: () => [], runRoutine: async () => {} }))
-vi.mock('../files', () => ({ gitBranch: () => 'main', gitSubrepos: () => [] }))
+vi.mock('../files', () => ({
+  gitBranch: () => 'main',
+  gitSubrepos: () => [],
+  // The first message cuts a branch on a real project. Here there is no repo to
+  // cut one in, and the chat keeps running in the folder it was given.
+  ensureChatBranch: async () => null,
+  listWorktrees: async () => []
+}))
 
 // Identity: a fixed Ed25519 key, no disk.
 vi.mock('./identity', async () => {

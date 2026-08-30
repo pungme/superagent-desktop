@@ -884,20 +884,17 @@ export const useStore = create<CoveState>((set, get) => ({
       .tree.flatMap((g) => g.workspaces)
       .find((w) => w.id === workspaceId)
     if (!ws || ws.kind === 'browser') return null
-    if ((await window.cove.gitBranch(ws.path)) === null) return null
-    const name = branchSlug(hint ?? '')
-    const wt = await window.cove.worktreeCreate(
-      ws.path,
-      name ? { newBranch: name, autoName: true } : undefined
-    )
-    // git refused (a name already taken, an empty repo): fall back to the
-    // folder itself rather than losing the message.
-    if (!wt) return null
-    await window.cove.chatUpdate(chatId, { cwd: wt.path })
+    // The rule itself lives in main: when a chat gets its own copy, and what
+    // the branch is called. The phone's send path calls the same one, so a
+    // conversation started there is not left running in the project folder.
+    // git refusing (a name taken, an empty repo) comes back as null, and the
+    // folder itself is a working answer — losing the message would not be.
+    const cwd = await window.cove.chatEnsureBranch(chatId, ws.path, hint ?? '')
+    if (!cwd) return null
     const list = await window.cove.chatList(workspaceId)
     set((s) => ({ chats: { ...s.chats, [workspaceId]: list } }))
     window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
-    return wt.path
+    return cwd
   },
   newBranch: async (workspaceId, name) => {
     // A branch is a second checkout of the project, on its own branch, with its
