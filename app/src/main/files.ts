@@ -344,7 +344,7 @@ export function registerFilesIpc(): void {
     async (
       _e,
       projectPath: string,
-      opts?: { branch?: string; newBranch?: string; base?: string }
+      opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
     ) => {
       const run = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
         new Promise((resolve) =>
@@ -396,7 +396,10 @@ export function registerFilesIpc(): void {
         branch = slug
         args = ['worktree', 'add', dir, '-b', branch, ...(base ? [base] : [])]
       }
-      const autoNamed = !opts?.branch && !opts?.newBranch
+      // "The app chose this name, so it may follow the chat's title later." A
+      // lazily-cut branch is named from the user's first message but is still
+      // the app's choice, so it opts in explicitly.
+      const autoNamed = opts?.autoName ?? (!opts?.branch && !opts?.newBranch)
       const added = await run(args, projectPath)
       if (added.code !== 0) return null
       // Record the base inside the worktree's own gitdir. `git worktree remove`
@@ -493,8 +496,21 @@ export function registerFilesIpc(): void {
           // Porcelain is stanzas separated by a blank line: "worktree <path>",
           // then "HEAD <sha>", then "branch refs/heads/<name>" (absent when
           // detached, and "bare" for a bare repo — neither is a place to work).
-          const out = parseWorktreeList(stdout).map((w) => ({
+          // git always reports the RESOLVED path (/private/var/... on macOS,
+          // and anywhere a project sits behind a symlink), while the app stores
+          // the path the user actually gave it. Compared as strings the two
+          // never match, so every branch looked as though it had no chat — and
+          // clicking one made a second chat on the same worktree. Re-root each
+          // entry on the app's spelling, using git's own main worktree as the
+          // prefix to swap out, so this holds for any symlink and not just
+          // /private.
+          const entries = parseWorktreeList(stdout)
+          const gitRoot = entries[0]?.path
+          const reroot = (p: string): string =>
+            gitRoot && p.startsWith(gitRoot) ? projectPath + p.slice(gitRoot.length) : p
+          const out = entries.map((w) => ({
             ...w,
+            path: reroot(w.path),
             // Where this branch goes home to, recorded when it was cut. Needed
             // to label "Merge into <base>" for a worktree whose chat is gone.
             base: w.main ? null : readBase(w.path)

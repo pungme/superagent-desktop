@@ -277,7 +277,7 @@ export interface CoveApi {
   /** New git worktree under <project>/.worktrees; null if git refused. */
   worktreeCreate: (
     projectPath: string,
-    opts?: { branch?: string; newBranch?: string; base?: string }
+    opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
   ) => Promise<{ path: string; branch: string; base: string } | null>
   /** Rename a chat's auto-named superagent/* branch to follow its title. */
   worktreeRename: (

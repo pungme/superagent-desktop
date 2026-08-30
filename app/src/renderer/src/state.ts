@@ -116,9 +116,34 @@ function browserKey(s: { activeChatId: Record<string, string> }, workspaceId: st
  * separately, so a trailing slash on one side was enough to make a branch look
  * like it had no chat — and clicking it then made a duplicate.
  */
+/**
+ * A branch name from a sentence. Used both when a chat's title changes and when
+ * its branch is first cut from the opening message, so the two agree.
+ */
+export function branchSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '')
+}
+
+/** A chat that has not been given a branch yet — it has sent nothing. */
+export function isPendingBranch(chatId: string): boolean {
+  try {
+    return localStorage.getItem(`pendingBranch:${chatId}`) === '1'
+  } catch {
+    return false
+  }
+}
+
 export function normalizeCwd(p: string | null | undefined): string {
   if (!p) return ''
-  return p.replace(/\/+$/, '')
+  // macOS resolves /var, /tmp and /etc through /private. main re-roots git's
+  // answers onto the app's spelling, but strip it here too so a path that
+  // arrives from anywhere else still compares equal.
+  return p.replace(/^\/private(?=\/(var|tmp|etc)\/)/, '').replace(/\/+$/, '')
 }
 
 export function keepErrorText(reason: string, detail?: string): string {
@@ -276,6 +301,16 @@ interface CoveState {
    * a chat is a checkout — falling back to a plain chat if git refuses.
    */
   newChat: (workspaceId: string) => Promise<void>
+  /**
+   * Cut the branch a pending chat has been waiting for, named from its opening
+   * message, and return the directory the agent must run in. null when there is
+   * nothing to do — the chat already has a copy, or the project is not a repo.
+   */
+  materializeBranch: (
+    workspaceId: string,
+    chatId: string,
+    hint: string
+  ) => Promise<string | null>
   /** Open a branch's conversation, creating one if that branch has none. null = the project folder. */
   openBranch: (workspaceId: string, cwd: string | null) => Promise<void>
   /**
@@ -813,35 +848,56 @@ export const useStore = create<CoveState>((set, get) => ({
     }
   },
   newChat: async (workspaceId) => {
-    // On a repo every conversation is a branch: its own checkout, its own
-    // agent, running beside the others without touching your folder. That was
-    // always right — what was missing is that the folder itself was not in the
-    // list, so there was no way back to it. It is now a row you can click.
-    // A non-repo folder has nothing to isolate and just gets a plain chat.
+    // A branch costs a directory, a git ref and a row in your sidebar, and until
+    // you have said anything there is nothing to name it after. So a new chat is
+    // only a conversation; the branch is cut on the first message, named from
+    // what you actually asked for. A chat you open and never use leaves nothing
+    // behind, which is where every stray wt-… branch came from.
     const ws = get()
       .tree.flatMap((g) => g.workspaces)
       .find((w) => w.id === workspaceId)
-    let cwd: string | undefined
-    let fellBack = false
-    if (ws && ws.kind !== 'browser') {
-      const isRepo = (await window.cove.gitBranch(ws.path)) !== null
-      if (isRepo) {
-        const wt = await window.cove.worktreeCreate(ws.path)
-        if (wt) cwd = wt.path
-        else fellBack = true
+    const id = await window.cove.chatCreate(workspaceId)
+    if (ws && ws.kind !== 'browser' && (await window.cove.gitBranch(ws.path)) !== null) {
+      try {
+        localStorage.setItem(`pendingBranch:${id}`, '1')
+      } catch {
+        // no storage: the chat simply works in the folder, as it used to
       }
     }
-    const id = await window.cove.chatCreate(workspaceId, cwd)
-    if (fellBack) localStorage.setItem(`wtFallback:${id}`, '1')
     const list = await window.cove.chatList(workspaceId)
     set((s) => ({
       chats: { ...s.chats, [workspaceId]: list },
       activeChatId: { ...s.activeChatId, [workspaceId]: id }
     }))
-    // The sidebar reads its branches from git, and a new worktree is exactly
-    // the moment that list is stale. Without this the branch existed on disk
-    // but no row appeared until some unrelated turn ended. Caught by e2e.
     window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
+  },
+  materializeBranch: async (workspaceId, chatId, hint) => {
+    // Called once, immediately before the agent starts. Claim the flag FIRST:
+    // two starts racing must not both cut a branch for one chat.
+    if (!isPendingBranch(chatId)) return null
+    try {
+      localStorage.removeItem(`pendingBranch:${chatId}`)
+    } catch {
+      /* claimed anyway */
+    }
+    const ws = get()
+      .tree.flatMap((g) => g.workspaces)
+      .find((w) => w.id === workspaceId)
+    if (!ws || ws.kind === 'browser') return null
+    if ((await window.cove.gitBranch(ws.path)) === null) return null
+    const name = branchSlug(hint ?? '')
+    const wt = await window.cove.worktreeCreate(
+      ws.path,
+      name ? { newBranch: name, autoName: true } : undefined
+    )
+    // git refused (a name already taken, an empty repo): fall back to the
+    // folder itself rather than losing the message.
+    if (!wt) return null
+    await window.cove.chatUpdate(chatId, { cwd: wt.path })
+    const list = await window.cove.chatList(workspaceId)
+    set((s) => ({ chats: { ...s.chats, [workspaceId]: list } }))
+    window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
+    return wt.path
   },
   newBranch: async (workspaceId, name) => {
     // A branch is a second checkout of the project, on its own branch, with its
@@ -882,6 +938,18 @@ export const useStore = create<CoveState>((set, get) => ({
     if (existing) {
       get().selectChat(workspaceId, existing.id)
       return
+    }
+    // Never a SECOND conversation in the project folder itself. A chat on a
+    // branch has a copy of its own and cannot be disturbed; a chat on the folder
+    // has no copy at all, so two of them are two agents editing one set of files
+    // — which is precisely how two sessions trampled each other. main is a place
+    // you visit, not a place a second agent can sit down in.
+    if (cwd === null) {
+      const onFolder = list.find((c) => normalizeCwd(c.cwd ?? null) === '')
+      if (onFolder) {
+        get().selectChat(workspaceId, onFolder.id)
+        return
+      }
     }
     const id = await window.cove.chatCreate(workspaceId, cwd ?? undefined)
     const fresh = await window.cove.chatList(workspaceId)
@@ -968,12 +1036,7 @@ export const useStore = create<CoveState>((set, get) => ({
     // never moves files — safe mid-session.
     const chat = get().chats[workspaceId]?.find((c) => c.id === chatId)
     if (chat?.cwd && chat.cwd.includes('/.worktrees/')) {
-      const slug = title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 40)
-        .replace(/-+$/, '')
+      const slug = branchSlug(title)
       if (slug) {
         void window.cove.worktreeRename(chat.cwd, slug).then(() => {
           // Nudge the sidebar chip (it re-reads the branch on this event).
