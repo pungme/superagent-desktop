@@ -2503,6 +2503,47 @@ button {
 
 /* ---------- Inline file-edit diff cards ---------- */
 
+/* A file the agent handed over: same weight as a diff card, since it is the
+   same kind of thing — something the turn produced that you may want later. */
+.easy-file-card {
+  align-self: flex-start;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 85%;
+  flex-shrink: 0;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-panel);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.easy-file-card:hover {
+  background: var(--hover);
+}
+
+.easy-file-icon {
+  font-size: 13px;
+}
+
+.easy-file-name {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.easy-file-path {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+}
+
 .easy-diff {
   align-self: flex-start;
   max-width: 85%;

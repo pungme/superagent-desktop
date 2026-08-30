@@ -44,6 +44,7 @@ type Item =
   | { kind: 'msg'; msg: ChatMessage }
   | { kind: 'tool'; tool: ToolCall }
   | { kind: 'diff'; diff: FileDiff }
+  | { kind: 'file'; file: { id: string; path: string } }
   | { kind: 'thinking'; id: string; text: string }
 
 /**
@@ -432,6 +433,7 @@ function toolDetail(input: unknown): string {
     return pick.replace(/\s+/g, ' ').trim().slice(0, 70)
   }
   if (typeof o.file_path === 'string') return o.file_path.split('/').pop() ?? ''
+  if (typeof o.path === 'string') return o.path.split('/').pop() ?? ''
   return ''
 }
 
@@ -605,7 +607,10 @@ function summarizeTools(tools: ToolCall[]): string {
 
 // One thing the agent did — a tool call or a file edit. A run of these (only
 // broken by a real message) collapses into a single ActivityStrip.
-type Activity = { kind: 'tool'; tool: ToolCall } | { kind: 'diff'; diff: FileDiff }
+type Activity =
+  | { kind: 'tool'; tool: ToolCall }
+  | { kind: 'diff'; diff: FileDiff }
+  | { kind: 'file'; file: { id: string; path: string } }
 
 function toolChip(t: ToolCall, cls: string, key: string): React.JSX.Element {
   const { icon, verb } = toolLabel(t.name)
@@ -622,9 +627,11 @@ function toolChip(t: ToolCall, cls: string, key: string): React.JSX.Element {
 // entries array identity is stable thanks to the rows useMemo, except for the
 // strip currently receiving new tool entries).
 const ActivityStrip = memo(function ActivityStrip({
-  entries
+  entries,
+  workspaceId
 }: {
   entries: Activity[]
+  workspaceId: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
 
@@ -634,6 +641,8 @@ const ActivityStrip = memo(function ActivityStrip({
     if (!e) return <></>
     return e.kind === 'diff' ? (
       <DiffCard diff={e.diff} />
+    ) : e.kind === 'file' ? (
+      <FileHandoffCard path={e.file.path} workspaceId={workspaceId} />
     ) : (
       <div className="easy-tools">{toolChip(e.tool, 'easy-tool', e.tool.id)}</div>
     )
@@ -664,6 +673,8 @@ const ActivityStrip = memo(function ActivityStrip({
           {entries.map((e, i) =>
             e.kind === 'diff' ? (
               <DiffCard key={'d' + i} diff={e.diff} />
+            ) : e.kind === 'file' ? (
+              <FileHandoffCard key={'f' + i} path={e.file.path} workspaceId={workspaceId} />
             ) : (
               toolChip(e.tool, 'easy-toolrow', e.tool.id + i)
             )
@@ -676,6 +687,33 @@ const ActivityStrip = memo(function ActivityStrip({
 
 // A file edit — collapsed to one line by default so the chat isn't flooded with
 // diffs; click to see the actual change.
+/**
+ * A file the agent handed to you. Clicking it opens the file the same way the
+ * tree does — text in the viewer, PDFs and images in the pane — so the card is
+ * still useful long after the moment it was opened.
+ */
+function FileHandoffCard({
+  path,
+  workspaceId
+}: {
+  path: string
+  workspaceId: string
+}): React.JSX.Element {
+  const openPath = useStore((s) => s.openPath)
+  const name = path.split('/').pop() || path
+  return (
+    <button
+      className="easy-file-card"
+      onClick={() => openPath(workspaceId, path)}
+      title={path}
+    >
+      <span className="easy-file-icon">📄</span>
+      <span className="easy-file-name">{name}</span>
+      <span className="easy-file-path">{path}</span>
+    </button>
+  )
+}
+
 function DiffCard({ diff }: { diff: FileDiff }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const added = diff.hunks.reduce((n, h) => n + h.added.length, 0)
@@ -746,9 +784,13 @@ function toRows(items: Item[]): Row[] {
     ) {
       continue
     }
-    if (it.kind === 'tool' || it.kind === 'diff') {
+    if (it.kind === 'tool' || it.kind === 'diff' || it.kind === 'file') {
       const entry: Activity =
-        it.kind === 'tool' ? { kind: 'tool', tool: it.tool } : { kind: 'diff', diff: it.diff }
+        it.kind === 'tool'
+          ? { kind: 'tool', tool: it.tool }
+          : it.kind === 'diff'
+            ? { kind: 'diff', diff: it.diff }
+            : { kind: 'file', file: it.file }
       const target = runTarget()
       if (target && target.kind === 'activity') target.entries.push(entry)
       else rows.push({ kind: 'activity', entries: [entry] })
@@ -1939,11 +1981,22 @@ export function EasyChat({
               ])
             }
             const diff = toolDiff(name, id, block.input)
+            // A file the agent hands over is the point of the turn, not a step
+            // in it: it gets a card you can click, here and on the phone, and
+            // it survives in the transcript rather than living as a path
+            // inside a collapsed tool row.
+            const handedOver =
+              name.endsWith('open_file') &&
+              typeof (block.input as { path?: unknown })?.path === 'string'
+                ? String((block.input as { path: string }).path)
+                : null
             setItems((prev) => [
               ...prev,
               diff
                 ? { kind: 'diff', diff }
-                : { kind: 'tool', tool: { id, name, detail: toolDetail(block.input) } }
+                : handedOver
+                  ? { kind: 'file', file: { id, path: handedOver } }
+                  : { kind: 'tool', tool: { id, name, detail: toolDetail(block.input) } }
             ])
           }
         }
@@ -3193,8 +3246,14 @@ export function EasyChat({
             // message whenever a strip was inserted mid-turn, blowing the Markdown
             // memo cache exactly when tools were streaming).
             const first = row.entries[0]
-            const actKey = 'act-' + (first.kind === 'tool' ? first.tool.id : first.diff.id)
-            return <ActivityStrip key={actKey} entries={row.entries} />
+            const actKey =
+              'act-' +
+              (first.kind === 'tool'
+                ? first.tool.id
+                : first.kind === 'diff'
+                  ? first.diff.id
+                  : first.file.id)
+            return <ActivityStrip key={actKey} entries={row.entries} workspaceId={workspaceId} />
           })}
           {generating && (
             <div className="easy-thinking">
