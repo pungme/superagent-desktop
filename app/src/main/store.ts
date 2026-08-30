@@ -506,6 +506,11 @@ export function getChat(chatId: string): ChatRow | undefined {
  * nowhere else, so anything that lists or reads files for a chat has to root
  * here rather than on the project, or it shows main and the work is invisible.
  */
+/** Give a chat its own copy of the project. Used when a branch is cut for it. */
+export function setChatCwd(chatId: string, cwd: string): void {
+  db.prepare('UPDATE chats SET cwd = ? WHERE id = ?').run(cwd, chatId)
+}
+
 export function chatCwd(chatId: string): string | undefined {
   const chat = getChat(chatId)
   if (!chat) return undefined

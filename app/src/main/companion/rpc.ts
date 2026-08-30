@@ -25,7 +25,8 @@ import {
   tabsGroupId,
   ensureDesktopWorkspace,
   DESKTOP_WORKSPACE_ID,
-  TABS_GROUP
+  TABS_GROUP,
+  setChatCwd
 } from '../store'
 import { homedir } from 'os'
 import { readdirSync, existsSync, openSync, readSync, closeSync } from 'fs'
@@ -37,7 +38,7 @@ import {
   releaseCompositing
 } from '../browser'
 import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
-import { listWorktrees } from '../files'
+import { listWorktrees, ensureChatBranch } from '../files'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { extname, resolve, sep } from 'path'
@@ -794,9 +795,22 @@ export function listChats(): WireChat[] {
  * Send a prompt into a chat, starting its agent first if nothing is running —
  * the same options the window would have used, read from the store.
  */
-function sendToChat(p: ChatSendParams): RpcResult {
+async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   const chat = getChat(p.chatId)
   if (!chat) return fail('not-found', 'no such chat')
+  // First message on a git project: cut this chat its own copy, named from what
+  // was asked for. Without it a chat from the phone runs in the project folder,
+  // beside whatever else is working there.
+  if (!chat.cwd) {
+    const ws = getWorkspace(chat.workspaceId)
+    if (ws && ws.kind !== 'browser' && gitBranch(ws.path) !== null) {
+      const cwd = await ensureChatBranch(ws.path, p.text)
+      if (cwd) {
+        setChatCwd(chat.id, cwd)
+        broadcastToWindows('projects:changed', {})
+      }
+    }
+  }
   let session = findSessionByChat(p.chatId)
   // A different model or mode than the running agent's: restart it on the
   // same claude session, exactly as the desktop does when its pickers change.

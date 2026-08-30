@@ -15,6 +15,7 @@ import {
 } from 'fs'
 import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
 import { homedir } from 'os'
+import { setChatCwd } from './store'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
 
@@ -323,71 +324,17 @@ export interface WorktreeRow {
  * sidebar and by the phone, so both see the same list: git is the source of
  * truth, not anything the app recorded.
  */
-export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
-  return new Promise((resolve) => {
-    execFile(
-      'git',
-      ['worktree', 'list', '--porcelain'],
-      { cwd: projectPath, maxBuffer: 4 * 1024 * 1024 },
-      (err, stdout) => {
-        if (err) return resolve([])
-        // git always reports the RESOLVED path (/private/var/… on macOS, and
-        // anywhere a project sits behind a symlink) while the app stores the
-        // path the user gave it. Compared as strings the two never match, so
-        // every branch looked as though it had no chat. Re-root each entry on
-        // the app's spelling, using git's own main worktree as the prefix.
-        const entries = parseWorktreeList(stdout)
-        const gitRoot = entries[0]?.path
-        const reroot = (p: string): string =>
-          gitRoot && p.startsWith(gitRoot) ? projectPath + p.slice(gitRoot.length) : p
-        resolve(
-          entries.map((w) => ({
-            ...w,
-            path: reroot(w.path),
-            // Where this branch goes home to, recorded when it was cut.
-            base: w.main ? null : readBase(w.path)
-          }))
-        )
-      }
-    )
-  })
-}
-
-export function registerFilesIpc(): void {
-  // Background shells write their output to a file, and the Bash result says
-  // where. Reading it directly means the strip can show what a job is doing
-  // live, instead of waiting for the agent to poll it.
-  ipcMain.handle('bg:tail', (_e, path: string, maxBytes = 8000) => {
-    try {
-      if (!path.endsWith('.output')) return null
-      const { size } = statSync(path)
-      const start = Math.max(0, size - maxBytes)
-      const fd = openSync(path, 'r')
-      try {
-        const buf = Buffer.alloc(Math.min(size, maxBytes))
-        readSync(fd, buf, 0, buf.length, start)
-        return buf.toString('utf8')
-      } finally {
-        closeSync(fd)
-      }
-    } catch {
-      return null
-    }
-  })
-
-  ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
-  ipcMain.handle('files:complete', (_e, prefix: string) => completePath(prefix))
-  // Finder drops onto the file tree: copy into the project (folders included),
-  // renaming on collision rather than overwriting someone's work.
-  // A chat's private git worktree under <project>/.worktrees/<slug>, on its own
-  // branch — parallel chats stop fighting over one working tree.
-  ipcMain.handle(
-    'worktree:create',
-    async (
-      _e,
-      projectPath: string,
-      opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
-    ) => {
+/**
+ * Cut a worktree for a project: a copy of it on a branch of its own. Named
+ * rather than living inside the IPC handler because the rule about when a chat
+ * gets one belongs to main, not to whichever client asked — the window had its
+ * own copy of it, so a chat started from the phone never got a branch and ran
+ * in the project folder beside whatever else was there.
+ */
+export async function createWorktree(
+  projectPath: string,
+  opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
+): Promise<{ path: string; branch: string; base: string | null } | null> {
       const run = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
         new Promise((resolve) =>
           execFile('git', args, { cwd, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) =>
@@ -498,7 +445,107 @@ export function registerFilesIpc(): void {
         }
       }
       return { path: dir, branch, base }
+}
+
+/** A branch name from what was actually asked for: "Fix the flaky auth test"
+ * becomes fix-the-flaky-auth-test. Kept beside the rule that uses it so both
+ * clients slug identically. */
+export function branchSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '')
+}
+
+/**
+ * Give a chat its own copy of the project, on the first message and named from
+ * it. Returns the directory to work in.
+ *
+ * This is the rule that keeps two agents out of one checkout, so it lives here
+ * rather than in a client: the window had its own copy and the phone had none,
+ * which meant a chat started on the phone ran in the project folder beside
+ * whatever else was already there.
+ *
+ * Nothing happens when the chat already has a copy, when the project is not a
+ * git repo, or when git refuses — the folder itself is a working answer, and
+ * losing the message would not be.
+ */
+export async function ensureChatBranch(
+  projectPath: string,
+  hint: string
+): Promise<string | null> {
+  const name = branchSlug(hint)
+  const wt = await createWorktree(projectPath, name ? { newBranch: name, autoName: true } : undefined)
+  return wt?.path ?? null
+}
+
+export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['worktree', 'list', '--porcelain'],
+      { cwd: projectPath, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) return resolve([])
+        // git always reports the RESOLVED path (/private/var/… on macOS, and
+        // anywhere a project sits behind a symlink) while the app stores the
+        // path the user gave it. Compared as strings the two never match, so
+        // every branch looked as though it had no chat. Re-root each entry on
+        // the app's spelling, using git's own main worktree as the prefix.
+        const entries = parseWorktreeList(stdout)
+        const gitRoot = entries[0]?.path
+        const reroot = (p: string): string =>
+          gitRoot && p.startsWith(gitRoot) ? projectPath + p.slice(gitRoot.length) : p
+        resolve(
+          entries.map((w) => ({
+            ...w,
+            path: reroot(w.path),
+            // Where this branch goes home to, recorded when it was cut.
+            base: w.main ? null : readBase(w.path)
+          }))
+        )
+      }
+    )
+  })
+}
+
+export function registerFilesIpc(): void {
+  // Background shells write their output to a file, and the Bash result says
+  // where. Reading it directly means the strip can show what a job is doing
+  // live, instead of waiting for the agent to poll it.
+  ipcMain.handle('bg:tail', (_e, path: string, maxBytes = 8000) => {
+    try {
+      if (!path.endsWith('.output')) return null
+      const { size } = statSync(path)
+      const start = Math.max(0, size - maxBytes)
+      const fd = openSync(path, 'r')
+      try {
+        const buf = Buffer.alloc(Math.min(size, maxBytes))
+        readSync(fd, buf, 0, buf.length, start)
+        return buf.toString('utf8')
+      } finally {
+        closeSync(fd)
+      }
+    } catch {
+      return null
     }
+  })
+
+  ipcMain.handle('files:list', (_e, root: string) => listProjectFiles(root))
+  ipcMain.handle('files:complete', (_e, prefix: string) => completePath(prefix))
+  // Finder drops onto the file tree: copy into the project (folders included),
+  // renaming on collision rather than overwriting someone's work.
+  // A chat's private git worktree under <project>/.worktrees/<slug>, on its own
+  // branch — parallel chats stop fighting over one working tree.
+  ipcMain.handle(
+    'worktree:create',
+    (
+      _e,
+      projectPath: string,
+      opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
+    ) => createWorktree(projectPath, opts)
   )
   /**
    * Read the base branch a worktree was created from (recorded by
@@ -528,6 +575,18 @@ export function registerFilesIpc(): void {
    * Git is the source of truth; ask it rather than keeping a second list.
    */
   ipcMain.handle('worktree:list', (_e, projectPath: string) => listWorktrees(projectPath))
+  /**
+   * The first message's branch, for the window. The same call the phone's send
+   * path makes, so the rule about when a chat gets its own copy has one home.
+   */
+  ipcMain.handle(
+    'chat:ensure-branch',
+    async (_e, chatId: string, projectPath: string, hint: string) => {
+      const cwd = await ensureChatBranch(projectPath, hint)
+      if (cwd) setChatCwd(chatId, cwd)
+      return cwd
+    }
+  )
   /**
    * Rename the worktree's branch to follow the chat's title. Only auto-named
    * superagent/* branches are touched — if the user asked the agent for a branch
