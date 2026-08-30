@@ -1958,13 +1958,115 @@
     .ph-comp i { width: 16px; height: 16px; border-radius: 50%; background: var(--ink); }
     @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
     @media (prefers-reduced-motion: reduce) { .ph { animation: none; } }
+
+    /* ============ IX · who it's for ============ */
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+    .who { padding: 76px 0 20px; }
+    .who-head { text-align: center; margin-bottom: 36px; }
+    .who-head h2 { font-size: clamp(1.5rem, 2.6vw, 2rem); }
+    .who-head .lede { margin: 16px auto 0; max-width: 60ch; color: var(--muted); font-size: 1rem; }
+    .who-head .lede b { color: var(--ink); font-weight: 600; }
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+
+    /* ---- the matrix ---- */
+    .cmp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .cmp {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      font-size: 0.83rem; line-height: 1.5; min-width: 720px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    }
+    .cmp th, .cmp td {
+      padding: 11px 13px; text-align: left; vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+    .cmp tr:last-child th, .cmp tr:last-child td { border-bottom: none; }
+    .cmp thead th {
+      font-weight: 600; font-size: 0.78rem; color: var(--ink);
+      letter-spacing: -0.01em; background: var(--paper);
+    }
+    .cmp thead th small {
+      display: block; margin-top: 3px; font-weight: 400; font-size: 0.68rem;
+      color: var(--faint); letter-spacing: 0; line-height: 1.4;
+    }
+    .cmp thead th small.jp { font-size: 0.5rem; letter-spacing: 0.2em; color: var(--faint); margin-top: 4px; }
+    .cmp tbody th {
+      font-weight: 600; color: var(--ink); width: 21%; font-size: 0.78rem;
+      background: var(--paper);
+    }
+    .cmp tbody th .pv { color: var(--accent); font-weight: 700; }
+    .cmp td { color: var(--muted); width: 19.75%; }
+    /* our column: the only one with any colour in it */
+    .cmp .us { background: rgba(93, 122, 99, 0.09); color: var(--ink); }
+    .cmp thead .us { background: rgba(93, 122, 99, 0.17); color: var(--ink); }
+    .cmp thead .us small { color: var(--muted); }
+    .cmp .us b { font-weight: 600; }
+    .cmp .no { color: var(--faint); }
+    /* yes is a filled dot, partly is hollow, no is a bare mark: presence vs absence,
+       readable in one pass down the column */
+    .cmp td { text-align: left; }
+    .cmp td::after { content: ""; display: block; clear: both; }
+    .cmp td i {
+      float: left; margin: 0 10px 0 0;
+      width: 20px; height: 20px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-style: normal; font-size: 0.7rem; font-weight: 700; line-height: 1;
+    }
+    .cmp i.y { background: var(--accent); color: #fff; }
+    .cmp i.p { background: none; border: 1px solid rgba(35, 36, 31, 0.22); color: var(--muted); font-weight: 600; }
+    .cmp i.n { background: none; color: var(--faint); font-weight: 400; font-size: 0.82rem; opacity: 0.6; }
+    .cmp td span {
+      display: block; overflow: hidden;
+      font-size: 0.75rem; line-height: 1.5; color: var(--muted);
+    }
+    .cmp td.us span { color: var(--ink); }
+    .cmp-logo {
+      display: inline-block; width: 19px; height: 19px; border-radius: 5px;
+      vertical-align: -4px; margin-right: 7px;
+    }
+    .cmp-legend {
+      display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
+      margin-top: 14px; font-size: 0.74rem; color: var(--faint);
+    }
+    .cmp-legend i { font-style: normal; font-weight: 700; margin-right: 6px; }
+    .cmp-legend i.y { color: var(--accent); }
+    .cmp-note { margin-top: 12px; font-size: 0.74rem; color: var(--faint); text-align: center; }
+
+    .who-foot {
+      margin: 34px auto 0; max-width: 58ch; text-align: center;
+      font-size: 0.98rem; color: var(--muted);
+    }
+    .who-foot b { color: var(--ink); font-weight: 600; }
+
+    @media (max-width: 760px) {
+      /* a 5-column matrix does not fit a phone: give each row its own card */
+      .cmp-scroll { overflow-x: visible; }
+      .cmp { min-width: 0; display: block; background: none; border: none; border-radius: 0; }
+      .cmp thead { display: none; }
+      .cmp tbody, .cmp tbody tr, .cmp tbody th, .cmp tbody td { display: block; width: auto; }
+      .cmp tbody th, .cmp tbody td { width: auto; }
+      .cmp tr {
+        background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+        margin-bottom: 10px; overflow: hidden;
+      }
+      .cmp tbody th { border-bottom: 1px solid var(--line); font-size: 0.82rem; }
+      .cmp td { border-bottom: 1px solid var(--line); padding: 9px 14px 11px; }
+      .cmp tr td:last-child { border-bottom: none; }
+      .cmp td::before {
+        content: attr(data-col); display: block; margin-bottom: 2px;
+        font-size: 0.61rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint);
+      }
+      .cmp .no { color: var(--faint); }
+    }
   </style>
 </head>
 <body>
   <div id="intro" aria-hidden="true">
     <div class="intro-box">
       <img class="intro-logo" src="logo.png" alt="" width="96" height="96" />
-      <div class="intro-word" aria-label="Superagent"><span style="--i:0">S</span><span style="--i:1">u</span><span style="--i:2">p</span><span style="--i:3">e</span><span style="--i:4">r</span><span style="--i:5">A</span><span style="--i:6">g</span><span style="--i:7">e</span><span style="--i:8">n</span><span style="--i:9">t</span></div>
+      <div class="intro-word" aria-label="Superagent"><span style="--i:0">S</span><span style="--i:1">u</span><span style="--i:2">p</span><span style="--i:3">e</span><span style="--i:4">r</span><span style="--i:5">a</span><span style="--i:6">g</span><span style="--i:7">e</span><span style="--i:8">n</span><span style="--i:9">t</span></div>
       <div class="intro-rule"></div>
       <div class="intro-jp jp">スーパーエージェント</div>
     </div>
@@ -1975,6 +2077,7 @@
     <div class="nav-inner">
       <a class="nav-logo" href="#"><img src="logo.png" alt="" /><span class="wm"><span>Superagent</span><span class="jp">スーパーエージェント</span></span></a>
       <div class="nav-links">
+        <a href="docs/">Docs</a>
         <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
         <a class="nav-btn" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg">Download</a>
@@ -2009,6 +2112,7 @@
           <img src="hero.png" alt="The Superagent window: stripe.com open in the browser pane as a desktop card and an iPhone side by side, with the chat that opened it reporting what it found" width="2720" height="1800" fetchpriority="high" decoding="async" />
         </figure>
       </div>
+    </div>
   </header>
 
 
@@ -2021,6 +2125,7 @@
     <a href="#notifications"><span>Notifications</span><i></i></a>
     <a href="#phone"><span>The phone</span><i></i></a>
     <a href="#desk"><span>The desk</span><i></i></a>
+    <a href="#who"><span>vs. the rest</span><i></i></a>
   </nav>
 
   <!-- 1 · sidebar -->
@@ -2822,11 +2927,91 @@
     </div>
   </section>
 
+  <!-- 9 · who it's for -->
+  <section class="who io" id="who">
+    <div class="wrap">
+      <div class="who-head" data-rv>
+        <span class="kicker"><span class="num">IX.</span>Who it's for<span class="jp">誰のために</span></span>
+        <h2>Designed the <em>other way round.</em></h2>
+        <p class="jp lede" style="letter-spacing:.24em;font-size:.82rem;color:var(--faint);margin-top:10px">コードは、二番目。</p>
+        <p class="lede">
+          Every tool in this category is built for the same person: someone who reads diffs for a
+          living. Superagent is built the other way round &mdash; for <b>the person who
+          doesn&rsquo;t write code first, and the person who does second.</b> Not by hiding the
+          code, but by putting the page, the app and the phone on screen next to the chat, so you
+          can judge the work the way you judge anything else: by looking at it.
+        </p>
+      </div>
+
+      <div class="cmp-scroll" data-rv style="--d:.1s">
+        <table class="cmp">
+          <caption class="sr-only">How Superagent compares to agent IDEs, app builders and cloud agents</caption>
+          <thead>
+            <tr>
+              <th scope="col"><span class="sr-only">Capability</span></th>
+              <th scope="col" class="us"><img class="cmp-logo" src="logo.png" alt="" width="26" height="26" />Superagent<small class="jp">スーパーエージェント</small></th>
+              <th scope="col">Agent IDEs<small>Orca, Conductor, Emdash, Cursor, Antigravity</small></th>
+              <th scope="col">App builders<small>Lovable, Bolt, Replit, v0</small></th>
+              <th scope="col">Cloud agents<small>Manus, Operator</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">No git, no terminal, no diffs</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Keep or Throw away</span></td><td data-col="Agent IDEs"><i class="n">&#10007;</i><span>worktrees and diffs</span></td><td data-col="App builders"><i class="y">&#10003;</i></td><td data-col="Cloud agents"><i class="y">&#10003;</i></td>
+            </tr>
+            <tr>
+              <th scope="row">Your machine, your project</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>any folder on your disk</span></td><td data-col="Agent IDEs"><i class="y">&#10003;</i><span>any git repo</span></td><td data-col="App builders"><i class="n">&#10007;</i><span>new apps, their cloud</span></td><td data-col="Cloud agents"><i class="p">~</i><span>Manus added a local mode</span></td>
+            </tr>
+            <tr>
+              <th scope="row">A browser signed in as you</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>sign in once, in the pane</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Orca imports cookies; the rest use a clean profile</span></td><td data-col="App builders"><i class="n">&#10007;</i><span>a preview, nothing else</span></td><td data-col="Cloud agents"><i class="n">&#10007;</i><span>a fresh sandbox</span></td>
+            </tr>
+            <tr>
+              <th scope="row">A live iPhone in the window</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>streamed from the framebuffer</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Orca yes; Conductor, Cursor, Antigravity no</span></td><td data-col="App builders"><i class="n">&#10007;</i></td><td data-col="Cloud agents"><i class="n">&#10007;</i></td>
+            </tr>
+            <tr>
+              <th scope="row">The subscription you already pay for</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>no key, no second bill</span></td><td data-col="Agent IDEs"><i class="y">&#10003;</i><span>bring your own agent</span></td><td data-col="App builders"><i class="n">&#10007;</i><span>plan, plus credits</span></td><td data-col="Cloud agents"><i class="n">&#10007;</i><span>plan, plus credits</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Open source, MIT</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>app, phone and relay</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Orca and Emdash yes</span></td><td data-col="App builders"><i class="n">&#10007;</i></td><td data-col="Cloud agents"><i class="n">&#10007;</i></td>
+            </tr>
+            <tr>
+              <th scope="row"><b class='pv'>Private</b> on your phone</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>end-to-end, via a blind relay</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Orca wants LAN or Tailscale</span></td><td data-col="App builders"><i class="p">~</i><span>a browser tab</span></td><td data-col="Cloud agents"><i class="p">~</i><span>their app, their account</span></td>
+            </tr>
+            <tr>
+              <th scope="row"><b class='pv'>Private</b> by default</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>no account, no sign-up, no telemetry</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>the hosted parts want an account</span></td><td data-col="App builders"><i class="n">&#10007;</i><span>account required</span></td><td data-col="Cloud agents"><i class="n">&#10007;</i><span>account required</span></td>
+            </tr>
+            <tr>
+              <th scope="row"><b class='pv'>Private</b> by construction</th>
+              <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>no server to send your work to</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>until you use the cloud tiers</span></td><td data-col="App builders"><i class="n">&#10007;</i><span>their servers</span></td><td data-col="Cloud agents"><i class="n">&#10007;</i><span>their servers</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-legend"><span><i class="y">&#10003;</i> yes</span><span><i class="p">~</i> partly, or only some of them</span><span><i class="n">&#10007;</i> no</span></p>
+      <p class="cmp-note">Checked against each product&rsquo;s own docs, August 2026. <a href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Tell us if any of it is wrong.</a></p>
+
+
+      <p class="who-foot" data-rv style="--d:.1s">
+        <b>You describe a thing, and watch it get built</b> &mdash; on your own machine, on your
+        own accounts, on the subscription you already have. No terminal to learn. No sandbox to
+        escape.
+      </p>
+    </div>
+  </section>
+
   <!-- details -->
   <section class="open io">
     <div class="wrap">
       <div class="open-head" data-rv>
-        <span class="kicker"><span class="num">IX.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
+        <span class="kicker"><span class="num">X.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
         <h2>Don't trust. <em>Verify.</em></h2>
         <p>An agent with a browser is an agent with your logins. Don't take our word for
           what it does with them &mdash; every line of code is public, so you can read it,
@@ -2900,6 +3085,7 @@
       <a class="nav-logo" href="#"><img src="logo.png" alt="" style="width:20px;height:20px" /><span class="wm"><span>Superagent</span><span class="jp">スーパーエージェント</span></span></a>
       <span>MIT licensed</span>
       <div class="foot-links">
+        <a href="docs/">Docs</a>
         <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Issues</a>
         <a href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
