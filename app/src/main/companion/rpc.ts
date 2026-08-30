@@ -314,7 +314,11 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         const udid = openSimulators().find((x) => x.chatId === p.data.chatId)?.udid
         if (!udid) return fail('not-found', 'no simulator open for this conversation')
-        const url = await withTimeout(simStill(udid), 20000, 'the simulator did not produce a frame')
+        const url = await withTimeout(
+          simStill(udid),
+          20000,
+          'the simulator did not produce a frame'
+        )
         if (!url) return fail('unavailable', 'the simulator did not produce a frame')
         return { ok: true, result: { udid, device: await deviceLabel(udid), url } }
       }
@@ -336,8 +340,12 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (p.data.action === 'back') wc.navigationHistory.goBack()
         else if (p.data.action === 'forward') wc.navigationHistory.goForward()
         else {
+          // Bypasses the cache — see the desktop's own reload for why: this
+          // pane is always a dev server or a page the agent just edited, and a
+          // cached reload can silently serve back the stale response it just
+          // cached, from the phone exactly as much as from the Mac.
           if (wc.isLoading()) wc.stop()
-          wc.reload()
+          wc.reloadIgnoringCache()
         }
         return { ok: true }
       }

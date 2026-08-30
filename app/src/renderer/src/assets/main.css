@@ -9656,6 +9656,18 @@ button {
   font-size: 14px;
   line-height: 1;
 }
+/* The shortcut, in the button itself rather than only a tooltip you have to
+   hover to find. */
+.pane-dock-shortcut {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-tertiary);
+  padding-left: 2px;
+}
+.pane-dock-btn:hover .pane-dock-shortcut {
+  color: var(--text-secondary);
+}
 .pane-dock-btn:hover {
   background: var(--hover);
   color: var(--text-primary);
