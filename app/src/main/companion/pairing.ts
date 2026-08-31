@@ -55,7 +55,15 @@ export function startPairing(relay: string): {
   // link copied a moment ago stopped matching the code on screen, and the phone
   // that opened it was dropped by a Mac that no longer held its key.
   const live = pendingPairing()
-  if (live) return { payload: live.payload, code: live.code, expiresAt: live.expiresAt }
+  if (live) {
+    // Still say so. Showing the code is the moment to make sure the Mac is
+    // actually in its room on the relay: it only dials while a phone is paired
+    // or being paired, so after the last phone is removed the socket is down,
+    // and returning early here left it down while the sheet claimed to be
+    // waiting for a phone.
+    pairingBus.emit('changed')
+    return { payload: live.payload, code: live.code, expiresAt: live.expiresAt }
+  }
   const secret = newSecret()
   const m = machineId()
   const payload: PairPayload = {
