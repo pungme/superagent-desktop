@@ -472,13 +472,68 @@ export function branchSlug(text: string): string {
  * git repo, or when git refuses — the folder itself is a working answer, and
  * losing the message would not be.
  */
+/**
+ * A branch name from an opening message. People ask in sentences — "can u fix
+ * this please and deploy" — and slugifying that verbatim produced a branch
+ * called exactly that. Drop the politeness and the filler, keep the few words
+ * that say what the work is, and cap it short. Titles keep going through
+ * branchSlug: those are already written to be names.
+ */
+const FILLER = new Set([
+  'a', 'an', 'the', 'this', 'that', 'these', 'those', 'it', 'its',
+  'i', 'me', 'my', 'we', 'our', 'you', 'u', 'your', 'yours',
+  'can', 'could', 'would', 'should', 'will', 'shall', 'may', 'might', 'must',
+  'please', 'pls', 'plz', 'thanks', 'thank', 'thx', 'hey', 'hi', 'hello', 'ok', 'okay',
+  'and', 'or', 'but', 'so', 'then', 'also', 'just', 'now', 'again',
+  'to', 'of', 'for', 'in', 'on', 'at', 'by', 'with', 'from', 'into',
+  'is', 'are', 'was', 'were', 'be', 'been', 'am', 'do', 'does', 'did',
+  'have', 'has', 'had', 'get', 'got', 'let', 'lets', 'want', 'need',
+  'if', 'when', 'what', 'why', 'how', 'all', 'some', 'any', 'very', 'really'
+])
+export function branchSlugFromMessage(text: string, maxWords = 4): string {
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]+/g, ' ')
+    .split(/[\s-]+/)
+    .filter(Boolean)
+  const kept = words.filter((w) => !FILLER.has(w))
+  // All filler ("can you help me please") — fall back to the raw words rather
+  // than to nothing, so the branch still says something.
+  const chosen = (kept.length ? kept : words).slice(0, maxWords)
+  return branchSlug(chosen.join('-'))
+}
+
 export async function ensureChatBranch(
   projectPath: string,
   hint: string
 ): Promise<string | null> {
-  const name = branchSlug(hint)
+  const name = branchSlugFromMessage(hint)
   const wt = await createWorktree(projectPath, name ? { newBranch: name, autoName: true } : undefined)
   return wt?.path ?? null
+}
+
+/**
+ * Remove a chat's copy of the project, and the branch it was on. Exported
+ * because the phone deletes chats too: it used to drop only the database row,
+ * so a chat deleted from iOS left its worktree and branch behind and the Mac
+ * went on showing a row for a conversation that no longer existed.
+ */
+export function removeWorktree(projectPath: string, wtPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    // The branch has to go with the folder. Removing only the worktree left the
+    // branch behind for ever — "throw away" says everything it did is deleted,
+    // and a repo slowly filled with branches pointing at nothing. Read it BEFORE
+    // the folder goes, or there is nothing left to ask.
+    execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: wtPath }, (headErr, headOut) => {
+      const branch = headErr ? '' : headOut.trim()
+      execFile('git', ['worktree', 'remove', '--force', wtPath], { cwd: projectPath }, (err) => {
+        if (err || !branch || branch === 'HEAD') return resolve(!err)
+        // Best effort: a branch that is merged, or shared with another worktree,
+        // may refuse — the folder is already gone either way.
+        execFile('git', ['branch', '-D', branch], { cwd: projectPath }, () => resolve(true))
+      })
+    })
+  })
 }
 
 export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
@@ -652,34 +707,9 @@ export function registerFilesIpc(): void {
   // Switch the checkout to another branch. Fails cleanly if the tree is dirty or
   // the branch is checked out in a worktree — git returns non-zero and we surface it.
   ipcMain.handle('git:checkout', (_e, cwd: string, branch: string) => gitCheckout(cwd, branch))
-  ipcMain.handle('worktree:remove', (_e, projectPath: string, wtPath: string) => {
-    return new Promise((resolve) => {
-      // The branch has to go with the folder. Removing only the worktree left
-      // the branch behind for ever — "throw away" says everything it did is
-      // deleted, and a repo slowly filled with test/testbranch/wt-… branches
-      // that pointed at nothing. Read it BEFORE the folder goes, or there is
-      // nothing left to ask.
-      execFile(
-        'git',
-        ['rev-parse', '--abbrev-ref', 'HEAD'],
-        { cwd: wtPath },
-        (headErr, headOut) => {
-          const branch = headErr ? '' : headOut.trim()
-          execFile(
-            'git',
-            ['worktree', 'remove', '--force', wtPath],
-            { cwd: projectPath },
-            (err) => {
-              if (err || !branch || branch === 'HEAD') return resolve(!err)
-              // Best effort: a branch that is merged, or shared with another
-              // worktree, may refuse — the folder is already gone either way.
-              execFile('git', ['branch', '-D', branch], { cwd: projectPath }, () => resolve(true))
-            }
-          )
-        }
-      )
-    })
-  })
+  ipcMain.handle('worktree:remove', (_e, projectPath: string, wtPath: string) =>
+    removeWorktree(projectPath, wtPath)
+  )
 
   // Fold a worktree chat's work back into the project and tidy up: commit
   // whatever the agent left in the worktree, squash it into ONE commit on the

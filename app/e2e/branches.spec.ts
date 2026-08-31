@@ -21,6 +21,23 @@ let projectDir: string
 const git = (args: string[]): string =>
   execFileSync('git', args, { cwd: projectDir, encoding: 'utf8' })
 
+/**
+ * git, in a worktree the app is also watching. Its status polling holds
+ * index.lock for a moment, and a commit landing in that window fails outright —
+ * so retry rather than fail a test for something that is not the app's bug.
+ */
+const gitIn = (args: string[], cwd: string, tries = 12): string => {
+  for (let i = 0; ; i++) {
+    try {
+      return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' })
+    } catch (e) {
+      const msg = String((e as { stderr?: Buffer }).stderr ?? e)
+      if (i >= tries || !msg.includes('index.lock')) throw e
+      execFileSync('sleep', ['0.25'])
+    }
+  }
+}
+
 /** The real "New Chat" path — the same IPC the project's right-click menu sends. */
 const newChat = async (): Promise<void> => {
   const id = await window.evaluate(() => localStorage.getItem('activeWorkspace'))
@@ -118,8 +135,9 @@ test('the first message cuts the branch, named after what was asked for', async 
   // git is the source of truth: a new worktree on a new branch.
   await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
   const created = gitBranches().find((b) => !before.includes(b))!
-  // Named from the message, not from a timestamp.
-  expect(created).toBe('make-the-header-dark')
+  // Named from the message, not from a timestamp — and the filler is dropped,
+  // so it is "make-header-dark" rather than the sentence verbatim.
+  expect(created).toBe('make-header-dark')
   // The bug this catches: the branch existed on disk but the sidebar's list was
   // only refreshed on an unrelated event, so no row ever appeared for it.
   await expect
@@ -181,7 +199,7 @@ test('a chat row can still be renamed by double-clicking it', async () => {
   await expect.poll(() => chatRows().count(), { timeout: 10_000 }).toBeGreaterThan(1)
   // Deliberately a chat with a branch of its own: renaming the one on main is a
   // no-op branch-wise, which is correct but tests nothing about the next case.
-  await chatRows().filter({ hasText: 'make-the-header-dark' }).first().dblclick()
+  await chatRows().filter({ hasText: 'make-header-dark' }).first().dblclick()
   const rename = window.locator('input.chat-tree-rename')
   await expect(rename).toBeVisible()
   await rename.fill('renamed by e2e')
@@ -233,8 +251,8 @@ test('right-click Merge lands a branch\'s commit on main and clears the branch',
 
   // Real work on the branch, committed the way the agent would leave it.
   writeFileSync(join(wtPath, 'from-branch.txt'), 'made on the branch\n')
-  execFileSync('git', ['add', '-A'], { cwd: wtPath })
-  execFileSync('git', ['commit', '-m', 'work on the branch'], { cwd: wtPath })
+  gitIn(['add', '-A'], wtPath)
+  gitIn(['commit', '-m', 'work on the branch'], wtPath)
 
   await worktreeAction('merge', wtPath, branch, 'main')
 
@@ -453,4 +471,48 @@ test('exactly one row is highlighted at a time', async () => {
   await expect.poll(selected, { timeout: 10_000 }).toBe(1)
   expect(await window.locator('.sidebar-item.active').count()).toBe(1)
   expect(await window.locator('.sidebar-branch.on').count()).toBe(0)
+
+  // On a chat that has not sent anything yet: it has no cwd either, which made
+  // it read as the folder's own chat — so its row AND the project row lit up.
+  await newChat()
+  await window.waitForTimeout(800)
+  await expect.poll(selected, { timeout: 10_000 }).toBe(1)
+})
+
+test('the × on a row deletes the chat, and it stays deleted', async () => {
+  // Two complaints in one: there was no way to delete without finding a context
+  // menu, and deleting the last chat instantly recreated one — so delete looked
+  // like it did nothing at all.
+  await startChat('remove me later')
+  const rows = branchRows()
+  await expect.poll(() => rows.count(), { timeout: 15_000 }).toBeGreaterThan(0)
+
+  window.on('dialog', (d) => void d.accept())
+  const target = rows.filter({ hasText: 'remove' }).first()
+  await target.hover()
+  await target.locator('.sidebar-branch-remove').click()
+
+  // The row for THAT branch goes, which is the claim. Counting every row makes
+  // the test hostage to anything else the sidebar is doing.
+  await expect
+    .poll(async () => (await shownBranches()).some((b) => b.includes('remove')), {
+      timeout: 20_000
+    })
+    .toBe(false)
+  // And it does not come back a moment later — deleting the last chat used to
+  // recreate one instantly, which read as "delete does nothing".
+  await window.waitForTimeout(1500)
+  // Only the claim: that branch's row is gone, and stays gone. Asserting the
+  // TOTAL row count made the test hostage to whatever earlier tests left behind
+  // — it passed alone and failed in a full run for no fault of the app.
+  expect((await shownBranches()).some((b) => b.includes('remove'))).toBe(false)
+})
+
+test('a branch is named from the words that matter, not the whole sentence', async () => {
+  const before = gitBranches()
+  await startChat('can u fix the broken login please')
+  await expect.poll(() => gitBranches().length, { timeout: 15_000 }).toBe(before.length + 1)
+  const created = gitBranches().find((b) => !before.includes(b))!
+  // Not "can-u-fix-the-broken-login-please".
+  expect(created).toBe('fix-broken-login')
 })

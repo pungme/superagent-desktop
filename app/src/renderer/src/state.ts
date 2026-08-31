@@ -814,13 +814,14 @@ export const useStore = create<CoveState>((set, get) => ({
     const pending = chatLoadInflight.get(workspaceId)
     if (pending) return pending
     const run = (async (): Promise<Chat[]> => {
-      let list = await window.cove.chatList(workspaceId)
+      const list = await window.cove.chatList(workspaceId)
       // Every project has at least one chat, so the UI never has an empty state
       // to special-case (pre-existing projects get theirs from the migration).
-      if (list.length === 0) {
-        await window.cove.chatCreate(workspaceId)
-        list = await window.cove.chatList(workspaceId)
-      }
+      // A project with no conversations stays that way. This used to make one
+      // on the spot so the UI never had an empty state — but the sidebar reloads
+      // chats whenever anything changes, so deleting your only chat recreated it
+      // instantly and delete looked like it had done nothing. Clicking the
+      // project row opens one when you actually want it.
       set((s) => ({
         chats: { ...s.chats, [workspaceId]: list },
         activeChatId: {
@@ -833,6 +834,7 @@ export const useStore = create<CoveState>((set, get) => ({
             s.activeChatId[workspaceId] ||
             // Prefer the chat that was on screen last run, if it still exists.
             (() => {
+              if (list.length === 0) return ''
               const saved = localStorage.getItem(`activeChat:${workspaceId}`)
               return saved && list.some((c) => c.id === saved) ? saved : list[list.length - 1].id
             })()
@@ -1021,7 +1023,6 @@ export const useStore = create<CoveState>((set, get) => ({
         }
       }
     })
-    if (list.length === 0) await get().loadChats(workspaceId)
   },
   renameChat: async (workspaceId, chatId, title) => {
     await window.cove.chatUpdate(chatId, { title })
