@@ -961,6 +961,13 @@ export const useStore = create<CoveState>((set, get) => ({
         get().selectChat(workspaceId, onFolder.id)
         return
       }
+      // And never a FIRST one either. Clicking the project row opens the
+      // conversation in the folder; if there is none it opens the project with
+      // none, and the empty state offers + New chat. A chat appears when you
+      // ask for one and at no other time — clicking a project to look at it
+      // used to leave a new empty conversation behind every time.
+      set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: '' } }))
+      return
     }
     const id = await window.cove.chatCreate(workspaceId, cwd ?? undefined)
     const fresh = await window.cove.chatList(workspaceId)
