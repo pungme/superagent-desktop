@@ -15,7 +15,7 @@ import {
 } from 'fs'
 import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
 import { homedir } from 'os'
-import { setChatCwd } from './store'
+import { setChatCwd, takePendingBranch } from './store'
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
 
@@ -637,6 +637,10 @@ export function registerFilesIpc(): void {
   ipcMain.handle(
     'chat:ensure-branch',
     async (_e, chatId: string, projectPath: string, hint: string) => {
+      // The window claimed its own copy of the flag before calling; drop main's
+      // too, so the phone cannot come along and cut a second branch for a chat
+      // that already has one.
+      takePendingBranch(chatId)
       const cwd = await ensureChatBranch(projectPath, hint)
       if (cwd) setChatCwd(chatId, cwd)
       return cwd

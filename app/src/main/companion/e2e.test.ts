@@ -35,6 +35,8 @@ const h = vi.hoisted(() => {
       { id: string; chatId?: string; workspaceId?: string; owned: boolean }
     >(),
     sent: [] as { id: string; text: string; from: string; localId?: string }[],
+    /** The opening message of every chat a branch was cut for, in order. */
+    branchCuts: [] as string[],
     gates: new Map<string, boolean>(),
     identityPem: '' as string
   }
@@ -78,6 +80,8 @@ vi.mock('../store', () => ({
       cwd: null
     }
   ],
+  // c1 is the chat in the project folder; c-new is what chat.create returns.
+  // Both have no cwd — the pending flag is the only thing that tells them apart.
   getChat: (id: string) =>
     id === 'c1'
       ? {
@@ -88,7 +92,9 @@ vi.mock('../store', () => ({
           updatedAt: 1,
           cwd: null
         }
-      : undefined,
+      : id === 'c-new'
+        ? { id: 'c-new', workspaceId: 'w1', title: null, claudeSessionId: null, updatedAt: 2, cwd: null }
+        : undefined,
   getWorkspace: (id: string) =>
     id === 'w1'
       ? {
@@ -106,6 +112,9 @@ vi.mock('../store', () => ({
   getWorkspaceName: (id: string) => (id === 'w1' ? 'rowfill' : undefined),
   kvGet: (k: string) => h.kv.get(k),
   kvSet: (k: string, v: string) => h.kv.set(k, v),
+  isPendingBranch: (id: string) => h.kv.get(`pendingBranch:${id}`) === '1',
+  markPendingBranch: (id: string) => h.kv.set(`pendingBranch:${id}`, '1'),
+  takePendingBranch: (id: string) => h.kv.delete(`pendingBranch:${id}`),
   listCards: () => [],
   createChat: () => 'c-new',
   deleteChat: () => undefined,
@@ -214,8 +223,12 @@ vi.mock('../files', () => ({
   gitBranch: () => 'main',
   gitSubrepos: () => [],
   // The first message cuts a branch on a real project. Here there is no repo to
-  // cut one in, and the chat keeps running in the folder it was given.
-  ensureChatBranch: async () => null,
+  // cut one in, and the chat keeps running in the folder it was given — but who
+  // it was tried for is the thing worth watching.
+  ensureChatBranch: async (_path: string, hint: string) => {
+    h.branchCuts.push(hint)
+    return null
+  },
   listWorktrees: async () => []
 }))
 
@@ -461,6 +474,42 @@ describe('desktop ⇄ relay ⇄ phone', () => {
       event: { seq: 5, data: { kind: 'approval_end' } }
     })
     again.ws.close()
+  })
+
+  it('the folder chat keeps the folder; a new conversation gets its own copy', async () => {
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.next() // welcome
+    h.branchCuts.length = 0
+
+    // c1 is the conversation in the project folder — the one the project row
+    // opens. Writing in it must not move it onto a branch: that took the
+    // conversation out from under the project row and left an empty chat in its
+    // place, which on the phone looked like sending a message had made a second
+    // chat.
+    phone.send({
+      t: 'req',
+      id: 'b1',
+      method: 'chat.send',
+      params: { chatId: 'c1', text: 'in the folder' }
+    })
+    await phone.until((f) => f.t === 'res')
+    expect(h.branchCuts).toEqual([])
+
+    // A conversation opened with "+ New chat" is the other kind, and its first
+    // message names its branch.
+    phone.send({ t: 'req', id: 'b2', method: 'chat.create', params: { workspaceId: 'w1' } })
+    await phone.until((f) => f.t === 'res' && (f as { id: string }).id === 'b2')
+    phone.send({
+      t: 'req',
+      id: 'b3',
+      method: 'chat.send',
+      params: { chatId: 'c-new', text: 'add a settings screen' }
+    })
+    await phone.until((f) => f.t === 'res' && (f as { id: string }).id === 'b3')
+    expect(h.branchCuts).toEqual(['add a settings screen'])
+    phone.ws.close()
   })
 
   it('refuses a bad token and an old protocol', async () => {

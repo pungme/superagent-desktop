@@ -815,6 +815,18 @@ export const useStore = create<CoveState>((set, get) => ({
     if (pending) return pending
     const run = (async (): Promise<Chat[]> => {
       const list = await window.cove.chatList(workspaceId)
+      // A chat that has its copy is not waiting for one. The phone can cut the
+      // branch now, and it clears the flag in main — this clears the window's
+      // copy, which is otherwise mirrored straight back and the chat would sit
+      // under "no branch yet" for ever with its branch row showing no chat.
+      for (const c of list) {
+        if (!c.cwd) continue
+        try {
+          localStorage.removeItem(`pendingBranch:${c.id}`)
+        } catch {
+          /* no storage: the flag was never set either */
+        }
+      }
       // Every project has at least one chat, so the UI never has an empty state
       // to special-case (pre-existing projects get theirs from the migration).
       // A project with no conversations stays that way. This used to make one

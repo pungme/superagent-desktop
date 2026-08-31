@@ -608,6 +608,7 @@ export function lastChatPreview(chatId: string): string | null {
 
 export function deleteChat(chatId: string): void {
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId)
+  kvDel(pendingKey(chatId))
 }
 
 /** Remember the resumable claude session for a chat (the renderer does this for its own). */
@@ -650,6 +651,43 @@ export function kvGet(key: string): string | undefined {
   const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(key) as
     { value: string } | undefined
   return row?.value
+}
+
+export function kvDel(key: string): void {
+  db.prepare('DELETE FROM kv WHERE key = ?').run(key)
+}
+
+const pendingKey = (chatId: string): string => `pendingBranch:${chatId}`
+
+/**
+ * A chat that will cut its own copy of the project on its first message.
+ *
+ * This is the only thing separating a new conversation from the one that lives
+ * in the project folder: both have no cwd, and only this says which is which.
+ * The window has always drawn the distinction, in localStorage — which the
+ * companion cannot read, so the phone branched every chat without a cwd,
+ * including the folder's own. Sending a message there moved the conversation
+ * out from under the project row and left an empty chat in its place, which
+ * read as "writing a message created a second chat". The mirror in main.tsx
+ * puts every localStorage write in kv, so holding it here means both clients
+ * read one rule rather than two that disagree.
+ */
+export function isPendingBranch(chatId: string): boolean {
+  return kvGet(pendingKey(chatId)) === '1'
+}
+
+export function markPendingBranch(chatId: string): void {
+  kvSet(pendingKey(chatId), '1')
+}
+
+/**
+ * Claim the flag, if it is there to claim. Taking it first is what stops two
+ * messages racing into two branches for one chat — the window does the same.
+ */
+export function takePendingBranch(chatId: string): boolean {
+  if (!isPendingBranch(chatId)) return false
+  kvDel(pendingKey(chatId))
+  return true
 }
 
 export function kvSet(key: string, value: string): void {
