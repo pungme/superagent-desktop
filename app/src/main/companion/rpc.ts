@@ -834,7 +834,9 @@ export function listChats(): WireChat[] {
     title: c.title,
     updatedAt: c.updatedAt,
     live: isGenerating(c.id),
-    preview: lastChatPreview(c.id)
+    preview: lastChatPreview(c.id),
+    cwd: c.cwd ?? '',
+    pending: isPendingBranch(c.id)
   }))
 }
 
