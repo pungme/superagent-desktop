@@ -16,6 +16,9 @@ import {
   moveCard,
   getWorkspacePath,
   chatCwd,
+  isPendingBranch,
+  markPendingBranch,
+  takePendingBranch,
   createGroup,
   updateGroup,
   deleteGroup,
@@ -108,7 +111,11 @@ const chatSend = z.object({
 })
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatId = z.object({ chatId: z.string().min(1) })
-const chatCreate = z.object({ workspaceId: z.string().min(1) })
+// root: the conversation that lives in the project folder, which never cuts a
+// branch. Anything else is a new conversation and gets its own copy on its
+// first message. Older phones send neither, and a phone's "+ New chat" is the
+// common case, so absent means new.
+const chatCreate = z.object({ workspaceId: z.string().min(1), root: z.boolean().optional() })
 const approvalAnswer = z.object({
   id: z.string().min(1),
   approve: z.boolean(),
@@ -227,6 +234,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         if (!getWorkspace(p.data.workspaceId)) return fail('not-found', 'no such project')
         const id = createChat(p.data.workspaceId)
+        if (!p.data.root) markPendingBranch(id)
         // Every phone (and the desktop sidebar) learns about the new row now.
         broadcastToWindows('projects:changed', {})
         pushChats()
@@ -457,7 +465,13 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         return {
           ok: true,
           result: rows.map((w) => {
-            const chat = chats.find((c) => c.cwd && norm(c.cwd) === norm(w.path))
+            // The folder's own chat has no cwd, so it matched no worktree and
+            // the main row came back with no conversation at all — the phone
+            // then opened whichever chat was touched last, or made a new one.
+            // It is the same chat the window puts on the project row.
+            const chat = w.main
+              ? chats.find((c) => !c.cwd && !isPendingBranch(c.id))
+              : chats.find((c) => c.cwd && norm(c.cwd) === norm(w.path))
             return { ...w, chatId: chat?.id, chatTitle: chat?.title ?? undefined }
           })
         }
@@ -834,7 +848,12 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   // First message on a git project: cut this chat its own copy, named from what
   // was asked for. Without it a chat from the phone runs in the project folder,
   // beside whatever else is working there.
-  if (!chat.cwd) {
+  //
+  // Only a chat that was opened as a NEW conversation, though. The chat in the
+  // project folder has no cwd either, and branching it took the conversation
+  // out from under the project row and left an empty one in its place — from
+  // the phone, writing a message appeared to create a second chat.
+  if (!chat.cwd && takePendingBranch(chat.id)) {
     const ws = getWorkspace(chat.workspaceId)
     if (ws && ws.kind !== 'browser' && gitBranch(ws.path) !== null) {
       const cwd = await ensureChatBranch(ws.path, p.text)
