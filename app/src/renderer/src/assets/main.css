@@ -854,6 +854,28 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Delete, on the row, revealed on hover — the same gesture as a project. A
+   context menu is fine once you know it is there; this is for everyone else. */
+.sidebar-branch-remove {
+  flex: none;
+  margin-left: 4px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0 3px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.sidebar-branch:hover .sidebar-branch-remove {
+  opacity: 1;
+}
+.sidebar-branch-remove:hover {
+  color: var(--text-primary);
+}
+
 .sidebar-branch-chat {
   /* Shrinks, but not to nothing: a branch clipped to "m…" identifies nothing,
      which is the whole reason it is on the row. The title gives way first — it

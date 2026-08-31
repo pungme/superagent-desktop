@@ -39,7 +39,7 @@ import {
   releaseCompositing
 } from '../browser'
 import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
-import { listWorktrees, ensureChatBranch } from '../files'
+import { listWorktrees, ensureChatBranch, removeWorktree } from '../files'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { extname, resolve, sep } from 'path'
@@ -247,6 +247,13 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
         const s = findSessionByChat(p.data.chatId)
         if (s) stopAgent(s.id)
+        // Take the chat's copy of the project with it, exactly as the window
+        // does. Deleting only the row left the worktree and its branch on disk,
+        // so the Mac kept showing a row for a conversation that was gone.
+        const dying = getChat(p.data.chatId)
+        if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
+          await removeWorktree(dying.cwd.split('/.worktrees/')[0], dying.cwd)
+        }
         deleteChat(p.data.chatId)
         broadcastToWindows('projects:changed', {})
         pushChats()

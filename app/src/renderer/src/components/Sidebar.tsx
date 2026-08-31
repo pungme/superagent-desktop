@@ -269,7 +269,8 @@ function BranchRow({
   nested,
   active,
   onOpen,
-  onMenu
+  onMenu,
+  onRemove
 }: {
   branch: string
   chat: Chat | undefined
@@ -278,6 +279,8 @@ function BranchRow({
   active: boolean
   onOpen: () => void
   onMenu: () => void
+  /** Delete this conversation. Asks about unkept work first — see removeChat. */
+  onRemove?: () => void
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const running = useStore((st) => Boolean(chat && st.busy[chat.id]?.generating))
@@ -338,6 +341,18 @@ function BranchRow({
         <span className="sidebar-branch-chat" title={branch}>
           ⎇ {branch}
         </span>
+      )}
+      {chat && onRemove && (
+        <button
+          className="sidebar-branch-remove"
+          title="Delete this chat"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
+        >
+          ×
+        </button>
       )}
     </div>
   )
@@ -554,6 +569,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     }
   }, [ws.path, ws.kind])
   const openBranch = useStore((s) => s.openBranch)
+  const removeChatFn = useStore((s) => s.removeChat)
   /**
    * Something finished here that you have not read. Shown on the project too,
    * because a collapsed project is exactly when you would otherwise miss it.
@@ -573,8 +589,11 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     const id = s.activeChatId[ws.id]
     if (!id) return true
     const chat = s.chats[ws.id]?.find((c) => c.id === id)
-    // No chat loaded yet, or one that lives in the folder itself.
-    return !chat || !chat.cwd
+    if (!chat) return true
+    // A chat still waiting for its branch also has no cwd, so "no cwd" alone
+    // made it look like the folder's own chat — and its row and this one both
+    // lit up. Only a chat that will STAY in the folder counts as the root.
+    return !chat.cwd && !isPendingBranch(chat.id)
   })
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
@@ -881,7 +900,12 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             key: string,
             branch: string,
             chat: Chat | undefined,
-            opts: { main?: boolean; onOpen: () => void; onMenu?: () => void }
+            opts: {
+              main?: boolean
+              onOpen: () => void
+              onMenu?: () => void
+              onRemove?: () => void
+            }
           ): React.JSX.Element => (
             <BranchRow
               key={key}
@@ -892,6 +916,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               active={Boolean(active && chat && chat.id === activeChatId)}
               onOpen={opts.onOpen}
               onMenu={opts.onMenu ?? ((): void => undefined)}
+              onRemove={opts.onRemove}
             />
           )
           return (
@@ -912,6 +937,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                       openBranch(ws.id, cwd)
                     }
                   },
+                  onRemove: chat ? () => void removeChatFn(ws.id, chat.id) : undefined,
                   onMenu: () => {
                     if (wt.main) return
                     if (chat) {
@@ -947,6 +973,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                       setActive(ws.id)
                       selectChat(ws.id, c.id)
                     },
+                    onRemove: () => void removeChatFn(ws.id, c.id),
                     onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd)
                   })
                 )}
@@ -957,6 +984,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                     setActive(ws.id)
                     selectChat(ws.id, c.id)
                   },
+                  onRemove: () => void removeChatFn(ws.id, c.id),
                   onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd)
                 })
               )}
