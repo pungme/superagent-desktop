@@ -129,6 +129,20 @@ export interface WireChat {
   live: boolean
   /** The last thing said in it, for the list row. */
   preview?: string | null
+  /**
+   * Which copy of the project this chat is in: '' for the project folder
+   * itself, otherwise the worktree's path. The phone needs it to tell the
+   * folder's own chat — the one the project row opens — from a chat on a
+   * branch, which it could only guess at before. Absent from older Macs.
+   */
+  cwd?: string
+  /**
+   * Waiting for its first message to cut its branch. It has no cwd yet, exactly
+   * like the folder's own chat, so without this the phone would mistake a new
+   * conversation for the one the project row opens — the same trap the window's
+   * sidebar has to step around.
+   */
+  pending?: boolean
 }
 
 export interface WireMachine {
