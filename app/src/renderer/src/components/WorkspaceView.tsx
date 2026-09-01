@@ -268,6 +268,28 @@ export function WorkspaceView({
   useEffect(() => {
     loadChats(ws.id)
   }, [ws.id, loadChats])
+
+  /**
+   * A workspace with no conversation has nowhere to type.
+   *
+   * The chat column renders `mountedChats`, which is the active chat plus any
+   * busy sibling — so a workspace with no chats at all renders nothing, and the
+   * page fills the window with no composer under it. Nothing created one for a
+   * browser tab: `newTab` in the sidebar makes the workspace, sets it active,
+   * and stops. Two of the tabs in a real database had zero chats and no way to
+   * say anything to the agent; the tabs that worked were the ones that happened
+   * to have a chat already.
+   *
+   * `chats` is undefined until the list has loaded — only an empty array means
+   * there genuinely are none, so this cannot fire on the way in and make a
+   * second one.
+   */
+  const newChat = useStore((s) => s.newChat)
+  const chatsLoaded = chats !== undefined
+  useEffect(() => {
+    if (!chatsLoaded || (chats?.length ?? 0) > 0) return
+    void newChat(ws.id)
+  }, [chatsLoaded, chats?.length, ws.id, newChat])
   const toggleFiles = useStore((s) => s.toggleFiles)
   // Dev servers the agent started (from tool output). Shown as a chip in the
   // toolbar — there's room here, unlike the cramped sidebar row.
