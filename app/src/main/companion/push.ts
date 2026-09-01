@@ -29,6 +29,8 @@ export interface PushEvent {
   /** For 'approval': what the agent wants to do. For 'done': the reply's first line. */
   detail?: string
   machineName: string
+  /** What to call the agent in the copy. Defaults to Claude, the original one. */
+  agent?: string
 }
 
 /** Pure: the APNs payload for an event. */
@@ -38,27 +40,28 @@ export function composePush(e: PushEvent): {
 } {
   const project = e.workspaceId ? getWorkspaceName(e.workspaceId) : undefined
   const where = project ? `${e.machineName} · ${project}` : e.machineName
+  const agent = e.agent || 'Claude'
   let title: string
   let body: string
   let category: string
   switch (e.kind) {
     case 'approval':
-      title = 'Claude wants to act'
+      title = `${agent} wants to act`
       body = e.detail ? e.detail.slice(0, 140) : 'Approve or deny from here.'
       category = 'APPROVAL'
       break
     case 'done':
-      title = 'Claude is done'
+      title = `${agent} is done`
       body = e.detail ? e.detail.slice(0, 140) : 'Tap to see what it did.'
       category = 'DONE'
       break
     case 'test':
       title = 'Notifications are on'
-      body = `This phone will hear from ${e.machineName} when Claude needs you.`
+      body = `This phone will hear from ${e.machineName} when your agent needs you.`
       category = 'DONE'
       break
     default:
-      title = 'Claude needs you'
+      title = `${agent} needs you`
       body = e.detail ? e.detail.slice(0, 140) : 'The agent is waiting for your input.'
       category = 'DONE'
   }

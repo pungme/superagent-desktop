@@ -7,7 +7,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
  * RPC → main → agent, never through the window — reached an agent that had no
  * memory and no catch-up either. These are the rules, now that main owns them.
  */
-const store = vi.hoisted(() => ({ items: new Map<string, unknown[]>() }))
+const store = vi.hoisted(() => ({
+  items: new Map<string, unknown[]>(),
+  provider: 'claude' as 'claude' | 'codex'
+}))
 
 vi.mock('electron', () => ({
   ipcMain: { handle: () => undefined, on: () => undefined },
@@ -17,7 +20,10 @@ vi.mock('./hooks', () => ({ getHookUrl: () => '' }))
 vi.mock('./mcp', () => ({ getMcpUrl: () => '', writeWorkspaceMcpConfig: () => undefined }))
 vi.mock('./store', () => ({
   DESKTOP_WORKSPACE_ID: '__desktop_chat__',
-  loadChatItems: (chatId: string) => store.items.get(chatId) ?? []
+  loadChatItems: (chatId: string) => store.items.get(chatId) ?? [],
+  // The recap names the speaker after the chat's own agent.
+  getChatProvider: () => store.provider,
+  setChatSession: () => undefined
 }))
 
 const { markContextLost, takeRecap, buildRecap } = await import('./agent')
@@ -29,6 +35,7 @@ const msg = (role: 'user' | 'assistant', text: string, system = false): unknown 
 
 describe('recap', () => {
   beforeEach(() => {
+    store.provider = 'claude'
     store.items.clear()
     store.items.set('c1', [
       msg('user', 'Deploy the staging branch'),
@@ -63,7 +70,7 @@ describe('recap', () => {
     expect(takeRecap('empty')).toBe('')
   })
 
-  it('leaves out the app\'s own notices, which are not what anyone said', () => {
+  it("leaves out the app's own notices, which are not what anyone said", () => {
     store.items.set('c2', [
       msg('assistant', 'This conversation could not be resumed; the agent started fresh.', true),
       msg('user', 'carry on')
@@ -92,5 +99,18 @@ describe('recap', () => {
     store.items.set('c3', [msg('assistant', 'one\n\n  two\t\tthree')])
     markContextLost('c3')
     expect(buildRecap('c3')).toBe('Claude: one two three')
+  })
+})
+
+describe('recap speaker', () => {
+  it("names the agent that actually said it, so a recap isn't a claim about who you are", () => {
+    store.items.set('c-codex', [
+      msg('user', 'What is in this repo?'),
+      msg('assistant', 'A desktop app.')
+    ])
+    store.provider = 'codex'
+    expect(buildRecap('c-codex')).toContain('Codex: A desktop app.')
+    store.provider = 'claude'
+    expect(buildRecap('c-codex')).toContain('Claude: A desktop app.')
   })
 })

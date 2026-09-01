@@ -16,7 +16,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1c1d1a" alt="MIT licensed"></a>
 </p>
 
-<p align="center">Works with <b>Claude Code</b> today · Codex and Antigravity coming soon</p>
+<p align="center">Works with <b>Claude Code</b> and <b>Codex</b> · switch per chat · Antigravity coming soon</p>
 
 <p align="center">
   <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><b>⬇ Download for Mac</b></a> ·
@@ -38,9 +38,10 @@ works in its own copy of the project, so nothing collides. And when you leave
 the desk, the iPhone app follows the conversation and lets you answer the
 agent's questions from anywhere.
 
-Everything runs locally on your Mac, on the Claude subscription you already
-have. No middleman server, no API key, no AI of its own — and the whole app is
-open source, so you can read exactly how it touches your browser.
+Everything runs locally on your Mac, on the agent subscription you already have
+— Claude Code or Codex, switchable per chat. No middleman server, no API key, no
+AI of its own — and the whole app is open source, so you can read exactly how it
+touches your browser.
 
 ![Superagent — a Monet at the Met open in the browser pane as a desktop page and an iPhone side by side, with the agent that opened it explaining the painting in the chat beside them](docs/hero.png)
 
@@ -64,7 +65,7 @@ the agent can start the server itself and iterate while you watch.
 <tr>
 <td width="46%" valign="top">
 
-**An agent that can use the browser.** Claude drives that same browser: open a
+**An agent that can use the browser.** Your agent drives that same browser: open a
 page, click, type, read it back. Not a hidden browser it describes to you
 second-hand — the one on your screen, with your logged-in session. You watch it
 work and can take over any time. Automation only ever happens in Superagent's

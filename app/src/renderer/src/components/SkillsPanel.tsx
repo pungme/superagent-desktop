@@ -26,17 +26,20 @@ export function SkillsPanel({
   const [skills, setSkills] = useState<Skill[]>([])
   const [loading, setLoading] = useState(true)
   const sendToClaude = useStore((s) => s.sendToClaude)
+  // The panel is per project, not per chat, so it shows the default agent's
+  // skills — the ones a new chat here would be able to run.
+  const provider = useStore((s) => s.provider)
 
   useEffect(() => {
     // setState lives inside the promise callback (not the synchronous effect body).
-    window.cove.skillsList(projectPath).then((list) => {
+    window.cove.skillsList(projectPath, provider).then((list) => {
       setSkills(list)
       setLoading(false)
     })
-  }, [projectPath])
+  }, [projectPath, provider])
 
   const run = (skill: Skill): void => {
-    // Commands are slash-invocable; skills are invoked by asking Claude to use them.
+    // Commands are slash-invocable; skills are invoked by asking the agent to use them.
     const message = skill.kind === 'command' ? `/${skill.name}` : `Use the "${skill.name}" skill.`
     sendToClaude(workspaceId, message)
     onClose()
@@ -45,13 +48,15 @@ export function SkillsPanel({
   const saveAsSkill = (): void => {
     sendToClaude(
       workspaceId,
-      'Turn what you just did into a reusable Claude Code skill: create a .claude/skills/<short-name>/SKILL.md in this project with proper frontmatter (name, description) and clear instructions so I can run it again later. Then tell me the skill name.'
+      provider === 'codex'
+        ? 'Turn what you just did into a reusable prompt: create a .codex/prompts/<short-name>.md in this project with clear instructions so I can run it again later with /<short-name>. Then tell me its name.'
+        : 'Turn what you just did into a reusable Claude Code skill: create a .claude/skills/<short-name>/SKILL.md in this project with proper frontmatter (name, description) and clear instructions so I can run it again later. Then tell me the skill name.'
     )
     onClose()
   }
 
   const installStarters = async (): Promise<void> => {
-    const list = await window.cove.skillsInstallStarters()
+    const list = await window.cove.skillsInstallStarters(provider)
     setSkills(list)
   }
 

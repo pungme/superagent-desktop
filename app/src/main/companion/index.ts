@@ -6,7 +6,16 @@ import { browserBus, type BrowserPaneState } from '../browser'
 import { simBus, deviceLabel } from '../simulator'
 import { hookBus } from '../hooks'
 import { listSessions, findSessionByChat, suggestTitle } from '../agent'
-import { kvGet, kvSet, getChatIdBySession, getChat, getWorkspace, setChatTitle } from '../store'
+import {
+  kvGet,
+  kvSet,
+  getChatIdBySession,
+  getChat,
+  getChatProvider,
+  getWorkspace,
+  setChatTitle
+} from '../store'
+import { DEFAULT_PROVIDER, PROVIDER_LABEL, type AgentProvider } from '../../shared/agent-provider'
 import { broadcastToWindows } from '../util'
 import { listDevices, removeDevice } from './devices'
 import {
@@ -374,6 +383,15 @@ function broadcastState(): void {
  * Push a nudge to every paired phone that isn't looking at the app right now.
  * The relay does the APNs call; the Mac never holds the key.
  */
+/** The chat's agent, tolerating a chat row that has since gone. */
+function safeProvider(chatId: string): AgentProvider {
+  try {
+    return getChatProvider(chatId)
+  } catch {
+    return DEFAULT_PROVIDER
+  }
+}
+
 function notifyPhones(
   kind: PushKind,
   e: { workspaceId?: string; chatId?: string; approvalId?: string; detail?: string }
@@ -383,7 +401,15 @@ function notifyPhones(
   )
   const targets = pushTargets(kind, active)
   if (!targets.length) return
-  const { payload, collapseId } = composePush({ kind, machineName: prettyHostname(), ...e })
+  // Name the agent the chat actually runs on, so a Codex turn doesn't arrive on
+  // the phone announcing Claude.
+  const agent = e.chatId ? PROVIDER_LABEL[safeProvider(e.chatId)] : undefined
+  const { payload, collapseId } = composePush({
+    kind,
+    machineName: prettyHostname(),
+    agent,
+    ...e
+  })
   for (const t of targets) relay.push({ token: t.token, env: t.env, payload, collapseId })
 }
 

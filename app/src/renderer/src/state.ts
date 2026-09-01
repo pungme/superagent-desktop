@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useEffect } from 'react'
 import type { TreeGroup, Routine, Chat } from '../../preload'
+import { toProvider, type AgentProvider } from '../../shared/agent-provider'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 
@@ -381,11 +382,7 @@ interface CoveState {
    * message, and return the directory the agent must run in. null when there is
    * nothing to do — the chat already has a copy, or the project is not a repo.
    */
-  materializeBranch: (
-    workspaceId: string,
-    chatId: string,
-    hint: string
-  ) => Promise<string | null>
+  materializeBranch: (workspaceId: string, chatId: string, hint: string) => Promise<string | null>
   /** Open a branch's conversation, creating one if that branch has none. null = the project folder. */
   openBranch: (workspaceId: string, cwd: string | null) => Promise<void>
   /**
@@ -463,6 +460,21 @@ interface CoveState {
   updateProgress: { version: string | null; percent: number } | null
   /** Last updater failure, cleared by progress/ready. Settings shows it. */
   updateError: string | null
+
+  /**
+   * Which agent new chats start on. A chat records its own once it runs, so this
+   * is the default rather than the answer — see chatProvider below.
+   */
+  provider: AgentProvider
+  setProvider: (p: AgentProvider) => void
+  /** The backend a specific chat runs on: its own if it has one, else the default. */
+  chatProvider: (workspaceId: string, chatId: string) => AgentProvider
+  /**
+   * Move a chat to another agent. The session id it holds belongs to the old
+   * one, so it is dropped: the new agent cannot resume the other's thread, and
+   * the recap hands it the conversation instead.
+   */
+  setChatProvider: (workspaceId: string, chatId: string, p: AgentProvider) => Promise<void>
 
   /** How much the agent may do without asking. Applies to newly started chats. */
   permissionMode: PermissionMode
@@ -591,6 +603,26 @@ export const useStore = create<CoveState>((set, get) => ({
   updateProgress: null,
   updateError: null,
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
+  provider: toProvider(localStorage.getItem('cove.provider')),
+  setProvider: (p) => {
+    localStorage.setItem('cove.provider', p)
+    set({ provider: p })
+  },
+  chatProvider: (workspaceId, chatId) => {
+    const chat = (get().chats[workspaceId] ?? []).find((c) => c.id === chatId)
+    return chat?.provider ?? get().provider
+  },
+  setChatProvider: async (workspaceId, chatId, p) => {
+    if (get().chatProvider(workspaceId, chatId) === p) return
+    // Both in one write: a session id kept without its backend is a Codex thread
+    // that a later `claude --resume` looks for and never finds.
+    await window.cove.chatUpdate(chatId, { provider: p, claudeSessionId: null })
+    get().touchChat(workspaceId, chatId, { provider: p, claudeSessionId: null })
+    // The default follows the last explicit choice, so the next new chat lands
+    // where they just were rather than back on whatever they started with.
+    localStorage.setItem('cove.provider', p)
+    set({ provider: p })
+  },
   permissionMode:
     (localStorage.getItem('cove.permissionMode') as PermissionMode) || 'bypassPermissions',
   setPermissionMode: (m) => {
@@ -998,7 +1030,8 @@ export const useStore = create<CoveState>((set, get) => ({
     const ws = get()
       .tree.flatMap((g) => g.workspaces)
       .find((w) => w.id === workspaceId)
-    if (!ws || ws.kind === 'browser') return { ok: false as const, reason: 'not-a-project' as const }
+    if (!ws || ws.kind === 'browser')
+      return { ok: false as const, reason: 'not-a-project' as const }
     if ((await window.cove.gitBranch(ws.path)) === null) {
       return { ok: false as const, reason: 'not-a-repo' as const }
     }
@@ -1417,7 +1450,7 @@ export async function keepChatChanges(workspaceId: string, chatId: string): Prom
     return
   }
   const ask = window.confirm(
-    "These changes clash with something already in the project.\n\n" +
+    'These changes clash with something already in the project.\n\n' +
       'Nothing has been changed. Shall the agent in this chat sort it out for you?'
   )
   if (!ask) return
@@ -1425,7 +1458,7 @@ export async function keepChatChanges(workspaceId: string, chatId: string): Prom
   s.selectChat(workspaceId, chatId)
   s.sendToClaude(
     workspaceId,
-    'Keeping this chat\'s changes failed: they conflict with what is already on the branch ' +
+    "Keeping this chat's changes failed: they conflict with what is already on the branch " +
       'this chat was created from. Please merge that base branch into this one, resolve every ' +
       'conflict, check the project still builds, and commit the result. Tell me when it is ready ' +
       'to keep again.'

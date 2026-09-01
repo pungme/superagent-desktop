@@ -1,12 +1,20 @@
 import { ipcMain } from 'electron'
 import { readFileSync, existsSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'fs'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { homedir } from 'os'
+import { toProvider, type AgentProvider } from '../shared/agent-provider'
 
 /**
- * Discovers Claude Code skills and slash commands so Superagent can show them as
+ * Discovers the agent's skills and slash commands so Superagent can show them as
  * one-click buttons. Running a skill just types `/name` into the session —
  * nothing is reimplemented.
+ *
+ * Each agent keeps them somewhere different — Claude Code in ~/.claude/{skills,
+ * commands} and the project's .claude, Codex in ~/.codex/prompts and the
+ * project's .codex — so discovery is per provider and the "/" menu shows what
+ * the agent actually running this chat can run. (A live Codex session also
+ * reports its own list over the protocol; this is what fills the menu before
+ * one has started.)
  */
 
 export interface Skill {
@@ -81,16 +89,28 @@ function readCommandsDir(dir: string, scope: Skill['scope']): Skill[] {
   return out
 }
 
-export function discoverSkills(projectPath?: string): Skill[] {
+export function discoverSkills(projectPath?: string, provider: AgentProvider = 'claude'): Skill[] {
   const home = homedir()
-  const skills: Skill[] = [
-    ...readSkillsDir(join(home, '.claude', 'skills'), 'global'),
-    ...readCommandsDir(join(home, '.claude', 'commands'), 'global')
-  ]
+  const skills: Skill[] =
+    provider === 'codex'
+      ? [
+          // Codex's custom prompts are flat .md files, the same shape as Claude's
+          // commands — one file, one slash command.
+          ...readCommandsDir(join(home, '.codex', 'prompts'), 'global'),
+          ...readSkillsDir(join(home, '.codex', 'skills'), 'global')
+        ]
+      : [
+          ...readSkillsDir(join(home, '.claude', 'skills'), 'global'),
+          ...readCommandsDir(join(home, '.claude', 'commands'), 'global')
+        ]
   if (projectPath) {
+    const dir = provider === 'codex' ? '.codex' : '.claude'
     skills.push(
-      ...readSkillsDir(join(projectPath, '.claude', 'skills'), 'project'),
-      ...readCommandsDir(join(projectPath, '.claude', 'commands'), 'project')
+      ...readSkillsDir(join(projectPath, dir, 'skills'), 'project'),
+      ...readCommandsDir(
+        join(projectPath, dir, provider === 'codex' ? 'prompts' : 'commands'),
+        'project'
+      )
     )
   }
   // De-dupe by name (project overrides global), sort alphabetically.
@@ -125,23 +145,35 @@ Use cove-browser tools to look at the current page. Evaluate how it would look o
 phone screen. Improve the responsive layout so it looks good on mobile, then verify.`
 }
 
-/** Install Superagent's starter skills into the user's global skills dir if missing. */
-export function installStarterSkills(): void {
-  const base = join(homedir(), '.claude', 'skills')
+/**
+ * Install Superagent's starter skills into the agent's own global directory.
+ *
+ * The bodies are agent-agnostic — they describe using the cove-browser tools,
+ * which both agents get — so only the destination and the file layout differ:
+ * Claude Code wants a folder per skill with a SKILL.md, Codex wants one flat
+ * prompt file per command.
+ */
+export function installStarterSkills(provider: AgentProvider = 'claude'): void {
+  const home = homedir()
   for (const [name, content] of Object.entries(STARTER_SKILLS)) {
-    const dir = join(base, name)
-    const file = join(dir, 'SKILL.md')
+    const file =
+      provider === 'codex'
+        ? join(home, '.codex', 'prompts', `${name}.md`)
+        : join(home, '.claude', 'skills', name, 'SKILL.md')
     if (!existsSync(file)) {
-      mkdirSync(dir, { recursive: true })
+      mkdirSync(dirname(file), { recursive: true })
       writeFileSync(file, content)
     }
   }
 }
 
 export function registerSkillsIpc(): void {
-  ipcMain.handle('skills:list', (_e, projectPath?: string) => discoverSkills(projectPath))
-  ipcMain.handle('skills:installStarters', () => {
-    installStarterSkills()
-    return discoverSkills()
+  ipcMain.handle('skills:list', (_e, projectPath?: string, provider?: AgentProvider) =>
+    discoverSkills(projectPath, toProvider(provider))
+  )
+  ipcMain.handle('skills:installStarters', (_e, provider?: AgentProvider) => {
+    const p = toProvider(provider)
+    installStarterSkills(p)
+    return discoverSkills(undefined, p)
   })
 }

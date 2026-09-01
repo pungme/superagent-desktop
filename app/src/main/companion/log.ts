@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import { basename, extname, isAbsolute, relative } from 'path'
 import { statSync } from 'fs'
-import { agentBus, listSessions } from '../agent'
+import { agentBus, listSessions, getSessionOpts } from '../agent'
 import { broadcastToWindows } from '../util'
 import { getWorkspacePath, chatCwd } from '../store'
 import {
@@ -220,11 +220,13 @@ export function startCompanionLog(): void {
       if (!out.persist.length) return
       const stored = out.persist.map((data) => record(chatId, data))
       // No window is showing this chat: keep the desktop transcript in step,
-      // and remember the claude session so it can be resumed later.
+      // and remember the session so it can be resumed later — with the backend
+      // that issued it, since only that one can resume it.
       if (!isOwned(id, owned)) {
         appendChatItems(chatId, toLegacyItems(stored.map((e) => e.data)))
         for (const e of stored)
-          if (e.data.kind === 'session') setChatSession(chatId, e.data.claudeSessionId)
+          if (e.data.kind === 'session')
+            setChatSession(chatId, e.data.claudeSessionId, getSessionOpts(id)?.provider)
         // A window may be sitting on this chat with an older copy in memory,
         // which it would write back over what the phone just added.
         broadcastToWindows('chat:appended', { chatId })

@@ -1,24 +1,26 @@
 import { ipcMain, BrowserWindow, Notification, powerMonitor } from 'electron'
-import { spawn } from 'child_process'
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import { ensureOffscreenPane, destroyBrowserPane } from './browser'
 import { navigate } from './automation'
-import { writeWorkspaceMcpConfig } from './mcp'
-import { getHookUrl } from './hooks'
-import { getDb, getWorkspaceKind } from './store'
-import { findClaude } from './claude-cli'
+import { writeWorkspaceMcpConfig, workspaceMcpUrl } from './mcp'
+import { getDb, getWorkspaceKind, kvGet } from './store'
+import { runClaudeRoutine } from './claude/routine'
+import { runCodexRoutine } from './codex/routine'
 import { broadcastToWindows, partitionFor, routinePaneId } from './util'
+import { DEFAULT_PROVIDER, toProvider, type AgentProvider } from '../shared/agent-provider'
+import type { RoutineOutcome } from './agent-backend'
 
 /**
  * Routines — scheduled natural-language browser tasks.
  * "Check my site every hour" typed once, run on a local ticker.
  *
- * Design (from the servus-ai learnings, adapted to Superagent + Claude):
+ * Design (from the servus-ai learnings, adapted to Superagent):
  *  - the NL prompt IS the stored artifact, re-planned fresh each run
  *  - a 60s main-process ticker (survives renderer reloads), one catch-up run max
- *  - each run = headless `claude -p` scoped to an offscreen browser pane that
- *    shares the workspace's cookies, so scheduled runs never steal the viewport
+ *  - each run = one headless turn of whichever agent is selected, scoped to an
+ *    offscreen browser pane that shares the workspace's cookies, so scheduled
+ *    runs never steal the viewport
  *  - guardrails: wall-clock timeout + max turns
  *  - honest limit: only runs while Superagent is open (session cookies are local)
  */
@@ -97,41 +99,16 @@ function initDb(): void {
   }
 }
 
-/** One entry in a routine run's transcript. */
-export type RoutineStep =
-  | { kind: 'thinking'; text: string }
-  | { kind: 'text'; text: string }
-  | { kind: 'tool'; name: string; input?: string }
+/** Re-exported so existing importers of the routine transcript shape keep working. */
+export type { RoutineStep } from './agent-backend'
 
-/** Pull the readable steps out of one stream-json `assistant` event. */
-function stepsFromAssistant(event: {
-  message?: { content?: Array<Record<string, unknown>> }
-}): RoutineStep[] {
-  const content = event.message?.content
-  if (!Array.isArray(content)) return []
-  const steps: RoutineStep[] = []
-  for (const block of content) {
-    if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
-      steps.push({ kind: 'text', text: block.text })
-    } else if (
-      block.type === 'thinking' &&
-      typeof block.thinking === 'string' &&
-      block.thinking.trim()
-    ) {
-      steps.push({ kind: 'thinking', text: block.thinking })
-    } else if (block.type === 'tool_use' && typeof block.name === 'string') {
-      // Strip the mcp__cove-browser__ prefix so the tool reads as e.g. "browser_navigate".
-      const name = block.name.replace(/^mcp__[^_]+(?:-[^_]+)*__/, '')
-      let input: string | undefined
-      try {
-        input = block.input ? JSON.stringify(block.input).slice(0, 200) : undefined
-      } catch {
-        input = undefined
-      }
-      steps.push({ kind: 'tool', name, input })
-    }
+/** Which agent a scheduled run uses: whatever the app is currently set to. */
+function routineProvider(): AgentProvider {
+  try {
+    return toProvider(kvGet('cove.provider'))
+  } catch {
+    return DEFAULT_PROVIDER
   }
-  return steps
 }
 
 export function listRoutines(workspaceId?: string): Routine[] {
@@ -211,7 +188,7 @@ export async function runRoutine(routine: Routine): Promise<void> {
 
   // Offscreen pane sharing the workspace's cookies, scoped MCP config for it.
   const paneId = routinePaneId(routine.workspaceId)
-  let result: { ok: boolean; summary: string; steps: RoutineStep[]; tokens: number } = {
+  let result: RoutineOutcome = {
     ok: false,
     summary: 'Run failed to start.',
     steps: [],
@@ -244,61 +221,22 @@ export async function runRoutine(routine: Routine): Promise<void> {
     }
     const mcpConfig = writeWorkspaceMcpConfig(paneId)
 
-    result = await new Promise<{
-      ok: boolean
-      summary: string
-      steps: RoutineStep[]
-      tokens: number
-    }>((resolve) => {
-      const proc = spawn(
-        findClaude(),
-        [
-          '-p',
-          routine.prompt,
-          // stream-json (not plain json) so we capture the thinking + tool calls as
-          // they happen, for the run transcript the user can inspect.
-          '--output-format',
-          'stream-json',
-          '--verbose',
-          '--append-system-prompt',
-          ROUTINE_SYSTEM_PROMPT,
-          '--mcp-config',
-          mcpConfig,
-          // The full cove-browser tool set. Omissions bite: a routine that tried
-          // browser_evaluate to verify its work got every call denied and looped
-          // until it timed out. Keep this in sync with the tools mcp.ts registers.
-          '--allowedTools',
-          'mcp__cove-browser__browser_navigate',
-          'mcp__cove-browser__browser_read_page',
-          'mcp__cove-browser__browser_click',
-          'mcp__cove-browser__browser_type',
-          'mcp__cove-browser__browser_press_key',
-          'mcp__cove-browser__browser_screenshot',
-          'mcp__cove-browser__browser_evaluate',
-          'mcp__cove-browser__browser_console',
-          'mcp__cove-browser__browser_network',
-          'mcp__cove-browser__browser_wait_for',
-          '--max-turns',
-          String(MAX_TURNS)
-        ],
-        {
-          cwd: routine.workspacePath,
-          env: {
-            ...process.env,
-            COVE_HOOK_URL: getHookUrl(),
-            COVE_WORKSPACE_ID: paneId
-          }
-        }
-      )
-
-      const steps: RoutineStep[] = []
-      let summary = '(no summary)'
-      let isError = false
-      let tokens = 0
-      let buffer = ''
+    // Routines are unattended: no streaming, no approvals, no steering. Each
+    // backend runs the turn its own way and reports the same outcome — the
+    // scheduler, the pane and the transcript below are the same either way.
+    const run = routineProvider() === 'codex' ? runCodexRoutine : runClaudeRoutine
+    result = await run({
+      prompt: routine.prompt,
+      systemPrompt: ROUTINE_SYSTEM_PROMPT,
+      cwd: routine.workspacePath,
+      paneId,
+      mcpConfigPath: mcpConfig,
+      mcpUrl: workspaceMcpUrl(paneId),
+      maxTurns: MAX_TURNS,
+      timeoutMs: RUN_TIMEOUT_MS,
       // Stream steps to the DB as they arrive so the run viewer updates live —
       // otherwise a headless run looks like nothing is happening for minutes.
-      const persistSteps = (): void => {
+      onSteps: (steps) => {
         try {
           db.prepare('UPDATE routines SET lastRunTranscript = ? WHERE id = ?').run(
             JSON.stringify(steps),
@@ -309,61 +247,6 @@ export async function runRoutine(routine: Routine): Promise<void> {
           // a transient DB error mustn't kill the run
         }
       }
-      const consume = (chunk: string): void => {
-        buffer += chunk
-        let nl: number
-        while ((nl = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, nl).trim()
-          buffer = buffer.slice(nl + 1)
-          if (!line) continue
-          try {
-            const event = JSON.parse(line)
-            if (event?.type === 'assistant') {
-              const added = stepsFromAssistant(event)
-              if (added.length) {
-                steps.push(...added)
-                persistSteps()
-              }
-            } else if (event?.type === 'result') {
-              if (typeof event.result === 'string' && event.result.trim()) {
-                summary = event.result.slice(0, 500)
-              }
-              isError = event.is_error === true
-              const u = event.usage
-              if (u && typeof u === 'object') {
-                tokens =
-                  (u.input_tokens ?? 0) +
-                  (u.output_tokens ?? 0) +
-                  (u.cache_creation_input_tokens ?? 0) +
-                  (u.cache_read_input_tokens ?? 0)
-              }
-            }
-          } catch {
-            // partial or non-JSON line; ignore
-          }
-        }
-      }
-
-      const timer = setTimeout(() => {
-        proc.kill()
-        resolve({
-          ok: false,
-          summary: `Timed out after ${Math.round(RUN_TIMEOUT_MS / 60000)} minutes.`,
-          steps,
-          tokens
-        })
-      }, RUN_TIMEOUT_MS)
-
-      proc.stdin.on('error', () => {})
-      proc.stdout.on('data', (c) => consume(c.toString()))
-      proc.on('error', (e) => {
-        clearTimeout(timer)
-        resolve({ ok: false, summary: `Failed to launch: ${e.message}`, steps, tokens })
-      })
-      proc.on('exit', () => {
-        clearTimeout(timer)
-        resolve({ ok: !isError, summary, steps, tokens })
-      })
     })
   } catch (e) {
     result = {

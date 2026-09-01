@@ -6,7 +6,14 @@ import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, chmodSy
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
-import { getWorkspaceName, getChatTitleBySession, recordEvent } from './store'
+import {
+  getWorkspaceName,
+  getChatTitleBySession,
+  getChatIdBySession,
+  getChatProvider,
+  recordEvent
+} from './store'
+import { DEFAULT_PROVIDER, PROVIDER_LABEL } from '../shared/agent-provider'
 import { paneLog, allowUserFocus } from './browser'
 import {
   classifyTool,
@@ -33,7 +40,7 @@ export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
 
 // What deserves a banner. The renderer owns the persisted setting and pushes it
 // here on startup and on change — banners pop over whatever the user is doing,
-// so "Claude is done" must be optional; "needs you" defaults on but can go too.
+// so "the agent is done" must be optional; "needs you" defaults on but can go too.
 export const notifyPrefs = { done: true, needsYou: true }
 
 // The tail of each chat's last assistant reply, per workspace — pushed by the
@@ -202,6 +209,117 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
   )
 }
 
+/**
+ * Which agent a notification is about, so it is named correctly. Falls back to
+ * the default rather than guessing when the session isn't on a chat we know.
+ */
+function agentNameFor(sessionId: string | undefined): string {
+  if (!sessionId) return PROVIDER_LABEL[DEFAULT_PROVIDER]
+  try {
+    const chatId = getChatIdBySession(sessionId)
+    return PROVIDER_LABEL[chatId ? getChatProvider(chatId) : DEFAULT_PROVIDER]
+  } catch {
+    return PROVIDER_LABEL[DEFAULT_PROVIDER]
+  }
+}
+
+/**
+ * Report one agent lifecycle beat: the workspace's status badge, the companion's
+ * event feed, and the desktop notifications for "needs you" and "is done".
+ *
+ * Claude Code reaches this through the hook server above — the shell hook it
+ * installs POSTs here. Codex has no hooks and does not need any: its session
+ * calls this directly off the protocol. So the two backends stay separate while
+ * the product behaviour they drive stays one implementation, and a Codex chat
+ * gets the same badge and the same "is done" ping as a Claude one.
+ */
+export function reportAgentLifecycle(
+  event: string,
+  workspaceId: string,
+  body: Record<string, unknown> = {}
+): void {
+  const status = EVENT_STATUS[event]
+  const sessionId = typeof body.session_id === 'string' ? body.session_id : undefined
+
+  broadcastToWindows('hook:event', { workspaceId, event, status, sessionId, body })
+  hookBus.emit('event', {
+    workspaceId,
+    event,
+    status,
+    sessionId,
+    detail:
+      event === 'Notification' && typeof body.message === 'string'
+        ? body.message
+        : event === 'Stop'
+          ? lastReplies.get(workspaceId)
+          : undefined
+  })
+
+  if (event === 'Notification') {
+    const focused = BrowserWindow.getFocusedWindow()
+    if (!focused && Notification.isSupported() && notifyPrefs.needsYou) {
+      const agent = agentNameFor(sessionId)
+      const message = typeof body.message === 'string' ? body.message : `${agent} needs your input`
+      const name = getWorkspaceName(workspaceId)
+      const about = sessionId ? getChatTitleBySession(sessionId) : undefined
+      // Which project, and which conversation within it — with several agents
+      // running, "needs you" alone doesn't say where to look.
+      const n = new Notification({
+        title: name ? `${agent} needs you — ${name}` : `Superagent — ${agent} needs you`,
+        subtitle: about,
+        body: message
+      })
+      n.on('click', () => {
+        const win = BrowserWindow.getAllWindows()[0]
+        if (win) {
+          if (win.isMinimized()) win.restore()
+          paneLog('notification-click-focus', workspaceId)
+          allowUserFocus() // deliberate: don't bounce this one back
+          win.focus()
+          win.webContents.send('hook:focus-workspace', workspaceId)
+        }
+      })
+      n.show()
+    }
+  }
+
+  // Agent finished a turn: if the user has switched to another app, ping them
+  // with a notification instead of pulling the window forward. Click focuses
+  // the project. (When the app is already frontmost, stay quiet.)
+  if (event === 'Stop') {
+    recordEvent('turn', workspaceId)
+    const focused = BrowserWindow.getFocusedWindow()
+    if (!focused && Notification.isSupported() && notifyPrefs.done) {
+      const name = getWorkspaceName(workspaceId)
+      // Chats name themselves after what they turned out to be about, so the
+      // title is the closest thing we have to "what was it about".
+      const about = sessionId ? getChatTitleBySession(sessionId) : undefined
+      const reply = lastReplies.get(workspaceId)
+      const agent = agentNameFor(sessionId)
+      const n = new Notification({
+        title: name ? `${agent} is done — ${name}` : `Superagent — ${agent} is done`,
+        subtitle: about,
+        // The reply's opening line is the closest thing to "what happened";
+        // when there's none (a turn that ended on tool calls, say), invite the
+        // click rather than saying "finished its turn", which means nothing to
+        // a person.
+        body: reply || 'Tap to see what it did.'
+      })
+      n.on('click', () => {
+        const win = BrowserWindow.getAllWindows()[0]
+        if (win) {
+          if (win.isMinimized()) win.restore()
+          paneLog('notification-click-focus', workspaceId)
+          allowUserFocus() // deliberate: don't bounce this one back
+          win.focus()
+          win.webContents.send('hook:focus-workspace', workspaceId)
+        }
+      })
+      n.show()
+    }
+  }
+}
+
 export function startHookServer(): Promise<string> {
   hookSecret = randomBytes(12).toString('hex')
   const base = `/hook/${hookSecret}`
@@ -236,84 +354,7 @@ export function startHookServer(): Promise<string> {
       if (sid) clearTurn(sid)
     }
 
-    const status = EVENT_STATUS[event]
-    const sessionId = typeof body.session_id === 'string' ? body.session_id : undefined
-
-    broadcastToWindows('hook:event', { workspaceId, event, status, sessionId, body })
-    hookBus.emit('event', {
-      workspaceId,
-      event,
-      status,
-      sessionId,
-      detail:
-        event === 'Notification' && typeof body.message === 'string'
-          ? body.message
-          : event === 'Stop'
-            ? lastReplies.get(workspaceId)
-            : undefined
-    })
-
-    if (event === 'Notification') {
-      const focused = BrowserWindow.getFocusedWindow()
-      if (!focused && Notification.isSupported() && notifyPrefs.needsYou) {
-        const message = typeof body.message === 'string' ? body.message : 'Claude needs your input'
-        const name = getWorkspaceName(workspaceId)
-        const about = sessionId ? getChatTitleBySession(sessionId) : undefined
-        // Which project, and which conversation within it — with several agents
-        // running, "Claude needs you" alone doesn't say where to look.
-        const n = new Notification({
-          title: name ? `Claude needs you — ${name}` : 'Superagent — Claude needs you',
-          subtitle: about,
-          body: message
-        })
-        n.on('click', () => {
-          const win = BrowserWindow.getAllWindows()[0]
-          if (win) {
-            if (win.isMinimized()) win.restore()
-            paneLog('notification-click-focus', workspaceId)
-            allowUserFocus() // deliberate: don't bounce this one back
-            win.focus()
-            win.webContents.send('hook:focus-workspace', workspaceId)
-          }
-        })
-        n.show()
-      }
-    }
-
-    // Agent finished a turn: if the user has switched to another app, ping them
-    // with a notification instead of pulling the window forward. Click focuses
-    // the project. (When the app is already frontmost, stay quiet.)
-    if (event === 'Stop') {
-      recordEvent('turn', workspaceId)
-      const focused = BrowserWindow.getFocusedWindow()
-      if (!focused && Notification.isSupported() && notifyPrefs.done) {
-        const name = getWorkspaceName(workspaceId)
-        // Chats name themselves after what they turned out to be about, so the
-        // title is the closest thing we have to "what was it about".
-        const about = sessionId ? getChatTitleBySession(sessionId) : undefined
-        const reply = lastReplies.get(workspaceId)
-        const n = new Notification({
-          title: name ? `Claude is done — ${name}` : 'Superagent — Claude is done',
-          subtitle: about,
-          // The reply's opening line is the closest thing to "what happened";
-          // when there's none (a turn that ended on tool calls, say), invite the
-          // click rather than saying "finished its turn", which means nothing to
-          // a person.
-          body: reply || 'Tap to see what it did.'
-        })
-        n.on('click', () => {
-          const win = BrowserWindow.getAllWindows()[0]
-          if (win) {
-            if (win.isMinimized()) win.restore()
-            paneLog('notification-click-focus', workspaceId)
-            allowUserFocus() // deliberate: don't bounce this one back
-            win.focus()
-            win.webContents.send('hook:focus-workspace', workspaceId)
-          }
-        })
-        n.show()
-      }
-    }
+    reportAgentLifecycle(event, workspaceId, body)
   })
 
   return new Promise((resolve) => {

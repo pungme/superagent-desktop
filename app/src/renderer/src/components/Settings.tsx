@@ -1,15 +1,119 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
 import { PhoneSettings } from './PhoneSettings'
+import {
+  AGENT_PROVIDERS,
+  PROVIDER_LABEL,
+  PROVIDER_PRODUCT,
+  type AgentProvider
+} from '../../../shared/agent-provider'
+
+type ProviderStatus = { installed: boolean; version: string | null; loggedIn: boolean }
+type EnvStatus = Record<AgentProvider, ProviderStatus> & { loggedIn: boolean }
+
+/** How each agent is signed in, and where to get it. */
+const AGENT_COPY: Record<AgentProvider, { signIn: string; terminal: string; install: string }> = {
+  claude: {
+    signIn: 'Sign in with a Claude Pro/Max plan or API credits.',
+    terminal: 'claude',
+    install: 'curl -fsSL https://claude.ai/install.sh | bash'
+  },
+  codex: {
+    signIn: 'Sign in with a ChatGPT Plus/Pro plan or an API key.',
+    terminal: 'codex login',
+    install: 'npm install -g @openai/codex'
+  }
+}
+
+/**
+ * One agent's connection state: installed, signed in, and what to do about it.
+ *
+ * Superagent needs only one of them, so this reports each independently rather
+ * than as a single "is it set up" answer.
+ */
+function AgentCard({
+  provider,
+  status,
+  checking,
+  onRecheck
+}: {
+  provider: AgentProvider
+  status: ProviderStatus | undefined
+  checking: boolean
+  onRecheck: () => void
+}): React.JSX.Element {
+  const copy = AGENT_COPY[provider]
+  const connected = !!status?.installed && !!status?.loggedIn
+  const state = checking
+    ? 'checking'
+    : connected
+      ? 'connected'
+      : status?.installed
+        ? 'signed-out'
+        : 'missing'
+  return (
+    <div className={`settings-agent ${state}`}>
+      <div className="settings-agent-head">
+        <span className={`settings-agent-dot ${state}`} aria-hidden />
+        <strong>{PROVIDER_PRODUCT[provider]}</strong>
+        <span className="settings-agent-state">
+          {checking
+            ? 'Checking…'
+            : connected
+              ? 'Connected'
+              : status?.installed
+                ? 'Not signed in'
+                : 'Not installed'}
+        </span>
+      </div>
+      <div className="settings-agent-detail">
+        {status?.installed ? (
+          <>
+            Version {status.version}
+            {!status.loggedIn && (
+              <>
+                {' · '}
+                {copy.signIn}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            Not found on your PATH. Install it with <code>{copy.install}</code>
+          </>
+        )}
+      </div>
+      {status?.installed && !status.loggedIn && (
+        <div className="settings-agent-actions">
+          <button
+            className="settings-agent-btn"
+            onClick={() => {
+              window.cove.openAgentLogin(provider)
+            }}
+          >
+            Sign in
+          </button>
+          <button className="settings-agent-btn ghost" onClick={onRecheck} disabled={checking}>
+            Re-check
+          </button>
+          <span className="settings-agent-hint">
+            Opens Terminal running <code>{copy.terminal}</code>.
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface SettingsProps {
   onClose: () => void
 }
 
-type SectionId = 'general' | 'phone' | 'notifications' | 'advanced' | 'about'
+type SectionId = 'general' | 'agents' | 'phone' | 'notifications' | 'advanced' | 'about'
 
 const SECTIONS: { id: SectionId; label: string; icon: string }[] = [
   { id: 'general', label: 'General', icon: '⚙︎' },
+  { id: 'agents', label: 'Agents', icon: '◇' },
   { id: 'phone', label: 'Phone', icon: '📱' },
   { id: 'notifications', label: 'Notifications', icon: '🔔' },
   { id: 'advanced', label: 'Advanced', icon: '🧪' },
@@ -73,6 +177,21 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
     setNotifyNeedsYou(v)
     window.cove.setNotifyPrefs({ needsYou: v })
   }
+  // Which agents are connected — installed AND signed in. Fetched when the
+  // Agents section is opened rather than on mount: the sign-in probe costs a
+  // real (tiny) call on Claude's side, and Settings usually opens for something
+  // else entirely.
+  const [env, setEnv] = useState<EnvStatus | null>(null)
+  const [envChecking, setEnvChecking] = useState(false)
+  const provider = useStore((s) => s.provider)
+  const setProvider = useStore((s) => s.setProvider)
+  const checkAgents = (): void => {
+    setEnvChecking(true)
+    window.cove
+      .envDetect()
+      .then((e) => setEnv(e as EnvStatus))
+      .finally(() => setEnvChecking(false))
+  }
   const [version, setVersion] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
@@ -95,7 +214,14 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   }
 
   useEffect(() => {
-    window.cove.envVersion().then((e) => setVersion(e.claudeVersion))
+    // Both agents' versions, so About shows what is actually on this machine.
+    window.cove.envVersion().then((e) =>
+      setVersion(
+        AGENT_PROVIDERS.filter((p) => e[p].installed)
+          .map((p) => `${PROVIDER_PRODUCT[p]} ${e[p].version}`)
+          .join(' · ')
+      )
+    )
     window.cove.appVersion().then(setAppVersion)
   }, [])
 
@@ -127,7 +253,13 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
             <button
               key={s.id}
               className={`settings-nav-item ${section === s.id ? 'on' : ''}`}
-              onClick={() => setSection(s.id)}
+              onClick={() => {
+                setSection(s.id)
+                // Probe on the way in, not on mount: the sign-in check costs a
+                // real (tiny) call on Claude's side, and Settings usually opens
+                // for something else entirely.
+                if (s.id === 'agents' && !env && !envChecking) checkAgents()
+              }}
             >
               <span className="settings-nav-icon" aria-hidden>
                 {s.icon}
@@ -179,16 +311,61 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
             </section>
           )}
 
+          {section === 'agents' && (
+            <section className="settings-section">
+              <div className="settings-agents">
+                {AGENT_PROVIDERS.map((p) => (
+                  <AgentCard
+                    key={p}
+                    provider={p}
+                    status={env?.[p]}
+                    checking={envChecking && !env}
+                    onRecheck={checkAgents}
+                  />
+                ))}
+              </div>
+              <Row
+                title="Default for new chats"
+                desc="Every chat keeps its own agent — this is just where new ones start. Change a single chat from the Agent pill under its composer."
+              >
+                <div className="mode-switch">
+                  {AGENT_PROVIDERS.map((p) => (
+                    <button
+                      key={p}
+                      className={`mode-switch-btn ${provider === p ? 'active' : ''}`}
+                      onClick={() => setProvider(p)}
+                    >
+                      {PROVIDER_LABEL[p]}
+                    </button>
+                  ))}
+                </div>
+              </Row>
+              <div className="settings-agents-foot">
+                <button
+                  className="settings-agent-btn ghost"
+                  onClick={checkAgents}
+                  disabled={envChecking}
+                >
+                  {envChecking ? 'Checking…' : 'Re-check both'}
+                </button>
+                <span className="settings-agent-hint">
+                  Superagent ships no AI of its own — it runs on whichever of these you already pay
+                  for. One is enough.
+                </span>
+              </div>
+            </section>
+          )}
+
           {section === 'notifications' && (
             <section className="settings-section">
               <Row
-                title="Notify when Claude finishes"
+                title="Notify when the agent finishes"
                 desc="A banner when a turn completes while you're in another app."
               >
                 <Toggle checked={notifyDone} onChange={toggleNotifyDone} />
               </Row>
               <Row
-                title="Notify when Claude needs you"
+                title="Notify when the agent needs you"
                 desc="A banner when the agent is waiting on your input."
               >
                 <Toggle checked={notifyNeedsYou} onChange={toggleNotifyNeedsYou} />
@@ -213,7 +390,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                 <div className="settings-about-ver">
                   Version {appVersion ?? '—'}
                   <span className="settings-about-sep">·</span>
-                  Claude Code {version ?? '—'}
+                  {version || 'no agent found'}
                 </div>
                 <div className="settings-about-update">
                   <button

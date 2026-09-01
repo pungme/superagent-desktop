@@ -125,7 +125,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const workspaceId = workspaceIdFromPane(PANE_ID)
       const sessionId = CHAT_ID ?? PANE_ID
       const preview = toolPreview(tool_name, input)
-      const approved = await requestApproval(workspaceId, sessionId, tool_name, preview, 'permission')
+      const approved = await requestApproval(
+        workspaceId,
+        sessionId,
+        tool_name,
+        preview,
+        'permission'
+      )
       const verdict = approved
         ? { behavior: 'allow', updatedInput: input ?? {} }
         : { behavior: 'deny', message: 'The user declined this action in Superagent.' }
@@ -1159,15 +1165,25 @@ export function getMcpUrl(): string {
 }
 
 /**
- * Write a per-workspace MCP config file and return its path.
- * The URL carries ?ws=<id> so tool calls hit this workspace's browser pane.
+ * The tool-server URL scoped to one workspace, and to one chat when there is one.
+ *
+ * ?ws=<id> is what makes a tool call hit THIS workspace's browser pane; ?chat=<id>
+ * is what lets a board card name the conversation that raised it. Claude Code
+ * takes this inside a config file (below); Codex takes it inline as a per-thread
+ * config override — same server, same scoping, two ways of being told about it.
  */
-export function writeWorkspaceMcpConfig(workspaceId: string, chatId?: string): string {
-  // ?chat=<id> is what lets a board card name the conversation that raised it,
-  // so the config is per-chat when there is one.
-  const url =
+export function workspaceMcpUrl(workspaceId: string, chatId?: string): string {
+  return (
     `${getMcpUrl()}?ws=${encodeURIComponent(workspaceId)}` +
     (chatId ? `&chat=${encodeURIComponent(chatId)}` : '')
+  )
+}
+
+/**
+ * Write a per-workspace MCP config file and return its path.
+ */
+export function writeWorkspaceMcpConfig(workspaceId: string, chatId?: string): string {
+  const url = workspaceMcpUrl(workspaceId, chatId)
   const configPath = join(
     app.getPath('userData'),
     chatId ? `mcp-${workspaceId}-${chatId}.json` : `mcp-${workspaceId}.json`

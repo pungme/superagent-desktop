@@ -5,6 +5,12 @@ import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { useDictation } from '../lib/dictation'
+import {
+  AGENT_PROVIDERS,
+  PROVIDER_LABEL,
+  PROVIDER_PRODUCT,
+  type AgentProvider
+} from '../../../shared/agent-provider'
 
 interface ChatMessage {
   id: string
@@ -569,6 +575,12 @@ function shortModel(id: string): string {
   return hit[0].toUpperCase() + hit.slice(1) + (version ? ` ${version}` : '')
 }
 
+/** One line on what each agent is, for the picker under the composer. */
+const PROVIDER_HINT: Record<AgentProvider, string> = {
+  claude: "Anthropic's agent, on your Claude subscription",
+  codex: "OpenAI's agent, on your ChatGPT plan"
+}
+
 // Agent modes (permission-mode). Plan = read-only planning, no changes made.
 const MODE_OPTIONS: {
   value: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
@@ -702,11 +714,7 @@ function FileHandoffCard({
   const openPath = useStore((s) => s.openPath)
   const name = path.split('/').pop() || path
   return (
-    <button
-      className="easy-file-card"
-      onClick={() => openPath(workspaceId, path)}
-      title={path}
-    >
+    <button className="easy-file-card" onClick={() => openPath(workspaceId, path)} title={path}>
       <span className="easy-file-icon">📄</span>
       <span className="easy-file-name">{name}</span>
       <span className="easy-file-path">{path}</span>
@@ -843,7 +851,7 @@ const MessageRow = memo(function MessageRow({
       {msg.replyTo && (
         <div className="easy-reply-quote">
           <span className="easy-reply-quote-who">
-            {msg.replyTo.role === 'user' ? 'You' : 'Claude'}
+            {msg.replyTo.role === 'user' ? 'You' : 'Agent'}
           </span>
           <span className="easy-reply-quote-text">
             {msg.replyTo.text.replace(/\s+/g, ' ').trim().slice(0, 120)}
@@ -1278,14 +1286,34 @@ export function EasyChat({
   const setModel = useStore((s) => s.setModel)
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
-  /** The model the running session reports (from claude's init event). */
+  // Which agent runs THIS chat — its own if it has ever run, else the default.
+  // Per chat rather than global, because the session id a chat holds belongs to
+  // one backend: switching globally would orphan every other open conversation.
+  const provider = useStore((s) => s.chatProvider(workspaceId, chatId))
+  const setChatProvider = useStore((s) => s.setChatProvider)
+  /** What to call the agent in this chat's copy — "Claude", "Codex". */
+  const agentName = PROVIDER_LABEL[provider]
+  /** The model the running session reports (from the agent's init event). */
   const [activeModel, setActiveModel] = useState<string | null>(null)
+  /** The context window the running session reports, when it says (Codex does). */
+  const [reportedCtxWindow, setReportedCtxWindow] = useState<number | null>(null)
+  /**
+   * The models the running session says this account can use.
+   *
+   * Claude Code doesn't report a list, so its picker stays the curated constant
+   * below. Codex does, and asking beats hardcoding: its line-up moves, and a
+   * baked-in list goes stale silently — the picker would keep offering a model
+   * that no longer exists and quietly fall back to the default.
+   */
+  const [sessionModels, setSessionModels] = useState<
+    { value: string; label: string; hint: string }[] | null
+  >(null)
 
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
     // Directories come back too (trailing '/'), but you mention a file.
     window.cove.filesList(cwd).then((fs) => setFiles(fs.filter((f) => !f.endsWith('/'))))
-    window.cove.skillsList(cwd).then((list) => {
+    window.cove.skillsList(cwd, provider).then((list) => {
       // Merge, never replace: this used to overwrite the pool with the project's
       // own skills, so a project with none — which is most of them — wiped the
       // built-ins straight back out and "/" offered nothing at all.
@@ -1296,7 +1324,9 @@ export function EasyChat({
         return next
       })
     })
-  }, [cwd])
+    // Re-read when the chat moves agents: the two keep their skills in different
+    // places, so the "/" menu would otherwise offer commands this agent can't run.
+  }, [cwd, provider])
 
   // Restore the persisted transcript on mount, then save it (debounced) as it
   // changes — so the conversation is still here after Superagent is reopened.
@@ -1670,15 +1700,17 @@ export function EasyChat({
         ? `\n\nAssistant: ${firstReply.msg.text.slice(0, 600)}`
         : '')
 
-    const title = await window.cove.agentSuggestTitle(cwd, excerpt)
+    const title = await window.cove.agentSuggestTitle(cwd, excerpt, provider)
     if (!title) return
     const latest = useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)
     if (latest && latest.title !== placeholderTitleRef.current) return // renamed while we waited
     // Through renameChat, so a worktree chat's branch follows the title too.
     await useStore.getState().renameChat(workspaceId, chatId, title)
-  }, [cwd, workspaceId, chatId])
+    // `provider` is a dependency: the title is suggested by a one-shot run of
+    // this chat's own agent, so a stale capture names it with the other one.
+  }, [cwd, workspaceId, chatId, provider])
 
-  // Claude's tasks, accumulated from TaskCreate/TaskUpdate and mirrored (in
+  // The agent's tasks, accumulated from TaskCreate/TaskUpdate and mirrored (in
   // insertion order) into the store the Tasks panel reads. Kept per chat at
   // module level: a remount (switching chats and back) must not reset the map,
   // because the CLI session resumes with its task ids intact and updates against
@@ -1709,6 +1741,17 @@ export function EasyChat({
         // surprise.
         const m = event.model as string | undefined
         if (m) setActiveModel(m)
+        // Codex reports its real context window; Claude doesn't, so the gauge
+        // falls back to inferring one from the model id (see ctxWindow below).
+        const win = event.context_window
+        if (typeof win === 'number' && win > 0) setReportedCtxWindow(win)
+        const reported = event.models as { id: string; label: string; hint: string }[] | undefined
+        if (Array.isArray(reported) && reported.length) {
+          setSessionModels([
+            { value: '', label: 'Default', hint: 'Whatever your account uses' },
+            ...reported.map((m) => ({ value: m.id, label: m.label, hint: m.hint }))
+          ])
+        }
         // Claude reports every slash command this session can actually run (built-ins
         // like /compact, /review plus the user's own skills; interactive TUI-only ones
         // are already excluded). Fold them into the "/" autocomplete pool so the menu
@@ -1729,8 +1772,8 @@ export function EasyChat({
         const sid = event.session_id as string | undefined
         if (sid && sid !== resumeIdRef.current) {
           resumeIdRef.current = sid
-          window.cove.chatUpdate(chatId, { claudeSessionId: sid })
-          useStore.getState().touchChat(workspaceId, chatId, { claudeSessionId: sid })
+          window.cove.chatUpdate(chatId, { claudeSessionId: sid, provider })
+          useStore.getState().touchChat(workspaceId, chatId, { claudeSessionId: sid, provider })
         }
         return
       }
@@ -2227,12 +2270,11 @@ export function EasyChat({
           const real = isError ? lastStderrRef.current : null
           let note = real
             ? real
-            : 'Claude ended the turn without a response. Try sending your message again.'
+            : `${agentName} ended the turn without a response. Try sending your message again.`
           if (!real && sub === 'error_max_turns')
-            note =
-              'Claude reached its step limit for this turn. Send “continue” to let it keep going.'
+            note = `${agentName} reached its step limit for this turn. Send “continue” to let it keep going.`
           else if (!real && sub === 'error_during_execution')
-            note = 'Claude hit an error partway through this turn. Send “continue” to retry.'
+            note = `${agentName} hit an error partway through this turn. Send “continue” to retry.`
           const errs = event.errors as unknown[] | undefined
           // The CLI's internal diagnostics ([ede_diagnostic] …) mean nothing to
           // the user; only attach error detail for cases where it's actionable,
@@ -2273,7 +2315,11 @@ export function EasyChat({
         streamedThisTurnRef.current = false
       }
     },
-    [workspaceId, chatId, nameConversation, syncTasks]
+    // `provider` matters: this handler writes the session id the agent reports,
+    // and the id is only resumable by the agent that issued it. Captured stale,
+    // a Codex thread id gets filed under Claude and the next spawn resumes
+    // nothing — `claude --resume` answers "No conversation found".
+    [workspaceId, chatId, nameConversation, syncTasks, provider]
   )
 
   // The recap that re-seeds a session which lost its memory is built in main
@@ -2329,93 +2375,94 @@ export function EasyChat({
           chatId,
           resumeSessionId: resumeIdRef.current,
           browserProject,
+          provider,
           permissionMode: useStore.getState().permissionMode,
           model: useStore.getState().model
         })
         .then((id) => {
-        if (disposed) {
-          window.cove.agentStop(id)
-          return
-        }
-        agentIdRef.current = id
-        registerAgent(workspaceId, id)
-        // Ready as soon as the process is up — in stream-json input mode claude
-        // waits for the first user message before it emits anything.
-        setReady(true)
-        // Anything sent while there was no process goes out now (the first of
-        // them carries the recap if this session came up without its memory).
-        for (const q of pendingSendsRef.current.splice(0)) sendToAgent(id, q.text, q.images)
-        offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
-        // A prompt typed on the paired phone: show it here too, and treat the
-        // turn as ours to render (generating/thinking, exactly like a local send).
-        offUser = window.cove.onAgentUser?.(id, ({ text }) => {
-          setItems((prev) => [
-            ...prev,
-            {
-              kind: 'msg',
-              msg: { id: `u-${Date.now()}-${Math.random()}`, at: Date.now(), role: 'user', text }
-            }
-          ])
-          setGenerating(true)
-          setThinking(true)
-        })
-        // Keep the CLI's real diagnostic around so a failed turn can quote it
-        // instead of the generic note (see the result handler).
-        offStderr = window.cove.onAgentStderr?.(id, (chunk) => {
-          const line = meaningfulStderr(chunk)
-          if (line) lastStderrRef.current = line
-        })
-        // main only emits agent:exit on a genuine unexpected exit (deliberate
-        // stops and the resume→fresh retry are suppressed), so surface it.
-        const died = (reason?: string): void => {
-          setReady(false)
-          setGenerating(false)
-          setThinking(false)
-          setRunningAgents([])
-          setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
-        }
-        // Resuming failed and a fresh session took its place. Main arms the
-        // recap (it is the one path both this window and the phone send on);
-        // this says so plainly, because a recap is not the same as Claude
-        // actually remembering.
-        const resumeLost = (): void => {
-          if (disposed) return
-          setItems((prev) =>
-            // Guard against a double notice (event + catch-up both firing).
-            prev.some((it) => it.kind === 'msg' && it.msg.id.startsWith('sys-resume-'))
-              ? prev
-              : [
-                  ...prev,
-                  {
-                    kind: 'msg',
-                    msg: {
-                      id: `sys-resume-${Date.now()}`,
-                      at: Date.now(),
-                      role: 'assistant',
-                      text:
-                        '⚠ The earlier session could not be resumed, so this one starts fresh. ' +
-                        'Your next message includes a short recap of the conversation above so ' +
-                        'Claude can keep going — but details beyond that recap are gone.',
-                      system: true
+          if (disposed) {
+            window.cove.agentStop(id)
+            return
+          }
+          agentIdRef.current = id
+          registerAgent(workspaceId, id)
+          // Ready as soon as the process is up — in stream-json input mode claude
+          // waits for the first user message before it emits anything.
+          setReady(true)
+          // Anything sent while there was no process goes out now (the first of
+          // them carries the recap if this session came up without its memory).
+          for (const q of pendingSendsRef.current.splice(0)) sendToAgent(id, q.text, q.images)
+          offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
+          // A prompt typed on the paired phone: show it here too, and treat the
+          // turn as ours to render (generating/thinking, exactly like a local send).
+          offUser = window.cove.onAgentUser?.(id, ({ text }) => {
+            setItems((prev) => [
+              ...prev,
+              {
+                kind: 'msg',
+                msg: { id: `u-${Date.now()}-${Math.random()}`, at: Date.now(), role: 'user', text }
+              }
+            ])
+            setGenerating(true)
+            setThinking(true)
+          })
+          // Keep the CLI's real diagnostic around so a failed turn can quote it
+          // instead of the generic note (see the result handler).
+          offStderr = window.cove.onAgentStderr?.(id, (chunk) => {
+            const line = meaningfulStderr(chunk)
+            if (line) lastStderrRef.current = line
+          })
+          // main only emits agent:exit on a genuine unexpected exit (deliberate
+          // stops and the resume→fresh retry are suppressed), so surface it.
+          const died = (reason?: string): void => {
+            setReady(false)
+            setGenerating(false)
+            setThinking(false)
+            setRunningAgents([])
+            setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
+          }
+          // Resuming failed and a fresh session took its place. Main arms the
+          // recap (it is the one path both this window and the phone send on);
+          // this says so plainly, because a recap is not the same as Claude
+          // actually remembering.
+          const resumeLost = (): void => {
+            if (disposed) return
+            setItems((prev) =>
+              // Guard against a double notice (event + catch-up both firing).
+              prev.some((it) => it.kind === 'msg' && it.msg.id.startsWith('sys-resume-'))
+                ? prev
+                : [
+                    ...prev,
+                    {
+                      kind: 'msg',
+                      msg: {
+                        id: `sys-resume-${Date.now()}`,
+                        at: Date.now(),
+                        role: 'assistant',
+                        text:
+                          '⚠ The earlier session could not be resumed, so this one starts fresh. ' +
+                          'Your next message includes a short recap of the conversation above so ' +
+                          `${agentName} can keep going — but details beyond that recap are gone.`,
+                        system: true
+                      }
                     }
-                  }
-                ]
-          )
-        }
-        offResumeLost = window.cove.onAgentResumeLost?.(id, resumeLost)
-        offExit = window.cove.onAgentExit(id, () => {
-          // The exit event carries no reason; main still knows one.
-          void window.cove.agentDied?.(id).then((d) => died(d?.reason))
-        })
-        // A spawn failure — or a resume that was lost — can land before these
-        // subscriptions exist. Ask whether we already missed either, or the chat
-        // sits on "Working"/context-blind with no notice.
-        void window.cove.agentDied?.(id).then((d) => {
-          if (!disposed && d) died(d.reason)
-        })
-        void window.cove.agentResumeLostCheck?.(id).then((lost) => {
-          if (!disposed && lost) resumeLost()
-        })
+                  ]
+            )
+          }
+          offResumeLost = window.cove.onAgentResumeLost?.(id, resumeLost)
+          offExit = window.cove.onAgentExit(id, () => {
+            // The exit event carries no reason; main still knows one.
+            void window.cove.agentDied?.(id).then((d) => died(d?.reason))
+          })
+          // A spawn failure — or a resume that was lost — can land before these
+          // subscriptions exist. Ask whether we already missed either, or the chat
+          // sits on "Working"/context-blind with no notice.
+          void window.cove.agentDied?.(id).then((d) => {
+            if (!disposed && d) died(d.reason)
+          })
+          void window.cove.agentResumeLostCheck?.(id).then((lost) => {
+            if (!disposed && lost) resumeLost()
+          })
         })
     })()
 
@@ -2428,10 +2475,22 @@ export function EasyChat({
       offExit?.()
       if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
     }
-    // model + permissionMode are dependencies on purpose: changing either must
-    // restart the agent (resuming the same session, so context is kept) or the
-    // picker silently does nothing to the conversation you are in.
-  }, [cwd, workspaceId, chatId, registerAgent, resetKey, browserProject, model, permissionMode])
+    // model, permissionMode and provider are dependencies on purpose: changing
+    // any of them must restart the agent or the picker silently does nothing to
+    // the conversation you are in. Model and mode resume the same session, so
+    // context is kept; a provider change cannot — the other agent's thread is
+    // not resumable — so the recap carries the conversation across instead.
+  }, [
+    cwd,
+    workspaceId,
+    chatId,
+    registerAgent,
+    resetKey,
+    browserProject,
+    model,
+    permissionMode,
+    provider
+  ])
 
   const wake = useCallback((): void => {
     if (!suspendedRef.current) return
@@ -3063,9 +3122,35 @@ export function EasyChat({
     if (value !== permissionMode) setPermissionMode(value)
     applyRespawn()
   }
-  const modelLabel = MODEL_OPTIONS.find((m) => m.value === model)?.label ?? 'Default'
   /**
-   * How much of Claude's memory this conversation fills. The window depends on
+   * Move this chat to the other agent.
+   *
+   * Unlike model and mode, this cannot resume: the session id on the chat is the
+   * old agent's and the new one has never heard of it. setChatProvider clears it,
+   * and main's recap hands the incoming agent the conversation so far — so the
+   * chat continues rather than starting blank.
+   */
+  const pickProvider = (value: AgentProvider): void => {
+    setControlMenu(null)
+    if (value === provider) return
+    resumeIdRef.current = null
+    setActiveModel(null)
+    setReportedCtxWindow(null)
+    setSessionModels(null)
+    // The picked model belongs to the agent being left — "opus[1m]" means
+    // nothing to Codex — so the new one starts on its own account default.
+    if (model) setModel('')
+    void setChatProvider(workspaceId, chatId, value)
+  }
+  /**
+   * Never show one agent's models while another is running. Codex's arrive with
+   * its init event; until they do, a Codex chat offers Default alone rather than
+   * Claude's line-up, which it cannot run.
+   */
+  const modelOptions = sessionModels ?? (provider === 'claude' ? MODEL_OPTIONS : [MODEL_OPTIONS[0]])
+  const modelLabel = modelOptions.find((m) => m.value === model)?.label ?? 'Default'
+  /**
+   * How much of the agent's memory this conversation fills. The window depends on
    * the model running — read from the id it reports at startup.
    *
    * Opus 5 and Fable 5 are 1M-context models whether or not the id carries the
@@ -3077,9 +3162,10 @@ export function EasyChat({
    * (Sonnet), and everything else is the 200K baseline.
    */
   const ctxWindow =
-    activeModel && (/\[1m\]/i.test(activeModel) || /opus-?5|opus\b|fable/i.test(activeModel))
+    reportedCtxWindow ??
+    (activeModel && (/\[1m\]/i.test(activeModel) || /opus-?5|opus\b|fable/i.test(activeModel))
       ? 1_000_000
-      : 200_000
+      : 200_000)
   const ctxPercent = Math.min(100, Math.round(((ctxTokens ?? 0) / ctxWindow) * 100))
   const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
 
@@ -3102,7 +3188,10 @@ export function EasyChat({
                 ⚠ This project&rsquo;s folder isn&rsquo;t there any more — it was moved or deleted.
               </>
             ) : (
-              <>⚠ Claude stopped. Make sure Claude Code is installed and you&rsquo;re signed in.</>
+              <>
+                ⚠ {agentName} stopped. Make sure {PROVIDER_PRODUCT[provider]} is installed and
+                you&rsquo;re signed in.
+              </>
             )}
           </span>
           <button onClick={retry}>Retry</button>
@@ -3323,8 +3412,8 @@ export function EasyChat({
             placeholder={
               ready || suspended
                 ? narrowComposer
-                  ? 'Message Claude…'
-                  : 'Message Claude…  (/ commands · @ files · paste an image)'
+                  ? `Message ${agentName}…`
+                  : `Message ${agentName}…  (/ commands · @ files · paste an image)`
                 : 'Starting…'
             }
             rows={1}
@@ -3497,6 +3586,40 @@ export function EasyChat({
       <div className="easy-controls">
         <div className="easy-control">
           <button
+            className={`easy-control-btn ${controlMenu === 'agent' ? 'open' : ''}`}
+            onClick={() => setControlMenu((m) => (m === 'agent' ? null : 'agent'))}
+            title="Which agent runs this chat"
+          >
+            <span className="easy-control-key">Agent</span>
+            <span className="easy-control-val">{PROVIDER_PRODUCT[provider]}</span>
+            <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+              <path
+                d="M2 3.5L5 6.5L8 3.5"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          {controlMenu === 'agent' && (
+            <div className="easy-control-menu">
+              {AGENT_PROVIDERS.map((p) => (
+                <button
+                  key={p}
+                  className={`easy-control-item ${p === provider ? 'on' : ''}`}
+                  onClick={() => pickProvider(p)}
+                >
+                  <span className="easy-control-item-label">{PROVIDER_PRODUCT[p]}</span>
+                  <span className="easy-control-item-hint">{PROVIDER_HINT[p]}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="easy-control">
+          <button
             className={`easy-control-btn ${controlMenu === 'model' ? 'open' : ''}`}
             onClick={() => setControlMenu((m) => (m === 'model' ? null : 'model'))}
             title="Model"
@@ -3516,7 +3639,7 @@ export function EasyChat({
           </button>
           {controlMenu === 'model' && (
             <div className="easy-control-menu">
-              {MODEL_OPTIONS.map((o) => (
+              {modelOptions.map((o) => (
                 <button
                   key={o.value || 'default'}
                   className={`easy-control-item ${o.value === model ? 'on' : ''}`}

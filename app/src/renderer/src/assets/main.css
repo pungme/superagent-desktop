@@ -8691,6 +8691,135 @@ button {
 .settings-section {
   max-width: 680px;
 }
+
+/* --- Settings › Agents ------------------------------------------------- */
+/* One card per agent. Superagent needs only one of them connected, so they read
+   as independent statuses rather than as steps in a sequence. */
+.settings-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 0 6px;
+}
+
+.settings-agent {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--hover);
+}
+
+.settings-agent.connected {
+  border-color: rgba(110, 231, 183, 0.4);
+}
+
+.settings-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.settings-agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-tertiary);
+}
+.settings-agent-dot.connected {
+  background: #6ee7b7;
+}
+.settings-agent-dot.signed-out {
+  background: #fbbf24;
+}
+.settings-agent-dot.missing {
+  background: var(--text-tertiary);
+  opacity: 0.5;
+}
+.settings-agent-dot.checking {
+  background: var(--text-tertiary);
+  animation: settings-agent-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes settings-agent-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.settings-agent-state {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.settings-agent.connected .settings-agent-state {
+  color: #6ee7b7;
+}
+
+.settings-agent-detail {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.settings-agent-detail code,
+.settings-agent-hint code {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  background: var(--active);
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.settings-agent-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.settings-agent-btn {
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: none;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.settings-agent-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.settings-agent-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.settings-agent-btn.ghost {
+  background: var(--active);
+  color: var(--text-primary);
+}
+
+.settings-agent-hint {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.settings-agents-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+}
 .settings-about {
   padding: 20px 0;
 }
@@ -8828,7 +8957,8 @@ button {
 }
 
 .onboarding-card {
-  width: 440px;
+  /* Two agents side by side; one column each on a narrow window. */
+  width: 760px;
   max-width: 90%;
   padding: 40px 36px;
   text-align: center;
@@ -8905,6 +9035,70 @@ button {
   gap: 10px;
   text-align: left;
   margin-bottom: 24px;
+}
+
+/* One card per agent. You need either, not both, so they sit as equals rather
+   than as a primary choice with an alternative underneath it. */
+.onboarding-agents {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 720px) {
+  .onboarding-agents {
+    grid-template-columns: 1fr;
+  }
+}
+
+.onboarding-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-content);
+}
+
+.onboarding-agent.ok {
+  border-color: rgba(110, 231, 183, 0.45);
+}
+
+.onboarding-agent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.onboarding-agent-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(110, 231, 183, 0.18);
+  color: #6ee7b7;
+}
+
+.onboarding-agent-blurb {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.onboarding-agent-blurb a {
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.onboarding-agent-blurb a:hover {
+  text-decoration: underline;
 }
 
 .onboarding-step {
@@ -9083,7 +9277,11 @@ button {
 
 /* Onboarding: one-click install / sign-in button + progress. */
 .onboarding-install-btn {
-  display: inline-block;
+  /* Its own line at its natural width. Inline-block put it beside a short label
+     like "Not found." and the 8px top margin then dropped it onto the next row,
+     overlapping it — which is what a two-column card layout makes short. */
+  display: block;
+  width: fit-content;
   margin-top: 8px;
   padding: 7px 14px;
   border-radius: 8px;

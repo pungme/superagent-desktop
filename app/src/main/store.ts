@@ -13,6 +13,7 @@ import {
 } from 'fs'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
+import { toProvider, type AgentProvider } from '../shared/agent-provider'
 import { broadcastToWindows } from './util'
 import { deskRoot } from './desk'
 
@@ -77,6 +78,7 @@ export function initStore(): void {
       workspaceId TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
       title TEXT,
       claudeSessionId TEXT,
+      provider TEXT,
       position INTEGER NOT NULL DEFAULT 0,
       updatedAt INTEGER NOT NULL DEFAULT 0,
       data TEXT NOT NULL
@@ -231,6 +233,14 @@ export function initStore(): void {
   const chatCols2 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
   if (chatCols2.length > 0 && !chatCols2.some((c) => c.name === 'cwd')) {
     db.exec('ALTER TABLE chats ADD COLUMN cwd TEXT')
+  }
+
+  // Migration: which agent backend a chat runs on. NULL means the chat predates
+  // the second backend, which can only have been Claude — and `claudeSessionId`
+  // holds a Claude session id, so it must keep being read as one.
+  const chatCols3 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  if (chatCols3.length > 0 && !chatCols3.some((c) => c.name === 'provider')) {
+    db.exec('ALTER TABLE chats ADD COLUMN provider TEXT')
   }
 
   // Seed a default group on first run so the sidebar is never empty.
@@ -487,17 +497,53 @@ export interface ChatRow {
   id: string
   workspaceId: string
   title: string | null
+  /**
+   * The resumable session id for whichever backend owns this chat: a Claude
+   * session id, or a Codex thread id. The column keeps its original name — a
+   * rename would touch every reader for no behavioural gain — so `provider`
+   * below is what says how to read it.
+   */
   claudeSessionId: string | null
+  provider: AgentProvider
   updatedAt: number
   cwd: string | null
 }
 
 export function getChat(chatId: string): ChatRow | undefined {
-  return db
+  const row = db
     .prepare(
-      'SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd FROM chats WHERE id = ?'
+      'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd FROM chats WHERE id = ?'
     )
     .get(chatId) as ChatRow | undefined
+  return row ? { ...row, provider: toProvider(row.provider) } : undefined
+}
+
+/**
+ * Which backend a chat runs on.
+ *
+ * An unset column has two quite different meanings, and getting them the wrong
+ * way round breaks a chat. A chat that already holds a session id but no
+ * provider predates the column, so that id can only be a Claude session — and
+ * handing it to Codex would silently lose the conversation. A chat with neither
+ * has never run, so it belongs to whatever the app is currently set to, which is
+ * what makes a new chat started from the phone honour the picker on the Mac.
+ */
+export function getChatProvider(chatId: string): AgentProvider {
+  const row = db.prepare('SELECT provider, claudeSessionId FROM chats WHERE id = ?').get(chatId) as
+    { provider: string | null; claudeSessionId: string | null } | undefined
+  if (row?.provider) return toProvider(row.provider)
+  if (row?.claudeSessionId) return 'claude'
+  return toProvider(kvGet('cove.provider'))
+}
+
+/**
+ * Record which backend a chat is running on, alongside the session id it just
+ * produced. The two belong together: a session id is only resumable by the
+ * backend that issued it, so writing one without the other leaves a chat that
+ * tries to resume a Codex thread with `claude --resume`.
+ */
+export function setChatProvider(chatId: string, provider: AgentProvider): void {
+  db.prepare('UPDATE chats SET provider = ? WHERE id = ?').run(provider, chatId)
 }
 
 /**
@@ -583,11 +629,13 @@ export function searchChats(
 }
 
 export function listAllChats(): ChatRow[] {
-  return db
-    .prepare(
-      'SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC'
-    )
-    .all() as ChatRow[]
+  return (
+    db
+      .prepare(
+        'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC'
+      )
+      .all() as ChatRow[]
+  ).map((row) => ({ ...row, provider: toProvider(row.provider) }))
 }
 
 /** The last thing said in a chat, from the companion log, for list rows. */
@@ -617,14 +665,11 @@ export function lastChatPreview(chatId: string): string | null {
  */
 export function moveChat(chatId: string, toIndex: number): void {
   const chat = db.prepare('SELECT workspaceId FROM chats WHERE id = ?').get(chatId) as
-    | { workspaceId: string }
-    | undefined
+    { workspaceId: string } | undefined
   if (!chat) return
   const ids = (
     db
-      .prepare(
-        'SELECT id FROM chats WHERE workspaceId = ? ORDER BY position ASC, updatedAt ASC'
-      )
+      .prepare('SELECT id FROM chats WHERE workspaceId = ? ORDER BY position ASC, updatedAt ASC')
       .all(chat.workspaceId) as { id: string }[]
   ).map((r) => r.id)
   const from = ids.indexOf(chatId)
@@ -640,8 +685,24 @@ export function deleteChat(chatId: string): void {
   kvDel(pendingKey(chatId))
 }
 
-/** Remember the resumable claude session for a chat (the renderer does this for its own). */
-export function setChatSession(chatId: string, claudeSessionId: string): void {
+/**
+ * Remember the resumable session for a chat (the renderer does this for its own).
+ * `provider` stamps which backend issued the id, so a later resume uses the right
+ * CLI; omitting it leaves whatever was there, for callers that only know the id.
+ */
+export function setChatSession(
+  chatId: string,
+  claudeSessionId: string,
+  provider?: AgentProvider
+): void {
+  if (provider) {
+    db.prepare('UPDATE chats SET claudeSessionId = ?, provider = ? WHERE id = ?').run(
+      claudeSessionId,
+      provider,
+      chatId
+    )
+    return
+  }
   db.prepare('UPDATE chats SET claudeSessionId = ? WHERE id = ?').run(claudeSessionId, chatId)
 }
 
@@ -1561,11 +1622,12 @@ function registerStoreIpcTail(): void {
   })
 
   // A project holds many chats; each owns its transcript and its resumable
-  // claude session, so starting a new one never discards an old one.
+  // session — and the `provider` that says which agent issued it, without which
+  // a Codex chat would come back as a Claude one on the next reload.
   ipcMain.handle('chat:list', (_e, workspaceId: string) =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd
          FROM chats WHERE workspaceId = ? ORDER BY position ASC, updatedAt ASC`
       )
       .all(workspaceId)
@@ -1579,7 +1641,7 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, updatedAt, cwd
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd
          FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC`
       )
       .all()
@@ -1646,11 +1708,16 @@ function registerStoreIpcTail(): void {
     (
       _e,
       id: string,
-      patch: { title?: string | null; claudeSessionId?: string | null; cwd?: string | null }
+      patch: {
+        title?: string | null
+        claudeSessionId?: string | null
+        cwd?: string | null
+        provider?: AgentProvider | null
+      }
     ) => {
       const sets: string[] = []
       const vals: (string | number | null)[] = []
-      for (const key of ['title', 'claudeSessionId', 'cwd'] as const) {
+      for (const key of ['title', 'claudeSessionId', 'cwd', 'provider'] as const) {
         if (key in patch) {
           sets.push(`${key} = ?`)
           vals.push(patch[key] ?? null)

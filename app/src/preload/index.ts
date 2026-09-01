@@ -57,7 +57,14 @@ export interface Chat {
   id: string
   workspaceId: string
   title: string | null
+  /**
+   * The resumable session id for whichever agent owns this chat — a Claude
+   * session id or a Codex thread id, depending on `provider`. The name is
+   * historical; renaming it would touch every reader for no behavioural gain.
+   */
   claudeSessionId: string | null
+  /** Which agent runs this chat. Chats from before the second backend are Claude's. */
+  provider: AgentProvider
   updatedAt: number
   /** Worktree override — the chat's agent runs here instead of the project path. */
   cwd: string | null
@@ -82,6 +89,7 @@ export interface HookEvent {
 }
 
 import type { PairPayload } from '../shared/companion-protocol'
+import type { AgentProvider } from '../shared/agent-provider'
 
 /** Everything Settings → Phone shows. Mirrors companion/index.ts CompanionState. */
 export interface CompanionState {
@@ -518,7 +526,12 @@ export interface CoveApi {
   chatDelete: (id: string) => Promise<void>
   chatUpdate: (
     id: string,
-    patch: Partial<{ title: string | null; claudeSessionId: string | null; cwd: string | null }>
+    patch: Partial<{
+      title: string | null
+      claudeSessionId: string | null
+      cwd: string | null
+      provider: AgentProvider
+    }>
   ) => Promise<void>
   chatLoad: (chatId: string) => Promise<string | null>
   chatSave: (chatId: string, data: string) => void
@@ -532,16 +545,22 @@ export interface CoveApi {
   setTheme: (source: 'system' | 'light' | 'dark') => void
   onMenu: (cb: (action: string) => void) => () => void
 
+  /** Is each agent installed and signed in? `loggedIn` means at least one is ready. */
   envDetect: () => Promise<{
+    claude: { installed: boolean; version: string | null; loggedIn: boolean }
+    codex: { installed: boolean; version: string | null; loggedIn: boolean }
     claudeInstalled: boolean
     claudeVersion: string | null
     loggedIn: boolean
   }>
-  envVersion: () => Promise<{ claudeInstalled: boolean; claudeVersion: string | null }>
-  /** Install Claude Code via Anthropic's native installer; onLine streams progress. */
-  installClaude: (onLine: (line: string) => void) => Promise<{ ok: boolean; error?: string }>
-  /** Open Terminal running `claude` for the one-time sign-in. */
-  openClaudeLogin: () => void
+  envVersion: () => Promise<Record<AgentProvider, { installed: boolean; version: string | null }>>
+  /** Install an agent's CLI; onLine streams the installer's progress. */
+  installAgent: (
+    provider: AgentProvider,
+    onLine: (line: string) => void
+  ) => Promise<{ ok: boolean; error?: string }>
+  /** Open Terminal on the CLI's one-time interactive sign-in. */
+  openAgentLogin: (provider: AgentProvider) => void
   /** Give the app's own renderer keyboard focus (a hidden page view otherwise keeps it). */
   browserFocusShell: () => void
   filesList: (root: string) => Promise<string[]>
@@ -569,16 +588,22 @@ export interface CoveApi {
   routinesRunNow: (id: string) => void
   onRoutinesChanged: (cb: () => void) => () => void
 
+  /** Skills and slash commands, from the directories the given agent keeps them in. */
   skillsList: (
-    projectPath?: string
+    projectPath?: string,
+    provider?: AgentProvider
   ) => Promise<
     { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
   >
-  skillsInstallStarters: () => Promise<
+  skillsInstallStarters: (
+    provider?: AgentProvider
+  ) => Promise<
     { name: string; description: string; scope: 'global' | 'project'; kind: 'skill' | 'command' }[]
   >
 
   agentStart: (opts: {
+    /** Which agent CLI to run. Omitted means the chat's own, else Claude. */
+    provider?: AgentProvider
     cwd?: string
     workspaceId?: string
     chatId?: string
@@ -587,7 +612,11 @@ export interface CoveApi {
     permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
     model?: string
   }) => Promise<string>
-  agentSuggestTitle: (cwd: string, excerpt: string) => Promise<string | null>
+  agentSuggestTitle: (
+    cwd: string,
+    excerpt: string,
+    provider?: AgentProvider
+  ) => Promise<string | null>
   agentSend: (id: string, text: string, images?: { mediaType: string; data: string }[]) => void
   agentInterrupt: (id: string) => void
   agentStop: (id: string) => void
@@ -849,14 +878,14 @@ const cove: CoveApi = {
 
   envDetect: () => ipcRenderer.invoke('env:detect'),
   envVersion: () => ipcRenderer.invoke('env:version'),
-  installClaude: (onLine) => {
+  installAgent: (provider, onLine) => {
     const listener = (_e: Electron.IpcRendererEvent, line: string): void => onLine(line)
     ipcRenderer.on('env:install-progress', listener)
     return ipcRenderer
-      .invoke('env:install-claude')
+      .invoke('env:install', provider)
       .finally(() => ipcRenderer.removeListener('env:install-progress', listener))
   },
-  openClaudeLogin: () => ipcRenderer.send('env:open-login'),
+  openAgentLogin: (provider) => ipcRenderer.send('env:open-login', provider),
   browserFocusShell: () => ipcRenderer.send('browser:focus-shell'),
   filesList: (root) => ipcRenderer.invoke('files:list', root),
   filesComplete: (prefix) => ipcRenderer.invoke('files:complete', prefix),
@@ -876,11 +905,12 @@ const cove: CoveApi = {
   routinesRunNow: (id) => ipcRenderer.send('routines:runNow', id),
   onRoutinesChanged: (cb) => subscribe('routines:changed', () => cb()),
 
-  skillsList: (projectPath) => ipcRenderer.invoke('skills:list', projectPath),
-  skillsInstallStarters: () => ipcRenderer.invoke('skills:installStarters'),
+  skillsList: (projectPath, provider) => ipcRenderer.invoke('skills:list', projectPath, provider),
+  skillsInstallStarters: (provider) => ipcRenderer.invoke('skills:installStarters', provider),
 
   agentStart: (opts) => ipcRenderer.invoke('agent:start', opts),
-  agentSuggestTitle: (cwd, excerpt) => ipcRenderer.invoke('agent:suggestTitle', cwd, excerpt),
+  agentSuggestTitle: (cwd, excerpt, provider) =>
+    ipcRenderer.invoke('agent:suggestTitle', cwd, excerpt, provider),
   agentSend: (id, text, images) => ipcRenderer.send('agent:send', id, text, images),
   agentInterrupt: (id) => ipcRenderer.send('agent:interrupt', id),
   agentStop: (id) => ipcRenderer.send('agent:stop', id),

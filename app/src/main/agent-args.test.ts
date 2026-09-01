@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildAgentArgs } from './agent'
+import { buildAgentArgs } from './claude/session'
 
 /** The value that follows a flag, or undefined when the flag isn't there. */
 function valueAfter(args: string[], flag: string): string | undefined {

@@ -3,6 +3,7 @@ import {
   getTree,
   listAllChats,
   getChat,
+  getChatProvider,
   getWorkspace,
   kvGet,
   listCards,
@@ -867,7 +868,7 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   }
   let session = findSessionByChat(p.chatId)
   // A different model or mode than the running agent's: restart it on the
-  // same claude session, exactly as the desktop does when its pickers change.
+  // same session, exactly as the desktop does when its pickers change.
   if (session && !session.owned && (p.model !== undefined || p.permissionMode !== undefined)) {
     const cur = getSessionOpts(session.id)
     const wantModel = p.model ?? cur?.model ?? ''
@@ -889,6 +890,10 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
       chatId: chat.id,
       resumeSessionId: getChat(chat.id)?.claudeSessionId ?? chat.claudeSessionId,
       browserProject: ws.kind === 'browser',
+      // The chat's own agent — a phone message must not hand a Codex thread id
+      // to `claude --resume` (or the other way round). A chat that has never run
+      // takes the app's current default, so the picker on the Mac still decides.
+      provider: getChatProvider(chat.id),
       permissionMode: p.permissionMode ?? permissionModeSetting(),
       model: p.model ?? (kvGet('cove.model') || undefined)
     }
