@@ -908,7 +908,7 @@ export function BrowserPane({
           onClick={() => window.cove.browserBack(paneId)}
           title="Back"
         >
-          ‹
+          <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.2 5.4 8l4.6 4.8" /></svg>
         </button>
         <button
           className="browser-nav-btn"
@@ -916,7 +916,7 @@ export function BrowserPane({
           onClick={() => window.cove.browserForward(paneId)}
           title="Forward"
         >
-          ›
+          <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.2 10.6 8 6 12.8" /></svg>
         </button>
         <button
           className={`browser-nav-btn browser-reload-btn ${state.loading || reloadFeedback ? 'loading' : ''}`}
@@ -936,7 +936,9 @@ export function BrowserPane({
               STOP the load when clicked mid-load — and a page with one request
               that never finishes is mid-load forever, so the reload button read
               as broken. Now a click always reloads. */}
-          <span className="browser-reload-glyph">⟳</span>
+          <span className="browser-reload-glyph">
+            <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.75" /><path d="M13.4 2.4v3.1h-3.1" /></svg>
+          </span>
         </button>
         <div className="browser-omnibox">
           <input

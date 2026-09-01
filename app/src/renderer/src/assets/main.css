@@ -6045,14 +6045,17 @@ button {
 }
 
 .browser-nav-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 15px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Reload feedback: the arrow spins while the page loads (clear even for a fast
@@ -6060,6 +6063,20 @@ button {
    plain reload arrow. Exactly one glyph is visible at a time. */
 .browser-reload-glyph {
   display: inline-flex;
+}
+
+/* Back, forward and reload were typographic glyphs — ‹ › ⟳ — which are drawn
+   for a line of prose, not a toolbar: hairline thin, three different weights,
+   and all three sat at a different optical size. Real icons, one stroke width,
+   one box. */
+.browser-nav-ic {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .browser-reload-btn.loading .browser-reload-glyph {
   animation: browser-reload-spin 0.7s linear infinite;
