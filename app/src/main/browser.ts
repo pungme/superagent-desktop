@@ -535,47 +535,23 @@ export function agentIsDriving(): boolean {
 }
 
 /**
- * The longest the app may be missing from the Dock, however long the agent goes on.
+ * Nothing here flips the activation policy any more.
  *
- * The policy is the only thing that stops a page load raising the window, but a
- * prohibited app has no Dock icon and cannot be clicked, so the protection and
- * the disappearance are the same act. Every new engage used to restart the
- * backstop, so a busy agent held it open for as long as it kept working —
- * measured on a real log: median 2.6s, which nobody notices, but eighteen
- * periods over 30s and one of 52s, which reads as the app being gone.
+ * It used to: 'prohibited' is the only thing that stops a finished page load
+ * raising the window, so the guard set it while an agent worked. It is also
+ * what removes the app from the Dock and makes it unclickable — the protection
+ * and the disappearance were the same act, and on a real log the app spent
+ * thirty minutes delisted, once for fifty-two seconds in a row.
  *
- * After this, the policy goes back and the burst finishes under the fallback
- * below — remember which app the user was in, and hand focus straight back if
- * we end up in front. Weaker, and occasionally a flicker, but an app you can
- * click. The ceiling is not restarted by further engages; a new one is only
- * granted after the guard has fully let go, so this cannot flap the Dock icon.
+ * So the guard keeps the half that costs nothing: it remembers which app you
+ * were in and hands focus straight back if Superagent ends up in front
+ * (`rememberFrontApp` and the focus-return path below). That is weaker — the
+ * window can surface for a moment before it bounces — but a flicker you can
+ * click through beats an app that is not in the Dock at all.
+ *
+ * If the bounce turns out not to catch some activation, the answer is to make
+ * the bounce faster, not to bring back a policy that hides the app.
  */
-const POLICY_CEILING_MS = 8_000
-let policyProhibited = false
-let ceilingTimer: ReturnType<typeof setTimeout> | null = null
-
-function holdPolicy(): void {
-  if (policyProhibited) return
-  policyProhibited = true
-  setPolicy('prohibited')
-  ceilingTimer = setTimeout(() => {
-    ceilingTimer = null
-    if (!policyProhibited) return
-    policyProhibited = false
-    setPolicy('regular')
-    paneLog('focus-guard', 'window', 'policy-ceiling: back in the Dock, fallback only')
-  }, POLICY_CEILING_MS)
-}
-
-function dropPolicy(): void {
-  if (ceilingTimer) {
-    clearTimeout(ceilingTimer)
-    ceilingTimer = null
-  }
-  if (!policyProhibited) return
-  policyProhibited = false
-  setPolicy('regular')
-}
 
 /**
  * Keep the app from jumping in front of the user while an agent drives the
@@ -593,9 +569,6 @@ function dropPolicy(): void {
  * ref-counted (agents chain calls), has a 30s backstop, and is dropped the
  * moment the user focuses the window themselves.
  */
-function setPolicy(policy: 'regular' | 'prohibited'): void {
-  if (process.platform === 'darwin') app.setActivationPolicy(policy)
-}
 
 /**
  * Belt and braces. The activation policy stops most activations, but a request
@@ -764,7 +737,6 @@ export function releaseFocusGuard(): void {
   // policy allows, and we can only bounce it back — a visible flash).
   const w = BrowserWindow.getAllWindows()[0]
   if (w && !w.isDestroyed()) w.webContents.focus()
-  dropPolicy()
   guardEndedAt = Date.now()
   paneLog('focus-guard', 'window', 'released')
   // A release triggered by the guarded work finishing — not by the user
@@ -794,7 +766,6 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
       focusGuardActive = true
       rememberFrontApp()
       detachPanesWhileAway()
-      holdPolicy()
       paneLog('focus-guard', 'window', 'engaged')
     }
     guardDepth += 1
