@@ -930,6 +930,17 @@ export function EasyChat({
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
   const [agentFailed, setAgentFailed] = useState<boolean | 'missing-cwd'>(false)
+  /**
+   * This chat's agent has been alive at least once.
+   *
+   * Every exit showed "Make sure it's installed and you're signed in" — the
+   * words for a spawn that never got off the ground. A session that ran for an
+   * hour and then ended, for any of the ordinary reasons a long-lived process
+   * ends, wore the same alarming sentence while its work sat on screen above it.
+   * Told apart here rather than guessed at from an exit code, because a clean
+   * exit and a failed one both arrive as a number.
+   */
+  const everStartedRef = useRef(false)
   const [generating, setGenerating] = useState(false)
   const [resetKey, setResetKey] = useState(0)
   // No live claude process. Chats START here — opening a project must not cost
@@ -1744,6 +1755,11 @@ export function EasyChat({
 
       if (type === 'system' && (event.subtype as string) === 'init') {
         setReady(true)
+        // The agent is genuinely up: signed in, session valid. Not the moment
+        // the process spawned — a CLI that is missing or logged out spawns and
+        // dies without ever reaching this. It is the same signal main uses to
+        // tell a good resume from a failed one.
+        everStartedRef.current = true
         // What the CLI actually resolved to. With the picker on "Default" this
         // is the only way to know which model you are spending — the reason
         // "Default" could silently be Fable and the limit message came as a
@@ -3225,10 +3241,15 @@ export function EasyChat({
               <>
                 ⚠ This project&rsquo;s folder isn&rsquo;t there any more — it was moved or deleted.
               </>
+            ) : everStartedRef.current ? (
+              <>
+                ⚠ This {agentName} session ended. Retry picks it up where it left off — nothing in
+                the conversation is lost.
+              </>
             ) : (
               <>
-                ⚠ {agentName} stopped. Make sure {PROVIDER_PRODUCT[provider]} is installed and
-                you&rsquo;re signed in.
+                ⚠ {agentName} could not start. Make sure {PROVIDER_PRODUCT[provider]} is installed
+                and you&rsquo;re signed in.
               </>
             )}
           </span>
