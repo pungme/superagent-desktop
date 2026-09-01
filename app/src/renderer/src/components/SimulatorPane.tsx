@@ -617,6 +617,9 @@ export function SimulatorPane({
     }
   }
 
+  /** The device is on its side — the stream says so before anything else does. */
+  const landscape = !!frame && frame.width > frame.height
+
   const hardware = (button: string, title: string, glyph: string): React.JSX.Element => (
     <button
       className="sim-btn"
@@ -666,6 +669,35 @@ export function SimulatorPane({
         {hardware('home', 'Home', '○')}
         {hardware('lock', 'Lock', '⏻')}
         {hardware('app-switcher', 'App switcher', '▤')}
+        {/* Turn the device. Which way is read off the frame the stream already
+            reports, so the button is always the orientation you are not in. */}
+        <button
+          className="sim-btn"
+          title={landscape ? 'Rotate to portrait' : 'Rotate to landscape'}
+          disabled={!udid || !tappable}
+          onClick={() =>
+            udid &&
+            void window.cove.simInput(udid, {
+              type: 'orientation',
+              value: landscape ? 'portrait' : 'landscape-left'
+            })
+          }
+        >
+          <svg
+            className="sim-rotate-ic"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="2.4" y="4.6" width="11.2" height="7.4" rx="1.4" />
+            <path d="M5.4 2.2a5.4 5.4 0 0 1 5.2 0" />
+            <path d="M5.9 1.1 4.9 2.4l1.4.7" />
+          </svg>
+        </button>
         {typing && <span className="sim-typing">typing…</span>}
         {/* The escape hatch: Apple's own window, only when asked for. Until
             then it is kept out of sight, because a build opens it uninvited. */}
