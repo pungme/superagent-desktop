@@ -61,9 +61,11 @@ personal browser.
 
 ## Every chat is its own checkout
 
-On a git project, every conversation automatically gets a private copy of the
-project on its own branch. Two chats on the same repo can edit, branch, and
-commit side by side without touching each other — or your checkout.
+On a git project, a new conversation gets a private copy of the project on its
+own branch, cut on its first message and named after what you asked for. Two
+chats on the same repo can edit, branch and commit side by side without
+touching each other — or your checkout. The project row keeps a conversation
+that works in the folder itself, for when that is what you want.
 
 - **Keep / Throw away.** When a chat has changes, two buttons appear at the
   top: *Keep* adds everything it did to the project as one change, named after
@@ -85,8 +87,7 @@ too (`sim_boot`, `sim_tap`, `sim_screenshot`, …), so it builds, launches, and
 checks its own app. Nothing to install: the input helper ships with
 Superagent. Apple's own Simulator window stays shut unless you ask for it.
 
-The simulator and the page you're on sit side by side on the same surface,
-over a Monet you can switch off.
+The simulator and the page you're on sit side by side on the same surface.
 
 ## Your Mac's agent, on your phone
 
@@ -112,9 +113,8 @@ with a push notification when it's done or needs you.
   on the left, the conversation fills the right, and the page or the simulator
   sits beside it rather than above it.
 
-The iOS app is built from source for now — see
-[its README](https://github.com/pungme/superagent-ios). A TestFlight build is
-coming; the link is not open to new testers yet.
+Get it on [TestFlight](https://testflight.apple.com/join/hvg9RGMh), or build it
+from source — see [its README](https://github.com/pungme/superagent-ios).
 
 ## Everything in its place
 
@@ -130,8 +130,6 @@ running, and the git branch where you'd expect it.
 
 Settings stay short enough to read in one go — including how much the agent is
 allowed to do without asking.
-
-<p align="center"><img src="docs/settings.png" width="520" alt="Settings: appearance, agent permissions, developer mode"></p>
 
 ## The bigger things
 
@@ -232,9 +230,6 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
 ## License
 
 [MIT](LICENSE)
-
-The desk background is Claude Monet, *Water Lilies* (1906), from the Art
-Institute of Chicago's open-access collection — public domain (CC0).
 
 <!-- Maintainer notes below: not user-facing, kept so they aren't rediscovered the hard way. -->
 
