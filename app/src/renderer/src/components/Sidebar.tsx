@@ -10,6 +10,8 @@ import {
   useDroppable,
   useDndContext
 } from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   useStore,
   normalizeCwd,
@@ -374,7 +376,8 @@ function ChatRow({
   workspaceId,
   active,
   onOpen,
-  folderBranch
+  folderBranch,
+  sortable = false
 }: {
   chat: Chat
   workspaceId: string
@@ -384,9 +387,16 @@ function ChatRow({
    *  own. Without it a chat working in the folder itself showed no branch at
    *  all, so you could not tell what it was about to change. */
   folderBranch?: string | null
+  /** Draggable within its project. Only where the order is the app's to keep:
+   *  a branch row's place comes from git, not from you. */
+  sortable?: boolean
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const removeChat = useStore((s) => s.removeChat)
+  // Hooks cannot be conditional, so this is always called; only a sortable row
+  // uses what it returns. The 5px activation distance on the sidebar's sensor
+  // is what keeps a click from becoming a drag.
+  const drag = useSortable({ id: `chat:${chat.id}`, disabled: !sortable })
   const unread = useStore((st) => Boolean(st.unread[chat.id])) || movedSinceSeen(chat)
   // The spinner means "this conversation's turn is running", per chat, on screen
   // or not. Deliberately NOT keyed on background commands: a lingering `xcodebuild`
@@ -424,6 +434,10 @@ function ChatRow({
 
   return (
     <div
+      ref={sortable ? drag.setNodeRef : undefined}
+      style={sortable ? { transform: CSS.Transform.toString(drag.transform), transition: drag.transition, opacity: drag.isDragging ? 0.5 : 1 } : undefined}
+      {...(sortable ? drag.attributes : {})}
+      {...(sortable ? drag.listeners : {})}
       className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''} ${
         unread ? 'unread' : ''
       }`}
@@ -864,22 +878,31 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           given any. It still has conversations, so fall back to showing them
           plainly, exactly as before. Without this the whole block rendered
           null and a non-git project lost its chat list entirely. */}
+      {/* Drag to reorder. The order is the app's to keep here — these are plain
+          conversations in a folder. A branch row's place comes from git, so
+          those are left alone. */}
       {worktrees.length === 0 && chats.length > 1 && (
-        <div className="routine-tree">
-          {chats.map((c) => (
-            <ChatRow
-              key={c.id}
-              chat={c}
-              workspaceId={ws.id}
-              active={active && c.id === activeChatId}
-              onOpen={() => {
-                window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
-                setActive(ws.id)
-                selectChat(ws.id, c.id)
-              }}
-            />
-          ))}
-        </div>
+        <SortableContext
+          items={chats.map((c) => `chat:${c.id}`)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="routine-tree">
+            {chats.map((c) => (
+              <ChatRow
+                key={c.id}
+                chat={c}
+                workspaceId={ws.id}
+                sortable
+                active={active && c.id === activeChatId}
+                onOpen={() => {
+                  window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+                  setActive(ws.id)
+                  selectChat(ws.id, c.id)
+                }}
+              />
+            ))}
+          </div>
+        </SortableContext>
       )}
       {/* The branch is the row; the conversation happening in it is the label
           on the right. main first, the branches cut from it indented beneath —
@@ -1266,6 +1289,7 @@ export function Sidebar(): React.JSX.Element {
   }
   const moveWorkspace = useStore((s) => s.moveWorkspace)
   const moveGroup = useStore((s) => s.moveGroup)
+  const moveChat = useStore((s) => s.moveChat)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
@@ -1276,6 +1300,14 @@ export function Sidebar(): React.JSX.Element {
     const activeId = String(e.active.id)
     const overId = e.over?.id ? String(e.over.id) : null
     if (!overId || overId === activeId) return
+
+    // A conversation dropped on another conversation in the same project.
+    if (activeId.startsWith('chat:') && overId.startsWith('chat:')) {
+      void moveChat(activeId.slice('chat:'.length), overId.slice('chat:'.length))
+      return
+    }
+    // A conversation makes no sense anywhere else in this sidebar.
+    if (activeId.startsWith('chat:') || overId.startsWith('chat:')) return
 
     const locate = (id: string): { groupId: string; index: number } | null => {
       for (const g of tree) {
