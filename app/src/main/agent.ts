@@ -7,7 +7,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { getHookUrl } from './hooks'
 import { getMcpUrl, writeWorkspaceMcpConfig } from './mcp'
-import { DESKTOP_WORKSPACE_ID } from './store'
+import { DESKTOP_WORKSPACE_ID, loadChatItems } from './store'
+import type { LegacyItem } from './transcript'
 import { findClaude } from './claude-cli'
 
 /**
@@ -394,6 +395,68 @@ export function buildAgentArgs(
   return args
 }
 
+/**
+ * Chats whose agent has no memory of what is on screen.
+ *
+ * A conversation resumes by session id, and Claude comes back with the whole
+ * thing. When that session is gone — cleaned up, reinstalled — the fallback is
+ * a fresh one, which is better than a dead chat but remembers nothing, while
+ * the transcript above it still shows everything. The next message out carries
+ * a recap so the reply is not "I don't have prior context".
+ *
+ * This used to live in the window, which meant a message sent from the phone —
+ * companion RPC → main → agent, never through the window — arrived with no
+ * history at all. It lives here now, on the one path both clients take.
+ */
+const contextLost = new Set<string>()
+
+export function markContextLost(chatId: string): void {
+  contextLost.add(chatId)
+}
+
+/**
+ * A compact recap of the conversation so far, to re-seed a session that lost
+ * its memory. Recent turns only, each clipped — enough for "continue" to mean
+ * something without blowing the context window.
+ */
+/**
+ * The recap to put in front of the next message, if this chat's agent has lost
+ * its memory — and only in front of ONE message, so the conversation is not
+ * re-sent on every turn. Empty when there is nothing to catch up on.
+ */
+export function takeRecap(chatId: string | undefined): string {
+  if (!chatId || !contextLost.delete(chatId)) return ''
+  const recap = buildRecap(chatId)
+  if (!recap) return ''
+  return (
+    '[The earlier session for this conversation was lost, so you have no memory of ' +
+    'it. Here is a recap of what was said before — treat it as the conversation so ' +
+    'far and continue from it.]\n\n' +
+    recap +
+    '\n\n---\n\n'
+  )
+}
+
+export function buildRecap(chatId: string): string {
+  let items: LegacyItem[] = []
+  try {
+    items = loadChatItems(chatId) as LegacyItem[]
+  } catch {
+    return ''
+  }
+  const lines: string[] = []
+  for (const it of items) {
+    if (it.kind !== 'msg') continue
+    const m = it.msg
+    if (m.system || !m.text || !m.text.trim()) continue
+    lines.push(
+      `${m.role === 'user' ? 'User' : 'Claude'}: ${m.text.replace(/\s+/g, ' ').trim().slice(0, 700)}`
+    )
+  }
+  if (lines.length === 0) return ''
+  return lines.slice(-24).join('\n')
+}
+
 export function startAgent(owner: WebContents | null, opts: AgentStartOptions): string {
   if (owner) watchOwner(owner)
   const id = randomUUID()
@@ -412,6 +475,25 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   const mcpConfig =
     opts.mcpConfigPath ||
     (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId, opts.chatId) : undefined)
+
+  // No session to resume, but this chat already has a reply in it: this process
+  // starts blank underneath an existing conversation. That is the silent
+  // context loss — nothing failed, so nothing said so. Gate on an ASSISTANT
+  // reply rather than any message: a brand-new chat's first send is already in
+  // the transcript by now, so "some message exists" is true on the most common
+  // path there is.
+  if (!opts.resumeSessionId && opts.chatId) {
+    const items = (() => {
+      try {
+        return loadChatItems(opts.chatId) as LegacyItem[]
+      } catch {
+        return [] as LegacyItem[]
+      }
+    })()
+    if (items.some((it) => it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system)) {
+      markContextLost(opts.chatId)
+    }
+  }
 
   // A valid resume emits a `system/init` event; a missing session makes claude
   // exit having only emitted SessionStart *hook* events (which fire before the
@@ -561,6 +643,7 @@ function notifyResumeLost(
   meta: { id: string; chatId?: string; workspaceId?: string }
 ): void {
   markResumeLost(meta.id)
+  if (meta.chatId) markContextLost(meta.chatId)
   agentBus.emit('resume-lost', meta)
   if (owner && !owner.isDestroyed()) owner.send(`agent:resume-lost:${meta.id}`)
 }
@@ -588,6 +671,11 @@ export function sendToAgent(
     const o = session.owner
     if (o && !o.isDestroyed()) o.send(`agent:user:${id}`, { text, from: origin.from })
   }
+  // The agent behind this chat has no memory of what is on screen. Hand it the
+  // conversation, once, ahead of the message. The `user` event above already
+  // carries your words alone, so the recap goes to Claude and not into the
+  // transcript.
+  text = takeRecap(session.chatId) + text
   if (images.length > 0) {
     const paths = images.map((im) => saveImageForAgent(im)).filter(Boolean)
     if (paths.length > 0) {
