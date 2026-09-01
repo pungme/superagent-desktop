@@ -201,13 +201,6 @@ button {
   height: 0;
 }
 
-/* Each project group is a card that shows itself on hover: rest the pointer
-   anywhere in a group and a faint tint outlines exactly what belongs to it.
-   Proximity alone was tried first (20px of air and a muted header), then a
-   hairline rule, then cards tinted all the time; the first two didn't make
-   the boundaries findable and the last made the column heavy. The padding is
-   always there, so the tint appears without anything moving. The rows inside
-   stay compact. The Browse tabs at the top are not a project group. */
 /* Projects / Activity. A segmented pair at the top of the sidebar, the same
    switch the phone has, so the two apps are read the same way. */
 .sidebar-modes {
@@ -313,6 +306,13 @@ button {
   white-space: nowrap;
 }
 
+/* Each project group is a card that shows itself on hover: rest the pointer
+   anywhere in a group and a faint tint outlines exactly what belongs to it.
+   Proximity alone was tried first (20px of air and a muted header), then a
+   hairline rule, then cards tinted all the time; the first two didn't make
+   the boundaries findable and the last made the column heavy. The padding is
+   always there, so the tint appears without anything moving. The rows inside
+   stay compact. The Browse tabs at the top are not a project group. */
 .sidebar-group {
   border-radius: 10px;
   transition: background 0.12s ease;
