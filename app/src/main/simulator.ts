@@ -925,7 +925,7 @@ export function registerSimulatorIpc(): void {
 }
 
 export interface SimAction {
-  type: 'tap' | 'swipe' | 'press' | 'text' | 'key'
+  type: 'tap' | 'swipe' | 'press' | 'text' | 'key' | 'orientation'
   [k: string]: unknown
 }
 
@@ -1040,6 +1040,11 @@ export async function sendSimInput(udid: string, action: SimAction): Promise<Sim
     if (action.duration) args.push('--duration', String(action.duration))
   } else if (action.type === 'press') {
     args.push('press', '--udid', udid, '--button', String(action.button))
+  } else if (action.type === 'orientation') {
+    // portrait | landscape-left | landscape-right | portrait-upside-down.
+    // The device turns; the stream reports the new frame size on its own, so
+    // nothing here has to tell the pane how big the picture just became.
+    args.push('orientation', '--udid', udid, String(action.value))
   } else {
     args.push('type', '--udid', udid, '--text', String(action.text))
   }

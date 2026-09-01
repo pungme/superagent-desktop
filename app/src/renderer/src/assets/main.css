@@ -6971,6 +6971,11 @@ button {
     display: none;
   }
 }
+.sim-rotate-ic {
+  width: 15px;
+  height: 15px;
+}
+
 .sim-btn {
   border: 1px solid var(--border);
   background: var(--bg-panel);
