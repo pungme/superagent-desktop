@@ -1000,8 +1000,12 @@ button {
    and the conversation title gives way, exactly as the project row's chip does.
    No clone, no tooltip, nothing floating. */
 .sidebar-branch:hover .sidebar-branch-chat {
-  flex: 0 0 auto;
-  max-width: none;
+  /* Widen, but never past the × — a branch name long enough to fill the row
+     pushed the delete button out of reach, and hovering the row is exactly when
+     you are reaching for it. It still shrinks (0 1) rather than claiming space
+     it cannot have, so a very long name ellipsizes at the widest it fits. */
+  flex: 0 1 auto;
+  max-width: calc(100% - 108px);
   color: var(--text-secondary);
 }
 /* Branches cut from the folder sit under it, the way they do in the sketch. */
