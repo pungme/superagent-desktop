@@ -4,7 +4,9 @@
 
 <h1 align="center">Superagent</h1>
 
-<p align="center"><b>A home for your coding agent — one chat per project, a real browser it drives, an iPhone in the window, and your phone in your pocket.</b></p>
+<p align="center"><b>A home for your agent.</b></p>
+
+<p align="center">A Mac app where your coding agent lives: a real browser it drives, an iPhone in the window, chats that survive restarts, your phone in the loop. Open source, on the subscription you already have.</p>
 
 <p align="center">Works with <b>Claude Code</b> today · Codex and Antigravity coming soon</p>
 
@@ -12,6 +14,12 @@
   <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><b>⬇ Download for Mac</b></a> ·
   <a href="https://superagent.computer/">Website</a> ·
   Apple Silicon · free &amp; open source
+</p>
+
+<p align="center">
+  <a href="https://github.com/pungme/superagent-desktop"><b>desktop</b></a> ·
+  <a href="https://github.com/pungme/superagent-ios">iOS</a> ·
+  <a href="https://github.com/pungme/superagent-relay">relay</a>
 </p>
 
 Your agent already writes the code. Superagent gives it a place to work — and
@@ -100,7 +108,13 @@ with a push notification when it's done or needs you.
   connects anywhere.
 - **Quiet in the menu bar** while a phone is paired: relay status, open, pair.
 
-The iOS app is built from source for now (see its README).
+- **iPhone and iPad.** On an iPad it takes the Mac's shape: the sidebar stays
+  on the left, the conversation fills the right, and the page or the simulator
+  sits beside it rather than above it.
+
+The iOS app is built from source for now — see
+[its README](https://github.com/pungme/superagent-ios). A TestFlight build is
+coming; the link is not open to new testers yet.
 
 ## Everything in its place
 
@@ -171,9 +185,12 @@ allowed to do without asking.
 - An iPhone with the companion app, only if you want your phone in the loop.
 
 Network, in full: Claude Code's own connection to Anthropic; a check of this
-repo's releases for updates; and — only once you pair a phone — one outbound
-connection to the companion relay (the project's by default; swap in your own
-in Settings → Phone). Nothing else leaves the machine.
+repo's releases for updates; the Whisper model for push-to-talk dictation,
+downloaded from Hugging Face the first time you hold the key and cached after
+that (the transcription itself never leaves the Mac); and — only once you pair
+a phone — one outbound connection to the companion relay (the project's by
+default; swap in your own in Settings → Phone). Nothing else leaves the
+machine.
 
 ## The three repositories
 
