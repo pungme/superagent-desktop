@@ -294,6 +294,20 @@ export function startCompanionLog(): void {
     ({ id, chatId, workspaceId }: { id: string; chatId?: string; workspaceId?: string }) => {
       projectors.delete(id)
       if (chatId) setGenerating(chatId, workspaceId, false)
+      // And SAY so. The Mac window puts a banner up when an agent dies; the
+      // phone was told only that the spinner had stopped. So a message sent
+      // from the phone to a conversation whose agent cannot start — the wrong
+      // CLI for that chat, a missing sign-in — sat there with no reply and
+      // nothing to explain it, which reads as the app being broken.
+      //
+      // Deliberate stops never reach here (a killed session returns before the
+      // event), so this only fires when something actually went wrong.
+      if (chatId) {
+        record(chatId, {
+          kind: 'notice',
+          text: 'The agent stopped. Send again to start it, or check it on the Mac.'
+        })
+      }
     }
   )
 }
