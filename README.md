@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/pungme/superagent-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/pungme/superagent-desktop?label=release&color=1c1d1a" alt="Latest release"></a>
-  <a href="https://github.com/pungme/superagent-desktop/releases"><img src="https://img.shields.io/github/downloads/pungme/superagent-desktop/SuperAgent.dmg?label=downloads&color=1c1d1a" alt="Downloads"></a>
+  <a href="https://github.com/pungme/superagent-desktop/releases"><img src="https://img.shields.io/github/downloads/pungme/superagent-desktop/total?label=downloads&color=1c1d1a" alt="Downloads"></a>
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-1c1d1a" alt="macOS, Apple Silicon">
   <img src="https://img.shields.io/badge/iOS-iPhone%20%26%20iPad-1c1d1a" alt="iPhone and iPad">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1c1d1a" alt="MIT licensed"></a>
