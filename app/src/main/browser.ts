@@ -1,5 +1,6 @@
 import {
   BrowserWindow,
+  screen,
   WebContentsView,
   Notification,
   ipcMain,
@@ -605,11 +606,65 @@ function detachPanesWhileAway(): void {
  * Ask the renderer to re-sync instead — whichever panes are still mounted will
  * push fresh bounds, and browser:set-bounds attaches them.
  */
+/**
+ * Anything that moves every pane at once. The reconciler in the renderer would
+ * catch these within a quarter second anyway; telling it directly means the
+ * page does not visibly sit in the wrong place first.
+ */
+export function watchWindowGeometry(win: BrowserWindow): void {
+  const resync = (): void => {
+    if (!win.isDestroyed()) win.webContents.send('browser:resync')
+  }
+  win.on('resize', resync)
+  win.on('move', resync)
+  win.on('enter-full-screen', resync)
+  win.on('leave-full-screen', resync)
+  win.on('maximize', resync)
+  win.on('unmaximize', resync)
+  win.on('restore', resync)
+  // A different display, or the same one rescaled, changes what a window pixel
+  // is worth.
+  screen.on('display-metrics-changed', resync)
+  screen.on('display-added', resync)
+  screen.on('display-removed', resync)
+  // Pinch-zoom and ⌘-scroll zoom go through here rather than the menu.
+  win.webContents.on('zoom-changed', resync)
+  win.on('closed', () => {
+    screen.removeListener('display-metrics-changed', resync)
+    screen.removeListener('display-added', resync)
+    screen.removeListener('display-removed', resync)
+  })
+}
+
 export function attachPanesOnReturn(): void {
   if (detachedWhileAway.size === 0) return
   detachedWhileAway.clear()
   paneLog('pane-resync-requested', 'window')
   broadcastToWindows('browser:resync')
+}
+
+/**
+ * The renderer measures the pane in CSS pixels; a WebContentsView is placed in
+ * the window's own pixels. Those are the same number only while the window is
+ * at 100%.
+ *
+ * The View menu has Zoom In and Zoom Out on ⌘+ and ⌘−, which are easy to hit by
+ * accident and which nothing here accounted for. Zoomed to 125%, an element the
+ * renderer measures at (100, 100) actually sits at (125, 125) in the window — so
+ * the page was drawn up and to the left of its pane, and smaller than it, by
+ * exactly the zoom factor. That is the misaligned page people keep sending
+ * screenshots of, and it never healed on its own because every later resize
+ * recomputed the same wrong number.
+ */
+function toWindowPixels(win: BrowserWindow, b: BrowserBounds): BrowserBounds {
+  const z = win.webContents.getZoomFactor() || 1
+  if (z === 1) return b
+  return {
+    x: Math.round(b.x * z),
+    y: Math.round(b.y * z),
+    width: Math.round(b.width * z),
+    height: Math.round(b.height * z)
+  }
 }
 
 export function releaseFocusGuard(): void {
@@ -1019,7 +1074,7 @@ export function registerBrowserIpc(): void {
         attachPaneView(pane)
       }
     }
-    pane.view.setBounds(bounds)
+    pane.view.setBounds(toWindowPixels(pane.window, bounds))
     // After the bounds, and after any re-attach above: both rebuild the layer
     // this is a property of, so applying it earlier is applying it to a layer
     // that is about to be thrown away.
@@ -1179,7 +1234,7 @@ export function registerBrowserIpc(): void {
         sync()
       }
       pane.window.contentView.addChildView(twin.view)
-      twin.view.setBounds(bounds)
+      twin.view.setBounds(toWindowPixels(pane.window, bounds))
       twin.view.webContents.setZoomFactor(Math.max(0.2, zoom))
     }
   )
