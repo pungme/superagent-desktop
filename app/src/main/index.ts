@@ -28,7 +28,7 @@ import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
-import { startCompanionLog } from './companion/log'
+import { startCompanionLog, forgetChat } from './companion/log'
 import { startCompanion, stopCompanion, registerCompanionIpc, companionBus } from './companion'
 import { startTray, refreshTray } from './tray'
 import { registerSkillsIpc } from './skills'
@@ -328,7 +328,10 @@ app.whenReady().then(() => {
             message: 'Clear this chat?',
             detail: 'The transcript and its session context are wiped. The chat itself stays.'
           })
-          if (response === 0) win.webContents.send('chat:cleared', { chatId, workspaceId })
+          if (response === 0) {
+            forgetChat(chatId)
+            win.webContents.send('chat:cleared', { chatId, workspaceId })
+          }
         }
       },
       { type: 'separator' },
