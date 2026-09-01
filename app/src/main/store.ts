@@ -1771,11 +1771,21 @@ function registerStoreIpcTail(): void {
     // UPDATE (never INSERT) and only for a real id: a save for an unknown chat is
     // a caller bug, and must not be able to invent a row or clobber another's.
     if (!chatId) return
-    db.prepare('UPDATE chats SET data = ?, updatedAt = ? WHERE id = ?').run(
-      data,
-      Date.now(),
-      chatId
-    )
+    // Only move the clock when the transcript actually changed.
+    //
+    // updatedAt is read as "when something was last said here" — the sidebar
+    // sorts by it, Activity orders by it, and the unread dot compares it with
+    // when you last had the conversation open. But this handler bumped it on
+    // every save, and the window saves its transcript back on mount, after a
+    // reload, and whenever a chat is merely kept alive in the background. So a
+    // conversation from three weeks ago that nobody touched would jump to the
+    // top of the list and grow an unread dot, for no reason anyone could see.
+    db.prepare(
+      `UPDATE chats
+          SET data = @data,
+              updatedAt = CASE WHEN data = @data THEN updatedAt ELSE @now END
+        WHERE id = @id`
+    ).run({ data, now: Date.now(), id: chatId })
   })
   // Wipes one chat's transcript in place (used by Retry-style resets), which is
   // no longer how "New chat" works — that creates a sibling instead.
