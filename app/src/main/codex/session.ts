@@ -41,7 +41,15 @@ export function codexPermissions(mode: AgentStartOptions['permissionMode']): {
     case 'acceptEdits':
       return { sandbox: 'workspace-write', approvalPolicy: 'on-request' }
     case 'plan':
-      return { sandbox: 'read-only', approvalPolicy: 'never' }
+      // 'never' here, not 'on-request', used to mean the agent could not look
+      // anything up while planning: Codex refuses every MCP tool call outright
+      // under that policy — "MCP tool call requires approval, but approval
+      // policy is never" — so the browser was unusable in plan mode, including
+      // for reading a page, which is the thing you most want while planning.
+      // The read-only sandbox is what keeps plan mode honest; the approval
+      // policy only decides whether a call gets to ask. Verified against
+      // codex-cli 0.151.0.
+      return { sandbox: 'read-only', approvalPolicy: 'on-request' }
     case 'bypassPermissions':
     default:
       return { sandbox: 'danger-full-access', approvalPolicy: 'never' }
