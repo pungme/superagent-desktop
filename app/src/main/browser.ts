@@ -17,8 +17,8 @@ import { basename, join } from 'path'
 import { EventEmitter } from 'events'
 import { appendFileSync, renameSync, statSync } from 'fs'
 import { execFile } from 'child_process'
-import { normalizeUrl, broadcastToWindows, workspaceIdFromPane } from './util'
-import { getRecentHistory, getChatWorkspace, getWorkspaceKind } from './store'
+import { normalizeUrl, broadcastToWindows, SHARED_BROWSER_PARTITION } from './util'
+import { getRecentHistory } from './store'
 
 // Lightweight pane-lifecycle trail for the "agent-opened pane is blank" reports —
 // the bug has never reproduced on demand, so leave breadcrumbs where it happens.
@@ -58,10 +58,29 @@ export function paneLog(event: string, id: string, detail = ''): void {
 // string. Electron IS Chromium, and left alone it says so honestly and
 // consistently in all three places — a real Chromium browser, which challenges
 // pass. It presents the same whether the agent is driving or you are, so its
-// story never changes mid-session. Presenting an honest Chromium beats an
-// inconsistent fake Chrome — and a fully consistent Chrome is out of reach
-// anyway: Electron's TLS handshake lacks three post-quantum signature
-// algorithms Chrome's has compiled in, which is not fixable from here.
+// story never changes mid-session.
+//
+// This note used to end by saying a consistent Chrome was out of reach, because
+// Electron's handshake lacked post-quantum algorithms Chrome had compiled in.
+// Measured on Electron 39.8.10 (Chromium 142) against tls.browserleaks.com,
+// that is no longer true — and the claim was the wrong shape anyway: what
+// Chrome offers is post-quantum KEY AGREEMENT, not signature algorithms. What a
+// pane actually sends:
+//
+//   UA      Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ...
+//           Chrome/142.0.7444.265 Safari/537.36   (no Electron, no app token)
+//   JA4     t13d1516h2_8daaf6152771_d8a2da3f94cd
+//   groups  4588, 29, 23, 24   — 4588 is 0x11EC, X25519MLKEM768
+//   exts    ...fe0d...         — encrypted client hello
+//
+// So the post-quantum key share IS offered, ECH is on, and the cipher list
+// hashes to Chrome's own 8daaf6152771. Do not go hunting for a feature flag to
+// turn it on: there is no PostQuantumKeyAgreement string in the binary, because
+// the flag was deleted when the feature graduated to always-on.
+//
+// Re-measure before believing this again. It is a fact about one Electron
+// version, and the previous version of this paragraph rotted silently into an
+// argument for building Chromium from source.
 
 /**
  * Pane states as they change, for anything outside the window that needs to
@@ -922,24 +941,6 @@ export function ensureOffscreenPane(window: BrowserWindow, id: string, partition
 }
 
 /**
- * The session partition for a pane, resolved from its id — which may now be a
- * CHAT id (per-chat browser panes) rather than a workspace id. Partitions stay
- * per-PROJECT so all of a project's chats share one login: browser projects use
- * the shared 'persist:browser', code projects their own 'persist:ws-<id>'. This
- * must match exactly what the renderer's BrowserPane passes, or an adopted pane
- * would come up logged out.
- */
-export function partitionForPane(paneId: string): string {
-  let wsId = workspaceIdFromPane(paneId)
-  // A chat id won't resolve as a workspace kind; map it to its project.
-  if (!getWorkspaceKind(wsId)) {
-    const owner = getChatWorkspace(wsId)
-    if (owner) wsId = owner
-  }
-  return getWorkspaceKind(wsId) === 'browser' ? 'persist:browser' : `persist:ws-${wsId}`
-}
-
-/**
  * Ensure a live-but-hidden pane exists for a chat whose desk isn't on screen —
  * so a background chat's agent can drive its own browser (navigate, read, click)
  * before the user ever switches to it. Same offscreen technique as routine
@@ -948,7 +949,7 @@ export function partitionForPane(paneId: string): string {
  */
 export function ensureBackgroundPane(window: BrowserWindow, paneId: string): void {
   if (panes.has(paneId)) return
-  ensureOffscreenPane(window, paneId, partitionForPane(paneId))
+  ensureOffscreenPane(window, paneId, SHARED_BROWSER_PARTITION)
 }
 
 export function destroyBrowserPane(id: string): void {

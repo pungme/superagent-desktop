@@ -4,10 +4,10 @@ import { randomUUID } from 'crypto'
 import { ensureOffscreenPane, destroyBrowserPane } from './browser'
 import { navigate } from './automation'
 import { writeWorkspaceMcpConfig, workspaceMcpUrl } from './mcp'
-import { getDb, getWorkspaceKind, kvGet } from './store'
+import { getDb, kvGet } from './store'
 import { runClaudeRoutine } from './claude/routine'
 import { runCodexRoutine } from './codex/routine'
-import { broadcastToWindows, partitionFor, routinePaneId } from './util'
+import { broadcastToWindows, SHARED_BROWSER_PARTITION, routinePaneId } from './util'
 import { DEFAULT_PROVIDER, toProvider, type AgentProvider } from '../shared/agent-provider'
 import type { RoutineOutcome } from './agent-backend'
 
@@ -203,7 +203,7 @@ export async function runRoutine(routine: Routine): Promise<void> {
       ensureOffscreenPane(
         win,
         paneId,
-        partitionFor(routine.workspaceId, getWorkspaceKind(routine.workspaceId))
+        SHARED_BROWSER_PARTITION
       )
     // Seed the offscreen pane with the project's last-viewed URL so the agent has a
     // real page to act on. Without this it starts on about:blank, so a prompt like

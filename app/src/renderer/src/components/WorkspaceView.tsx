@@ -150,9 +150,10 @@ export function WorkspaceView({
     <BrowserPane
       paneId={browserPaneId}
       workspaceId={ws.id}
-      // Browser projects share one session so a manual login carries across all
-      // of them; code previews stay isolated per workspace (but per-chat views).
-      partition={ws.kind === 'browser' ? 'persist:browser' : `persist:ws-${ws.id}`}
+      // One session for the whole app, so a manual login carries everywhere —
+      // main derives the same constant in partitionFor (util.ts). This used to
+      // branch on ws.kind and had to agree with main's copy of the rule exactly.
+      partition="persist:browser"
       initialUrl={
         ws.browserUrl ??
         (ws.kind !== 'browser'

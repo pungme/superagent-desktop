@@ -24,6 +24,7 @@ import {
 } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
+import { mergeLegacyPartitions } from './session-merge'
 import { registerDesktopIpc } from './desktop'
 import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
@@ -187,7 +188,7 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('dev.cove.app')
 
   // Electron denies permission requests by default, which would silently break
@@ -479,6 +480,11 @@ app.whenReady().then(() => {
   // Every launch writes its own per-workspace MCP config (with ?ws=…), so no
   // global config file is needed.
   startMcpServer()
+
+  // Before any pane exists: the old per-project cookie jars fold into the one
+  // shared session, so an update doesn't read as "it logged me out". One-time,
+  // and a no-op on every launch after the first.
+  await mergeLegacyPartitions()
 
   createWindow()
 

@@ -56,15 +56,22 @@ export function normalizeUrl(raw: string): string {
 
 /**
  * The Electron session partition for a workspace's browser panes (visible +
- * offscreen share it). Browser projects all share ONE partition so a login the
- * user does by hand (Instagram, etc.) carries across every browser project and
- * its routines — you don't re-authenticate per project. Code projects keep an
- * isolated partition per workspace (their panes are just localhost previews).
+ * offscreen share it). ONE partition for the whole app: a login you do by hand
+ * carries everywhere, the way it does in a real browser, which does not hand you
+ * a different cookie jar per folder you have open.
+ *
+ * Code projects used to get an isolated 'persist:ws-<id>' each, on the reasoning
+ * that their panes were only ever localhost previews. They aren't — the pane has
+ * an address bar and an agent that can drive it anywhere — and the isolation
+ * meant anything earned in one project (a login, or a Cloudflare clearance
+ * cookie, which is bound to its jar) had to be earned again in the next.
+ *
+ * Sessions already on disk under the old per-project names are folded into this
+ * one at startup; see mergeLegacyPartitions. Without that, changing the name
+ * here would leave every existing login on disk and unreachable — the same way
+ * renaming the app in 1.7.2 did (see the IDENTIFIER note in index.ts).
  */
 export const SHARED_BROWSER_PARTITION = 'persist:browser'
-export function partitionFor(workspaceId: string, kind?: string): string {
-  return kind === 'browser' ? SHARED_BROWSER_PARTITION : `persist:ws-${workspaceId}`
-}
 
 /** Encode / decode the offscreen routine pane id (packs workspaceId + "routine"). */
 export function routinePaneId(workspaceId: string): string {
