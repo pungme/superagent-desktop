@@ -236,6 +236,23 @@ export function WorkspaceView({
   useEffect(() => {
     if (!paneOpen) window.cove.browserHide(browserPaneId)
   }, [paneOpen, browserPaneId])
+
+  /**
+   * Take down the pane we just stopped using.
+   *
+   * The id is `ws.id` while a project has no conversation and `ws.id::chat`
+   * once it has one, so the id CHANGES underneath a mounted workspace — and a
+   * native view nobody hid stays on screen. Two pages then draw over each other
+   * and over the app, which is what a project that gained its first chat looked
+   * like: the old workspace-level pane and the new per-chat one, both attached.
+   *
+   * Switching between two chats moves the same way and had the same hole; it
+   * only showed up rarely because both panes usually sat in the same rectangle.
+   */
+  useEffect(() => {
+    const stale = browserPaneId
+    return () => window.cove.browserHide(stale)
+  }, [browserPaneId])
   // The project's conversations, and whichever one is on screen (activeChatId is
   // read up top, where it drives deskKey).
   const chats = useStore((s) => s.chats[ws.id])
