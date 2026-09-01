@@ -359,9 +359,64 @@ Claude Code already has a skills system (`~/.claude/skills/<name>/SKILL.md`, pro
 - #24 *Security/data:* atomic `~/.claude/settings.json` writes; a `will-navigate` guard so the shell can't be navigated away; explicit main-window webPreferences; symlink-cycle-safe file walk.
 - #25 *Quality:* end-to-end verified every feature over CDP; unit + e2e now **28 + 7** green; README refreshed; icon-only buttons labeled for a11y.
 
+**v7 → v8 (post-launch-prep):**
+- #26 *Assessed, not scheduled:* **Windows** — see §10. The port is cheap (six platform checks, no Mac-only dependencies, `win:`/`nsis:` already configured) and the product is not: the iOS Simulator pane cannot exist there and the Computer would be a rewrite. Deferred rather than refused; the door §2.1 left open is still open.
+- #27 *Decided:* the three repositories stay under the personal account until after the Product Hunt launch. Transfers redirect and lose nothing, but they put the Pages custom domain (superagent.computer) and every installed app's update path in play — not in launch week.
+
 ## 9. Success metrics (v1 beta)
 
 - Time from DMG open → first Claude response: **< 3 min** (including auth)
 - A tester with no terminal background can: create 2 groups, run 2 projects, preview a site, and ask Claude to test a page — **without docs**
 - Claude completes a "check this page" task via MCP tools with **≥ 90%** tool-call success (no manual retry)
 - Memory < 1 GB with 5 workspaces active
+
+## 10. Windows (assessed 31 Aug 2026 — not scheduled)
+
+§2.1 chose Electron partly to keep the cross-platform door open. This is what
+is actually behind that door, read off the code rather than estimated from
+memory.
+
+### What already crosses
+
+Every runtime dependency is cross-platform, `electron-builder.yml` already
+carries `win:` and `nsis:` blocks, dictation loads ONNX Runtime WASM from disk
+rather than a CDN (`scripts/copy-ort.mjs`), and the whole codebase contains
+**six** `process.platform` checks. The browser pane, chats, SQLite, the file
+tree, the board, routines, pairing, the relay and the phone are all
+platform-agnostic today.
+
+### What cannot cross, ever
+
+**The iOS Simulator pane.** `main/simulator.ts` (1053 lines) drives `simctl`,
+with two native helpers beside it — `native/simfb.m` (Objective-C) and
+`baguette`. There is no iOS Simulator on Windows. This is one of the four
+things in the product's own one-line description.
+
+### What is a rewrite, not a port
+
+**The Computer.** `main/environment.ts` and `main/desktop.ts` drive the Mac
+through `osascript`. The Windows equivalent is PowerShell and UI Automation —
+the same shape, none of the same code.
+
+### What is ordinary work
+
+- Rebuilding `better-sqlite3`; finding where node-pty actually comes from (it
+  is not in `package.json`) and what it needs from ConPTY.
+- Path handling and shell spawning: the agent side assumes a POSIX shell in
+  more places than the six platform checks suggest.
+- Code signing. Notarization has no Windows counterpart — an OV or EV
+  certificate (a few hundred a year) or every download meets SmartScreen.
+  Auto-update through NSIS + electron-updater is fine.
+- A Windows machine to test on, forever.
+
+### Estimate and verdict
+
+Three to five days for a Windows build that genuinely works for the browser,
+chat, files and phone. The simulator: never. The Computer: separately, if at
+all.
+
+Not hard — **lopsided**. Two of the four distinctive features are the two that
+cannot cross, so a Windows user would get a good agent chat with a real browser
+beside it, which is the part every competitor also has. If demand appears after
+launch, the honest version ships without the simulator and the Computer and
+says so on the download page rather than letting people find out.
