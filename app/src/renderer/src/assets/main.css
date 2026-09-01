@@ -10028,6 +10028,28 @@ button {
   font-size: 12px;
   color: var(--text-secondary);
 }
+/* Today's relay traffic against its ceiling. Thin, under the sentence that
+   explains it — a number with a bar is read in one glance; a number alone gets
+   read only after something has gone wrong. */
+.relay-usage {
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--hover);
+  overflow: hidden;
+  max-width: 320px;
+}
+.relay-usage i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.relay-usage i.hot {
+  background: var(--danger, #c2543d);
+}
+
 .phone-subhead {
   margin: 22px 0 4px;
   font-size: 11px;

@@ -82,6 +82,8 @@ export function startCompanion(): void {
     updateKeepAwake()
   })
   relay.on('state', broadcastState)
+  // Once a megabyte, so this is not a busy event.
+  relay.on('usage', broadcastState)
 
   // Fan-out: every phone subscribed to a chat hears its events.
   logBus.on('event', ({ event }: { event: WireEvent }) => {
@@ -332,7 +334,13 @@ function updateKeepAwake(): void {
 
 export interface CompanionState {
   machineId: string
-  relay: { url: string; state: string; error: string }
+  relay: {
+    url: string
+    state: string
+    error: string
+    /** Today's bytes against the relay's daily ceiling; null before it says. */
+    usage: { day: string; bytes: number; limit: number } | null
+  }
   devices: ReturnType<typeof listDevices>
   connected: string[]
   pairing: ReturnType<typeof pairingState>
@@ -343,7 +351,12 @@ export interface CompanionState {
 export function companionState(): CompanionState {
   return {
     machineId: loadedMachineId(),
-    relay: { url: relay.relayUrl, state: relay.state, error: relay.lastError },
+    relay: {
+      url: relay.relayUrl,
+      state: relay.state,
+      error: relay.lastError,
+      usage: relay.usage
+    },
     devices: listDevices(),
     connected: [...conns.values()].filter((c) => c.authenticated).map((c) => c.deviceId!),
     pairing: pairingState(),
