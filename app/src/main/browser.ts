@@ -521,6 +521,49 @@ let guardTimer: ReturnType<typeof setTimeout> | null = null
 let focusGuardActive = false
 
 /**
+ * The longest the app may be missing from the Dock, however long the agent goes on.
+ *
+ * The policy is the only thing that stops a page load raising the window, but a
+ * prohibited app has no Dock icon and cannot be clicked, so the protection and
+ * the disappearance are the same act. Every new engage used to restart the
+ * backstop, so a busy agent held it open for as long as it kept working —
+ * measured on a real log: median 2.6s, which nobody notices, but eighteen
+ * periods over 30s and one of 52s, which reads as the app being gone.
+ *
+ * After this, the policy goes back and the burst finishes under the fallback
+ * below — remember which app the user was in, and hand focus straight back if
+ * we end up in front. Weaker, and occasionally a flicker, but an app you can
+ * click. The ceiling is not restarted by further engages; a new one is only
+ * granted after the guard has fully let go, so this cannot flap the Dock icon.
+ */
+const POLICY_CEILING_MS = 8_000
+let policyProhibited = false
+let ceilingTimer: ReturnType<typeof setTimeout> | null = null
+
+function holdPolicy(): void {
+  if (policyProhibited) return
+  policyProhibited = true
+  setPolicy('prohibited')
+  ceilingTimer = setTimeout(() => {
+    ceilingTimer = null
+    if (!policyProhibited) return
+    policyProhibited = false
+    setPolicy('regular')
+    paneLog('focus-guard', 'window', 'policy-ceiling: back in the Dock, fallback only')
+  }, POLICY_CEILING_MS)
+}
+
+function dropPolicy(): void {
+  if (ceilingTimer) {
+    clearTimeout(ceilingTimer)
+    ceilingTimer = null
+  }
+  if (!policyProhibited) return
+  policyProhibited = false
+  setPolicy('regular')
+}
+
+/**
  * Keep the app from jumping in front of the user while an agent drives the
  * browser.
  *
@@ -707,7 +750,7 @@ export function releaseFocusGuard(): void {
   // policy allows, and we can only bounce it back — a visible flash).
   const w = BrowserWindow.getAllWindows()[0]
   if (w && !w.isDestroyed()) w.webContents.focus()
-  setPolicy('regular')
+  dropPolicy()
   guardEndedAt = Date.now()
   paneLog('focus-guard', 'window', 'released')
   // A release triggered by the guarded work finishing — not by the user
@@ -730,11 +773,14 @@ export async function withoutStealingFocus<T>(fn: () => Promise<T>): Promise<T> 
   // skip it in that case.
   const myGen = guardGen
   if (engage) {
-    if (guardDepth === 0) {
+    // `focusGuardActive` distinguishes a new burst from a continuation: depth
+    // returns to 0 during the 2.5s tail, and re-entering here then would restart
+    // the ceiling on a period that is already running.
+    if (guardDepth === 0 && !focusGuardActive) {
       focusGuardActive = true
       rememberFrontApp()
       detachPanesWhileAway()
-      setPolicy('prohibited')
+      holdPolicy()
       paneLog('focus-guard', 'window', 'engaged')
     }
     guardDepth += 1
