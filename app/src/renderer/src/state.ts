@@ -190,6 +190,21 @@ export function movedSinceSeen(chat: { id: string; updatedAt?: number }): boolea
   return chat.updatedAt > at
 }
 
+/**
+ * Leave whatever full-window surface is up.
+ *
+ * The Computer, Chats, the dashboard and Settings all cover the projects
+ * completely, and the ONLY thing that dismisses them is this event — which the
+ * sidebar fires when you click a project row. Creating a project set it as
+ * active and never fired it, so a folder added while any of those was on screen
+ * became the active project behind a full-window surface and nothing appeared
+ * to happen. Adding it again looked like the fix; clicking the row it had
+ * already made was the actual fix.
+ */
+function leaveFullWindowSurfaces(): void {
+  window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+}
+
 export function isPendingBranch(chatId: string): boolean {
   try {
     return localStorage.getItem(`pendingBranch:${chatId}`) === '1'
@@ -1279,6 +1294,7 @@ export const useStore = create<CoveState>((set, get) => ({
       picked.name,
       picked.path
     )
+    leaveFullWindowSurfaces()
     set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
     await get().startFirstChat(workspaceId)
   },
@@ -1287,6 +1303,7 @@ export const useStore = create<CoveState>((set, get) => ({
       groupId,
       'Browser project'
     )
+    leaveFullWindowSurfaces()
     set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
     await get().startFirstChat(workspaceId)
   },
@@ -1341,9 +1358,11 @@ export const useStore = create<CoveState>((set, get) => ({
       .tree.flatMap((g) => g.workspaces)
       .find((w) => w.path === path)
     if (existing) {
+      leaveFullWindowSurfaces()
       set({ activeWorkspaceId: existing.id }) // already open — just focus it
       return
     }
+    leaveFullWindowSurfaces()
     const { tree, workspaceId } = await window.cove.createWorkspace(groupId, name, path)
     set({ tree, activeWorkspaceId: workspaceId })
     await get().startFirstChat(workspaceId)
