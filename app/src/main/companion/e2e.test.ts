@@ -110,6 +110,10 @@ vi.mock('../store', () => ({
       : undefined,
   getChatIdBySession: (sid: string) => (sid === 'sess-1' ? 'c1' : undefined),
   getWorkspaceName: (id: string) => (id === 'w1' ? 'rowfill' : undefined),
+  // Which agent a conversation runs on. The companion reads it to tell the
+  // phone; the harness has one kind.
+  getChatProvider: () => 'claude',
+  setChatProvider: () => undefined,
   kvGet: (k: string) => h.kv.get(k),
   kvSet: (k: string, v: string) => h.kv.set(k, v),
   isPendingBranch: (id: string) => h.kv.get(`pendingBranch:${id}`) === '1',

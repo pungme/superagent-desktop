@@ -19,7 +19,8 @@ import {
   releaseFocusGuard,
   returnFocusToUser,
   noteUserLeftApp,
-  attachPanesOnReturn
+  attachPanesOnReturn,
+  watchWindowGeometry
 } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
@@ -178,6 +179,10 @@ function createWindow(): BrowserWindow {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // Resized, moved, fullscreened, zoomed, or dragged to another display: every
+  // one of those moves a native pane's slot without the renderer noticing.
+  watchWindowGeometry(mainWindow)
 
   return mainWindow
 }
