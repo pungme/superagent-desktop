@@ -909,12 +909,6 @@ export function EasyChat({
   visible = true
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
-  // Armed when a turn is about to run on a session that has lost the earlier
-  // conversation (a resume that failed, or a fresh process started under an
-  // existing transcript). The next message out carries a recap so the agent
-  // isn't answering "continue" blind. (itemsRef, the live transcript it reads,
-  // is declared further down where the autosave also uses it.)
-  const contextLostRef = useRef(false)
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
@@ -2282,26 +2276,10 @@ export function EasyChat({
     [workspaceId, chatId, nameConversation, syncTasks]
   )
 
-  // A compact recap of the conversation so far, to re-seed a session that lost
-  // its memory. Recent turns only, each clipped — enough for "continue" to mean
-  // something without blowing the context window.
-  const buildRecap = (): string => {
-    const lines: string[] = []
-    for (const it of itemsRef.current) {
-      if (it.kind !== 'msg') continue
-      const m = it.msg
-      if (m.system || !m.text || !m.text.trim()) continue
-      lines.push(
-        `${m.role === 'user' ? 'User' : 'Claude'}: ${m.text.replace(/\s+/g, ' ').trim().slice(0, 700)}`
-      )
-    }
-    if (lines.length === 0) return ''
-    return lines.slice(-24).join('\n')
-  }
-
-  // Send to the agent, transparently prepending a recap the first time we send
-  // after context was lost — so a resumed-but-empty session answers with the
-  // conversation in hand instead of "I don't have prior context".
+  // The recap that re-seeds a session which lost its memory is built in main
+  // (agent.ts), on the one path both this window and the phone take. It used to
+  // be here, which meant a message sent from the phone — companion RPC → main →
+  // agent, never through this component — arrived with no history at all.
   const sendToAgent = (
     id: string,
     text: string,
@@ -2310,19 +2288,6 @@ export function EasyChat({
     // A new turn: forget any stderr reason from a previous failed one, so a
     // fresh error is described by fresh diagnostics, not a stale line.
     lastStderrRef.current = null
-    if (contextLostRef.current) {
-      contextLostRef.current = false
-      const recap = buildRecap()
-      if (recap) {
-        text =
-          '[The earlier session for this conversation was lost, so you have no memory of ' +
-          'it. Here is a recap of what was said before — treat it as the conversation so ' +
-          'far and continue from it.]\n\n' +
-          recap +
-          '\n\n---\n\n' +
-          text
-      }
-    }
     window.cove.agentSend(id, text, images)
   }
 
@@ -2344,22 +2309,6 @@ export function EasyChat({
     let offStderr: (() => void) | undefined
     let offExit: (() => void) | undefined
     let offResumeLost: (() => void) | undefined
-
-    // No session id to resume but a real prior conversation already on screen →
-    // this process starts blank under an existing exchange. That's the silent
-    // context loss; arm a recap so the first message carries what came before.
-    // Gate on a prior ASSISTANT reply, not just any message: a brand-new chat's
-    // first send has already put the user message into the transcript by now, so
-    // "some message exists" is true on every new chat — which falsely armed the
-    // recap (and duplicated the message) on the most common path of all.
-    if (
-      !resumeIdRef.current &&
-      itemsRef.current.some(
-        (it) => it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system
-      )
-    ) {
-      contextLostRef.current = true
-    }
 
     // A chat cuts its branch here, on the way to its first turn — not when it
     // was opened. The name comes from what was actually asked for, and a chat
@@ -2425,12 +2374,12 @@ export function EasyChat({
           setRunningAgents([])
           setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
         }
-        // Resuming failed and a fresh session took its place: arm the recap so
-        // the next message carries the conversation, and say so plainly (a recap
-        // is not the same as Claude actually remembering).
+        // Resuming failed and a fresh session took its place. Main arms the
+        // recap (it is the one path both this window and the phone send on);
+        // this says so plainly, because a recap is not the same as Claude
+        // actually remembering.
         const resumeLost = (): void => {
           if (disposed) return
-          contextLostRef.current = true
           setItems((prev) =>
             // Guard against a double notice (event + catch-up both firing).
             prev.some((it) => it.kind === 'msg' && it.msg.id.startsWith('sys-resume-'))
