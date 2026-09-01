@@ -762,9 +762,15 @@ export function createChat(workspaceId: string, cwd?: string): string {
       db.prepare('SELECT MAX(position) AS p FROM chats WHERE workspaceId = ?').get(workspaceId) as
         { p: number | null } | undefined
     )?.p ?? -1) + 1
+  // A conversation's agent is decided when it is made, and written down.
+  //
+  // It used to be worked out lazily from the app's current default, which meant
+  // moving ONE conversation to Codex silently moved every other conversation
+  // that had never run — including ones made weeks earlier. They are supposed to
+  // be independent; a per-chat choice must not reach into other chats.
   db.prepare(
-    'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data, cwd) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?)'
-  ).run(id, workspaceId, next, Date.now(), '[]', cwd ?? null)
+    'INSERT INTO chats (id, workspaceId, title, claudeSessionId, position, updatedAt, data, cwd, provider) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?)'
+  ).run(id, workspaceId, next, Date.now(), '[]', cwd ?? null, toProvider(kvGet('cove.provider')))
   return id
 }
 
