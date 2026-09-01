@@ -4375,6 +4375,24 @@ button {
 /* Anchor the docked routine-run panel to the chat column. */
 .split-side-chat {
   position: relative;
+  /*
+   * A floor, so the composer cannot vanish.
+   *
+   * `.split-side` is min-width: 0 and flex-shrink: 1, which is what lets a
+   * split be dragged — and also means nothing guarantees this side survives.
+   * It has been reported repeatedly as "the chat box just doesn't show up in
+   * browser mode": the page fills the window and there is nowhere to type.
+   *
+   * The exact trigger is not known. The split ratio is clamped to 0.2-0.8 on
+   * load and on drag, and no rule gives the pane side a competing min-width, so
+   * the arithmetic alone should not collapse this — but the symptom is real and
+   * a person with no composer cannot do anything at all. A floor removes the
+   * failure whatever causes it, and costs nothing when the layout behaves:
+   * min() keeps it a fraction of the space on a narrow window rather than
+   * forcing a scrollbar. Both axes, because the split runs either way.
+   */
+  min-width: min(300px, 35%);
+  min-height: min(220px, 35%);
 }
 
 /* One per conversation: the active chat plus any busy sibling kept mounted so
