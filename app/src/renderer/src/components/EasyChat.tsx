@@ -1760,6 +1760,12 @@ export function EasyChat({
         // dies without ever reaching this. It is the same signal main uses to
         // tell a good resume from a failed one.
         everStartedRef.current = true
+        // And take the failure banner down. It was only ever cleared by the
+        // Retry button, so a session that ended and then started again for any
+        // other reason — you sent another message, the agent restarted itself —
+        // left "Claude stopped" sitting above a conversation that was visibly
+        // working. The agent saying hello is the end of that.
+        setAgentFailed(false)
         // What the CLI actually resolved to. With the picker on "Default" this
         // is the only way to know which model you are spending — the reason
         // "Default" could silently be Fable and the limit message came as a
@@ -2440,6 +2446,8 @@ export function EasyChat({
           }
           agentIdRef.current = id
           registerAgent(workspaceId, id)
+          // A new process for this chat: whatever the last one did is history.
+          setAgentFailed(false)
           // Ready as soon as the process is up — in stream-json input mode claude
           // waits for the first user message before it emits anything.
           setReady(true)
