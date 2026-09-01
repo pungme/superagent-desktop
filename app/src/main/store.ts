@@ -1569,13 +1569,21 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('desktop:sync-files', () => join(app.getPath('userData'), 'desktop-chat', 'files'))
 
   ipcMain.handle('store:createWorkspace', (_e, groupId: string, name: string, path: string) => {
-    return { tree: getTree(), workspaceId: createWorkspace(groupId, name, path) }
+    // Create it, THEN read the tree. Object properties evaluate in order, so
+    // `{ tree: getTree(), workspaceId: createWorkspace(...) }` read the tree
+    // before the project existed and handed the window back the list without
+    // it — the project was in the database and not on screen. Doing it again
+    // showed the first one (and made a second), which is why adding a folder
+    // "needed two goes" and why deleting one left another behind.
+    const workspaceId = createWorkspace(groupId, name, path)
+    return { tree: getTree(), workspaceId }
   })
 
   // Browser project: no folder to pick — give Claude a private scratch cwd so
   // headless runs/routines have somewhere to work, and mark it kind='browser'.
   ipcMain.handle('store:createBrowserWorkspace', (_e, groupId: string, name: string) => {
-    return { tree: getTree(), workspaceId: createBrowserWorkspace(groupId, name) }
+    const workspaceId = createBrowserWorkspace(groupId, name)
+    return { tree: getTree(), workspaceId }
   })
 
   ipcMain.handle('store:deleteWorkspace', (_e, id: string) => {
