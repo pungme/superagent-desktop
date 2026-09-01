@@ -457,6 +457,8 @@ export function BrowserPane({
     const emit = (b: { x: number; y: number; width: number; height: number }): void => {
       // Host-relative copy for the freeze-frame still (see the overlay effect).
       setViewRect({ left: b.x - x0, top: b.y - y0, width: b.width, height: b.height })
+      // What the pane is actually pinned to, for the reconciler below.
+      sentRectRef.current = { x: x0, y: y0, width: W, height: H }
       window.cove.browserSetBounds(paneId, b)
     }
     // WebContentsView bounds are window-relative CSS pixels.
@@ -573,6 +575,15 @@ export function BrowserPane({
   // without resizing it). Re-measure across the next frames and a short delay so
   // the settled position always wins. syncBounds early-returns when hidden or
   // covered, so a late tick after unmount is harmless.
+  /**
+   * The host rect the last push was computed from.
+   *
+   * Everything above corrects a KNOWN trigger — a resize, a resync, a settle.
+   * The reconciler below needs to know what the truth was last time so it can
+   * see when it stops being true for a reason nobody listed.
+   */
+  const sentRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
+
   const syncBoundsSettled = useCallback((): void => {
     syncBounds()
     requestAnimationFrame(() => {
@@ -744,6 +755,39 @@ export function BrowserPane({
   useEffect(() => {
     return window.cove.onBrowserResync(() => syncBoundsSettled())
   }, [syncBoundsSettled])
+
+  /**
+   * The backstop: check that the page is still where the pane is, and put it
+   * back if it is not.
+   *
+   * Every other correction here is tied to a trigger someone thought of — a
+   * resize, a resync, an entrance animation settling. A native view lives above
+   * the HTML rather than inside it, so anything that moves its slot WITHOUT one
+   * of those triggers leaves the page sitting somewhere else on screen, and
+   * nothing ever puts it back: the window zoomed, an ancestor transitioned, a
+   * display changed under it. Users send screenshots of exactly this.
+   *
+   * Rather than keep adding triggers, this compares where the pane is with
+   * where it was last pinned, four times a second, and corrects any drift. One
+   * getBoundingClientRect per tick, and it heals causes nobody has met yet.
+   */
+  useEffect(() => {
+    const check = (): void => {
+      const host = hostRef.current
+      const last = sentRectRef.current
+      if (!host || !last) return
+      if (!visibleRef.current || overlayRef.current || coveredRef.current) return
+      const r = host.getBoundingClientRect()
+      const moved =
+        Math.abs(Math.round(r.x) - last.x) >= 1 ||
+        Math.abs(Math.round(r.y) - last.y) >= 1 ||
+        Math.abs(Math.round(r.width) - last.width) >= 1 ||
+        Math.abs(Math.round(r.height) - last.height) >= 1
+      if (moved) syncBounds()
+    }
+    const t = window.setInterval(check, 250)
+    return () => window.clearInterval(t)
+  }, [syncBounds])
 
   // The pane's entrance animation (pane-in / browser-frame-in) transforms an
   // ancestor of the host. getBoundingClientRect includes transforms, so any

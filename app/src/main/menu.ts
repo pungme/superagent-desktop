@@ -6,6 +6,20 @@ import { app, Menu, BrowserWindow, shell } from 'electron'
  * to the focused renderer.
  */
 
+/** Zoom the window, then let every native pane re-measure against it. */
+function setZoom(dir: 'in' | 'out' | 'reset'): void {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  if (!win || win.isDestroyed()) return
+  const wc = win.webContents
+  const now = wc.getZoomFactor() || 1
+  const next =
+    dir === 'reset' ? 1 : dir === 'in' ? Math.min(3, now * 1.1) : Math.max(0.3, now / 1.1)
+  wc.setZoomFactor(next)
+  // A zoom changes every rect in the window at once, and nothing else would
+  // tell the panes.
+  wc.send('browser:resync')
+}
+
 function send(channel: string): void {
   BrowserWindow.getFocusedWindow()?.webContents.send(channel)
 }
@@ -100,9 +114,12 @@ export function buildMenu(): void {
           click: () => send('menu:toggle-preview')
         },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        // Not the built-in roles: those zoom the window without telling anything
+        // else, and a native pane is placed in window pixels while the renderer
+        // measures in CSS pixels — the two agree only at 100%.
+        { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: () => setZoom('reset') },
+        { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: () => setZoom('in') },
+        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: () => setZoom('out') },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         { role: 'toggleDevTools' }
