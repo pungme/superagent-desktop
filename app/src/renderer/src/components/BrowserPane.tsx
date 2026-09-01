@@ -921,7 +921,16 @@ export function BrowserPane({
         <button
           className={`browser-nav-btn browser-reload-btn ${state.loading || reloadFeedback ? 'loading' : ''}`}
           onClick={() => doReload()}
-          title="Reload — always fetches fresh, never the cache (⌘R)"
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setReloadOnIdle(workspaceId, !reloadOnIdle)
+          }}
+          title={
+            'Reload — always fetches fresh, never the cache (⌘R)\n' +
+            (reloadOnIdle
+              ? 'Reloads itself when Claude finishes a turn. Right-click to stop that.'
+              : 'Right-click to reload it automatically when Claude finishes a turn.')
+          }
         >
           {/* The glyph spins while the page loads. It used to turn into × and
               STOP the load when clicked mid-load — and a page with one request
@@ -1031,21 +1040,6 @@ export function BrowserPane({
             </button>
           </div>
         )}
-        {/* Two circular arrows in one toolbar read as two reload buttons — the
-            only thing telling them apart was a tooltip nobody hovers. This one
-            is not an action, it is a setting: say so in letters. */}
-        <button
-          className={`browser-nav-btn browser-auto-btn ${reloadOnIdle ? 'on' : ''}`}
-          onClick={() => setReloadOnIdle(workspaceId, !reloadOnIdle)}
-          title={
-            reloadOnIdle
-              ? 'Reload this page automatically when Claude finishes a turn: on'
-              : 'Reload this page automatically when Claude finishes a turn: off'
-          }
-          aria-pressed={reloadOnIdle}
-        >
-          AUTO
-        </button>
         <button
           className="browser-nav-btn"
           onClick={() => window.cove.browserOpenExternal(paneId)}
