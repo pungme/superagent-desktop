@@ -673,8 +673,10 @@ export function lastChatPreview(chatId: string): string | null {
  * were actually taking the space stayed exactly where they were.
  *
  * Everything else about the conversation survives: its title, its place in the
- * list, and its copy of the project if it has one. Only what was said goes, and
- * the claude session with it — the next message starts fresh.
+ * list, its copy of the project if it has one, and the agent it runs on. Only
+ * what was said goes, and the session with it — the next message starts fresh,
+ * on the same backend. (`provider` deliberately stays: emptying a transcript is
+ * not a reason to move the conversation to a different agent.)
  */
 export function clearChat(chatId: string): void {
   const now = Date.now()
