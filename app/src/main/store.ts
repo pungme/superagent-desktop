@@ -606,6 +606,35 @@ export function lastChatPreview(chatId: string): string | null {
   }
 }
 
+/**
+ * Put a conversation somewhere else in its project's list.
+ *
+ * The order was whatever order they were made in, and there was no way to
+ * change it — so the conversation you are living in sat wherever it happened to
+ * land, under three you finished last week. Positions are renumbered from the
+ * new arrangement rather than nudged, so no amount of dragging drifts them
+ * apart.
+ */
+export function moveChat(chatId: string, toIndex: number): void {
+  const chat = db.prepare('SELECT workspaceId FROM chats WHERE id = ?').get(chatId) as
+    | { workspaceId: string }
+    | undefined
+  if (!chat) return
+  const ids = (
+    db
+      .prepare(
+        'SELECT id FROM chats WHERE workspaceId = ? ORDER BY position ASC, updatedAt ASC'
+      )
+      .all(chat.workspaceId) as { id: string }[]
+  ).map((r) => r.id)
+  const from = ids.indexOf(chatId)
+  if (from < 0) return
+  ids.splice(from, 1)
+  ids.splice(Math.max(0, Math.min(toIndex, ids.length)), 0, chatId)
+  const write = db.prepare('UPDATE chats SET position = ? WHERE id = ?')
+  db.transaction(() => ids.forEach((id, i) => write.run(i, id)))()
+}
+
 export function deleteChat(chatId: string): void {
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId)
   kvDel(pendingKey(chatId))
@@ -1543,6 +1572,10 @@ function registerStoreIpcTail(): void {
   )
   // Every chat in one query — the sidebar lists conversations for projects that
   // aren't open, so it can't wait for each WorkspaceView to mount.
+  ipcMain.handle('chat:move', (_e, chatId: string, toIndex: number) => {
+    moveChat(chatId, toIndex)
+    return true
+  })
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(

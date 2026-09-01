@@ -478,6 +478,8 @@ interface CoveState {
   openFolderAsProject: (groupId: string, name: string, path: string) => Promise<void>
   /** Give a project its first conversation, if it has none. */
   startFirstChat: (workspaceId: string) => Promise<void>
+  /** Put a conversation where you dropped it, within its project. */
+  moveChat: (chatId: string, beforeChatId: string) => Promise<void>
 }
 
 // Dedupe concurrent loadChats() calls per workspace. Without this, React
@@ -1298,6 +1300,25 @@ export const useStore = create<CoveState>((set, get) => ({
    * with a "+ New chat" button to press is a step nobody wanted. Only ever for
    * a project with nothing in it, so it cannot produce a second one.
    */
+  moveChat: async (chatId, beforeChatId) => {
+    const workspaceId = Object.keys(get().chats).find((wid) =>
+      (get().chats[wid] ?? []).some((c) => c.id === chatId)
+    )
+    if (!workspaceId) return
+    const list = get().chats[workspaceId] ?? []
+    const to = list.findIndex((c) => c.id === beforeChatId)
+    if (to < 0) return
+    // Move it locally first: a list that waits for the database to answer
+    // snaps back under the pointer before it settles.
+    const from = list.findIndex((c) => c.id === chatId)
+    if (from < 0) return
+    const next = [...list]
+    next.splice(from, 1)
+    next.splice(to, 0, list[from])
+    set((s) => ({ chats: { ...s.chats, [workspaceId]: next } }))
+    await window.cove.chatMove(chatId, to)
+  },
+
   startFirstChat: async (workspaceId) => {
     const existing = await window.cove.chatList(workspaceId)
     if (existing.length > 0) {

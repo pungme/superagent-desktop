@@ -457,6 +457,8 @@ export interface CoveApi {
 
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
+  /** Reorder a conversation within its project. */
+  chatMove: (chatId: string, toIndex: number) => Promise<boolean>
   /** Messages mentioning `query` across every conversation, newest first. */
   chatSearch: (query: string, limit?: number) => Promise<ChatSearchHit[]>
   chatCreate: (workspaceId: string, cwd?: string) => Promise<string>
@@ -798,6 +800,7 @@ const cove: CoveApi = {
 
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
+  chatMove: (chatId, toIndex) => ipcRenderer.invoke('chat:move', chatId, toIndex),
   chatSearch: (query, limit) => ipcRenderer.invoke('chat:search', query, limit),
   chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
   desktopChatHome: () => ipcRenderer.invoke('desktop:chat-home'),
