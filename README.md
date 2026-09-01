@@ -365,13 +365,27 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
 
 <!--
   Maintainer note — cutting a Mac release. Not user-facing; kept here so it isn't
-  rediscovered the hard way. Signing uses the Developer ID cert in the login
-  keychain; notarization credentials live in app/.env (gitignored, template in
-  app/.env.example) and a non-interactive shell does NOT inherit them:
+  rediscovered the hard way.
+
+      cd app && npm run release
+
+  That is the whole procedure, and it is the only supported one. Everything
+  below is why the script exists rather than instructions to follow by hand —
+  these notes were already here, in this file, and were not enough: the steps
+  below fail by SUCCEEDING, so anyone assembling the release by hand gets a
+  green build and a broken release. scripts/release.mjs loads app/.env itself,
+  refuses to continue on a dirty tree or a missing notes file, verifies the
+  notarization actually happened rather than trusting the exit code, re-hashes
+  latest-mac.yml after stapling, and confirms GitHub really flagged the release
+  latest.
+
+  Signing uses the Developer ID cert in the login keychain; notarization
+  credentials live in app/.env (gitignored, template in app/.env.example) and a
+  non-interactive shell does NOT inherit them — which is the first trap:
 
       cd app && set -a && source .env && set +a && npm run build:mac
 
-  Two steps fail quietly:
+  Three steps fail quietly:
 
   1. Missing credentials do not fail the build. electron-builder logs "skipped
      macOS notarization" and exits 0 with a signed-but-un-notarized DMG, which
@@ -387,6 +401,13 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
          xcrun notarytool submit dist/Superagent-<v>.dmg --apple-id "$APPLE_ID" \
            --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
          xcrun stapler staple dist/Superagent-<v>.dmg
+
+  3. A release without GitHub's "latest" flag reaches nobody. electron-updater
+     asks for the latest release; if GitHub still points at an older tag, every
+     user is told they are current. v1.7.23 and v1.7.24 were both published this
+     way and neither was ever offered to anyone — the fleet sat on 1.7.22. Upload
+     with `gh release create ... --latest`, then read it back:
+         gh release view v<version> --json isLatest -q .isLatest
 
   Publishing is not just a file upload: the app auto-updates, so a release rolls
   out to everyone already running it.

@@ -21,6 +21,7 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build:native && electron-vite build && electron-builder --mac",
+    "release": "node scripts/release.mjs",
     "build:linux": "electron-vite build && electron-builder --linux",
     "build:native": "sh native/build.sh && node scripts/fetch-baguette.mjs",
     "fetch-baguette": "node scripts/fetch-baguette.mjs"
