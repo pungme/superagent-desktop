@@ -333,10 +333,18 @@ export function PhoneSettings(): React.JSX.Element {
           <label className="phone-switch">
             <input
               type="checkbox"
+              aria-label="Keep this Mac awake so your phone can reach it"
               checked={state.keepAwakeAlways}
               onChange={(e) => window.cove.companionSetKeepAwake(e.target.checked)}
             />
-            <span>{state.keepAwakeAlways ? 'On' : 'Off'}</span>
+            {/* Not "On"/"Off": the text beside a checkbox reads as the box's
+                label, so an unticked box next to the word "Off" says "the Off
+                option is not selected" to anyone applying the usual rule — the
+                exact opposite of the truth. A verb can only be read as what the
+                Mac is doing. */}
+            <span className="phone-switch-state">
+              {state.keepAwakeAlways ? 'Staying awake' : 'Sleeps when idle'}
+            </span>
           </label>
         </div>
         <div className="settings-row">

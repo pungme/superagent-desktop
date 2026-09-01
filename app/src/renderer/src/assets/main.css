@@ -10468,6 +10468,9 @@ button {
   width: 16px;
   height: 16px;
 }
+.phone-switch-state {
+  white-space: nowrap;
+}
 .phone-device-actions {
   display: flex;
   gap: 8px;
