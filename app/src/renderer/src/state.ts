@@ -416,6 +416,8 @@ interface CoveState {
   createCodeProject: (groupId: string) => Promise<void>
   createBrowserProject: (groupId: string) => Promise<void>
   openFolderAsProject: (groupId: string, name: string, path: string) => Promise<void>
+  /** Give a project its first conversation, if it has none. */
+  startFirstChat: (workspaceId: string) => Promise<void>
 }
 
 // Dedupe concurrent loadChats() calls per workspace. Without this, React
@@ -1211,6 +1213,7 @@ export const useStore = create<CoveState>((set, get) => ({
       picked.path
     )
     set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
+    await get().startFirstChat(workspaceId)
   },
   createBrowserProject: async (groupId) => {
     const { tree, workspaceId } = await window.cove.createBrowserWorkspace(
@@ -1218,6 +1221,33 @@ export const useStore = create<CoveState>((set, get) => ({
       'Browser project'
     )
     set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
+    await get().startFirstChat(workspaceId)
+  },
+
+  /**
+   * The conversation a brand-new project opens with.
+   *
+   * Clicking a project never makes one — you asked for that, and it is right:
+   * looking at something should not leave a chat behind. But ADDING a project
+   * is not looking, it is asking to work on it, and landing on an empty pane
+   * with a "+ New chat" button to press is a step nobody wanted. Only ever for
+   * a project with nothing in it, so it cannot produce a second one.
+   */
+  startFirstChat: async (workspaceId) => {
+    const existing = await window.cove.chatList(workspaceId)
+    if (existing.length > 0) {
+      set((s) => ({
+        chats: { ...s.chats, [workspaceId]: existing },
+        activeChatId: { ...s.activeChatId, [workspaceId]: existing[existing.length - 1].id }
+      }))
+      return
+    }
+    const id = await window.cove.chatCreate(workspaceId)
+    const list = await window.cove.chatList(workspaceId)
+    set((s) => ({
+      chats: { ...s.chats, [workspaceId]: list },
+      activeChatId: { ...s.activeChatId, [workspaceId]: id }
+    }))
   },
   // Open a known folder (e.g. a git sub-repo) as its own code project + session.
   openFolderAsProject: async (groupId, name, path) => {
@@ -1230,6 +1260,7 @@ export const useStore = create<CoveState>((set, get) => ({
     }
     const { tree, workspaceId } = await window.cove.createWorkspace(groupId, name, path)
     set({ tree, activeWorkspaceId: workspaceId })
+    await get().startFirstChat(workspaceId)
   },
   removeWorkspace: async (id) => {
     // Tear down ALL of the workspace's browser views. The PTY and Easy-mode agent
