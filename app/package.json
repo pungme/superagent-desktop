@@ -1,7 +1,7 @@
 {
   "name": "superagent",
-  "version": "1.7.23",
-  "description": "The desktop home for Claude Code \u2014 a persistent chat, a real browser your agent drives on your own logins, and routines on a schedule. Local, on your own Claude subscription, open source.",
+  "version": "1.7.24",
+  "description": "The desktop home for Claude Code — a persistent chat, a real browser your agent drives on your own logins, and routines on a schedule. Local, on your own Claude subscription, open source.",
   "main": "./out/main/index.js",
   "scripts": {
     "format": "prettier --write .",
