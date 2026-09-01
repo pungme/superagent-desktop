@@ -86,7 +86,13 @@ import type { PairPayload } from '../shared/companion-protocol'
 /** Everything Settings → Phone shows. Mirrors companion/index.ts CompanionState. */
 export interface CompanionState {
   machineId: string
-  relay: { url: string; state: 'connected' | 'reconnecting' | 'offline'; error: string }
+  relay: {
+    url: string
+    state: 'connected' | 'reconnecting' | 'offline'
+    error: string
+    /** Today's bytes against the relay's daily ceiling; null until it says. */
+    usage: { day: string; bytes: number; limit: number } | null
+  }
   devices: {
     id: string
     name: string

@@ -19,6 +19,16 @@ function encodePayload(p: object): string {
   return `superagent://pair#${b64}`
 }
 
+/** Megabytes, rounded — nobody needs three decimal places of relay traffic. */
+function mb(bytes: number): string {
+  return `${Math.round(bytes / 1_000_000)} MB`
+}
+
+function usageShare(u: { bytes: number; limit: number }): number {
+  if (!(u.limit > 0)) return 0
+  return Math.min(100, Math.round((u.bytes / u.limit) * 100))
+}
+
 export function PhoneSettings(): React.JSX.Element {
   const [state, setState] = useState<CompanionState | null>(null)
   const [qr, setQr] = useState<{ k: string; url: string } | null>(null)
@@ -284,6 +294,31 @@ export function PhoneSettings(): React.JSX.Element {
             </button>
           )}
         </div>
+        {/* What today has cost. The relay stops forwarding at its ceiling and the
+            phone then reports the Mac as unreachable, which is a bad way to
+            learn about a number nothing showed you. */}
+        {state.relay.usage && (
+          <div className="settings-row">
+            <div className="settings-label">
+              <strong>Data used today</strong>
+              <span>
+                {mb(state.relay.usage.bytes)} of {mb(state.relay.usage.limit)}. Resets at midnight
+                UTC. Mirroring a page or the simulator is what spends it; the conversation itself is
+                tiny.
+              </span>
+              <div
+                className="relay-usage"
+                role="img"
+                aria-label={`${usageShare(state.relay.usage)}% of today's relay allowance used`}
+              >
+                <i
+                  className={usageShare(state.relay.usage) > 80 ? 'hot' : ''}
+                  style={{ width: `${usageShare(state.relay.usage)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
         <div className="settings-row">
           <div className="settings-label">
             <strong>Keep this Mac awake while a phone is paired</strong>

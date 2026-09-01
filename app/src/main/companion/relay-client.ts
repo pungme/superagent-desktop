@@ -25,6 +25,8 @@ export class RelayClient extends EventEmitter {
   /** When the relay last answered a ping; a silent relay is a dead socket. */
   private lastPong = 0
   state: RelayState = 'offline'
+  /** Today's traffic against the relay's daily ceiling, as the relay counts it. */
+  usage: { day: string; bytes: number; limit: number } | null = null
   lastError = ''
 
   start(relayUrl: string): void {
@@ -111,7 +113,16 @@ export class RelayClient extends EventEmitter {
     this.setState(this.attempt === 0 ? 'reconnecting' : this.state)
 
     ws.on('message', (raw) => {
-      let frame: { t?: string; nonce?: string; c?: string; d?: string; reason?: string }
+      let frame: {
+        t?: string
+        nonce?: string
+        c?: string
+        d?: string
+        reason?: string
+        day?: string
+        bytes?: number
+        limit?: number
+      }
       try {
         frame = JSON.parse(raw.toString())
       } catch {
@@ -154,6 +165,17 @@ export class RelayClient extends EventEmitter {
           return
         case 'pong':
           this.lastPong = Date.now()
+          return
+        // What today has cost. The relay sends it unencrypted — it is the
+        // relay's own bookkeeping, not a message between the Mac and a phone —
+        // once per megabyte and whenever a phone joins. It matters because the
+        // ceiling is real: reach it and nothing reaches the Mac at all, which
+        // arrives as "your Mac is unreachable" with no way to tell why.
+        case 'usage':
+          if (typeof frame.bytes === 'number' && typeof frame.limit === 'number') {
+            this.usage = { day: frame.day ?? '', bytes: frame.bytes, limit: frame.limit }
+            this.emit('usage', this.usage)
+          }
           return
         case 'bye':
           this.lastError = frame.reason ?? 'bye'
