@@ -521,6 +521,20 @@ let guardTimer: ReturnType<typeof setTimeout> | null = null
 let focusGuardActive = false
 
 /**
+ * True while an agent is driving something and the app must not come forward.
+ *
+ * Anything that would show, focus or raise the window has to ask. The policy
+ * flip stops activations that originate in a page load, but it cannot stop the
+ * app calling `win.show()` on itself — and a log of a real session has the app
+ * activating and showing during an engaged guard, over and over, while the user
+ * was typing in another app. The guard is a statement about intent; a show()
+ * that ignores it is simply the app steching focus by a different door.
+ */
+export function agentIsDriving(): boolean {
+  return focusGuardActive
+}
+
+/**
  * The longest the app may be missing from the Dock, however long the agent goes on.
  *
  * The policy is the only thing that stops a page load raising the window, but a

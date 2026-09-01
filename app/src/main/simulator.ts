@@ -1,3 +1,4 @@
+import { agentIsDriving } from './browser'
 import { app, ipcMain, BrowserWindow, nativeImage, systemPreferences, shell } from 'electron'
 import { execFile, spawn, ChildProcessWithoutNullStreams, ChildProcessByStdio } from 'child_process'
 import type { Readable } from 'stream'
@@ -149,6 +150,13 @@ async function unpinSimulator(): Promise<void> {
   ]).catch(() => {})
   // You clicked a button in Superagent, so Superagent is where you should still
   // be — bringing Simulator forward was our doing, not yours.
+  //
+  // Unless nobody clicked anything. When an agent drives this, the person is in
+  // some other app entirely and has no idea Superagent is involved, so showing
+  // the window is the app jumping in front of them — the thing the focus guard
+  // exists to prevent, done by the app to itself, where the activation policy
+  // cannot intervene.
+  if (agentIsDriving()) return
   const win = BrowserWindow.getAllWindows()[0]
   if (win && !win.isDestroyed()) win.show()
 }
