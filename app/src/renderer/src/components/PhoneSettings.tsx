@@ -321,11 +321,13 @@ export function PhoneSettings(): React.JSX.Element {
         )}
         <div className="settings-row">
           <div className="settings-label">
-            <strong>Keep this Mac awake while a phone is paired</strong>
+            <strong>Keep this Mac awake so your phone can reach it</strong>
             <span>
-              Normally it stays awake only while a phone is connected or an agent is working. Turn
-              this on for a Mac that lives at home as the agent box. Closing the lid still sleeps it
-              (macOS rule) unless it&apos;s on power with a display attached.
+              On, because a sleeping Mac cannot answer. Turn it off and this Mac stays awake only
+              while a phone is connected or an agent is working — so it will fall asleep a few
+              minutes after you put your phone down, and your phone will say it cannot find it
+              until you wake the Mac yourself. Closing the lid still sleeps it either way (macOS
+              rule) unless it&apos;s on power with a display attached.
             </span>
           </div>
           <label className="phone-switch">

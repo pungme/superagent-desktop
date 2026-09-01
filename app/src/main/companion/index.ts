@@ -2,6 +2,7 @@ import { ipcMain, powerMonitor, powerSaveBlocker } from 'electron'
 import { RelayClient } from './relay-client'
 import { ClientConn } from './session'
 import { logBus, record, eventsAfter } from './log'
+import { keepAwakeSetting, shouldStayAwake } from './keep-awake'
 import { browserBus, type BrowserPaneState } from '../browser'
 import { simBus, deviceLabel } from '../simulator'
 import { hookBus } from '../hooks'
@@ -324,16 +325,19 @@ export function pushOpenFile(workspaceId: string, path: string, chatId: string |
  * phone is paired (it may be waiting on the result). Release otherwise.
  */
 const KEEP_AWAKE_KEY = 'companion.keepAwakeAlways'
-/** Settings → Phone: hold the assertion whenever a phone is paired at all (a Mac left at home). */
+/** Settings → Phone. On unless this Mac was told otherwise; see ./keep-awake. */
 export function keepAwakeAlways(): boolean {
-  return kvGet(KEEP_AWAKE_KEY) === '1'
+  return keepAwakeSetting(kvGet(KEEP_AWAKE_KEY))
 }
 
 function updateKeepAwake(): void {
-  const phoneConnected = [...conns.values()].some((c) => c.authenticated)
   const paired = listDevices().length > 0
-  const working = paired && listSessions().length > 0
-  const want = phoneConnected || working || (paired && keepAwakeAlways())
+  const want = shouldStayAwake({
+    phoneConnected: [...conns.values()].some((c) => c.authenticated),
+    working: paired && listSessions().length > 0,
+    paired,
+    always: keepAwakeAlways()
+  })
   if (want && blockerId === null) blockerId = powerSaveBlocker.start('prevent-app-suspension')
   if (!want && blockerId !== null) {
     powerSaveBlocker.stop(blockerId)
@@ -455,7 +459,7 @@ export function registerCompanionIpc(): void {
     else syncRelay()
   })
   ipcMain.on('companion:set-keep-awake', (_e, always: boolean) => {
-    kvSet(KEEP_AWAKE_KEY, always ? '1' : '')
+    kvSet(KEEP_AWAKE_KEY, always ? '1' : '0')
     updateKeepAwake()
     broadcastState()
   })
