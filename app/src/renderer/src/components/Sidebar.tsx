@@ -1134,6 +1134,91 @@ function GroupSection({
 // at the top, never as a normal (renamable/deletable) group.
 const TABS_GROUP = '__tabs'
 
+/**
+ * Every conversation on this Mac, newest first.
+ *
+ * No groups, no projects, no branches: where it lives is a subtitle here, not
+ * the structure. The tree answers "where is that conversation"; this answers
+ * "what happened while I was away", which is a different question and the one
+ * you have more often.
+ */
+function ActivityList(): React.JSX.Element {
+  const tree = useStore((s) => s.tree)
+  const setActive = useStore((s) => s.setActive)
+  const selectChat = useStore((s) => s.selectChat)
+  const unread = useStore((s) => s.unread)
+  const busy = useStore((s) => s.busy)
+  const activeChatId = useStore((s) => s.activeChatId)
+  const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
+  const [chats, setChats] = useState<Chat[]>([])
+
+  // Reload whenever anything in the app says something moved — the same event
+  // the sidebar already listens to for its own lists.
+  useEffect(() => {
+    let alive = true
+    const load = (): void => {
+      void window.cove.chatListAll().then((all) => {
+        if (alive) setChats(all)
+      })
+    }
+    load()
+    const onIdle = (): void => load()
+    window.addEventListener('cove:workspace-idle', onIdle)
+    const t = setInterval(load, 5000)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', onIdle)
+      clearInterval(t)
+    }
+  }, [])
+
+  const names = new Map<string, string>()
+  for (const g of tree) for (const w of g.workspaces) names.set(w.id, w.name)
+
+  const recent = [...chats].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+
+  return (
+    <div className="sidebar-activity">
+      {recent.length === 0 && <div className="activity-empty">Nothing here yet.</div>}
+      {recent.map((c) => {
+        const open = c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId
+        return (
+          <button
+            key={c.id}
+            className={`activity-row ${open ? 'on' : ''}`}
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
+              setActive(c.workspaceId)
+              selectChat(c.workspaceId, c.id)
+            }}
+          >
+            <span className={`activity-dot ${unread[c.id] ? 'unread' : ''}`} />
+            <span className="activity-body">
+              <span className="activity-top">
+                <span className="activity-title">{c.title || 'New chat'}</span>
+                {busy[c.id]?.generating && <span className="activity-live" />}
+                <span className="activity-when">{when(c.updatedAt)}</span>
+              </span>
+              <span className="activity-where">{names.get(c.workspaceId) ?? ''}</span>
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** "4m", "2h", "yesterday" — a sidebar has no room for a date. */
+function when(at?: number): string {
+  if (!at) return ''
+  const secs = Math.max(0, (Date.now() - at) / 1000)
+  if (secs < 60) return 'now'
+  if (secs < 3600) return `${Math.floor(secs / 60)}m`
+  if (secs < 86_400) return `${Math.floor(secs / 3600)}h`
+  if (secs < 172_800) return 'yesterday'
+  return `${Math.floor(secs / 86_400)}d`
+}
+
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const overlay = useStore((s) => s.overlay)
@@ -1141,6 +1226,12 @@ export function Sidebar(): React.JSX.Element {
   const addGroup = useStore((s) => s.addGroup)
   const setActive = useStore((s) => s.setActive)
   const tabsGroup = tree.find((g) => g.name === TABS_GROUP)
+  const [mode, setMode] = useState<'activity' | 'projects'>(
+    () => (localStorage.getItem('cove.sidebarMode') === 'activity' ? 'activity' : 'projects')
+  )
+  useEffect(() => {
+    localStorage.setItem('cove.sidebarMode', mode)
+  }, [mode])
 
   const newTab = async (): Promise<void> => {
     // Opening a tab shouldn't require choosing a project type first — that's
@@ -1215,8 +1306,26 @@ export function Sidebar(): React.JSX.Element {
   return (
     <aside className="sidebar">
       <div className="sidebar-drag-region" />
+      {/* Two ways of reading the same Mac. Projects is where a conversation
+          lives; Activity is what happened, newest first — which is the question
+          you actually have after being away from the machine for an hour. The
+          phone has had both for a while; this is the same pair. */}
+      <div className="sidebar-modes" role="tablist" aria-label="Sidebar view">
+        {(['activity', 'projects'] as const).map((m) => (
+          <button
+            key={m}
+            role="tab"
+            aria-selected={mode === m}
+            className={`sidebar-mode ${mode === m ? 'on' : ''}`}
+            onClick={() => setMode(m)}
+          >
+            {m === 'activity' ? 'Activity' : 'Projects'}
+          </button>
+        ))}
+      </div>
+      {mode === 'activity' && <ActivityList />}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <div className="sidebar-scroll">
+        <div className="sidebar-scroll" style={mode === 'activity' ? { display: 'none' } : undefined}>
           <button
             className={`sidebar-dash-row ${overlay === 'computer' ? 'on' : ''}`}
             onClick={() => window.dispatchEvent(new CustomEvent('cove:open-computer'))}
