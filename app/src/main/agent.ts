@@ -406,6 +406,9 @@ export function sendToAgent(
     workspaceId: session.workspaceId,
     text,
     images: images.map((im) => ({ mediaType: im.mediaType, size: im.data.length })),
+    // The bytes ride along to the listener only so it can keep a thumbnail
+    // under the id it is about to mint. They do not go into the log.
+    raw: images,
     from: origin.from,
     localId: origin.localId
   })

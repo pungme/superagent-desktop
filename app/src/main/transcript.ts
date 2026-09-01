@@ -257,6 +257,8 @@ export type LegacyItem =
         text: string
         system?: boolean
         images?: string[]
+        /** Pictures whose bytes are not here: ask `chat:image` for them. */
+        imageCount?: number
       }
     }
   | { kind: 'tool'; tool: { id: string; name: string; detail: string } }
@@ -307,7 +309,18 @@ function dataUrlType(u: string): string {
 export function toLegacyItems(events: WireEventData[]): LegacyItem[] {
   const out: LegacyItem[] = []
   for (const e of events) {
-    if (e.kind === 'user') out.push({ kind: 'msg', msg: { id: e.id, role: 'user', text: e.text } })
+    if (e.kind === 'user')
+      out.push({
+        kind: 'msg',
+        msg: {
+          id: e.id,
+          role: 'user',
+          text: e.text,
+          // The bytes went to the agent, not into the log. Say how many there
+          // were so the window can fetch the thumbnails and draw them.
+          ...(e.images?.length ? { imageCount: e.images.length } : {})
+        }
+      })
     else if (e.kind === 'assistant')
       out.push({ kind: 'msg', msg: { id: e.id, role: 'assistant', text: e.text } })
     else if (e.kind === 'notice')

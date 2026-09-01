@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useOverlayLock } from '../state'
 
 /**
  * Brief launch animation that plays with the Superagent mark, then dissolves into
@@ -17,6 +18,8 @@ export function IntroSplash(): React.JSX.Element | null {
     const t = setTimeout(() => setShow(false), reduced ? 450 : 1950)
     return () => clearTimeout(t)
   }, [show])
+
+  useOverlayLock(show)
 
   if (!show) return null
 

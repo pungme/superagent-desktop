@@ -624,6 +624,11 @@ export interface CoveApi {
     provider?: AgentProvider
   ) => Promise<string | null>
   agentSend: (id: string, text: string, images?: { mediaType: string; data: string }[]) => void
+  /** Thumbnail for one picture on one message, for messages whose bytes are not local. */
+  chatImage: (
+    messageId: string,
+    index: number
+  ) => Promise<{ mediaType: string; data: string } | null>
   agentInterrupt: (id: string) => void
   agentStop: (id: string) => void
   onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
@@ -918,6 +923,7 @@ const cove: CoveApi = {
   agentSuggestTitle: (cwd, excerpt, provider) =>
     ipcRenderer.invoke('agent:suggestTitle', cwd, excerpt, provider),
   agentSend: (id, text, images) => ipcRenderer.send('agent:send', id, text, images),
+  chatImage: (messageId, index) => ipcRenderer.invoke('chat:image', messageId, index),
   agentInterrupt: (id) => ipcRenderer.send('agent:interrupt', id),
   agentStop: (id) => ipcRenderer.send('agent:stop', id),
   onAgentEvent: (id, cb) =>

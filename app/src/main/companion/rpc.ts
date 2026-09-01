@@ -88,6 +88,7 @@ import type {
   WireDir
 } from '../../shared/companion-protocol'
 import { FILE_CHUNK_BYTES, FILE_CHUNK_MAX_BYTES } from '../../shared/companion-protocol'
+import { readThumbnail } from './attachments'
 
 /**
  * What the phone may ask the Mac to do. Every method is a thin adapter onto a
@@ -173,6 +174,10 @@ const fileRead = z.object({
   path: z.string().min(1).max(4000),
   /** The conversation asking. On a worktree chat its files live there, not in the project. */
   chatId: z.string().min(1).optional()
+})
+const chatImage = z.object({
+  messageId: z.string().min(1).max(200),
+  index: z.number().int().min(0).max(32)
 })
 const fileChunk = z.object({
   workspaceId: z.string().min(1),
@@ -464,6 +469,16 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const abs = resolveInside(root, p.data.path)
         if (!abs) return fail('bad-params', 'that path is outside the project')
         return { ok: true, result: readForPhone(abs, p.data.path) }
+      }
+      case 'chat.image': {
+        const p = chatImage.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const found = readThumbnail(p.data.messageId, p.data.index)
+        if (!found) return fail('not-found', 'no thumbnail for that image')
+        return {
+          ok: true,
+          result: { messageId: p.data.messageId, index: p.data.index, ...found }
+        }
       }
       case 'files.chunk': {
         const p = fileChunk.safeParse(params)

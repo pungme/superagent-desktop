@@ -16,6 +16,7 @@ import { randomUUID } from 'crypto'
 import { toProvider, type AgentProvider } from '../shared/agent-provider'
 import { broadcastToWindows } from './util'
 import { deskRoot } from './desk'
+import { readThumbnail } from './companion/attachments'
 
 /**
  * Superagent persistence: groups → workspaces → tabs.
@@ -1688,6 +1689,11 @@ function registerStoreIpcTail(): void {
     moveChat(chatId, toIndex)
     return true
   })
+  // The pictures on a message that arrived from the phone: its bytes went to
+  // the agent, so the window asks for the thumbnail the Mac kept.
+  ipcMain.handle('chat:image', (_e, messageId: string, index: number) =>
+    readThumbnail(String(messageId), Number(index) || 0)
+  )
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(

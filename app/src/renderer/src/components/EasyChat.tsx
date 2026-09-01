@@ -19,6 +19,9 @@ interface ChatMessage {
   text: string
   streaming?: boolean
   images?: string[] // data URLs, for user messages
+  /** Pictures whose bytes never reached this window (sent from the phone).
+   *  Fetched from the Mac's thumbnail store on first render. */
+  imageCount?: number
   replyTo?: { role: 'user' | 'assistant'; text: string } // WhatsApp-style quoted message
   system?: boolean // app-generated notice (e.g. a failed/empty turn), not from Claude
   at?: number // when it arrived, for the hover timestamp (absent on older saved chats)
@@ -826,6 +829,53 @@ function toRows(items: Item[]): Row[] {
  * STABLE callbacks (ref-backed in EasyChat) so memo actually holds; only the
  * row whose `msg` object changed (the streaming one) re-renders.
  */
+/**
+ * Pictures on a message this window never sent — one that came from the phone.
+ * Its bytes went to the agent, not into the log, so the only copy left is the
+ * thumbnail the Mac kept beside it. Fetched once, when the row first draws.
+ */
+function RemoteImages({
+  id,
+  count,
+  onLightbox
+}: {
+  id: string
+  count: number
+  onLightbox: (src: string) => void
+}): React.JSX.Element | null {
+  const [urls, setUrls] = useState<string[]>([])
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      const found: string[] = []
+      for (let i = 0; i < count; i++) {
+        const im = await window.cove.chatImage(id, i)
+        if (!alive) return
+        if (im) found.push(`data:${im.mediaType};base64,${im.data}`)
+      }
+      if (alive && found.length) setUrls(found)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [id, count])
+
+  if (!urls.length) {
+    return (
+      <div className="easy-msg-images-pending">
+        {count} image{count === 1 ? '' : 's'}
+      </div>
+    )
+  }
+  return (
+    <div className="easy-msg-images">
+      {urls.map((src, ii) => (
+        <img key={ii} src={src} alt="attachment" onClick={() => onLightbox(src)} />
+      ))}
+    </div>
+  )
+}
+
 const MessageRow = memo(function MessageRow({
   msg,
   showEdit,
@@ -867,13 +917,15 @@ const MessageRow = memo(function MessageRow({
           </span>
         </div>
       )}
-      {msg.images && msg.images.length > 0 && (
+      {msg.images && msg.images.length > 0 ? (
         <div className="easy-msg-images">
           {msg.images.map((src, ii) => (
             <img key={ii} src={src} alt="attachment" onClick={() => onLightbox(src)} />
           ))}
         </div>
-      )}
+      ) : msg.imageCount ? (
+        <RemoteImages id={msg.id} count={msg.imageCount} onLightbox={onLightbox} />
+      ) : null}
       {segments
         ? segments.map((seg, si) =>
             'md' in seg ? (

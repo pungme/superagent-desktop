@@ -276,6 +276,7 @@ export type RpcMethod =
   | 'files.list'
   | 'files.read'
   | 'files.chunk'
+  | 'chat.image'
   | 'git.branches'
   | 'worktrees.list'
   | 'git.checkout'
@@ -356,6 +357,18 @@ export type WireFileContent =
    */
   | { kind: 'pdf'; path: string; size: number; chunks: number }
   | { kind: 'binary'; path: string; size: number }
+
+/**
+ * `chat.image`: the thumbnail for one picture on one message. The bytes of an
+ * attachment never enter the event log, so a device that did not send the
+ * message asks the Mac for them when it comes to draw it.
+ */
+export interface WireImage {
+  messageId: string
+  index: number
+  mediaType: string
+  data: string
+}
 
 /** `files.chunk`: one slice of a file's bytes, base64, indexed from 0. */
 export interface WireFileChunk {

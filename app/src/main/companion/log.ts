@@ -3,6 +3,7 @@ import { basename, extname, isAbsolute, relative } from 'path'
 import { statSync } from 'fs'
 import { agentBus, listSessions, getSessionOpts } from '../agent'
 import { broadcastToWindows } from '../util'
+import { keepThumbnails } from './attachments'
 import { getWorkspacePath, chatCwd } from '../store'
 import {
   TranscriptProjector,
@@ -251,6 +252,7 @@ export function startCompanionLog(): void {
       workspaceId,
       text,
       images,
+      raw,
       from,
       localId,
       owned
@@ -260,6 +262,7 @@ export function startCompanionLog(): void {
       workspaceId?: string
       text: string
       images: { mediaType: string; size: number }[]
+      raw?: { mediaType: string; data: string }[]
       from: 'desktop' | 'ios'
       localId?: string
       owned?: boolean
@@ -274,6 +277,9 @@ export function startCompanionLog(): void {
         ...(images.length ? { images } : {})
       }
       const ev = record(chatId, data)
+      // Keep a thumbnail under the id the event actually carries, so a device
+      // that did not send this message can still show its pictures.
+      if (raw?.length) keepThumbnails(data.id, raw)
       if (!isOwned(id, owned)) {
         appendChatItems(chatId, toLegacyItems([ev.data]))
         broadcastToWindows('chat:appended', { chatId })

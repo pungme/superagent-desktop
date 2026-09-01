@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useOverlayLock } from '../state'
 import type { GuardrailAsk } from '../../../preload'
 
 /**
@@ -40,6 +41,11 @@ export function GuardrailPrompt(): React.JSX.Element | null {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [current])
+
+  // The native browser view paints above ALL html, so without this a
+  // permission prompt — the one overlay you must answer — can be asking from
+  // underneath the page it is asking about.
+  useOverlayLock(!!current)
 
   if (!current) return null
 

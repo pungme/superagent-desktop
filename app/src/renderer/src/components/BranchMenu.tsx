@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useOverlayLock } from '../state'
 
 interface Branch {
   name: string
@@ -91,6 +92,9 @@ export function BranchMenu({
       window.removeEventListener('keydown', onKey)
     }
   }, [onClose, anchor])
+
+  // A menu drawn over the pane is drawn under it unless the pane is told.
+  useOverlayLock(!!pos)
 
   if (!pos) return null
 
