@@ -350,11 +350,10 @@ function BranchRow({
           </span>
         )
       )}
-      {chat && (
-        <span className="sidebar-branch-chat" title={branch}>
-          ⎇ {branch}
-        </span>
-      )}
+      {/* No tooltip: the chip itself widens on hover, like the project row's.
+          A tooltip is a second thing appearing somewhere else to tell you what
+          the first thing already says. */}
+      {chat && <span className="sidebar-branch-chat">⎇ {branch}</span>}
       {chat && onRemove && (
         <button
           className="sidebar-branch-remove"
@@ -611,6 +610,17 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    * was active lit it and a branch row at the same time, which read as two
    * things selected at once.
    */
+  /**
+   * The conversation this row opens: the one that works in the folder itself.
+   *
+   * It has no row of its own — the project row is it — so without this its
+   * context menu could not reach it, and a folder conversation could grow to
+   * twenty megabytes with nothing in the app able to empty it.
+   */
+  const folderChatId = useStore(
+    (s) =>
+      (s.chats[ws.id] ?? []).find((c) => !c.cwd && !isPendingBranch(c.id))?.id ?? null
+  )
   const rootSelected = useStore((s) => {
     if (s.activeWorkspaceId !== ws.id || s.overlay !== null) return false
     const id = s.activeChatId[ws.id]
@@ -730,7 +740,12 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           e.preventDefault()
           // selfBranch !== null means the folder is itself a git repo → worktree
           // chats are possible.
-          window.cove.workspaceMenu({ id: ws.id, path: ws.path, isRepo: selfBranch !== null })
+          window.cove.workspaceMenu({
+            id: ws.id,
+            path: ws.path,
+            isRepo: selfBranch !== null,
+            chatId: folderChatId
+          })
         }}
         {...attributes}
         {...listeners}

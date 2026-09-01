@@ -222,7 +222,13 @@ export interface CoveApi {
   /** Three-way dialog for deleting a chat with unkept changes. */
   chatConfirmUnkept: () => Promise<'keep' | 'throw' | 'cancel'>
   /** Right-click a project row: native menu (new chat, new worktree chat, reveal). */
-  workspaceMenu: (ws: { id: string; path: string; isRepo: boolean }) => void
+  workspaceMenu: (ws: {
+    id: string
+    path: string
+    isRepo: boolean
+    /** The conversation this row opens, so the menu can act on it. */
+    chatId?: string | null
+  }) => void
   onWorkspaceMenuAction: (
     cb: (p: { action: string; id: string; path: string }) => void
   ) => () => void

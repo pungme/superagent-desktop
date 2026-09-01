@@ -994,6 +994,15 @@ button {
   white-space: nowrap;
   color: var(--text-tertiary);
   font-size: 11px;
+  transition: max-width 0.16s ease;
+}
+/* Hovering the row shows the whole branch name: the same pill widens in place
+   and the conversation title gives way, exactly as the project row's chip does.
+   No clone, no tooltip, nothing floating. */
+.sidebar-branch:hover .sidebar-branch-chat {
+  flex: 0 0 auto;
+  max-width: none;
+  color: var(--text-secondary);
 }
 /* Branches cut from the folder sit under it, the way they do in the sketch. */
 .sidebar-branch.nested {

@@ -272,9 +272,12 @@ function App(): React.JSX.Element {
   // Chat row context-menu actions, confirmed in main where the native menu lives.
   useEffect(() => {
     const offClear = window.cove.onChatCleared(({ chatId, workspaceId }) => {
-      // Wipe transcript + session; the open chat resets itself via this event.
-      window.cove.chatSave(chatId, '[]')
-      window.cove.chatUpdate(chatId, { claudeSessionId: null })
+      // Main does the wiping, because a conversation is stored twice and only
+      // main can reach both: the blob this window reads AND the event log the
+      // phone replays from. Emptying the blob alone left the transcript to come
+      // back the moment a phone subscribed, and left the 4,000 rows that were
+      // actually taking the space untouched.
+      window.cove.chatClear(chatId)
       window.dispatchEvent(
         new CustomEvent('cove:chat-cleared', { detail: { chatId, workspaceId } })
       )

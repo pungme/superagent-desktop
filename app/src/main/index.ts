@@ -28,7 +28,7 @@ import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
-import { startCompanionLog } from './companion/log'
+import { startCompanionLog, forgetChat } from './companion/log'
 import { startCompanion, stopCompanion, registerCompanionIpc, companionBus } from './companion'
 import { startTray, refreshTray } from './tray'
 import { registerSkillsIpc } from './skills'
@@ -328,7 +328,10 @@ app.whenReady().then(() => {
             message: 'Clear this chat?',
             detail: 'The transcript and its session context are wiped. The chat itself stays.'
           })
-          if (response === 0) win.webContents.send('chat:cleared', { chatId, workspaceId })
+          if (response === 0) {
+            forgetChat(chatId)
+            win.webContents.send('chat:cleared', { chatId, workspaceId })
+          }
         }
       },
       { type: 'separator' },
@@ -371,7 +374,9 @@ app.whenReady().then(() => {
   // Right-click a project row in the sidebar. Worktree chats are the point —
   // a sibling conversation on a fresh git worktree of the project, so two lines
   // of work don't step on each other's files. Only offered for a real repo.
-  ipcMain.on('workspace:menu', (e, ws: { id: string; path: string; isRepo: boolean }) => {
+  ipcMain.on(
+    'workspace:menu',
+    (e, ws: { id: string; path: string; isRepo: boolean; chatId?: string | null }) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return
     const send = (action: string): void =>
@@ -381,13 +386,36 @@ app.whenReady().then(() => {
     const template: Electron.MenuItemConstructorOptions[] = [
       { label: 'New Chat', click: () => send('new-chat') }
     ]
+    // This row IS the conversation that works in the folder — it has no row of
+    // its own — so the only place to empty it is here.
+    if (ws.chatId) {
+      const chatId = ws.chatId
+      template.push({
+        label: 'Clear this conversation…',
+        click: async () => {
+          const { response } = await dialog.showMessageBox(win, {
+            type: 'warning',
+            buttons: ['Clear', 'Cancel'],
+            defaultId: 1,
+            message: 'Clear this conversation?',
+            detail:
+              'Everything said in it goes, on this Mac and on your phone, and the agent starts fresh. The project and its files are untouched.'
+          })
+          if (response === 0) {
+            forgetChat(chatId)
+            win.webContents.send('chat:cleared', { chatId, workspaceId: ws.id })
+          }
+        }
+      })
+    }
     template.push(
       { type: 'separator' },
       { label: 'Reveal in Finder', click: () => shell.showItemInFolder(ws.path) },
       { label: 'Copy Path', click: () => clipboard.writeText(ws.path) }
     )
     Menu.buildFromTemplate(template).popup({ window: win })
-  })
+    }
+  )
 
   // Right-click a desktop icon (or a multi-selection). The renderer owns the
   // actual actions (it has the desk state), so this native menu just routes the

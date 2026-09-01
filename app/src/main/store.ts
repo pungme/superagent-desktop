@@ -663,6 +663,29 @@ export function lastChatPreview(chatId: string): string | null {
  * new arrangement rather than nudged, so no amount of dragging drifts them
  * apart.
  */
+/**
+ * Empty a conversation without deleting it.
+ *
+ * A conversation is stored twice: as one blob the window reads (`chats.data`)
+ * and as numbered events the phone catches up from (`chat_events`). Clearing
+ * has to do BOTH — the window's own clear only ever emptied the blob, so the
+ * transcript came back the moment a phone replayed it, and the 4,000 rows that
+ * were actually taking the space stayed exactly where they were.
+ *
+ * Everything else about the conversation survives: its title, its place in the
+ * list, and its copy of the project if it has one. Only what was said goes, and
+ * the claude session with it — the next message starts fresh.
+ */
+export function clearChat(chatId: string): void {
+  const now = Date.now()
+  db.transaction(() => {
+    db.prepare('DELETE FROM chat_events WHERE chatId = ?').run(chatId)
+    db.prepare(
+      "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE id = ?"
+    ).run(now, chatId)
+  })()
+}
+
 export function moveChat(chatId: string, toIndex: number): void {
   const chat = db.prepare('SELECT workspaceId FROM chats WHERE id = ?').get(chatId) as
     { workspaceId: string } | undefined
@@ -1607,13 +1630,21 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('desktop:sync-files', () => join(app.getPath('userData'), 'desktop-chat', 'files'))
 
   ipcMain.handle('store:createWorkspace', (_e, groupId: string, name: string, path: string) => {
-    return { tree: getTree(), workspaceId: createWorkspace(groupId, name, path) }
+    // Create it, THEN read the tree. Object properties evaluate in order, so
+    // `{ tree: getTree(), workspaceId: createWorkspace(...) }` read the tree
+    // before the project existed and handed the window back the list without
+    // it — the project was in the database and not on screen. Doing it again
+    // showed the first one (and made a second), which is why adding a folder
+    // "needed two goes" and why deleting one left another behind.
+    const workspaceId = createWorkspace(groupId, name, path)
+    return { tree: getTree(), workspaceId }
   })
 
   // Browser project: no folder to pick — give Claude a private scratch cwd so
   // headless runs/routines have somewhere to work, and mark it kind='browser'.
   ipcMain.handle('store:createBrowserWorkspace', (_e, groupId: string, name: string) => {
-    return { tree: getTree(), workspaceId: createBrowserWorkspace(groupId, name) }
+    const workspaceId = createBrowserWorkspace(groupId, name)
+    return { tree: getTree(), workspaceId }
   })
 
   ipcMain.handle('store:deleteWorkspace', (_e, id: string) => {
@@ -1746,9 +1777,7 @@ function registerStoreIpcTail(): void {
   })
   // Wipes one chat's transcript in place (used by Retry-style resets), which is
   // no longer how "New chat" works — that creates a sibling instead.
-  ipcMain.on('chat:clear', (_e, chatId: string) => {
-    db.prepare("UPDATE chats SET data = '[]', claudeSessionId = NULL WHERE id = ?").run(chatId)
-  })
+  ipcMain.on('chat:clear', (_e, chatId: string) => clearChat(chatId))
 
   // Browsing history — powers omnibar autocomplete.
   ipcMain.on('history:record', (_e, url: string, title: string, at: number) => {

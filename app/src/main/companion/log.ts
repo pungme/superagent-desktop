@@ -156,6 +156,15 @@ function ensureBackfilled(chatId: string): void {
 
 let started = false
 
+/**
+ * A conversation was emptied. Drop what is held in memory for it, or the next
+ * phone to subscribe is served the events the database no longer has.
+ */
+export function forgetChat(chatId: string): void {
+  ring.delete(chatId)
+  backfilled.delete(chatId)
+}
+
 /** Test hook: forget every cached chat so a fresh store reads as fresh. */
 export function _resetLogForTests(): void {
   ring.clear()
