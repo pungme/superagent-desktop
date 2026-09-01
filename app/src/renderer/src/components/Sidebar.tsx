@@ -350,11 +350,10 @@ function BranchRow({
           </span>
         )
       )}
-      {chat && (
-        <span className="sidebar-branch-chat" title={branch}>
-          ⎇ {branch}
-        </span>
-      )}
+      {/* No tooltip: the chip itself widens on hover, like the project row's.
+          A tooltip is a second thing appearing somewhere else to tell you what
+          the first thing already says. */}
+      {chat && <span className="sidebar-branch-chat">⎇ {branch}</span>}
       {chat && onRemove && (
         <button
           className="sidebar-branch-remove"
