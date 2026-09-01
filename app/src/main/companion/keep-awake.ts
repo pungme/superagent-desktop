@@ -12,6 +12,12 @@
  * Pairing a phone is a person saying "I want to reach this Mac when I am not
  * sitting at it", so that is the default now, and turning it off is a choice
  * with a stated cost.
+ *
+ * This holds on battery too, and that was chosen deliberately over the thriftier
+ * rule (awake always on power, but on battery only while a phone is connected).
+ * The thrifty version saves battery by reintroducing exactly the gap this is
+ * here to close, and a laptop that can be reached is worth more than one that
+ * lasted an hour longer while unreachable. Do not "optimise" this back.
  */
 
 /** Absent means never answered, and the answer we want is yes. */
