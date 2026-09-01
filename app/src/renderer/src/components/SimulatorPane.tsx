@@ -412,9 +412,18 @@ export function SimulatorPane({
     if (!box || !size) return null
     const r = box.getBoundingClientRect()
     if (!r.width || !r.height) return null
+    // Fractions of the box as drawn, whichever way up it is.
+    const u = (e.clientX - r.left) / r.width
+    const v = (e.clientY - r.top) / r.height
+    // Turned, the box on screen is the frame on its side: undo the quarter turn
+    // so the device is tapped where the picture was actually pointed at. Get
+    // this wrong and every tap lands somewhere else entirely, which is worse
+    // than not being able to rotate at all.
+    const fu = orientation === 'left' ? v : orientation === 'right' ? 1 - v : u
+    const fv = orientation === 'left' ? 1 - u : orientation === 'right' ? u : v
     return {
-      x: Math.round(((e.clientX - r.left) / r.width) * size.width),
-      y: Math.round(((e.clientY - r.top) / r.height) * size.height),
+      x: Math.round(fu * size.width),
+      y: Math.round(fv * size.height),
       w: size.width,
       h: size.height
     }
@@ -617,8 +626,65 @@ export function SimulatorPane({
     }
   }
 
-  /** The device is on its side — the stream says so before anything else does. */
-  const landscape = !!frame && frame.width > frame.height
+  /**
+   * Which way the device is turned.
+   *
+   * Nothing reports this back: the framebuffer stays portrait-shaped whatever
+   * the device is doing, and iOS composites the rotated interface into it — so
+   * a landscape iPad arrives here as a portrait picture lying on its side. The
+   * pane remembers what it asked for, turns the picture back up the right way,
+   * and unwinds the rotation again for every tap.
+   */
+  const [orientation, setOrientation] = useState<'portrait' | 'left' | 'right'>(() => {
+    const saved = udid ? localStorage.getItem(`cove.simOrientation:${udid}`) : null
+    return saved === 'left' || saved === 'right' ? saved : 'portrait'
+  })
+  useEffect(() => {
+    const saved = udid ? localStorage.getItem(`cove.simOrientation:${udid}`) : null
+    setOrientation(saved === 'left' || saved === 'right' ? saved : 'portrait')
+  }, [udid])
+  const landscape = orientation !== 'portrait'
+  /**
+   * How big to draw a turned picture.
+   *
+   * A rotation is a paint-time transform: the browser still lays the image out
+   * at its unrotated size, so `max-width: 100%` constrains the wrong edge and
+   * the device hangs out of the pane. Turned, an image drawn w × h covers h × w
+   * of the stage — so the scale is whichever of the two fits, and the size is
+   * set explicitly.
+   */
+  const [stageBox, setStageBox] = useState<{ w: number; h: number } | null>(null)
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const measure = (): void => {
+      const r = stage.getBoundingClientRect()
+      setStageBox({ w: r.width, h: r.height })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(stage)
+    return () => ro.disconnect()
+  }, [])
+  const turnedSize = ((): { width: number; height: number } | null => {
+    if (!landscape || !frame || !stageBox || !stageBox.w || !stageBox.h) return null
+    const pad = 20
+    const s = Math.min(
+      (stageBox.w - pad) / frame.height,
+      (stageBox.h - pad) / frame.width
+    )
+    if (!(s > 0)) return null
+    return { width: Math.round(frame.width * s), height: Math.round(frame.height * s) }
+  })()
+  const turn = (next: 'portrait' | 'left' | 'right'): void => {
+    if (!udid) return
+    setOrientation(next)
+    localStorage.setItem(`cove.simOrientation:${udid}`, next)
+    void window.cove.simInput(udid, {
+      type: 'orientation',
+      value: next === 'portrait' ? 'portrait' : next === 'left' ? 'landscape-left' : 'landscape-right'
+    })
+  }
 
   const hardware = (button: string, title: string, glyph: string): React.JSX.Element => (
     <button
@@ -675,13 +741,7 @@ export function SimulatorPane({
           className="sim-btn"
           title={landscape ? 'Rotate to portrait' : 'Rotate to landscape'}
           disabled={!udid || !tappable}
-          onClick={() =>
-            udid &&
-            void window.cove.simInput(udid, {
-              type: 'orientation',
-              value: landscape ? 'portrait' : 'landscape-left'
-            })
-          }
+          onClick={() => turn(landscape ? 'portrait' : 'left')}
         >
           <svg
             className="sim-rotate-ic"
@@ -767,13 +827,26 @@ export function SimulatorPane({
         )}
       </div>
 
-      <div className="sim-stage" ref={stageRef}>
+      <div className={`sim-stage ${landscape ? 'sim-turned' : ''}`} ref={stageRef}>
         {frame ? (
           <img
             ref={shotRef}
             className={`sim-screen ${tappable ? 'live' : ''}`}
             style={{
               borderRadius: screenRadius,
+              // A rotated element keeps its original layout box, so the box has
+              // to be given the picture's own proportions and the rotation put
+              // on top of it. left is a quarter turn clockwise, right the other
+              // way — the same convention iOS uses for the device itself.
+              ...(landscape && turnedSize
+                ? {
+                    transform: `rotate(${orientation === 'left' ? 90 : -90}deg)`,
+                    maxWidth: 'none',
+                    maxHeight: 'none',
+                    width: turnedSize.width,
+                    height: turnedSize.height
+                  }
+                : {}),
               // Pinned to its measured size while snipping, so swapping in the
               // native-resolution still cannot resize the picture under the
               // selection layer.
