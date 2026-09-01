@@ -8,6 +8,14 @@
 
 <p align="center">A Mac app where your coding agent lives: a real browser it drives, an iPhone in the window, chats that survive restarts, your phone in the loop. Open source, on the subscription you already have.</p>
 
+<p align="center">
+  <a href="https://github.com/pungme/superagent-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/pungme/superagent-desktop?label=release&color=1c1d1a" alt="Latest release"></a>
+  <a href="https://github.com/pungme/superagent-desktop/releases"><img src="https://img.shields.io/github/downloads/pungme/superagent-desktop/total?label=downloads&color=1c1d1a" alt="Downloads"></a>
+  <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-1c1d1a" alt="macOS, Apple Silicon">
+  <img src="https://img.shields.io/badge/iOS-iPhone%20%26%20iPad-1c1d1a" alt="iPhone and iPad">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1c1d1a" alt="MIT licensed"></a>
+</p>
+
 <p align="center">Works with <b>Claude Code</b> today · Codex and Antigravity coming soon</p>
 
 <p align="center">
@@ -38,101 +46,97 @@ open source, so you can read exactly how it touches your browser.
 
 ---
 
-## Build it and watch it, side by side
+## What it does
 
-The chat sits next to a real browser. Ask for a change and watch the page
-update in the same window — no alt-tabbing to find out whether it worked.
-Point it at a local dev server or any live site; the agent can start the dev
-server itself and iterate while you watch, with the server one click away in
-the toolbar.
+<table>
+<tr>
+<td width="46%" valign="top">
 
-![The chat next to the code it's editing — the file tree, grouped steps and edits, model and mode pickers](docs/chat.png)
+**Build it and watch it, side by side.** The chat sits next to a real browser.
+Ask for a change and watch the page update in the same window — no alt-tabbing
+to find out whether it worked. Point it at a local dev server or any live site;
+the agent can start the server itself and iterate while you watch.
 
-**One click shows the page as a desktop card and an iPhone frame at once** —
-same session, both live.
+</td>
+<td valign="top"><img src="docs/chat.png" alt="The chat next to the code it's editing — the file tree, grouped steps and edits, model and mode pickers"></td>
+</tr>
 
-## An agent that can use the browser
+<tr>
+<td width="46%" valign="top">
 
-Claude drives that same browser: open a page, click, type, read it back. Not a
-hidden browser it describes to you second-hand — the one on your screen, with
-your logged-in session. You watch it work, and you can take over any time.
-Automation only ever happens in Superagent's own browser pane, never in your
-personal browser.
+**An agent that can use the browser.** Claude drives that same browser: open a
+page, click, type, read it back. Not a hidden browser it describes to you
+second-hand — the one on your screen, with your logged-in session. You watch it
+work and can take over any time. Automation only ever happens in Superagent's
+own pane, never in your personal browser.
 
-## Every chat is its own checkout
+</td>
+<td valign="top"><img src="docs/browser-view.png" alt="The agent driving the browser pane: a real page, a real session, a stop button"></td>
+</tr>
 
-On a git project, a new conversation gets a private copy of the project on its
-own branch, cut on its first message and named after what you asked for. Two
-chats on the same repo can edit, branch and commit side by side without
-touching each other — or your checkout. The project row keeps a conversation
-that works in the folder itself, for when that is what you want.
+<tr>
+<td width="46%" valign="top">
 
-- **Keep / Throw away.** When a chat has changes, two buttons appear at the
-  top: *Keep* adds everything it did to the project as one change, named after
-  the chat; *Throw away* deletes it all. Deleting a chat with unkept work asks
-  first.
-- **Branches named after the conversation.** "Fix the flaky auth test" becomes
-  `fix-the-flaky-auth-test`, and follows renames. The sidebar shows the branch
-  each chat is on.
-- **Work lands where it came from.** Keep merges onto the branch the chat was
-  started from, even if you've switched the project since.
-- **No re-installs.** Dependency folders (`node_modules`, `.venv`, `vendor`,
-  `target`) are shared into each chat's copy.
+**An iPhone in the window.** A real iOS Simulator, streamed into the app at
+about a frame a second, that the agent can tap, swipe and type into. Ask it to
+build and run, and it does — then looks at the screen and fixes what it sees.
 
-## An iPhone in the window
+</td>
+<td valign="top"><img src="docs/build.png" alt="An iOS Simulator streamed into the window beside the conversation building it"></td>
+</tr>
 
-An iOS Simulator streamed *inside* the app from its own framebuffer — the real
-device, live at the rate it renders. Tap, swipe, and type on it; the agent can
-too (`sim_boot`, `sim_tap`, `sim_screenshot`, …), so it builds, launches, and
-checks its own app. Nothing to install: the input helper ships with
-Superagent. Apple's own Simulator window stays shut unless you ask for it.
+<tr>
+<td width="46%" valign="top">
 
-The simulator and the page you're on sit side by side on the same surface.
+**Your Mac's agent, in your pocket.** Pair once from Settings → Phone and the
+iPhone app follows your Mac from anywhere: the conversation as it happens, a
+prompt from the sofa, a yes or no when the agent asks. End-to-end encrypted,
+through a relay that stores nothing and can read nothing. On iPad it takes the
+Mac's shape — sidebar left, conversation right, the page beside it.
 
-## Your Mac's agent, on your phone
+</td>
+<td valign="top"><img src="docs/phone-app.png" alt="The iPhone app: a page mirrored from the Mac above the conversation that opened it"></td>
+</tr>
 
-Pair the [Superagent iOS app](https://github.com/pungme/superagent-ios) once
-from **Settings → Phone** and it follows your Mac from anywhere: live
-transcripts, send a prompt, start a chat, and approve what the agent asks —
-with a push notification when it's done or needs you.
+<tr>
+<td width="46%" valign="top">
+
+**Everything in its place.** The Computer sits at the top of the sidebar with
+its own conversations under it. Plain browser tabs come next: browse first,
+summon the agent when you need it. Below them, projects grouped the way you
+think about them, each conversation nested underneath — a spinner while the
+agent works, a dot when it needs you, and the git branch where you would expect
+it.
+
+</td>
+<td valign="top"><img src="docs/sidebar.png" alt="The sidebar: grouped projects with nested chats and branch chips"></td>
+</tr>
+</table>
+
+### Getting the phone app
+
+[TestFlight](https://testflight.apple.com/join/hvg9RGMh), or build it from
+source — see [its README](https://github.com/pungme/superagent-ios).
 
 - **Ask mode.** A permission mode where the agent checks with you before it
-  acts — on the Mac, or on your phone if that's where you are.
+  acts — on the Mac, or on your phone if that is where you are.
 - **Private by construction.** Everything between the phone and the Mac is
   end-to-end encrypted with a per-device key from the pairing QR. Both sides
-  dial out to a tiny blind relay ([superagent-relay](https://github.com/pungme/superagent-relay))
-  that forwards ciphertext and stores nothing, so it works behind any network
-  with no setup. Run your own relay with one command and change the URL in
-  Settings → Phone.
-- **Connects only when it's used.** The Mac opens its relay connection when
-  a phone is paired or being paired. An install that never pairs a phone never
+  dial out to a tiny blind relay
+  ([superagent-relay](https://github.com/pungme/superagent-relay)) that forwards
+  ciphertext and stores nothing, so it works behind any network with no setup.
+  Run your own with one command and change the URL in Settings → Phone.
+- **Connects only when it is used.** The Mac opens its relay connection when a
+  phone is paired or being paired. An install that never pairs a phone never
   connects anywhere.
-- **Quiet in the menu bar** while a phone is paired: relay status, open, pair.
 
-- **iPhone and iPad.** On an iPad it takes the Mac's shape: the sidebar stays
-  on the left, the conversation fills the right, and the page or the simulator
-  sits beside it rather than above it.
+## Also in the box
 
-Get it on [TestFlight](https://testflight.apple.com/join/hvg9RGMh), or build it
-from source — see [its README](https://github.com/pungme/superagent-ios).
-
-## Everything in its place
-
-The Computer sits at the top of the sidebar with its own conversations listed
-under it — the same list its Chat window shows, one click closer. Plain
-browser tabs come next: browse first, summon the agent when you need it.
-Below them, projects are grouped the way you think about them, with each
-conversation nested underneath. A spinner while the
-agent works, a dot when it needs you, a green dot when a background job is
-running, and the git branch where you'd expect it.
-
-<p align="center"><img src="docs/sidebar.png" width="300" alt="The sidebar: grouped projects with nested chats and branch chips"></p>
-
-Settings stay short enough to read in one go — including how much the agent is
-allowed to do without asking.
-
-## The bigger things
-
+- **Every chat is its own checkout.** A new conversation gets a private copy of
+  the project on its own branch, cut on its first message and named after what
+  you asked for. *Keep* folds its work back in as one change; *Throw away*
+  deletes it. The project row keeps a conversation that works in the folder
+  itself, for when that is what you want.
 - **A board the agent keeps.** Backlog, next, doing, done — per project, and
   Claude moves the cards as it works. Watch them move while you talk to it.
 - **Routines.** "Check this site every hour," in plain language, on a timer.
