@@ -48,6 +48,82 @@ See [PLAN.md](PLAN.md) for the architecture and roadmap.
 - Keep the renderer sandbox-safe: no Node access outside the preload bridge.
 - Never commit secrets, build output, or generated files.
 
+## Cutting a release
+
+Every step below exists because skipping it has broken a release. None of it is
+optional, and none of it is obvious from the outside — an agent asked to "ship
+it" without this page will get the credentials wrong and conclude they are
+missing.
+
+**1. Credentials must reach the build process itself.**
+
+```sh
+cd app
+set -a; . ./.env; set +a          # APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+export GH_TOKEN="$(gh auth token)"   # not in .env; electron-builder needs it to publish
+```
+
+`app/.env` is gitignored and **is** populated on the release machine. If a build
+logs `skipped macOS notarization  reason=notarize options were unable to be
+generated`, the credentials did not reach the process — that is not the same as
+them being absent. Check before concluding anything:
+
+```sh
+env | grep -cE '^(APPLE_ID|APPLE_APP_SPECIFIC_PASSWORD|APPLE_TEAM_ID|GH_TOKEN)='   # expect 4
+```
+
+The usual cause is backgrounding the build in a way that does not inherit the
+exported environment. Verify the count in the same shell that starts the build.
+
+**2. Build and publish.**
+
+```sh
+npm run build:mac -- --publish always
+```
+
+An un-notarized DMG is Gatekeeper-blocked for everyone who downloads it, and the
+build does not fail when notarization is skipped — it says so once and carries
+on. Watch for `notarization successful`.
+
+**3. Repair the split draft.** `electron-builder` uploads the DMG and the zip
+concurrently; both find no release for the tag and both create one, so GitHub
+ends up with **two drafts on the same tag** and the assets split across them.
+Which assets land where varies. Merge them:
+
+```sh
+gh api repos/pungme/superagent-desktop/releases --jq \
+  '.[] | select(.tag_name=="vX.Y.Z") | "\(.id) \([.assets[].name]|join(","))"'
+```
+
+Download the orphaned asset, delete the stray draft, then POST the asset to the
+survivor's `upload_url` **by numeric release id** — `gh release upload vX.Y.Z`
+resolves the tag ambiguously and will happily hit the wrong draft.
+
+**4. Publish, and set it as latest.**
+
+```sh
+gh api -X PATCH repos/pungme/superagent-desktop/releases/<id> -f draft=false -f make_latest=true
+```
+
+`make_latest=true` is the step that is easiest to miss and most expensive to
+miss. `electron-updater` asks GitHub for `/releases/latest`; if an older release
+still holds that flag, every installed copy is told it is up to date and the new
+version reaches nobody. This happened to 1.7.23 and 1.7.24 — both published,
+both invisible, while GitHub still called 1.7.22 latest.
+
+**5. Verify before walking away.**
+
+```sh
+xcrun stapler validate dist/mac-arm64/SuperAgent.app     # "The validate action worked!"
+spctl -a -vvv dist/mac-arm64/SuperAgent.app              # "accepted, source=Notarized Developer ID"
+gh api repos/pungme/superagent-desktop/releases/latest --jq '.tag_name, ([.assets[].name]|length)'
+```
+
+Five assets: `latest-mac.yml`, the zip, the zip blockmap, the DMG, the DMG
+blockmap. `latest-mac.yml` is what the updater reads and the blockmaps are what
+it uses for delta updates, so a release missing one is a broken update path even
+though the download link works.
+
 ## License
 
 By contributing you agree your contributions are licensed under the project's
