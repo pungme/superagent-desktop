@@ -143,6 +143,13 @@ export interface WireChat {
    * sidebar has to step around.
    */
   pending?: boolean
+  /**
+   * Which agent this conversation runs on. The phone's model and mode pickers
+   * are Claude Code's, and it had no way to know a conversation was on Codex —
+   * so it sent settings the other agent refuses to start with. Absent from
+   * older Macs, which is why the Mac also drops a setting that does not belong.
+   */
+  provider?: 'claude' | 'codex'
 }
 
 export interface WireMachine {
@@ -250,6 +257,7 @@ export type RpcMethod =
   | 'chat.send'
   | 'chat.interrupt'
   | 'chat.create'
+  | 'chat.setAgent'
   | 'chat.rename'
   | 'chat.delete'
   | 'approval.answer'

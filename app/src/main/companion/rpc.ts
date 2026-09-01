@@ -17,6 +17,8 @@ import {
   moveCard,
   getWorkspacePath,
   chatCwd,
+  setChatProvider,
+  clearChatSession,
   isPendingBranch,
   markPendingBranch,
   takePendingBranch,
@@ -32,6 +34,7 @@ import {
   TABS_GROUP,
   setChatCwd
 } from '../store'
+import { modelBelongsTo, modeBelongsTo, toProvider } from '../../shared/agent-provider'
 import { createHash } from 'crypto'
 import { homedir } from 'os'
 import { readdirSync, existsSync, openSync, readSync, closeSync } from 'fs'
@@ -48,6 +51,7 @@ import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { extname, resolve, sep } from 'path'
 import {
+  markContextLost,
   startAgent,
   stopAgent,
   sendToAgent,
@@ -109,6 +113,10 @@ const chatSend = z.object({
   localId: z.string().max(80).optional(),
   model: z.string().max(60).optional(),
   permissionMode: permissionModes.optional()
+})
+const chatSetAgent = z.object({
+  chatId: z.string().min(1),
+  provider: z.enum(['claude', 'codex'])
 })
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatId = z.object({ chatId: z.string().min(1) })
@@ -240,6 +248,25 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true, result: { chatId: id } }
+      }
+      // Move a conversation to the other agent, from the phone.
+      //
+      // The session id goes with it: it belongs to the agent being left, and the
+      // new one has never heard of it. main's recap then hands the incoming
+      // agent the conversation so far, so it continues rather than starting
+      // blank — the same thing the Mac's own picker does.
+      case 'chat.setAgent': {
+        const p = chatSetAgent.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        const running = findSessionByChat(p.data.chatId)
+        if (running) stopAgent(running.id)
+        setChatProvider(p.data.chatId, toProvider(p.data.provider))
+        clearChatSession(p.data.chatId)
+        markContextLost(p.data.chatId)
+        broadcastToWindows('projects:changed', {})
+        pushChats()
+        return { ok: true }
       }
       case 'chat.rename': {
         const p = chatRename.safeParse(params)
@@ -836,6 +863,7 @@ export function listChats(): WireChat[] {
     updatedAt: c.updatedAt,
     live: isGenerating(c.id),
     preview: lastChatPreview(c.id),
+    provider: getChatProvider(c.id),
     cwd: c.cwd ?? '',
     pending: isPendingBranch(c.id)
   }))
@@ -884,6 +912,7 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   if (!session) {
     const ws = getWorkspace(chat.workspaceId)
     if (!ws) return fail('not-found', 'no such project')
+    const provider = getChatProvider(chat.id)
     const opts: AgentStartOptions = {
       cwd: chat.cwd ?? ws.path,
       workspaceId: ws.id,
@@ -893,9 +922,18 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
       // The chat's own agent — a phone message must not hand a Codex thread id
       // to `claude --resume` (or the other way round). A chat that has never run
       // takes the app's current default, so the picker on the Mac still decides.
-      provider: getChatProvider(chat.id),
-      permissionMode: p.permissionMode ?? permissionModeSetting(),
-      model: p.model ?? (kvGet('cove.model') || undefined)
+      provider,
+      // A phone sends the model and mode from its own pickers, which are Claude
+      // Code's — it has no idea this conversation runs on Codex. Handing Codex
+      // `--model opus` is not a bad setting, it is a CLI that refuses to start,
+      // and the phone then sits there with no reply. Anything belonging to the
+      // other agent is dropped and the Mac's own default stands.
+      permissionMode: modeBelongsTo(p.permissionMode, provider)
+        ? (p.permissionMode ?? permissionModeSetting())
+        : permissionModeSetting(),
+      model: modelBelongsTo(p.model, provider)
+        ? (p.model ?? (kvGet('cove.model') || undefined))
+        : undefined
     }
     const id = startAgent(null, opts)
     session = { id, chatId: chat.id, workspaceId: ws.id, owned: false }

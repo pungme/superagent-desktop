@@ -32,6 +32,32 @@ export const PROVIDER_BINARY: Record<AgentProvider, string> = {
   codex: 'codex'
 }
 
+/**
+ * The model names Claude Code answers to. Anything else belongs to Codex.
+ *
+ * A model is only meaningful to the agent that offers it: `opus` means nothing
+ * to Codex, and `gpt-5-codex` means nothing to Claude Code. Passing one to the
+ * other is not a bad setting, it is a CLI that refuses to start — which is how
+ * a conversation on the wrong agent goes silent.
+ */
+const CLAUDE_MODELS = /^(default|opus|sonnet|haiku)(\[[^\]]+\])?$/i
+
+export function modelBelongsTo(model: string | undefined, provider: AgentProvider): boolean {
+  if (!model) return true
+  return CLAUDE_MODELS.test(model.trim()) === (provider === 'claude')
+}
+
+/**
+ * Claude Code's permission modes. Codex has its own idea of sandboxing and does
+ * not take these, so passing one along is the same mistake as the model.
+ */
+const CLAUDE_MODES = new Set(['bypassPermissions', 'acceptEdits', 'plan', 'ask'])
+
+export function modeBelongsTo(mode: string | undefined, provider: AgentProvider): boolean {
+  if (!mode) return true
+  return CLAUDE_MODES.has(mode) === (provider === 'claude')
+}
+
 /** Narrow an unknown (IPC payload, localStorage string, sqlite column) to a provider. */
 export function toProvider(value: unknown): AgentProvider {
   return value === 'codex' ? 'codex' : 'claude'

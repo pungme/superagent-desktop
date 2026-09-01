@@ -715,6 +715,17 @@ export function deleteChat(chatId: string): void {
  * `provider` stamps which backend issued the id, so a later resume uses the right
  * CLI; omitting it leaves whatever was there, for callers that only know the id.
  */
+/**
+ * Forget the session a conversation was resuming.
+ *
+ * Moving a chat between agents has to: the id belongs to the one being left and
+ * the incoming one has never heard of it. Handing it over is how a conversation
+ * ends up asking `claude --resume` for a Codex thread.
+ */
+export function clearChatSession(chatId: string): void {
+  db.prepare('UPDATE chats SET claudeSessionId = NULL WHERE id = ?').run(chatId)
+}
+
 export function setChatSession(
   chatId: string,
   claudeSessionId: string,
