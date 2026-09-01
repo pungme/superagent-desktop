@@ -1,2 +1,17 @@
 scratchpad/
 *.log
+
+# Launch prep — private, not for a public repo
+PRODUCTHUNT.md
+producthunt/
+
+# Drafts and internal notes that must not be served from docs/ — that directory
+# is the GitHub Pages root, so anything committed there is live on
+# superagent.computer. These were: eight abandoned landing-page designs, the
+# page that indexes them, five concept mockups, the hero source, and three
+# internal specs. All returned 200 to anyone who asked.
+docs/option-*.html
+docs/options.html
+docs/SPEC-*.md
+docs/concepts/
+docs/hero-src/
