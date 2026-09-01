@@ -1031,12 +1031,20 @@ export function BrowserPane({
             </button>
           </div>
         )}
+        {/* Two circular arrows in one toolbar read as two reload buttons — the
+            only thing telling them apart was a tooltip nobody hovers. This one
+            is not an action, it is a setting: say so in letters. */}
         <button
-          className={`browser-nav-btn ${reloadOnIdle ? 'on' : ''}`}
+          className={`browser-nav-btn browser-auto-btn ${reloadOnIdle ? 'on' : ''}`}
           onClick={() => setReloadOnIdle(workspaceId, !reloadOnIdle)}
-          title={reloadOnIdle ? 'Auto-reload when Claude finishes: on' : 'Auto-reload: off'}
+          title={
+            reloadOnIdle
+              ? 'Reload this page automatically when Claude finishes a turn: on'
+              : 'Reload this page automatically when Claude finishes a turn: off'
+          }
+          aria-pressed={reloadOnIdle}
         >
-          ↻
+          AUTO
         </button>
         <button
           className="browser-nav-btn"
