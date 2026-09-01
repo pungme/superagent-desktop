@@ -5,6 +5,7 @@ import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { useDictation } from '../lib/dictation'
+import { redirectTarget } from '../lib/background'
 import {
   AGENT_PROVIDERS,
   PROVIDER_LABEL,
@@ -52,6 +53,14 @@ type Item =
   | { kind: 'diff'; diff: FileDiff }
   | { kind: 'file'; file: { id: string; path: string } }
   | { kind: 'thinking'; id: string; text: string }
+
+/** The tool_use id a card was drawn from, when it came from one. */
+function cardId(item: Item): string | null {
+  if (item.kind === 'tool') return item.tool.id
+  if (item.kind === 'diff') return item.diff.id
+  if (item.kind === 'file') return item.file.id
+  return null
+}
 
 /**
  * A dev server, as one of the pills that sit beside Model and Mode.
@@ -1948,10 +1957,26 @@ export function EasyChat({
                 : undefined
             if (name === 'Bash' && inp.run_in_background) {
               const command = typeof inp.command === 'string' ? inp.command : ''
-              setBgTasks((prev) => [
-                ...prev,
-                { toolUseId: id, command, description, startedAt: Date.now() }
-              ])
+              // `manual` and `output` come from a backend with no pollable shell
+              // handle — Codex hands over what a long-running process printed
+              // before the turn ended, because nothing more will arrive.
+              const manual = inp.manual === true
+              const seeded = typeof inp.output === 'string' ? inp.output : ''
+              setBgTasks((prev) =>
+                prev.some((t) => t.toolUseId === id)
+                  ? prev
+                  : [
+                      ...prev,
+                      {
+                        toolUseId: id,
+                        command,
+                        description,
+                        startedAt: Date.now(),
+                        ...(manual ? { manual: true } : {}),
+                        ...(seeded ? { output: seeded, outputAt: Date.now() } : {})
+                      }
+                    ]
+              )
             } else if (
               name === 'Bash' &&
               typeof inp.command === 'string' &&
@@ -1964,6 +1989,10 @@ export function EasyChat({
               const command = inp.command
               const dur = sleepDurationSec(command)
               const startedAt = Date.now()
+              // A command that redirects to a file DOES have a handle after all:
+              // the file. Tailing it gives the strip live output for a job that
+              // would otherwise say there was nothing to read.
+              const outputPath = redirectTarget(command)
               setBgTasks((prev) => [
                 ...prev,
                 {
@@ -1972,6 +2001,7 @@ export function EasyChat({
                   description,
                   startedAt,
                   manual: true,
+                  ...(outputPath ? { outputPath } : {}),
                   // A sleep timer finishes at a known time; give it a small
                   // buffer, then it clears itself instead of piling up.
                   ...(dur != null ? { expiresAt: startedAt + dur * 1000 + 1500 } : {})
@@ -2027,14 +2057,22 @@ export function EasyChat({
               typeof (block.input as { path?: unknown })?.path === 'string'
                 ? String((block.input as { path: string }).path)
                 : null
-            setItems((prev) => [
-              ...prev,
-              diff
-                ? { kind: 'diff', diff }
-                : handedOver
-                  ? { kind: 'file', file: { id, path: handedOver } }
-                  : { kind: 'tool', tool: { id, name, detail: toolDetail(block.input) } }
-            ])
+            const card: Item = diff
+              ? { kind: 'diff', diff }
+              : handedOver
+                ? { kind: 'file', file: { id, path: handedOver } }
+                : { kind: 'tool', tool: { id, name, detail: toolDetail(block.input) } }
+            // Keyed on the tool_use id, so a backend that re-states a call it
+            // already announced updates that card instead of drawing a second
+            // one. (Codex re-emits a long-running command at the end of the turn
+            // to mark it as background work.)
+            setItems((prev) => {
+              const at = prev.findIndex((it) => cardId(it) === id)
+              if (at < 0) return [...prev, card]
+              const next = [...prev]
+              next[at] = card
+              return next
+            })
           }
         }
         // Finalize the streaming text message.
@@ -3813,9 +3851,7 @@ export function EasyChat({
                       </div>
                       <pre className="easy-run-out">
                         {t.output?.trim() ||
-                          (t.manual
-                            ? 'Backgrounded with & — no shell handle to read its output.'
-                            : 'Waiting for output…')}
+                          (t.manual ? 'No handle to read its output.' : 'Waiting for output…')}
                       </pre>
                       <button
                         className="easy-control-item easy-run-stop"

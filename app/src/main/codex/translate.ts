@@ -18,6 +18,9 @@
 
 export type StreamJsonEvent = Record<string, unknown>
 
+/** How much of a background job's output to keep for the runs strip. */
+const BG_OUTPUT_LIMIT = 8000
+
 /** Codex reports a plan as a whole list each time; the panel wants create/update. */
 interface PlanState {
   steps: { step: string; status: string }[]
@@ -113,6 +116,19 @@ export class CodexTranslator {
   /** Accumulated delta text per item, so a completed item can close out cleanly. */
   private text = new Map<string, string>()
   private plan: PlanState = { steps: [] }
+  /**
+   * Command executions that have started and not finished.
+   *
+   * Codex's unified_exec leaves a long-running process (a dev server, a watcher)
+   * running past the end of the turn: the item simply never completes. So an
+   * item still open when `turn/completed` arrives IS the background job — no
+   * heuristic on the command text needed — and that is where it gets handed to
+   * the runs strip.
+   */
+  private openCommands = new Map<
+    string,
+    { command: string; processId: string | null; output: string }
+  >()
   /** Latest usage, attached to the next assistant/result event the meter reads. */
   private lastUsage: Record<string, number> | null = null
   private contextWindow: number | null = null
@@ -124,6 +140,8 @@ export class CodexTranslator {
     this.openThinking.clear()
     this.text.clear()
     this.plan = { steps: [] }
+    // Deliberately NOT openCommands: a process that outlived the last turn is
+    // still running, and forgetting it here is how it stops being stoppable.
   }
 
   /** The model context window Codex reported, if it has. */
@@ -146,6 +164,8 @@ export class CodexTranslator {
       case 'item/reasoning/summaryTextDelta':
       case 'item/reasoning/textDelta':
         return this.delta(params, 'thinking')
+      case 'item/commandExecution/outputDelta':
+        return this.commandOutput(params)
       case 'turn/plan/updated':
         return this.planUpdated(params)
       case 'thread/tokenUsage/updated':
@@ -174,8 +194,14 @@ export class CodexTranslator {
         this.openThinking.add(id)
         return [blockStart({ type: 'thinking', thinking: '' })]
       }
-      case 'commandExecution':
+      case 'commandExecution': {
+        this.openCommands.set(id, {
+          command: unwrapShellCommand(typeof item.command === 'string' ? item.command : ''),
+          processId: typeof item.processId === 'string' ? item.processId : null,
+          output: ''
+        })
         return [this.toolUse(id, 'Bash', commandInput(item))]
+      }
       case 'fileChange':
         return fileChangeTools(item).map((t) => this.toolUse(t.id, t.name, t.input))
       case 'mcpToolCall':
@@ -210,6 +236,7 @@ export class CodexTranslator {
         return out
       }
       case 'commandExecution': {
+        this.openCommands.delete(id)
         const output = typeof item.aggregatedOutput === 'string' ? item.aggregatedOutput : ''
         const exit = typeof item.exitCode === 'number' ? item.exitCode : null
         const failed = item.status === 'failed' || item.status === 'declined' || !!exit
@@ -230,6 +257,19 @@ export class CodexTranslator {
       default:
         return []
     }
+  }
+
+  /**
+   * Live output from a running command. Kept rather than forwarded: the chat has
+   * nowhere to stream it mid-tool-call, but if this command turns out to be a
+   * background job it is the only output the strip will ever get — after the
+   * turn ends Codex sends nothing more about it.
+   */
+  private commandOutput(params: Record<string, unknown>): StreamJsonEvent[] {
+    const open = this.openCommands.get(String(params.itemId ?? ''))
+    const delta = typeof params.delta === 'string' ? params.delta : ''
+    if (open && delta) open.output = (open.output + delta).slice(-BG_OUTPUT_LIMIT)
+    return []
   }
 
   private delta(params: Record<string, unknown>, kind: 'text' | 'thinking'): StreamJsonEvent[] {
@@ -331,6 +371,33 @@ export class CodexTranslator {
       this.openThinking.delete(id)
       out.push(blockStop())
     }
+    // Anything still executing when the turn ends is running in the background.
+    // Hand it to the runs strip: it is what tells the user a dev server is up,
+    // gives them a way to stop it, and — the part that loses work otherwise —
+    // is what stops the idle reaper from reaping a chat that still has a live
+    // process in it.
+    for (const [itemId, open] of [...this.openCommands]) {
+      this.openCommands.delete(itemId)
+      out.push(
+        this.toolUse(itemId, 'Bash', {
+          command: open.command,
+          run_in_background: true,
+          // No shell handle to poll: after the turn ends Codex sends nothing
+          // more about this process, so what we captured is all there will be.
+          manual: true,
+          output: open.output
+        })
+      )
+      out.push(
+        toolResult(
+          itemId,
+          `Still running in the background${open.processId ? ` (pid ${open.processId})` : ''}.` +
+            (open.output ? `\n${open.output}` : ''),
+          false
+        )
+      )
+    }
+
     if (status === 'failed' || err) {
       out.push({
         type: 'result',

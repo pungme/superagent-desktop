@@ -99,6 +99,32 @@ test('a Codex turn streams a reply and really edits the file', async () => {
   expect(readFileSync(join(projectDir, 'greeting.txt'), 'utf8')).toContain('codex')
 })
 
+test('a process Codex leaves running shows in the runs strip', async () => {
+  const input = window.locator('textarea.easy-input:visible')
+  await input.click()
+  await input.fill(
+    'Start a background web server here with `python3 -m http.server 8794` and leave it ' +
+      'running. Do not wait for it to exit. Then reply with exactly: SERVING.'
+  )
+  await input.press('Enter')
+
+  // Codex's unified_exec leaves the command item open past the end of the turn.
+  // That is the only signal there is, and it is what has to reach the strip —
+  // without it the idle reaper reaps a chat that still has a live dev server.
+  const strip = window.locator('.easy-runs')
+  await expect(strip).toBeVisible({ timeout: 180_000 })
+
+  await window.locator('.easy-run-pill').first().click()
+  // Assert what is invariant. Codex phrases backgrounding differently run to run
+  // — sometimes it leaves the command in the foreground and lets the item stay
+  // open, sometimes it writes `… >/tmp/x.log 2>&1 &` — and both routes have to
+  // land here. What the strip must always show is the command and a way to stop
+  // it. (Whether there is output depends on the process: python's http.server
+  // buffers when stdout is not a tty, so its log file sits empty.)
+  await expect(window.locator('.easy-run-head code').first()).toContainText('8794')
+  await expect(window.locator('.easy-run-stop').first()).toBeVisible()
+})
+
 test('the chat keeps its agent across a reload', async () => {
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })

@@ -385,3 +385,104 @@ describe('turn end', () => {
     expect(t.handle('error', { willRetry: false, error: { message: 'fatal' } })).toHaveLength(1)
   })
 })
+
+describe('background processes', () => {
+  /**
+   * Codex's unified_exec leaves a long-running process going past the end of the
+   * turn: the command item simply never completes. That is the signal — no
+   * guessing from the command text — and it is what keeps the idle reaper from
+   * reaping a chat that still has a dev server in it.
+   */
+  const startServer = (t: CodexTranslator): void => {
+    t.startTurn()
+    t.handle('item/started', {
+      item: {
+        id: 'c-srv',
+        type: 'commandExecution',
+        command: `/bin/zsh -lc 'python3 -m http.server 8791'`,
+        processId: '91584',
+        status: 'inProgress'
+      }
+    })
+  }
+
+  it('hands a command still running at turn end to the runs strip', () => {
+    const t = new CodexTranslator()
+    startServer(t)
+    t.handle('item/commandExecution/outputDelta', {
+      itemId: 'c-srv',
+      delta: 'Serving HTTP on :: port 8791 ...\n'
+    })
+    const out = t.handle('turn/completed', { turn: { id: 'x', status: 'completed' } })
+    const use = out
+      .filter((e) => e.type === 'assistant')
+      .map((e) => (e.message as { content: Record<string, unknown>[] }).content[0])
+      .find((c) => (c as { name?: string }).name === 'Bash') as
+      { id: string; input: Record<string, unknown> } | undefined
+    expect(use).toBeTruthy()
+    expect(use?.id).toBe('c-srv')
+    expect(use?.input).toMatchObject({
+      command: 'python3 -m http.server 8791',
+      run_in_background: true,
+      // No shell handle to poll, so the strip must not sit on "Waiting for output".
+      manual: true
+    })
+    // The output captured before the turn ended is all there will ever be.
+    expect(String(use?.input.output)).toContain('port 8791')
+  })
+
+  it('says the process is still running, with its pid, in the tool result', () => {
+    const t = new CodexTranslator()
+    startServer(t)
+    const out = t.handle('turn/completed', { turn: { id: 'x', status: 'completed' } })
+    const result = out
+      .filter((e) => e.type === 'user')
+      .map((e) => (e.message as { content: Record<string, unknown>[] }).content[0])
+      .find((c) => c.tool_use_id === 'c-srv')
+    expect(String(result?.content)).toContain('Still running in the background (pid 91584)')
+    expect(result?.is_error).toBe(false)
+  })
+
+  it('leaves a command that finished normally alone', () => {
+    const t = new CodexTranslator()
+    t.startTurn()
+    t.handle('item/started', {
+      item: { id: 'c-ls', type: 'commandExecution', command: 'ls', status: 'inProgress' }
+    })
+    t.handle('item/completed', {
+      item: { id: 'c-ls', type: 'commandExecution', aggregatedOutput: 'a\n', exitCode: 0 }
+    })
+    const out = t.handle('turn/completed', { turn: { id: 'x', status: 'completed' } })
+    const backgrounded = out
+      .filter((e) => e.type === 'assistant')
+      .flatMap((e) => (e.message as { content: Record<string, unknown>[] }).content)
+      .filter((c) => (c.input as { run_in_background?: boolean })?.run_in_background)
+    expect(backgrounded).toEqual([])
+  })
+
+  it('keeps remembering a process across the next turn', () => {
+    const t = new CodexTranslator()
+    startServer(t)
+    t.handle('turn/completed', { turn: { id: 'x', status: 'completed' } })
+    // A second turn starts; the process from the first is already handed over,
+    // so it must not be registered a second time.
+    t.startTurn()
+    const out = t.handle('turn/completed', { turn: { id: 'y', status: 'completed' } })
+    const again = out
+      .filter((e) => e.type === 'assistant')
+      .flatMap((e) => (e.message as { content: Record<string, unknown>[] }).content)
+      .filter((c) => (c.input as { run_in_background?: boolean })?.run_in_background)
+    expect(again).toEqual([])
+  })
+
+  it('reports the process even when the turn was interrupted', () => {
+    const t = new CodexTranslator()
+    startServer(t)
+    const out = t.handle('turn/completed', { turn: { id: 'x', status: 'interrupted' } })
+    const use = out
+      .filter((e) => e.type === 'assistant')
+      .flatMap((e) => (e.message as { content: Record<string, unknown>[] }).content)
+      .find((c) => (c.input as { run_in_background?: boolean })?.run_in_background)
+    expect(use).toBeTruthy()
+  })
+})
