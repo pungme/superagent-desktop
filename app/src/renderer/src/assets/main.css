@@ -7272,6 +7272,14 @@ button {
   justify-content: center;
   padding: 10px 10px 18px;
 }
+/* A turned device. The picture is rotated by a transform, which leaves its
+   layout box the shape it was — so the box is constrained the other way round
+   (the frame's height against the stage's width) and the transform does the
+   rest. Without this the sideways picture overflows the pane. */
+.sim-stage.sim-turned {
+  overflow: hidden;
+}
+/* The size itself is computed in the component — see turnedSize. */
 .sim-screen:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
