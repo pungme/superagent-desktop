@@ -5536,11 +5536,13 @@ button {
    a faint green-tinted band with a left accent bar, so "something is running on
    its own" reads at a glance and doesn't look like just more controls. */
 .easy-runs {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px 9px;
+  /* Room on the right for Hide, which sits in the corner. */
+  padding: 8px 52px 9px 14px;
   margin: 2px 10px 10px;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, #45b46a 26%, var(--border));
@@ -5656,13 +5658,20 @@ button {
   letter-spacing: 0;
   color: var(--text-tertiary);
 }
+/* Top right, out of the flow of the pills.
+   It used to be the last item in a wrapping row, so with two or three jobs
+   running it landed under them — a control for the strip, sitting inside the
+   list the strip contains. */
 .easy-runs-clear {
+  position: absolute;
+  top: 5px;
+  right: 6px;
   border: none;
   background: transparent;
   color: var(--text-tertiary);
   font-size: 11px;
   line-height: 1;
-  padding: 5px 6px;
+  padding: 5px 7px;
   border-radius: 6px;
   cursor: pointer;
 }
