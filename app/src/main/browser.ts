@@ -1079,7 +1079,23 @@ export function registerBrowserIpc(): void {
         attachPaneView(pane)
       }
     }
-    pane.view.setBounds(toWindowPixels(pane.window, bounds))
+    const applied = toWindowPixels(pane.window, bounds)
+    pane.view.setBounds(applied)
+    // A pane that reaches the bottom of the window is covering the composer,
+    // which is the "the chat box is just not there" report — the native view
+    // paints over it, so nothing in the HTML can be at fault and nothing in the
+    // HTML can show it. Record it rather than guess at it: this says whether the
+    // pane was oversized, and by how much, the next time someone sees it.
+    const content = pane.window.getContentBounds()
+    const overhang = applied.y + applied.height - content.height
+    if (overhang > -8) {
+      paneLog(
+        'pane-covers-composer',
+        id,
+        `applied=${applied.x},${applied.y} ${applied.width}x${applied.height} ` +
+          `content=${content.width}x${content.height} overhang=${overhang}`
+      )
+    }
     // After the bounds, and after any re-attach above: both rebuild the layer
     // this is a property of, so applying it earlier is applying it to a layer
     // that is about to be thrown away.
