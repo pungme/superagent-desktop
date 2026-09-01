@@ -656,8 +656,8 @@ export function attachPanesOnReturn(): void {
  * screenshots of, and it never healed on its own because every later resize
  * recomputed the same wrong number.
  */
-function toWindowPixels(win: BrowserWindow, b: BrowserBounds): BrowserBounds {
-  const z = win.webContents.getZoomFactor() || 1
+export function scaleToWindowPixels(b: BrowserBounds, zoom: number): BrowserBounds {
+  const z = zoom || 1
   if (z === 1) return b
   return {
     x: Math.round(b.x * z),
@@ -665,6 +665,10 @@ function toWindowPixels(win: BrowserWindow, b: BrowserBounds): BrowserBounds {
     width: Math.round(b.width * z),
     height: Math.round(b.height * z)
   }
+}
+
+function toWindowPixels(win: BrowserWindow, b: BrowserBounds): BrowserBounds {
+  return scaleToWindowPixels(b, win.webContents.getZoomFactor())
 }
 
 export function releaseFocusGuard(): void {
