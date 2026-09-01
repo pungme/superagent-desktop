@@ -10,7 +10,13 @@ import {
   useDroppable,
   useDndContext
 } from '@dnd-kit/core'
-import { useStore, normalizeCwd, isPendingBranch, WorkspaceStatus } from '../state'
+import {
+  useStore,
+  normalizeCwd,
+  isPendingBranch,
+  movedSinceSeen,
+  WorkspaceStatus
+} from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
@@ -284,7 +290,12 @@ function BranchRow({
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const running = useStore((st) => Boolean(chat && st.busy[chat.id]?.generating))
-  const unread = useStore((st) => Boolean(chat && st.unread[chat.id]))
+  // Either the flag set when a turn finished under your nose, or the durable
+  // one: it has moved since you last had it open. The first covers the project
+  // you are in; the second covers everything else, and both survive nothing
+  // being mounted.
+  const unread = useStore((st) => Boolean(chat && st.unread[chat.id])) ||
+    Boolean(chat && movedSinceSeen(chat))
   const label = chat?.title ?? (chat ? 'New chat' : '')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(label)
@@ -376,7 +387,7 @@ function ChatRow({
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const removeChat = useStore((s) => s.removeChat)
-  const unread = useStore((st) => Boolean(st.unread[chat.id]))
+  const unread = useStore((st) => Boolean(st.unread[chat.id])) || movedSinceSeen(chat)
   // The spinner means "this conversation's turn is running", per chat, on screen
   // or not. Deliberately NOT keyed on background commands: a lingering `xcodebuild`
   // shows as its own pill, and letting it spin the sidebar made a finished chat
@@ -576,7 +587,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    */
   // A boolean selector, not the whole unread map — subscribing to the map made
   // every project row re-render on any chat's read/unread flip anywhere.
-  const unreadHere = useStore((s) => (s.chats[ws.id] ?? []).some((c) => Boolean(s.unread[c.id])))
+  const unreadHere = useStore((s) =>
+    (s.chats[ws.id] ?? []).some((c) => Boolean(s.unread[c.id]) || movedSinceSeen(c))
+  )
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   /**
    * The project row is the folder's own conversation, so it highlights only
@@ -1192,7 +1205,9 @@ function ActivityList(): React.JSX.Element {
               selectChat(c.workspaceId, c.id)
             }}
           >
-            <span className={`activity-dot ${unread[c.id] ? 'unread' : ''}`} />
+            <span
+              className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`}
+            />
             <span className="activity-body">
               <span className="activity-top">
                 <span className="activity-title">{c.title || 'New chat'}</span>

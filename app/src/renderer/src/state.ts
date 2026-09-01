@@ -130,6 +130,66 @@ export function branchSlug(text: string): string {
 }
 
 /** A chat that has not been given a branch yet — it has sent nothing. */
+/**
+ * When you last had a conversation open, per chat.
+ *
+ * The in-memory `unread` flag only ever covered a narrow case: it is set by the
+ * chat component noticing a turn finish while you were elsewhere, so it needs
+ * that component mounted — which it is only for the project you are in — and it
+ * is gone the moment the app quits. A conversation that moved in another
+ * project, or overnight, left no mark at all.
+ *
+ * So the mark is also kept here, against the conversation's own updatedAt: it
+ * survives a restart, it covers every project, and it is the same rule the
+ * phone uses.
+ */
+const SEEN_KEY = 'cove.chatSeen'
+
+function readSeen(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') as Record<string, number>
+  } catch {
+    return {}
+  }
+}
+
+function writeSeen(seen: Record<string, number>): void {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(seen))
+  } catch {
+    /* no storage: unread falls back to the in-memory flag */
+  }
+}
+
+function seenNow(chatId: string): void {
+  const seen = readSeen()
+  seen[chatId] = Date.now()
+  writeSeen(seen)
+}
+
+/**
+ * Anything never seen before is recorded as read where it stands — otherwise
+ * every conversation on the machine lights up the first time this ships.
+ */
+export function noteChatsSeen(chats: { id: string; updatedAt?: number }[]): void {
+  const seen = readSeen()
+  let changed = false
+  for (const c of chats) {
+    if (seen[c.id] === undefined) {
+      seen[c.id] = c.updatedAt ?? Date.now()
+      changed = true
+    }
+  }
+  if (changed) writeSeen(seen)
+}
+
+/** Has this conversation moved since you last had it open? */
+export function movedSinceSeen(chat: { id: string; updatedAt?: number }): boolean {
+  const at = readSeen()[chat.id]
+  if (at === undefined || !chat.updatedAt) return false
+  return chat.updatedAt > at
+}
+
 export function isPendingBranch(chatId: string): boolean {
   try {
     return localStorage.getItem(`pendingBranch:${chatId}`) === '1'
@@ -817,6 +877,7 @@ export const useStore = create<CoveState>((set, get) => ({
     if (pending) return pending
     const run = (async (): Promise<Chat[]> => {
       const list = await window.cove.chatList(workspaceId)
+      noteChatsSeen(list)
       // A chat that has its copy is not waiting for one. The phone can cut the
       // branch now, and it clears the flag in main — this clears the window's
       // copy, which is otherwise mirrored straight back and the chat would sit
@@ -1079,13 +1140,17 @@ export const useStore = create<CoveState>((set, get) => ({
 
   markUnread: (chatId) =>
     set((s) => (s.unread[chatId] ? s : { unread: { ...s.unread, [chatId]: true } })),
-  markRead: (chatId) =>
+  markRead: (chatId) => {
+    // Reading it is reading it up to now. Written down, so quitting the app is
+    // not the same as reading everything in it.
+    seenNow(chatId)
     set((s) => {
       if (!s.unread[chatId]) return s
       const next = { ...s.unread }
       delete next[chatId]
       return { unread: next }
-    }),
+    })
+  },
   setBusy: (chatId, state) =>
     set((s) => {
       const prev = s.busy[chatId]
