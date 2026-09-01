@@ -259,6 +259,8 @@ export type LegacyItem =
         images?: string[]
         /** Pictures whose bytes are not here: ask `chat:image` for them. */
         imageCount?: number
+        /** The message this one answers, drawn as a quote chip. */
+        replyTo?: { role: 'user' | 'assistant'; text: string }
       }
     }
   | { kind: 'tool'; tool: { id: string; name: string; detail: string } }
@@ -283,7 +285,8 @@ export function projectLegacyItems(items: LegacyItem[]): WireEventData[] {
           from: 'desktop',
           ...(it.msg.images?.length
             ? { images: it.msg.images.map((u) => ({ mediaType: dataUrlType(u), size: u.length })) }
-            : {})
+            : {}),
+          ...(it.msg.replyTo ? { replyTo: it.msg.replyTo } : {})
         })
       else out.push({ kind: 'assistant', id: it.msg.id, text: it.msg.text ?? '' })
     } else if (it.kind === 'tool' && it.tool) {
@@ -318,7 +321,8 @@ export function toLegacyItems(events: WireEventData[]): LegacyItem[] {
           text: e.text,
           // The bytes went to the agent, not into the log. Say how many there
           // were so the window can fetch the thumbnails and draw them.
-          ...(e.images?.length ? { imageCount: e.images.length } : {})
+          ...(e.images?.length ? { imageCount: e.images.length } : {}),
+          ...(e.replyTo ? { replyTo: e.replyTo } : {})
         }
       })
     else if (e.kind === 'assistant')

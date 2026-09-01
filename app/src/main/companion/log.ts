@@ -255,7 +255,8 @@ export function startCompanionLog(): void {
       raw,
       from,
       localId,
-      owned
+      owned,
+      replyTo
     }: {
       id: string
       chatId?: string
@@ -266,6 +267,7 @@ export function startCompanionLog(): void {
       from: 'desktop' | 'ios'
       localId?: string
       owned?: boolean
+      replyTo?: { role: 'user' | 'assistant'; text: string }
     }) => {
       if (!chatId) return
       setGenerating(chatId, workspaceId, true)
@@ -274,7 +276,8 @@ export function startCompanionLog(): void {
         id: localId ?? `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         text: userDisplayText(text),
         from,
-        ...(images.length ? { images } : {})
+        ...(images.length ? { images } : {}),
+        ...(replyTo ? { replyTo } : {})
       }
       const ev = record(chatId, data)
       // Keep a thumbnail under the id the event actually carries, so a device

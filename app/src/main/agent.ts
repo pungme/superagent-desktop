@@ -391,11 +391,29 @@ function notifyResumeLost(
   if (owner && !owner.isDestroyed()) owner.send(`agent:resume-lost:${meta.id}`)
 }
 
+/**
+ * The quote a reply carries, as the agent is told about it.
+ *
+ * Built here rather than by each caller, so the desktop and the phone say the
+ * same thing to the agent and both record the same clean text beside it. The
+ * blockquote is for the agent; devices draw the quote from `replyTo` on the
+ * event, which is why this never goes into the transcript.
+ */
+export function replyPrefix(reply: { role: 'user' | 'assistant'; text: string }): string {
+  const quoted = reply.text.replace(/\s+/g, ' ').trim().slice(0, 400)
+  return `> Replying to ${reply.role === 'user' ? 'my' : 'your'} earlier message:\n> "${quoted}"\n\n`
+}
+
 export function sendToAgent(
   id: string,
   text: string,
   images: AgentImage[] = [],
-  origin: { from: 'desktop' | 'ios'; localId?: string } = { from: 'desktop' }
+  origin: {
+    from: 'desktop' | 'ios'
+    localId?: string
+    /** WhatsApp-style quote. The agent gets a blockquote; the log gets this. */
+    replyTo?: { role: 'user' | 'assistant'; text: string }
+  } = { from: 'desktop' }
 ): boolean {
   const session = sessions.get(id)
   if (!session || !session.backend.writable) return false
@@ -410,7 +428,8 @@ export function sendToAgent(
     // under the id it is about to mint. They do not go into the log.
     raw: images,
     from: origin.from,
-    localId: origin.localId
+    localId: origin.localId,
+    replyTo: origin.replyTo
   })
   // A prompt from the phone also has to reach the window showing this chat.
   if (origin.from !== 'desktop') {
@@ -421,6 +440,9 @@ export function sendToAgent(
   // conversation, once, ahead of the message. The `user` event above already
   // carries your words alone, so the recap goes to the agent and not into the
   // transcript.
+  // The quote goes to the agent only. `text` above — the words in the log and
+  // on every screen — is what the person typed and nothing else.
+  if (origin.replyTo) text = replyPrefix(origin.replyTo) + text
   text = takeRecap(session.chatId) + text
   let paths: string[] = []
   if (images.length > 0) {
@@ -521,8 +543,15 @@ export function registerAgentIpc(): void {
     resumeLostSessions.delete(id)
     return lost
   })
-  ipcMain.on('agent:send', (_e, id: string, text: string, images?: AgentImage[]) =>
-    sendToAgent(id, text, images ?? [], { from: 'desktop' })
+  ipcMain.on(
+    'agent:send',
+    (
+      _e,
+      id: string,
+      text: string,
+      images?: AgentImage[],
+      replyTo?: { role: 'user' | 'assistant'; text: string }
+    ) => sendToAgent(id, text, images ?? [], { from: 'desktop', replyTo })
   )
   ipcMain.on('agent:interrupt', (_e, id: string) => interruptAgent(id))
   ipcMain.on('agent:stop', (_e, id: string) => stopAgent(id))

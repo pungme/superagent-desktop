@@ -24,6 +24,13 @@
   --hover: rgba(255, 255, 255, 0.07);
   --active: rgba(255, 255, 255, 0.12);
   --group-card: rgba(255, 255, 255, 0.045);
+  /* The selected segment of a segmented control: a chip raised above the
+     --hover track it sits in. Opaque on purpose. The sidebar is macOS vibrancy
+     over a transparent window, so its real colour follows the wallpaper; a
+     translucent chip follows it too and keeps a constant, tiny gap from the
+     track. Solid fixes the text contrast at 5.9:1 whatever is behind the
+     window, and stays lighter than the track across the whole vibrancy range. */
+  --card: #55565f;
   --scrollbar-thumb: rgba(255, 255, 255, 0.16);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
   --shadow: rgba(0, 0, 0, 0.4);
@@ -63,6 +70,7 @@
   --hover: rgba(0, 0, 0, 0.05);
   --active: rgba(0, 0, 0, 0.08);
   --group-card: rgba(0, 0, 0, 0.04);
+  --card: #ffffff;
   --scrollbar-thumb: rgba(0, 0, 0, 0.18);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
   --shadow: rgba(0, 0, 0, 0.16);
@@ -222,7 +230,7 @@ button {
   border-radius: 6px;
 }
 .sidebar-mode.on {
-  background: var(--card, #fff);
+  background: var(--card);
   color: var(--text-primary);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }

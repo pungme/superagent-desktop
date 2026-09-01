@@ -113,7 +113,11 @@ const chatSend = z.object({
     .optional(),
   localId: z.string().max(80).optional(),
   model: z.string().max(60).optional(),
-  permissionMode: permissionModes.optional()
+  permissionMode: permissionModes.optional(),
+  /** WhatsApp-style quote: the message this one answers. */
+  replyTo: z
+    .object({ role: z.enum(['user', 'assistant']), text: z.string().max(4_000) })
+    .optional()
 })
 const chatSetAgent = z.object({
   chatId: z.string().min(1),
@@ -953,7 +957,11 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
     const id = startAgent(null, opts)
     session = { id, chatId: chat.id, workspaceId: ws.id, owned: false }
   }
-  const sent = sendToAgent(session.id, p.text, p.images ?? [], { from: 'ios', localId: p.localId })
+  const sent = sendToAgent(session.id, p.text, p.images ?? [], {
+    from: 'ios',
+    localId: p.localId,
+    replyTo: p.replyTo
+  })
   return sent
     ? { ok: true, result: { sessionId: session.id } }
     : fail('unavailable', 'agent not accepting input')

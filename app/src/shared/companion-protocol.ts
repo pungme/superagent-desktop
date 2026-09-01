@@ -40,6 +40,16 @@ export type WireEventData =
       text: string
       images?: { mediaType: string; size: number }[]
       from: 'desktop' | 'ios'
+      /**
+       * The message this one is answering, WhatsApp-style.
+       *
+       * Carried beside the text rather than inside it. The agent is told about
+       * the quote by a blockquote prefixed to what it receives, but that prefix
+       * is for the agent — a device rendering the conversation wants the quote
+       * as its own thing so it can draw a chip, and wants `text` to be only
+       * what the person actually typed.
+       */
+      replyTo?: { role: 'user' | 'assistant'; text: string }
     }
   | { kind: 'assistant'; id: string; text: string }
   | { kind: 'thinking'; id: string; text: string }
@@ -302,6 +312,12 @@ export interface ChatSendParams {
   /** Per-chat overrides; a running agent is restarted (resumed) if they differ. */
   model?: string
   permissionMode?: 'bypassPermissions' | 'acceptEdits' | 'plan' | 'ask'
+  /**
+   * The message this one answers, WhatsApp-style. The Mac turns it into the
+   * blockquote the agent reads and records it beside the text, so every device
+   * showing this conversation can draw the quote.
+   */
+  replyTo?: { role: 'user' | 'assistant'; text: string }
 }
 
 export interface ApprovalAnswerParams {

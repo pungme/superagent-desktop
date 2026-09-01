@@ -1319,6 +1319,8 @@ export function EasyChat({
   const inFlightSendRef = useRef<{
     text: string
     images: { mediaType: string; data: string }[]
+    /** The quote this message answers, so a retry or a wake still carries it. */
+    replyTo?: { role: 'user' | 'assistant'; text: string }
   } | null>(null)
   const retriedEmptyTurnRef = useRef(false)
   // Keep the synchronous turn-in-flight ref in step with the real state: a turn
@@ -1335,9 +1337,13 @@ export function EasyChat({
   const resumeIdRef = useRef<string | null>(initialSessionId ?? null)
   // Messages sent while no process exists (a chat's first message, or anything
   // arriving while reaped); flushed the moment the session is up.
-  const pendingSendsRef = useRef<{ text: string; images: { mediaType: string; data: string }[] }[]>(
-    []
-  )
+  const pendingSendsRef = useRef<
+    {
+      text: string
+      images: { mediaType: string; data: string }[]
+      replyTo?: { role: 'user' | 'assistant'; text: string }
+    }[]
+  >([])
   // True once a resume-based retry has already failed, so the next retry drops the
   // resume and starts fresh (a crashed session can leave a stale lock that keeps
   // failing to resume, which would otherwise loop the Retry button).
@@ -2358,7 +2364,7 @@ export function EasyChat({
         if (emptyTurn && !retriedEmptyTurnRef.current && inFlightSendRef.current && agentId) {
           const again = inFlightSendRef.current
           retriedEmptyTurnRef.current = true
-          window.cove.agentSend(agentId, again.text, again.images)
+          window.cove.agentSend(agentId, again.text, again.images, again.replyTo)
           setGenerating(true)
           setThinking(true)
           return
@@ -2441,12 +2447,13 @@ export function EasyChat({
   const sendToAgent = (
     id: string,
     text: string,
-    images: { mediaType: string; data: string }[]
+    images: { mediaType: string; data: string }[],
+    replyTo?: { role: 'user' | 'assistant'; text: string }
   ): void => {
     // A new turn: forget any stderr reason from a previous failed one, so a
     // fresh error is described by fresh diagnostics, not a stale line.
     lastStderrRef.current = null
-    window.cove.agentSend(id, text, images)
+    window.cove.agentSend(id, text, images, replyTo)
   }
 
   // The agent's lifecycle must not be tied to this callback's identity: the effect
@@ -2505,7 +2512,8 @@ export function EasyChat({
           setReady(true)
           // Anything sent while there was no process goes out now (the first of
           // them carries the recap if this session came up without its memory).
-          for (const q of pendingSendsRef.current.splice(0)) sendToAgent(id, q.text, q.images)
+          for (const q of pendingSendsRef.current.splice(0))
+            sendToAgent(id, q.text, q.images, q.replyTo)
           offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
           // A prompt typed on the paired phone: show it here too, and treat the
           // turn as ours to render (generating/thinking, exactly like a local send).
@@ -2944,10 +2952,10 @@ export function EasyChat({
     setPendingImages([])
     setPendingFiles([])
     if (inputRef.current) inputRef.current.style.height = 'auto'
-    // Quote the replied-to message so the agent knows what you're responding to.
-    let agentText = reply
-      ? `> Replying to ${reply.role === 'user' ? 'my' : 'your'} earlier message:\n> "${reply.text.replace(/\s+/g, ' ').trim().slice(0, 400)}"\n\n${text}`
-      : text
+    // The quote itself is main's job (see replyPrefix in agent.ts), so the phone
+    // and this window say the same thing to the agent and both record the same
+    // clean text beside it. What travels from here is `reply`, not a prefix.
+    let agentText = text
     if (files.length > 0) {
       // Chips travel as explicit file references the agent can read.
       agentText = `${agentText}${agentText ? '\n\n' : ''}Attached files:\n${files
@@ -2979,14 +2987,14 @@ export function EasyChat({
     if (!interjecting) setRunningAgents([])
     const payload = images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
     if (!interjecting) {
-      inFlightSendRef.current = { text: agentText, images: payload }
+      inFlightSendRef.current = { text: agentText, images: payload, replyTo: reply ?? undefined }
       retriedEmptyTurnRef.current = false
     }
     if (id) {
-      sendToAgent(id, agentText, payload)
+      sendToAgent(id, agentText, payload, reply ?? undefined)
     } else {
       // First message of a dormant chat: this is the moment the session starts.
-      pendingSendsRef.current.push({ text: agentText, images: payload })
+      pendingSendsRef.current.push({ text: agentText, images: payload, replyTo: reply ?? undefined })
       wake()
     }
     setThinking(true)
