@@ -24,7 +24,8 @@
     "release": "node scripts/release.mjs",
     "build:linux": "electron-vite build && electron-builder --linux",
     "build:native": "sh native/build.sh && node scripts/fetch-baguette.mjs",
-    "fetch-baguette": "node scripts/fetch-baguette.mjs"
+    "fetch-baguette": "node scripts/fetch-baguette.mjs",
+    "check:assumptions": "node scripts/check-assumptions.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
+import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
@@ -989,39 +990,7 @@ export function isSubAgentCall(name: string, input: Record<string, unknown>): bo
   return typeof input.prompt === 'string' && typeof input.description === 'string'
 }
 
-/**
- * Tool names this build knows how to treat specially. Not a whitelist — an
- * unknown tool is fine and common — but a way to notice when one we DO depend on
- * is renamed out from under us. See the note by the check that uses it.
- */
-const KNOWN_TOOLS = new Set([
-  'Bash',
-  'BashOutput',
-  'KillShell',
-  'Monitor',
-  'Task',
-  'Agent',
-  'TaskCreate',
-  'TaskUpdate',
-  'Edit',
-  'Write',
-  'MultiEdit',
-  'Read',
-  'Glob',
-  'Grep',
-  'WebFetch',
-  'WebSearch',
-  'NotebookEdit',
-  'ExitPlanMode',
-  'ToolSearch',
-  'Skill',
-  'SendMessage',
-  'ListAgents',
-  'TaskOutput',
-  'TaskStop',
-  'Workflow',
-  'Artifact'
-])
+const KNOWN = new Set<string>(KNOWN_TOOLS)
 const warnedTools = new Set<string>()
 
 export function EasyChat({
@@ -2212,7 +2181,7 @@ export function EasyChat({
             //
             // Development only, once per name, with the input's keys — which is what
             // tells you whether the newcomer is a renamed old friend.
-            if (import.meta.env.DEV && !KNOWN_TOOLS.has(name) && !warnedTools.has(name)) {
+            if (import.meta.env.DEV && !KNOWN.has(name) && !warnedTools.has(name)) {
               warnedTools.add(name)
               console.warn(
                 `[tool-canary] unrecognised tool "${name}" (inputs: ${Object.keys(inp).join(', ') || 'none'}). ` +
