@@ -2131,8 +2131,14 @@ export function EasyChat({
                   ...(!persistent && timeoutMs ? { expiresAt: startedAt + timeoutMs + 2000 } : {})
                 }
               ])
-            } else if (name === 'Task') {
+            } else if (name === 'Task' || name === 'Agent') {
               // A sub-agent just started. Its result block clears the pill.
+              //
+              // Both names: the tool was 'Task' and is now 'Agent', and a chat
+              // resumed from an older session still replays the old one. Only
+              // 'Task' was matched, so sub-agents spawned by any current build
+              // never appeared in "Running in background" — the one place that
+              // says work is still going after a turn ends.
               const label =
                 (typeof inp.description === 'string' && inp.description.trim()) ||
                 (typeof inp.subagent_type === 'string' && inp.subagent_type) ||
