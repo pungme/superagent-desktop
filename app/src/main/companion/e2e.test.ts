@@ -113,6 +113,7 @@ vi.mock('../store', () => ({
   // Which agent a conversation runs on. The companion reads it to tell the
   // phone; the harness has one kind.
   getChatProvider: () => 'claude',
+  getChatModel: () => null,
   setChatProvider: () => undefined,
   kvGet: (k: string) => h.kv.get(k),
   kvSet: (k: string, v: string) => h.kv.set(k, v),

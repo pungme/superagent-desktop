@@ -1386,7 +1386,29 @@ export function EasyChat({
   // agent (resuming the conversation) so the new --model / --permission-mode take
   // effect immediately without losing context.
   const model = useStore((s) => s.model)
-  const setModel = useStore((s) => s.setModel)
+  /**
+   * THIS conversation's model. The picker used to write the one global value
+   * that every chat read, so switching the model here switched it under every
+   * other open session — same shape as the provider bug, same cure: the choice
+   * belongs to the conversation, and the global is only the default for chats
+   * that never chose. Null until loaded and null when never chosen; the ref is
+   * what the agent-start callback reads, since it runs outside render.
+   */
+  const [chatModel, setChatModel] = useState<string | null>(null)
+  const chatModelRef = useRef<string | null>(null)
+  useEffect(() => {
+    chatModelRef.current = chatModel
+  }, [chatModel])
+  useEffect(() => {
+    let alive = true
+    void window.cove.chatGetModel?.(chatId).then((m) => {
+      if (alive) setChatModel(m)
+    })
+    return () => {
+      alive = false
+    }
+  }, [chatId])
+  const effectiveModel = chatModel ?? model
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   // Which agent runs THIS chat — its own if it has ever run, else the default.
@@ -2557,7 +2579,7 @@ export function EasyChat({
           browserProject,
           provider,
           permissionMode: useStore.getState().permissionMode,
-          model: useStore.getState().model
+          model: chatModelRef.current ?? useStore.getState().model
         })
         .then((id) => {
           if (disposed) {
@@ -3308,7 +3330,10 @@ export function EasyChat({
     setResetKey((k) => k + 1)
   }
   const pickModel = (value: string): void => {
-    if (value !== model) setModel(value)
+    if (value !== effectiveModel) {
+      setChatModel(value)
+      void window.cove.chatSetModel?.(chatId, value || null)
+    }
     applyRespawn()
   }
   const pickMode = (value: PermissionMode): void => {
@@ -3332,7 +3357,12 @@ export function EasyChat({
     setSessionModels(null)
     // The picked model belongs to the agent being left — "opus[1m]" means
     // nothing to Codex — so the new one starts on its own account default.
-    if (model) setModel('')
+    // This chat's choice, not the app's: clearing the global here was another
+    // way one session reached into all the others.
+    if (effectiveModel) {
+      setChatModel(null)
+      void window.cove.chatSetModel?.(chatId, null)
+    }
     void setChatProvider(workspaceId, chatId, value)
   }
   /**
@@ -3341,7 +3371,7 @@ export function EasyChat({
    * Claude's line-up, which it cannot run.
    */
   const modelOptions = sessionModels ?? (provider === 'claude' ? MODEL_OPTIONS : [MODEL_OPTIONS[0]])
-  const modelLabel = modelOptions.find((m) => m.value === model)?.label ?? 'Default'
+  const modelLabel = modelOptions.find((m) => m.value === effectiveModel)?.label ?? 'Default'
   /**
    * How much of the agent's memory this conversation fills. The window depends on
    * the model running — read from the id it reports at startup.
@@ -3841,7 +3871,7 @@ export function EasyChat({
               {modelOptions.map((o) => (
                 <button
                   key={o.value || 'default'}
-                  className={`easy-control-item ${o.value === model ? 'on' : ''}`}
+                  className={`easy-control-item ${o.value === effectiveModel ? 'on' : ''}`}
                   onClick={() => pickModel(o.value)}
                 >
                   <span className="easy-control-item-label">{o.label}</span>

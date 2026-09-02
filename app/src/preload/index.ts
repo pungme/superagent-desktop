@@ -540,6 +540,9 @@ export interface CoveApi {
     }>
   ) => Promise<void>
   chatLoad: (chatId: string) => Promise<string | null>
+  /** The model THIS conversation runs on; null/'' means the app's default. */
+  chatSetModel: (chatId: string, model: string | null) => Promise<void>
+  chatGetModel: (chatId: string) => Promise<string | null>
   chatSave: (chatId: string, data: string) => void
   chatClear: (chatId: string) => void
 
@@ -866,6 +869,8 @@ const cove: CoveApi = {
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
+  chatSetModel: (chatId, model) => ipcRenderer.invoke('chat:set-model', chatId, model),
+  chatGetModel: (chatId) => ipcRenderer.invoke('chat:get-model', chatId),
   chatSave: (chatId, data) => ipcRenderer.send('chat:save', chatId, data),
   chatClear: (chatId) => ipcRenderer.send('chat:clear', chatId),
 

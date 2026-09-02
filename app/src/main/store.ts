@@ -244,6 +244,16 @@ export function initStore(): void {
     db.exec('ALTER TABLE chats ADD COLUMN provider TEXT')
   }
 
+  // Migration: the model a conversation runs on. The picker used to write one
+  // global value that every chat read, so switching the model in one session
+  // switched it under every other — the same shape as the provider bug above.
+  // NULL means "use the app's default", which keeps old chats behaving as they
+  // did.
+  const chatCols4 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  if (chatCols4.length > 0 && !chatCols4.some((c) => c.name === 'model')) {
+    db.exec('ALTER TABLE chats ADD COLUMN model TEXT')
+  }
+
   // Seed a default group on first run so the sidebar is never empty.
   const count = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
   if (count === 0) {
@@ -543,6 +553,17 @@ export function getChatProvider(chatId: string): AgentProvider {
  * backend that issued it, so writing one without the other leaves a chat that
  * tries to resume a Codex thread with `claude --resume`.
  */
+/** The model this conversation runs on; null means the app's default. */
+export function getChatModel(chatId: string): string | null {
+  const row = db.prepare('SELECT model FROM chats WHERE id = ?').get(chatId) as
+    { model: string | null } | undefined
+  return row?.model ?? null
+}
+
+export function setChatModel(chatId: string, model: string | null): void {
+  db.prepare('UPDATE chats SET model = ? WHERE id = ?').run(model || null, chatId)
+}
+
 export function setChatProvider(chatId: string, provider: AgentProvider): void {
   db.prepare('UPDATE chats SET provider = ? WHERE id = ?').run(provider, chatId)
 }
@@ -1807,6 +1828,10 @@ function registerStoreIpcTail(): void {
     }
   )
 
+  ipcMain.handle('chat:set-model', (_e, chatId: string, model: string | null) => {
+    setChatModel(chatId, model)
+  })
+  ipcMain.handle('chat:get-model', (_e, chatId: string) => getChatModel(chatId))
   ipcMain.handle('chat:load', (_e, chatId: string) => {
     const row = db.prepare('SELECT data FROM chats WHERE id = ?').get(chatId) as
       { data: string } | undefined

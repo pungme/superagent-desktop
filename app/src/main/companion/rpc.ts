@@ -32,7 +32,8 @@ import {
   ensureDesktopWorkspace,
   DESKTOP_WORKSPACE_ID,
   TABS_GROUP,
-  setChatCwd
+  setChatCwd,
+  getChatModel
 } from '../store'
 import { modelBelongsTo, modeBelongsTo, toProvider } from '../../shared/agent-provider'
 import { createHash } from 'crypto'
@@ -950,8 +951,11 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
       permissionMode: modeBelongsTo(p.permissionMode, provider)
         ? (p.permissionMode ?? permissionModeSetting())
         : permissionModeSetting(),
+      // Explicit choice on the message, else the conversation's own model, else
+      // the app default — the same order the Mac's picker resolves in, so a chat
+      // pinned to a model runs on it no matter which device pressed send.
       model: modelBelongsTo(p.model, provider)
-        ? (p.model ?? (kvGet('cove.model') || undefined))
+        ? (p.model ?? getChatModel(chat.id) ?? (kvGet('cove.model') || undefined))
         : undefined
     }
     const id = startAgent(null, opts)
