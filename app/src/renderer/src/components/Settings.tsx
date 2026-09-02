@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useStore } from '../state'
+import { useStore, ACCENTS } from '../state'
 import { PhoneSettings } from './PhoneSettings'
 import {
   AGENT_PROVIDERS,
@@ -158,6 +158,8 @@ function Toggle({
 
 export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const theme = useStore((s) => s.theme)
+  const accent = useStore((s) => s.accent)
+  const setAccent = useStore((s) => s.setAccent)
   const setTheme = useStore((s) => s.setTheme)
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
@@ -282,6 +284,20 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                     >
                       {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto'}
                     </button>
+                  ))}
+                </div>
+              </Row>
+              <Row title="Accent" desc="The colour on your messages, and on whatever is selected.">
+                <div className="accent-swatches">
+                  {ACCENTS.map((a) => (
+                    <button
+                      key={a}
+                      className={`accent-swatch accent-${a} ${accent === a ? 'active' : ''}`}
+                      onClick={() => setAccent(a)}
+                      title={a === 'default' ? 'Default' : a[0].toUpperCase() + a.slice(1)}
+                      aria-label={a === 'default' ? 'Default accent' : `${a} accent`}
+                      aria-pressed={accent === a}
+                    />
                   ))}
                 </div>
               </Row>

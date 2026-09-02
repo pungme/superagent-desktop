@@ -486,6 +486,8 @@ interface CoveState {
   theme: 'system' | 'light' | 'dark'
   setTheme: (t: 'system' | 'light' | 'dark') => void
   applyTheme: () => void
+  accent: Accent
+  setAccent: (a: Accent) => void
 
   addGroup: () => Promise<void>
   renameGroup: (id: string, name: string) => Promise<void>
@@ -513,6 +515,20 @@ interface CoveState {
 // StrictMode's double-invoked mount effect fires two loads at once; both see an
 // empty project and each creates a default chat, so a new project gets two.
 const chatLoadInflight = new Map<string, Promise<Chat[]>>()
+
+/**
+ * The accent is the only colour the app insists on — it marks what you sent,
+ * what is selected, what is live — so it is the one worth offering to change.
+ * 'default' means the monochrome accent the stylesheet already defines, which
+ * is why it removes the attribute rather than setting one.
+ */
+export const ACCENTS = ['default', 'pink', 'violet', 'blue', 'teal', 'green', 'amber'] as const
+export type Accent = (typeof ACCENTS)[number]
+
+export function applyAccent(a: Accent): void {
+  if (a === 'default') document.documentElement.removeAttribute('data-accent')
+  else document.documentElement.setAttribute('data-accent', a)
+}
 
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
@@ -603,6 +619,7 @@ export const useStore = create<CoveState>((set, get) => ({
   updateProgress: null,
   updateError: null,
   theme: (localStorage.getItem('cove.theme') as 'system' | 'light' | 'dark') || 'system',
+  accent: (localStorage.getItem('cove.accent') as Accent) || 'default',
   provider: toProvider(localStorage.getItem('cove.provider')),
   setProvider: (p) => {
     localStorage.setItem('cove.provider', p)
@@ -904,6 +921,11 @@ export const useStore = create<CoveState>((set, get) => ({
     })
   },
 
+  setAccent: (a) => {
+    localStorage.setItem('cove.accent', a)
+    set({ accent: a })
+    applyAccent(a)
+  },
   setTheme: (t) => {
     localStorage.setItem('cove.theme', t)
     set({ theme: t })

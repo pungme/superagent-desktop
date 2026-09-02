@@ -54,6 +54,52 @@
 }
 
 /* Light theme — premium, airy, Apple-flavored */
+/*
+ * Accent colours.
+ *
+ * The app is monochrome by default and that is deliberate — the accent is the
+ * one thing on screen that is allowed to be loud, so it marks what you sent,
+ * what is selected, what is live. Colouring it is a preference, not a redesign:
+ * these override three variables and nothing else, so a chosen colour reaches
+ * exactly the places the default accent already reached.
+ *
+ * Each is a mid-saturation tone that holds up on both the near-black and the
+ * near-white background, which is why there is one definition rather than one
+ * per theme. --accent-fg is what sits ON the accent (a sent message's text), so
+ * it is white for all of them; the default's is the odd one out because its
+ * accent is white.
+ */
+:root[data-accent='pink'] {
+  --accent: #e0568c;
+  --accent-soft: rgba(224, 86, 140, 0.16);
+  --accent-fg: #ffffff;
+}
+:root[data-accent='violet'] {
+  --accent: #7c6cf0;
+  --accent-soft: rgba(124, 108, 240, 0.16);
+  --accent-fg: #ffffff;
+}
+:root[data-accent='blue'] {
+  --accent: #3d82e8;
+  --accent-soft: rgba(61, 130, 232, 0.16);
+  --accent-fg: #ffffff;
+}
+:root[data-accent='teal'] {
+  --accent: #12a594;
+  --accent-soft: rgba(18, 165, 148, 0.16);
+  --accent-fg: #ffffff;
+}
+:root[data-accent='green'] {
+  --accent: #3fa163;
+  --accent-soft: rgba(63, 161, 99, 0.16);
+  --accent-fg: #ffffff;
+}
+:root[data-accent='amber'] {
+  --accent: #d8873a;
+  --accent-soft: rgba(216, 135, 58, 0.16);
+  --accent-fg: #1a1206;
+}
+
 :root[data-theme='light'] {
   --bg-content: #ffffff;
   --sim-bg: #e6e6ec;
@@ -10554,3 +10600,37 @@ button {
   margin-top: 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* Accent picker: the colours themselves are the control, so the swatch is the
+   colour and the ring is the selection. The default swatch shows the accent it
+   would apply, which in a monochrome theme is the theme's own foreground. */
+.accent-swatches {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.accent-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.accent-swatch:hover {
+  transform: scale(1.12);
+}
+.accent-swatch.active {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px currentColor;
+}
+.accent-swatch.accent-default {
+  background: var(--text-primary);
+  color: var(--text-primary);
+}
+.accent-swatch.accent-pink { background: #e0568c; color: #e0568c; }
+.accent-swatch.accent-violet { background: #7c6cf0; color: #7c6cf0; }
+.accent-swatch.accent-blue { background: #3d82e8; color: #3d82e8; }
+.accent-swatch.accent-teal { background: #12a594; color: #12a594; }
+.accent-swatch.accent-green { background: #3fa163; color: #3fa163; }
+.accent-swatch.accent-amber { background: #d8873a; color: #d8873a; }

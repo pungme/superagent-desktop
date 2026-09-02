@@ -3,7 +3,7 @@ import './assets/main.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { startOverlayGuard } from './overlay-guard'
-import { useStore } from './state'
+import { useStore, applyAccent, type Accent } from './state'
 import App from './App'
 
 /**
@@ -50,6 +50,9 @@ void hydrateStorage().then(() => {
         : 'light'
       : saved
   document.documentElement.setAttribute('data-theme', resolved)
+  // Alongside the theme and for the same reason: applied before the first paint,
+  // so the app never flashes the default accent on the way to the chosen one.
+  applyAccent((localStorage.getItem('cove.accent') as Accent) || 'default')
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
