@@ -969,6 +969,61 @@ const MessageRow = memo(function MessageRow({
   )
 })
 
+/**
+ * Is this tool call starting a sub-agent?
+ *
+ * By shape, not by name. This matched `name === 'Task'` and nothing else; the
+ * tool is called 'Agent' now, so sub-agents stopped being tracked and the one
+ * panel that says work continues after a turn ends went quiet. Nothing failed —
+ * it just silently stopped being true, which is the worst way for this to break
+ * and the reason it survived a release.
+ *
+ * A rename cannot break a shape. `subagent_type` is the parameter that means
+ * "which kind of agent", and no other tool has it; a prompt paired with a short
+ * description is what the older form looked like. Names are still accepted so a
+ * transcript replayed from any version keeps working.
+ */
+export function isSubAgentCall(name: string, input: Record<string, unknown>): boolean {
+  if (name === 'Task' || name === 'Agent') return true
+  if (typeof input.subagent_type === 'string') return true
+  return typeof input.prompt === 'string' && typeof input.description === 'string'
+}
+
+/**
+ * Tool names this build knows how to treat specially. Not a whitelist — an
+ * unknown tool is fine and common — but a way to notice when one we DO depend on
+ * is renamed out from under us. See the note by the check that uses it.
+ */
+const KNOWN_TOOLS = new Set([
+  'Bash',
+  'BashOutput',
+  'KillShell',
+  'Monitor',
+  'Task',
+  'Agent',
+  'TaskCreate',
+  'TaskUpdate',
+  'Edit',
+  'Write',
+  'MultiEdit',
+  'Read',
+  'Glob',
+  'Grep',
+  'WebFetch',
+  'WebSearch',
+  'NotebookEdit',
+  'ExitPlanMode',
+  'ToolSearch',
+  'Skill',
+  'SendMessage',
+  'ListAgents',
+  'TaskOutput',
+  'TaskStop',
+  'Workflow',
+  'Artifact'
+])
+const warnedTools = new Set<string>()
+
 export function EasyChat({
   cwd,
   workspaceId,
@@ -2131,7 +2186,7 @@ export function EasyChat({
                   ...(!persistent && timeoutMs ? { expiresAt: startedAt + timeoutMs + 2000 } : {})
                 }
               ])
-            } else if (name === 'Task' || name === 'Agent') {
+            } else if (isSubAgentCall(name, inp)) {
               // A sub-agent just started. Its result block clears the pill.
               //
               // Both names: the tool was 'Task' and is now 'Agent', and a chat
@@ -2147,6 +2202,22 @@ export function EasyChat({
                 ...prev,
                 { toolUseId: id, label: String(label), startedAt: Date.now() }
               ])
+            }
+            // A tool this build has never seen. Usually nothing — the agent has many
+            // tools and most need no special treatment here. But a tool we DO handle
+            // getting renamed looks exactly like this and nothing else: no error, no
+            // failed call, just a feature quietly ceasing to work. 'Task' became
+            // 'Agent' and sub-agents stopped appearing in "Running in background" for
+            // a whole release because nothing said so.
+            //
+            // Development only, once per name, with the input's keys — which is what
+            // tells you whether the newcomer is a renamed old friend.
+            if (import.meta.env.DEV && !KNOWN_TOOLS.has(name) && !warnedTools.has(name)) {
+              warnedTools.add(name)
+              console.warn(
+                `[tool-canary] unrecognised tool "${name}" (inputs: ${Object.keys(inp).join(', ') || 'none'}). ` +
+                  'If this is a renamed tool this file special-cases, update KNOWN_TOOLS and whatever matched the old name.'
+              )
             }
             const diff = toolDiff(name, id, block.input)
             // A file the agent hands over is the point of the turn, not a step
