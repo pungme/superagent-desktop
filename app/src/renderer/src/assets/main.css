@@ -10634,3 +10634,21 @@ button {
 .accent-swatch.accent-teal { background: #12a594; color: #12a594; }
 .accent-swatch.accent-green { background: #3fa163; color: #3fa163; }
 .accent-swatch.accent-amber { background: #d8873a; color: #d8873a; }
+
+/* Icon swatches echo the icon: the colour, with the white square in it. */
+.icon-swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+}
+.icon-swatch-dot {
+  width: 30%;
+  height: 30%;
+  border-radius: 2.5px;
+  background: #f2f2f4;
+}
+.icon-swatch-photo {
+  background: linear-gradient(135deg, #8e8e93, #48484a);
+  color: #8e8e93;
+}

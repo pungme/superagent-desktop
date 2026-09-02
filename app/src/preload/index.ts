@@ -549,6 +549,8 @@ export interface CoveApi {
   getPathForFile: (file: File) => string
 
   setTheme: (source: 'system' | 'light' | 'dark') => void
+  /** Replace the running app's Dock icon; null restores the shipped one. */
+  setAppIcon: (png: Uint8Array | null) => Promise<boolean>
   onMenu: (cb: (action: string) => void) => () => void
 
   /** Is each agent installed and signed in? `loggedIn` means at least one is ready. */
@@ -872,6 +874,7 @@ const cove: CoveApi = {
   historySearch: (query) => ipcRenderer.invoke('history:search', query),
 
   setTheme: (source) => ipcRenderer.send('theme:set', source),
+  setAppIcon: (png) => ipcRenderer.invoke('app:set-icon', png),
   onMenu: (cb) => {
     const actions = [
       'menu:settings',

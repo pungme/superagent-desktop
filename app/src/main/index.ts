@@ -7,8 +7,7 @@ import {
   nativeTheme,
   ipcMain,
   dialog,
-  session
-} from 'electron'
+  session, nativeImage } from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -301,6 +300,26 @@ app.whenReady().then(async () => {
       detail: 'Keep adds them to the project as one change. Throw away deletes them.'
     })
     return response === 0 ? 'keep' : response === 1 ? 'throw' : 'cancel'
+  })
+
+  /**
+   * Replace the Dock icon of the running app.
+   *
+   * The renderer draws it (see app-icon.ts) and hands over PNG bytes; null puts
+   * the real one back. Only the Dock changes — Finder and Spotlight read the
+   * icon out of the signed bundle, and rewriting that would break the
+   * signature, so a custom icon is a thing you see while the app runs.
+   */
+  ipcMain.handle('app:set-icon', (_e, png: Uint8Array | null) => {
+    if (!app.dock) return false
+    if (!png || png.length === 0) {
+      app.dock.setIcon(nativeImage.createFromPath(join(process.resourcesPath, 'icon.png')))
+      return true
+    }
+    const img = nativeImage.createFromBuffer(Buffer.from(png))
+    if (img.isEmpty()) return false
+    app.dock.setIcon(img)
+    return true
   })
 
   ipcMain.on('chat:menu', (e, chatId: string, workspaceId: string, cwd?: string | null) => {

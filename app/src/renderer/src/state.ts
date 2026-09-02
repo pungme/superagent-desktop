@@ -525,6 +525,45 @@ const chatLoadInflight = new Map<string, Promise<Chat[]>>()
 export const ACCENTS = ['default', 'pink', 'violet', 'blue', 'teal', 'green', 'amber'] as const
 export type Accent = (typeof ACCENTS)[number]
 
+/** The dark of the shipped icon, and the colours offered in its place. */
+export const ICON_COLOURS: Record<Accent, string> = {
+  default: '#212227',
+  pink: '#e0568c',
+  violet: '#7c6cf0',
+  blue: '#3d82e8',
+  teal: '#12a594',
+  green: '#3fa163',
+  amber: '#d8873a'
+}
+
+/**
+ * Put the chosen icon back after a restart.
+ *
+ * A custom photo is kept as a data URL because it has to survive a relaunch and
+ * there is nowhere better for a few hundred KB that belongs to this machine's
+ * preferences. A colour is just the name.
+ */
+export async function applySavedIcon(): Promise<void> {
+  const custom = localStorage.getItem('cove.iconPhoto')
+  const colour = localStorage.getItem('cove.iconColour') as Accent | null
+  const { renderAppIcon } = await import('./app-icon')
+  if (custom) {
+    const img = new Image()
+    img.src = custom
+    await new Promise((r) => {
+      img.onload = r
+      img.onerror = r
+    })
+    const png = await renderAppIcon(img)
+    if (png) void window.cove.setAppIcon?.(png)
+    return
+  }
+  if (colour && colour !== 'default') {
+    const png = await renderAppIcon(ICON_COLOURS[colour])
+    if (png) void window.cove.setAppIcon?.(png)
+  }
+}
+
 export function applyAccent(a: Accent): void {
   if (a === 'default') document.documentElement.removeAttribute('data-accent')
   else document.documentElement.setAttribute('data-accent', a)

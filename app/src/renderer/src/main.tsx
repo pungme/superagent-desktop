@@ -3,7 +3,7 @@ import './assets/main.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { startOverlayGuard } from './overlay-guard'
-import { useStore, applyAccent, type Accent } from './state'
+import { useStore, applyAccent, applySavedIcon, type Accent } from './state'
 import App from './App'
 
 /**
@@ -53,6 +53,8 @@ void hydrateStorage().then(() => {
   // Alongside the theme and for the same reason: applied before the first paint,
   // so the app never flashes the default accent on the way to the chosen one.
   applyAccent((localStorage.getItem('cove.accent') as Accent) || 'default')
+  // The Dock icon is the app's own, per launch — a chosen one has to be put back.
+  void applySavedIcon()
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

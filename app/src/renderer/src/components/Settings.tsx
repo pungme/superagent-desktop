@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useStore, ACCENTS } from '../state'
+import { useEffect, useRef, useState } from 'react'
+import { useStore, ACCENTS, ICON_COLOURS, type Accent } from '../state'
 import { PhoneSettings } from './PhoneSettings'
 import {
   AGENT_PROVIDERS,
@@ -159,6 +159,47 @@ function Toggle({
 export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const theme = useStore((s) => s.theme)
   const accent = useStore((s) => s.accent)
+  const [iconColour, setIconColour] = useState<Accent>(
+    () => (localStorage.getItem('cove.iconColour') as Accent) || 'default'
+  )
+  const [iconPhoto, setIconPhoto] = useState(() => !!localStorage.getItem('cove.iconPhoto'))
+  const iconFileRef = useRef<HTMLInputElement>(null)
+
+  /** A colour replaces the dark of the icon; the white square stays. */
+  const chooseIconColour = async (a: Accent): Promise<void> => {
+    localStorage.removeItem('cove.iconPhoto')
+    localStorage.setItem('cove.iconColour', a)
+    setIconPhoto(false)
+    setIconColour(a)
+    const { renderAppIcon } = await import('../app-icon')
+    // 'default' means the shipped icon, so hand back nothing and let main
+    // restore the real one rather than redrawing an imitation of it.
+    const png = a === 'default' ? null : await renderAppIcon(ICON_COLOURS[a])
+    await window.cove.setAppIcon?.(png)
+  }
+
+  /** The picture goes where the dark was, cropped to cover, white square on top. */
+  const pickIconPhoto = async (file?: File): Promise<void> => {
+    if (!file) return
+    const { renderAppIcon, loadImage } = await import('../app-icon')
+    try {
+      const img = await loadImage(file)
+      const png = await renderAppIcon(img)
+      if (!png) return
+      // Kept as a data URL so it survives a restart; the icon is redrawn from it
+      // at launch rather than the PNG being stored, which stays smaller.
+      const reader = new FileReader()
+      reader.onload = () => {
+        localStorage.setItem('cove.iconPhoto', String(reader.result))
+        localStorage.removeItem('cove.iconColour')
+        setIconPhoto(true)
+      }
+      reader.readAsDataURL(file)
+      await window.cove.setAppIcon?.(png)
+    } catch {
+      // Not an image, or too large to decode — the icon simply does not change.
+    }
+  }
   const setAccent = useStore((s) => s.setAccent)
   const setTheme = useStore((s) => s.setTheme)
   const permissionMode = useStore((s) => s.permissionMode)
@@ -285,6 +326,41 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                       {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto'}
                     </button>
                   ))}
+                </div>
+              </Row>
+              <Row
+                title="App icon"
+                desc="Recolour it, or use your own picture. Changes the Dock icon while the app runs."
+              >
+                <div className="accent-swatches">
+                  {ACCENTS.map((a) => (
+                    <button
+                      key={a}
+                      className={`accent-swatch icon-swatch ${iconColour === a && !iconPhoto ? 'active' : ''}`}
+                      style={{ background: ICON_COLOURS[a], color: ICON_COLOURS[a] }}
+                      onClick={() => void chooseIconColour(a)}
+                      title={a === 'default' ? 'Original' : a[0].toUpperCase() + a.slice(1)}
+                      aria-label={a === 'default' ? 'Original icon' : `${a} icon`}
+                      aria-pressed={iconColour === a && !iconPhoto}
+                    >
+                      <span className="icon-swatch-dot" />
+                    </button>
+                  ))}
+                  <button
+                    className={`accent-swatch icon-swatch icon-swatch-photo ${iconPhoto ? 'active' : ''}`}
+                    onClick={() => iconFileRef.current?.click()}
+                    title="Use a picture"
+                    aria-label="Use your own picture as the icon"
+                  >
+                    <span className="icon-swatch-dot" />
+                  </button>
+                  <input
+                    ref={iconFileRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => void pickIconPhoto(e.target.files?.[0])}
+                  />
                 </div>
               </Row>
               <Row title="Accent" desc="The colour on your messages, and on whatever is selected.">
