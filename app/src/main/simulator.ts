@@ -424,8 +424,39 @@ const watched = new WeakSet<BrowserWindow>()
 let currentUdid: string | null = null
 
 /** The udid to aim simctl at, or 'booted' when we genuinely do not know. */
-export function simTarget(): string {
+export function simTarget(chatId?: string | null): string {
+  // A conversation that has opened a simulator drives THAT one, whatever else
+  // is booted. Without this the target was global: one booted device was
+  // everyone's, and two booted devices was an error for everyone — so a second
+  // conversation could not use a second simulator, and two conversations
+  // sharing one installed over each other without either knowing.
+  //
+  // simByChat was already kept for phone mirroring; it just was not consulted
+  // here.
+  if (chatId) {
+    const mine = simByChat.get(chatId)
+    if (mine) return mine
+  }
   return currentUdid ?? 'booted'
+}
+
+/**
+ * The conversation already driving this device, if it is not the one asking.
+ *
+ * Two agents on one simulator is not forbidden — sometimes it is what you want —
+ * but it should be said out loud rather than discovered when your app is
+ * replaced by someone else's build.
+ */
+export function chatHoldingSimulator(udid: string, exceptChatId?: string | null): string | null {
+  for (const [chatId, id] of simByChat) {
+    if (id === udid && chatId !== exceptChatId) return chatId
+  }
+  return null
+}
+
+/** Every device a conversation currently has, for listing and for cleanup. */
+export function simulatorsByChat(): ReadonlyMap<string, string> {
+  return simByChat
 }
 
 /** True while frames for this device are going to the pane — they can see it. */

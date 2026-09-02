@@ -9,7 +9,8 @@ import {
   isMirroring,
   keepSimulatorHidden,
   sendSimInput,
-  noteSimulatorOpen
+  noteSimulatorOpen,
+  chatHoldingSimulator
 } from './simulator'
 import { withoutStealingFocus } from './browser'
 import { recordFileHandover } from './companion/log'
@@ -37,8 +38,7 @@ import {
   addCard,
   updateCard,
   moveCard,
-  removeCard
-} from './store'
+  removeCard, getChat } from './store'
 import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
 import { gitBranch } from './files'
 import { pushOpenFile } from './companion'
@@ -162,16 +162,27 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const lines: string[] = []
       for (const [runtime, devs] of Object.entries(data.devices)) {
         for (const d of devs) {
-          const watched = d.udid === simTarget() ? '  <-- SHOWN IN THE PANE' : ''
-          lines.push(`${d.name} — ${d.state} — ${d.udid} (${runtime.split('.').pop()})${watched}`)
+          // Who has this device matters now that each conversation can hold its
+          // own: "the pane" was true when there was one target for everybody.
+          const mine = d.udid === simTarget(CHAT_ID) ? '  <-- YOURS' : ''
+          const holder = mine ? null : chatHoldingSimulator(d.udid, CHAT_ID)
+          const taken = holder ? `  <-- in use by "${getChat(holder)?.title || 'another conversation'}"` : ''
+          lines.push(
+            `${d.name} — ${d.state} — ${d.udid} (${runtime.split('.').pop()})${mine}${taken}`
+          )
         }
       }
       // More than one booted device is exactly when `simctl ... booted` picks
       // the wrong one, which put an app on a simulator the user could not see.
-      if (simTarget() !== 'booted') {
+      if (simTarget(CHAT_ID) !== 'booted') {
         lines.push(
           '',
-          `The pane is showing ${simTarget()}. If you run simctl yourself, pass that UDID — NOT the word "booted", which resolves to an arbitrary one when several are running.`
+          `This conversation is driving ${simTarget(CHAT_ID)}. If you run simctl yourself, pass that UDID — NOT the word "booted", which resolves to an arbitrary one when several are running, and other conversations may be driving the others.`
+        )
+      } else {
+        lines.push(
+          '',
+          'This conversation has not chosen a simulator. sim_boot with a UDID binds it to this conversation, so another conversation can use a different one at the same time.'
         )
       }
       return { content: [{ type: 'text', text: lines.join('\n') || 'No simulators available.' }] }
@@ -199,11 +210,25 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         chatId: CHAT_ID,
         udid
       })
+      // Another conversation may already be driving this device. Sharing one is
+      // allowed — sometimes it is the point — but it has to be said, or the
+      // first sign is your app being replaced by someone else's build.
+      const other = chatHoldingSimulator(udid, CHAT_ID)
+      const otherName = other ? getChat(other)?.title || 'another conversation' : null
       // Phones mirror it too, and they cannot see the window's localStorage.
       noteSimulatorOpen(CHAT_ID, udid)
       // A build with a simulator destination opens Apple's window by itself.
       if (isMirroring(udid)) keepSimulatorHidden()
-      return { content: [{ type: 'text', text: `Booted ${udid}.` }] }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: otherName
+              ? `Booted ${udid}. Note: "${otherName}" is also using this simulator — installing or launching here will replace what it is running. Boot a different device (sim_list_devices) if that is not what you want.`
+              : `Booted ${udid}. This conversation now drives that device; other conversations can use their own.`
+          }
+        ]
+      }
     }
   )
 
@@ -216,7 +241,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     },
     async () => {
       const file = `${tmpdir()}/sim-${Date.now()}.png`
-      await simctl(['io', simTarget(), 'screenshot', file])
+      await simctl(['io', simTarget(CHAT_ID), 'screenshot', file])
       const ws = workspaceIdFromPane(PANE_ID)
       // Reveal the pane, the same as reading/driving does — a screenshot means
       // the agent is looking at the device, so the user should be too.
@@ -224,7 +249,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       // If the pane is already mirroring this device (or we just revealed one)
       // the user is looking at it live; opening the still as a file would take
       // over the working surface and leave two views of the same phone.
-      const live = 'udid' in tgt || isMirroring(simTarget())
+      const live = 'udid' in tgt || isMirroring(simTarget(CHAT_ID))
       if (!live) await openFileInApp(ws, file, CHAT_ID)
       return {
         content: [
@@ -248,7 +273,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     },
     async ({ url }) => {
       await inputTarget() // reveal the pane; opening a URL is something to watch
-      await simctl(['openurl', simTarget(), url])
+      await simctl(['openurl', simTarget(CHAT_ID), url])
       return { content: [{ type: 'text', text: `Opened ${url} in the simulator.` }] }
     }
   )
@@ -261,15 +286,15 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { appPath: z.string(), bundleId: z.string() }
     },
     async ({ appPath, bundleId }) => {
-      await simctl(['install', simTarget(), appPath])
-      const out = await simctl(['launch', simTarget(), bundleId])
+      await simctl(['install', simTarget(CHAT_ID), appPath])
+      const out = await simctl(['launch', simTarget(CHAT_ID), bundleId])
       broadcastToWindows('app:open-simulator', {
         workspaceId: workspaceIdFromPane(PANE_ID),
         chatId: CHAT_ID,
-        udid: simTarget()
+        udid: simTarget(CHAT_ID)
       })
-      noteSimulatorOpen(CHAT_ID, simTarget())
-      if (isMirroring(simTarget())) keepSimulatorHidden()
+      noteSimulatorOpen(CHAT_ID, simTarget(CHAT_ID))
+      if (isMirroring(simTarget(CHAT_ID))) keepSimulatorHidden()
       return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
     }
   )
@@ -286,7 +311,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   // need its own screenshot to know the scale.
   const screenSize = new Map<string, { w: number; h: number }>()
 
-  // simTarget() is 'booted' when the pane is not mirroring a specific device.
+  // simTarget(CHAT_ID) is 'booted' when the pane is not mirroring a specific device.
   // simctl accepts that word for a screenshot; baguette needs a real UDID. So
   // input resolves it — to the one booted device, or an error if the choice is
   // ambiguous rather than driving the wrong phone.
@@ -307,7 +332,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   }
 
   const inputTarget = async (): Promise<{ udid: string } | { error: string }> => {
-    const t = simTarget()
+    const t = simTarget(CHAT_ID)
     if (t && t !== 'booted') {
       revealSim(t)
       return { udid: t }
@@ -325,17 +350,17 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       return { error: 'No simulator is booted. Boot one with sim_boot first.' }
     return {
       error:
-        'Several simulators are booted — open the one you mean in the pane (sim_boot) so it is the target.'
+        'Several simulators are booted and this conversation has not chosen one. Call sim_boot with the UDID you want (sim_list_devices shows them) — that binds this conversation to that device, and other conversations keep theirs.'
     }
   }
 
   const grabScreen = async (): Promise<{ buf: Buffer; w: number; h: number }> => {
     const file = `${tmpdir()}/sim-${Date.now()}.png`
-    await simctl(['io', simTarget(), 'screenshot', file])
+    await simctl(['io', simTarget(CHAT_ID), 'screenshot', file])
     try {
       const buf = readFileSync(file)
       const size = nativeImage.createFromPath(file).getSize()
-      screenSize.set(simTarget(), { w: size.width, h: size.height })
+      screenSize.set(simTarget(CHAT_ID), { w: size.width, h: size.height })
       return { buf, w: size.width, h: size.height }
     } finally {
       // A throwaway — the bytes are returned inline. Without this, every screen
@@ -350,7 +375,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   }
 
   const sizeFor = async (): Promise<{ w: number; h: number }> => {
-    const known = screenSize.get(simTarget())
+    const known = screenSize.get(simTarget(CHAT_ID))
     if (known) return known
     const { w, h } = await grabScreen()
     return { w, h }
