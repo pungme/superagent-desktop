@@ -1756,8 +1756,30 @@ function registerStoreIpcTail(): void {
     ).run(id, workspaceId, next, Date.now(), '[]', cwd ?? null)
     return id
   })
-  ipcMain.handle('chat:delete', (_e, id: string) => {
-    db.prepare('DELETE FROM chats WHERE id = ?').run(id)
+  /**
+   * Delete a conversation, and tell everything that was showing it.
+   *
+   * This used to be the DELETE and nothing else: no worktree removed, no phone
+   * told, no other window told. So deleting a chat on the Mac left it on the
+   * phone until something else happened to refresh the list, and left the
+   * chat's worktree and branch on disk. The phone's own delete (chat.delete in
+   * companion/rpc.ts) has done all of this for a while; the Mac's had not
+   * caught up, which is the wrong way round for the device the chat was deleted
+   * on.
+   *
+   * The imports are dynamic to keep this out of the module graph at load time —
+   * companion and files both import this file.
+   */
+  ipcMain.handle('chat:delete', async (_e, id: string) => {
+    const dying = getChat(id)
+    if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
+      const { removeWorktree } = await import('./files')
+      await removeWorktree(dying.cwd.split('/.worktrees/')[0], dying.cwd)
+    }
+    deleteChat(id)
+    broadcastToWindows('projects:changed', {})
+    const { pushChats } = await import('./companion')
+    pushChats()
   })
   ipcMain.handle(
     'chat:update',
