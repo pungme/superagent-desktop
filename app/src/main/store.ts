@@ -1771,11 +1771,11 @@ function registerStoreIpcTail(): void {
    * companion and files both import this file.
    */
   ipcMain.handle('chat:delete', async (_e, id: string) => {
-    const dying = getChat(id)
-    if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
-      const { removeWorktree } = await import('./files')
-      await removeWorktree(dying.cwd.split('/.worktrees/')[0], dying.cwd)
-    }
+    // The worktree deliberately outlives the chat. A branch row appears for it
+    // (see 'worktree:menu' in index.ts) so the work can still be landed or
+    // binned — "you could see the work but had no way to land it or bin it" is
+    // the bug that row was added to fix. Removing it here would discard
+    // uncommitted changes with --force, from a menu item that does not warn.
     deleteChat(id)
     broadcastToWindows('projects:changed', {})
     const { pushChats } = await import('./companion')
