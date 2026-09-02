@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
+import { CARD_MIME } from './BoardPanel'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
 import { Choices } from './Choices'
@@ -1595,6 +1596,18 @@ export function EasyChat({
   }
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onDrop = (e: React.DragEvent): void => {
+    // A card dragged out of Todo: put what it says in the composer rather than
+    // sending it. The panel's own "work on this" sends immediately, which is
+    // right when the card is the whole instruction and wrong when you want to
+    // add a sentence to it first.
+    const card = e.dataTransfer?.getData(CARD_MIME)
+    if (card) {
+      e.preventDefault()
+      setDragOver(false)
+      setInput((prev) => (prev.trim() ? `${prev.replace(/\s+$/, '')}\n\n${card}` : card))
+      inputRef.current?.focus()
+      return
+    }
     const files = [...(e.dataTransfer?.files ?? [])]
     if (files.length === 0) return
     e.preventDefault()
@@ -1607,7 +1620,9 @@ export function EasyChat({
   useEffect(() => {
     const onOver = (e: DragEvent): void => {
       const overChat = !!e.target && chatRef.current?.contains(e.target as Node)
-      setDragOver(!!overChat && !!e.dataTransfer?.types.includes('Files'))
+      const carrying =
+        !!e.dataTransfer?.types.includes('Files') || !!e.dataTransfer?.types.includes(CARD_MIME)
+      setDragOver(!!overChat && carrying)
     }
     const clear = (): void => setDragOver(false)
     const onLeave = (e: DragEvent): void => {
@@ -3307,7 +3322,8 @@ export function EasyChat({
       className={`easy-chat ${dragOver ? 'drag-over' : ''} ${narrowComposer ? 'narrow' : ''}`}
       onDragOver={(e) => {
         // Allow the drop (default would block it); the window effect shows the hint.
-        if (e.dataTransfer.types.includes('Files')) e.preventDefault()
+        if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes(CARD_MIME))
+          e.preventDefault()
       }}
       onDrop={onDrop}
     >

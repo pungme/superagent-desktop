@@ -6,6 +6,11 @@ import { Markdown } from './Markdown'
 
 type Status = BoardCard['status']
 
+/** What a card says, as a prompt: the title, and the body where the spec lives. */
+export const cardText = (c: BoardCard): string => (c.body ? `${c.title}\n\n${c.body}` : c.title)
+/** Marks a drag as carrying a board card, so only the composer reacts to it. */
+export const CARD_MIME = 'application/x-superagent-card'
+
 const STAGES: { key: Status; label: string }[] = [
   { key: 'todo', label: 'Todo' },
   { key: 'doing', label: 'Doing' },
@@ -110,7 +115,7 @@ export function BoardPanel({
    * that is where the specification lives.
    */
   const workOn = async (c: BoardCard): Promise<void> => {
-    const text = c.body ? `${c.title}\n\n${c.body}` : c.title
+    const text = cardText(c)
     if (c.status !== 'doing') await window.cove.boardMove(c.id, 'doing', null)
     await refresh()
     window.dispatchEvent(new CustomEvent('cove:work-on', { detail: { workspaceId, text } }))
@@ -180,7 +185,17 @@ export function BoardPanel({
                     dragId === c.id ? 'dragging' : ''
                   } ${overId === c.id && dragId && dragId !== c.id ? 'insert-above' : ''}`}
                   draggable={openId !== c.id}
-                  onDragStart={() => setDragId(c.id)}
+                  onDragStart={(e) => {
+                    setDragId(c.id)
+                    // The same text `workOn` sends, but carried on the drag so
+                    // it can land in the composer instead of going straight to
+                    // the agent — dropping it lets you add to it first, which
+                    // is the difference between handing over a card and asking
+                    // for something slightly different from what it says.
+                    e.dataTransfer.setData(CARD_MIME, cardText(c))
+                    e.dataTransfer.setData('text/plain', cardText(c))
+                    e.dataTransfer.effectAllowed = 'copyMove'
+                  }}
                   onDragEnd={endDrag}
                   onDragOver={(e) => {
                     // Claim it from the stage, or every drop would append.
