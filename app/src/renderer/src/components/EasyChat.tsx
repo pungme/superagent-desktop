@@ -2537,6 +2537,16 @@ export function EasyChat({
           // main only emits agent:exit on a genuine unexpected exit (deliberate
           // stops and the resume→fresh retry are suppressed), so surface it.
           const died = (reason?: string): void => {
+            // Only this chat's CURRENT agent may declare the chat dead.
+            //
+            // The subscription is scoped to one agent id, but everything it
+            // sets is shared by the chat — and the reason arrives after an
+            // async round-trip to main, so a process that exited before the
+            // replacement started can still land after it. That put "This
+            // session ended" over a conversation that was visibly working, and
+            // clearing the banner when the new agent said hello did not help:
+            // the stale exit simply arrived afterwards and raised it again.
+            if (disposed || agentIdRef.current !== id) return
             setReady(false)
             setGenerating(false)
             setThinking(false)
