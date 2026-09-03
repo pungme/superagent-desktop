@@ -63,6 +63,14 @@ set -a; . ./.env; set +a          # APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE
 export GH_TOKEN="$(gh auth token)"   # not in .env; electron-builder needs it to publish
 ```
 
+Node on this machine comes from nvm, which only loads in interactive shells — a
+scripted build can fail instantly with `command not found: npm` and the log will
+be two lines long. Put the node bin dir on PATH explicitly first:
+
+```sh
+export PATH="$HOME/.nvm/versions/node/v22.22.2/bin:$PATH"
+```
+
 `app/.env` is gitignored and **is** populated on the release machine. If a build
 logs `skipped macOS notarization  reason=notarize options were unable to be
 generated`, the credentials did not reach the process — that is not the same as
