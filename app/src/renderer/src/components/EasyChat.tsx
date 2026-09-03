@@ -537,6 +537,22 @@ function parseLoopCmd(raw: string): { intervalMs: number | null; prompt: string 
   return { intervalMs: null, prompt: body }
 }
 
+/**
+ * A no-interval /loop hands the cadence to the model, as the terminal's does.
+ *
+ * The engine below re-fires the moment a turn ends, so left alone it hammers
+ * continuously — a real divergence from the terminal, where omitting the
+ * interval means the model self-paces. The model cannot pace what it does not
+ * control, and the only clock it holds is its own turn: so it is told to spend
+ * the wait INSIDE the turn (a shell sleep as its last act) when the next round
+ * should not start at once. Appended to every round, visibly — the user should
+ * be able to read what their loop was actually asked to do.
+ */
+const SELF_PACE_NOTE =
+  '\n\n(/loop, self-paced: you decide when the next round should run. If it should not start ' +
+  'immediately, run `sleep <seconds>` in the shell as your last action before ending the turn — ' +
+  'the next round begins when your turn ends. Keep rounds brief; the loop runs until stopped.)'
+
 function humanInterval(ms: number): string {
   if (ms % UNIT_MS.d === 0) return `${ms / UNIT_MS.d}d`
   if (ms % UNIT_MS.h === 0) return `${ms / UNIT_MS.h}h`
@@ -2421,7 +2437,7 @@ export function EasyChat({
             setLoop(next)
             if (loopTimerRef.current) clearTimeout(loopTimerRef.current)
             loopTimerRef.current = setTimeout(() => {
-              if (loopRef.current) submitRef.current?.(next.prompt)
+              if (loopRef.current) submitRef.current?.(next.prompt + SELF_PACE_NOTE)
             }, 900)
           }
         }
@@ -3011,11 +3027,12 @@ export function EasyChat({
       sys(
         intervalMs
           ? `🔁 Looping every ${humanInterval(intervalMs)}: “${prompt}”. Stop anytime.`
-          : `🔁 Looping: “${prompt}” — re-runs when each turn finishes. Stop anytime.`
+          : `🔁 Looping: “${prompt}” — self-paced: the agent decides when each next round runs. Stop anytime.`
       )
       setInput('')
-      // Kick off the first iteration now.
-      submit(prompt)
+      // Kick off the first iteration now. A self-paced loop carries its pacing
+      // note from round one, so the model knows the wait is its job.
+      submit(intervalMs === null ? prompt + SELF_PACE_NOTE : prompt)
       return
     }
     // Sent while a turn is already running — this is a mid-task interjection.
