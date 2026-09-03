@@ -2474,8 +2474,21 @@ export function EasyChat({
             : `${agentName} ended the turn without a response. Try sending your message again.`
           if (!real && sub === 'error_max_turns')
             note = `${agentName} reached its step limit for this turn. Send “continue” to let it keep going.`
-          else if (!real && sub === 'error_during_execution')
-            note = `${agentName} hit an error partway through this turn. Send “continue” to retry.`
+          else if (!real && sub === 'error_during_execution') {
+            // Codex puts its actual reason in `result` — "stream disconnected",
+            // a context limit, a rate limit — and this note used to discard it
+            // and say "hit an error" for all of them. A user hitting the same
+            // error "a lot" could not say which error, and nor could anyone
+            // helping them, because the only string that answers that was
+            // dropped right here.
+            const said =
+              typeof event.result === 'string' &&
+              event.result.trim() &&
+              event.result !== 'The turn failed.'
+                ? ` — ${event.result.trim().slice(0, 300)}`
+                : ''
+            note = `${agentName} hit an error partway through this turn${said}. Send “continue” to retry.`
+          }
           const errs = event.errors as unknown[] | undefined
           // The CLI's internal diagnostics ([ede_diagnostic] …) mean nothing to
           // the user; only attach error detail for cases where it's actionable,
