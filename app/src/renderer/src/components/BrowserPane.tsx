@@ -138,6 +138,9 @@ const CARD_OMNIBAR_GAP = 10
 // against a floating phone.
 const PANE_RADIUS = 10
 
+/** Per pane, the previewSeq already navigated for — survives remounts. */
+const handledPreviewSeq = new Map<string, number>()
+
 export function BrowserPane({
   paneId,
   workspaceId: workspaceIdProp,
@@ -162,6 +165,15 @@ export function BrowserPane({
    * page you just asked for with the one before it.
    */
   const previewUrlRef = useRef<string | undefined>(previewUrl)
+  /**
+   * Which open-request this pane has already acted on. Module-level because it
+   * must survive a remount: the whole point is telling "the pane came back and
+   * previewUrl is just what it said last time" (leave the page alone) from "the
+   * user clicked a file while the pane was closed" (navigate, whatever the pane
+   * still has loaded — this was the 'clicked a PDF, got the old PDF' bug).
+   */
+  const previewSeq = useStore((s) => s.previewSeq[paneId] ?? 0)
+  const previewSeqRef = useRef(previewSeq)
   // Auto-reload is a per-project preference (the idle-reload logic keys off the
   // workspace), so read/toggle it by workspace, not the per-chat pane id.
   const reloadOnIdle = useStore((s) => s.reloadOnIdle[workspaceId] ?? true)
@@ -797,14 +809,25 @@ export function BrowserPane({
       // the next navigation.
       if (currentUrl) {
         setState((prev) => (prev.url ? prev : { ...prev, url: currentUrl }))
+        // …unless an explicit open request arrived while this pane was down.
+        // Without this, clicking a PDF with the pane closed remounted it, the
+        // old page was "left exactly as it was", and the click did nothing —
+        // the old PDF, not the one you clicked.
+        const seq = previewSeqRef.current
+        if (seq && handledPreviewSeq.get(paneId) !== seq && previewUrlRef.current) {
+          handledPreviewSeq.set(paneId, seq)
+          window.cove.browserNavigate(paneId, previewUrlRef.current)
+        }
         return
       }
       // A URL to load, or the themed "new tab" empty state — but only for browser
       // projects. A code preview with no URL stays blank (as before) so it never
       // renders an out-of-place "type a URL" page floating over the chat.
       const target = previewUrlRef.current ?? initialUrl
-      if (target) window.cove.browserNavigate(paneId, target)
-      else if (!closable) window.cove.browserShowEmpty(paneId)
+      if (target) {
+        if (previewSeqRef.current) handledPreviewSeq.set(paneId, previewSeqRef.current)
+        window.cove.browserNavigate(paneId, target)
+      } else if (!closable) window.cove.browserShowEmpty(paneId)
     })
 
     const host = hostRef.current
@@ -892,11 +915,18 @@ export function BrowserPane({
       previewNavReady.current = true
       return
     }
-    if (previewUrl) window.cove.browserNavigate(paneId, previewUrl)
-  }, [paneId, previewUrl])
+    if (previewUrl) {
+      if (previewSeq) handledPreviewSeq.set(paneId, previewSeq)
+      window.cove.browserNavigate(paneId, previewUrl)
+    }
+    // previewSeq is a dependency so clicking the SAME file again still
+    // navigates — "already showing that URL" is not the same as showing it,
+    // if manual browsing has since moved the page.
+  }, [paneId, previewUrl, previewSeq])
 
   useEffect(() => {
     previewUrlRef.current = previewUrl
+    previewSeqRef.current = previewSeq
   })
 
   // Mirror the real page URL into the bar — but only on an actual URL change and

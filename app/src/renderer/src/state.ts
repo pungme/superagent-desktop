@@ -340,6 +340,13 @@ interface CoveState {
   startHookListener: () => void
 
   previewUrls: Record<string, string>
+  /**
+   * Bumped by openUrl for each explicit "show me this" request. The pane keeps
+   * its last page when merely re-shown; this is how it tells a fresh request
+   * (which must navigate, even on mount) from a leftover previewUrl (which
+   * must not).
+   */
+  previewSeq: Record<string, number>
   reloadOnIdle: Record<string, boolean>
   /** Set when a turn edited files, so idle-reload only fires when the page could
       have actually changed — asking a question no longer reloads the preview. */
@@ -642,6 +649,7 @@ export const useStore = create<CoveState>((set, get) => ({
   exitOverlay: () => set((s) => ({ overlayCount: Math.max(0, s.overlayCount - 1) })),
   hooksEnabled: false,
   previewUrls: {},
+  previewSeq: {},
   reloadOnIdle: {},
   previewDirty: {},
   toast: null,
@@ -842,6 +850,7 @@ export const useStore = create<CoveState>((set, get) => ({
         browserOpen,
         coldStart: false,
         previewUrls: { ...s.previewUrls, [view]: `http://localhost:${port}` },
+        previewSeq: { ...s.previewSeq, [view]: (s.previewSeq[view] ?? 0) + 1 },
         toast: null
       }
     })
@@ -866,6 +875,7 @@ export const useStore = create<CoveState>((set, get) => ({
         coldStart: false,
         openFile: { ...s.openFile, [key]: null },
         previewUrls: { ...s.previewUrls, [view]: url },
+        previewSeq: { ...s.previewSeq, [view]: (s.previewSeq[view] ?? 0) + 1 },
         toast: null
       }
     })
