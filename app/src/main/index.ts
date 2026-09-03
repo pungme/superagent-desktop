@@ -19,7 +19,8 @@ import {
   returnFocusToUser,
   noteUserLeftApp,
   attachPanesOnReturn,
-  watchWindowGeometry
+  watchWindowGeometry,
+  allowUserFocus
 } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
@@ -139,7 +140,17 @@ function createWindow(): BrowserWindow {
     }
   })
   mainWindow.on('show', () => paneLog('window-show', 'window'))
-  app.on('activate', () => paneLog('app-activate', 'window'))
+  app.on('activate', () => {
+    paneLog('app-activate', 'window')
+    // A Dock click is the user asking for this app BY NAME. The focus bounce
+    // cannot see intent — every focus during agent work looks stolen to it —
+    // so clicking the icon mid-agent-run got the user bounced straight back to
+    // wherever they came from: window flashes, gone, "the app closes when I
+    // click it". macOS distinguishes for us: 'activate' fires for a Dock click
+    // or re-launch, not for a page load raising the window, so this is the one
+    // place intent is legible. Same hatch the notification clicks use.
+    allowUserFocus()
+  })
 
   mainWindow.on('ready-to-show', () => {
     // Tooling relaunches (screenshot/verification loops) must never steal focus
