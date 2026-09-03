@@ -905,6 +905,20 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   wc.on('render-process-gone', (_e, details) => {
     paneLog('render-process-gone', id, details.reason)
     if (!window.isDestroyed()) window.webContents.send(`browser:crashed:${id}`)
+    // Bring the page back. A crashed renderer used to leave the pane dead until
+    // the user toggled the preview or restarted the app — "cannot go to any
+    // website anymore", because every navigation targeted the corpse. Electron
+    // can reload a crashed WebContents in place; a moment's delay lets the
+    // crash settle first. 'clean-exit' and 'killed' are deliberate teardowns,
+    // not crashes, and reloading those would fight whatever killed them.
+    if (details.reason !== 'clean-exit' && details.reason !== 'killed') {
+      setTimeout(() => {
+        if (!wc.isDestroyed()) {
+          paneLog('pane-recovered', id, details.reason)
+          wc.reload()
+        }
+      }, 400)
+    }
   })
   // A failed main-frame load used to leave the pane blank with no other trace —
   // the prime suspect for "agent opened a page and it's empty". Log it, then
