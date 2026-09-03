@@ -52,7 +52,13 @@ void hydrateStorage().then(() => {
   document.documentElement.setAttribute('data-theme', resolved)
   // Alongside the theme and for the same reason: applied before the first paint,
   // so the app never flashes the default accent on the way to the chosen one.
-  applyAccent((localStorage.getItem('cove.accent') as Accent) || 'default')
+  const storedAccent = (localStorage.getItem('cove.accent') as Accent) || 'default'
+  applyAccent(storedAccent)
+  // The store initialised at import time, BEFORE hydration restored anything —
+  // so after a storage wipe it says 'default' while the app is visibly blue,
+  // and the Settings picker rings the wrong swatch. Tell it what hydration
+  // found.
+  useStore.setState({ accent: storedAccent })
   // The Dock icon is the app's own, per launch — a chosen one has to be put back.
   void applySavedIcon()
 
