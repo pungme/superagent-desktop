@@ -4088,6 +4088,12 @@ button {
   inset: 0;
   z-index: 40;
 }
+/* The hover lift's transform makes the row a stacking context, which traps the
+   menu's z-index inside it — without this, the NEXT card paints over the menu's
+   lower options ("Done" was unreachable on any board with a card below). */
+.board-row:has(.board-stage-menu) {
+  z-index: 42;
+}
 .board-stage-menu {
   position: absolute;
   z-index: 41;
