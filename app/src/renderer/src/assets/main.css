@@ -54,6 +54,48 @@
 }
 
 /* Light theme — premium, airy, Apple-flavored */
+:root[data-theme='light'] {
+  --bg-content: #ffffff;
+  --sim-bg: #e6e6ec;
+  --computer-bg: #eceef2;
+  --bg-panel: #f6f6f8;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.13);
+  --text-primary: rgba(0, 0, 0, 0.85);
+  --text-secondary: rgba(0, 0, 0, 0.5);
+  --text-tertiary: rgba(0, 0, 0, 0.36);
+  --accent: #17181d;
+  --accent-soft: rgba(0, 0, 0, 0.07);
+  --accent-fg: #ffffff;
+  --hover: rgba(0, 0, 0, 0.05);
+  --active: rgba(0, 0, 0, 0.08);
+  --group-card: rgba(0, 0, 0, 0.04);
+  --card: #ffffff;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
+  --shadow: rgba(0, 0, 0, 0.16);
+  --assistant-bubble: rgba(0, 0, 0, 0.05);
+  --content-hairline: rgba(0, 0, 0, 0.06);
+
+  /* Syntax colors — GitHub light palette. */
+  --syn-keyword: #cf222e;
+  --syn-string: #0a3069;
+  --syn-number: #0550ae;
+  --syn-comment: #6e7781;
+  --syn-function: #8250df;
+  --syn-builtin: #e36209;
+  --syn-attr: #0550ae;
+  --syn-tag: #116329;
+}
+
+/*
+ * AFTER both theme blocks, deliberately. These selectors tie the themes on
+ * specificity — :root[data-attr] is (0,2,0) either way — so source order is the
+ * whole contest. This block used to sit above the light theme, which then
+ * re-declared --accent and won: a chosen colour applied in dark mode and
+ * silently did not in light. "I clicked blue and nothing happens" was light
+ * mode working exactly as written.
+ */
 /*
  * Accent colours.
  *
@@ -100,39 +142,6 @@
   --accent-fg: #1a1206;
 }
 
-:root[data-theme='light'] {
-  --bg-content: #ffffff;
-  --sim-bg: #e6e6ec;
-  --computer-bg: #eceef2;
-  --bg-panel: #f6f6f8;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.13);
-  --text-primary: rgba(0, 0, 0, 0.85);
-  --text-secondary: rgba(0, 0, 0, 0.5);
-  --text-tertiary: rgba(0, 0, 0, 0.36);
-  --accent: #17181d;
-  --accent-soft: rgba(0, 0, 0, 0.07);
-  --accent-fg: #ffffff;
-  --hover: rgba(0, 0, 0, 0.05);
-  --active: rgba(0, 0, 0, 0.08);
-  --group-card: rgba(0, 0, 0, 0.04);
-  --card: #ffffff;
-  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
-  --shadow: rgba(0, 0, 0, 0.16);
-  --assistant-bubble: rgba(0, 0, 0, 0.05);
-  --content-hairline: rgba(0, 0, 0, 0.06);
-
-  /* Syntax colors — GitHub light palette. */
-  --syn-keyword: #cf222e;
-  --syn-string: #0a3069;
-  --syn-number: #0550ae;
-  --syn-comment: #6e7781;
-  --syn-function: #8250df;
-  --syn-builtin: #e36209;
-  --syn-attr: #0550ae;
-  --syn-tag: #116329;
-}
 
 html,
 body,
