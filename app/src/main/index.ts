@@ -526,6 +526,20 @@ app.whenReady().then(async () => {
   })
 })
 
+/**
+ * An uncaught exception in main must not be a modal crash dialog.
+ *
+ * Electron's default shows "A JavaScript error occurred in the main process"
+ * and leaves the app wounded behind it — the user saw exactly that, from a
+ * destroyed pane view being re-attached on a timer. The specific cause is
+ * guarded now, but the class remains: log it where the pane debugger already
+ * writes, and keep running. Anything that recurs will be in the log with a
+ * stack, which is more than the dialog ever gave anyone.
+ */
+process.on('uncaughtException', (err) => {
+  paneLog('uncaught-exception', 'main', `${err.message}\n${err.stack ?? ''}`)
+})
+
 app.on('before-quit', () => {
   stopCompanion()
   killAllAgents()

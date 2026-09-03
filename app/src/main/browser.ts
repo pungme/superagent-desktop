@@ -993,8 +993,15 @@ export function destroyBrowserPane(id: string): void {
   faviconByPane.delete(id)
   errorUrlByPane.delete(id)
   detachedWhileAway.delete(id)
-  hidePane(pane)
-  pane.view.webContents.close()
+  // The view may already be a corpse (its renderer crashed) — removing and
+  // closing a destroyed view is exactly the throw this function is cleaning
+  // up after, so both steps go best-effort.
+  try {
+    hidePane(pane)
+  } catch {
+    pane.visible = false
+  }
+  if (!pane.view.webContents.isDestroyed()) pane.view.webContents.close()
 }
 
 /**
@@ -1103,6 +1110,17 @@ export function registerBrowserIpc(): void {
       // caller wants this pane on screen, and attaching into an
       // already-focused window can never steal anything, whatever the flags
       // still say.
+      // A crashed page leaves a destroyed view behind a live pane record —
+      // render-process-gone only logs — and attaching a destroyed child view
+      // is an uncaught main-process exception: the "JavaScript error occurred
+      // in the main process" dialog, over a stack ending at attachPaneView.
+      // The bounds reconciler re-sends every 250ms, so one crashed pane threw
+      // that dialog on a timer. A corpse gets buried, not attached.
+      if (pane.view.webContents.isDestroyed()) {
+        paneLog('pane-view-destroyed', id)
+        destroyBrowserPane(id)
+        return
+      }
       if (!pane.window.isFocused() && (focusGuardActive || detachedWhileAway.size > 0)) {
         // Away: keep it out of the window until the user returns.
         detachedWhileAway.add(id)
