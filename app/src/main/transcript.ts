@@ -24,6 +24,8 @@ export class TranscriptProjector {
   private emitted = new Set<string>()
   /** Text streamed so far for the block the CLI is currently writing. */
   private streamed = ''
+  /** Input + cache tokens of the newest request — the live context size. */
+  private liveContext?: number
 
   project(raw: Record<string, unknown>): Projection {
     const type = raw.type as string
@@ -74,7 +76,8 @@ export class TranscriptProjector {
             ok: raw.is_error !== true,
             subtype: typeof raw.subtype === 'string' ? raw.subtype : 'success',
             ...(typeof raw.total_cost_usd === 'number' ? { costUsd: raw.total_cost_usd } : {}),
-            ...(tokens ? { tokens } : {})
+            ...(tokens ? { tokens } : {}),
+            ...(this.liveContext ? { contextTokens: this.liveContext } : {})
           }
         ]
       }
@@ -84,6 +87,16 @@ export class TranscriptProjector {
 
   private assistant(raw: Record<string, unknown>): Projection {
     const msg = raw.message as Record<string, unknown> | undefined
+    // Same reading the desktop gauge takes: this message's prompt size IS the
+    // live context (the result event's usage sums every request in the turn).
+    const usage = msg?.usage as Record<string, number> | undefined
+    if (usage) {
+      const live =
+        (usage.input_tokens ?? 0) +
+        (usage.cache_read_input_tokens ?? 0) +
+        (usage.cache_creation_input_tokens ?? 0)
+      if (live > 0) this.liveContext = live
+    }
     const content = (msg?.content as Record<string, unknown>[] | undefined) ?? []
     const msgId = (msg?.id as string | undefined) ?? `m-${Date.now()}`
     const isApiError = msg?.isApiErrorMessage === true

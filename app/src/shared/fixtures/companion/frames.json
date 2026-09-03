@@ -236,7 +236,8 @@
         "ok": true,
         "subtype": "success",
         "costUsd": 0.12,
-        "tokens": 15
+        "tokens": 15,
+        "contextTokens": 51200
       }
     },
     {

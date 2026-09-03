@@ -56,7 +56,20 @@ export type WireEventData =
   | { kind: 'tool'; id: string; name: string; detail: string; task?: TaskInfo }
   | { kind: 'tool_result'; toolId: string; ok: boolean; summary: string }
   | { kind: 'diff'; id: string; file: string; hunks: DiffHunk[] }
-  | { kind: 'turn_end'; ok: boolean; subtype: string; costUsd?: number; tokens?: number }
+  | {
+      kind: 'turn_end'
+      ok: boolean
+      subtype: string
+      costUsd?: number
+      tokens?: number
+      /**
+       * The live context when the turn ended: input + cache tokens of the last
+       * request, i.e. what the next prompt will carry. `tokens` sums the whole
+       * turn and can exceed the window several times over on a tool-heavy
+       * turn; this is the number a context meter wants.
+       */
+      contextTokens?: number
+    }
   | { kind: 'session'; claudeSessionId: string; model?: string; commands?: string[] }
   | { kind: 'notice'; text: string }
   /**
