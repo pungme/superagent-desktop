@@ -4046,6 +4046,12 @@ button {
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
+/* The originating repo's name, on a card a root project's board pulled in
+   from a repo nested inside it — visually distinct from a free-form tag. */
+.board-tag-repo {
+  background: color-mix(in srgb, var(--text-secondary) 16%, transparent);
+  color: var(--text-secondary);
+}
 .board-tag-x {
   border: 0;
   background: none;

@@ -152,6 +152,9 @@ export interface BoardCard {
   position: number
   createdAt: number
   updatedAt: number
+  /** Set only when this card is showing on a root project's board but actually
+   *  belongs to a repo nested inside it — the name of that repo. */
+  repo?: string
 }
 
 export interface CalendarEvent {

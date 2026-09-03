@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { insertIndex, normalizeStatus, positionBetween } from './store'
+import { insertIndex, isNestedPath, normalizeStatus, positionBetween } from './store'
 
 describe('normalizeStatus', () => {
   it('accepts the four stages as written', () => {
@@ -37,6 +37,35 @@ describe('normalizeStatus', () => {
     expect(normalizeStatus(undefined)).toBe('todo')
     expect(normalizeStatus(null)).toBe('todo')
     expect(normalizeStatus(42)).toBe('todo')
+  })
+})
+
+describe('isNestedPath', () => {
+  it('is true for a repo opened inside a root that is already open', () => {
+    expect(isNestedPath('/Users/x/proj/sub', '/Users/x/proj')).toBe(true)
+    expect(isNestedPath('/Users/x/proj/a/b', '/Users/x/proj')).toBe(true)
+  })
+
+  it('is false for a sibling folder that merely shares a name prefix', () => {
+    // A naive startsWith('/Users/x/proj') would wrongly match '/Users/x/proj-2'.
+    expect(isNestedPath('/Users/x/proj-2', '/Users/x/proj')).toBe(false)
+    expect(isNestedPath('/Users/x/projects', '/Users/x/proj')).toBe(false)
+  })
+
+  it('is false for the same path', () => {
+    expect(isNestedPath('/Users/x/proj', '/Users/x/proj')).toBe(false)
+  })
+
+  it('is false the other way around: a root is not nested in its own child', () => {
+    expect(isNestedPath('/Users/x/proj', '/Users/x/proj/sub')).toBe(false)
+  })
+
+  it('is false for unrelated paths', () => {
+    expect(isNestedPath('/Users/x/other', '/Users/x/proj')).toBe(false)
+  })
+
+  it('tolerates a root path already carrying a trailing separator', () => {
+    expect(isNestedPath('/Users/x/proj/sub', '/Users/x/proj/')).toBe(true)
   })
 })
 

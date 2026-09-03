@@ -1,5 +1,5 @@
 import { app, ipcMain } from 'electron'
-import { join } from 'path'
+import { join, sep } from 'path'
 import {
   mkdirSync,
   writeFileSync,
@@ -1175,6 +1175,9 @@ export interface Card {
   position: number
   createdAt: number
   updatedAt: number
+  /** Name of the repo this card actually belongs to, set only when it's
+   *  reaching a root project's board from a repo nested inside it. */
+  repo?: string
 }
 
 /** Anything unrecognised lands in Todo rather than vanishing from the list. */
@@ -1232,6 +1235,19 @@ export function insertIndex(column: number[], before: number | undefined): numbe
   return at === -1 ? column.length : at
 }
 
+/**
+ * Whether `childPath` sits inside `rootPath` — opening `~/proj/sub` after
+ * `~/proj` is the case a root project's board aggregates.
+ *
+ * A plain `startsWith` would also match `~/proj-2` against root `~/proj`, so
+ * the comparison is anchored on a full path segment.
+ */
+export function isNestedPath(childPath: string, rootPath: string): boolean {
+  if (!childPath || !rootPath || childPath === rootPath) return false
+  const prefix = rootPath.endsWith(sep) ? rootPath : rootPath + sep
+  return childPath.startsWith(prefix)
+}
+
 /** SQLite has no arrays, so images/tags ride as JSON text and are parsed here. */
 function hydrate(row: unknown): Card {
   const r = row as Card & { images: string | string[]; tags?: string | string[] }
@@ -1245,12 +1261,40 @@ function hydrate(row: unknown): Card {
   return { ...r, images: parseArr(r.images), tags: parseArr(r.tags) }
 }
 
-export function listCards(workspaceId: string): Card[] {
+function cardsForWorkspace(workspaceId: string): Card[] {
   return (
     db
       .prepare('SELECT * FROM cards WHERE workspaceId = ? ORDER BY position ASC, createdAt ASC')
       .all(workspaceId) as unknown[]
   ).map(hydrate)
+}
+
+/** Workspaces whose folder lives inside `rootPath` — the repos a root project contains. */
+function nestedWorkspaces(rootPath: string): Workspace[] {
+  return (db.prepare('SELECT * FROM workspaces').all() as Workspace[]).filter((w) =>
+    isNestedPath(w.path, rootPath)
+  )
+}
+
+/**
+ * A project's board plus, for a root that contains other opened repos, every
+ * card filed against those repos too — read-through, not a migration. Each
+ * repo keeps owning and showing its own cards; the root just also shows them,
+ * tagged with which repo they came from, so nothing an agent filed while
+ * working in a subrepo goes missing from the root's view.
+ */
+export function listCards(workspaceId: string): Card[] {
+  const own = cardsForWorkspace(workspaceId)
+  const root = getWorkspace(workspaceId)
+  if (!root?.path) return own
+  const nested = nestedWorkspaces(root.path)
+  if (nested.length === 0) return own
+  const fromNested = nested.flatMap((w) =>
+    cardsForWorkspace(w.id).map((c) => ({ ...c, repo: w.name }))
+  )
+  return [...own, ...fromNested].sort(
+    (a, b) => a.position - b.position || a.createdAt - b.createdAt
+  )
 }
 
 /** Trim, drop blanks, cap length and count, de-dupe — a tag list stays sane. */
@@ -1513,9 +1557,18 @@ export function registerStoreIpc(): void {
   ipcMain.handle('store:tree', () => getTree())
 
   // Every writer announces itself, so a board open in any window redraws no
-  // matter who moved the card — the agent, this window, or another one.
+  // matter who moved the card — the agent, this window, or another one. A
+  // root project's board aggregates its repos' cards, so a change inside a
+  // repo has to redraw the root's view too, not just the repo's own.
   const announce = (workspaceId: string | undefined): void => {
-    if (workspaceId) broadcastToWindows('board:changed', { workspaceId })
+    if (!workspaceId) return
+    broadcastToWindows('board:changed', { workspaceId })
+    const ws = getWorkspace(workspaceId)
+    if (!ws?.path) return
+    for (const root of db.prepare('SELECT * FROM workspaces').all() as Workspace[]) {
+      if (isNestedPath(ws.path, root.path))
+        broadcastToWindows('board:changed', { workspaceId: root.id })
+    }
   }
   const ownerOf = (id: string): string | undefined =>
     (

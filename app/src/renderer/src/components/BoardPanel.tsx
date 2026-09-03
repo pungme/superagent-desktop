@@ -242,8 +242,16 @@ export function BoardPanel({
                         {c.title}
                       </div>
                     )}
-                    {openId !== c.id && c.tags.length > 0 && (
+                    {openId !== c.id && (c.repo || c.tags.length > 0) && (
                       <div className="board-row-tags">
+                        {c.repo && (
+                          <span
+                            className="board-tag board-tag-repo"
+                            title="Filed on this repo's own board"
+                          >
+                            {c.repo}
+                          </span>
+                        )}
                         {c.tags.map((t) => (
                           <span key={t} className="board-tag">
                             {t}
