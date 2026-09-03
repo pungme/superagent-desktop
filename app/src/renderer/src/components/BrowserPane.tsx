@@ -297,19 +297,56 @@ export function BrowserPane({
   const [snipRect, setSnipRect] = useState<{ x: number; y: number; w: number; h: number } | null>(
     null
   )
+  // Declared above the snip machinery, which reads it.
+  const [twinFrame, setTwinFrame] = useState<{
+    left: number
+    top: number
+    width: number
+    height: number
+  } | null>(null)
   const snipLayerRef = useRef<HTMLDivElement>(null)
+  /**
+   * The phone view's freeze-frame, for a side-by-side snip.
+   *
+   * In "both" mode the phone is a second native view, and a native view draws
+   * above every scrim and crosshair this component can put up — so it either
+   * comes down for the snip or it sits there, live and bright, on top of the
+   * dimmed page. It comes down: photographed (browserShootTwin), replaced by
+   * this still at the same rect, restored when the snip ends by the same
+   * bounds sync that restores the main view. Which is also what makes the
+   * phone SNIPPABLE at all: you drag on whichever picture you want.
+   */
+  const [twinStill, setTwinStill] = useState<string | null>(null)
   useEffect(() => {
     const onStart = (e: Event): void => {
       const d = (e as CustomEvent<{ workspaceId: string; source: string }>).detail
       if (d?.workspaceId === workspaceId && d?.source === 'browser') {
         setSnipRect(null)
         snipStartRef.current = null
+        if (twinFrame) {
+          void window.cove.browserShootTwin?.().then((bytes) => {
+            if (!bytes || !bytes.length) return
+            setTwinStill((prev) => {
+              if (prev) URL.revokeObjectURL(prev)
+              return URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/png' }))
+            })
+            window.cove.browserTwinBounds?.(paneId, null, 1)
+          })
+        }
         setSnipping(true)
       }
     }
     window.addEventListener('cove:start-snip', onStart)
     return () => window.removeEventListener('cove:start-snip', onStart)
-  }, [workspaceId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, paneId, twinFrame])
+  useEffect(() => {
+    if (snipping || !twinStill) return
+    // Snip over: the still has done its job; the bounds sync that follows
+    // paneCovered flipping back puts the live phone view where it was.
+    URL.revokeObjectURL(twinStill)
+    setTwinStill(null)
+  }, [snipping, twinStill])
   useEffect(() => {
     if (!snipping) return
     // The page view is hidden for the snip but keeps keyboard focus unless
@@ -347,34 +384,77 @@ export function BrowserPane({
       h: Math.abs(p.y - s.y)
     })
   }
+  /** Where the crosshair lives: the page alone, or page + phone together. */
+  const snipLayerRect = (() => {
+    if (!viewRect) return null
+    if (!twinStill || !twinFrame) return viewRect
+    const left = Math.min(viewRect.left, twinFrame.left)
+    const top = Math.min(viewRect.top, twinFrame.top)
+    return {
+      left,
+      top,
+      width: Math.max(viewRect.left + viewRect.width, twinFrame.left + twinFrame.width) - left,
+      height: Math.max(viewRect.top + viewRect.height, twinFrame.top + twinFrame.height) - top
+    }
+  })()
+
   const snipUp = (): void => {
     const s = snipStartRef.current
     snipStartRef.current = null
     const rect = snipRect
     const layer = snipLayerRef.current
-    if (!s || !rect || rect.w < 6 || rect.h < 6 || !frozen || !layer) {
+    // Which picture the drag started on decides what is being snipped: the
+    // page, or the phone beside it. Coordinates are layer-relative and the
+    // layer sits at viewRect, so the twin's box is translated into that space.
+    const lr = snipLayerRect
+    const twinBox =
+      twinStill && twinFrame && lr
+        ? { x: twinFrame.left - lr.left, y: twinFrame.top - lr.top, w: twinFrame.width, h: twinFrame.height }
+        : null
+    const mainBox =
+      viewRect && lr
+        ? { x: viewRect.left - lr.left, y: viewRect.top - lr.top, w: viewRect.width, h: viewRect.height }
+        : null
+    const fromTwin =
+      !!twinBox && !!s && s.x >= twinBox.x && s.x <= twinBox.x + twinBox.w && s.y >= twinBox.y && s.y <= twinBox.y + twinBox.h
+    const source = fromTwin ? twinStill : frozen
+    if (!s || !rect || rect.w < 6 || rect.h < 6 || !source || !layer || !mainBox) {
       setSnipping(false)
       return
     }
-    const layerW = layer.clientWidth
-    const layerH = layer.clientHeight
+    // Clamp to the chosen picture and re-origin the selection inside it, so a
+    // drag that strays past the phone's edge crops the phone, not the void.
+    const box = fromTwin ? twinBox! : mainBox
+    const cx = Math.max(rect.x, box.x)
+    const cy = Math.max(rect.y, box.y)
+    const clamped = {
+      x: cx - box.x,
+      y: cy - box.y,
+      w: Math.min(rect.x + rect.w, box.x + box.w) - cx,
+      h: Math.min(rect.y + rect.h, box.y + box.h) - cy
+    }
+    if (clamped.w < 6 || clamped.h < 6) {
+      setSnipping(false)
+      return
+    }
+    const layerW = box.w
+    const layerH = box.h
     const img = new Image()
     img.onload = (): void => {
-      // The still fills the layer (the native view's rect); scale selection →
-      // the still's own pixels.
+      // The still fills its box; scale selection → the still's own pixels.
       const sx = img.naturalWidth / layerW
       const sy = img.naturalHeight / layerH
       const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(rect.w * sx))
-      canvas.height = Math.max(1, Math.round(rect.h * sy))
+      canvas.width = Math.max(1, Math.round(clamped.w * sx))
+      canvas.height = Math.max(1, Math.round(clamped.h * sy))
       const ctx = canvas.getContext('2d')
       if (ctx) {
         ctx.drawImage(
           img,
-          rect.x * sx,
-          rect.y * sy,
-          rect.w * sx,
-          rect.h * sy,
+          clamped.x * sx,
+          clamped.y * sy,
+          clamped.w * sx,
+          clamped.h * sy,
           0,
           0,
           canvas.width,
@@ -387,7 +467,7 @@ export function BrowserPane({
       setSnipping(false)
     }
     img.onerror = (): void => setSnipping(false)
-    img.src = frozen
+    img.src = source
   }
   // Page-coloured DOM backfills for the top corners (desktop mode): the rounded
   // top arcs reveal these instead of the grey card, so the top reads square.
@@ -397,12 +477,6 @@ export function BrowserPane({
     bottom: string
   } | null>(null)
   // Phone card of the side-by-side mode.
-  const [twinFrame, setTwinFrame] = useState<{
-    left: number
-    top: number
-    width: number
-    height: number
-  } | null>(null)
   const [addressInput, setAddressInput] = useState('')
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [suggestIndex, setSuggestIndex] = useState(-1)
@@ -1195,18 +1269,24 @@ export function BrowserPane({
             }}
           />
         )}
-        {snipping && viewRect && (
-          // In-place snip: a crosshair layer sitting exactly over the frozen page
-          // (viewRect), so you drag right on the browser with everything else
-          // dimmed — no separate popup.
+        {snipping && twinStill && twinFrame && (
+          // The phone, photographed: its native view is down for the snip (a
+          // native view would draw over the crosshair), so this stands in at
+          // the same rect — and is what a drag over the phone crops from.
+          <img className="browser-frozen" src={twinStill} alt="" style={twinFrame} />
+        )}
+        {snipping && snipLayerRect && (
+          // In-place snip: a crosshair layer over the frozen page — and over
+          // the phone beside it when there is one, so you drag on whichever
+          // picture you want to snip.
           <div
             className="browser-snip"
             ref={snipLayerRef}
             style={{
-              left: viewRect.left,
-              top: viewRect.top,
-              width: viewRect.width,
-              height: viewRect.height
+              left: snipLayerRect.left,
+              top: snipLayerRect.top,
+              width: snipLayerRect.width,
+              height: snipLayerRect.height
             }}
             onPointerDown={snipDown}
             onPointerMove={snipMove}
