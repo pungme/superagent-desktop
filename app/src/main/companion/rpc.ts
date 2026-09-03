@@ -111,7 +111,7 @@ const chatSend = z.object({
   text: z.string().max(200_000),
   images: z
     .array(z.object({ mediaType: z.string().regex(/^image\//), data: z.string().max(5_000_000) }))
-    .max(6)
+    .max(10)
     .optional(),
   localId: z.string().max(80).optional(),
   model: z.string().max(60).optional(),
