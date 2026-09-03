@@ -37,8 +37,8 @@ import {
 } from '../store'
 import { modelBelongsTo, modeBelongsTo, toProvider } from '../../shared/agent-provider'
 import { createHash } from 'crypto'
-import { homedir } from 'os'
-import { readdirSync, existsSync, openSync, readSync, closeSync } from 'fs'
+import { homedir, tmpdir } from 'os'
+import { readdirSync, existsSync, openSync, readSync, closeSync, writeFileSync, mkdirSync } from 'fs'
 import * as auto from '../automation'
 import {
   getPaneWebContents,
@@ -50,7 +50,7 @@ import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulato
 import { listWorktrees, ensureChatBranch, removeWorktree } from '../files'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
-import { extname, resolve, sep } from 'path'
+import { extname, resolve, sep, join } from 'path'
 import {
   markContextLost,
   startAgent,
@@ -90,6 +90,7 @@ import type {
 } from '../../shared/companion-protocol'
 import { FILE_CHUNK_BYTES, FILE_CHUNK_MAX_BYTES } from '../../shared/companion-protocol'
 import { readThumbnail } from './attachments'
+import { listBackgroundTasks, stopBackgroundTask } from '../files'
 
 /**
  * What the phone may ask the Mac to do. Every method is a thin adapter onto a
@@ -126,6 +127,7 @@ const chatSetAgent = z.object({
 })
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatId = z.object({ chatId: z.string().min(1) })
+const backgroundStop = z.object({ chatId: z.string().min(1), toolUseId: z.string().min(1) })
 // root: the conversation that lives in the project folder, which never cuts a
 // branch. Anything else is a new conversation and gets its own copy on its
 // first message. Older phones send neither, and a phone's "+ New chat" is the
@@ -183,6 +185,13 @@ const fileRead = z.object({
 const chatImage = z.object({
   messageId: z.string().min(1).max(200),
   index: z.number().int().min(0).max(32)
+})
+const chatUpload = z.object({
+  uploadId: z.string().min(1).max(64),
+  name: z.string().min(1).max(200),
+  index: z.number().int().min(0).max(63),
+  chunks: z.number().int().min(1).max(64),
+  data: z.string().max(700_000)
 })
 const fileChunk = z.object({
   workspaceId: z.string().min(1),
@@ -475,6 +484,12 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!abs) return fail('bad-params', 'that path is outside the project')
         return { ok: true, result: readForPhone(abs, p.data.path) }
       }
+      case 'chat.upload': {
+        const p = chatUpload.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const done = takeUploadChunk(p.data)
+        return { ok: true, result: done ? { path: done } : {} }
+      }
       case 'chat.image': {
         const p = chatImage.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
@@ -484,6 +499,17 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           ok: true,
           result: { messageId: p.data.messageId, index: p.data.index, ...found }
         }
+      }
+      case 'background.list': {
+        const p = chatId.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        return { ok: true, result: listBackgroundTasks(p.data.chatId) }
+      }
+      case 'background.stop': {
+        const p = backgroundStop.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!stopBackgroundTask(p.data.chatId, p.data.toolUseId)) return fail('not-found', 'that background process is no longer running')
+        return { ok: true }
       }
       case 'files.chunk': {
         const p = fileChunk.safeParse(params)
@@ -759,6 +785,43 @@ function readForPhone(abs: string, rel: string): WireFileContent {
   }
 }
 
+/**
+ * Files on their way from the phone to the agent, one slice at a time. Held in
+ * memory until the last slice, then written where the agent can read them —
+ * the same tmp home the desktop's own pasted attachments get. Anything a
+ * phone abandons mid-upload ages out rather than accumulating.
+ */
+const pendingUploads = new Map<string, { name: string; at: number; parts: (Buffer | null)[] }>()
+
+function takeUploadChunk(c: {
+  uploadId: string
+  name: string
+  index: number
+  chunks: number
+  data: string
+}): string | null {
+  // Age out anything a phone walked away from.
+  const now = Date.now()
+  for (const [id, u] of pendingUploads) if (now - u.at > 120_000) pendingUploads.delete(id)
+
+  let u = pendingUploads.get(c.uploadId)
+  if (!u) {
+    u = { name: c.name, at: now, parts: new Array(c.chunks).fill(null) }
+    pendingUploads.set(c.uploadId, u)
+  }
+  u.at = now
+  if (c.index < u.parts.length) u.parts[c.index] = Buffer.from(c.data, 'base64')
+  if (u.parts.some((p) => p === null)) return null
+  pendingUploads.delete(c.uploadId)
+  const dir = join(tmpdir(), 'superagent-uploads')
+  mkdirSync(dir, { recursive: true })
+  // The name is the phone's; the directory entry is ours.
+  const safe = c.name.replace(/[\/\\:\0]/g, '_').replace(/\.\.+/g, '_').slice(0, 120) || 'file'
+  const path = join(dir, `${Date.now().toString(36)}-${safe}`)
+  writeFileSync(path, Buffer.concat(u.parts as Buffer[]))
+  return path
+}
+
 /** One slice of a file's bytes, base64. Read at an offset rather than loading
  *  the whole file, so a big PDF costs one chunk of memory, not all of it. */
 function readChunk(abs: string, rel: string, index: number): WireFileChunk | null {
@@ -979,4 +1042,4 @@ function permissionModeSetting(): AgentStartOptions['permissionMode'] {
 }
 
 /** Internals the companion tests reach for; not part of the RPC surface. */
-export const __testing = { readForPhone, readChunk }
+export const __testing = { readForPhone, readChunk, takeUploadChunk }

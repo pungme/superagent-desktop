@@ -300,6 +300,9 @@ export type RpcMethod =
   | 'files.read'
   | 'files.chunk'
   | 'chat.image'
+  | 'chat.upload'
+  | 'background.list'
+  | 'background.stop'
   | 'git.branches'
   | 'worktrees.list'
   | 'git.checkout'
@@ -397,6 +400,27 @@ export interface WireImage {
   index: number
   mediaType: string
   data: string
+}
+
+/**
+ * `chat.upload`: one slice of a file the phone is sending the agent, base64.
+ * The Mac assembles the slices and answers the last one with the absolute
+ * path it wrote — which the phone then hands to the agent as text, the same
+ * way the desktop hands over its own attachments.
+ */
+export interface WireUploadResult {
+  /** Set on the final slice, once the file is whole. */
+  path?: string
+}
+
+export interface WireBackgroundTask {
+  chatId: string
+  toolUseId: string
+  command: string
+  description?: string
+  startedAt: number
+  output?: string
+  manual?: boolean
 }
 
 /** `files.chunk`: one slice of a file's bytes, base64, indexed from 0. */

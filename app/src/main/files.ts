@@ -1,4 +1,4 @@
-import { ipcMain, shell, nativeImage } from 'electron'
+import { ipcMain, shell, nativeImage, BrowserWindow } from 'electron'
 import { execFile, execFileSync } from 'child_process'
 import {
   readdirSync,
@@ -16,6 +16,24 @@ import {
 import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
 import { homedir } from 'os'
 import { setChatCwd, takePendingBranch } from './store'
+
+export interface PublishedBackgroundTask {
+  chatId: string
+  toolUseId: string
+  command: string
+  description?: string
+  startedAt: number
+  output?: string
+  manual?: boolean
+}
+const backgroundTasks = new Map<string, PublishedBackgroundTask[]>()
+export const listBackgroundTasks = (chatId: string): PublishedBackgroundTask[] =>
+  backgroundTasks.get(chatId) ?? []
+export const stopBackgroundTask = (chatId: string, toolUseId: string): boolean => {
+  const found = (backgroundTasks.get(chatId) ?? []).some((t) => t.toolUseId === toolUseId)
+  if (found) BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('bg:stop', { chatId, toolUseId }))
+  return found
+}
 
 /** Lists project files for @-mention autocomplete, skipping heavy/generated dirs. */
 
@@ -567,6 +585,9 @@ export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
 }
 
 export function registerFilesIpc(): void {
+  ipcMain.on('bg:sync', (_e, chatId: string, tasks: Omit<PublishedBackgroundTask, 'chatId'>[]) => {
+    backgroundTasks.set(chatId, tasks.map((task) => ({ ...task, chatId })))
+  })
   // Background shells write their output to a file, and the Bash result says
   // where. Reading it directly means the strip can show what a job is doing
   // live, instead of waiting for the agent to poll it.

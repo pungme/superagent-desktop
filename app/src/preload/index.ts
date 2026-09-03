@@ -355,6 +355,8 @@ export interface CoveApi {
   browserStop: (id: string) => void
   /** Tail a background shell's output file (the Bash result says where it is). */
   bgTail: (path: string, maxBytes?: number) => Promise<string | null>
+  bgSync: (chatId: string, tasks: { toolUseId: string; command: string; description?: string; startedAt: number; output?: string; manual?: boolean }[]) => void
+  onBgStop: (cb: (p: { chatId: string; toolUseId: string }) => void) => () => void
   /** The project's board — the same cards the board_* agent tools write. */
   boardList: (workspaceId: string) => Promise<BoardCard[]>
   boardAdd: (
@@ -781,6 +783,8 @@ const cove: CoveApi = {
   browserStopAutomation: (id) => ipcRenderer.send('browser:stop-automation', id),
   browserStop: (id) => ipcRenderer.send('browser:stop', id),
   bgTail: (path, maxBytes) => ipcRenderer.invoke('bg:tail', path, maxBytes),
+  bgSync: (chatId, tasks) => ipcRenderer.send('bg:sync', chatId, tasks),
+  onBgStop: (cb) => subscribe('bg:stop', (p) => cb(p as { chatId: string; toolUseId: string })),
   boardList: (workspaceId) => ipcRenderer.invoke('board:list', workspaceId),
   boardAdd: (workspaceId, title, opts) => ipcRenderer.invoke('board:add', workspaceId, title, opts),
   boardUpdate: (id, patch) => ipcRenderer.invoke('board:update', id, patch),

@@ -2809,6 +2809,18 @@ export function EasyChat({
     setThinking(true)
   }
 
+  // Main mirrors this small, non-secret status list to paired phones. Stop
+  // requests come back to the same function as the desktop button, so both
+  // surfaces have identical semantics.
+  useEffect(() => {
+    window.cove.bgSync(chatId, bgTasks.map(({ outputPath: _path, expiresAt: _expiry, shellId: _shell, ...task }) => task))
+  }, [chatId, bgTasks])
+  useEffect(() => window.cove.onBgStop((p) => {
+    if (p.chatId !== chatId) return
+    const task = bgTasksRef.current.find((t) => t.toolUseId === p.toolUseId)
+    if (task) stopBgTask(task)
+  }), [chatId])
+
   /**
    * A turn that finished while you were elsewhere leaves something to read.
    *

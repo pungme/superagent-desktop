@@ -68,3 +68,30 @@ describe('files.chunk', () => {
     }
   })
 })
+
+describe('chat.upload', () => {
+  const { takeUploadChunk } = __testing
+  it('assembles slices in any order and hands back a path once whole', () => {
+    const a = Buffer.from('hello ').toString('base64')
+    const b = Buffer.from('world').toString('base64')
+    expect(takeUploadChunk({ uploadId: 'u1', name: 'note.txt', index: 1, chunks: 2, data: b })).toBeNull()
+    const path = takeUploadChunk({ uploadId: 'u1', name: 'note.txt', index: 0, chunks: 2, data: a })
+    expect(path).toBeTruthy()
+    expect(readFileSyncSafe(path!)).toBe('hello world')
+    expect(path).toContain('note.txt')
+  })
+
+  it('never lets a name walk the path', () => {
+    const p = takeUploadChunk({
+      uploadId: 'u2', name: '../../etc/passwd', index: 0, chunks: 1,
+      data: Buffer.from('x').toString('base64')
+    })
+    expect(p).toBeTruthy()
+    expect(p!).not.toContain('..')
+  })
+})
+
+function readFileSyncSafe(p: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('fs').readFileSync(p, 'utf8')
+}
