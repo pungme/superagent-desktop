@@ -53,8 +53,16 @@ export function BoardPanel({
    * did not. A card carries the chat that raised it, so it can say so.
    */
   const busy = useStore((st) => st.busy)
-  const working = (chatId: string | null | undefined): boolean =>
-    !!chatId && !!busy[chatId]?.generating
+  /**
+   * "Working" means the card's conversation is mid-turn AND the card is in
+   * doing. The chat check alone lit every card a long-lived conversation had
+   * ever filed, whenever that conversation did anything at all — four todo
+   * items all claiming "Claude is working on this now" because their filer was
+   * answering an unrelated question. Filing a card is not working on it;
+   * being in doing while your conversation runs is.
+   */
+  const working = (c: { chatId?: string | null; status: string }): boolean =>
+    c.status === 'doing' && !!c.chatId && !!busy[c.chatId]?.generating
   const chatTitle = (id: string | null): string | null =>
     (id && chats?.find((c) => c.id === id)?.title) || null
 
@@ -181,7 +189,7 @@ export function BoardPanel({
               {mine.map((c) => (
                 <article
                   key={c.id}
-                  className={`board-row s-${c.status} ${working(c.chatId) ? 'working' : ''} ${
+                  className={`board-row s-${c.status} ${working(c) ? 'working' : ''} ${
                     dragId === c.id ? 'dragging' : ''
                   } ${overId === c.id && dragId && dragId !== c.id ? 'insert-above' : ''}`}
                   draggable={openId !== c.id}
@@ -213,7 +221,7 @@ export function BoardPanel({
                   <div className="board-row-stage">
                     <button
                       className="board-row-dot"
-                      title={working(c.chatId) ? 'Claude is working on this now' : 'Change stage'}
+                      title={working(c) ? 'Claude is working on this now' : 'Change stage'}
                       onClick={() => setMenuId(menuId === c.id ? null : c.id)}
                     />
                     {menuId === c.id && (
@@ -248,7 +256,7 @@ export function BoardPanel({
                     {openId !== c.id && (
                       <div className="board-row-title" title={c.title}>
                         {c.title}
-                        {working(c.chatId) && (
+                        {working(c) && (
                           <span className="board-row-working" title="Claude is working on this now">
                             working
                           </span>
