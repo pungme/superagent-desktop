@@ -402,6 +402,9 @@ export interface CoveApi {
   simStreamStart: (udid: string, fps?: number) => void
   /** Tell main which device the pane is on, so the agent's tools aim there. */
   simSetCurrent: (udid: string | null) => Promise<boolean>
+  /** The pane telling main what it shows, so the phone can mirror it too. */
+  simNoteOpen: (chatId: string, udid: string) => Promise<boolean>
+  simNoteClosed: (chatId: string) => Promise<boolean>
   simStreamStop: (udid: string) => void
   simInput: (
     udid: string,
@@ -809,6 +812,8 @@ const cove: CoveApi = {
   simShutdown: (udid) => ipcRenderer.invoke('sim:shutdown', udid),
   simStreamStart: (udid, fps) => ipcRenderer.send('sim:stream-start', udid, fps),
   simSetCurrent: (udid) => ipcRenderer.invoke('sim:set-current', udid),
+  simNoteOpen: (chatId, udid) => ipcRenderer.invoke('sim:note-open', chatId, udid),
+  simNoteClosed: (chatId) => ipcRenderer.invoke('sim:note-closed', chatId),
   simStreamStop: (udid) => ipcRenderer.send('sim:stream-stop', udid),
   simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),

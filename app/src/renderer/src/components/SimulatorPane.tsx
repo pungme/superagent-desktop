@@ -55,12 +55,19 @@ function cornerShareOfWidth(width: number, height: number): number {
 export function SimulatorPane({
   visible = true,
   workspaceId,
+  chatId,
   onClose,
   onNothingToShow
 }: {
   visible?: boolean
   /** So the sidebar can say this project has a simulator attached. */
   workspaceId?: string
+  /**
+   * Which conversation this pane belongs to. Main keeps chat→device so the
+   * phone can mirror the same simulator over the chat — the agent's tools
+   * record their own opens, but a pane the USER opened must say so itself.
+   */
+  chatId?: string
   /** Put the pane away. Nothing else could: there was no ✕ here at all. */
   onClose?: () => void
   /**
@@ -378,6 +385,13 @@ export function SimulatorPane({
   useEffect(() => {
     void window.cove.simSetCurrent?.(udid)
   }, [udid])
+
+  // Tell main (and through it, the phone) that this chat is showing this
+  // device. Open only — hiding the pane by switching chats must not tear the
+  // mirror off the phone; a real close goes through onClose in WorkspaceView.
+  useEffect(() => {
+    if (udid && chatId) void window.cove.simNoteOpen?.(chatId, udid)
+  }, [udid, chatId])
 
   // Frames only while this pane is on screen — a background stream would keep
   // shelling out to simctl for a picture nobody is looking at.

@@ -771,9 +771,12 @@ export function WorkspaceView({
                     <SimulatorPane
                       visible={visible}
                       workspaceId={ws.id}
+                      chatId={activeChatId ?? undefined}
                       onClose={() => {
                         localStorage.setItem(`simOpen:${deskKey}`, '0')
                         setSimOpen(false)
+                        // The phone's mirror follows: closed here is closed there.
+                        if (activeChatId) void window.cove.simNoteClosed?.(activeChatId)
                       }}
                       // No simulator of this project's own: forget that it ever
                       // had a pane rather than reopening it on every visit.

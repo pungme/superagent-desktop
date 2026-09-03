@@ -18,7 +18,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('./browser', () => ({ agentIsDriving: () => false }))
 
-const { simTarget, noteSimulatorOpen, noteSimulatorClosed, chatHoldingSimulator } =
+const { simTarget, noteSimulatorOpen, noteSimulatorClosed, noteSimulatorClosedForChat, chatHoldingSimulator } =
   await import('./simulator')
 
 const A = 'chat-a'
@@ -41,6 +41,15 @@ describe('the simulator a conversation drives', () => {
   it('drives the device that conversation opened', () => {
     noteSimulatorOpen(A, IPHONE)
     expect(simTarget(A)).toBe(IPHONE)
+  })
+
+  /** The window's ✕ closes one chat's pane, not every chat showing that device. */
+  it("closing one chat's pane leaves another chat's claim on the same device", () => {
+    noteSimulatorOpen(A, IPHONE)
+    noteSimulatorOpen(B, IPHONE)
+    noteSimulatorClosedForChat(A)
+    expect(simTarget(A)).toBe('booted')
+    expect(simTarget(B)).toBe(IPHONE)
   })
 
   /** The whole point: two conversations, two devices, at the same time. */

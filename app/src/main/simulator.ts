@@ -487,6 +487,17 @@ export function noteSimulatorClosed(udid: string): void {
   }
 }
 
+/**
+ * The window closed a chat's simulator pane. By chat, not by udid — the same
+ * device may be on screen in another conversation, whose mirror must survive.
+ */
+export function noteSimulatorClosedForChat(chatId: string): void {
+  const udid = simByChat.get(chatId)
+  if (!udid) return
+  simByChat.delete(chatId)
+  simBus.emit('changed', { chatId, udid, open: false })
+}
+
 export function openSimulators(): { chatId: string; udid: string }[] {
   return [...simByChat].map(([chatId, udid]) => ({ chatId, udid }))
 }
@@ -781,6 +792,17 @@ async function moveSimulatorWindow(rect: {
 export function registerSimulatorIpc(): void {
   // The pane tells us which device it is on, so the agent's tools can aim at
   // the same one.
+  // The window's own pane announcing what it shows, so the phone can mirror a
+  // simulator the USER opened — the agent's MCP tools record theirs, but a
+  // pane opened by hand was invisible to the phone (simByChat never learned).
+  ipcMain.handle('sim:note-open', (_e, chatId: string, udid: string) => {
+    noteSimulatorOpen(String(chatId), String(udid))
+    return true
+  })
+  ipcMain.handle('sim:note-closed', (_e, chatId: string) => {
+    noteSimulatorClosedForChat(String(chatId))
+    return true
+  })
   ipcMain.handle('sim:set-current', (_e, udid: string | null) => {
     currentUdid = udid && udid.length ? udid : null
     return true
