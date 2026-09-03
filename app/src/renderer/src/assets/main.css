@@ -10709,3 +10709,17 @@ button {
 .storage-caches { background: #8b8b95; }
 .storage-updates { background: #d8873a; }
 .storage-logs { background: #3fa163; }
+.storage-clear {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.storage-clear:hover { background: var(--hover, rgba(127,127,127,0.1)); }
+.storage-clear:disabled { opacity: 0.6; cursor: default; }
+.storage-clear-note { font-size: 11.5px; color: var(--text-tertiary, var(--text-secondary)); }

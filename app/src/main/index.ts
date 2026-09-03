@@ -10,6 +10,7 @@ import {
   session, nativeImage } from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
+import { SHARED_BROWSER_PARTITION } from './util'
 import { execFile } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -25,7 +26,7 @@ import {
 } from './browser'
 import { startMcpServer } from './mcp'
 import { registerStoreIpc } from './store'
-import { mergeLegacyPartitions } from './session-merge'
+import { mergeLegacyPartitions, sweepMergedPartitions } from './session-merge'
 import { registerDesktopIpc } from './desktop'
 import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
@@ -515,6 +516,11 @@ app.whenReady().then(async () => {
   // Before any pane exists: the old per-project cookie jars fold into the one
   // shared session, so an update doesn't read as "it logged me out". One-time,
   // and a no-op on every launch after the first.
+  // Sweep FIRST: it only acts when the merge finished on a PREVIOUS launch,
+  // which is the one time the old jars are guaranteed not to be open. On the
+  // migration boot itself the marker is still unset, so this is a no-op and
+  // the deletion waits for the next start.
+  sweepMergedPartitions()
   await mergeLegacyPartitions()
 
   createWindow()
@@ -551,6 +557,27 @@ app.whenReady().then(async () => {
  * `du` does the walking: it is C, it is right about sparse files and hard
  * links, and a JS re-implementation would be slower and wronger.
  */
+/**
+ * Clear the rebuildable parts of browsing data, keep the logins.
+ *
+ * Of a real 5.3 GB of browsing data, cookies — the only part whose loss a user
+ * feels — were about a megabyte. The rest was HTTP cache, service workers and
+ * compiled-JS cache, which sites rebuild on the next visit. So this clears
+ * exactly those three, in the shared browser session AND the default session
+ * (panes lived there before partitions existed, and it still holds half a
+ * gigabyte of their service workers), and never touches cookies, local
+ * storage or IndexedDB.
+ */
+ipcMain.handle('app:clear-browser-caches', async () => {
+  const sessions = [session.defaultSession, session.fromPartition(SHARED_BROWSER_PARTITION)]
+  for (const s of sessions) {
+    await s.clearCache()
+    await s.clearCodeCaches({})
+    await s.clearStorageData({ storages: ['cachestorage', 'serviceworkers', 'shadercache'] })
+  }
+  return true
+})
+
 ipcMain.handle('app:storage-usage', async () => {
   const userData = app.getPath('userData')
   const updCache = join(app.getPath('home'), 'Library', 'Caches', 'superagent-updater')

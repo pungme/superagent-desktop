@@ -220,6 +220,17 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
     if (section !== 'advanced' || storage !== null) return
     void window.cove.storageUsage?.().then((s) => setStorage(s ?? []))
   }, [section, storage])
+  const [clearing, setClearing] = useState(false)
+  const clearCaches = async (): Promise<void> => {
+    setClearing(true)
+    try {
+      await window.cove.clearBrowserCaches?.()
+    } finally {
+      setClearing(false)
+      // Null re-arms the measuring effect, so the numbers show what was freed.
+      setStorage(null)
+    }
+  }
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
   const [notifyDone, setNotifyDone] = useState(localStorage.getItem('cove.notifyDone') !== '0')
   const [notifyNeedsYou, setNotifyNeedsYou] = useState(
@@ -514,6 +525,16 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                           <span className="storage-bytes">{fmtBytes(g.bytes)}</span>
                         </div>
                       ))}
+                      <button
+                        className="storage-clear"
+                        disabled={clearing}
+                        onClick={() => void clearCaches()}
+                      >
+                        {clearing ? 'Clearing…' : 'Clear caches'}
+                      </button>
+                      <span className="storage-clear-note">
+                        Removes rebuildable caches and service workers. Logins and site data stay.
+                      </span>
                     </>
                   )}
                 </div>

@@ -556,6 +556,8 @@ export interface CoveApi {
   setAppIcon: (png: Uint8Array | null) => Promise<boolean>
   /** Disk usage by category; bytes are measured with du, not estimated. */
   storageUsage: () => Promise<{ key: string; label: string; bytes: number }[]>
+  /** Clears HTTP/code caches and service workers; never cookies or site data. */
+  clearBrowserCaches: () => Promise<boolean>
   onMenu: (cb: (action: string) => void) => () => void
 
   /** Is each agent installed and signed in? `loggedIn` means at least one is ready. */
@@ -883,6 +885,7 @@ const cove: CoveApi = {
   setTheme: (source) => ipcRenderer.send('theme:set', source),
   setAppIcon: (png) => ipcRenderer.invoke('app:set-icon', png),
   storageUsage: () => ipcRenderer.invoke('app:storage-usage'),
+  clearBrowserCaches: () => ipcRenderer.invoke('app:clear-browser-caches'),
   onMenu: (cb) => {
     const actions = [
       'menu:settings',

@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs'
+import { readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, session } from 'electron'
 import { kvGet, kvSet } from './store'
@@ -68,6 +68,42 @@ function byRecencyDesc(root: string, dirs: string[]): string[] {
       return 0
     }
   })
+}
+
+/**
+ * The merge's missing second half: throw the old jars away.
+ *
+ * mergeLegacyPartitions copied every login into the shared jar and deliberately
+ * deleted nothing — right for the release that migrated, and it left 33
+ * complete browser profiles (about 3.6 GB on a real machine, one of them
+ * 1.3 GB alone) that nothing will ever open again: every pane has used
+ * persist:browser since, and nothing else calls fromPartition with a ws- name.
+ *
+ * Deleted only on a LATER launch than the merge — this run must not have
+ * opened those sessions, and a boot where the merge just ran has. Best-effort
+ * per directory: a locked file keeps its jar until next time rather than
+ * failing the sweep.
+ */
+export function sweepMergedPartitions(): void {
+  if (kvGet(DONE_KEY) !== '1') return
+  const root = join(app.getPath('userData'), 'Partitions')
+  let names: string[]
+  try {
+    names = legacyPartitionDirs(readdirSync(root))
+  } catch {
+    return
+  }
+  let reclaimed = 0
+  for (const dir of names) {
+    try {
+      const full = join(root, dir)
+      rmSync(full, { recursive: true, force: true })
+      reclaimed++
+    } catch {
+      // Held open by something? It gets another chance next launch.
+    }
+  }
+  if (reclaimed) console.log(`[sessions] swept ${reclaimed} merged project jars`)
 }
 
 export async function mergeLegacyPartitions(): Promise<void> {
