@@ -68,6 +68,12 @@ export interface Chat {
   updatedAt: number
   /** Worktree override — the chat's agent runs here instead of the project path. */
   cwd: string | null
+  /**
+   * 1 while the chat is waiting to cut its own branch on its first message.
+   * Comes from main's kv — the one copy both the window and the phone write —
+   * so a chat created on either device reads the same on both.
+   */
+  pending: 0 | 1
 }
 
 /** One message matching a search query — chat.search's shape, shared with the phone. */

@@ -1071,7 +1071,11 @@ export const useStore = create<CoveState>((set, get) => ({
   materializeBranch: async (workspaceId, chatId, hint) => {
     // Called once, immediately before the agent starts. Claim the flag FIRST:
     // two starts racing must not both cut a branch for one chat.
-    if (!isPendingBranch(chatId)) return null
+    // The chat row's `pending` is main's kv flag — without it, a chat created
+    // on the PHONE and first used here read as not-pending (localStorage never
+    // had it) and quietly worked in the project folder instead of branching.
+    const known = get().chats[workspaceId]?.find((c) => c.id === chatId)
+    if (known?.pending !== 1 && !isPendingBranch(chatId)) return null
     try {
       localStorage.removeItem(`pendingBranch:${chatId}`)
     } catch {

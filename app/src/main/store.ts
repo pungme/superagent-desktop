@@ -1699,7 +1699,11 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('chat:list', (_e, workspaceId: string) =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd
+        // pending comes from kv, where BOTH clients write it — the window used
+        // to read only its own localStorage copy, so a chat the phone created
+        // was invisible in the sidebar until the next launch.
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd,
+                EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending
          FROM chats WHERE workspaceId = ? ORDER BY position ASC, updatedAt ASC`
       )
       .all(workspaceId)
@@ -1718,7 +1722,8 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd,
+                EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending
          FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC`
       )
       .all()
