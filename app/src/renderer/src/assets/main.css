@@ -10661,3 +10661,51 @@ button {
   background: linear-gradient(135deg, #8e8e93, #48484a);
   color: #8e8e93;
 }
+
+/* Storage breakdown: one stacked bar, then the same colours as dots per row. */
+.storage-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 340px;
+}
+.storage-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.storage-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+.storage-seg {
+  min-width: 2px;
+}
+.storage-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.storage-label {
+  flex: 1;
+}
+.storage-bytes {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.storage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+.storage-browsing { background: #3d82e8; }
+.storage-conversations { background: #e0568c; }
+.storage-caches { background: #8b8b95; }
+.storage-updates { background: #d8873a; }
+.storage-logs { background: #3fa163; }

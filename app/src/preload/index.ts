@@ -554,6 +554,8 @@ export interface CoveApi {
   setTheme: (source: 'system' | 'light' | 'dark') => void
   /** Replace the running app's Dock icon; null restores the shipped one. */
   setAppIcon: (png: Uint8Array | null) => Promise<boolean>
+  /** Disk usage by category; bytes are measured with du, not estimated. */
+  storageUsage: () => Promise<{ key: string; label: string; bytes: number }[]>
   onMenu: (cb: (action: string) => void) => () => void
 
   /** Is each agent installed and signed in? `loggedIn` means at least one is ready. */
@@ -880,6 +882,7 @@ const cove: CoveApi = {
 
   setTheme: (source) => ipcRenderer.send('theme:set', source),
   setAppIcon: (png) => ipcRenderer.invoke('app:set-icon', png),
+  storageUsage: () => ipcRenderer.invoke('app:storage-usage'),
   onMenu: (cb) => {
     const actions = [
       'menu:settings',

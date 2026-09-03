@@ -156,6 +156,13 @@ function Toggle({
   )
 }
 
+function fmtBytes(b: number): string {
+  if (b >= 1024 ** 3) return `${(b / 1024 ** 3).toFixed(1)} GB`
+  if (b >= 1024 ** 2) return `${Math.round(b / 1024 ** 2)} MB`
+  if (b >= 1024) return `${Math.round(b / 1024)} KB`
+  return `${b} B`
+}
+
 export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const theme = useStore((s) => s.theme)
   const accent = useStore((s) => s.accent)
@@ -205,6 +212,14 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [section, setSection] = useState<SectionId>('general')
+  /** Measured on entering Advanced, not on every render — du walks gigabytes. */
+  const [storage, setStorage] = useState<{ key: string; label: string; bytes: number }[] | null>(
+    null
+  )
+  useEffect(() => {
+    if (section !== 'advanced' || storage !== null) return
+    void window.cove.storageUsage?.().then((s) => setStorage(s ?? []))
+  }, [section, storage])
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
   const [notifyDone, setNotifyDone] = useState(localStorage.getItem('cove.notifyDone') !== '0')
   const [notifyNeedsYou, setNotifyNeedsYou] = useState(
@@ -469,6 +484,40 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
 
           {section === 'advanced' && (
             <section className="settings-section">
+              <Row
+                title="Storage"
+                desc="What Superagent keeps on this Mac. Browsing data is sites the agent visited storing their own caches and logins, the way any browser profile grows."
+              >
+                <div className="storage-usage">
+                  {storage === null ? (
+                    <span className="storage-total">Measuring…</span>
+                  ) : (
+                    <>
+                      <span className="storage-total">
+                        {fmtBytes(storage.reduce((a, g) => a + g.bytes, 0))} total
+                      </span>
+                      <div className="storage-bar" aria-hidden>
+                        {storage
+                          .filter((g) => g.bytes > 0)
+                          .map((g) => (
+                            <span
+                              key={g.key}
+                              className={`storage-seg storage-${g.key}`}
+                              style={{ flexGrow: g.bytes }}
+                            />
+                          ))}
+                      </div>
+                      {storage.map((g) => (
+                        <div key={g.key} className="storage-row">
+                          <span className={`storage-dot storage-${g.key}`} />
+                          <span className="storage-label">{g.label}</span>
+                          <span className="storage-bytes">{fmtBytes(g.bytes)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </Row>
               <Row title="Developer mode" desc="Show DevTools and verbose details.">
                 <Toggle checked={devMode} onChange={toggleDev} />
               </Row>

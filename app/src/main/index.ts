@@ -10,6 +10,7 @@ import {
   session, nativeImage } from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
+import { execFile } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import {
@@ -536,6 +537,65 @@ app.whenReady().then(async () => {
  * writes, and keep running. Anything that recurs will be in the log with a
  * stack, which is more than the dialog ever gave anyone.
  */
+/**
+ * What this app weighs on disk, by category — measured, not estimated.
+ *
+ * The categories follow where the bytes actually are on a real profile
+ * (measured 3 Sep 2026): browsing data dwarfed everything at 5.3 GB — sites the
+ * agent visited storing caches and service workers, exactly as a Chrome profile
+ * grows — then staged update downloads at 431 MB, the app's own caches, and
+ * only then the conversations database. Inside that database the bulk is
+ * pasted screenshots stored inline (83 MB of images against 3 MB of text), so
+ * "conversations" being small-ish is not a display error.
+ *
+ * `du` does the walking: it is C, it is right about sparse files and hard
+ * links, and a JS re-implementation would be slower and wronger.
+ */
+ipcMain.handle('app:storage-usage', async () => {
+  const userData = app.getPath('userData')
+  const updCache = join(app.getPath('home'), 'Library', 'Caches', 'superagent-updater')
+  const groups: { key: string; label: string; paths: string[] }[] = [
+    {
+      key: 'browsing',
+      label: 'Browsing data — sites the agent visited (caches, logins, service workers)',
+      paths: ['Partitions', 'Service Worker', 'IndexedDB', 'Cookies', 'Cookies-journal'].map((p) =>
+        join(userData, p)
+      )
+    },
+    {
+      key: 'conversations',
+      label: 'Conversations — transcripts, mostly pasted images',
+      paths: ['cove.db', 'cove.db-wal', 'cove.db-shm', 'attachments'].map((p) => join(userData, p))
+    },
+    {
+      key: 'caches',
+      label: "The app's own caches — safe for macOS to reclaim",
+      paths: ['Cache', 'Code Cache', 'GPUCache', 'DawnWebGPUCache', 'DawnGraphiteCache'].map((p) =>
+        join(userData, p)
+      )
+    },
+    { key: 'updates', label: 'Update downloads — installers already applied', paths: [updCache] },
+    {
+      key: 'logs',
+      label: 'Logs',
+      paths: ['updater.log', 'pane-debug.log', 'pane-debug.log.old'].map((p) => join(userData, p))
+    }
+  ]
+  const duK = (path: string): Promise<number> =>
+    new Promise((resolve) => {
+      execFile('du', ['-sk', path], (err, out) => {
+        resolve(err ? 0 : Number(out.split('\t')[0] || 0) * 1024)
+      })
+    })
+  return Promise.all(
+    groups.map(async (g) => ({
+      key: g.key,
+      label: g.label,
+      bytes: (await Promise.all(g.paths.map(duK))).reduce((a, b) => a + b, 0)
+    }))
+  )
+})
+
 process.on('uncaughtException', (err) => {
   paneLog('uncaught-exception', 'main', `${err.message}\n${err.stack ?? ''}`)
 })
