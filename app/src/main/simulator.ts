@@ -516,11 +516,31 @@ export async function deviceLabel(udid: string): Promise<string> {
 }
 
 /** One still of a device, as a data URL. The phone polls this for its mirror. */
+/**
+ * The phone shows this mirror in a column no wider than a thumb, so a native
+ * ~1200px screenshot is thrown away on arrival — and it is the whole cost.
+ * simctl's raw JPEG is full device resolution and often near a megabyte; sent
+ * once a second to a moving screen that was ~40 MB a minute across the relay,
+ * enough to blow a day's budget in half an hour. Resize to a mirror-sized
+ * width and recompress under a small cap before it leaves the Mac.
+ */
+const SIM_MIRROR_WIDTH = 540
+const SIM_MIRROR_BYTES = 120_000
+
 export async function simStill(udid: string): Promise<string | null> {
   const file = join(tmpdir(), `sa-sim-companion-${udid.slice(0, 8)}.jpg`)
   try {
     await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], { timeout: 15_000 })
-    return `data:image/jpeg;base64,${readFileSync(file).toString('base64')}`
+    let img = nativeImage.createFromPath(file)
+    if (img.isEmpty()) return `data:image/jpeg;base64,${readFileSync(file).toString('base64')}`
+    if (img.getSize().width > SIM_MIRROR_WIDTH) img = img.resize({ width: SIM_MIRROR_WIDTH })
+    let quality = 68
+    let jpeg = img.toJPEG(quality)
+    while (jpeg.length > SIM_MIRROR_BYTES && quality > 30) {
+      quality -= 12
+      jpeg = img.toJPEG(quality)
+    }
+    return `data:image/jpeg;base64,${jpeg.toString('base64')}`
   } catch {
     return null
   } finally {

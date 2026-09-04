@@ -236,6 +236,14 @@ const dirsParams = z.object({ path: z.string().max(4000).optional() })
 const PHONE_TEXT_BYTES = 400_000
 /** The largest picture a phone gets back, before base64 and the frame wrapper. */
 const PHONE_IMAGE_BYTES = 600_000
+/**
+ * The mirror is a live STREAM, not a one-off picture: a frame a second to a
+ * moving screen, shown on the phone in a thumb-wide column. A 600 KB frame
+ * there is thrown away on arrival and only bills the relay — a moving mirror
+ * was ~40 MB a minute. Cap mirror frames far smaller; the still-image viewer
+ * (readForPhone) keeps the bigger cap because it is a single crisp view.
+ */
+const MIRROR_IMAGE_BYTES = 140_000
 
 export async function handleRpc(method: RpcMethod, params: unknown): Promise<RpcResult> {
   try {
@@ -415,7 +423,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
             8000,
             'the browser did not produce a frame'
           )
-          const shot = shrinkShot(wc, png, p.data.maxWidth ?? 900)
+          const shot = shrinkShot(wc, png, Math.min(p.data.maxWidth ?? 700, 700))
           if (!frameIsNew('browser:' + p.data.chatId, shot.jpeg)) {
             return { ok: true, result: { ...shot, jpeg: '', unchanged: true } }
           }
@@ -713,9 +721,9 @@ function shrinkShot(
   let img = nativeImage.createFromBuffer(Buffer.from(pngBase64, 'base64'))
   const size = img.getSize()
   if (size.width > maxWidth) img = img.resize({ width: maxWidth })
-  let quality = 72
+  let quality = 68
   let jpeg = img.toJPEG(quality)
-  while (jpeg.length > PHONE_IMAGE_BYTES && quality > 30) {
+  while (jpeg.length > MIRROR_IMAGE_BYTES && quality > 30) {
     quality -= 12
     jpeg = img.toJPEG(quality)
   }
