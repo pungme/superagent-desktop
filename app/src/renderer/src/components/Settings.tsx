@@ -262,6 +262,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
       .finally(() => setEnvChecking(false))
   }
   const [version, setVersion] = useState<string | null>(null)
+  const [betaUpdates, setBetaUpdates] = useState(false)
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [updateMsg, setUpdateMsg] = useState<string | null>(null)
@@ -292,7 +293,18 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
       )
     )
     window.cove.appVersion().then(setAppVersion)
+    window.cove.updateGetBeta?.().then((v) => setBetaUpdates(!!v))
   }, [])
+
+  const toggleBeta = (v: boolean): void => {
+    setBetaUpdates(v)
+    void window.cove.updateSetBeta?.(v)
+    setUpdateMsg(
+      v
+        ? 'Beta updates on — checking for the newest beta.'
+        : 'Beta updates off — you’ll stay on stable releases.'
+    )
+  }
 
   // Escape closes the page.
   useEffect(() => {
@@ -571,6 +583,16 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                   ) : (
                     updateMsg && <span className="settings-update-msg">{updateMsg}</span>
                   )}
+                </div>
+                <div className="settings-about-beta">
+                  <div className="settings-about-beta-text">
+                    <strong>Beta updates</strong>
+                    <span>
+                      Get pre-release builds early to try new things and help catch problems.
+                      They can be rough; turn this off to stay on stable releases only.
+                    </span>
+                  </div>
+                  <Toggle checked={betaUpdates} onChange={toggleBeta} />
                 </div>
               </div>
             </section>
