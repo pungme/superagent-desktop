@@ -4,13 +4,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 /**
- * Every chat appears in the sidebar EXACTLY once.
+ * Every chat renders in the sidebar exactly once — by IDENTITY, not by text.
  *
- * The sidebar has two mutually exclusive views: projects with worktrees get
- * branch rows; projects without get the plain all-chats list. A "fix" that
- * added folder rows on top of the list rendered every conversation twice in
- * every worktree-less project (1.8.2). This pins both properties — present,
- * and not duplicated — by counting visible occurrences of each title.
+ * 1.8.2 shipped every conversation twice: the sidebar's two views (branch
+ * rows for projects with worktrees, the plain all-chats list without) were
+ * mutually exclusive by design, and a change that didn't see the second view
+ * stacked extra rows on top of it. The test that let it through asserted the
+ * new markup existed rather than counting what a user sees; this one counts
+ * rows per chat id, which catches both directions — a chat with no row
+ * (invisible) and a chat with two (doubled) — whatever the markup looks like.
  */
 let app: ElectronApplication
 let window: Page
@@ -35,37 +37,37 @@ test.afterAll(async () => {
   for (const dir of [userDataDir, projectDir]) rmSync(dir, { recursive: true, force: true })
 })
 
-test('folder chats each render once — no more, no less', async () => {
+test('every chat has exactly one sidebar row', async () => {
   await window.evaluate(() => localStorage.setItem('cove.onboarded', '1'))
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
   await window.click('.sidebar-item:has-text("e2e-project")')
   await window.waitForSelector('.workspace-toolbar', { timeout: 10_000 })
 
-  await window.evaluate(async () => {
+  const ids = await window.evaluate(async () => {
     const cove = (window as unknown as {
       cove: {
-        chatListAll: () => Promise<{ workspaceId: string }[]>
+        chatListAll: () => Promise<{ id: string; workspaceId: string }[]>
         chatCreate: (id: string) => Promise<string>
-        chatRename?: (id: string, title: string) => Promise<void>
       }
     }).cove
     const wsId = (await cove.chatListAll())[0].workspaceId
     await cove.chatCreate(wsId)
     await cove.chatCreate(wsId)
+    return (await cove.chatListAll()).filter((c) => c.workspaceId === wsId).map((c) => c.id)
   })
+  expect(ids.length).toBe(3)
+
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  await window.waitForSelector('[data-chat-id]', { timeout: 10_000 })
 
-  // Three chats exist. Count every sidebar row that opens a chat: the plain
-  // list rows plus any folder/branch rows. Each chat must own exactly one.
-  const counts = await window.evaluate(() => {
-    const texts = [...document.querySelectorAll('.chat-tree-row, .routine-tree-row')].map(
-      (el) => (el.textContent ?? '').trim()
-    )
-    return texts
-  })
-  // Three chats → exactly three rows. Fewer = invisible chats (the Mr Market
-  // bug); more = every chat rendered twice (the 1.8.2 bug).
-  expect(counts).toHaveLength(3)
+  const perChat = await window.evaluate((chatIds: string[]) => {
+    return chatIds.map((id) => ({
+      id,
+      rows: document.querySelectorAll(`[data-chat-id="${id}"]`).length
+    }))
+  }, ids)
+  // Exactly one row each: 0 is the invisible-chat bug, 2+ is the 1.8.2 doubling.
+  expect(perChat.filter((c) => c.rows !== 1)).toEqual([])
 })

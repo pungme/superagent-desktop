@@ -304,6 +304,7 @@ function BranchRow({
   return (
     <div
       className={`sidebar-branch${nested ? ' nested' : ''}${active ? ' on' : ''}`}
+      data-chat-id={chat?.id}
       onClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -440,6 +441,7 @@ function ChatRow({
       className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''} ${
         unread ? 'unread' : ''
       }`}
+      data-chat-id={chat.id}
       title={label}
       onClick={onOpen}
       onContextMenu={(e) => {
