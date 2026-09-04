@@ -8950,6 +8950,29 @@ button {
   flex-wrap: wrap;
 }
 
+.settings-about-beta {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: left;
+  max-width: 460px;
+}
+.settings-about-beta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.settings-about-beta-text strong {
+  font-size: 13px;
+}
+.settings-about-beta-text span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 .settings-body {
   padding: 8px 16px;
 }

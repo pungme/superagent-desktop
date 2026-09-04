@@ -3,6 +3,23 @@ import { BrowserWindow, Notification, app, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { appendFileSync } from 'fs'
 import { join } from 'path'
+import { kvGet, kvSet } from './store'
+
+/**
+ * Opt-in beta updates. Off by default: a stable install only ever sees GitHub
+ * releases that are NOT marked pre-release, so it stays on the "Latest" line no
+ * matter what betas are published. On, `allowPrerelease` lets electron-updater
+ * also consider pre-releases, and the newest of {latest stable, latest beta}
+ * wins — so a beta tester is never stranded behind a stable that has moved on.
+ *
+ * The whole mechanism is this one flag plus how a release is published (a beta
+ * is a GitHub pre-release, not make_latest). No channel files, nothing for a
+ * stable user to opt out of — the default path is exactly what it was.
+ */
+const BETA_KEY = 'cove.betaUpdates'
+export function betaUpdatesEnabled(): boolean {
+  return kvGet(BETA_KEY) === '1'
+}
 
 /**
  * Background auto-update against the GitHub Releases feed (configured via the
@@ -88,10 +105,25 @@ export function startAutoUpdate(): void {
     }
   })
 
+  // Read/flip the beta preference. get/set work in dev too (the toggle should
+  // reflect and store the choice); the actual re-check is guarded below.
+  ipcMain.handle('update:get-beta', () => betaUpdatesEnabled())
+  ipcMain.handle('update:set-beta', (_e, on: boolean) => {
+    kvSet(BETA_KEY, on ? '1' : '0')
+    autoUpdater.allowPrerelease = on
+    // Check straight away so turning it on pulls the newest beta now. Guarded
+    // for dev, where checkForUpdates has no feed to read.
+    if (!is.dev) autoUpdater.checkForUpdates().catch(() => undefined)
+    return on
+  })
+
   if (is.dev) return
 
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+  // Only pre-releases when the user asked for them; false is the default and
+  // keeps a stable install on the "Latest" line.
+  autoUpdater.allowPrerelease = betaUpdatesEnabled()
   // Silence was the problem: "Restart to update" doing nothing left no trace at
   // all, so the same report came back release after release with nothing to go
   // on. Log to userData/updater.log — small, local, and the first thing to read
