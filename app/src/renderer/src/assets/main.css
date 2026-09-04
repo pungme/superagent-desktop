@@ -1972,6 +1972,13 @@ button {
   /* Never sideways: a long unbreakable token — a path in inline code, a URL —
      was widening the transcript and giving it a horizontal scrollbar. */
   overflow-x: hidden;
+  /* The browser tries to keep content stationary when things above the viewport
+     resize (scroll anchoring). On this long transcript, a re-layout on every
+     keystroke made it nudge the view a pixel each way — a visible jitter while
+     typing. We already pin the view to the bottom ourselves (see the scroll
+     effect in EasyChat); the browser's anchoring only fights that, so turn it
+     off here. Scroll behaviour is unchanged; only the automatic nudge is gone. */
+  overflow-anchor: none;
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
