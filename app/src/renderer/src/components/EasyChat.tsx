@@ -1145,6 +1145,24 @@ export function EasyChat({
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   // Non-image files dropped on the chat — shown as chips, sent as paths.
   const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
+  // "Send when it's done": messages the user chose (by holding Send) to hold
+  // until the running turn finishes, rather than interject mid-task. Flushed by
+  // the generating→false effect below. A ref mirror so that effect reads the
+  // live list without listing it as a dependency (which would re-run the flush).
+  type QueuedMsg = {
+    id: string
+    text: string
+    images: PendingImage[]
+    files: { path: string; name: string }[]
+    reply: { role: 'user' | 'assistant'; text: string } | null
+  }
+  const [queued, setQueued] = useState<QueuedMsg[]>([])
+  const queuedRef = useRef<QueuedMsg[]>([])
+  useEffect(() => {
+    queuedRef.current = queued
+  }, [queued])
+  // Long-press bookkeeping for the Send button.
+  const longPressRef = useRef<{ timer: number | null; fired: boolean }>({ timer: null, fired: false })
   // Commands the agent left running in the background. Claude mentions them in
   // prose and then moves on, so without this the only sign a deploy/build/server
   // is still going is a sentence that scrolls away.
@@ -2995,9 +3013,16 @@ export function EasyChat({
 
   const submitRef = useRef<((t: string) => void) | null>(null)
 
-  const submit = (text: string, images: PendingImage[] = []): void => {
+  const submit = (
+    text: string,
+    images: PendingImage[] = [],
+    // A queued message replays with the files/reply captured when it was held,
+    // not whatever the composer holds now (it was cleared). Absent for the
+    // normal path, which reads live composer state exactly as before.
+    opts?: { files?: { path: string; name: string }[]; reply?: { role: 'user' | 'assistant'; text: string } | null }
+  ): void => {
     const id = agentIdRef.current
-    const files = pendingFiles
+    const files = opts?.files ?? pendingFiles
     if (!text && images.length === 0 && files.length === 0) return
     // A process exists but isn't accepting (crash) — the Retry UI owns that.
     if (id && !ready) return
@@ -3053,7 +3078,7 @@ export function EasyChat({
     // next one this tick is correctly treated as an interjection.
     const interjecting = turnInFlightRef.current
     turnInFlightRef.current = true
-    const reply = replyTarget
+    const reply = opts && 'reply' in opts ? opts.reply : replyTarget
     setReplyTarget(null)
     // Name an untitled chat after its opening message, so the sidebar list is
     // scannable without the user having to name anything.
@@ -3185,6 +3210,63 @@ export function EasyChat({
 
   const send = (): void => submit(input.trim(), pendingImages)
   submitRef.current = (t: string) => submit(t)
+
+  // Hold Send while the agent is working to send AFTER it finishes, instead of
+  // interjecting mid-task. Captures the composer as-is and clears it; the pill
+  // above the composer shows what's waiting, and the generating→false effect
+  // sends it. Holding while idle is just a normal send (nothing to wait for).
+  const queueForLater = (): void => {
+    const text = input.trim()
+    if (!text && pendingImages.length === 0 && pendingFiles.length === 0) return
+    setQueued((q) => [
+      ...q,
+      { id: `q-${Date.now()}-${Math.random()}`, text, images: pendingImages, files: pendingFiles, reply: replyTarget }
+    ])
+    setInput('')
+    setPendingImages([])
+    setPendingFiles([])
+    setReplyTarget(null)
+    if (inputRef.current) inputRef.current.style.height = 'auto'
+  }
+  const cancelQueued = (id: string): void => setQueued((q) => q.filter((m) => m.id !== id))
+
+  // Send the held messages once the turn is over. Covers every way a turn can
+  // end (result, exit, crash) since all flip `generating`. Not after a manual
+  // Stop — interrupting is a decision to take over, so held messages wait for
+  // the user rather than firing into the interrupt.
+  useEffect(() => {
+    if (generating) return
+    const q = queuedRef.current
+    if (q.length === 0 || interruptedRef.current) return
+    setQueued([])
+    for (const m of q) submit(m.text, m.images, { files: m.files, reply: m.reply })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generating])
+
+  // The Send button's press: a hold (450ms) queues for later while working; a
+  // plain click sends now. `fired` suppresses the click that follows a hold.
+  const onSendPointerDown = (): void => {
+    longPressRef.current.fired = false
+    if (longPressRef.current.timer) window.clearTimeout(longPressRef.current.timer)
+    longPressRef.current.timer = window.setTimeout(() => {
+      longPressRef.current.fired = true
+      if (generating) queueForLater()
+      else send()
+    }, 450)
+  }
+  const onSendPointerEnd = (): void => {
+    if (longPressRef.current.timer) {
+      window.clearTimeout(longPressRef.current.timer)
+      longPressRef.current.timer = null
+    }
+  }
+  const onSendClick = (): void => {
+    if (longPressRef.current.fired) {
+      longPressRef.current.fired = false
+      return // the hold already acted
+    }
+    send()
+  }
 
   const beginReply = (msg: ChatMessage): void => {
     setReplyTarget({ role: msg.role, text: msg.text })
@@ -3632,6 +3714,29 @@ export function EasyChat({
         </div>
       )}
       <div className="easy-input-row">
+        {queued.length > 0 && (
+          <div className="easy-queued">
+            {queued.map((m) => (
+              <div key={m.id} className="easy-queued-item" title="Sends when the agent finishes">
+                <span className="easy-queued-icon">⏱</span>
+                <span className="easy-queued-text">
+                  {(m.text || (m.images.length ? '🖼 image' : '📎 files'))
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .slice(0, 120)}
+                </span>
+                <span className="easy-queued-when">sends when done</span>
+                <button
+                  className="easy-queued-cancel"
+                  title="Don't send this"
+                  onClick={() => cancelQueued(m.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {replyTarget && (
           <div className="easy-reply-bar">
             <span className="easy-reply-bar-icon">↩</span>
@@ -3835,19 +3940,30 @@ export function EasyChat({
             )}
           </button>
         </div>
-        {generating ? (
+        {generating && (
           <button className="easy-stop" onClick={stop} title="Stop generating">
             <span className="easy-stop-square" />
           </button>
-        ) : (
+        )}
+        {/* Send is shown even while generating IF there's something to send, so a
+            mid-run message can be sent now (click, interjects) or held until the
+            agent finishes (hold ~½s). Idle, it's the normal send. */}
+        {(!generating || !!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0) && (
           <button
             className="easy-send"
-            onClick={send}
+            onClick={onSendClick}
+            onPointerDown={onSendPointerDown}
+            onPointerUp={onSendPointerEnd}
+            onPointerLeave={onSendPointerEnd}
             disabled={
               (!ready && !suspended) ||
               (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)
             }
-            title="Send message"
+            title={
+              generating
+                ? 'Click to send now · hold to send after the agent finishes'
+                : 'Send message · hold to queue'
+            }
             aria-label="Send message"
           >
             ↑
