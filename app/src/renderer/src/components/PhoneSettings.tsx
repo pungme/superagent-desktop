@@ -113,6 +113,17 @@ export function PhoneSettings(): React.JSX.Element {
           Pair the Superagent app on your phone once. From then on it follows this Mac from any
           network — no accounts, no router settings.
         </span>
+        <span>
+          Don&rsquo;t have the app yet?{' '}
+          <a
+            href="https://testflight.apple.com/join/hvg9RGMh"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Get it on TestFlight
+          </a>{' '}
+          — open this link on your iPhone.
+        </span>
       </div>
 
       {/* Pairing */}
