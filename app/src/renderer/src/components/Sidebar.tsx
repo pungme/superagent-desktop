@@ -12,9 +12,14 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useStore, normalizeCwd, movedSinceSeen, WorkspaceStatus } from '../state'
+import {
+  useStore,
+  normalizeCwd,
+  isPendingBranch,
+  movedSinceSeen,
+  WorkspaceStatus
+} from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
-import { chatPending, isFolderRoot } from '../lib/folder-root'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -478,7 +483,7 @@ function ChatRow({
             )
           )}
           <span className="chat-tree-label">{label}</span>
-          {!chat.cwd && chatPending(chat) ? (
+          {!chat.cwd && isPendingBranch(chat.id) ? (
             /* Waiting for its first message. It is NOT on main — saying so would
                be a lie about where the agent is about to write. */
             <span className="chat-tree-wt pending" title="Its branch is cut when you send the first message">
@@ -612,21 +617,20 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    * context menu could not reach it, and a folder conversation could grow to
    * twenty megabytes with nothing in the app able to empty it.
    */
-  const folderChatId = useStore((s) => {
-    const all = s.chats[ws.id] ?? []
-    return all.find((c) => isFolderRoot(all, c))?.id ?? null
-  })
+  const folderChatId = useStore(
+    (s) =>
+      (s.chats[ws.id] ?? []).find((c) => !c.cwd && !isPendingBranch(c.id))?.id ?? null
+  )
   const rootSelected = useStore((s) => {
     if (s.activeWorkspaceId !== ws.id || s.overlay !== null) return false
     const id = s.activeChatId[ws.id]
     if (!id) return true
-    const all = s.chats[ws.id] ?? []
-    const chat = all.find((c) => c.id === id)
+    const chat = s.chats[ws.id]?.find((c) => c.id === id)
     if (!chat) return true
     // A chat still waiting for its branch also has no cwd, so "no cwd" alone
     // made it look like the folder's own chat — and its row and this one both
     // lit up. Only a chat that will STAY in the folder counts as the root.
-    return isFolderRoot(all, chat)
+    return !chat.cwd && !isPendingBranch(chat.id)
   })
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
@@ -920,32 +924,23 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           one chat each, which is what a chat IS: a branch with someone talking
           to it. A chat that has not sent anything yet has no branch, so it sits
           at the end until its first message cuts one. */}
-      {(() => {
+      {worktrees.length > 0 &&
+        (() => {
           const chatOn = (wtPath: string | null): Chat | undefined =>
             chats.find(
               (c) =>
-                !chatPending(c) && normalizeCwd(c.cwd ?? null) === normalizeCwd(wtPath)
+                !isPendingBranch(c.id) && normalizeCwd(c.cwd ?? null) === normalizeCwd(wtPath)
             )
-          const pending = chats.filter((c) => chatPending(c) && !isFolderRoot(chats, c))
-          // The project row IS the folder's first chat — but nothing stops a
-          // second or third conversation living in the folder too (the phone
-          // offers it freely, and right-click → New chat makes one). They have
-          // no cwd and no pending flag, so they matched no category and simply
-          // did not render: three chats on the phone, one on the Mac.
-          const folderFirst = chats.find((c) => isFolderRoot(chats, c))?.id
-          const folderExtras = chats.filter(
-            (c) => !c.cwd && !chatPending(c) && c.id !== folderFirst
-          )
+          const pending = chats.filter((c) => isPendingBranch(c.id))
           // The folder's own chat lives on the project row now, so the list
           // below exists only for the extras: branches, chats waiting for one,
           // and chats whose copy has gone.
           const extras =
             worktrees.filter((w) => !w.main).length +
             pending.length +
-            folderExtras.length +
             chats.filter(
               (c) =>
-                !chatPending(c) &&
+                !isPendingBranch(c.id) &&
                 c.cwd &&
                 !worktrees.some(
                   (w) => normalizeCwd(w.main ? null : w.path) === normalizeCwd(c.cwd ?? null)
@@ -1016,7 +1011,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               {chats
                 .filter(
                   (c) =>
-                    !chatPending(c) &&
+                    !isPendingBranch(c.id) &&
                     c.cwd &&
                     !worktrees.some(
                       (w) => normalizeCwd(w.main ? null : w.path) === normalizeCwd(c.cwd ?? null)
@@ -1033,17 +1028,6 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                     onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd)
                   })
                 )}
-              {folderExtras.map((c) =>
-                row(c.id, 'in the folder', c, {
-                  onOpen: () => {
-                    window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
-                    setActive(ws.id)
-                    selectChat(ws.id, c.id)
-                  },
-                  onRemove: () => void removeChatFn(ws.id, c.id),
-                  onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd)
-                })
-              )}
               {pending.map((c) =>
                 row(c.id, 'no branch yet', c, {
                   onOpen: () => {

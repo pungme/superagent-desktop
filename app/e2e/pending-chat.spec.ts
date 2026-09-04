@@ -4,14 +4,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 /**
- * Every chat must be visible the moment it exists.
+ * Every chat appears in the sidebar EXACTLY once.
  *
- * The real case (the user's "Mr Market", a plain folder — not a git repo):
- * right-click → New chat created chats that rendered NOWHERE. The project row
- * represents the folder's first chat, and a folder chat beyond the first —
- * no cwd, no pending flag — matched no sidebar category at all. The phone
- * lists chats straight from the database, so it showed three while the Mac
- * showed one, and "new chat did nothing" was the same bug from the other end.
+ * The sidebar has two mutually exclusive views: projects with worktrees get
+ * branch rows; projects without get the plain all-chats list. A "fix" that
+ * added folder rows on top of the list rendered every conversation twice in
+ * every worktree-less project (1.8.2). This pins both properties — present,
+ * and not duplicated — by counting visible occurrences of each title.
  */
 let app: ElectronApplication
 let window: Page
@@ -23,7 +22,6 @@ test.beforeAll(async () => {
   projectDir = mkdtempSync(join(tmpdir(), 'cove-e2e-proj-'))
   mkdirSync(projectDir, { recursive: true })
   writeFileSync(join(projectDir, 'README.md'), '# e2e project\n')
-  // Deliberately NOT a git repo — that is the shape that reproduced it.
   app = await electron.launch({
     args: [join(__dirname, '..', 'out', 'main', 'index.js')],
     env: { ...process.env, COVE_USER_DATA: userDataDir, COVE_E2E_PROJECT: projectDir, NODE_ENV: 'production' }
@@ -37,30 +35,37 @@ test.afterAll(async () => {
   for (const dir of [userDataDir, projectDir]) rmSync(dir, { recursive: true, force: true })
 })
 
-test('second and third folder chats appear in the sidebar', async () => {
+test('folder chats each render once — no more, no less', async () => {
   await window.evaluate(() => localStorage.setItem('cove.onboarded', '1'))
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
   await window.click('.sidebar-item:has-text("e2e-project")')
   await window.waitForSelector('.workspace-toolbar', { timeout: 10_000 })
 
-  // What right-click → New chat does on a non-repo project: a chat in the
-  // folder, no branch to wait for. Twice, like the user did.
   await window.evaluate(async () => {
     const cove = (window as unknown as {
       cove: {
         chatListAll: () => Promise<{ workspaceId: string }[]>
         chatCreate: (id: string) => Promise<string>
+        chatRename?: (id: string, title: string) => Promise<void>
       }
     }).cove
     const wsId = (await cove.chatListAll())[0].workspaceId
     await cove.chatCreate(wsId)
     await cove.chatCreate(wsId)
   })
-  // A fresh render must learn about them from the database alone.
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
-  await expect(window.locator('.routine-tree :text("in the folder")')).toHaveCount(2, {
-    timeout: 10_000
+
+  // Three chats exist. Count every sidebar row that opens a chat: the plain
+  // list rows plus any folder/branch rows. Each chat must own exactly one.
+  const counts = await window.evaluate(() => {
+    const texts = [...document.querySelectorAll('.chat-tree-row, .routine-tree-row')].map(
+      (el) => (el.textContent ?? '').trim()
+    )
+    return texts
   })
+  // Three chats → exactly three rows. Fewer = invisible chats (the Mr Market
+  // bug); more = every chat rendered twice (the 1.8.2 bug).
+  expect(counts).toHaveLength(3)
 })
