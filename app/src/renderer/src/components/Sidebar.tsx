@@ -12,22 +12,9 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import {
-  useStore,
-  normalizeCwd,
-  isPendingBranch,
-  movedSinceSeen,
-  WorkspaceStatus
-} from '../state'
+import { useStore, normalizeCwd, movedSinceSeen, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
-
-/**
- * Waiting to cut its branch. `pending` is main's kv flag carried on the chat
- * row (the copy the phone writes too); the localStorage read backs it up for
- * the instant between setting the flag and the next chat:list.
- */
-const chatPending = (c: Chat): boolean => c.pending === 1 || isPendingBranch(c.id)
-
+import { chatPending, isFolderRoot } from '../lib/folder-root'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -625,20 +612,21 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    * context menu could not reach it, and a folder conversation could grow to
    * twenty megabytes with nothing in the app able to empty it.
    */
-  const folderChatId = useStore(
-    (s) =>
-      (s.chats[ws.id] ?? []).find((c) => !c.cwd && !chatPending(c))?.id ?? null
-  )
+  const folderChatId = useStore((s) => {
+    const all = s.chats[ws.id] ?? []
+    return all.find((c) => isFolderRoot(all, c))?.id ?? null
+  })
   const rootSelected = useStore((s) => {
     if (s.activeWorkspaceId !== ws.id || s.overlay !== null) return false
     const id = s.activeChatId[ws.id]
     if (!id) return true
-    const chat = s.chats[ws.id]?.find((c) => c.id === id)
+    const all = s.chats[ws.id] ?? []
+    const chat = all.find((c) => c.id === id)
     if (!chat) return true
     // A chat still waiting for its branch also has no cwd, so "no cwd" alone
     // made it look like the folder's own chat — and its row and this one both
     // lit up. Only a chat that will STAY in the folder counts as the root.
-    return !chat.cwd && !chatPending(chat)
+    return isFolderRoot(all, chat)
   })
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
@@ -938,13 +926,13 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               (c) =>
                 !chatPending(c) && normalizeCwd(c.cwd ?? null) === normalizeCwd(wtPath)
             )
-          const pending = chats.filter((c) => chatPending(c))
+          const pending = chats.filter((c) => chatPending(c) && !isFolderRoot(chats, c))
           // The project row IS the folder's first chat — but nothing stops a
           // second or third conversation living in the folder too (the phone
           // offers it freely, and right-click → New chat makes one). They have
           // no cwd and no pending flag, so they matched no category and simply
           // did not render: three chats on the phone, one on the Mac.
-          const folderFirst = chats.find((c) => !c.cwd && !chatPending(c))?.id
+          const folderFirst = chats.find((c) => isFolderRoot(chats, c))?.id
           const folderExtras = chats.filter(
             (c) => !c.cwd && !chatPending(c) && c.id !== folderFirst
           )
