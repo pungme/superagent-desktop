@@ -956,29 +956,9 @@ export function listChats(): WireChat[] {
  * Send a prompt into a chat, starting its agent first if nothing is running —
  * the same options the window would have used, read from the store.
  */
-/**
- * Message ids this Mac has already accepted. A phone that never hears the ack
- * — a dropped frame, a dead socket, the relay over budget — retries the same
- * message on every reconnect, and each retry used to append the same words to
- * the transcript again (ten identical bubbles during one relay outage). A
- * repeat now acks success without sending anything.
- */
-const seenSendIds = new Map<string, true>()
-function noteSent(localId: string): void {
-  seenSendIds.set(localId, true)
-  if (seenSendIds.size > 1000) {
-    const oldest = seenSendIds.keys().next().value
-    if (oldest) seenSendIds.delete(oldest)
-  }
-}
-
 async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   const chat = getChat(p.chatId)
   if (!chat) return fail('not-found', 'no such chat')
-  if (p.localId && seenSendIds.has(p.localId)) {
-    // Already in the transcript; the ack just never made it back.
-    return { ok: true, result: { duplicate: true } }
-  }
   // First message on a git project: cut this chat its own copy, named from what
   // was asked for. Without it a chat from the phone runs in the project folder,
   // beside whatever else is working there.
@@ -1049,9 +1029,6 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
     localId: p.localId,
     replyTo: p.replyTo
   })
-  // Only a message that actually went in counts as seen — recording a FAILED
-  // send would make the legitimate retry look like a duplicate and eat it.
-  if (sent && p.localId) noteSent(p.localId)
   return sent
     ? { ok: true, result: { sessionId: session.id } }
     : fail('unavailable', 'agent not accepting input')
