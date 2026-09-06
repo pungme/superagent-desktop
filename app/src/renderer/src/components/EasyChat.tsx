@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
+import { ProviderLogo } from './ProviderLogo'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
 import { Choices } from './Choices'
@@ -3978,6 +3979,7 @@ export function EasyChat({
             title="Which agent runs this chat"
           >
             <span className="easy-control-key">Agent</span>
+            <ProviderLogo provider={provider} size={13} />
             <span className="easy-control-val">{PROVIDER_PRODUCT[provider]}</span>
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
               <path
@@ -3998,8 +4000,11 @@ export function EasyChat({
                   className={`easy-control-item ${p === provider ? 'on' : ''}`}
                   onClick={() => pickProvider(p)}
                 >
-                  <span className="easy-control-item-label">{PROVIDER_PRODUCT[p]}</span>
-                  <span className="easy-control-item-hint">{PROVIDER_HINT[p]}</span>
+                  <ProviderLogo provider={p} size={17} />
+                  <span className="easy-control-item-text">
+                    <span className="easy-control-item-label">{PROVIDER_PRODUCT[p]}</span>
+                    <span className="easy-control-item-hint">{PROVIDER_HINT[p]}</span>
+                  </span>
                 </button>
               ))}
             </div>
