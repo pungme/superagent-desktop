@@ -1158,6 +1158,9 @@ export function EasyChat({
     reply: { role: 'user' | 'assistant'; text: string } | null
   }
   const [queued, setQueued] = useState<QueuedMsg[]>([])
+  // The confirm menu shown when you hold Send (or right-click it) while the
+  // agent is working: "send now" vs "send when it finishes".
+  const [sendMenu, setSendMenu] = useState(false)
   const queuedRef = useRef<QueuedMsg[]>([])
   useEffect(() => {
     queuedRef.current = queued
@@ -3244,14 +3247,16 @@ export function EasyChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating])
 
-  // The Send button's press: a hold (450ms) queues for later while working; a
-  // plain click sends now. `fired` suppresses the click that follows a hold.
+  // The Send button's press: a plain click sends now; a hold (450ms) while the
+  // agent is working opens a small menu to confirm sending AFTER it finishes,
+  // rather than queueing silently. `fired` suppresses the click that follows a
+  // hold. Holding when idle is just a normal send — nothing to wait for.
   const onSendPointerDown = (): void => {
     longPressRef.current.fired = false
     if (longPressRef.current.timer) window.clearTimeout(longPressRef.current.timer)
     longPressRef.current.timer = window.setTimeout(() => {
       longPressRef.current.fired = true
-      if (generating) queueForLater()
+      if (generating) setSendMenu(true)
       else send()
     }, 450)
   }
@@ -3950,25 +3955,61 @@ export function EasyChat({
             mid-run message can be sent now (click, interjects) or held until the
             agent finishes (hold ~½s). Idle, it's the normal send. */}
         {(!generating || !!input.trim() || pendingImages.length > 0 || pendingFiles.length > 0) && (
-          <button
-            className="easy-send"
-            onClick={onSendClick}
-            onPointerDown={onSendPointerDown}
-            onPointerUp={onSendPointerEnd}
-            onPointerLeave={onSendPointerEnd}
-            disabled={
-              (!ready && !suspended) ||
-              (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)
-            }
-            title={
-              generating
-                ? 'Click to send now · hold to send after the agent finishes'
-                : 'Send message · hold to queue'
-            }
-            aria-label="Send message"
-          >
-            ↑
-          </button>
+          <div className="easy-send-wrap">
+            <button
+              className="easy-send"
+              onClick={onSendClick}
+              onPointerDown={onSendPointerDown}
+              onPointerUp={onSendPointerEnd}
+              onPointerLeave={onSendPointerEnd}
+              onContextMenu={(e) => {
+                // Right-click is the other way to reach the confirm menu, while
+                // working. Idle, let the normal context menu be.
+                if (!generating) return
+                e.preventDefault()
+                setSendMenu(true)
+              }}
+              disabled={
+                (!ready && !suspended) ||
+                (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)
+              }
+              title={
+                generating
+                  ? 'Click to send now · hold (or right-click) to send after the agent finishes'
+                  : 'Send message'
+              }
+              aria-label="Send message"
+            >
+              ↑
+            </button>
+            {sendMenu && (
+              <>
+                <div className="easy-send-menu-backdrop" onClick={() => setSendMenu(false)} />
+                <div className="easy-send-menu" role="menu">
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setSendMenu(false)
+                      queueForLater()
+                    }}
+                  >
+                    <span className="easy-send-menu-icon">⏱</span>
+                    Send when it finishes
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setSendMenu(false)
+                      send()
+                    }}
+                  >
+                    <span className="easy-send-menu-icon">↑</span>
+                    Send now
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
       <div className="easy-controls">

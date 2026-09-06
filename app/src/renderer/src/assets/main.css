@@ -3534,6 +3534,52 @@ button {
   }
 }
 
+.easy-send-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.easy-send-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.easy-send-menu {
+  position: absolute;
+  z-index: 41;
+  bottom: calc(100% + 6px);
+  right: 0;
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-content);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+.easy-send-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.easy-send-menu button:hover {
+  background: var(--bg-panel);
+}
+.easy-send-menu-icon {
+  width: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
 .easy-send {
   width: 34px;
   height: 34px;
