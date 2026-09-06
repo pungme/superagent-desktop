@@ -1725,11 +1725,23 @@ export function EasyChat({
   }, [])
 
   // Grow the input with its content, up to the CSS max-height.
+  //
+  // Resetting height to 'auto' then reading scrollHeight is a write-then-read
+  // that forces a synchronous layout. Doing it inline in the keystroke handler
+  // reflowed on every character; coalescing into one requestAnimationFrame does
+  // it at most once per frame no matter how fast you type, and off the
+  // synchronous input path so the keystroke itself isn't blocked. Still handles
+  // both growing and shrinking (it always re-measures from 'auto').
+  const autoResizeRAF = useRef<number | null>(null)
   const autoResize = (): void => {
-    const el = inputRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+    if (autoResizeRAF.current !== null) return
+    autoResizeRAF.current = requestAnimationFrame(() => {
+      autoResizeRAF.current = null
+      const el = inputRef.current
+      if (!el) return
+      el.style.height = 'auto'
+      el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+    })
   }
 
   // Insert a file reference (clicked in the file tree) into the composer — don't send.
