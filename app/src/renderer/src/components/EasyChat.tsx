@@ -801,12 +801,24 @@ type Row =
 // so it never ends the run (otherwise one batch fragments into tiny strips).
 function toRows(items: Item[]): Row[] {
   const rows: Row[] = []
+  // A message that got stored twice under the same id (the phone-retry
+  // double-send bug) becomes two React children with the SAME key. React
+  // can't reconcile duplicate keys, so on every re-render — i.e. every
+  // keystroke in the composer — it leaks a fresh DOM node instead of reusing
+  // one, and the transcript grows ~1 bubble per character, shoving content
+  // down under the pinned scrollTop: the "jumps up when I type" bug. Drop the
+  // second copy so ids stay unique and each row reconciles in place.
+  const seenMsg = new Set<string>()
   const runTarget = (): Row | undefined => {
     let i = rows.length - 1
     while (i >= 0 && rows[i].kind === 'thinking') i--
     return rows[i]
   }
   for (const it of items) {
+    if (it.kind === 'msg') {
+      if (seenMsg.has(it.msg.id)) continue
+      seenMsg.add(it.msg.id)
+    }
     // A tool-heavy turn opens text blocks that never receive visible text
     // before the tool call fires — each left a padding-only sliver bubble in
     // the transcript ("... empty like that"). A settled assistant message with
@@ -3639,12 +3651,30 @@ export function EasyChat({
           {items.length === 0 && !ready && !suspended && !agentFailed && (
             <div className="easy-empty">Starting Claude…</div>
           )}
-          {rows.map((row) => {
+          {(() => {
+            // Guarantee unique React keys even if the data still carries a
+            // duplicate id (any kind). A duplicate key makes React leak a DOM
+            // node per re-render — the per-keystroke transcript growth. toRows
+            // already drops duplicate messages; this is the belt-and-braces
+            // guard so no future duplicate (tool/diff/file) can bring it back.
+            const seenKey = new Set<string>()
+            const uniq = (k: string): string => {
+              if (!seenKey.has(k)) {
+                seenKey.add(k)
+                return k
+              }
+              let n = 2
+              while (seenKey.has(`${k}#${n}`)) n++
+              const u = `${k}#${n}`
+              seenKey.add(u)
+              return u
+            }
+            return rows.map((row) => {
             if (row.kind === 'msg') {
               const isLastUser = row.msg.role === 'user' && row.msg.id === lastUserId
               return (
                 <MessageRow
-                  key={row.msg.id}
+                  key={uniq(row.msg.id)}
                   msg={row.msg}
                   showEdit={isLastUser && !generating}
                   onWheelMsg={onRowWheel}
@@ -3658,7 +3688,7 @@ export function EasyChat({
             if (row.kind === 'thinking') {
               if (!row.text) return null
               return (
-                <div key={row.id} className="easy-thought">
+                <div key={uniq(row.id)} className="easy-thought">
                   {row.text}
                 </div>
               )
@@ -3675,8 +3705,11 @@ export function EasyChat({
                 : first.kind === 'diff'
                   ? first.diff.id
                   : first.file.id)
-            return <ActivityStrip key={actKey} entries={row.entries} workspaceId={workspaceId} />
-          })}
+            return (
+              <ActivityStrip key={uniq(actKey)} entries={row.entries} workspaceId={workspaceId} />
+            )
+            })
+          })()}
           {generating && (
             <div className="easy-thinking">
               {/* The brand mark, thinking: a light dot orbiting inside the black
