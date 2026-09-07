@@ -121,6 +121,12 @@ function assertNotarized(target) {
       'check the credentials in app/.env'
     )
   }
+  // A DMG here is an unsigned disk image — it carries only the stapled
+  // notarization ticket, which is exactly what Gatekeeper reads when it is
+  // mounted (the app inside is separately signed and notarized). spctl looks
+  // for a code signature and so reports "no usable signature" for any DMG;
+  // the stapler validation above is the authoritative proof for a disk image.
+  if (target.endsWith('.dmg')) return
   // spctl writes its assessment ("source=Notarized Developer ID") to STDERR,
   // not stdout, and exits 0 when accepted — so reading only stdout gave an
   // empty string and this check aborted every genuinely-notarized release.
