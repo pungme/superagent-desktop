@@ -964,9 +964,34 @@ export function listChats(): WireChat[] {
  * Send a prompt into a chat, starting its agent first if nothing is running —
  * the same options the window would have used, read from the store.
  */
+/**
+ * Message ids this Mac has already accepted from a phone. A phone whose ack
+ * never arrives — a dropped frame, a reconnect, the relay hiccuping — retries
+ * the SAME message (same localId), and without this the Mac appended it to the
+ * transcript AND handed it to the agent again, every retry: duplicate bubbles
+ * and, worse, the agent doing the same work several times ("spamming"). A
+ * repeat now acks success and does nothing else. Recorded only on a send that
+ * actually went in, so a genuinely failed send still retries.
+ *
+ * (This was removed once on a wrong call — a duplicate stored under one id was
+ * read as a mere rendering glitch. It is not: the second store is this bug.)
+ */
+const seenSendIds = new Map<string, true>()
+function noteSent(localId: string): void {
+  seenSendIds.set(localId, true)
+  if (seenSendIds.size > 2000) {
+    const oldest = seenSendIds.keys().next().value
+    if (oldest) seenSendIds.delete(oldest)
+  }
+}
+
 async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   const chat = getChat(p.chatId)
   if (!chat) return fail('not-found', 'no such chat')
+  if (p.localId && seenSendIds.has(p.localId)) {
+    // Already accepted; the phone just never heard the ack. Say yes, do nothing.
+    return { ok: true, result: { duplicate: true } }
+  }
   // First message on a git project: cut this chat its own copy, named from what
   // was asked for. Without it a chat from the phone runs in the project folder,
   // beside whatever else is working there.
@@ -1037,6 +1062,9 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
     localId: p.localId,
     replyTo: p.replyTo
   })
+  // Only a message that actually reached the agent counts as seen — recording a
+  // failed send would make the legitimate retry look like a duplicate and eat it.
+  if (sent && p.localId) noteSent(p.localId)
   return sent
     ? { ok: true, result: { sessionId: session.id } }
     : fail('unavailable', 'agent not accepting input')

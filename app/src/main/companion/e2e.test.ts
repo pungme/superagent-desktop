@@ -481,6 +481,31 @@ describe('desktop ⇄ relay ⇄ phone', () => {
     again.ws.close()
   })
 
+  it('a retried send (same localId) acks without appending or re-running', async () => {
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    phone.send({ t: 'subscribe', chatId: 'c1', afterSeq: 0 })
+
+    phone.send({
+      t: 'req', id: 'r1', method: 'chat.send',
+      params: { chatId: 'c1', text: 'only once', localId: 'L-dup' }
+    })
+    await phone.until((f) => f.t === 'res' && (f as { id?: string }).id === 'r1')
+    const delivered = h.sent.length
+
+    // The ack never reached the phone; it retries the identical message. The
+    // Mac must say yes and NOT hand it to the agent again (the "spam").
+    phone.send({
+      t: 'req', id: 'r2', method: 'chat.send',
+      params: { chatId: 'c1', text: 'only once', localId: 'L-dup' }
+    })
+    const second = await phone.until((f) => f.t === 'res' && (f as { id?: string }).id === 'r2')
+    expect(second).toMatchObject({ id: 'r2', ok: true })
+    expect(h.sent.length).toBe(delivered)
+  })
+
   it('the folder chat keeps the folder; a new conversation gets its own copy', async () => {
     const phone = new FakePhone(secret)
     await phone.connect()
