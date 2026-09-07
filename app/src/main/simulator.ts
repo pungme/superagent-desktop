@@ -178,9 +178,24 @@ interface InputSession {
 const inputSessions = new Map<string, InputSession>()
 const SESSION_KINDS = new Set(['tap', 'swipe', 'key'])
 
+/**
+ * Above this many un-acked gestures the pipe is backed up — baguette can't
+ * drain as fast as gestures arrive (a slow runtime, or several conversations
+ * driving one device at once). Left alone the queue grows to tens of seconds
+ * and 30-second-old taps keep firing instead of the one you just made. Past
+ * this, we throw the stale queue away and start a fresh session so the newest
+ * gesture lands now — the only tap anyone is still waiting for.
+ */
+const INPUT_BACKLOG_LIMIT = 6
+
 async function inputSession(udid: string): Promise<InputSession | null> {
   const existing = inputSessions.get(udid)
-  if (existing && !existing.proc.killed && existing.proc.exitCode === null) return existing
+  if (existing && !existing.proc.killed && existing.proc.exitCode === null) {
+    if (existing.pending.length <= INPUT_BACKLOG_LIMIT) return existing
+    // Backed up: drop it (its pending resolvers settle as 'session-ended') and
+    // fall through to spawn a clean one, so the backlog does not keep growing.
+    endInputSession(udid)
+  }
   const bin = await findBaguette()
   if (!bin) return null
   const proc = spawn(bin, ['input', '--udid', udid], { stdio: ['pipe', 'pipe', 'pipe'] })
