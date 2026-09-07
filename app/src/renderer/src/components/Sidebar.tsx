@@ -355,10 +355,10 @@ function BranchRow({
           A tooltip is a second thing appearing somewhere else to tell you what
           the first thing already says. */}
       {chat && <span className="sidebar-branch-chat">⎇ {branch}</span>}
-      {chat && onRemove && (
+      {onRemove && (
         <button
           className="sidebar-branch-remove"
-          title="Delete this chat"
+          title={chat ? 'Delete this chat' : 'Remove this worktree'}
           onClick={(e) => {
             e.stopPropagation()
             onRemove()
@@ -990,7 +990,20 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                       openBranch(ws.id, cwd)
                     }
                   },
-                  onRemove: chat ? () => void removeChatFn(ws.id, chat.id) : undefined,
+                  // A chatless worktree — a branch you have not opened yet, or a
+                  // stray one an agent left behind (a detached /tmp PR checkout,
+                  // say) — is removable too. Without this its row had no ✕ and
+                  // could only be deleted through a right-click nobody finds.
+                  onRemove: chat
+                    ? () => void removeChatFn(ws.id, chat.id)
+                    : () => {
+                        const what = wt.branch ?? 'this worktree'
+                        if (!window.confirm(`Remove "${what}" and its checkout?\n\nThis cannot be undone.`))
+                          return
+                        void window.cove.worktreeRemove(ws.path, wt.path).then(() => {
+                          window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+                        })
+                      },
                   onMenu: () => {
                     if (wt.main) return
                     if (chat) {
