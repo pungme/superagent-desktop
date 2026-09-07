@@ -19,7 +19,7 @@
  * than relied on from the shell, and nothing is uploaded until the artifacts on
  * disk have been verified to be what they claim.
  */
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { createReadStream, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { statSync } from 'node:fs'
@@ -121,12 +121,15 @@ function assertNotarized(target) {
       'check the credentials in app/.env'
     )
   }
-  let out = ''
-  try {
-    out = run('spctl', ['-a', '-vvv', '-t', 'exec', target], { stdio: ['pipe', 'pipe', 'pipe'] })
-  } catch (e) {
-    out = `${e.stdout ?? ''}${e.stderr ?? ''}`
-  }
+  // spctl writes its assessment ("source=Notarized Developer ID") to STDERR,
+  // not stdout, and exits 0 when accepted — so reading only stdout gave an
+  // empty string and this check aborted every genuinely-notarized release.
+  // Capture both streams with spawnSync (execFileSync only returns stdout).
+  const r = spawnSync('spctl', ['-a', '-vvv', '-t', 'exec', target], {
+    cwd: APP,
+    encoding: 'utf8'
+  })
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
   if (!/source=Notarized Developer ID/.test(out))
     die(`${target} is signed but NOT notarized:\n\n${out.trim()}`)
 }
