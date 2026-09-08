@@ -728,7 +728,6 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         ref={setRefs}
         className={`sidebar-item ${rootSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver && !draggingGroup ? 'drop-before' : ''}`}
         onClick={() => {
-          window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
           setActive(ws.id)
           // This row IS the conversation in the folder itself — the root chat.
           // It used to be repeated as a nested child of itself, which made the
@@ -912,7 +911,6 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                 sortable
                 active={active && c.id === activeChatId}
                 onOpen={() => {
-                  window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
                   setActive(ws.id)
                   selectChat(ws.id, c.id)
                 }}
@@ -982,7 +980,6 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                 return row(wt.path, wt.branch ?? 'detached', chat, {
                   main: wt.main,
                   onOpen: () => {
-                    window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
                     if (chat) {
                       setActive(ws.id)
                       selectChat(ws.id, chat.id)
@@ -1035,7 +1032,6 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                 .map((c) =>
                   row(c.id, 'copy gone', c, {
                     onOpen: () => {
-                      window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
                       setActive(ws.id)
                       selectChat(ws.id, c.id)
                     },
@@ -1046,7 +1042,6 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               {pending.map((c) =>
                 row(c.id, 'no branch yet', c, {
                   onOpen: () => {
-                    window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
                     setActive(ws.id)
                     selectChat(ws.id, c.id)
                   },
@@ -1253,7 +1248,6 @@ function ActivityList(): React.JSX.Element {
             key={c.id}
             className={`activity-row ${open ? 'on' : ''}`}
             onClick={() => {
-              window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
               setActive(c.workspaceId)
               selectChat(c.workspaceId, c.id)
             }}

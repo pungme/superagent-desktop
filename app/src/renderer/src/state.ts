@@ -749,7 +749,24 @@ export const useStore = create<CoveState>((set, get) => ({
 
   setActive: (id) => {
     localStorage.setItem('activeWorkspace', id)
-    set({ activeWorkspaceId: id, coldStart: false })
+    // Showing a workspace MEANS leaving whatever is covering it. Computer,
+    // Chats, Dashboard, Skills, Routines and Settings all cover the workspace
+    // entirely, so activating one underneath a surface changes nothing you can
+    // see — the click looks broken.
+    //
+    // This used to be a line each caller wrote immediately above this one, and
+    // half of the twelve callers didn't: the project row did, the New Chat
+    // context menu didn't, and neither did opening a branch, keeping a
+    // worktree, or a new browser tab. Every one of those is a "nothing
+    // happens" report waiting to be filed, and the thirteenth caller would
+    // have been a coin toss. There is no caller that wants a workspace
+    // activated while something else stays on screen, so the rule lives here.
+    //
+    // The overlay is store state, so it is cleared directly rather than by
+    // asking a listener to do it; Settings is React state in App, which is why
+    // the event is still sent.
+    set({ activeWorkspaceId: id, coldStart: false, overlay: null })
+    window.dispatchEvent(new CustomEvent('cove:close-dashboard'))
   },
   resolveWorkspace: (deskId) => {
     const s = get()
