@@ -6100,6 +6100,40 @@ button {
   color: var(--text-tertiary);
 }
 
+/**
+ * The label/hint menus (model, mode, the dev-server one) put a short label
+ * beside a hint that wraps, and the row was flex with align-items: center. Two
+ * things fell out of that, both visible in the model menu:
+ *
+ *   - the label floated to the MIDDLE of a hint that wrapped to two or three
+ *     lines, so "Fable" sat opposite the second line of its own description;
+ *   - the hint column was ragged, because the label was auto-width and
+ *     "Default" is wider than "Opus", so every description started somewhere
+ *     slightly different.
+ *
+ * A subgrid fixes both properly rather than by picking a min-width that happens
+ * to fit today's longest word: the columns are shared across the rows of ONE
+ * menu, so the labels size themselves and every hint starts on the same edge.
+ * Baseline alignment puts the label on the hint's FIRST line, which is the line
+ * it belongs to.
+ *
+ * The provider menu is deliberately not this shape — it is a logo beside a
+ * stacked label-over-hint — so both selectors ask for a label that is a DIRECT
+ * child, which its nested .easy-control-item-text does not satisfy.
+ */
+.easy-control-menu:has(> .easy-control-item > .easy-control-item-label) {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-content: start;
+}
+.easy-control-item:has(> .easy-control-item-label) {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: span 2;
+  align-items: baseline;
+  column-gap: 9px;
+}
+
 /* Clickable options Claude offered via an ```ask block. */
 .easy-choices {
   display: flex;
