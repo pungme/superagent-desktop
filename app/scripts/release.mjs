@@ -85,6 +85,13 @@ function checkGh() {
 function checkGitClean() {
   const dirty = run('git', ['status', '--porcelain']).trim()
   if (dirty) die(`the working tree has uncommitted changes:\n\n${dirty}`, 'commit or stash first')
+  // `gh release create` tags whatever the REMOTE's default branch points at, so
+  // releasing with unpushed commits attaches a correct DMG to a tag holding the
+  // PREVIOUS release's source. It succeeds, and the only symptom is that the tag
+  // is a lie. Caught by hand once, seconds before it happened.
+  run('git', ['fetch', 'origin', '--quiet'])
+  const ahead = run('git', ['log', '--oneline', 'origin/main..HEAD']).trim()
+  if (ahead) die(`these commits are not on origin/main yet:\n\n${ahead}`, 'git push origin main')
 }
 
 function readVersion() {
@@ -187,13 +194,46 @@ console.log('  app: Notarized Developer ID ✓')
 
 step('Notarizing and stapling the DMG (notarize: true covers the app, not the DMG)')
 const dmg = join(DIST, 'SuperAgent.dmg')
-runLoud('xcrun', [
-  'notarytool', 'submit', dmg,
-  '--apple-id', process.env.APPLE_ID,
-  '--password', process.env.APPLE_APP_SPECIFIC_PASSWORD,
-  '--team-id', process.env.APPLE_TEAM_ID,
-  '--wait'
-])
+/**
+ * Submit the DMG, and do it without ever letting the password reach an error.
+ *
+ * execFileSync puts the whole command line into the Error it throws, so a
+ * failure here printed `--password xxxx-xxxx-xxxx-xxxx` into the build log in
+ * plaintext. That happened. spawnSync reports status instead of throwing, so
+ * nothing formats the arguments for us.
+ *
+ * The retry is not defensive padding: this is a 226 MB multipart upload to
+ * Apple's S3 and it died on `HTTPClientError.connectTimeout` partway through,
+ * after the app had already notarized. Failing the whole release — twenty
+ * minutes of build — over one dropped connection is the wrong trade.
+ */
+function notarizeDmg() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const r = spawnSync(
+      'xcrun',
+      ['notarytool', 'submit', dmg,
+       '--apple-id', process.env.APPLE_ID,
+       '--password', process.env.APPLE_APP_SPECIFIC_PASSWORD,
+       '--team-id', process.env.APPLE_TEAM_ID,
+       '--wait'],
+      { cwd: APP, encoding: 'utf8' }
+    )
+    const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
+    if (r.status === 0) {
+      console.log(out.trim().split('\n').slice(-3).join('\n'))
+      return
+    }
+    // Never print `out` on the failing path without scrubbing: notarytool
+    // echoes nothing sensitive itself, but be certain rather than hopeful.
+    const safe = out.replaceAll(process.env.APPLE_APP_SPECIFIC_PASSWORD, '<redacted>')
+    const transient = /connectTimeout|abortedUpload|timed out|connection/i.test(safe)
+    console.error(`  attempt ${attempt} failed${transient ? ' (transient)' : ''}`)
+    if (attempt === 3 || !transient) {
+      die(`notarizing the DMG failed:\n\n${safe.trim().slice(0, 2000)}`)
+    }
+  }
+}
+notarizeDmg()
 runLoud('xcrun', ['stapler', 'staple', dmg])
 assertNotarized(dmg)
 console.log('  dmg: stapled ✓')
