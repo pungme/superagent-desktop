@@ -4156,7 +4156,9 @@ export function EasyChat({
             onClick={() => setControlMenu((m) => (m === 'agent' ? null : 'agent'))}
             title="Which agent runs this chat"
           >
-            <span className="easy-control-key">Agent</span>
+            {/* No "Agent" key here, unlike Model and Mode: the logo and the
+                product name already say what this is, and the title covers the
+                rest. */}
             <ProviderLogo provider={provider} size={13} />
             <span className="easy-control-val">{PROVIDER_PRODUCT[provider]}</span>
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
