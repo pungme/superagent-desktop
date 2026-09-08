@@ -1985,6 +1985,26 @@ button {
   gap: 12px;
 }
 
+/* Virtualized transcript. Only the rows near the viewport are in the DOM; the
+   list is a sizer of the measured total height, and each row is absolutely
+   positioned at its offset (the 12px inter-row spacing is applied by the
+   virtualizer's `gap`, matching the flex gap the plain list used). The row
+   wrapper stays a flex column so a message's own align-self still works — user
+   bubbles hug the right, system notes stretch — exactly as before. */
+.easy-virt {
+  width: 100%;
+}
+.easy-vrow {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+/* Play the arrival animation only the first time a message mounts, not every
+   time it scrolls back into the window. */
+.easy-vrow.no-anim .easy-msg {
+  animation: none;
+}
+
 .easy-empty {
   margin: auto;
   color: var(--text-tertiary);

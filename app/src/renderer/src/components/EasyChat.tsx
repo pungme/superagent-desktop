@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
@@ -3380,6 +3381,126 @@ export function EasyChat({
   // every keystroke/timer render of the surrounding component.
   const rows = useMemo(() => toRows(items), [items])
 
+  // --- Transcript virtualization -------------------------------------------
+  // A long session is thousands of rows; drawing them all left ~3300 DOM nodes
+  // in the scroller, which is what made opening, scrolling and even typing in a
+  // long chat feel heavy. Mount only the rows near the viewport instead. Rows
+  // vary wildly in height (a one-line reply vs a giant code block) and the
+  // streaming row grows token by token, so each row's height is MEASURED live
+  // rather than assumed — @tanstack/react-virtual watches every mounted row.
+  const vrows = useMemo(() => rows.filter((r) => !(r.kind === 'thinking' && !r.text)), [rows])
+  // One stable, guaranteed-unique key per row. A duplicate key makes both React
+  // and the virtualizer leak/misplace nodes; toRows already drops duplicate
+  // messages, and this dedups any remaining id collision (tool/diff/file) once.
+  const rowKeys = useMemo(() => {
+    const seen = new Set<string>()
+    const uniq = (k: string): string => {
+      if (!seen.has(k)) {
+        seen.add(k)
+        return k
+      }
+      let n = 2
+      while (seen.has(`${k}#${n}`)) n++
+      const u = `${k}#${n}`
+      seen.add(u)
+      return u
+    }
+    return vrows.map((row) => {
+      if (row.kind === 'msg') return uniq(row.msg.id)
+      if (row.kind === 'thinking') return uniq(row.id)
+      const first = row.entries[0]
+      return uniq(
+        'act-' +
+          (first.kind === 'tool'
+            ? first.tool.id
+            : first.kind === 'diff'
+              ? first.diff.id
+              : first.file.id)
+      )
+    })
+  }, [vrows])
+
+  const listRef = useRef<HTMLDivElement>(null)
+  // The virtualized list doesn't start at the top of the scroller — the "New
+  // chat / Keep / Throw" header sits above it. scrollMargin tells the
+  // virtualizer that offset so row positions and scroll math stay correct.
+  const [listMargin, setListMargin] = useState(0)
+  const virtualizer = useVirtualizer({
+    count: vrows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 88,
+    overscan: 10,
+    gap: 12,
+    scrollMargin: listMargin,
+    getItemKey: (i) => rowKeys[i] ?? i
+  })
+
+  useLayoutEffect(() => {
+    const scrollEl = scrollRef.current
+    const listEl = listRef.current
+    if (!scrollEl || !listEl) return
+    const m =
+      listEl.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop
+    setListMargin((prev) => (Math.abs(prev - m) > 0.5 ? m : prev))
+  })
+
+  // The arrival animation (easy-msg-in) should play when a message first shows,
+  // not every time a row scrolls back into the window and remounts. Remember
+  // which message rows have already been mounted; a row already seen renders
+  // with the animation off. Marking happens post-commit so React's double
+  // render in dev doesn't pre-mark a row before its first real paint.
+  const animatedRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    animatedRef.current = new Set()
+  }, [chatId])
+  useEffect(() => {
+    for (const vi of virtualizer.getVirtualItems()) {
+      if (vrows[vi.index]?.kind === 'msg') animatedRef.current.add(rowKeys[vi.index])
+    }
+  })
+
+  // Keeping the view pinned to the bottom is harder with measured rows: a row's
+  // real height only lands after it mounts and is measured, which grows the list
+  // AFTER the normal scroll-to-bottom effect has already run its frame. Watch the
+  // list's height and, whenever it grows while the user is at the bottom (chat
+  // just opened and rows are measuring, or the streaming reply is expanding),
+  // re-pin to the new bottom. It never acts when the user has scrolled up.
+  const atBottomRef = useRef(true)
+  useEffect(() => {
+    atBottomRef.current = atBottom
+  }, [atBottom])
+  useEffect(() => {
+    const listEl = listRef.current
+    const scrollEl = scrollRef.current
+    if (!listEl || !scrollEl) return
+    const ro = new ResizeObserver(() => {
+      if (atBottomRef.current && visible) scrollEl.scrollTo({ top: scrollEl.scrollHeight })
+    })
+    ro.observe(listEl)
+    return () => ro.disconnect()
+  }, [visible, vrows.length > 0])
+
+  const renderRow = (row: Row): React.JSX.Element => {
+    if (row.kind === 'msg') {
+      const isLastUser = row.msg.role === 'user' && row.msg.id === lastUserId
+      return (
+        <MessageRow
+          msg={row.msg}
+          showEdit={isLastUser && !generating}
+          onWheelMsg={onRowWheel}
+          onReply={onRowReply}
+          onEdit={onRowEdit}
+          onAnswer={onRowAnswer}
+          onLightbox={onRowLightbox}
+        />
+      )
+    }
+    if (row.kind === 'thinking') {
+      return <div className="easy-thought">{row.text}</div>
+    }
+    return <ActivityStrip entries={row.entries} workspaceId={workspaceId} />
+  }
+
   /** When the mic went down, and whether this is a hands-free (tapped) session. */
   const micDownAtRef = useRef(0)
   const handsFreeRef = useRef(false)
@@ -3651,65 +3772,36 @@ export function EasyChat({
           {items.length === 0 && !ready && !suspended && !agentFailed && (
             <div className="easy-empty">Starting Claude…</div>
           )}
-          {(() => {
-            // Guarantee unique React keys even if the data still carries a
-            // duplicate id (any kind). A duplicate key makes React leak a DOM
-            // node per re-render — the per-keystroke transcript growth. toRows
-            // already drops duplicate messages; this is the belt-and-braces
-            // guard so no future duplicate (tool/diff/file) can bring it back.
-            const seenKey = new Set<string>()
-            const uniq = (k: string): string => {
-              if (!seenKey.has(k)) {
-                seenKey.add(k)
-                return k
-              }
-              let n = 2
-              while (seenKey.has(`${k}#${n}`)) n++
-              const u = `${k}#${n}`
-              seenKey.add(u)
-              return u
-            }
-            return rows.map((row) => {
-            if (row.kind === 'msg') {
-              const isLastUser = row.msg.role === 'user' && row.msg.id === lastUserId
-              return (
-                <MessageRow
-                  key={uniq(row.msg.id)}
-                  msg={row.msg}
-                  showEdit={isLastUser && !generating}
-                  onWheelMsg={onRowWheel}
-                  onReply={onRowReply}
-                  onEdit={onRowEdit}
-                  onAnswer={onRowAnswer}
-                  onLightbox={onRowLightbox}
-                />
-              )
-            }
-            if (row.kind === 'thinking') {
-              if (!row.text) return null
-              return (
-                <div key={uniq(row.id)} className="easy-thought">
-                  {row.text}
-                </div>
-              )
-            }
-            // Activity rows keyed by their first entry's tool/diff id — stable as
-            // rows shift, unlike the array index (index keys remounted every later
-            // message whenever a strip was inserted mid-turn, blowing the Markdown
-            // memo cache exactly when tools were streaming).
-            const first = row.entries[0]
-            const actKey =
-              'act-' +
-              (first.kind === 'tool'
-                ? first.tool.id
-                : first.kind === 'diff'
-                  ? first.diff.id
-                  : first.file.id)
-            return (
-              <ActivityStrip key={uniq(actKey)} entries={row.entries} workspaceId={workspaceId} />
-            )
-            })
-          })()}
+          {vrows.length > 0 && (
+            <div
+              ref={listRef}
+              className="easy-virt"
+              style={{ height: virtualizer.getTotalSize(), position: 'relative', flex: 'none' }}
+            >
+              {virtualizer.getVirtualItems().map((vi) => {
+                const row = vrows[vi.index]
+                const key = rowKeys[vi.index]
+                const seen = row.kind === 'msg' && animatedRef.current.has(key)
+                return (
+                  <div
+                    key={key}
+                    data-index={vi.index}
+                    ref={virtualizer.measureElement}
+                    className={`easy-vrow${seen ? ' no-anim' : ''}`}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${vi.start - virtualizer.options.scrollMargin}px)`
+                    }}
+                  >
+                    {renderRow(row)}
+                  </div>
+                )
+              })}
+            </div>
+          )}
           {generating && (
             <div className="easy-thinking">
               {/* The brand mark, thinking: a light dot orbiting inside the black
