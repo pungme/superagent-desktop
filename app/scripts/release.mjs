@@ -201,7 +201,13 @@ console.log('  dmg: stapled ✓')
 step('Rewriting latest-mac.yml against the stapled files')
 const yml = await rewriteLatestYml(version)
 
-step('Publishing')
+// A version with a prerelease tag (1.9.0-beta.2) ships to the beta channel:
+// marked prerelease, NOT latest, so only clients with allowPrerelease pick it
+// up and everyone on stable stays where they are. A plain version is a normal
+// latest release.
+const isPrerelease = version.includes('-')
+
+step(`Publishing${isPrerelease ? ' (prerelease / beta channel)' : ''}`)
 const assets = [
   yml,
   join(DIST, `SuperAgent-${version}-arm64-mac.zip`),
@@ -213,16 +219,24 @@ runLoud('gh', [
   ...assets,
   '--title', `Superagent ${version}`,
   '--notes-file', join(APP, `notes-${version}.md`),
-  // Without this the updater never sees the release: it asks GitHub for the
-  // latest one and is told an older tag. This is why 1.7.23 and 1.7.24 never
-  // reached anybody.
-  '--latest'
+  // A beta is --prerelease (never latest). A stable release must be --latest,
+  // or the updater asks GitHub for the latest release, is told an older tag,
+  // and reaches nobody — how 1.7.23 and 1.7.24 shipped to no one.
+  isPrerelease ? '--prerelease' : '--latest'
 ])
 
-step('Confirming GitHub really marked it latest')
-const isLatest = run('gh', ['release', 'view', `v${version}`, '--json', 'isLatest', '-q', '.isLatest']).trim()
-if (isLatest !== 'true')
-  die(`v${version} was uploaded but GitHub did not mark it latest — users will not be offered it.`,
-      `gh release edit v${version} --latest`)
-
-console.log(`\n  Released ${version}, notarized and flagged latest.\n`)
+// gh's `release view --json isLatest` field doesn't exist on older gh builds;
+// ask the API which release GitHub actually serves as latest instead.
+step('Confirming the release is served correctly')
+const latestTag = run('gh', ['api', 'repos/{owner}/{repo}/releases/latest', '-q', '.tag_name']).trim()
+if (isPrerelease) {
+  if (latestTag === `v${version}`)
+    die(`v${version} is a beta but GitHub marked it latest — stable users would be pushed a prerelease.`,
+        `gh release edit v${version} --prerelease --latest=false`)
+  console.log(`\n  Released ${version} to the beta channel (prerelease). Latest is still ${latestTag}.\n`)
+} else {
+  if (latestTag !== `v${version}`)
+    die(`v${version} was uploaded but GitHub did not mark it latest (latest=${latestTag}) — users will not be offered it.`,
+        `gh release edit v${version} --latest`)
+  console.log(`\n  Released ${version}, notarized and flagged latest.\n`)
+}
