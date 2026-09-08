@@ -523,7 +523,9 @@ export async function deviceLabel(udid: string): Promise<string> {
     const all = await listDevices()
     const d = all.find((x) => x.udid === udid)
     if (!d) return 'Simulator'
-    const runtime = d.runtime.replace(/^com\.apple\.CoreSimulator\.SimRuntime\./, '').replace(/-/g, ' ')
+    const runtime = d.runtime
+      .replace(/^com\.apple\.CoreSimulator\.SimRuntime\./, '')
+      .replace(/-/g, ' ')
     return runtime ? `${d.name} · ${runtime}` : d.name
   } catch {
     return 'Simulator'
@@ -545,7 +547,9 @@ const SIM_MIRROR_BYTES = 120_000
 export async function simStill(udid: string): Promise<string | null> {
   const file = join(tmpdir(), `sa-sim-companion-${udid.slice(0, 8)}.jpg`)
   try {
-    await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], { timeout: 15_000 })
+    await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], {
+      timeout: 15_000
+    })
     let img = nativeImage.createFromPath(file)
     if (img.isEmpty()) return `data:image/jpeg;base64,${readFileSync(file).toString('base64')}`
     if (img.getSize().width > SIM_MIRROR_WIDTH) img = img.resize({ width: SIM_MIRROR_WIDTH })
@@ -1029,6 +1033,18 @@ export interface SimInputResult {
   ok: boolean
   error?: string
   out?: string
+}
+
+/** Convert a simctl screenshot point to baguette's portrait HID surface. */
+export function simulatorScreenPoint(
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): { x: number; y: number; width: number; height: number } {
+  return width > height
+    ? { x: y, y: width - x, width: height, height: width }
+    : { x, y, width, height }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { baguetteCandidates, navigationReplacesPage } from './simulator'
+import { baguetteCandidates, navigationReplacesPage, simulatorScreenPoint } from './simulator'
 
 /**
  * A simulator stream belongs to the page that asked for it. Getting this
@@ -39,5 +39,25 @@ describe('baguetteCandidates', () => {
     const c = baguetteCandidates(false, '/unused')
     expect(c[0].endsWith('/native/baguette')).toBe(true)
     expect(c).toContain('/opt/homebrew/bin/baguette')
+  })
+})
+
+describe('simulatorScreenPoint', () => {
+  it('leaves portrait screenshot coordinates unchanged', () => {
+    expect(simulatorScreenPoint(300, 700, 1640, 2360)).toEqual({
+      x: 300,
+      y: 700,
+      width: 1640,
+      height: 2360
+    })
+  })
+
+  it('unwinds a landscape screenshot onto the portrait HID surface', () => {
+    expect(simulatorScreenPoint(1180, 630, 2360, 1640)).toEqual({
+      x: 630,
+      y: 1180,
+      width: 1640,
+      height: 2360
+    })
   })
 })

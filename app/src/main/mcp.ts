@@ -9,6 +9,7 @@ import {
   isMirroring,
   keepSimulatorHidden,
   sendSimInput,
+  simulatorScreenPoint,
   noteSimulatorOpen,
   chatHoldingSimulator
 } from './simulator'
@@ -38,7 +39,9 @@ import {
   addCard,
   updateCard,
   moveCard,
-  removeCard, getChat } from './store'
+  removeCard,
+  getChat
+} from './store'
 import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
 import { gitBranch } from './files'
 import { pushOpenFile } from './companion'
@@ -166,7 +169,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
           // own: "the pane" was true when there was one target for everybody.
           const mine = d.udid === simTarget(CHAT_ID) ? '  <-- YOURS' : ''
           const holder = mine ? null : chatHoldingSimulator(d.udid, CHAT_ID)
-          const taken = holder ? `  <-- in use by "${getChat(holder)?.title || 'another conversation'}"` : ''
+          const taken = holder
+            ? `  <-- in use by "${getChat(holder)?.title || 'another conversation'}"`
+            : ''
           lines.push(
             `${d.name} — ${d.state} — ${d.udid} (${runtime.split('.').pop()})${mine}${taken}`
           )
@@ -381,6 +386,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     return { w, h }
   }
 
+  /**
+   * simctl screenshots follow the app's interface orientation, but baguette's
+   * HID surface stays in the simulator's natural (portrait) orientation. The
+   * pane already unwinds this quarter turn before calling sendSimInput; MCP
+   * coordinates come straight from sim_screen, so they need the same unwind
+   * here. iOS chooses landscape-left when an app first requests landscape.
+   */
   server.registerTool(
     'sim_screen',
     {
@@ -421,12 +433,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const tgt = await inputTarget()
       if ('error' in tgt) return { content: [{ type: 'text', text: tgt.error }] }
       const { w, h } = await sizeFor()
+      const p = simulatorScreenPoint(x, y, w, h)
       const res = await sendSimInput(tgt.udid, {
         type: 'tap',
-        x,
-        y,
-        width: w,
-        height: h,
+        x: p.x,
+        y: p.y,
+        width: p.width,
+        height: p.height,
         ...(duration ? { duration } : {})
       })
       return {
@@ -459,14 +472,16 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const tgt = await inputTarget()
       if ('error' in tgt) return { content: [{ type: 'text', text: tgt.error }] }
       const { w, h } = await sizeFor()
+      const from = simulatorScreenPoint(x, y, w, h)
+      const to = simulatorScreenPoint(toX, toY, w, h)
       const res = await sendSimInput(tgt.udid, {
         type: 'swipe',
-        x,
-        y,
-        toX,
-        toY,
-        width: w,
-        height: h,
+        x: from.x,
+        y: from.y,
+        toX: to.x,
+        toY: to.y,
+        width: from.width,
+        height: from.height,
         ...(duration ? { duration } : {})
       })
       return {
