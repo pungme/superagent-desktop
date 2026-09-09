@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { baguetteCandidates, navigationReplacesPage, simulatorScreenPoint } from './simulator'
+import {
+  baguetteCandidates,
+  navigationReplacesPage,
+  simulatorScreenPoint,
+  usesPersistentSimSession
+} from './simulator'
 
 /**
  * A simulator stream belongs to the page that asked for it. Getting this
@@ -59,5 +64,22 @@ describe('simulatorScreenPoint', () => {
       width: 1640,
       height: 2360
     })
+  })
+})
+
+describe('usesPersistentSimSession', () => {
+  const tap = { type: 'tap' as const }
+
+  it('keeps the low-latency session for interactive pane gestures', () => {
+    expect(usesPersistentSimSession(tap)).toBe(true)
+  })
+
+  it('lets agent tools demand a fresh input connection', () => {
+    expect(usesPersistentSimSession(tap, { persistentSession: false })).toBe(false)
+  })
+
+  it('never creates a persistent session for text and hardware buttons', () => {
+    expect(usesPersistentSimSession({ type: 'text' })).toBe(false)
+    expect(usesPersistentSimSession({ type: 'press' })).toBe(false)
   })
 })

@@ -1035,6 +1035,22 @@ export interface SimInputResult {
   out?: string
 }
 
+export interface SimInputOptions {
+  /**
+   * The pane streams gestures and benefits from a warm input process. Agent
+   * tools value delivery over latency and use a fresh baguette process: a warm
+   * session can acknowledge input after its HID connection has gone stale.
+   */
+  persistentSession?: boolean
+}
+
+export function usesPersistentSimSession(
+  action: SimAction,
+  options: SimInputOptions = {}
+): boolean {
+  return options.persistentSession !== false && SESSION_KINDS.has(action.type)
+}
+
 /** Convert a simctl screenshot point to baguette's portrait HID surface. */
 export function simulatorScreenPoint(
   x: number,
@@ -1055,13 +1071,24 @@ export function simulatorScreenPoint(
  * by the width/height it is given), so a caller working in screenshot pixels
  * just passes the screenshot's pixel size as width/height.
  */
-export async function sendSimInput(udid: string, action: SimAction): Promise<SimInputResult> {
+export async function sendSimInput(
+  udid: string,
+  action: SimAction,
+  options: SimInputOptions = {}
+): Promise<SimInputResult> {
   const bin = await findBaguette()
   if (!bin) return { ok: false, error: 'baguette-not-installed' }
 
+  // A fresh agent action must not compete with a stale persistent HID client.
+  // Closing it also settles any old queued resolvers instead of allowing them
+  // to fire after the agent has moved on to a different control.
+  if (options.persistentSession === false && SESSION_KINDS.has(action.type)) {
+    endInputSession(udid)
+  }
+
   // Fast path: tap/swipe/key go down the open session — no process to
   // start, so the device feels the gesture almost immediately.
-  if (SESSION_KINDS.has(action.type)) {
+  if (usesPersistentSimSession(action, options)) {
     const session = await inputSession(udid)
     if (session) {
       const payload: Record<string, unknown> =

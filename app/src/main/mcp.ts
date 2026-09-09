@@ -434,14 +434,18 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       if ('error' in tgt) return { content: [{ type: 'text', text: tgt.error }] }
       const { w, h } = await sizeFor()
       const p = simulatorScreenPoint(x, y, w, h)
-      const res = await sendSimInput(tgt.udid, {
-        type: 'tap',
-        x: p.x,
-        y: p.y,
-        width: p.width,
-        height: p.height,
-        ...(duration ? { duration } : {})
-      })
+      const res = await sendSimInput(
+        tgt.udid,
+        {
+          type: 'tap',
+          x: p.x,
+          y: p.y,
+          width: p.width,
+          height: p.height,
+          ...(duration ? { duration } : {})
+        },
+        { persistentSession: false }
+      )
       return {
         content: [
           {
@@ -474,16 +478,20 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const { w, h } = await sizeFor()
       const from = simulatorScreenPoint(x, y, w, h)
       const to = simulatorScreenPoint(toX, toY, w, h)
-      const res = await sendSimInput(tgt.udid, {
-        type: 'swipe',
-        x: from.x,
-        y: from.y,
-        toX: to.x,
-        toY: to.y,
-        width: from.width,
-        height: from.height,
-        ...(duration ? { duration } : {})
-      })
+      const res = await sendSimInput(
+        tgt.udid,
+        {
+          type: 'swipe',
+          x: from.x,
+          y: from.y,
+          toX: to.x,
+          toY: to.y,
+          width: from.width,
+          height: from.height,
+          ...(duration ? { duration } : {})
+        },
+        { persistentSession: false }
+      )
       return {
         content: [
           {

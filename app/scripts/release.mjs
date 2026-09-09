@@ -23,7 +23,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { createReadStream, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { statSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -252,7 +252,8 @@ const assets = [
   yml,
   join(DIST, `SuperAgent-${version}-arm64-mac.zip`),
   join(DIST, `SuperAgent-${version}-arm64-mac.zip.blockmap`),
-  dmg
+  dmg,
+  join(DIST, 'SuperAgent.dmg.blockmap')
 ]
 runLoud('gh', [
   'release', 'create', `v${version}`,
@@ -264,6 +265,16 @@ runLoud('gh', [
   // and reaches nobody — how 1.7.23 and 1.7.24 shipped to no one.
   isPrerelease ? '--prerelease' : '--latest'
 ])
+
+const expectedAssets = assets.map((file) => basename(file)).sort()
+const uploadedAssets = JSON.parse(
+  run('gh', ['release', 'view', `v${version}`, '--json', 'assets', '-q', '[.assets[].name]'])
+).sort()
+if (JSON.stringify(uploadedAssets) !== JSON.stringify(expectedAssets)) {
+  die(
+    `v${version} has the wrong assets:\n\n  expected: ${expectedAssets.join(', ')}\n  uploaded: ${uploadedAssets.join(', ')}`
+  )
+}
 
 // gh's `release view --json isLatest` field doesn't exist on older gh builds;
 // ask the API which release GitHub actually serves as latest instead.

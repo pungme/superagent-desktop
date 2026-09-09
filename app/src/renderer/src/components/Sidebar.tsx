@@ -12,14 +12,9 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import {
-  useStore,
-  normalizeCwd,
-  isPendingBranch,
-  movedSinceSeen,
-  WorkspaceStatus
-} from '../state'
+import { useStore, normalizeCwd, movedSinceSeen, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
+import { chatPending, isFolderRoot } from '../lib/folder-root'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -296,8 +291,8 @@ function BranchRow({
   // one: it has moved since you last had it open. The first covers the project
   // you are in; the second covers everything else, and both survive nothing
   // being mounted.
-  const unread = useStore((st) => Boolean(chat && st.unread[chat.id])) ||
-    Boolean(chat && movedSinceSeen(chat))
+  const unread =
+    useStore((st) => Boolean(chat && st.unread[chat.id])) || Boolean(chat && movedSinceSeen(chat))
   const label = chat?.title ?? (chat ? 'New chat' : '')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(label)
@@ -435,7 +430,15 @@ function ChatRow({
   return (
     <div
       ref={sortable ? drag.setNodeRef : undefined}
-      style={sortable ? { transform: CSS.Transform.toString(drag.transform), transition: drag.transition, opacity: drag.isDragging ? 0.5 : 1 } : undefined}
+      style={
+        sortable
+          ? {
+              transform: CSS.Transform.toString(drag.transform),
+              transition: drag.transition,
+              opacity: drag.isDragging ? 0.5 : 1
+            }
+          : undefined
+      }
       {...(sortable ? drag.attributes : {})}
       {...(sortable ? drag.listeners : {})}
       className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''} ${
@@ -485,10 +488,13 @@ function ChatRow({
             )
           )}
           <span className="chat-tree-label">{label}</span>
-          {!chat.cwd && isPendingBranch(chat.id) ? (
+          {!chat.cwd && chatPending(chat) ? (
             /* Waiting for its first message. It is NOT on main — saying so would
                be a lie about where the agent is about to write. */
-            <span className="chat-tree-wt pending" title="Its branch is cut when you send the first message">
+            <span
+              className="chat-tree-wt pending"
+              title="Its branch is cut when you send the first message"
+            >
               not started
             </span>
           ) : chat.cwd && !wtBranch ? (
@@ -619,20 +625,21 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    * context menu could not reach it, and a folder conversation could grow to
    * twenty megabytes with nothing in the app able to empty it.
    */
-  const folderChatId = useStore(
-    (s) =>
-      (s.chats[ws.id] ?? []).find((c) => !c.cwd && !isPendingBranch(c.id))?.id ?? null
-  )
+  const folderChatId = useStore((s) => {
+    const all = s.chats[ws.id] ?? []
+    return all.find((c) => isFolderRoot(all, c))?.id ?? null
+  })
   const rootSelected = useStore((s) => {
     if (s.activeWorkspaceId !== ws.id || s.overlay !== null) return false
     const id = s.activeChatId[ws.id]
     if (!id) return true
-    const chat = s.chats[ws.id]?.find((c) => c.id === id)
+    const all = s.chats[ws.id] ?? []
+    const chat = all.find((c) => c.id === id)
     if (!chat) return true
     // A chat still waiting for its branch also has no cwd, so "no cwd" alone
     // made it look like the folder's own chat — and its row and this one both
     // lit up. Only a chat that will STAY in the folder counts as the root.
-    return !chat.cwd && !isPendingBranch(chat.id)
+    return isFolderRoot(all, chat)
   })
   const selectChat = useStore((s) => s.selectChat)
   const setActive = useStore((s) => s.setActive)
@@ -928,10 +935,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         (() => {
           const chatOn = (wtPath: string | null): Chat | undefined =>
             chats.find(
-              (c) =>
-                !isPendingBranch(c.id) && normalizeCwd(c.cwd ?? null) === normalizeCwd(wtPath)
+              (c) => !chatPending(c) && normalizeCwd(c.cwd ?? null) === normalizeCwd(wtPath)
             )
-          const pending = chats.filter((c) => isPendingBranch(c.id))
+          const pending = chats.filter((c) => chatPending(c) && !isFolderRoot(chats, c))
           // The folder's own chat lives on the project row now, so the list
           // below exists only for the extras: branches, chats waiting for one,
           // and chats whose copy has gone.
@@ -940,7 +946,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             pending.length +
             chats.filter(
               (c) =>
-                !isPendingBranch(c.id) &&
+                !chatPending(c) &&
                 c.cwd &&
                 !worktrees.some(
                   (w) => normalizeCwd(w.main ? null : w.path) === normalizeCwd(c.cwd ?? null)
@@ -975,47 +981,51 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               {worktrees
                 .filter((wt) => !wt.main)
                 .map((wt) => {
-                const cwd = wt.main ? null : wt.path
-                const chat = chatOn(cwd)
-                return row(wt.path, wt.branch ?? 'detached', chat, {
-                  main: wt.main,
-                  onOpen: () => {
-                    if (chat) {
-                      setActive(ws.id)
-                      selectChat(ws.id, chat.id)
-                    } else {
-                      openBranch(ws.id, cwd)
+                  const cwd = wt.main ? null : wt.path
+                  const chat = chatOn(cwd)
+                  return row(wt.path, wt.branch ?? 'detached', chat, {
+                    main: wt.main,
+                    onOpen: () => {
+                      if (chat) {
+                        setActive(ws.id)
+                        selectChat(ws.id, chat.id)
+                      } else {
+                        openBranch(ws.id, cwd)
+                      }
+                    },
+                    // A chatless worktree — a branch you have not opened yet, or a
+                    // stray one an agent left behind (a detached /tmp PR checkout,
+                    // say) — is removable too. Without this its row had no ✕ and
+                    // could only be deleted through a right-click nobody finds.
+                    onRemove: chat
+                      ? () => void removeChatFn(ws.id, chat.id)
+                      : () => {
+                          const what = wt.branch ?? 'this worktree'
+                          if (
+                            !window.confirm(
+                              `Remove "${what}" and its checkout?\n\nThis cannot be undone.`
+                            )
+                          )
+                            return
+                          void window.cove.worktreeRemove(ws.path, wt.path).then(() => {
+                            window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+                          })
+                        },
+                    onMenu: () => {
+                      if (wt.main) return
+                      if (chat) {
+                        window.cove.chatMenu(chat.id, ws.id, chat.cwd)
+                        return
+                      }
+                      window.cove.worktreeMenu({
+                        projectPath: ws.path,
+                        wtPath: wt.path,
+                        branch: wt.branch,
+                        base: wt.base
+                      })
                     }
-                  },
-                  // A chatless worktree — a branch you have not opened yet, or a
-                  // stray one an agent left behind (a detached /tmp PR checkout,
-                  // say) — is removable too. Without this its row had no ✕ and
-                  // could only be deleted through a right-click nobody finds.
-                  onRemove: chat
-                    ? () => void removeChatFn(ws.id, chat.id)
-                    : () => {
-                        const what = wt.branch ?? 'this worktree'
-                        if (!window.confirm(`Remove "${what}" and its checkout?\n\nThis cannot be undone.`))
-                          return
-                        void window.cove.worktreeRemove(ws.path, wt.path).then(() => {
-                          window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
-                        })
-                      },
-                  onMenu: () => {
-                    if (wt.main) return
-                    if (chat) {
-                      window.cove.chatMenu(chat.id, ws.id, chat.cwd)
-                      return
-                    }
-                    window.cove.worktreeMenu({
-                      projectPath: ws.path,
-                      wtPath: wt.path,
-                      branch: wt.branch,
-                      base: wt.base
-                    })
-                  }
-                })
-              })}
+                  })
+                })}
               {/* Chats whose copy is gone — merged and reaped, or removed by
                   hand. They match no worktree and are not pending, so without a
                   row of their own they vanished from the sidebar entirely,
@@ -1023,7 +1033,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               {chats
                 .filter(
                   (c) =>
-                    !isPendingBranch(c.id) &&
+                    !chatPending(c) &&
                     c.cwd &&
                     !worktrees.some(
                       (w) => normalizeCwd(w.main ? null : w.path) === normalizeCwd(c.cwd ?? null)
@@ -1252,9 +1262,7 @@ function ActivityList(): React.JSX.Element {
               selectChat(c.workspaceId, c.id)
             }}
           >
-            <span
-              className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`}
-            />
+            <span className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`} />
             <span className="activity-body">
               <span className="activity-top">
                 <span className="activity-title">{c.title || 'New chat'}</span>
@@ -1288,8 +1296,8 @@ export function Sidebar(): React.JSX.Element {
   const addGroup = useStore((s) => s.addGroup)
   const setActive = useStore((s) => s.setActive)
   const tabsGroup = tree.find((g) => g.name === TABS_GROUP)
-  const [mode, setMode] = useState<'activity' | 'projects'>(
-    () => (localStorage.getItem('cove.sidebarMode') === 'activity' ? 'activity' : 'projects')
+  const [mode, setMode] = useState<'activity' | 'projects'>(() =>
+    localStorage.getItem('cove.sidebarMode') === 'activity' ? 'activity' : 'projects'
   )
   useEffect(() => {
     localStorage.setItem('cove.sidebarMode', mode)
@@ -1396,7 +1404,10 @@ export function Sidebar(): React.JSX.Element {
       </div>
       {mode === 'activity' && <ActivityList />}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <div className="sidebar-scroll" style={mode === 'activity' ? { display: 'none' } : undefined}>
+        <div
+          className="sidebar-scroll"
+          style={mode === 'activity' ? { display: 'none' } : undefined}
+        >
           <button
             className={`sidebar-dash-row ${overlay === 'computer' ? 'on' : ''}`}
             onClick={() => window.dispatchEvent(new CustomEvent('cove:open-computer'))}
