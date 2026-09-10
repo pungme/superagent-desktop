@@ -1420,8 +1420,13 @@ export const useStore = create<CoveState>((set, get) => ({
       picked.path
     )
     leaveFullWindowSurfaces()
-    set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
-    await get().startFirstChat(workspaceId)
+    set((s) => ({
+      tree,
+      activeWorkspaceId: workspaceId,
+      newProjectGroupId: null,
+      chats: { ...s.chats, [workspaceId]: [] },
+      activeChatId: { ...s.activeChatId, [workspaceId]: '' }
+    }))
   },
   createBrowserProject: async (groupId) => {
     const { tree, workspaceId } = await window.cove.createBrowserWorkspace(
@@ -1433,15 +1438,8 @@ export const useStore = create<CoveState>((set, get) => ({
     await get().startFirstChat(workspaceId)
   },
 
-  /**
-   * The conversation a brand-new project opens with.
-   *
-   * Clicking a project never makes one — you asked for that, and it is right:
-   * looking at something should not leave a chat behind. But ADDING a project
-   * is not looking, it is asking to work on it, and landing on an empty pane
-   * with a "+ New chat" button to press is a step nobody wanted. Only ever for
-   * a project with nothing in it, so it cannot produce a second one.
-   */
+  // Browser projects open directly into a conversation. Code-folder projects
+  // deliberately do not: adding or opening a folder must not create history.
   moveChat: async (chatId, beforeChatId) => {
     const workspaceId = Object.keys(get().chats).find((wid) =>
       (get().chats[wid] ?? []).some((c) => c.id === chatId)
@@ -1489,8 +1487,12 @@ export const useStore = create<CoveState>((set, get) => ({
     }
     leaveFullWindowSurfaces()
     const { tree, workspaceId } = await window.cove.createWorkspace(groupId, name, path)
-    set({ tree, activeWorkspaceId: workspaceId })
-    await get().startFirstChat(workspaceId)
+    set((s) => ({
+      tree,
+      activeWorkspaceId: workspaceId,
+      chats: { ...s.chats, [workspaceId]: [] },
+      activeChatId: { ...s.activeChatId, [workspaceId]: '' }
+    }))
   },
   removeWorkspace: async (id) => {
     // Tear down ALL of the workspace's browser views. The PTY and Easy-mode agent

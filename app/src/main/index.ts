@@ -7,7 +7,9 @@ import {
   nativeTheme,
   ipcMain,
   dialog,
-  session, nativeImage } from 'electron'
+  session,
+  nativeImage
+} from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
 import { SHARED_BROWSER_PARTITION } from './util'
@@ -387,10 +389,7 @@ app.whenReady().then(async () => {
   // no way to land it or bin it.
   ipcMain.on(
     'worktree:menu',
-    (
-      e,
-      p: { projectPath: string; wtPath: string; branch: string | null; base: string | null }
-    ) => {
+    (e, p: { projectPath: string; wtPath: string; branch: string | null; base: string | null }) => {
       const win = BrowserWindow.fromWebContents(e.sender)
       if (!win) return
       const send = (action: 'merge' | 'delete'): void =>
@@ -415,43 +414,43 @@ app.whenReady().then(async () => {
   ipcMain.on(
     'workspace:menu',
     (e, ws: { id: string; path: string; isRepo: boolean; chatId?: string | null }) => {
-    const win = BrowserWindow.fromWebContents(e.sender)
-    if (!win) return
-    const send = (action: string): void =>
-      win.webContents.send('workspace:menu-action', { action, id: ws.id, path: ws.path })
-    // One entry: New Chat isolates itself on a repo now (a chat is a checkout),
-    // so the separate worktree item is gone.
-    const template: Electron.MenuItemConstructorOptions[] = [
-      { label: 'New Chat', click: () => send('new-chat') }
-    ]
-    // This row IS the conversation that works in the folder — it has no row of
-    // its own — so the only place to empty it is here.
-    if (ws.chatId) {
-      const chatId = ws.chatId
-      template.push({
-        label: 'Clear this conversation…',
-        click: async () => {
-          const { response } = await dialog.showMessageBox(win, {
-            type: 'warning',
-            buttons: ['Clear', 'Cancel'],
-            defaultId: 1,
-            message: 'Clear this conversation?',
-            detail:
-              'Everything said in it goes, on this Mac and on your phone, and the agent starts fresh. The project and its files are untouched.'
-          })
-          if (response === 0) {
-            forgetChat(chatId)
-            win.webContents.send('chat:cleared', { chatId, workspaceId: ws.id })
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      const send = (action: string): void =>
+        win.webContents.send('workspace:menu-action', { action, id: ws.id, path: ws.path })
+      // One entry: New Chat isolates itself on a repo now (a chat is a checkout),
+      // so the separate worktree item is gone.
+      const template: Electron.MenuItemConstructorOptions[] = [
+        { label: 'New Chat', click: () => send('new-chat') }
+      ]
+      // This row IS the conversation that works in the folder — it has no row of
+      // its own — so the only place to empty it is here.
+      if (ws.chatId) {
+        const chatId = ws.chatId
+        template.push({
+          label: 'Clear this conversation…',
+          click: async () => {
+            const { response } = await dialog.showMessageBox(win, {
+              type: 'warning',
+              buttons: ['Clear', 'Cancel'],
+              defaultId: 1,
+              message: 'Clear this conversation?',
+              detail:
+                'Everything said in it goes, on this Mac and on your phone, and the agent starts fresh. The project and its files are untouched.'
+            })
+            if (response === 0) {
+              forgetChat(chatId)
+              win.webContents.send('chat:cleared', { chatId, workspaceId: ws.id })
+            }
           }
-        }
-      })
-    }
-    template.push(
-      { type: 'separator' },
-      { label: 'Reveal in Finder', click: () => shell.showItemInFolder(ws.path) },
-      { label: 'Copy Path', click: () => clipboard.writeText(ws.path) }
-    )
-    Menu.buildFromTemplate(template).popup({ window: win })
+        })
+      }
+      template.push(
+        { type: 'separator' },
+        { label: 'Reveal in Finder', click: () => shell.showItemInFolder(ws.path) },
+        { label: 'Copy Path', click: () => clipboard.writeText(ws.path) }
+      )
+      Menu.buildFromTemplate(template).popup({ window: win })
     }
   )
 
@@ -500,6 +499,12 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('dialog:pickFolder', async () => {
+    // Lets the packaged Electron E2E suite exercise the real Add Folder button
+    // without trying to automate macOS's out-of-process file picker.
+    if (process.env.COVE_E2E_PICK_FOLDER) {
+      const path = process.env.COVE_E2E_PICK_FOLDER
+      return { path, name: basename(path) }
+    }
     const win = BrowserWindow.getFocusedWindow()
     const result = await dialog.showOpenDialog(win!, {
       properties: ['openDirectory', 'createDirectory']
