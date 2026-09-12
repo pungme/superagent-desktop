@@ -26,6 +26,23 @@ describe('TranscriptProjector', () => {
     ])
   })
 
+  it('passes Codex model choices to companion devices', () => {
+    const p = new TranscriptProjector()
+    expect(
+      p.project({
+        ...init,
+        models: [{ id: 'gpt-5.6-codex', label: 'GPT-5.6 Codex', hint: 'Best coding model' }]
+      }).persist
+    ).toEqual([
+      {
+        kind: 'session',
+        claudeSessionId: 'sess-1',
+        model: 'claude-fable-5',
+        models: [{ id: 'gpt-5.6-codex', label: 'GPT-5.6 Codex', hint: 'Best coding model' }]
+      }
+    ])
+  })
+
   it('streams deltas ephemerally and persists the final text once', () => {
     const p = new TranscriptProjector()
     expect(p.project(delta('Hel'))).toEqual({ persist: [], delta: 'Hel' })

@@ -70,7 +70,13 @@ export type WireEventData =
        */
       contextTokens?: number
     }
-  | { kind: 'session'; claudeSessionId: string; model?: string; commands?: string[] }
+  | {
+      kind: 'session'
+      claudeSessionId: string
+      model?: string
+      commands?: string[]
+      models?: { id: string; label: string; hint: string }[]
+    }
   | { kind: 'notice'; text: string }
   /**
    * A file the agent handed to the user: a generated PDF, an export, a report.

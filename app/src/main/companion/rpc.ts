@@ -1039,11 +1039,8 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
       // to `claude --resume` (or the other way round). A chat that has never run
       // takes the app's current default, so the picker on the Mac still decides.
       provider,
-      // A phone sends the model and mode from its own pickers, which are Claude
-      // Code's — it has no idea this conversation runs on Codex. Handing Codex
-      // `--model opus` is not a bad setting, it is a CLI that refuses to start,
-      // and the phone then sits there with no reply. Anything belonging to the
-      // other agent is dropped and the Mac's own default stands.
+      // Models are backend-specific; the four product permission modes are
+      // shared and Codex translates them to sandbox + approval policy.
       permissionMode: modeBelongsTo(p.permissionMode, provider)
         ? (p.permissionMode ?? permissionModeSetting())
         : permissionModeSetting(),

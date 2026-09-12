@@ -9,7 +9,7 @@ import { modelBelongsTo, modeBelongsTo } from './agent-provider'
  */
 describe('a setting belongs to one agent', () => {
   it('keeps Claude Code models for Claude Code', () => {
-    for (const m of ['opus', 'sonnet', 'haiku', 'default', 'opus[1m]', 'Sonnet']) {
+    for (const m of ['opus', 'sonnet', 'haiku', 'fable', 'mythos', 'default', 'opus[1m]', 'Sonnet']) {
       expect(modelBelongsTo(m, 'claude')).toBe(true)
       expect(modelBelongsTo(m, 'codex')).toBe(false)
     }
@@ -27,10 +27,10 @@ describe('a setting belongs to one agent', () => {
     expect(modelBelongsTo(undefined, 'claude')).toBe(true)
   })
 
-  it('keeps Claude Code permission modes for Claude Code', () => {
+  it('keeps product permission modes for both backends', () => {
     for (const m of ['bypassPermissions', 'acceptEdits', 'plan', 'ask']) {
       expect(modeBelongsTo(m, 'claude')).toBe(true)
-      expect(modeBelongsTo(m, 'codex')).toBe(false)
+      expect(modeBelongsTo(m, 'codex')).toBe(true)
     }
     expect(modeBelongsTo(undefined, 'codex')).toBe(true)
   })

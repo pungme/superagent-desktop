@@ -35,13 +35,25 @@ export class TranscriptProjector {
       const commands = Array.isArray(raw.slash_commands)
         ? (raw.slash_commands as unknown[]).filter((c): c is string => typeof c === 'string')
         : undefined
+      const models = Array.isArray(raw.models)
+        ? (raw.models as unknown[]).flatMap((value) => {
+            if (!value || typeof value !== 'object') return []
+            const model = value as Record<string, unknown>
+            return typeof model.id === 'string' &&
+              typeof model.label === 'string' &&
+              typeof model.hint === 'string'
+              ? [{ id: model.id, label: model.label, hint: model.hint }]
+              : []
+          })
+        : undefined
       return {
         persist: [
           {
             kind: 'session',
             claudeSessionId: sid,
             model: raw.model as string | undefined,
-            ...(commands?.length ? { commands } : {})
+            ...(commands?.length ? { commands } : {}),
+            ...(models?.length ? { models } : {})
           }
         ]
       }
