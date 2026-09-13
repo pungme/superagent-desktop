@@ -1420,13 +1420,8 @@ export const useStore = create<CoveState>((set, get) => ({
       picked.path
     )
     leaveFullWindowSurfaces()
-    set((s) => ({
-      tree,
-      activeWorkspaceId: workspaceId,
-      newProjectGroupId: null,
-      chats: { ...s.chats, [workspaceId]: [] },
-      activeChatId: { ...s.activeChatId, [workspaceId]: '' }
-    }))
+    set({ tree, activeWorkspaceId: workspaceId, newProjectGroupId: null })
+    await get().startFirstChat(workspaceId)
   },
   createBrowserProject: async (groupId) => {
     const { tree, workspaceId } = await window.cove.createBrowserWorkspace(
@@ -1438,8 +1433,9 @@ export const useStore = create<CoveState>((set, get) => ({
     await get().startFirstChat(workspaceId)
   },
 
-  // Browser projects open directly into a conversation. Code-folder projects
-  // deliberately do not: adding or opening a folder must not create history.
+  // A newly created project gets one root conversation. WorkspaceView must not
+  // independently create another for code folders: those two paths used to
+  // race and leave a duplicate nested "New chat / no branch yet" row.
   moveChat: async (chatId, beforeChatId) => {
     const workspaceId = Object.keys(get().chats).find((wid) =>
       (get().chats[wid] ?? []).some((c) => c.id === chatId)
@@ -1487,12 +1483,8 @@ export const useStore = create<CoveState>((set, get) => ({
     }
     leaveFullWindowSurfaces()
     const { tree, workspaceId } = await window.cove.createWorkspace(groupId, name, path)
-    set((s) => ({
-      tree,
-      activeWorkspaceId: workspaceId,
-      chats: { ...s.chats, [workspaceId]: [] },
-      activeChatId: { ...s.activeChatId, [workspaceId]: '' }
-    }))
+    set({ tree, activeWorkspaceId: workspaceId })
+    await get().startFirstChat(workspaceId)
   },
   removeWorkspace: async (id) => {
     // Tear down ALL of the workspace's browser views. The PTY and Easy-mode agent

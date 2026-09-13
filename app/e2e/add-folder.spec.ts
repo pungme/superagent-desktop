@@ -41,7 +41,7 @@ test.afterAll(async () => {
   for (const dir of [userDataDir, folderDir]) rmSync(dir, { recursive: true, force: true })
 })
 
-test('adding a code folder creates the project with no chat', async () => {
+test('adding a code folder creates one usable root chat without a nested row', async () => {
   await window.getByRole('button', { name: 'New project' }).click()
   await expect(window.locator('.sidebar-item', { hasText: 'cove-added-folder-' })).toBeVisible()
 
@@ -51,7 +51,8 @@ test('adding a code folder creates the project with no chat', async () => {
     ).cove.chatListAll()
   })
 
-  expect(chats).toEqual([])
+  expect(chats).toHaveLength(1)
+  await expect(window.getByRole('textbox', { name: /Message Claude/ })).toBeVisible()
   await expect(window.locator('[data-chat-id]')).toHaveCount(0)
   await expect(window.getByText('no branch yet')).toHaveCount(0)
 })
