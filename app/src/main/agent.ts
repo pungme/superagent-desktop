@@ -2,6 +2,7 @@ import { ipcMain, WebContents } from 'electron'
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
 import os from 'os'
+import { remoteUserMessage } from './remote-user'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { writeWorkspaceMcpConfig } from './mcp'
@@ -417,6 +418,10 @@ export function sendToAgent(
 ): boolean {
   const session = sessions.get(id)
   if (!session || !session.backend.writable) return false
+  // One id for the durable event, its saved thumbnails, and the live renderer
+  // notification. Previously the live path had no id at all, so an image sent
+  // from the iOS share sheet could not ask main for its thumbnail.
+  const messageId = origin.localId ?? `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   // Announce before writing, so the log has the prompt ahead of any reply.
   agentBus.emit('user', {
     id,
@@ -428,13 +433,14 @@ export function sendToAgent(
     // under the id it is about to mint. They do not go into the log.
     raw: images,
     from: origin.from,
-    localId: origin.localId,
+    localId: messageId,
     replyTo: origin.replyTo
   })
   // A prompt from the phone also has to reach the window showing this chat.
   if (origin.from !== 'desktop') {
     const o = session.owner
-    if (o && !o.isDestroyed()) o.send(`agent:user:${id}`, { text, from: origin.from })
+    if (o && !o.isDestroyed())
+      o.send(`agent:user:${id}`, remoteUserMessage(messageId, text, images.length))
   }
   // The agent behind this chat has no memory of what is on screen. Hand it the
   // conversation, once, ahead of the message. The `user` event above already

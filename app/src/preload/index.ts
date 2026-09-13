@@ -661,7 +661,10 @@ export interface CoveApi {
   agentStop: (id: string) => void
   onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
   /** A prompt that reached this session from somewhere other than this window (the phone). */
-  onAgentUser: (id: string, cb: (m: { text: string; from: string }) => void) => () => void
+  onAgentUser: (
+    id: string,
+    cb: (m: { id: string; text: string; from: string; imageCount: number }) => void
+  ) => () => void
   /** Raw stderr from the Claude CLI — carries its real diagnostics (auth, org access…). */
   onAgentStderr: (id: string, cb: (chunk: string) => void) => () => void
   onAgentExit: (id: string, cb: (code: number) => void) => () => void
@@ -970,7 +973,9 @@ const cove: CoveApi = {
   onAgentEvent: (id, cb) =>
     subscribe(`agent:event:${id}`, (event) => cb(event as Record<string, unknown>)),
   onAgentUser: (id, cb) =>
-    subscribe(`agent:user:${id}`, (m) => cb(m as { text: string; from: string })),
+    subscribe(`agent:user:${id}`, (m) =>
+      cb(m as { id: string; text: string; from: string; imageCount: number })
+    ),
   onAgentStderr: (id, cb) => subscribe(`agent:stderr:${id}`, (chunk) => cb(chunk as string)),
   onAgentExit: (id, cb) => subscribe(`agent:exit:${id}`, (code) => cb(code as number)),
   onAgentResumeLost: (id, cb) => subscribe(`agent:resume-lost:${id}`, () => cb()),

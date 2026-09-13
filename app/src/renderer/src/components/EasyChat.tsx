@@ -2676,12 +2676,18 @@ export function EasyChat({
           offEvent = window.cove.onAgentEvent(id, (e) => handleEventRef.current(e))
           // A prompt typed on the paired phone: show it here too, and treat the
           // turn as ours to render (generating/thinking, exactly like a local send).
-          offUser = window.cove.onAgentUser?.(id, ({ text }) => {
+          offUser = window.cove.onAgentUser?.(id, ({ id: messageId, text, imageCount }) => {
             setItems((prev) => [
               ...prev,
               {
                 kind: 'msg',
-                msg: { id: `u-${Date.now()}-${Math.random()}`, at: Date.now(), role: 'user', text }
+                msg: {
+                  id: messageId,
+                  at: Date.now(),
+                  role: 'user',
+                  text,
+                  ...(imageCount ? { imageCount } : {})
+                }
               }
             ])
             setGenerating(true)
