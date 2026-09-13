@@ -141,6 +141,10 @@ export function startAutoUpdate(): void {
 
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+  // electron-updater documents this as true by default, but Squirrel's staged
+  // state has repeatedly ended up with launchAfterInstallation=false on real
+  // installs. Set it explicitly so "Restart to update" really restarts.
+  autoUpdater.autoRunAppAfterInstall = true
   // Only pre-releases when the user asked for them; false is the default and
   // keeps a stable install on the "Latest" line.
   autoUpdater.allowPrerelease = betaUpdatesEnabled()
@@ -236,7 +240,12 @@ export function startAutoUpdate(): void {
         for (const win of BrowserWindow.getAllWindows()) {
           if (!win.isDestroyed()) win.destroy()
         }
-        autoUpdater.quitAndInstall(false, true)
+        // MacUpdater ignores quitAndInstall's arguments; it reads this property
+        // when deciding whether to call nativeUpdater.quitAndInstall() or merely
+        // app.quit(). Keep the assignment next to the action too, so no future
+        // preference or updater refactor can silently turn Restart into Quit.
+        autoUpdater.autoRunAppAfterInstall = true
+        autoUpdater.quitAndInstall()
         setTimeout(() => {
           // Only when Squirrel really has an update staged this session —
           // otherwise a forced exit would just close the app for nothing.
