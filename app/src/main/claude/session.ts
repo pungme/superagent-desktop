@@ -52,13 +52,12 @@ export function buildAgentArgs(
     // hook instead, and the app asks the user (Mac or phone).
     opts.permissionMode === 'ask' ? 'default' : (opts.permissionMode ?? 'bypassPermissions')
   ]
-  // Pin the model only when the user picked one. "Default" ('') means "whatever
-  // your account uses" — passing no --model lets the CLI resolve the account
-  // default (which is often the best model you have, e.g. Opus 5), so don't
-  // second-guess it with a forced downgrade. To force off a rate-limited model
-  // on a resumed session, pick a concrete model — that DOES send --model and
-  // overrides.
+  // A concrete picker choice is pinned. Default leaves selection to Claude,
+  // but also asks the CLI to fall back to Opus when its preferred model (for
+  // example Fable) is unavailable or its allowance is exhausted. Without the
+  // fallback flag, a Default session simply ended on the Fable-limit notice.
   if (opts.model) args.push('--model', opts.model)
+  else args.push('--fallback-model', 'opus')
   // Ask mode: headless claude can't show a prompt, so it asks our MCP server,
   // which asks the user (Mac modal or phone). See mcp.ts permission_prompt.
   if (opts.permissionMode === 'ask')

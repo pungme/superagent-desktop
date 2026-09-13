@@ -49,11 +49,21 @@ describe('buildAgentArgs', () => {
     expect(args.slice(i + 1).some((a) => a.startsWith('--'))).toBe(false)
   })
 
-  it('pins the model only when one was chosen', () => {
+  it('pins an explicit model and gives Default an Opus fallback', () => {
     expect(valueAfter(buildAgentArgs({ model: 'opus' }), '--model')).toBe('opus')
-    // "Default" ('') sends no --model — the CLI resolves the account default.
+    expect(buildAgentArgs({ model: 'opus' }).includes('--fallback-model')).toBe(false)
+    // Default sends no --model, so Claude still chooses first; Opus is used only
+    // when that preferred model is unavailable or its allowance is exhausted.
     expect(buildAgentArgs({}).includes('--model')).toBe(false)
     expect(buildAgentArgs({ model: '' }).includes('--model')).toBe(false)
+    expect(valueAfter(buildAgentArgs({}), '--fallback-model')).toBe('opus')
+    expect(valueAfter(buildAgentArgs({ model: '' }), '--fallback-model')).toBe('opus')
+  })
+
+  it('keeps automatic fallback when resuming a Default session', () => {
+    const args = buildAgentArgs({}, { resume: 'fable-session' })
+    expect(valueAfter(args, '--fallback-model')).toBe('opus')
+    expect(args.includes('--model')).toBe(false)
   })
 
   it('resumes in front of -p, where the CLI expects it', () => {
