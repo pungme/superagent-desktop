@@ -27,7 +27,7 @@ import {
   allowUserFocus
 } from './browser'
 import { startMcpServer } from './mcp'
-import { registerStoreIpc } from './store'
+import { getChat, registerStoreIpc, setChatPinned } from './store'
 import { mergeLegacyPartitions, sweepMergedPartitions } from './session-merge'
 import { registerDesktopIpc } from './desktop'
 import { registerDeskIpc } from './desk'
@@ -35,7 +35,13 @@ import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents } from './agent'
 import { startCompanionLog, forgetChat } from './companion/log'
-import { startCompanion, stopCompanion, registerCompanionIpc, companionBus } from './companion'
+import {
+  startCompanion,
+  stopCompanion,
+  registerCompanionIpc,
+  companionBus,
+  pushChats
+} from './companion'
 import { startTray, refreshTray } from './tray'
 import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
@@ -341,6 +347,16 @@ app.whenReady().then(async () => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return
     const template: Electron.MenuItemConstructorOptions[] = []
+    const pinned = Boolean(getChat(chatId)?.pinned)
+    template.push({
+      label: pinned ? 'Unpin chat' : 'Pin chat',
+      click: () => {
+        setChatPinned(chatId, !pinned)
+        win.webContents.send('projects:changed', {})
+        pushChats()
+      }
+    })
+    template.push({ type: 'separator' })
     // A worktree chat's changes can be kept (squashed into the project) or
     // thrown away when you're done.
     if (cwd && cwd.includes('/.worktrees/')) {
@@ -427,23 +443,34 @@ app.whenReady().then(async () => {
       // its own — so the only place to empty it is here.
       if (ws.chatId) {
         const chatId = ws.chatId
-        template.push({
-          label: 'Clear this conversation…',
-          click: async () => {
-            const { response } = await dialog.showMessageBox(win, {
-              type: 'warning',
-              buttons: ['Clear', 'Cancel'],
-              defaultId: 1,
-              message: 'Clear this conversation?',
-              detail:
-                'Everything said in it goes, on this Mac and on your phone, and the agent starts fresh. The project and its files are untouched.'
-            })
-            if (response === 0) {
-              forgetChat(chatId)
-              win.webContents.send('chat:cleared', { chatId, workspaceId: ws.id })
+        const pinned = Boolean(getChat(chatId)?.pinned)
+        template.push(
+          {
+            label: pinned ? 'Unpin conversation' : 'Pin conversation',
+            click: () => {
+              setChatPinned(chatId, !pinned)
+              win.webContents.send('projects:changed', {})
+              pushChats()
+            }
+          },
+          {
+            label: 'Clear this conversation…',
+            click: async () => {
+              const { response } = await dialog.showMessageBox(win, {
+                type: 'warning',
+                buttons: ['Clear', 'Cancel'],
+                defaultId: 1,
+                message: 'Clear this conversation?',
+                detail:
+                  'Everything said in it goes, on this Mac and on your phone, and the agent starts fresh. The project and its files are untouched.'
+              })
+              if (response === 0) {
+                forgetChat(chatId)
+                win.webContents.send('chat:cleared', { chatId, workspaceId: ws.id })
+              }
             }
           }
-        })
+        )
       }
       template.push(
         { type: 'separator' },

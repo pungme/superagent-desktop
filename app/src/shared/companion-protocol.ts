@@ -154,6 +154,8 @@ export interface WireChat {
   workspaceId: string
   title: string | null
   updatedAt: number
+  /** Pinned conversations sort before unpinned ones on every client. */
+  pinned?: boolean
   /** Whether a claude process is alive for this chat right now. */
   live: boolean
   /** The last thing said in it, for the list row. */
@@ -288,6 +290,7 @@ export type RpcMethod =
   | 'chat.create'
   | 'chat.setAgent'
   | 'chat.rename'
+  | 'chat.pin'
   | 'chat.delete'
   | 'approval.answer'
   | 'routines.list'

@@ -57,7 +57,9 @@ export function DesktopChat({
     return () => ro.disconnect()
   }, [])
 
-  const ordered = [...(chats ?? [])].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+  const ordered = [...(chats ?? [])].sort(
+    (a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt - a.updatedAt
+  )
   // Same rule as the project chats: keep the active conversation mounted plus any
   // still-busy sibling, so switching Computer chats never tears down a running
   // turn. Only the active one is shown.

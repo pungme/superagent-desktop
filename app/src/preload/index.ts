@@ -66,6 +66,7 @@ export interface Chat {
   /** Which agent runs this chat. Chats from before the second backend are Claude's. */
   provider: AgentProvider
   updatedAt: number
+  pinned: number
   /** Worktree override — the chat's agent runs here instead of the project path. */
   cwd: string | null
   /**
@@ -364,7 +365,17 @@ export interface CoveApi {
   browserStop: (id: string) => void
   /** Tail a background shell's output file (the Bash result says where it is). */
   bgTail: (path: string, maxBytes?: number) => Promise<string | null>
-  bgSync: (chatId: string, tasks: { toolUseId: string; command: string; description?: string; startedAt: number; output?: string; manual?: boolean }[]) => void
+  bgSync: (
+    chatId: string,
+    tasks: {
+      toolUseId: string
+      command: string
+      description?: string
+      startedAt: number
+      output?: string
+      manual?: boolean
+    }[]
+  ) => void
   onBgStop: (cb: (p: { chatId: string; toolUseId: string }) => void) => () => void
   /** The project's board — the same cards the board_* agent tools write. */
   boardList: (workspaceId: string) => Promise<BoardCard[]>

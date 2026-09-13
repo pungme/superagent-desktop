@@ -81,6 +81,7 @@ export function initStore(): void {
       claudeSessionId TEXT,
       provider TEXT,
       position INTEGER NOT NULL DEFAULT 0,
+      pinned INTEGER NOT NULL DEFAULT 0,
       updatedAt INTEGER NOT NULL DEFAULT 0,
       data TEXT NOT NULL
     );
@@ -252,6 +253,11 @@ export function initStore(): void {
   const chatCols4 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
   if (chatCols4.length > 0 && !chatCols4.some((c) => c.name === 'model')) {
     db.exec('ALTER TABLE chats ADD COLUMN model TEXT')
+  }
+
+  const chatCols5 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  if (chatCols5.length > 0 && !chatCols5.some((c) => c.name === 'pinned')) {
+    db.exec('ALTER TABLE chats ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
   }
 
   // Seed a default group on first run so the sidebar is never empty.
@@ -517,13 +523,14 @@ export interface ChatRow {
   claudeSessionId: string | null
   provider: AgentProvider
   updatedAt: number
+  pinned: number
   cwd: string | null
 }
 
 export function getChat(chatId: string): ChatRow | undefined {
   const row = db
     .prepare(
-      'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd FROM chats WHERE id = ?'
+      'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, cwd FROM chats WHERE id = ?'
     )
     .get(chatId) as ChatRow | undefined
   return row ? { ...row, provider: toProvider(row.provider) } : undefined
@@ -566,6 +573,10 @@ export function setChatModel(chatId: string, model: string | null): void {
 
 export function setChatProvider(chatId: string, provider: AgentProvider): void {
   db.prepare('UPDATE chats SET provider = ? WHERE id = ?').run(provider, chatId)
+}
+
+export function setChatPinned(chatId: string, pinned: boolean): void {
+  db.prepare('UPDATE chats SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, chatId)
 }
 
 /**
@@ -654,7 +665,7 @@ export function listAllChats(): ChatRow[] {
   return (
     db
       .prepare(
-        'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC'
+        'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, cwd FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC'
       )
       .all() as ChatRow[]
   ).map((row) => ({ ...row, provider: toProvider(row.provider) }))
@@ -1755,9 +1766,9 @@ function registerStoreIpcTail(): void {
         // pending comes from kv, where BOTH clients write it — the window used
         // to read only its own localStorage copy, so a chat the phone created
         // was invisible in the sidebar until the next launch.
-        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd,
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, cwd,
                 EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending
-         FROM chats WHERE workspaceId = ? ORDER BY position ASC, updatedAt ASC`
+         FROM chats WHERE workspaceId = ? ORDER BY pinned DESC, position ASC, updatedAt ASC`
       )
       .all(workspaceId)
   )
@@ -1775,9 +1786,9 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, cwd,
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, cwd,
                 EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending
-         FROM chats ORDER BY workspaceId, position ASC, updatedAt ASC`
+         FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC`
       )
       .all()
   )

@@ -488,6 +488,7 @@ function ChatRow({
             )
           )}
           <span className="chat-tree-label">{label}</span>
+          {Boolean(chat.pinned) && <span title="Pinned">⌖</span>}
           {!chat.cwd && chatPending(chat) ? (
             /* Waiting for its first message. It is NOT on main — saying so would
                be a lie about where the agent is about to write. */
@@ -1246,7 +1247,9 @@ function ActivityList(): React.JSX.Element {
   const names = new Map<string, string>()
   for (const g of tree) for (const w of g.workspaces) names.set(w.id, w.name)
 
-  const recent = [...chats].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+  const recent = [...chats].sort(
+    (a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt - a.updatedAt
+  )
 
   return (
     <div className="sidebar-activity">

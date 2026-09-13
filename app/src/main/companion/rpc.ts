@@ -18,6 +18,7 @@ import {
   getWorkspacePath,
   chatCwd,
   setChatProvider,
+  setChatPinned,
   clearChatSession,
   isPendingBranch,
   markPendingBranch,
@@ -38,7 +39,15 @@ import {
 import { modelBelongsTo, modeBelongsTo, toProvider } from '../../shared/agent-provider'
 import { createHash } from 'crypto'
 import { homedir, tmpdir } from 'os'
-import { readdirSync, existsSync, openSync, readSync, closeSync, writeFileSync, mkdirSync } from 'fs'
+import {
+  readdirSync,
+  existsSync,
+  openSync,
+  readSync,
+  closeSync,
+  writeFileSync,
+  mkdirSync
+} from 'fs'
 import * as auto from '../automation'
 import {
   getPaneWebContents,
@@ -117,15 +126,14 @@ const chatSend = z.object({
   model: z.string().max(60).optional(),
   permissionMode: permissionModes.optional(),
   /** WhatsApp-style quote: the message this one answers. */
-  replyTo: z
-    .object({ role: z.enum(['user', 'assistant']), text: z.string().max(4_000) })
-    .optional()
+  replyTo: z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(4_000) }).optional()
 })
 const chatSetAgent = z.object({
   chatId: z.string().min(1),
   provider: z.enum(['claude', 'codex'])
 })
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
+const chatPin = z.object({ chatId: z.string().min(1), pinned: z.boolean() })
 const chatId = z.object({ chatId: z.string().min(1) })
 const backgroundStop = z.object({ chatId: z.string().min(1), toolUseId: z.string().min(1) })
 // root: the conversation that lives in the project folder, which never cuts a
@@ -318,6 +326,15 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           await removeWorktree(dying.cwd.split('/.worktrees/')[0], dying.cwd)
         }
         deleteChat(p.data.chatId)
+        broadcastToWindows('projects:changed', {})
+        pushChats()
+        return { ok: true }
+      }
+      case 'chat.pin': {
+        const p = chatPin.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        setChatPinned(p.data.chatId, p.data.pinned)
         broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true }
@@ -516,7 +533,8 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
       case 'background.stop': {
         const p = backgroundStop.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
-        if (!stopBackgroundTask(p.data.chatId, p.data.toolUseId)) return fail('not-found', 'that background process is no longer running')
+        if (!stopBackgroundTask(p.data.chatId, p.data.toolUseId))
+          return fail('not-found', 'that background process is no longer running')
         return { ok: true }
       }
       case 'files.chunk': {
@@ -824,7 +842,11 @@ function takeUploadChunk(c: {
   const dir = join(tmpdir(), 'superagent-uploads')
   mkdirSync(dir, { recursive: true })
   // The name is the phone's; the directory entry is ours.
-  const safe = c.name.replace(/[\/\\:\0]/g, '_').replace(/\.\.+/g, '_').slice(0, 120) || 'file'
+  const safe =
+    c.name
+      .replace(/[\/\\:\0]/g, '_')
+      .replace(/\.\.+/g, '_')
+      .slice(0, 120) || 'file'
   const path = join(dir, `${Date.now().toString(36)}-${safe}`)
   writeFileSync(path, Buffer.concat(u.parts as Buffer[]))
   return path
@@ -952,6 +974,7 @@ export function listChats(): WireChat[] {
     workspaceId: c.workspaceId,
     title: c.title,
     updatedAt: c.updatedAt,
+    pinned: Boolean(c.pinned),
     live: isGenerating(c.id),
     preview: lastChatPreview(c.id),
     provider: getChatProvider(c.id),
