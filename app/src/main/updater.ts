@@ -1,5 +1,5 @@
 import { autoUpdater } from 'electron-updater'
-import { BrowserWindow, Notification, app, ipcMain } from 'electron'
+import { BrowserWindow, Notification, app, ipcMain, session } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { appendFileSync } from 'fs'
 import { join } from 'path'
@@ -74,7 +74,12 @@ const OFFLINE_MARKERS = [
   'ERR_EMPTY_RESPONSE',
   'ERR_RESPONSE_HEADERS_TRUNCATED',
   'ERR_CONTENT_LENGTH_MISMATCH',
-  'ERR_SOCKET_NOT_CONNECTED'
+  'ERR_SOCKET_NOT_CONNECTED',
+  // Electron's network service can occasionally get wedged after the app has
+  // been alive for days. In that state every updater request fails immediately
+  // with this otherwise-unspecific error until its pooled connections are
+  // closed. Treat it as recoverable and retry once below.
+  'net::ERR_FAILED'
   // Still deliberately NOT a bare 'net::' catch-all: genuinely actionable errors
   // (ERR_CERT_*, ERR_SSL_*, ERR_BLOCKED_BY_CLIENT) must still surface on a manual
   // "Check for updates".
@@ -84,6 +89,21 @@ function isOfflineError(message: string): boolean {
 }
 
 export function startAutoUpdate(): void {
+  const checkForUpdates = async (): ReturnType<typeof autoUpdater.checkForUpdates> => {
+    try {
+      return await autoUpdater.checkForUpdates()
+    } catch (err) {
+      const message = String((err as Error)?.message ?? err)
+      if (!message.includes('net::ERR_FAILED')) throw err
+
+      // Do not make the user quit a days-old session just because Chromium's
+      // updater connection pool got stuck. Dropping those connections is safe
+      // for open pages; their next request transparently reconnects.
+      await session.defaultSession.closeAllConnections()
+      return autoUpdater.checkForUpdates()
+    }
+  }
+
   // Manual "check now" from Settings. Registered before the dev bail-out so the
   // invoke never dangles in dev — it just reports the current version. If a
   // newer release exists, autoDownload takes over and the usual restart banner
@@ -91,7 +111,7 @@ export function startAutoUpdate(): void {
   ipcMain.handle('update:check', async () => {
     if (is.dev) return { current: app.getVersion(), latest: null }
     try {
-      const r = await autoUpdater.checkForUpdates()
+      const r = await checkForUpdates()
       return { current: app.getVersion(), latest: r?.updateInfo?.version ?? null }
     } catch (err) {
       const msg = String((err as Error)?.message ?? err)
@@ -113,7 +133,7 @@ export function startAutoUpdate(): void {
     autoUpdater.allowPrerelease = on
     // Check straight away so turning it on pulls the newest beta now. Guarded
     // for dev, where checkForUpdates has no feed to read.
-    if (!is.dev) autoUpdater.checkForUpdates().catch(() => undefined)
+    if (!is.dev) checkForUpdates().catch(() => undefined)
     return on
   })
 
@@ -270,7 +290,7 @@ export function startAutoUpdate(): void {
   // checking: the app is left running for days, and a check only at launch
   // means a fix can sit unnoticed for just as long.
   const check = (): void => {
-    autoUpdater.checkForUpdates().catch((err) => logLine('error', String(err?.message ?? err)))
+    checkForUpdates().catch((err) => logLine('error', String(err?.message ?? err)))
   }
   setTimeout(check, 4000)
   setInterval(check, 2 * 60 * 60 * 1000)
