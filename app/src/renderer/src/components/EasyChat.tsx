@@ -8,6 +8,7 @@ import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
+import { splitLoopNote } from '../lib/loop-note'
 import { useDictation } from '../lib/dictation'
 import { redirectTarget } from '../lib/background'
 import {
@@ -933,6 +934,14 @@ const MessageRow = memo(function MessageRow({
     () => (isAssistant ? splitAssistant(msg.text) : null),
     [isAssistant, msg.text]
   )
+  // The /loop skill appends a mechanical reminder ("run sleep as your last
+  // action…") to every round's prompt, in the same plain-text bubble as
+  // whatever the user actually asked for — the two read as one run-on
+  // sentence. Split it into its own muted note so the request stays legible.
+  const loopSplit = useMemo(
+    () => (isAssistant ? null : splitLoopNote(msg.text)),
+    [isAssistant, msg.text]
+  )
   const at = msg.streaming ? null : msgAt(msg)
   return (
     <div
@@ -966,7 +975,8 @@ const MessageRow = memo(function MessageRow({
               <Choices key={si} spec={seg.ask} onAnswer={onAnswer} />
             )
           )
-        : msg.text}
+        : (loopSplit?.main ?? msg.text)}
+      {loopSplit?.note && <div className="easy-loop-note">{loopSplit.note}</div>}
       {msg.streaming && <span className="easy-caret" />}
       {!msg.streaming && msg.text && (
         <button
@@ -1179,7 +1189,10 @@ export function EasyChat({
     queuedRef.current = queued
   }, [queued])
   // Long-press bookkeeping for the Send button.
-  const longPressRef = useRef<{ timer: number | null; fired: boolean }>({ timer: null, fired: false })
+  const longPressRef = useRef<{ timer: number | null; fired: boolean }>({
+    timer: null,
+    fired: false
+  })
   // Commands the agent left running in the background. Claude mentions them in
   // prose and then moves on, so without this the only sign a deploy/build/server
   // is still going is a sentence that scrolls away.
@@ -2876,13 +2889,20 @@ export function EasyChat({
   // requests come back to the same function as the desktop button, so both
   // surfaces have identical semantics.
   useEffect(() => {
-    window.cove.bgSync(chatId, bgTasks.map(({ outputPath: _path, expiresAt: _expiry, shellId: _shell, ...task }) => task))
+    window.cove.bgSync(
+      chatId,
+      bgTasks.map(({ outputPath: _path, expiresAt: _expiry, shellId: _shell, ...task }) => task)
+    )
   }, [chatId, bgTasks])
-  useEffect(() => window.cove.onBgStop((p) => {
-    if (p.chatId !== chatId) return
-    const task = bgTasksRef.current.find((t) => t.toolUseId === p.toolUseId)
-    if (task) stopBgTask(task)
-  }), [chatId])
+  useEffect(
+    () =>
+      window.cove.onBgStop((p) => {
+        if (p.chatId !== chatId) return
+        const task = bgTasksRef.current.find((t) => t.toolUseId === p.toolUseId)
+        if (task) stopBgTask(task)
+      }),
+    [chatId]
+  )
 
   /**
    * A turn that finished while you were elsewhere leaves something to read.
@@ -3064,7 +3084,10 @@ export function EasyChat({
     // A queued message replays with the files/reply captured when it was held,
     // not whatever the composer holds now (it was cleared). Absent for the
     // normal path, which reads live composer state exactly as before.
-    opts?: { files?: { path: string; name: string }[]; reply?: { role: 'user' | 'assistant'; text: string } | null }
+    opts?: {
+      files?: { path: string; name: string }[]
+      reply?: { role: 'user' | 'assistant'; text: string } | null
+    }
   ): void => {
     const id = agentIdRef.current
     const files = opts?.files ?? pendingFiles
@@ -3199,7 +3222,11 @@ export function EasyChat({
       sendToAgent(id, agentText, payload, reply ?? undefined)
     } else {
       // First message of a dormant chat: this is the moment the session starts.
-      pendingSendsRef.current.push({ text: agentText, images: payload, replyTo: reply ?? undefined })
+      pendingSendsRef.current.push({
+        text: agentText,
+        images: payload,
+        replyTo: reply ?? undefined
+      })
       wake()
     }
     setThinking(true)
@@ -3274,7 +3301,13 @@ export function EasyChat({
     if (!text && pendingImages.length === 0 && pendingFiles.length === 0) return
     setQueued((q) => [
       ...q,
-      { id: `q-${Date.now()}-${Math.random()}`, text, images: pendingImages, files: pendingFiles, reply: replyTarget }
+      {
+        id: `q-${Date.now()}-${Math.random()}`,
+        text,
+        images: pendingImages,
+        files: pendingFiles,
+        reply: replyTarget
+      }
     ])
     setInput('')
     setPendingImages([])
