@@ -302,6 +302,18 @@ button {
   font-size: 12px;
   color: var(--text-tertiary, var(--text-secondary));
 }
+/* A pinned chat used to just sort ahead of the rest with a tiny glyph on it —
+   easy to miss when it was already near the top. A real header makes the
+   pin visibly do something, in the sidebar's Activity tab and the Computer's
+   plain chat list alike. */
+.pinned-section-label {
+  padding: 10px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+}
 .activity-row {
   display: flex;
   gap: 8px;
@@ -1713,6 +1725,103 @@ button {
 .branch-menu-new button:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* --- Command palette (⌘K) ------------------------------------------------- */
+/* Above every ordinary overlay (branch menus, toasts) but below the
+   prompt-injection gate (9000) — a safety prompt must never end up hidden
+   behind this. */
+.cmdk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: rgba(20, 20, 22, 0.35);
+  backdrop-filter: blur(2px);
+}
+.cmdk-panel {
+  width: 560px;
+  max-width: calc(100vw - 48px);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.cmdk-input {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 15px;
+  padding: 14px 16px;
+  outline: none;
+}
+.cmdk-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+.cmdk-empty {
+  padding: 24px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.cmdk-section + .cmdk-section {
+  margin-top: 4px;
+}
+.cmdk-section-label {
+  padding: 8px 10px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+.cmdk-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.cmdk-item.active {
+  background: var(--hover);
+}
+.cmdk-item-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmdk-item-subtitle {
+  flex: 0 1 auto;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmdk-item-shortcut {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--hover);
+  border-radius: 5px;
+  padding: 2px 6px;
 }
 
 /* Keep / Throw away — the worktree chat's two exits, in the pinned band. */

@@ -10,6 +10,7 @@ import { ComputerPanel } from './components/ComputerPanel'
 import { ChatsView } from './components/ChatsView'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
+import { CommandPalette } from './components/CommandPalette'
 import { useStore, keepChatChanges, keepErrorText } from './state'
 
 const SIDEBAR_MIN = 200
@@ -216,6 +217,7 @@ function App(): React.JSX.Element {
     .map((id) => allWorkspaces.find((w) => w.id === id))
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   // One source of truth: the sidebar highlights whichever of these is showing.
   const overlay = useStore((s) => s.overlay)
   const setOverlay = useStore((s) => s.setOverlay)
@@ -347,6 +349,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     return window.cove.onMenu((action) => {
       if (action === 'settings') setSettingsOpen(true)
+      else if (action === 'command-palette') setPaletteOpen((v) => !v)
       else if (action === 'new-group') addGroup()
       else if (action === 'new-project') {
         const firstGroup = useStore.getState().tree[0]
@@ -451,6 +454,7 @@ function App(): React.JSX.Element {
       <UpdateBanner />
       <IntroSplash />
       <GuardrailPrompt />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )
 }

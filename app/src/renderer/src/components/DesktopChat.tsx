@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
+import type { Chat } from '../../../preload'
 
 /** "Today 14:02" for today, otherwise a short date. */
 function when(ts: number): string {
@@ -57,9 +58,10 @@ export function DesktopChat({
     return () => ro.disconnect()
   }, [])
 
-  const ordered = [...(chats ?? [])].sort(
-    (a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt - a.updatedAt
-  )
+  const byRecency = (a: Chat, b: Chat): number => b.updatedAt - a.updatedAt
+  const pinned = (chats ?? []).filter((c) => c.pinned).sort(byRecency)
+  const rest = (chats ?? []).filter((c) => !c.pinned).sort(byRecency)
+  const ordered = [...pinned, ...rest]
   // Same rule as the project chats: keep the active conversation mounted plus any
   // still-busy sibling, so switching Computer chats never tears down a running
   // turn. Only the active one is shown.
@@ -89,54 +91,59 @@ export function DesktopChat({
           + New chat
         </button>
         <div className="dchat-items">
-          {ordered.map((c) => (
-            <div
-              key={c.id}
-              className={`dchat-item ${c.id === activeChatId ? 'on' : ''}`}
-              onClick={() => openChat(c.id)}
-              onDoubleClick={() => {
-                setDraft(c.title ?? '')
-                setEditing(c.id)
-              }}
-              title={c.title ?? 'New chat'}
-            >
-              {editing === c.id ? (
-                <input
-                  className="dchat-rename"
-                  value={draft}
-                  autoFocus
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onBlur={() => {
-                    const n = draft.trim()
-                    if (n && n !== c.title) void renameChat(workspaceId, c.id, n)
-                    setEditing(null)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.currentTarget.blur()
-                    if (e.key === 'Escape') setEditing(null)
-                  }}
-                />
-              ) : (
-                <>
-                  <span className="dchat-item-title">{c.title ?? 'New chat'}</span>
-                  <span className="dchat-item-when">{when(c.updatedAt)}</span>
-                  <button
-                    className="dchat-item-x"
-                    title="Delete this conversation"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      // A conversation is work; deleting one should take a
-                      // decision, not a stray click on a small ✕.
-                      if (window.confirm(`Delete "${c.title ?? 'New chat'}"?`)) {
-                        void removeChat(workspaceId, c.id)
-                      }
-                    }}
-                  >
-                    ✕
-                  </button>
-                </>
+          {ordered.map((c, i) => (
+            <div key={c.id}>
+              {i === 0 && pinned.length > 0 && <div className="pinned-section-label">Pinned</div>}
+              {i === pinned.length && pinned.length > 0 && rest.length > 0 && (
+                <div className="pinned-section-label">Chats</div>
               )}
+              <div
+                className={`dchat-item ${c.id === activeChatId ? 'on' : ''}`}
+                onClick={() => openChat(c.id)}
+                onDoubleClick={() => {
+                  setDraft(c.title ?? '')
+                  setEditing(c.id)
+                }}
+                title={c.title ?? 'New chat'}
+              >
+                {editing === c.id ? (
+                  <input
+                    className="dchat-rename"
+                    value={draft}
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => {
+                      const n = draft.trim()
+                      if (n && n !== c.title) void renameChat(workspaceId, c.id, n)
+                      setEditing(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur()
+                      if (e.key === 'Escape') setEditing(null)
+                    }}
+                  />
+                ) : (
+                  <>
+                    <span className="dchat-item-title">{c.title ?? 'New chat'}</span>
+                    <span className="dchat-item-when">{when(c.updatedAt)}</span>
+                    <button
+                      className="dchat-item-x"
+                      title="Delete this conversation"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // A conversation is work; deleting one should take a
+                        // decision, not a stray click on a small ✕.
+                        if (window.confirm(`Delete "${c.title ?? 'New chat'}"?`)) {
+                          void removeChat(workspaceId, c.id)
+                        }
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
           {ordered.length === 0 && <div className="dchat-empty">No conversations yet.</div>}

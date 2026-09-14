@@ -1247,36 +1247,44 @@ function ActivityList(): React.JSX.Element {
   const names = new Map<string, string>()
   for (const g of tree) for (const w of g.workspaces) names.set(w.id, w.name)
 
-  const recent = [...chats].sort(
-    (a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updatedAt - a.updatedAt
-  )
+  const byRecency = (a: Chat, b: Chat): number => b.updatedAt - a.updatedAt
+  const pinned = chats.filter((c) => c.pinned).sort(byRecency)
+  const rest = chats.filter((c) => !c.pinned).sort(byRecency)
+
+  const row = (c: Chat): React.JSX.Element => {
+    const open = c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId
+    return (
+      <button
+        key={c.id}
+        className={`activity-row ${open ? 'on' : ''}`}
+        onClick={() => {
+          setActive(c.workspaceId)
+          selectChat(c.workspaceId, c.id)
+        }}
+      >
+        <span className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`} />
+        <span className="activity-body">
+          <span className="activity-top">
+            <span className="activity-title">{c.title || 'New chat'}</span>
+            {busy[c.id]?.generating && <span className="activity-live" />}
+            <span className="activity-when">{when(c.updatedAt)}</span>
+          </span>
+          <span className="activity-where">{names.get(c.workspaceId) ?? ''}</span>
+        </span>
+      </button>
+    )
+  }
 
   return (
     <div className="sidebar-activity">
-      {recent.length === 0 && <div className="activity-empty">Nothing here yet.</div>}
-      {recent.map((c) => {
-        const open = c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId
-        return (
-          <button
-            key={c.id}
-            className={`activity-row ${open ? 'on' : ''}`}
-            onClick={() => {
-              setActive(c.workspaceId)
-              selectChat(c.workspaceId, c.id)
-            }}
-          >
-            <span className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`} />
-            <span className="activity-body">
-              <span className="activity-top">
-                <span className="activity-title">{c.title || 'New chat'}</span>
-                {busy[c.id]?.generating && <span className="activity-live" />}
-                <span className="activity-when">{when(c.updatedAt)}</span>
-              </span>
-              <span className="activity-where">{names.get(c.workspaceId) ?? ''}</span>
-            </span>
-          </button>
-        )
-      })}
+      {chats.length === 0 && <div className="activity-empty">Nothing here yet.</div>}
+      {pinned.length > 0 && (
+        <>
+          <div className="pinned-section-label">Pinned</div>
+          {pinned.map(row)}
+        </>
+      )}
+      {rest.map(row)}
     </div>
   )
 }

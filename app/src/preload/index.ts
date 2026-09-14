@@ -924,6 +924,7 @@ const cove: CoveApi = {
   onMenu: (cb) => {
     const actions = [
       'menu:settings',
+      'menu:command-palette',
       'menu:new-project',
       'menu:new-group',
       'menu:skills',

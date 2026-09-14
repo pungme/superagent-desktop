@@ -1792,6 +1792,16 @@ export function EasyChat({
     return () => window.removeEventListener('cove:work-on', onWorkOn)
   }, [workspaceId, visible])
 
+  // Command palette / ⌘J: jump into the composer of whichever chat is on
+  // screen. No workspace/chat check needed beyond `visible` — it is already
+  // true for exactly the one mounted <EasyChat> the user is looking at.
+  useEffect(() => {
+    if (!visible) return
+    const onFocus = (): void => inputRef.current?.focus()
+    window.addEventListener('cove:command-focus-composer', onFocus)
+    return () => window.removeEventListener('cove:command-focus-composer', onFocus)
+  }, [visible])
+
   // Detect a "/command" at the start, or an "@file" at the caret, for the dropdown.
   const updateMention = (value: string): void => {
     const cmd = /^\/(\S*)$/.exec(value)
@@ -3242,6 +3252,15 @@ export function EasyChat({
     },
     [wake]
   )
+
+  // Command palette / ⌘.: stop whichever chat is on screen. A no-op if
+  // nothing is running — interruptNow itself bails when there's no live agent.
+  useEffect(() => {
+    if (!visible) return
+    const onStop = (): void => void interruptNow()
+    window.addEventListener('cove:command-stop-agent', onStop)
+    return () => window.removeEventListener('cove:command-stop-agent', onStop)
+  }, [visible, interruptNow])
 
   const send = (): void => submit(input.trim(), pendingImages)
   submitRef.current = (t: string) => submit(t)

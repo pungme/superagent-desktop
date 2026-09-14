@@ -179,14 +179,28 @@ export function WorkspaceView({
   useEffect(() => {
     if (!visible) return
     const onKey = (e: KeyboardEvent): void => {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key.toLowerCase() !== 's') return
-      const source: 'browser' | 'sim' | null =
-        browserOpen && !boardOpen && !openFilePath ? 'browser' : simOpen ? 'sim' : null
-      if (!source) return
-      e.preventDefault()
-      window.dispatchEvent(
-        new CustomEvent('cove:start-snip', { detail: { workspaceId: ws.id, source } })
-      )
+      if (!(e.metaKey || e.ctrlKey)) return
+      if (e.shiftKey && e.key.toLowerCase() === 's') {
+        const source: 'browser' | 'sim' | null =
+          browserOpen && !boardOpen && !openFilePath ? 'browser' : simOpen ? 'sim' : null
+        if (!source) return
+        e.preventDefault()
+        window.dispatchEvent(
+          new CustomEvent('cove:start-snip', { detail: { workspaceId: ws.id, source } })
+        )
+        return
+      }
+      // The command palette's two "current chat" actions, given real chords
+      // too — the palette is how you discover these, not the only way to
+      // reach them. Undecorated (no Shift), so they can't collide with ⌘⇧S.
+      if (e.shiftKey) return
+      if (e.key.toLowerCase() === 'j') {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('cove:command-focus-composer'))
+      } else if (e.key === '.') {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('cove:command-stop-agent'))
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -403,19 +417,37 @@ export function WorkspaceView({
         new CustomEvent('cove:browser-reload-feedback', { detail: { paneId: browserPaneId } })
       )
     }
+    // The command palette's "Open simulator" / "Toggle todo board": both
+    // toggle local surface state (simOpen/boardOpen live here, not in the
+    // store — see their declarations above), so they need a listener here
+    // rather than a direct store call from the palette.
+    const onOpenSimulator = (): void => {
+      if (simOpen) return
+      localStorage.setItem(`simOpen:${deskKey}`, '1')
+      setSimOpen(true)
+    }
+    const onToggleBoard = (): void => {
+      const next = !boardOpen
+      localStorage.setItem(`boardOpen:${deskKey}`, next ? '1' : '0')
+      setBoardOpen(next)
+    }
     window.addEventListener('cove:menu-skills', onSkills)
     window.addEventListener('cove:menu-routines', onRoutines)
     window.addEventListener('cove:menu-toggle-preview', onToggle)
     window.addEventListener('cove:menu-reload-page', onReload)
     window.addEventListener('cove:menu-reload-page-hard', onReload)
+    window.addEventListener('cove:command-open-simulator', onOpenSimulator)
+    window.addEventListener('cove:command-toggle-board', onToggleBoard)
     return () => {
       window.removeEventListener('cove:menu-skills', onSkills)
       window.removeEventListener('cove:menu-routines', onRoutines)
       window.removeEventListener('cove:menu-toggle-preview', onToggle)
       window.removeEventListener('cove:menu-reload-page', onReload)
       window.removeEventListener('cove:menu-reload-page-hard', onReload)
+      window.removeEventListener('cove:command-open-simulator', onOpenSimulator)
+      window.removeEventListener('cove:command-toggle-board', onToggleBoard)
     }
-  }, [ws.id, browserPaneId, toggleBrowser, visible, browserOpen])
+  }, [ws.id, browserPaneId, toggleBrowser, visible, browserOpen, simOpen, boardOpen, deskKey])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [ratio, setRatio] = useState(() => {

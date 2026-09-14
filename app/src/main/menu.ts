@@ -94,7 +94,15 @@ export function buildMenu(): void {
     {
       label: 'View',
       submenu: [
-        { label: 'Skills', accelerator: 'CmdOrCtrl+K', click: () => send('menu:skills') },
+        {
+          label: 'Command Palette',
+          accelerator: 'CmdOrCtrl+K',
+          click: () => send('menu:command-palette')
+        },
+        // Reachable from the palette now, so it no longer needs its own chord
+        // — Superhuman's own pattern: expose an action there first, and only
+        // frequent ones earn a direct shortcut.
+        { label: 'Skills', click: () => send('menu:skills') },
         { label: 'Routines', click: () => send('menu:routines') },
         {
           // Cmd+R means "reload the page" in every browser; it must not be
