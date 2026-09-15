@@ -142,7 +142,6 @@
   --accent-fg: #1a1206;
 }
 
-
 html,
 body,
 #root {
@@ -401,6 +400,15 @@ button {
 
 .sidebar-group + .sidebar-group {
   margin-top: 8px;
+}
+
+/* Pinned chats, promoted above every group — the whole point of pinning one
+   is not having to remember which project it lives in. */
+.sidebar-pinned-shortcuts {
+  margin-bottom: 8px;
+}
+.sidebar-pinned-shortcuts .pinned-section-label {
+  padding: 8px 6px 4px;
 }
 
 /* Dropping INTO a group is a different gesture from reordering, so it gets a
@@ -10946,24 +10954,46 @@ button {
   border: 1px solid var(--border);
   padding: 0;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 .accent-swatch:hover {
   transform: scale(1.12);
 }
 .accent-swatch.active {
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px currentColor;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px currentColor;
 }
 .accent-swatch.accent-default {
   background: var(--text-primary);
   color: var(--text-primary);
 }
-.accent-swatch.accent-pink { background: #e0568c; color: #e0568c; }
-.accent-swatch.accent-violet { background: #7c6cf0; color: #7c6cf0; }
-.accent-swatch.accent-blue { background: #3d82e8; color: #3d82e8; }
-.accent-swatch.accent-teal { background: #12a594; color: #12a594; }
-.accent-swatch.accent-green { background: #3fa163; color: #3fa163; }
-.accent-swatch.accent-amber { background: #d8873a; color: #d8873a; }
+.accent-swatch.accent-pink {
+  background: #e0568c;
+  color: #e0568c;
+}
+.accent-swatch.accent-violet {
+  background: #7c6cf0;
+  color: #7c6cf0;
+}
+.accent-swatch.accent-blue {
+  background: #3d82e8;
+  color: #3d82e8;
+}
+.accent-swatch.accent-teal {
+  background: #12a594;
+  color: #12a594;
+}
+.accent-swatch.accent-green {
+  background: #3fa163;
+  color: #3fa163;
+}
+.accent-swatch.accent-amber {
+  background: #d8873a;
+  color: #d8873a;
+}
 
 /* Icon swatches echo the icon: the colour, with the white square in it. */
 .icon-swatch {
@@ -11025,11 +11055,21 @@ button {
   border-radius: 2px;
   flex: none;
 }
-.storage-browsing { background: #3d82e8; }
-.storage-conversations { background: #e0568c; }
-.storage-caches { background: #8b8b95; }
-.storage-updates { background: #d8873a; }
-.storage-logs { background: #3fa163; }
+.storage-browsing {
+  background: #3d82e8;
+}
+.storage-conversations {
+  background: #e0568c;
+}
+.storage-caches {
+  background: #8b8b95;
+}
+.storage-updates {
+  background: #d8873a;
+}
+.storage-logs {
+  background: #3fa163;
+}
 .storage-clear {
   align-self: flex-start;
   margin-top: 2px;
@@ -11041,6 +11081,14 @@ button {
   font-size: 12.5px;
   cursor: pointer;
 }
-.storage-clear:hover { background: var(--hover, rgba(127,127,127,0.1)); }
-.storage-clear:disabled { opacity: 0.6; cursor: default; }
-.storage-clear-note { font-size: 11.5px; color: var(--text-tertiary, var(--text-secondary)); }
+.storage-clear:hover {
+  background: var(--hover, rgba(127, 127, 127, 0.1));
+}
+.storage-clear:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.storage-clear-note {
+  font-size: 11.5px;
+  color: var(--text-tertiary, var(--text-secondary));
+}

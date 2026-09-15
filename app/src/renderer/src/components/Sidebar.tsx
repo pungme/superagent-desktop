@@ -1214,18 +1214,13 @@ const TABS_GROUP = '__tabs'
  * "what happened while I was away", which is a different question and the one
  * you have more often.
  */
-function ActivityList(): React.JSX.Element {
-  const tree = useStore((s) => s.tree)
-  const setActive = useStore((s) => s.setActive)
-  const selectChat = useStore((s) => s.selectChat)
-  const unread = useStore((s) => s.unread)
-  const busy = useStore((s) => s.busy)
-  const activeChatId = useStore((s) => s.activeChatId)
-  const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
+/**
+ * Every chat on this Mac, across every project — the store's own `chats` map
+ * is populated lazily per opened project, so a cross-project view (Activity,
+ * the pinned quick-list) has to ask main directly rather than read the store.
+ */
+function useAllChats(): Chat[] {
   const [chats, setChats] = useState<Chat[]>([])
-
-  // Reload whenever anything in the app says something moved — the same event
-  // the sidebar already listens to for its own lists.
   useEffect(() => {
     let alive = true
     const load = (): void => {
@@ -1243,6 +1238,70 @@ function ActivityList(): React.JSX.Element {
       clearInterval(t)
     }
   }, [])
+  return chats
+}
+
+/**
+ * A pinned chat's whole point is to be reachable without hunting for its
+ * project first — so in the Projects tree, it doesn't just sort first within
+ * that project's own branch list (still nested groups down); it surfaces
+ * here, above every group, the same as Computer/Chats.
+ */
+function PinnedShortcuts(): React.JSX.Element | null {
+  const tree = useStore((s) => s.tree)
+  const setActive = useStore((s) => s.setActive)
+  const selectChat = useStore((s) => s.selectChat)
+  const unread = useStore((s) => s.unread)
+  const busy = useStore((s) => s.busy)
+  const activeChatId = useStore((s) => s.activeChatId)
+  const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
+  const chats = useAllChats()
+
+  const names = new Map<string, string>()
+  for (const g of tree) for (const w of g.workspaces) names.set(w.id, w.name)
+
+  const pinned = chats.filter((c) => c.pinned).sort((a, b) => b.updatedAt - a.updatedAt)
+  if (pinned.length === 0) return null
+
+  return (
+    <div className="sidebar-pinned-shortcuts">
+      <div className="pinned-section-label">Pinned</div>
+      {pinned.map((c) => {
+        const open = c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId
+        return (
+          <button
+            key={c.id}
+            className={`activity-row ${open ? 'on' : ''}`}
+            onClick={() => {
+              setActive(c.workspaceId)
+              selectChat(c.workspaceId, c.id)
+            }}
+          >
+            <span className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`} />
+            <span className="activity-body">
+              <span className="activity-top">
+                <span className="activity-title">{c.title || 'New chat'}</span>
+                {busy[c.id]?.generating && <span className="activity-live" />}
+                <span className="activity-when">{when(c.updatedAt)}</span>
+              </span>
+              <span className="activity-where">{names.get(c.workspaceId) ?? ''}</span>
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function ActivityList(): React.JSX.Element {
+  const tree = useStore((s) => s.tree)
+  const setActive = useStore((s) => s.setActive)
+  const selectChat = useStore((s) => s.selectChat)
+  const unread = useStore((s) => s.unread)
+  const busy = useStore((s) => s.busy)
+  const activeChatId = useStore((s) => s.activeChatId)
+  const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
+  const chats = useAllChats()
 
   const names = new Map<string, string>()
   for (const g of tree) for (const w of g.workspaces) names.set(w.id, w.name)
@@ -1458,6 +1517,7 @@ export function Sidebar(): React.JSX.Element {
             </svg>
             Chats
           </button>
+          <PinnedShortcuts />
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">
               <span className="sidebar-group-title">Browse</span>
