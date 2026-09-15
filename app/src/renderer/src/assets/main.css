@@ -341,6 +341,15 @@ button {
 .activity-dot.unread {
   background: var(--accent);
 }
+/* chat-tree-spinner/-bg carry their own right margin for the tree's plain
+   flex row (no gap there); .activity-row already spaces children with
+   `gap`, so reusing them here without this override double-spaced —
+   the working/background state shifted the title right of every other
+   row's alignment, the exact "spinning pushes the text" bug. */
+.activity-row .chat-tree-spinner,
+.activity-row .chat-tree-bg {
+  margin-right: 0;
+}
 .activity-body {
   min-width: 0;
   flex: 1;
