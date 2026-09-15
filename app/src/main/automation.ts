@@ -11,6 +11,17 @@ import { broadcastToWindows, pushBounded, normalizeUrl } from './util'
  * targeting survives DOM shifts (modals) better than indices.
  */
 
+// Semantic tags/roles first — cheap and reliable. Modern SPA dashboards (ad
+// managers, admin consoles) routinely style a plain <div>/<span> as a link or
+// button with only a JS click handler and no role at all, which no selector
+// list can fully anticipate; browser_click's x/y fallback (below) covers that
+// case by clicking exactly where a screenshot shows the target, the same way
+// the iOS simulator tools click by pixel coordinate rather than by widget.
+const INTERACTIVE_SELECTOR =
+  'a, button, input, textarea, select, [role="button"], [role="link"], [role="tab"], ' +
+  '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], ' +
+  '[role="checkbox"], [role="radio"], [role="switch"], [role="combobox"], [contenteditable="true"]'
+
 const READ_PAGE_JS = String.raw`(() => {
   const MAX = 200;
   const isVisible = (el) => {
@@ -20,9 +31,7 @@ const READ_PAGE_JS = String.raw`(() => {
     if (s.visibility === 'hidden' || s.display === 'none' || s.opacity === '0') return false;
     return true;
   };
-  const els = [...document.querySelectorAll(
-    'a, button, input, textarea, select, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="checkbox"], [contenteditable="true"]'
-  )].filter(isVisible).slice(0, MAX);
+  const els = [...document.querySelectorAll(${JSON.stringify(INTERACTIVE_SELECTOR)})].filter(isVisible).slice(0, MAX);
   window.__coveIdx = new Map();
   const items = els.map((el, i) => {
     window.__coveIdx.set(i, el);
@@ -57,7 +66,7 @@ function elementCenterJs(target: { index?: number; text?: string }): string {
   const needle = JSON.stringify(target.text ?? '')
   return String.raw`(() => {
     const needle = ${needle}.trim().toLowerCase();
-    const els = [...document.querySelectorAll('a, button, input, textarea, select, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [contenteditable="true"]')];
+    const els = [...document.querySelectorAll(${JSON.stringify(INTERACTIVE_SELECTOR)})];
     const match = els.find((el) => {
       const t = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().toLowerCase();
       return t === needle;
@@ -294,7 +303,7 @@ export async function readPage(paneId: string): Promise<unknown> {
 
 export async function click(
   paneId: string,
-  target: { index?: number; text?: string }
+  target: { index?: number; text?: string; x?: number; y?: number }
 ): Promise<string> {
   // A click usually navigates — same activation risk as navigate().
   return withoutStealingFocus(() => clickInner(paneId, target))
@@ -302,22 +311,37 @@ export async function click(
 
 async function clickInner(
   paneId: string,
-  target: { index?: number; text?: string }
+  target: { index?: number; text?: string; x?: number; y?: number }
 ): Promise<string> {
   const contents = ensureDebugger(paneId)
-  const pos = (await withTimeout(
-    contents.executeJavaScript(elementCenterJs(target)),
-    8000,
-    'locate element'
-  )) as {
-    x: number
-    y: number
-  } | null
+  // x/y bypasses element lookup entirely — the fallback for a target
+  // read_page's selector list can't see at all: a <div>/<span> styled as a
+  // control with only a JS click handler, no semantic tag or role. Pick the
+  // point off a browser_screenshot the same way sim_tap clicks a simulator
+  // by pixel rather than by widget.
+  //
+  // Page.captureScreenshot returns physical device pixels (2x on a Retina
+  // pane), but Input.dispatchMouseEvent — and every coordinate read_page
+  // hands out, via getBoundingClientRect — is in CSS pixels. Reading a
+  // screenshot's pixels straight into a click would land at half the
+  // intended offset on any Retina display; scale by the pane's own
+  // devicePixelRatio so a screenshot coordinate always lands correctly.
+  const pos =
+    target.x !== undefined && target.y !== undefined
+      ? await (async () => {
+          const dpr = (await contents.executeJavaScript('window.devicePixelRatio || 1')) as number
+          return { x: Math.round(target.x! / dpr), y: Math.round(target.y! / dpr) }
+        })()
+      : ((await withTimeout(
+          contents.executeJavaScript(elementCenterJs(target)),
+          8000,
+          'locate element'
+        )) as { x: number; y: number } | null)
   if (!pos) {
     throw new Error(
       target.index !== undefined
         ? `Element index ${target.index} not found — call browser_read_page again (indices shift when the page changes)`
-        : `No visible element matching text "${target.text}"`
+        : `No visible element matching text "${target.text}" — if it's not a standard link/button (a styled div/span with its own click handler, common in dashboards), take a browser_screenshot and click its x,y instead`
     )
   }
   // Hover first: some SPA buttons (React/pointer-event handlers) only react to a

@@ -700,11 +700,18 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'browser_click',
     {
       description:
-        'Click an element: pass index (from browser_read_page) or text (visible label — more reliable if the page changed since the last read).',
-      inputSchema: { index: z.number().optional(), text: z.string().optional() }
+        'Click an element: pass index (from browser_read_page) or text (visible label — more reliable if the page changed since the last read). ' +
+        'If neither finds it — a styled div/span acting as a button, with no link/button tag or role, common in complex dashboards — pass x,y instead: ' +
+        'take a browser_screenshot, read the pixel coordinates of the target off it, and click there directly.',
+      inputSchema: {
+        index: z.number().optional(),
+        text: z.string().optional(),
+        x: z.number().optional(),
+        y: z.number().optional()
+      }
     },
-    async ({ index, text }) => ({
-      content: [{ type: 'text', text: await auto.click(browserPane(), { index, text }) }]
+    async ({ index, text, x, y }) => ({
+      content: [{ type: 'text', text: await auto.click(browserPane(), { index, text, x, y }) }]
     })
   )
 
