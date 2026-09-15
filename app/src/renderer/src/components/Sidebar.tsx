@@ -1270,6 +1270,8 @@ function PinGlyph(): React.JSX.Element {
 function PinnedRow({
   chat,
   projectName,
+  projectKind,
+  isRoot,
   open,
   live,
   unread,
@@ -1277,6 +1279,13 @@ function PinnedRow({
 }: {
   chat: Chat
   projectName: string
+  /** Undefined when the project this chat belongs to couldn't be resolved
+   *  (e.g. mid-refresh) — falls back to the plain chat treatment. */
+  projectKind?: string
+  /** This chat IS the project folder's own conversation — the project row
+   *  in the tree, not a row of its own there, so pinning it should read the
+   *  same way: the project's name and icon, not a generic chat title. */
+  isRoot: boolean
   open: boolean
   live: boolean
   unread: boolean
@@ -1284,7 +1293,7 @@ function PinnedRow({
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const [editing, setEditing] = useState(false)
-  const label = chat.title || 'New chat'
+  const label = isRoot ? projectName : chat.title || 'New chat'
   const [draft, setDraft] = useState(label)
 
   return (
@@ -1292,12 +1301,17 @@ function PinnedRow({
       className={`activity-row ${open ? 'on' : ''}`}
       onClick={onOpen}
       onDoubleClick={() => {
+        // A root chat's name mirrors the folder — same as the project row in
+        // the tree, which isn't renamable this way either (see WorkspaceRow:
+        // renaming here changed only the label, which read as if it would
+        // rename the folder itself).
+        if (isRoot) return
         setDraft(label)
         setEditing(true)
       }}
     >
       <span className={`activity-dot ${unread ? 'unread' : ''}`} />
-      <PinGlyph />
+      {isRoot && projectKind ? <KindIcon kind={projectKind} size={11} /> : <PinGlyph />}
       <span className="activity-body">
         <span className="activity-top">
           {editing ? (
@@ -1330,7 +1344,10 @@ function PinnedRow({
           {live && <span className="activity-live" />}
           <span className="activity-when">{when(chat.updatedAt)}</span>
         </span>
-        <span className="activity-where">{projectName}</span>
+        {/* The label already IS the project name for a root chat — a second
+            line repeating it said nothing a normal project row doesn't
+            already say once. */}
+        {!isRoot && <span className="activity-where">{projectName}</span>}
       </span>
     </button>
   )
@@ -1347,7 +1364,15 @@ function PinnedShortcuts(): React.JSX.Element | null {
   const chats = useAllChats()
 
   const names = new Map<string, string>()
-  for (const g of tree) for (const w of g.workspaces) names.set(w.id, w.name)
+  const kinds = new Map<string, string>()
+  for (const g of tree)
+    for (const w of g.workspaces) {
+      names.set(w.id, w.name)
+      kinds.set(w.id, w.kind)
+    }
+  const byWorkspace = new Map<string, Chat[]>()
+  for (const c of chats)
+    byWorkspace.set(c.workspaceId, [...(byWorkspace.get(c.workspaceId) ?? []), c])
 
   const pinned = chats.filter((c) => c.pinned).sort((a, b) => b.updatedAt - a.updatedAt)
   if (pinned.length === 0) return null
@@ -1360,6 +1385,8 @@ function PinnedShortcuts(): React.JSX.Element | null {
           key={c.id}
           chat={c}
           projectName={names.get(c.workspaceId) ?? ''}
+          projectKind={kinds.get(c.workspaceId)}
+          isRoot={isFolderRoot(byWorkspace.get(c.workspaceId) ?? [c], c)}
           open={c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId}
           live={Boolean(busy[c.id]?.generating)}
           unread={Boolean(unread[c.id]) || movedSinceSeen(c)}
