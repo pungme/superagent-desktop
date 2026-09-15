@@ -2289,16 +2289,22 @@ button {
   white-space: nowrap;
 }
 
-/* Timestamp hangs just below the bubble; the bubble's bottom margin reserves
-   the room so it never crams against the next message. */
-.easy-msg-time {
+/* Timestamp (and, on assistant replies, the token badge beside it) hangs just
+   below the bubble; the bubble's bottom margin reserves the room so it never
+   crams against the next message. */
+.easy-msg-meta {
   position: absolute;
   bottom: -17px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  pointer-events: none;
+}
+.easy-msg-time {
   font-size: 10px;
   line-height: 1;
   color: var(--text-tertiary);
   white-space: nowrap;
-  pointer-events: none;
   opacity: 1;
   transform: translateY(0) scale(1);
   transition:
@@ -2315,11 +2321,18 @@ button {
 .easy-msg:not(.easy-system) {
   margin-bottom: 10px;
 }
-.easy-user .easy-msg-time {
+.easy-user .easy-msg-meta {
   right: 6px;
 }
-.easy-assistant .easy-msg-time {
+.easy-assistant .easy-msg-meta {
   left: 6px;
+}
+/* The per-turn token count — same quiet weight as the timestamp beside it. */
+.easy-msg-tokens {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  white-space: nowrap;
 }
 
 /* The /loop skill's own reminder text, split out of the user's actual words
@@ -3295,6 +3308,16 @@ button {
   height: auto;
   background: none;
   border-radius: 0;
+}
+
+/* Ticks up live next to the "Working Ns" timer — the loading state reads like
+   real progress instead of a blank spinner. */
+.easy-live-tokens {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  align-self: center;
 }
 
 @keyframes bounce {
@@ -7423,6 +7446,18 @@ button {
 }
 .easy-ctx.warm {
   color: #d97706; /* the window is filling up */
+}
+
+/* Running total for this whole chat — sits right after the Memory gauge, same
+   quiet weight, not a control. */
+.easy-session-tokens {
+  align-self: center;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: 0 2px;
+  cursor: default;
 }
 
 .chat-tree-wt {

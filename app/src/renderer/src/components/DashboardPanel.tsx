@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useEscapeClose } from '../hooks/useEscapeClose'
+import { fmtTokens } from '../lib/format-tokens'
 
 interface Dash {
   turnsToday: number
@@ -28,9 +29,6 @@ interface Dash {
     tokens: number
   }
 }
-
-const fmtTokens = (n: number): string =>
-  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1000)}k` : `${n}`
 
 /** ▲ 23% / ▼ 8% / — vs the previous period; hidden when there's no baseline. */
 function Trend({ cur, prev }: { cur: number; prev: number }): React.JSX.Element | null {

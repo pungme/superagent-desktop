@@ -1259,9 +1259,14 @@ function useAllChats(): Chat[] {
  *  doesn't. */
 function PinGlyph(): React.JSX.Element {
   return (
-    <svg className="pinned-row-glyph" viewBox="0 0 16 16" width="9" height="9" fill="currentColor">
-      <circle cx="8" cy="6" r="4.4" />
-      <rect x="7" y="9.5" width="2" height="5.5" rx="1" />
+    <svg
+      className="pinned-row-glyph"
+      viewBox="0 0 384 512"
+      width="9"
+      height="9"
+      fill="currentColor"
+    >
+      <path d="M32 32C32 14.3 46.3 0 64 0H320c17.7 0 32 14.3 32 32s-14.3 32-32 32h-3.6l12.5 148.4c45.7 27.9 78.4 74.9 86.2 130.1c.5 3.4-.5 6.9-2.7 9.5s-5.6 4.1-9.1 4.1H32.7c-3.5 0-6.8-1.5-9.1-4.1s-3.3-6.1-2.7-9.5c7.8-55.3 40.5-102.3 86.2-130.1L119.6 64H64C46.3 64 32 49.7 32 32zM160 384h64v96c0 17.7-14.3 32-32 32s-32-14.3-32-32V384z" />
     </svg>
   )
 }
@@ -1336,6 +1341,10 @@ function PinnedRow({
     <button
       className={`activity-row ${open ? 'on' : ''}`}
       onClick={onOpen}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        window.cove.chatMenu(chat.id, chat.workspaceId, chat.cwd)
+      }}
       onDoubleClick={() => {
         // While the label IS the project name (no title of its own yet),
         // renaming here would read as renaming the folder — same reasoning
@@ -1479,6 +1488,10 @@ function ActivityList(): React.JSX.Element {
         onClick={() => {
           setActive(c.workspaceId)
           selectChat(c.workspaceId, c.id)
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          window.cove.chatMenu(c.id, c.workspaceId, c.cwd)
         }}
       >
         {busy[c.id]?.generating ? (

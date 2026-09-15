@@ -133,6 +133,11 @@ function App(): React.JSX.Element {
     return window.cove.onProjectsChanged(async ({ activate }) => {
       await useStore.getState().refresh()
       if (activate) useStore.getState().setActive(activate)
+      // The Pinned quick-list and Activity tab read a separately polled
+      // snapshot (useAllChats), not this store — without this nudge a pin
+      // toggled from a chat's own context menu wouldn't show there for up to
+      // 5s, so unpinning from the pinned section itself looked like it failed.
+      window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
     })
   }, [])
 
@@ -140,40 +145,46 @@ function App(): React.JSX.Element {
   // a chat, which is the point: an orphaned worktree could be seen but not acted
   // on. A conflict is offered to the agent, in a chat opened on that branch.
   useEffect(() => {
-    return window.cove.onWorktreeMenuAction(async ({ action, projectPath, wtPath, branch, base }) => {
-      const s = useStore.getState()
-      const ws = s.tree.flatMap((g) => g.workspaces).find((w) => w.path === projectPath)
-      if (action === 'delete') {
-        if (!window.confirm(`Delete "${branch ?? wtPath}" and everything on it?\n\nThis cannot be undone.`))
+    return window.cove.onWorktreeMenuAction(
+      async ({ action, projectPath, wtPath, branch, base }) => {
+        const s = useStore.getState()
+        const ws = s.tree.flatMap((g) => g.workspaces).find((w) => w.path === projectPath)
+        if (action === 'delete') {
+          if (
+            !window.confirm(
+              `Delete "${branch ?? wtPath}" and everything on it?\n\nThis cannot be undone.`
+            )
+          )
+            return
+          await window.cove.worktreeRemove(projectPath, wtPath)
+          window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
           return
-        await window.cove.worktreeRemove(projectPath, wtPath)
-        window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
-        return
-      }
-      const res = await window.cove.worktreeMerge(projectPath, wtPath, branch ?? 'Merge branch')
-      if (res.ok) {
-        window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
-        return
-      }
-      if (res.reason !== 'conflict' || !ws) {
-        window.alert(keepErrorText(res.reason, res.detail))
-        return
-      }
-      if (
-        !window.confirm(
-          `"${branch}" clashes with what is already on ${base ?? 'the branch it came from'}.\n\n` +
-            'Nothing has been changed. Shall the agent sort it out on that branch?'
+        }
+        const res = await window.cove.worktreeMerge(projectPath, wtPath, branch ?? 'Merge branch')
+        if (res.ok) {
+          window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+          return
+        }
+        if (res.reason !== 'conflict' || !ws) {
+          window.alert(keepErrorText(res.reason, res.detail))
+          return
+        }
+        if (
+          !window.confirm(
+            `"${branch}" clashes with what is already on ${base ?? 'the branch it came from'}.\n\n` +
+              'Nothing has been changed. Shall the agent sort it out on that branch?'
+          )
         )
-      )
-        return
-      await s.openBranch(ws.id, wtPath)
-      s.sendToClaude(
-        ws.id,
-        `Merging this branch into ${base ?? 'its base branch'} failed on a conflict. Please merge ` +
-          'that branch into this one, resolve every conflict, check the project still builds, and ' +
-          'commit. Tell me when it is ready to merge again.'
-      )
-    })
+          return
+        await s.openBranch(ws.id, wtPath)
+        s.sendToClaude(
+          ws.id,
+          `Merging this branch into ${base ?? 'its base branch'} failed on a conflict. Please merge ` +
+            'that branch into this one, resolve every conflict, check the project still builds, and ' +
+            'commit. Tell me when it is ready to merge again.'
+        )
+      }
+    )
   }, [])
 
   // Keep was confirmed in the native dialog: squash the chat's changes into the

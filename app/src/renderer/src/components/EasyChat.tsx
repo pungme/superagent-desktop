@@ -10,6 +10,7 @@ import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { splitLoopNote } from '../lib/loop-note'
 import { visibleTimeIds } from '../lib/message-time-groups'
+import { fmtTokens } from '../lib/format-tokens'
 import { useDictation } from '../lib/dictation'
 import { redirectTarget } from '../lib/background'
 import {
@@ -31,6 +32,8 @@ interface ChatMessage {
   replyTo?: { role: 'user' | 'assistant'; text: string } // WhatsApp-style quoted message
   system?: boolean // app-generated notice (e.g. a failed/empty turn), not from Claude
   at?: number // when it arrived, for the hover timestamp (absent on older saved chats)
+  /** Tokens the turn that produced this reply used in total (input+cache+output). */
+  tokens?: number
 }
 
 interface PendingImage {
@@ -1007,12 +1010,24 @@ const MessageRow = memo(function MessageRow({
           Edit
         </button>
       )}
-      {at !== null && (
-        <span
-          className={`easy-msg-time${showTime ? '' : ' collapsed'}`}
-          title={new Date(at).toLocaleString()}
-        >
-          {msgTime(at)}
+      {(at !== null || (isAssistant && !msg.streaming && !!msg.tokens)) && (
+        <span className="easy-msg-meta">
+          {isAssistant && !msg.streaming && !!msg.tokens && (
+            <span
+              className="easy-msg-tokens"
+              title={`${msg.tokens.toLocaleString()} tokens this turn (input + cache + output)`}
+            >
+              {fmtTokens(msg.tokens)}
+            </span>
+          )}
+          {at !== null && (
+            <span
+              className={`easy-msg-time${showTime ? '' : ' collapsed'}`}
+              title={new Date(at).toLocaleString()}
+            >
+              {msgTime(at)}
+            </span>
+          )}
         </span>
       )}
     </div>
@@ -1316,6 +1331,14 @@ export function EasyChat({
   // Context consumed by the last turn (input + cache tokens) — a quiet running
   // gauge of how full the conversation is.
   const [ctxTokens, setCtxTokens] = useState<number | null>(null)
+  // Ticks up live while a turn runs (input+cache+output-so-far) so the
+  // "Working" indicator reads like a real progress readout, not a blank spinner.
+  // Cleared once the turn's `result` lands and its total is folded into the
+  // matching reply's own `tokens` field.
+  const [liveTokens, setLiveTokens] = useState<number | null>(null)
+  useEffect(() => {
+    if (generating) setLiveTokens(null)
+  }, [generating])
   // tool_use id of a BashOutput poll → the shell it's asking about, so its result
   // can retire the right task.
   const pollTargets = useRef(new Map<string, string>())
@@ -2084,6 +2107,10 @@ export function EasyChat({
             (mu.cache_read_input_tokens ?? 0) +
             (mu.cache_creation_input_tokens ?? 0)
           if (live > 0) setCtxTokens(live)
+          // Same reading, plus output-so-far — what the turn has actually spent,
+          // ticking up as the reply grows rather than landing all at once.
+          const spent = live + (mu.output_tokens ?? 0)
+          if (spent > 0) setLiveTokens(spent)
         }
         const content = (msg?.content as Record<string, unknown>[]) || []
         // Some assistant messages arrive whole rather than streamed — most notably
@@ -2470,7 +2497,27 @@ export function EasyChat({
           // Everything this turn processed — the dashboard's chart, not the meter.
           const total = processed + (u.output_tokens ?? 0)
           if (total > 0) window.cove.eventsRecord?.('tokens', workspaceId, total)
+          // Stamp the turn's own reply with what it cost — the per-turn badge — and
+          // let the running total (computed from every stamped reply) pick it up.
+          if (total > 0) {
+            setItems((prev) => {
+              let idx = -1
+              for (let i = prev.length - 1; i >= 0; i--) {
+                const it = prev[i]
+                if (it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system) {
+                  idx = i
+                  break
+                }
+              }
+              if (idx < 0) return prev
+              const next = [...prev]
+              const it = next[idx]
+              if (it.kind === 'msg') next[idx] = { ...it, msg: { ...it.msg, tokens: total } }
+              return next
+            })
+          }
         }
+        setLiveTokens(null)
         // A completed turn means the session genuinely works — clear the guard so
         // a future crash gets a resume-retry before falling back to fresh.
         resumeRetriedRef.current = false
@@ -3741,6 +3788,16 @@ export function EasyChat({
       ? 1_000_000
       : 200_000)
   const ctxPercent = Math.min(100, Math.round(((ctxTokens ?? 0) / ctxWindow) * 100))
+  // Every stamped reply's tokens, summed — this chat's running total across its
+  // whole lifetime (it's saved on the message, so it survives reloads), plus
+  // whatever the in-flight turn has spent so far, so the number keeps climbing
+  // live instead of jumping only when a turn lands.
+  const sessionTokens = useMemo(
+    () =>
+      items.reduce((sum, it) => sum + (it.kind === 'msg' ? (it.msg.tokens ?? 0) : 0), 0) +
+      (liveTokens ?? 0),
+    [items, liveTokens]
+  )
   const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
 
   return (
@@ -3886,6 +3943,9 @@ export function EasyChat({
                 <span className="easy-think-dot" />
               </span>
               <WorkingTimer />
+              {liveTokens !== null && (
+                <span className="easy-live-tokens">{fmtTokens(liveTokens)} tokens</span>
+              )}
             </div>
           )}
         </div>
@@ -4386,6 +4446,11 @@ export function EasyChat({
                 Compact
               </button>
             )}
+          </span>
+        )}
+        {sessionTokens > 0 && (
+          <span className="easy-session-tokens" title="Tokens used across this whole chat">
+            {fmtTokens(sessionTokens)} tokens
           </span>
         )}
       </div>
