@@ -1302,7 +1302,14 @@ function PinnedRow({
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const [editing, setEditing] = useState(false)
-  const label = isRoot ? projectName : chat.title || 'New chat'
+  // A root chat usually has no title of its own — "New chat" — so the
+  // project's name is the useful label. But it can be renamed like any
+  // other chat (the tree's own project row just doesn't expose that
+  // control), and a real name someone gave it is worth more than the
+  // folder name repeating what the icon already says.
+  const hasOwnTitle = Boolean(chat.title && chat.title.trim() && chat.title !== 'New chat')
+  const label = isRoot && !hasOwnTitle ? projectName : chat.title || 'New chat'
+  const showProjectLine = !isRoot || hasOwnTitle
   const [draft, setDraft] = useState(label)
   // The same branch chip the tree shows — a worktree chat's own branch, or a
   // root chat's project's branch — read from git the same way, so a pinned
@@ -1330,11 +1337,11 @@ function PinnedRow({
       className={`activity-row ${open ? 'on' : ''}`}
       onClick={onOpen}
       onDoubleClick={() => {
-        // A root chat's name mirrors the folder — same as the project row in
-        // the tree, which isn't renamable this way either (see WorkspaceRow:
-        // renaming here changed only the label, which read as if it would
-        // rename the folder itself).
-        if (isRoot) return
+        // While the label IS the project name (no title of its own yet),
+        // renaming here would read as renaming the folder — same reasoning
+        // as the tree's own project row not being renamable this way. Once
+        // it has a real title, editing it is unambiguous.
+        if (isRoot && !hasOwnTitle) return
         setDraft(label)
         setEditing(true)
       }}
@@ -1378,13 +1385,15 @@ function PinnedRow({
           )}
           <span className="activity-when">{when(chat.updatedAt)}</span>
         </span>
-        {/* The label already IS the project name for a root chat — a second
-            line repeating it said nothing a normal project row doesn't
-            already say once; the branch (if any) still earns its place. */}
-        {(!isRoot || branch) && (
+        {/* The label already IS the project name for a nameless root chat —
+            a second line repeating it said nothing a normal project row
+            doesn't already say once. Once it has its own title, the project
+            name earns its place back (nothing else on the row names it);
+            the branch (if any) always earns its place. */}
+        {(showProjectLine || branch) && (
           <span className="activity-where">
-            {!isRoot && projectName}
-            {!isRoot && branch && ' · '}
+            {showProjectLine && projectName}
+            {showProjectLine && branch && ' · '}
             {branch && `⎇ ${branch.replace(/^superagent\//, '')}`}
           </span>
         )}
