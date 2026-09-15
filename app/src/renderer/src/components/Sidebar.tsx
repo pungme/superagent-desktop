@@ -1249,20 +1249,15 @@ function useAllChats(): Chat[] {
  */
 /** A tiny pin glyph — the same visual cue as the header, on the row itself,
  *  so it still reads as "pinned" once scrolled past the section label. */
+/** A plain map-pin: circle head, straight stem. The earlier attempt was a
+ *  hand-drawn thumbtack outline that read as an illegible smudge at 10px —
+ *  two simple primitives hold up at that size where a multi-segment path
+ *  doesn't. */
 function PinGlyph(): React.JSX.Element {
   return (
-    <svg
-      className="pinned-row-glyph"
-      viewBox="0 0 16 16"
-      width="10"
-      height="10"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M8 1.5 6 4v3.2L3 9.8v1.2h3.6L8 14.5l1.4-3.5H13V9.8l-3-2.6V4z" />
+    <svg className="pinned-row-glyph" viewBox="0 0 16 16" width="9" height="9" fill="currentColor">
+      <circle cx="8" cy="6" r="4.4" />
+      <rect x="7" y="9.5" width="2" height="5.5" rx="1" />
     </svg>
   )
 }
@@ -1310,8 +1305,8 @@ function PinnedRow({
         setEditing(true)
       }}
     >
-      <span className={`activity-dot ${unread ? 'unread' : ''}`} />
       {isRoot && projectKind ? <KindIcon kind={projectKind} size={11} /> : <PinGlyph />}
+      <span className={`activity-dot ${unread ? 'unread' : ''}`} />
       <span className="activity-body">
         <span className="activity-top">
           {editing ? (
