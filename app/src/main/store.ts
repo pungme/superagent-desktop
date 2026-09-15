@@ -260,6 +260,16 @@ export function initStore(): void {
     db.exec('ALTER TABLE chats ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
   }
 
+  // Migration: when a chat was pinned, not just that it is — pinned rows used
+  // to sort by updatedAt, so the Pinned list reshuffled itself every time a
+  // pinned chat so much as got a new message, which read as random reordering.
+  // Pin order is fixed at the moment you pin it instead.
+  const chatCols6 = db.prepare('PRAGMA table_info(chats)').all() as { name: string }[]
+  if (chatCols6.length > 0 && !chatCols6.some((c) => c.name === 'pinnedAt')) {
+    db.exec('ALTER TABLE chats ADD COLUMN pinnedAt INTEGER')
+    db.exec('UPDATE chats SET pinnedAt = updatedAt WHERE pinned = 1')
+  }
+
   // Seed a default group on first run so the sidebar is never empty.
   const count = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
   if (count === 0) {
@@ -524,13 +534,15 @@ export interface ChatRow {
   provider: AgentProvider
   updatedAt: number
   pinned: number
+  /** When it was pinned — fixes the Pinned list's order; null while unpinned. */
+  pinnedAt: number | null
   cwd: string | null
 }
 
 export function getChat(chatId: string): ChatRow | undefined {
   const row = db
     .prepare(
-      'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, cwd FROM chats WHERE id = ?'
+      'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd FROM chats WHERE id = ?'
     )
     .get(chatId) as ChatRow | undefined
   return row ? { ...row, provider: toProvider(row.provider) } : undefined
@@ -576,7 +588,14 @@ export function setChatProvider(chatId: string, provider: AgentProvider): void {
 }
 
 export function setChatPinned(chatId: string, pinned: boolean): void {
-  db.prepare('UPDATE chats SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, chatId)
+  // pinnedAt fixes the Pinned list's order at the moment of pinning, not
+  // whenever the chat next updates — otherwise pinning it again later would
+  // silently reshuffle the list the same way un-timestamped pins used to.
+  db.prepare('UPDATE chats SET pinned = ?, pinnedAt = ? WHERE id = ?').run(
+    pinned ? 1 : 0,
+    pinned ? Date.now() : null,
+    chatId
+  )
 }
 
 /**
@@ -665,7 +684,7 @@ export function listAllChats(): ChatRow[] {
   return (
     db
       .prepare(
-        'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, cwd FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC'
+        'SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC'
       )
       .all() as ChatRow[]
   ).map((row) => ({ ...row, provider: toProvider(row.provider) }))
@@ -1766,7 +1785,7 @@ function registerStoreIpcTail(): void {
         // pending comes from kv, where BOTH clients write it — the window used
         // to read only its own localStorage copy, so a chat the phone created
         // was invisible in the sidebar until the next launch.
-        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, cwd,
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd,
                 EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending
          FROM chats WHERE workspaceId = ? ORDER BY pinned DESC, position ASC, updatedAt ASC`
       )
@@ -1786,7 +1805,7 @@ function registerStoreIpcTail(): void {
   ipcMain.handle('chat:listAll', () =>
     db
       .prepare(
-        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, cwd,
+        `SELECT id, workspaceId, title, claudeSessionId, provider, updatedAt, pinned, pinnedAt, cwd,
                 EXISTS(SELECT 1 FROM kv WHERE key = 'pendingBranch:' || chats.id) AS pending
          FROM chats ORDER BY workspaceId, pinned DESC, position ASC, updatedAt ASC`
       )

@@ -67,6 +67,8 @@ export interface Chat {
   provider: AgentProvider
   updatedAt: number
   pinned: number
+  /** When it was pinned — fixes the Pinned list's order; null while unpinned. */
+  pinnedAt: number | null
   /** Worktree override — the chat's agent runs here instead of the project path. */
   cwd: string | null
   /**
@@ -528,6 +530,30 @@ export interface CoveApi {
   }) => void
   /** The Computer closed — nothing on the desktop is on screen any more. */
   desktopGone: () => void
+  /**
+   * Mirror a chat's browser tabs to main — same idea as desktopReport, but per
+   * chat, so browser_tabs/browser_open_tab/etc. know which tab is in front.
+   * An empty list means the chat has no tabs (its browser isn't open).
+   */
+  browserTabsReport: (
+    basePaneId: string,
+    tabs: { id: string; url: string; title: string; active: boolean }[]
+  ) => void
+  /** browser_open_tab / browser_switch_tab / browser_close_tab, relayed to
+   *  whichever BrowserTabs owns this basePaneId. */
+  onBrowserTabsCommand: (
+    cb: (c: {
+      basePaneId: string
+      op: 'open' | 'switch' | 'close'
+      url?: string
+      index?: number
+    }) => void
+  ) => () => void
+  /** The loop_wait MCP tool — the agent's own pick for a self-paced /loop's
+   *  next-round delay, the same judgment call ScheduleWakeup asks for. */
+  onLoopWait: (
+    cb: (c: { chatId: string; delaySeconds: number; reason?: string }) => void
+  ) => () => void
   /** The desktop as a real folder: its entries, and what you can do to them. */
   deskRoot: () => Promise<string>
   deskList: (
@@ -896,6 +922,11 @@ const cove: CoveApi = {
   desktopSyncFiles: (paths) => ipcRenderer.invoke('desktop:sync-files', paths),
   desktopReport: (patch) => ipcRenderer.send('desktop:report', patch),
   desktopGone: () => ipcRenderer.send('desktop:gone'),
+  browserTabsReport: (basePaneId, tabs) =>
+    ipcRenderer.send('browser:tabs-report', basePaneId, tabs),
+  onBrowserTabsCommand: (cb) =>
+    subscribe('browser:tabs-command', (c) => cb(c as Parameters<typeof cb>[0])),
+  onLoopWait: (cb) => subscribe('loop:wait', (c) => cb(c as Parameters<typeof cb>[0])),
   deskRoot: () => ipcRenderer.invoke('desk:root'),
   deskList: (dir) => ipcRenderer.invoke('desk:list', dir),
   deskNewFolder: (dir, name) => ipcRenderer.invoke('desk:newFolder', dir, name),

@@ -30,6 +30,7 @@ import { startMcpServer } from './mcp'
 import { getChat, registerStoreIpc, setChatPinned } from './store'
 import { mergeLegacyPartitions, sweepMergedPartitions } from './session-merge'
 import { registerDesktopIpc } from './desktop'
+import { registerChatBrowserTabsIpc } from './chat-browser-tabs'
 import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
@@ -240,6 +241,7 @@ app.whenReady().then(async () => {
   registerBrowserIpc()
   registerStoreIpc()
   registerDesktopIpc()
+  registerChatBrowserTabsIpc()
   registerDeskIpc()
   registerHookIpc()
   registerAutomationIpc()

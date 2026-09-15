@@ -517,6 +517,19 @@ const BUILTIN_COMMAND_DESCRIPTIONS: Record<string, string> = {
 
 /** Safety cap so a loop can't run away forever. */
 const LOOP_CAP = 100
+/**
+ * A terminal's self-paced /loop is the model calling ScheduleWakeup, clamped
+ * to [60, 3600] seconds by the CLI's own runtime — Superagent disallows that
+ * tool (it works by asking whatever runs the CLI to relaunch the process
+ * later, which only exists for an interactive terminal, not a spawned agent
+ * process) and gives loop_wait instead: same shape, same clamp, but Superagent
+ * itself holds the wait and resubmits, since it already keeps this chat's
+ * process alive between turns. DEFAULT_LOOP_ROUND_GAP_MS is what applies when
+ * the model doesn't call it at all — the same floor a bare ScheduleWakeup
+ * call would hit, so a round that does nothing still doesn't fire "immediately."
+ */
+const DEFAULT_LOOP_ROUND_GAP_MS = 60_000
+const MAX_LOOP_ROUND_GAP_MS = 3_600_000
 const UNIT_MS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }
 
 /**
@@ -545,20 +558,21 @@ function parseLoopCmd(raw: string): { intervalMs: number | null; prompt: string 
 }
 
 /**
- * A no-interval /loop hands the cadence to the model, as the terminal's does.
- *
- * The engine below re-fires the moment a turn ends, so left alone it hammers
- * continuously — a real divergence from the terminal, where omitting the
- * interval means the model self-paces. The model cannot pace what it does not
- * control, and the only clock it holds is its own turn: so it is told to spend
- * the wait INSIDE the turn (a shell sleep as its last act) when the next round
- * should not start at once. Appended to every round, visibly — the user should
- * be able to read what their loop was actually asked to do.
+ * A no-interval /loop hands the cadence to the model, as the terminal's does
+ * — in a terminal that's a ScheduleWakeup call, clamped to [60, 3600]s by the
+ * CLI's own runtime. Superagent disallows that tool (see session.ts for why)
+ * and points the model at loop_wait instead: the same call, the same clamp,
+ * the same judgment about what delay fits what you're waiting for — just
+ * answered by Superagent's own timer rather than the CLI relaunching later.
+ * Not calling it isn't an "immediate" round either: DEFAULT_LOOP_ROUND_GAP_MS
+ * (where the re-fire is scheduled) is the floor a bare ScheduleWakeup call
+ * would hit anyway, so a round that does nothing still gets that much space.
  */
 const SELF_PACE_NOTE =
-  '\n\n(/loop, self-paced: you decide when the next round should run. If it should not start ' +
-  'immediately, run `sleep <seconds>` in the shell as your last action before ending the turn — ' +
-  'the next round begins when your turn ends. Keep rounds brief; the loop runs until stopped.)'
+  '\n\n(/loop, self-paced: pick your own pace with the loop_wait tool, exactly as you would call ' +
+  "ScheduleWakeup in a terminal — clamped to [60, 3600]s. Don't bother for a short, ~60s gap; " +
+  'Superagent already waits that long by default. Call it once, before ending the turn, when this ' +
+  "round's wait should be longer than that. Keep rounds brief; the loop runs until stopped.)"
 
 function humanInterval(ms: number): string {
   if (ms % UNIT_MS.d === 0) return `${ms / UNIT_MS.d}d`
@@ -1257,12 +1271,29 @@ export function EasyChat({
     loopRef.current = loop
   }, [loop])
   const loopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // When the current round's prompt was actually submitted — set right before
+  // each submit, read back when that round's turn ends, to work out how much
+  // more (if any) of the round's target gap is still owed.
+  const loopRoundStartRef = useRef(0)
+  // The model's own loop_wait call for the round in progress, if any — cleared
+  // once consumed so it never leaks into a later round that didn't ask for one.
+  const loopRequestedGapMsRef = useRef<number | null>(null)
+  useEffect(() => {
+    return window.cove.onLoopWait(({ chatId: forId, delaySeconds }) => {
+      if (forId !== chatId) return
+      loopRequestedGapMsRef.current = Math.min(
+        MAX_LOOP_ROUND_GAP_MS,
+        Math.max(DEFAULT_LOOP_ROUND_GAP_MS, delaySeconds * 1000)
+      )
+    })
+  }, [chatId])
   const stopLoop = useCallback((): void => {
     if (loopTimerRef.current) {
       clearTimeout(loopTimerRef.current)
       loopTimerRef.current = null
     }
     loopRef.current = null
+    loopRequestedGapMsRef.current = null
     setLoop(null)
   }, [])
   // Tail each job's output while one of their pills is open, so you watch it
@@ -2562,9 +2593,20 @@ export function EasyChat({
             loopRef.current = next
             setLoop(next)
             if (loopTimerRef.current) clearTimeout(loopTimerRef.current)
+            // loop_wait, if the model called it this round, sets the target gap;
+            // otherwise it defaults to the same floor a bare ScheduleWakeup call
+            // would hit. Either way, only wait out what's left of it — a round
+            // that spent real time working (or really did sleep) never waits twice.
+            const targetGapMs = loopRequestedGapMsRef.current ?? DEFAULT_LOOP_ROUND_GAP_MS
+            loopRequestedGapMsRef.current = null
+            const elapsed = Date.now() - loopRoundStartRef.current
+            const delay = Math.max(900, targetGapMs - elapsed)
             loopTimerRef.current = setTimeout(() => {
-              if (loopRef.current) submitRef.current?.(next.prompt + SELF_PACE_NOTE)
-            }, 900)
+              if (loopRef.current) {
+                loopRoundStartRef.current = Date.now()
+                submitRef.current?.(next.prompt + SELF_PACE_NOTE)
+              }
+            }, delay)
           }
         }
         // Surface a failed or empty turn. Without this the app silently swallows an
@@ -3193,6 +3235,8 @@ export function EasyChat({
       setInput('')
       // Kick off the first iteration now. A self-paced loop carries its pacing
       // note from round one, so the model knows the wait is its job.
+      loopRoundStartRef.current = Date.now()
+      loopRequestedGapMsRef.current = null
       submit(intervalMs === null ? prompt + SELF_PACE_NOTE : prompt)
       return
     }

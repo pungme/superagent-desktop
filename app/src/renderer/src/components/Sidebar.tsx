@@ -1434,7 +1434,11 @@ function PinnedShortcuts(): React.JSX.Element | null {
   for (const c of chats)
     byWorkspace.set(c.workspaceId, [...(byWorkspace.get(c.workspaceId) ?? []), c])
 
-  const pinned = chats.filter((c) => c.pinned).sort((a, b) => b.updatedAt - a.updatedAt)
+  // Most-recently-pinned first, and fixed there — sorting by updatedAt instead
+  // reshuffled the whole list every time a pinned chat got a new message.
+  const pinned = chats
+    .filter((c) => c.pinned)
+    .sort((a, b) => (b.pinnedAt ?? b.updatedAt) - (a.pinnedAt ?? a.updatedAt))
   if (pinned.length === 0) return null
 
   return (
@@ -1476,7 +1480,10 @@ function ActivityList(): React.JSX.Element {
   for (const g of tree) for (const w of g.workspaces) names.set(w.id, w.name)
 
   const byRecency = (a: Chat, b: Chat): number => b.updatedAt - a.updatedAt
-  const pinned = chats.filter((c) => c.pinned).sort(byRecency)
+  // Fixed by when it was pinned, not by its latest activity — see PinnedShortcuts.
+  const byPinOrder = (a: Chat, b: Chat): number =>
+    (b.pinnedAt ?? b.updatedAt) - (a.pinnedAt ?? a.updatedAt)
+  const pinned = chats.filter((c) => c.pinned).sort(byPinOrder)
   const rest = chats.filter((c) => !c.pinned).sort(byRecency)
 
   const row = (c: Chat): React.JSX.Element => {

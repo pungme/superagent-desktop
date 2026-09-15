@@ -8529,6 +8529,112 @@ button {
   display: flex;
 }
 
+/* A chat's own browser, as tabs — same structure as the desktop Browser's
+   (.dbrowser) above, scoped to one chat's pane instead of the whole window.
+   The strip only renders once there's a second tab, so a single-tab chat
+   (still the overwhelming common case) looks exactly as it always did. */
+.chat-browser-tabs {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cbt-strip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-left: 1px solid var(--border);
+}
+.cbt-strip::-webkit-scrollbar {
+  height: 0;
+}
+.cbt-tab {
+  position: relative;
+  flex: 0 1 170px;
+  min-width: 78px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: default;
+  transition: padding-right 0.12s ease;
+}
+.cbt-tab:hover {
+  background: var(--hover);
+  padding-right: 26px;
+}
+.cbt-tab.on {
+  background: var(--bg-content);
+  color: var(--text-primary);
+  padding-right: 26px;
+}
+.cbt-tab-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cbt-tab-x {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.cbt-tab:hover .cbt-tab-x,
+.cbt-tab.on .cbt-tab-x {
+  opacity: 1;
+}
+.cbt-tab-x:hover {
+  color: #f97583;
+}
+.cbt-new {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 15px;
+  line-height: 1;
+}
+.cbt-new:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.cbt-panes {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.cbt-pane {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+.cbt-pane.on {
+  display: flex;
+}
+
 /* The Chat app: conversations down the side, the current one beside them. */
 .dchat {
   flex: 1;

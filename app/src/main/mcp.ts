@@ -43,6 +43,7 @@ import {
   getChat
 } from './store'
 import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
+import { activeChatTab, chatTabs } from './chat-browser-tabs'
 import { gitBranch } from './files'
 import { pushOpenFile } from './companion'
 import { requestApproval } from './hooks'
@@ -105,9 +106,11 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
    * In a project it is that workspace's pane. On the desktop the browser is an
    * application with tabs, so the tools follow the tab in front — the one the
    * user is actually looking at — exactly as they follow the visible pane
-   * everywhere else.
+   * everywhere else. A chat's own browser can have tabs too now (browser_tabs
+   * etc., below); it follows the same rule, one level down.
    */
-  const browserPane = (): string => (isDesktop ? (activeDesktopTab() ?? PANE_ID) : PANE_ID)
+  const browserPane = (): string =>
+    isDesktop ? (activeDesktopTab() ?? PANE_ID) : activeChatTab(PANE_ID)
 
   // --- Ask mode: Claude Code's permission prompt, answered by a person --------
   // Headless `claude -p` has no terminal to ask in; --permission-prompt-tool
@@ -141,6 +144,48 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       return { content: [{ type: 'text', text: JSON.stringify(verdict) }] }
     }
   )
+
+  // --- Self-paced /loop --------------------------------------------------
+  // Claude Code's own ScheduleWakeup is how a terminal's self-paced /loop
+  // actually paces itself — but it works by asking the OS (or whatever
+  // supervises the CLI) to relaunch the process later, and Superagent has no
+  // such relaunch plumbing, so ScheduleWakeup is disallowed here (session.ts).
+  // This is the same idea rebuilt on what Superagent DOES have: a chat window
+  // that stays open and a process it already keeps alive between turns. Same
+  // shape (delaySeconds clamped to [60, 3600], a reason), same judgment call,
+  // different plumbing underneath.
+  if (CHAT_ID) {
+    server.registerTool(
+      'loop_wait',
+      {
+        description:
+          "Set how long before this /loop's next round starts. Only affects a self-paced /loop " +
+          '(no interval was given) — harmless no-op otherwise. Call once, before ending the turn, ' +
+          'the same way you would call ScheduleWakeup in a terminal: pick the delay to match what ' +
+          "you're actually waiting for. A short delay (60-270s) for actively polling external state " +
+          'the harness cannot track (a CI run, a deploy, a remote queue); a long one (1200-1800s) for ' +
+          'an idle tick with no specific signal to watch. Clamped to [60, 3600] seconds.',
+        inputSchema: {
+          delaySeconds: z
+            .number()
+            .describe('Seconds before the next round. Clamped to [60, 3600].'),
+          reason: z
+            .string()
+            .optional()
+            .describe('One short sentence on what you chose and why — shown to the user.')
+        }
+      },
+      async ({ delaySeconds, reason }) => {
+        const clamped = Math.min(3600, Math.max(60, Math.round(delaySeconds)))
+        broadcastToWindows('loop:wait', { chatId: CHAT_ID, delaySeconds: clamped, reason })
+        return {
+          content: [
+            { type: 'text', text: `Next round in ${clamped}s${reason ? ` — ${reason}` : ''}.` }
+          ]
+        }
+      }
+    )
+  }
 
   // --- iOS Simulator (phase 1: simctl, public APIs only) -------------------
   const simctl = (args: string[]): Promise<string> =>
@@ -1002,6 +1047,111 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       return { content: [{ type: 'text', text: `Deleted routine ${id}.` }] }
     }
   )
+
+  // --- This chat's own browser tabs ----------------------------------------
+  // Not for the desktop: its Browser is a whole application with its own tab
+  // set (computer_browser_open, computer_state) that a project's chat has no
+  // business touching. A project or worktree chat can still want more than
+  // one page open at once — comparing two docs, one tab mid-flow while
+  // another loads — so it gets a small tab set of its own.
+  if (!isDesktop) {
+    const tabOp = (op: 'open' | 'switch' | 'close', payload: Record<string, unknown> = {}): void =>
+      broadcastToWindows('browser:tabs-command', { basePaneId: PANE_ID, op, ...payload })
+
+    server.registerTool(
+      'browser_tabs',
+      {
+        description:
+          "List this chat's open browser tabs and which one the other browser_* tools currently act on. Empty until the browser has been opened at least once.",
+        inputSchema: {}
+      },
+      async () => {
+        const tabs = chatTabs(PANE_ID)
+        if (!tabs.length) {
+          return {
+            content: [{ type: 'text', text: 'No browser tabs open — is the browser open?' }]
+          }
+        }
+        const lines = tabs.map(
+          (t, i) => `${i}: ${t.title || t.url || 'New tab'}${t.active ? '  <-- active' : ''}`
+        )
+        return { content: [{ type: 'text', text: lines.join('\n') }] }
+      }
+    )
+
+    server.registerTool(
+      'browser_open_tab',
+      {
+        description:
+          "Open a new tab in this chat's browser and make it the one the other browser_* tools act on. Opens the browser first if it is not already open.",
+        inputSchema: { url: z.string().optional().describe('Leave empty for a blank new tab') }
+      },
+      async ({ url }) => {
+        const before = chatTabs(PANE_ID).length
+        tabOp('open', { url })
+        // The tab is created in the renderer and reports back; give it a beat
+        // rather than answering before it exists, same margin computer_browser_open uses.
+        await new Promise((r) => setTimeout(r, 700))
+        return {
+          content: [{ type: 'text', text: `Opened tab ${before}${url ? ` at ${url}` : ''}.` }]
+        }
+      }
+    )
+
+    server.registerTool(
+      'browser_switch_tab',
+      {
+        description:
+          'Switch which tab the other browser_* tools act on. See browser_tabs for indexes.',
+        inputSchema: { index: z.number() }
+      },
+      async ({ index }) => {
+        const tabs = chatTabs(PANE_ID)
+        if (index < 0 || index >= tabs.length) {
+          return {
+            content: [
+              { type: 'text', text: `There is no tab ${index} — there are ${tabs.length}.` }
+            ]
+          }
+        }
+        tabOp('switch', { index })
+        await new Promise((r) => setTimeout(r, 200))
+        return { content: [{ type: 'text', text: `Switched to tab ${index}.` }] }
+      }
+    )
+
+    server.registerTool(
+      'browser_close_tab',
+      {
+        description:
+          'Close a browser tab — the active one if no index is given. Refuses on the last tab; close the browser itself instead.',
+        inputSchema: {
+          index: z.number().optional().describe('Defaults to the active tab')
+        }
+      },
+      async ({ index }) => {
+        const tabs = chatTabs(PANE_ID)
+        if (tabs.length <= 1) {
+          return {
+            content: [
+              { type: 'text', text: 'There is only one tab open — nothing to close it down to.' }
+            ]
+          }
+        }
+        const target = index ?? tabs.findIndex((t) => t.active)
+        if (target < 0 || target >= tabs.length) {
+          return {
+            content: [
+              { type: 'text', text: `There is no tab ${target} — there are ${tabs.length}.` }
+            ]
+          }
+        }
+        tabOp('close', { index: target })
+        await new Promise((r) => setTimeout(r, 200))
+        return { content: [{ type: 'text', text: `Closed tab ${target}.` }] }
+      }
+    )
+  }
 
   // --- The Computer -------------------------------------------------------
   // Only for the desktop's own chat: these drive the desktop itself, which a

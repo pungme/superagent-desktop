@@ -72,11 +72,16 @@ export function buildAgentArgs(
       provider: 'claude'
     })
   )
-  // Hard stops: cloud/loop schedulers can't reach Superagent's browser (scheduling
-  // must use create_routine). The Task* tools are Claude's task-tracking surface
-  // that the Tasks panel now reads, so they're allowed. Unknown names are no-ops.
-  // Variadic, so this must stay last — it would otherwise swallow whatever
-  // follows as tool names.
+  // Hard stops: Cron* and ScheduleWakeup both work by asking whatever runs the
+  // CLI to relaunch the process later — real for an interactive terminal, not
+  // for a process Superagent spawned itself, so a wakeup would just never
+  // arrive (scheduling must use create_routine instead). Self-paced /loop
+  // still works: EasyChat's loop_wait MCP tool gives the model the same
+  // ScheduleWakeup-shaped call (delaySeconds clamped to [60, 3600], a reason),
+  // answered by Superagent's own timer rather than a relaunch. The Task* tools
+  // are Claude's task-tracking surface that the Tasks panel now reads, so
+  // they're allowed. Unknown names are no-ops. Variadic, so this must stay
+  // last — it would otherwise swallow whatever follows as tool names.
   args.push('--disallowedTools', 'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup')
   return args
 }

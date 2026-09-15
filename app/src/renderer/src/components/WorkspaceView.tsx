@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
-import { BrowserPane } from './BrowserPane'
+import { BrowserTabs } from './BrowserTabs'
 import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
@@ -147,8 +147,8 @@ export function WorkspaceView({
   ) : openFilePath ? (
     <FileViewer path={openFilePath} cwd={filesRoot} onClose={() => closeFile(ws.id)} />
   ) : browserOpen ? (
-    <BrowserPane
-      paneId={browserPaneId}
+    <BrowserTabs
+      basePaneId={browserPaneId}
       workspaceId={ws.id}
       // One session for the whole app, so a manual login carries everywhere —
       // main derives the same constant in partitionFor (util.ts). This used to
