@@ -1269,6 +1269,7 @@ function PinnedRow({
   isRoot,
   open,
   live,
+  background,
   unread,
   onOpen
 }: {
@@ -1282,7 +1283,12 @@ function PinnedRow({
    *  same way: the project's name and icon, not a generic chat title. */
   isRoot: boolean
   open: boolean
+  /** A turn is actively running right now. */
   live: boolean
+  /** No turn running, but something (a Monitor, a long job) still keeps the
+   *  session alive — the tree's own distinction between "thinking" and
+   *  "asleep but not done," reused here for parity. */
+  background: boolean
   unread: boolean
   onOpen: () => void
 }): React.JSX.Element {
@@ -1306,7 +1312,13 @@ function PinnedRow({
       }}
     >
       {isRoot && projectKind ? <KindIcon kind={projectKind} size={11} /> : <PinGlyph />}
-      <span className={`activity-dot ${unread ? 'unread' : ''}`} />
+      {live ? (
+        <span className="chat-tree-spinner" title="Working…" />
+      ) : background ? (
+        <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
+      ) : (
+        <span className={`activity-dot ${unread ? 'unread' : ''}`} />
+      )}
       <span className="activity-body">
         <span className="activity-top">
           {editing ? (
@@ -1336,7 +1348,6 @@ function PinnedRow({
           ) : (
             <span className="activity-title">{label}</span>
           )}
-          {live && <span className="activity-live" />}
           <span className="activity-when">{when(chat.updatedAt)}</span>
         </span>
         {/* The label already IS the project name for a root chat — a second
@@ -1384,6 +1395,7 @@ function PinnedShortcuts(): React.JSX.Element | null {
           isRoot={isFolderRoot(byWorkspace.get(c.workspaceId) ?? [c], c)}
           open={c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId}
           live={Boolean(busy[c.id]?.generating)}
+          background={(busy[c.id]?.background ?? 0) > 0}
           unread={Boolean(unread[c.id]) || movedSinceSeen(c)}
           onOpen={() => {
             setActive(c.workspaceId)
@@ -1423,11 +1435,16 @@ function ActivityList(): React.JSX.Element {
           selectChat(c.workspaceId, c.id)
         }}
       >
-        <span className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`} />
+        {busy[c.id]?.generating ? (
+          <span className="chat-tree-spinner" title="Working…" />
+        ) : (busy[c.id]?.background ?? 0) > 0 ? (
+          <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
+        ) : (
+          <span className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`} />
+        )}
         <span className="activity-body">
           <span className="activity-top">
             <span className="activity-title">{c.title || 'New chat'}</span>
-            {busy[c.id]?.generating && <span className="activity-live" />}
             <span className="activity-when">{when(c.updatedAt)}</span>
           </span>
           <span className="activity-where">{names.get(c.workspaceId) ?? ''}</span>

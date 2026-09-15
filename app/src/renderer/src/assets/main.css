@@ -358,13 +358,6 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.activity-live {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex: none;
-}
 .activity-when {
   margin-left: auto;
   font-size: 10.5px;
