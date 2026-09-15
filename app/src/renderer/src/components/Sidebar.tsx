@@ -488,7 +488,11 @@ function ChatRow({
             )
           )}
           <span className="chat-tree-label">{label}</span>
-          {Boolean(chat.pinned) && <span title="Pinned">⌖</span>}
+          {Boolean(chat.pinned) && (
+            <span className="chat-tree-pinned" title="Pinned">
+              <PinGlyph />
+            </span>
+          )}
           {!chat.cwd && chatPending(chat) ? (
             /* Waiting for its first message. It is NOT on main — saying so would
                be a lie about where the agent is about to write. */
@@ -1266,6 +1270,7 @@ function PinnedRow({
   chat,
   projectName,
   projectKind,
+  projectPath,
   isRoot,
   open,
   live,
@@ -1278,6 +1283,9 @@ function PinnedRow({
   /** Undefined when the project this chat belongs to couldn't be resolved
    *  (e.g. mid-refresh) — falls back to the plain chat treatment. */
   projectKind?: string
+  /** For a root chat's own branch chip — a worktree chat reads its branch
+   *  off chat.cwd instead, same as the tree. */
+  projectPath?: string
   /** This chat IS the project folder's own conversation — the project row
    *  in the tree, not a row of its own there, so pinning it should read the
    *  same way: the project's name and icon, not a generic chat title. */
@@ -1296,6 +1304,26 @@ function PinnedRow({
   const [editing, setEditing] = useState(false)
   const label = isRoot ? projectName : chat.title || 'New chat'
   const [draft, setDraft] = useState(label)
+  // The same branch chip the tree shows — a worktree chat's own branch, or a
+  // root chat's project's branch — read from git the same way, so a pinned
+  // shortcut says which copy of the project you'd actually be working in.
+  const [branch, setBranch] = useState<string | null>(null)
+  useEffect(() => {
+    const path = chat.cwd || (isRoot ? projectPath : undefined)
+    if (!path) return
+    let alive = true
+    const refresh = (): void => {
+      window.cove.gitBranch(path).then((b) => {
+        if (alive) setBranch(b)
+      })
+    }
+    refresh()
+    window.addEventListener('cove:workspace-idle', refresh)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', refresh)
+    }
+  }, [chat.cwd, isRoot, projectPath])
 
   return (
     <button
@@ -1352,8 +1380,14 @@ function PinnedRow({
         </span>
         {/* The label already IS the project name for a root chat — a second
             line repeating it said nothing a normal project row doesn't
-            already say once. */}
-        {!isRoot && <span className="activity-where">{projectName}</span>}
+            already say once; the branch (if any) still earns its place. */}
+        {(!isRoot || branch) && (
+          <span className="activity-where">
+            {!isRoot && projectName}
+            {!isRoot && branch && ' · '}
+            {branch && `⎇ ${branch.replace(/^superagent\//, '')}`}
+          </span>
+        )}
       </span>
     </button>
   )
@@ -1371,10 +1405,12 @@ function PinnedShortcuts(): React.JSX.Element | null {
 
   const names = new Map<string, string>()
   const kinds = new Map<string, string>()
+  const paths = new Map<string, string>()
   for (const g of tree)
     for (const w of g.workspaces) {
       names.set(w.id, w.name)
       kinds.set(w.id, w.kind)
+      paths.set(w.id, w.path)
     }
   const byWorkspace = new Map<string, Chat[]>()
   for (const c of chats)
@@ -1392,6 +1428,7 @@ function PinnedShortcuts(): React.JSX.Element | null {
           chat={c}
           projectName={names.get(c.workspaceId) ?? ''}
           projectKind={kinds.get(c.workspaceId)}
+          projectPath={paths.get(c.workspaceId)}
           isRoot={isFolderRoot(byWorkspace.get(c.workspaceId) ?? [c], c)}
           open={c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId}
           live={Boolean(busy[c.id]?.generating)}

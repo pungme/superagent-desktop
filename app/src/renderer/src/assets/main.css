@@ -408,6 +408,14 @@ button {
   color: var(--text-tertiary, var(--text-secondary));
   opacity: 0.8;
 }
+/* The tree's own inline pin marker, next to a pinned chat's title. */
+.chat-tree-pinned {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 2px;
+  color: var(--text-tertiary);
+  opacity: 0.8;
+}
 
 /* Dropping INTO a group is a different gesture from reordering, so it gets a
    different signal: the whole group outlined, not a line between rows. */
