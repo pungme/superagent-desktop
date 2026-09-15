@@ -1341,6 +1341,7 @@ function ActivityList(): React.JSX.Element {
         <>
           <div className="pinned-section-label">Pinned</div>
           {pinned.map(row)}
+          {rest.length > 0 && <div className="pinned-section-label">Chats</div>}
         </>
       )}
       {rest.map(row)}
