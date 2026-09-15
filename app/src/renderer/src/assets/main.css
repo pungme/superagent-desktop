@@ -2289,6 +2289,18 @@ button {
   color: var(--text-tertiary);
   white-space: nowrap;
   pointer-events: none;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+/* iMessage-style clustering: sending the next message retires this one's
+   timestamp instead of leaving every message stamped — faded and drawn
+   in slightly rather than just vanishing. */
+.easy-msg-time.collapsed {
+  opacity: 0;
+  transform: translateY(-2px) scale(0.92);
 }
 .easy-msg:not(.easy-system) {
   margin-bottom: 10px;

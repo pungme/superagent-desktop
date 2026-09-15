@@ -9,6 +9,7 @@ import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { splitLoopNote } from '../lib/loop-note'
+import { visibleTimeIds } from '../lib/message-time-groups'
 import { useDictation } from '../lib/dictation'
 import { redirectTarget } from '../lib/background'
 import {
@@ -912,6 +913,7 @@ function RemoteImages({
 const MessageRow = memo(function MessageRow({
   msg,
   showEdit,
+  showTime,
   onWheelMsg,
   onReply,
   onEdit,
@@ -921,6 +923,10 @@ const MessageRow = memo(function MessageRow({
   msg: ChatMessage
   /** This is the last user message and no turn is running — offer Edit. */
   showEdit: boolean
+  /** iMessage-style clustering: only the last message before a real pause
+   *  shows its time. Sending another message right away retires the
+   *  previous one's timestamp — faded out, not yanked away, via CSS. */
+  showTime: boolean
   onWheelMsg: (e: React.WheelEvent<HTMLDivElement>, msg: ChatMessage) => void
   onReply: (msg: ChatMessage) => void
   onEdit: (msg: ChatMessage) => void
@@ -1002,7 +1008,10 @@ const MessageRow = memo(function MessageRow({
         </button>
       )}
       {at !== null && (
-        <span className="easy-msg-time" title={new Date(at).toLocaleString()}>
+        <span
+          className={`easy-msg-time${showTime ? '' : ' collapsed'}`}
+          title={new Date(at).toLocaleString()}
+        >
           {msgTime(at)}
         </span>
       )}
@@ -3385,6 +3394,14 @@ export function EasyChat({
       break
     }
   }
+  // iMessage-style time clustering: a message shows its timestamp only when
+  // the NEXT one is a real pause away (or there is no next one) — so sending
+  // a follow-up right after retires the previous message's timestamp instead
+  // of stamping every single message.
+  const timeIds = useMemo(() => {
+    const msgs = items.filter((it) => it.kind === 'msg').map((it) => it.msg)
+    return visibleTimeIds(msgs, msgAt)
+  }, [items])
   // Two-finger trackpad swipe-right on a message to reply to it (like WhatsApp).
   // A wheel gesture — not a click-drag — so it never fights text selection. The
   // gesture has no "end" event, so a short quiet timer snaps the bubble back.
@@ -3545,6 +3562,7 @@ export function EasyChat({
         <MessageRow
           msg={row.msg}
           showEdit={isLastUser && !generating}
+          showTime={timeIds.has(row.msg.id)}
           onWheelMsg={onRowWheel}
           onReply={onRowReply}
           onEdit={onRowEdit}
