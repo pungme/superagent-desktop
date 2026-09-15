@@ -410,6 +410,11 @@ button {
 .sidebar-pinned-shortcuts .pinned-section-label {
   padding: 8px 6px 4px;
 }
+.pinned-row-glyph {
+  flex: 0 0 auto;
+  color: var(--text-tertiary, var(--text-secondary));
+  opacity: 0.8;
+}
 
 /* Dropping INTO a group is a different gesture from reordering, so it gets a
    different signal: the whole group outlined, not a line between rows. */

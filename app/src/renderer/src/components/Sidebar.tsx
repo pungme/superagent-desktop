@@ -1247,6 +1247,95 @@ function useAllChats(): Chat[] {
  * that project's own branch list (still nested groups down); it surfaces
  * here, above every group, the same as Computer/Chats.
  */
+/** A tiny pin glyph — the same visual cue as the header, on the row itself,
+ *  so it still reads as "pinned" once scrolled past the section label. */
+function PinGlyph(): React.JSX.Element {
+  return (
+    <svg
+      className="pinned-row-glyph"
+      viewBox="0 0 16 16"
+      width="10"
+      height="10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M8 1.5 6 4v3.2L3 9.8v1.2h3.6L8 14.5l1.4-3.5H13V9.8l-3-2.6V4z" />
+    </svg>
+  )
+}
+
+function PinnedRow({
+  chat,
+  projectName,
+  open,
+  live,
+  unread,
+  onOpen
+}: {
+  chat: Chat
+  projectName: string
+  open: boolean
+  live: boolean
+  unread: boolean
+  onOpen: () => void
+}): React.JSX.Element {
+  const renameChat = useStore((s) => s.renameChat)
+  const [editing, setEditing] = useState(false)
+  const label = chat.title || 'New chat'
+  const [draft, setDraft] = useState(label)
+
+  return (
+    <button
+      className={`activity-row ${open ? 'on' : ''}`}
+      onClick={onOpen}
+      onDoubleClick={() => {
+        setDraft(label)
+        setEditing(true)
+      }}
+    >
+      <span className={`activity-dot ${unread ? 'unread' : ''}`} />
+      <PinGlyph />
+      <span className="activity-body">
+        <span className="activity-top">
+          {editing ? (
+            <input
+              className="sidebar-item-rename"
+              value={draft}
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => {
+                const n = draft.trim()
+                if (n && n !== label) {
+                  // This row's own data comes from useAllChats' polled snapshot,
+                  // not the reactive store ChatRow reads — without this nudge
+                  // the new title wouldn't show here until the next 5s poll.
+                  void renameChat(chat.workspaceId, chat.id, n).then(() =>
+                    window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+                  )
+                }
+                setEditing(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+                if (e.key === 'Escape') setEditing(false)
+              }}
+            />
+          ) : (
+            <span className="activity-title">{label}</span>
+          )}
+          {live && <span className="activity-live" />}
+          <span className="activity-when">{when(chat.updatedAt)}</span>
+        </span>
+        <span className="activity-where">{projectName}</span>
+      </span>
+    </button>
+  )
+}
+
 function PinnedShortcuts(): React.JSX.Element | null {
   const tree = useStore((s) => s.tree)
   const setActive = useStore((s) => s.setActive)
@@ -1266,29 +1355,20 @@ function PinnedShortcuts(): React.JSX.Element | null {
   return (
     <div className="sidebar-pinned-shortcuts">
       <div className="pinned-section-label">Pinned</div>
-      {pinned.map((c) => {
-        const open = c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId
-        return (
-          <button
-            key={c.id}
-            className={`activity-row ${open ? 'on' : ''}`}
-            onClick={() => {
-              setActive(c.workspaceId)
-              selectChat(c.workspaceId, c.id)
-            }}
-          >
-            <span className={`activity-dot ${unread[c.id] || movedSinceSeen(c) ? 'unread' : ''}`} />
-            <span className="activity-body">
-              <span className="activity-top">
-                <span className="activity-title">{c.title || 'New chat'}</span>
-                {busy[c.id]?.generating && <span className="activity-live" />}
-                <span className="activity-when">{when(c.updatedAt)}</span>
-              </span>
-              <span className="activity-where">{names.get(c.workspaceId) ?? ''}</span>
-            </span>
-          </button>
-        )
-      })}
+      {pinned.map((c) => (
+        <PinnedRow
+          key={c.id}
+          chat={c}
+          projectName={names.get(c.workspaceId) ?? ''}
+          open={c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId}
+          live={Boolean(busy[c.id]?.generating)}
+          unread={Boolean(unread[c.id]) || movedSinceSeen(c)}
+          onOpen={() => {
+            setActive(c.workspaceId)
+            selectChat(c.workspaceId, c.id)
+          }}
+        />
+      ))}
     </div>
   )
 }
