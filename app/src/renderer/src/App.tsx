@@ -5,7 +5,6 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
-import { GuardrailPrompt } from './components/GuardrailPrompt'
 import { ComputerPanel } from './components/ComputerPanel'
 import { ChatsView } from './components/ChatsView'
 import { Onboarding } from './components/Onboarding'
@@ -82,6 +81,7 @@ function App(): React.JSX.Element {
   const startHookListener = useStore((s) => s.startHookListener)
   const startBrowsingListener = useStore((s) => s.startBrowsingListener)
   const startRoutinesListener = useStore((s) => s.startRoutinesListener)
+  const startGuardrailListener = useStore((s) => s.startGuardrailListener)
   const allWorkspaces = tree.flatMap((g) => g.workspaces)
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
 
@@ -310,6 +310,7 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     startHookListener()
+    startGuardrailListener()
     // Main owns the banner gate but the persisted preference lives here — push it
     // at startup so a pref set last run holds before any agent finishes.
     window.cove.setNotifyPrefs({
@@ -335,7 +336,13 @@ function App(): React.JSX.Element {
       window.clearInterval(portTimer)
       window.removeEventListener('focus', onFocusCheckPorts)
     }
-  }, [startHookListener, startBrowsingListener, startRoutinesListener, applyTheme])
+  }, [
+    startHookListener,
+    startGuardrailListener,
+    startBrowsingListener,
+    startRoutinesListener,
+    applyTheme
+  ])
 
   useEffect(() => {
     const openSettings = (): void => setSettingsOpen(true)
@@ -464,7 +471,6 @@ function App(): React.JSX.Element {
       <PreviewToast />
       <UpdateBanner />
       <IntroSplash />
-      <GuardrailPrompt />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )

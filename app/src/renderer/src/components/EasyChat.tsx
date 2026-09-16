@@ -1362,13 +1362,31 @@ export function EasyChat({
   // Context consumed by the last turn (input + cache tokens) — a quiet running
   // gauge of how full the conversation is.
   const [ctxTokens, setCtxTokens] = useState<number | null>(null)
+  // Read inside flushStream (a stable useCallback with no deps), which can't
+  // see state directly without becoming unstable itself — a plain mirror ref
+  // instead of adding ctxTokens to its dependency chain.
+  const ctxTokensRef = useRef<number | null>(null)
+  useEffect(() => {
+    ctxTokensRef.current = ctxTokens
+  }, [ctxTokens])
   // Ticks up live while a turn runs (input+cache+output-so-far) so the
   // "Working" indicator reads like a real progress readout, not a blank spinner.
   // Cleared once the turn's `result` lands and its total is folded into the
   // matching reply's own `tokens` field.
   const [liveTokens, setLiveTokens] = useState<number | null>(null)
+  // This turn's own SETTLED requests, by message id — a tool-heavy turn makes
+  // several (one per round-trip), and the API only reports a message's real
+  // usage once, when it completes, so this only ever gains an entry at that
+  // point (never updated again for the same id). Summed, it's this turn's
+  // running total so far — the same number the per-turn badge settles on once
+  // `result` lands. The one still streaming isn't in here yet; see flushStream
+  // for how its own live estimate gets added on top.
+  const turnUsageRef = useRef<Map<string, number>>(new Map())
   useEffect(() => {
-    if (generating) setLiveTokens(null)
+    if (generating) {
+      setLiveTokens(null)
+      turnUsageRef.current.clear()
+    }
   }, [generating])
   // tool_use id of a BashOutput poll → the shell it's asking about, so its result
   // can retire the right task.
@@ -1379,6 +1397,14 @@ export function EasyChat({
   // the DOM, so it would otherwise draw straight over the HTML lightbox).
   const [lightbox, setLightbox] = useState<string | null>(null)
   useOverlayLock(lightbox !== null)
+  // A pending permission/guardrail ask belonging to THIS chat — rendered
+  // inline, prominently, right above the composer (see the return below).
+  const guardrailAsks = useStore((s) => s.guardrailAsks)
+  const resolveGuardrailAsk = useStore((s) => s.resolveGuardrailAsk)
+  const myGuardrailAsk = guardrailAsks.find((a) => a.sessionId === chatId)
+  // Same reason as the lightbox: the native browser view paints above all
+  // HTML, so without this the one thing you must answer can hide under it.
+  useOverlayLock(!!myGuardrailAsk && visible)
   // WhatsApp-style quote-reply: the message the next send will reply to.
   const [replyTarget, setReplyTarget] = useState<{
     role: 'user' | 'assistant'
@@ -1416,6 +1442,20 @@ export function EasyChat({
     pendingTextRef.current = false
     pendingThinkRef.current = ''
     if (!textDirty && !addThink) return
+    if (textDirty) {
+      // The API only reports real usage once, when a message completes — there
+      // is no per-token count to read meanwhile. Estimate the in-progress
+      // message's own cost from how much it's written so far (~4 chars/token)
+      // plus its likely context size (this chat's last known reading —  its
+      // own real size isn't known until IT completes either), on top of this
+      // turn's already-settled messages. Rough, but it climbs with the reply
+      // instead of sitting frozen for however long the message takes, and
+      // gets corrected to the exact number the moment real usage lands.
+      let committed = 0
+      for (const v of turnUsageRef.current.values()) committed += v
+      const estimate = Math.round(streamTextRef.current.length / 4)
+      setLiveTokens(committed + (ctxTokensRef.current ?? 0) + estimate)
+    }
     const sid = streamingIdRef.current
     const tid = thinkingIdRef.current
     const fullText = streamTextRef.current
@@ -2109,7 +2149,8 @@ export function EasyChat({
           if (delta?.type === 'text_delta') {
             const chunk = delta.text as string
             streamTextRef.current += chunk
-            // Buffer; the rAF flush applies streamTextRef's full text to the row.
+            // Buffer; the rAF flush applies streamTextRef's full text to the row
+            // (and estimates the live token count from it — see flushStream).
             pendingTextRef.current = true
             scheduleFlush()
           } else if (delta?.type === 'thinking_delta') {
@@ -2138,10 +2179,19 @@ export function EasyChat({
             (mu.cache_read_input_tokens ?? 0) +
             (mu.cache_creation_input_tokens ?? 0)
           if (live > 0) setCtxTokens(live)
-          // Same reading, plus output-so-far — what the turn has actually spent,
-          // ticking up as the reply grows rather than landing all at once.
+          // Same reading, plus output-so-far — what THIS request has spent.
           const spent = live + (mu.output_tokens ?? 0)
-          if (spent > 0) setLiveTokens(spent)
+          if (spent > 0) {
+            const msgId = msg?.id as string | undefined
+            if (msgId) {
+              turnUsageRef.current.set(msgId, spent)
+              let total = 0
+              for (const v of turnUsageRef.current.values()) total += v
+              setLiveTokens(total)
+            } else {
+              setLiveTokens(spent)
+            }
+          }
         }
         const content = (msg?.content as Record<string, unknown>[]) || []
         // Some assistant messages arrive whole rather than streamed — most notably
@@ -4002,6 +4052,52 @@ export function EasyChat({
       {dictation.error && (
         <div className="easy-dictation-error" role="status">
           Dictation failed: {dictation.error}
+        </div>
+      )}
+      {/* A pending permission/guardrail ask for THIS chat, prominent right above
+          where you're about to type — not a window-wide modal blocking every
+          other chat over one project's decision. A chat you aren't looking at
+          shows "Needs you" in the sidebar instead (Sidebar.tsx), so nothing
+          waits silently; this is just where you actually answer it. */}
+      {myGuardrailAsk && (
+        <div className="easy-guard" role="alertdialog" aria-modal="false">
+          <div className="easy-guard-head">
+            <span className="easy-guard-shield" aria-hidden>
+              🛡️
+            </span>
+            <strong>
+              {myGuardrailAsk.kind === 'permission'
+                ? `Claude wants to use ${myGuardrailAsk.toolName}`
+                : 'Approve this action?'}
+            </strong>
+          </div>
+          <p className="easy-guard-why">
+            {myGuardrailAsk.kind === 'permission'
+              ? 'This chat is in Ask mode, so the agent checks with you before it acts. You can also answer this from your phone.'
+              : `This turn read a web page, and a page can hide instructions meant to steer the agent. Superagent paused before it ${myGuardrailAsk.toolName === 'Bash' ? 'runs a command' : 'changes a file'} so you can check it’s what you intended.`}
+          </p>
+          <pre className="easy-guard-preview">{myGuardrailAsk.preview}</pre>
+          <div className="easy-guard-actions">
+            <button
+              className="easy-guard-deny"
+              onClick={() => resolveGuardrailAsk(myGuardrailAsk.requestId, false, false)}
+            >
+              Deny
+            </button>
+            <div className="easy-guard-spacer" />
+            <button
+              className="easy-guard-once"
+              onClick={() => resolveGuardrailAsk(myGuardrailAsk.requestId, true, false)}
+            >
+              Approve once
+            </button>
+            <button
+              className="easy-guard-trust"
+              onClick={() => resolveGuardrailAsk(myGuardrailAsk.requestId, true, true)}
+            >
+              Approve rest of turn
+            </button>
+          </div>
         </div>
       )}
       {/* Pending attachments sit in their own row above the composer, in normal

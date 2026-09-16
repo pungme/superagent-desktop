@@ -553,9 +553,13 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     (s.chats[ws.id] ?? []).some((c) => s.busy[c.id]?.generating)
   )
   const hookStatus = useStore((s) => s.statuses[ws.id] ?? 'idle')
+  // A pending permission/guardrail ask is answered inline in its own chat now
+  // (EasyChat.tsx), not a window-wide modal — this is how a chat you AREN'T
+  // looking at still tells you it's waiting on you.
+  const awaitingApproval = useStore((s) => s.guardrailAsks.some((a) => a.workspaceId === ws.id))
   const status: WorkspaceStatus = anyGenerating
     ? 'working'
-    : hookStatus === 'needs-you'
+    : hookStatus === 'needs-you' || awaitingApproval
       ? 'needs-you'
       : 'idle'
   const agentLive = useStore((s) => Boolean(s.agentLive[ws.id]))
@@ -1355,14 +1359,19 @@ function PinnedRow({
         setEditing(true)
       }}
     >
-      {isRoot && projectKind ? <KindIcon kind={projectKind} size={11} /> : <PinGlyph />}
-      {live ? (
-        <span className="chat-tree-spinner" title="Working…" />
-      ) : background ? (
-        <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
-      ) : (
-        <span className={`activity-dot ${unread ? 'unread' : ''}`} />
-      )}
+      {/* Stacked, not side by side — a folder icon plus a spinner/dot next to
+          it took two icon-widths of horizontal room from the title. Below
+          costs one. */}
+      <span className="activity-icon-stack">
+        {isRoot && projectKind ? <KindIcon kind={projectKind} size={11} /> : <PinGlyph />}
+        {live ? (
+          <span className="chat-tree-spinner" title="Working…" />
+        ) : background ? (
+          <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
+        ) : (
+          <span className={`activity-dot ${unread ? 'unread' : ''}`} />
+        )}
+      </span>
       <span className="activity-body">
         <span className="activity-top">
           {editing ? (

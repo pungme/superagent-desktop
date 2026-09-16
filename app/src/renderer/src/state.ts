@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { useEffect } from 'react'
-import type { TreeGroup, Routine, Chat } from '../../preload'
+import type { TreeGroup, Routine, Chat, GuardrailAsk } from '../../preload'
 import { toProvider, type AgentProvider } from '../../shared/agent-provider'
 
 export type WorkspaceStatus = 'idle' | 'working' | 'needs-you'
@@ -280,6 +280,11 @@ interface CoveState {
   openRoutineRun: (id: string) => void
   closeRoutineRun: () => void
   statuses: Record<string, WorkspaceStatus>
+  // A pending guardrail/permission ask, per requestId — a chat renders its own
+  // inline, prominently, instead of one global modal blocking every other chat.
+  guardrailAsks: GuardrailAsk[]
+  startGuardrailListener: () => void
+  resolveGuardrailAsk: (requestId: string, approve: boolean, trustRest: boolean) => void
   // Claude's current task list from TodoWrite (live in the chat), keyed by chat
   // id — each conversation keeps its own list, so two chats in one project don't
   // overwrite each other's checklist.
@@ -592,6 +597,24 @@ export const useStore = create<CoveState>((set, get) => ({
   routines: {},
   openRoutineRunId: null,
   statuses: {},
+  guardrailAsks: [],
+  startGuardrailListener: () => {
+    window.cove.onGuardrailAsk((a) =>
+      set((s) =>
+        s.guardrailAsks.some((x) => x.requestId === a.requestId)
+          ? {}
+          : { guardrailAsks: [...s.guardrailAsks, a] }
+      )
+    )
+    // Someone/something else settled it (e.g. the main-side timeout) — drop it.
+    window.cove.onGuardrailResolved((requestId) =>
+      set((s) => ({ guardrailAsks: s.guardrailAsks.filter((a) => a.requestId !== requestId) }))
+    )
+  },
+  resolveGuardrailAsk: (requestId, approve, trustRest) => {
+    window.cove.guardrailResolve(requestId, approve, trustRest)
+    set((s) => ({ guardrailAsks: s.guardrailAsks.filter((a) => a.requestId !== requestId) }))
+  },
   todos: {},
   setTodos: (chatId, todos) => set((s) => ({ todos: { ...s.todos, [chatId]: todos } })),
   clearTodos: (chatId) =>
