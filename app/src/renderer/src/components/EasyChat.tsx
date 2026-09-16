@@ -11,6 +11,7 @@ import { splitAssistant } from './assistantSegments'
 import { splitLoopNote } from '../lib/loop-note'
 import { visibleTimeIds } from '../lib/message-time-groups'
 import { fmtTokens } from '../lib/format-tokens'
+import { useAnimatedNumber } from '../lib/animated-number'
 import { useDictation } from '../lib/dictation'
 import { redirectTarget } from '../lib/background'
 import {
@@ -1374,6 +1375,9 @@ export function EasyChat({
   // Cleared once the turn's `result` lands and its total is folded into the
   // matching reply's own `tokens` field.
   const [liveTokens, setLiveTokens] = useState<number | null>(null)
+  // Eases toward liveTokens instead of jumping — the estimate updates several
+  // times a second while a reply streams, and each jump read as choppy.
+  const animatedLiveTokens = useAnimatedNumber(liveTokens)
   // This turn's own SETTLED requests, by message id — a tool-heavy turn makes
   // several (one per round-trip), and the API only reports a message's real
   // usage once, when it completes, so this only ever gains an entry at that
@@ -4038,7 +4042,9 @@ export function EasyChat({
               </span>
               <WorkingTimer />
               {liveTokens !== null && (
-                <span className="easy-live-tokens">{fmtTokens(liveTokens)} tokens</span>
+                <span className="easy-live-tokens">
+                  {fmtTokens(Math.round(animatedLiveTokens ?? liveTokens))} tokens
+                </span>
               )}
             </div>
           )}
