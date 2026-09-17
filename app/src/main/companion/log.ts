@@ -5,6 +5,7 @@ import { agentBus, listSessions, getSessionOpts } from '../agent'
 import { broadcastToWindows } from '../util'
 import { keepThumbnails } from './attachments'
 import { getWorkspacePath, chatCwd } from '../store'
+import { discoverSkills } from '../skills'
 import {
   TranscriptProjector,
   projectLegacyItems,
@@ -228,7 +229,22 @@ export function startCompanionLog(): void {
       const out = p.project(event)
       if (out.delta) logBus.emit('delta', { chatId, text: out.delta })
       if (!out.persist.length) return
-      const stored = out.persist.map((data) => record(chatId, data))
+      const enriched = out.persist.map((data) => {
+        // The CLI's own slash_commands only covers its built-ins; the renderer
+        // separately scans the project/user skill folders and merges those in
+        // (skillsList in EasyChat.tsx) so a user's own skills — /loop among
+        // them — show up in its "/" menu too. The phone got only the narrower
+        // wire list, so its menu was missing every one of those. Same merge,
+        // here, so the phone's menu matches what the desktop shows.
+        if (data.kind !== 'session') return data
+        const cwd = chatCwd(chatId) ?? (workspaceId ? getWorkspacePath(workspaceId) : undefined)
+        if (!cwd) return data
+        const provider = getSessionOpts(id)?.provider
+        const skillNames = discoverSkills(cwd, provider).map((s) => s.name)
+        if (!skillNames.length) return data
+        return { ...data, commands: Array.from(new Set([...(data.commands ?? []), ...skillNames])) }
+      })
+      const stored = enriched.map((data) => record(chatId, data))
       // No window is showing this chat: keep the desktop transcript in step,
       // and remember the session so it can be resumed later — with the backend
       // that issued it, since only that one can resume it.
