@@ -91,6 +91,37 @@ describe('TranscriptProjector', () => {
     expect((out[0] as { summary: string }).summary).toHaveLength(400)
   })
 
+  it('carries a screenshot tool_result as an image, bytes returned separately for keepThumbnails', () => {
+    const p = new TranscriptProjector()
+    const out = p.project({
+      type: 'user',
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 't1',
+            content: [
+              { type: 'text', text: 'ok' },
+              { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }
+            ]
+          }
+        ]
+      }
+    })
+    expect(out.persist).toEqual([
+      {
+        kind: 'tool_result',
+        toolId: 't1',
+        ok: true,
+        summary: 'ok\n',
+        images: [{ mediaType: 'image/png', size: 3 }]
+      }
+    ])
+    expect(out.images).toEqual([
+      { id: 't1', images: [{ mediaType: 'image/png', data: 'AAAA' }] }
+    ])
+  })
+
   it('surfaces API errors as notices and ends the turn', () => {
     const p = new TranscriptProjector()
     const notice = p.project(

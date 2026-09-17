@@ -1,4 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, memo } from 'react'
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+  memo
+} from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
@@ -47,6 +56,10 @@ interface ToolCall {
   id: string
   name: string
   detail: string
+  /** A screenshot tool's own picture, or one Claude's Read opened — fetched
+   *  from the Mac's thumbnail store by this same tool id (see RemoteImages),
+   *  same as a phone-sent message's pictures. */
+  imageCount?: number
 }
 
 interface DiffHunk {
@@ -692,10 +705,12 @@ function toolChip(t: ToolCall, cls: string, key: string): React.JSX.Element {
 // strip currently receiving new tool entries).
 const ActivityStrip = memo(function ActivityStrip({
   entries,
-  workspaceId
+  workspaceId,
+  onLightbox
 }: {
   entries: Activity[]
   workspaceId: string
+  onLightbox: (src: string) => void
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
 
@@ -708,7 +723,12 @@ const ActivityStrip = memo(function ActivityStrip({
     ) : e.kind === 'file' ? (
       <FileHandoffCard path={e.file.path} workspaceId={workspaceId} />
     ) : (
-      <div className="easy-tools">{toolChip(e.tool, 'easy-tool', e.tool.id)}</div>
+      <div className="easy-tools">
+        {toolChip(e.tool, 'easy-tool', e.tool.id)}
+        {!!e.tool.imageCount && (
+          <RemoteImages id={e.tool.id} count={e.tool.imageCount} onLightbox={onLightbox} />
+        )}
+      </div>
     )
   }
 
@@ -740,7 +760,12 @@ const ActivityStrip = memo(function ActivityStrip({
             ) : e.kind === 'file' ? (
               <FileHandoffCard key={'f' + i} path={e.file.path} workspaceId={workspaceId} />
             ) : (
-              toolChip(e.tool, 'easy-toolrow', e.tool.id + i)
+              <Fragment key={'t' + i}>
+                {toolChip(e.tool, 'easy-toolrow', e.tool.id + i)}
+                {!!e.tool.imageCount && (
+                  <RemoteImages id={e.tool.id} count={e.tool.imageCount} onLightbox={onLightbox} />
+                )}
+              </Fragment>
             )
           )}
         </div>
@@ -2504,6 +2529,23 @@ export function EasyChat({
             // says whether it has finished.
             const resultFor = typeof block.tool_use_id === 'string' ? block.tool_use_id : null
             if (resultFor) {
+              // A screenshot tool's own picture, or one Claude's Read opened.
+              // The Mac keeps a thumbnail beside the log under this same tool
+              // id (see log.ts/attachments.ts) — attach the count to the tool
+              // card that made the call so RemoteImages can fetch it.
+              const imageCount = Array.isArray(c)
+                ? (c as Record<string, unknown>[]).filter((p) => p.type === 'image').length
+                : 0
+              if (imageCount > 0) {
+                setItems((prev) => {
+                  const at = prev.findIndex((it) => it.kind === 'tool' && it.tool.id === resultFor)
+                  if (at < 0) return prev
+                  const next = [...prev]
+                  const it = next[at]
+                  if (it.kind === 'tool') next[at] = { ...it, tool: { ...it.tool, imageCount } }
+                  return next
+                })
+              }
               // A sub-agent finished — drop its pill.
               setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== resultFor))
               // TaskCreate's result carries the assigned id ("Task #7 created…").
@@ -3721,7 +3763,9 @@ export function EasyChat({
     if (row.kind === 'thinking') {
       return <div className="easy-thought">{row.text}</div>
     }
-    return <ActivityStrip entries={row.entries} workspaceId={workspaceId} />
+    return (
+      <ActivityStrip entries={row.entries} workspaceId={workspaceId} onLightbox={onRowLightbox} />
+    )
   }
 
   /** When the mic went down, and whether this is a hands-free (tapped) session. */

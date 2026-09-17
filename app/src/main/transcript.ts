@@ -16,6 +16,13 @@ export interface Projection {
   persist: WireEventData[]
   /** Streaming text that is never stored; the phone renders it transiently. */
   delta?: string
+  /**
+   * Raw bytes for any inline images a persisted entry above carries — kept
+   * beside the log via keepThumbnails, never inside it (attachments.ts), the
+   * same store a user's own sent pictures use. Keyed by the id/toolId the
+   * matching WireEventData carries, so chat.image can find them later.
+   */
+  images?: { id: string; images: { mediaType: string; data: string }[] }[]
 }
 
 const NO_OUTPUT: Projection = { persist: [] }
@@ -153,19 +160,25 @@ export class TranscriptProjector {
     const content = (raw.message as { content?: unknown } | undefined)?.content
     if (!Array.isArray(content)) return NO_OUTPUT
     const out: WireEventData[] = []
+    const images: { id: string; images: { mediaType: string; data: string }[] }[] = []
     for (const block of content as Record<string, unknown>[]) {
       if (block.type !== 'tool_result' || typeof block.tool_use_id !== 'string') continue
       const key = `r:${block.tool_use_id}`
       if (this.emitted.has(key)) continue
       this.emitted.add(key)
+      const pics = resultImages(block.content)
       out.push({
         kind: 'tool_result',
         toolId: block.tool_use_id,
         ok: block.is_error !== true,
-        summary: resultText(block.content).slice(0, 400)
+        summary: resultText(block.content).slice(0, 400),
+        ...(pics.length
+          ? { images: pics.map((p) => ({ mediaType: p.mediaType, size: base64Bytes(p.data) })) }
+          : {})
       })
+      if (pics.length) images.push({ id: block.tool_use_id, images: pics })
     }
-    return { persist: out }
+    return { persist: out, ...(images.length ? { images } : {}) }
   }
 }
 
@@ -176,6 +189,30 @@ function resultText(c: unknown): string {
       .map((p) => (typeof p.text === 'string' ? p.text : ''))
       .join('\n')
   return ''
+}
+
+/** A screenshot tool's own picture, or one Claude's Read opened on an image file. */
+function resultImages(c: unknown): { mediaType: string; data: string }[] {
+  if (!Array.isArray(c)) return []
+  const out: { mediaType: string; data: string }[] = []
+  for (const p of c as Record<string, unknown>[]) {
+    if (p.type !== 'image') continue
+    const source = p.source as Record<string, unknown> | undefined
+    if (
+      source?.type === 'base64' &&
+      typeof source.data === 'string' &&
+      typeof source.media_type === 'string'
+    ) {
+      out.push({ mediaType: source.media_type, data: source.data })
+    }
+  }
+  return out
+}
+
+/** Decoded byte length of a base64 string, without pulling in Buffer. */
+function base64Bytes(b64: string): number {
+  const padding = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0
+  return Math.floor((b64.length * 3) / 4) - padding
 }
 
 /** The one-line "what this tool does" — same rule the desktop transcript uses. */

@@ -54,7 +54,18 @@ export type WireEventData =
   | { kind: 'assistant'; id: string; text: string }
   | { kind: 'thinking'; id: string; text: string }
   | { kind: 'tool'; id: string; name: string; detail: string; task?: TaskInfo }
-  | { kind: 'tool_result'; toolId: string; ok: boolean; summary: string }
+  | {
+      kind: 'tool_result'
+      toolId: string
+      ok: boolean
+      summary: string
+      /**
+       * A screenshot tool's own picture, or one Claude's Read opened — the
+       * bytes live beside the log (see attachments.ts, same store the user's
+       * own sent pictures use), fetched over chat.image keyed by this toolId.
+       */
+      images?: { mediaType: string; size: number }[]
+    }
   | { kind: 'diff'; id: string; file: string; hunks: DiffHunk[] }
   | {
       kind: 'turn_end'

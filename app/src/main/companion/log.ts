@@ -228,6 +228,10 @@ export function startCompanionLog(): void {
       }
       const out = p.project(event)
       if (out.delta) logBus.emit('delta', { chatId, text: out.delta })
+      // Same store the user's own sent pictures use (see attachments.ts):
+      // bytes stay off to the side, keyed by the id the wire event carries,
+      // fetched over chat.image on whichever device looks.
+      for (const img of out.images ?? []) keepThumbnails(img.id, img.images)
       if (!out.persist.length) return
       const enriched = out.persist.map((data) => {
         // The CLI's own slash_commands only covers its built-ins; the renderer
