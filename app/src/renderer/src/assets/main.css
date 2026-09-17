@@ -2336,6 +2336,16 @@ button {
 }
 .easy-msg:not(.easy-system) {
   margin-bottom: 10px;
+  transition: margin-bottom 0.2s ease;
+}
+/* The timestamp fading out (above) said "this one's grouped with the next" —
+   but every bubble still sat the same 10px apart regardless, so nothing about
+   the LAYOUT actually read as a burst. Tightening the gap to match is the
+   other half of the same clustering; it eases the same way the timestamp
+   does, so a follow-up message visibly pulls the previous one in rather than
+   just snapping. */
+.easy-msg.easy-msg-grouped {
+  margin-bottom: 3px;
 }
 .easy-user .easy-msg-meta {
   right: 6px;
@@ -4336,6 +4346,11 @@ button {
 }
 .board-row-branch {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.board-row-time {
+  margin-left: auto;
+  flex: none;
+  white-space: nowrap;
 }
 
 /* Free-form labels on an item, set by the agent (board_add/board_update) or you. */
@@ -11266,6 +11281,77 @@ button {
   cursor: default;
 }
 .storage-clear-note {
+  font-size: 11.5px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.storage-row-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.storage-byproject-toggle {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-size: 11.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.storage-byproject-toggle:hover {
+  color: var(--text-primary);
+}
+.storage-byproject {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 4px 16px;
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+}
+.storage-byproject-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.storage-byproject-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.storage-byproject-count {
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.storage-byproject-bytes {
+  font-variant-numeric: tabular-nums;
+  min-width: 44px;
+  text-align: right;
+}
+.storage-byproject-clear {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.storage-byproject-clear:hover {
+  background: var(--hover, rgba(127, 127, 127, 0.1));
+  color: var(--text-primary);
+}
+.storage-byproject-clear:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.storage-byproject-note {
   font-size: 11.5px;
   color: var(--text-tertiary, var(--text-secondary));
 }

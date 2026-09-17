@@ -673,13 +673,25 @@ export function SimulatorPane({
     if (!stage) return
     const measure = (): void => {
       const r = stage.getBoundingClientRect()
+      // A measurement of 0×0 means the pane wasn't actually laid out yet (a
+      // hidden ancestor, a frame still loading) — recording it anyway left
+      // turnedSize permanently null forever after, since ResizeObserver only
+      // fires again on a REAL size change, and a stage that starts and stays
+      // the same size never sends one. Rotating to landscape then drew the
+      // device unrotated, letterboxed portrait-shaped in a landscape pane.
+      if (!r.width || !r.height) return
       setStageBox({ w: r.width, h: r.height })
     }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(stage)
     return () => ro.disconnect()
-  }, [])
+    // Re-measure whenever landscape engages or a frame first arrives too —
+    // belt and suspenders for the same failure mode: a mount-time 0×0 read
+    // that never gets a follow-up ResizeObserver callback to correct it.
+    // `!!frame`, not `frame` — a new frame lands many times a second and
+    // would tear the observer down and rebuild it on every one otherwise.
+  }, [landscape, !!frame])
   const turnedSize = ((): { width: number; height: number } | null => {
     if (!landscape || !frame || !stageBox || !stageBox.w || !stageBox.h) return null
     const pad = 20

@@ -231,6 +231,34 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
       setStorage(null)
     }
   }
+  // Conversations, broken down by project — collapsed by default (it's a
+  // second SQL query on top of storageUsage's own, no need to run it until
+  // someone actually wants to see it).
+  const [showByProject, setShowByProject] = useState(false)
+  const [byProject, setByProject] = useState<
+    { workspaceId: string; name: string; bytes: number; chatCount: number }[] | null
+  >(null)
+  useEffect(() => {
+    if (!showByProject || byProject !== null) return
+    void window.cove.storageByProject?.().then((p) => setByProject(p ?? []))
+  }, [showByProject, byProject])
+  const [clearingProject, setClearingProject] = useState<string | null>(null)
+  const clearProject = async (workspaceId: string, name: string): Promise<void> => {
+    if (
+      !window.confirm(
+        `Clear every chat in "${name}"?\n\nTranscripts are wiped and each conversation starts fresh — the project, its files and its chats' titles are untouched. This can't be undone.`
+      )
+    )
+      return
+    setClearingProject(workspaceId)
+    try {
+      await window.cove.clearWorkspaceChats?.(workspaceId)
+    } finally {
+      setClearingProject(null)
+      setByProject(null)
+      setStorage(null)
+    }
+  }
   const [devMode, setDevMode] = useState(localStorage.getItem('cove.devMode') === '1')
   const [notifyDone, setNotifyDone] = useState(localStorage.getItem('cove.notifyDone') !== '0')
   const [notifyNeedsYou, setNotifyNeedsYou] = useState(
@@ -531,10 +559,48 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                           ))}
                       </div>
                       {storage.map((g) => (
-                        <div key={g.key} className="storage-row">
-                          <span className={`storage-dot storage-${g.key}`} />
-                          <span className="storage-label">{g.label}</span>
-                          <span className="storage-bytes">{fmtBytes(g.bytes)}</span>
+                        <div key={g.key} className="storage-row-group">
+                          <div className="storage-row">
+                            <span className={`storage-dot storage-${g.key}`} />
+                            <span className="storage-label">{g.label}</span>
+                            <span className="storage-bytes">{fmtBytes(g.bytes)}</span>
+                            {g.key === 'conversations' && g.bytes > 0 && (
+                              <button
+                                className="storage-byproject-toggle"
+                                onClick={() => setShowByProject((v) => !v)}
+                              >
+                                {showByProject ? 'Hide by project' : 'By project'}
+                              </button>
+                            )}
+                          </div>
+                          {g.key === 'conversations' && showByProject && (
+                            <div className="storage-byproject">
+                              {byProject === null ? (
+                                <span className="storage-byproject-note">Measuring…</span>
+                              ) : byProject.length === 0 ? (
+                                <span className="storage-byproject-note">Nothing to show.</span>
+                              ) : (
+                                byProject.map((p) => (
+                                  <div key={p.workspaceId} className="storage-byproject-row">
+                                    <span className="storage-byproject-name">{p.name}</span>
+                                    <span className="storage-byproject-count">
+                                      {p.chatCount} chat{p.chatCount === 1 ? '' : 's'}
+                                    </span>
+                                    <span className="storage-byproject-bytes">
+                                      {fmtBytes(p.bytes)}
+                                    </span>
+                                    <button
+                                      className="storage-byproject-clear"
+                                      disabled={clearingProject === p.workspaceId}
+                                      onClick={() => void clearProject(p.workspaceId, p.name)}
+                                    >
+                                      {clearingProject === p.workspaceId ? 'Clearing…' : 'Clear'}
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                       <button
@@ -588,8 +654,8 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                   <div className="settings-about-beta-text">
                     <strong>Beta updates</strong>
                     <span>
-                      Get pre-release builds early to try new things and help catch problems.
-                      They can be rough; turn this off to stay on stable releases only.
+                      Get pre-release builds early to try new things and help catch problems. They
+                      can be rough; turn this off to stay on stable releases only.
                     </span>
                   </div>
                   <Toggle checked={betaUpdates} onChange={toggleBeta} />

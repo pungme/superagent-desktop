@@ -12,7 +12,7 @@ import {
 } from 'electron'
 import { basename } from 'path'
 import { join } from 'path'
-import { SHARED_BROWSER_PARTITION } from './util'
+import { SHARED_BROWSER_PARTITION, broadcastToWindows } from './util'
 import { execFile } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -27,7 +27,13 @@ import {
   allowUserFocus
 } from './browser'
 import { startMcpServer } from './mcp'
-import { getChat, registerStoreIpc, setChatPinned } from './store'
+import {
+  getChat,
+  registerStoreIpc,
+  setChatPinned,
+  storageByProject,
+  clearWorkspaceChats
+} from './store'
 import { mergeLegacyPartitions, sweepMergedPartitions } from './session-merge'
 import { registerDesktopIpc } from './desktop'
 import { registerChatBrowserTabsIpc } from './chat-browser-tabs'
@@ -655,6 +661,16 @@ ipcMain.handle('app:storage-usage', async () => {
       bytes: (await Promise.all(g.paths.map(duK))).reduce((a, b) => a + b, 0)
     }))
   )
+})
+
+// The Conversations category, broken down by project — the unit someone
+// actually thinks in when deciding what to clear. Cheap (grouped SQL, no
+// disk walk), so unlike storage-usage above it can run whenever asked.
+ipcMain.handle('app:storage-by-project', () => storageByProject())
+
+ipcMain.handle('app:clear-workspace-chats', (_e, workspaceId: string) => {
+  const chatIds = clearWorkspaceChats(workspaceId)
+  for (const chatId of chatIds) broadcastToWindows('chat:cleared', { chatId, workspaceId })
 })
 
 process.on('uncaughtException', (err) => {

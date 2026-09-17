@@ -740,6 +740,63 @@ export function clearChat(chatId: string): void {
   })()
 }
 
+/** Same as clearChat, for every chat in a project at once — Settings' storage
+ *  breakdown offers this per-project, since that is the unit someone actually
+ *  thinks in when they are looking to free up space. */
+export function clearWorkspaceChats(workspaceId: string): string[] {
+  const ids = (
+    db.prepare('SELECT id FROM chats WHERE workspaceId = ?').all(workspaceId) as { id: string }[]
+  ).map((r) => r.id)
+  const now = Date.now()
+  db.transaction(() => {
+    db.prepare(
+      'DELETE FROM chat_events WHERE chatId IN (SELECT id FROM chats WHERE workspaceId = ?)'
+    ).run(workspaceId)
+    db.prepare(
+      "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE workspaceId = ?"
+    ).run(now, workspaceId)
+  })()
+  return ids
+}
+
+/**
+ * Conversation storage by project, largest first — chat_events (the phone's
+ * replay log) is usually the real bulk of it, not the data blob the window
+ * reads, so both are summed. Attachments aren't split out here: they're keyed
+ * by message id with no cheap path back to a project, and small next to a
+ * long conversation's own event log.
+ */
+export function storageByProject(): {
+  workspaceId: string
+  name: string
+  bytes: number
+  chatCount: number
+}[] {
+  const chatRows = db
+    .prepare(
+      `SELECT c.workspaceId AS workspaceId, w.name AS name, COUNT(*) AS chatCount,
+              COALESCE(SUM(LENGTH(c.data)), 0) AS bytes
+         FROM chats c JOIN workspaces w ON w.id = c.workspaceId
+        GROUP BY c.workspaceId`
+    )
+    .all() as { workspaceId: string; name: string; chatCount: number; bytes: number }[]
+  const eventBytes = new Map(
+    (
+      db
+        .prepare(
+          `SELECT c.workspaceId AS workspaceId, COALESCE(SUM(LENGTH(e.data)), 0) AS bytes
+             FROM chat_events e JOIN chats c ON c.id = e.chatId
+            GROUP BY c.workspaceId`
+        )
+        .all() as { workspaceId: string; bytes: number }[]
+    ).map((r) => [r.workspaceId, r.bytes] as const)
+  )
+  return chatRows
+    .map((r) => ({ ...r, bytes: r.bytes + (eventBytes.get(r.workspaceId) ?? 0) }))
+    .filter((r) => r.bytes > 0)
+    .sort((a, b) => b.bytes - a.bytes)
+}
+
 export function moveChat(chatId: string, toIndex: number): void {
   const chat = db.prepare('SELECT workspaceId FROM chats WHERE id = ?').get(chatId) as
     { workspaceId: string } | undefined

@@ -969,7 +969,9 @@ const MessageRow = memo(function MessageRow({
   const at = msg.streaming ? null : msgAt(msg)
   return (
     <div
-      className={`easy-msg easy-${msg.role} ${msg.system ? 'easy-system' : ''}`}
+      className={`easy-msg easy-${msg.role} ${msg.system ? 'easy-system' : ''} ${
+        !msg.streaming && !showTime ? 'easy-msg-grouped' : ''
+      }`}
       onWheel={(e) => onWheelMsg(e, msg)}
     >
       {msg.replyTo && (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../state'
 import { BrowserPane } from './BrowserPane'
 
@@ -60,6 +60,19 @@ export function BrowserTabs({
   const [chosenId, setChosenId] = useState<string | null>(null)
   const activeId = chosenId && tabs.some((t) => t.id === chosenId) ? chosenId : tabs[0].id
   const pageUrls = useStore((s) => s.pageUrl)
+  // pageUrl is keyed by whatever BrowserPane's own workspaceId resolved to —
+  // the real workspaceId for the base tab (so the sidebar's "has a page"
+  // badge etc. still key off it, same as before tabs existed), the tab's own
+  // id for every other tab (BrowserPane's default when workspaceId is
+  // omitted). Matches the same split in the JSX below.
+  const pageUrlKey = useCallback(
+    (t: Tab): string => (t.id === basePaneId && workspaceId ? workspaceId : t.id),
+    [basePaneId, workspaceId]
+  )
+  const urlOf = useCallback(
+    (t: Tab): string => pageUrls[pageUrlKey(t)] ?? '',
+    [pageUrls, pageUrlKey]
+  )
 
   // A chat switch (this component keys by basePaneId, but WorkspaceView keeps
   // one mounted per chat and only shows the active one) can hand us a brand
@@ -75,9 +88,9 @@ export function BrowserTabs({
   useEffect(() => {
     localStorage.setItem(
       `browserTabs:${basePaneId}`,
-      JSON.stringify(tabs.map((t) => ({ id: t.id, initialUrl: pageUrls[t.id] || t.initialUrl })))
+      JSON.stringify(tabs.map((t) => ({ id: t.id, initialUrl: urlOf(t) || t.initialUrl })))
     )
-  }, [basePaneId, tabs, pageUrls])
+  }, [basePaneId, tabs, urlOf])
 
   // Mirror the tab set to main so browser_tabs and friends (which run in the
   // main process, not this window) can see and drive it.
@@ -85,8 +98,8 @@ export function BrowserTabs({
   useEffect(() => {
     const list = tabs.map((t) => ({
       id: t.id,
-      url: pageUrls[t.id] ?? '',
-      title: pageUrls[t.id] ?? '',
+      url: urlOf(t),
+      title: urlOf(t),
       active: t.id === activeId
     }))
     const key = JSON.stringify(list)
@@ -143,9 +156,9 @@ export function BrowserTabs({
             key={t.id}
             className={`cbt-tab ${t.id === activeId ? 'on' : ''}`}
             onClick={() => setChosenId(t.id)}
-            title={pageUrls[t.id] || 'New tab'}
+            title={urlOf(t) || 'New tab'}
           >
-            <span className="cbt-tab-label">{labelFor(pageUrls[t.id] ?? '')}</span>
+            <span className="cbt-tab-label">{labelFor(urlOf(t))}</span>
             {tabs.length > 1 && (
               <button
                 className="cbt-tab-x"
@@ -169,7 +182,17 @@ export function BrowserTabs({
           <div key={t.id} className={`cbt-pane ${t.id === activeId ? 'on' : ''}`}>
             <BrowserPane
               paneId={t.id}
-              workspaceId={workspaceId}
+              // workspaceId scopes workspace-level things (pageUrl → this tab's
+              // own label, the sidebar's "has a page" badge, reload-on-idle) —
+              // only the base tab should drive those, exactly as it always
+              // did. An extra tab gets its OWN id as its "workspaceId" instead
+              // — BrowserPane defaults an omitted one to paneId.split('::')[0],
+              // which for an id shaped like "<ws>::<chat>::t<n>" is just the
+              // bare workspace id, not this tab's own id, so every extra tab
+              // in the same project still collided (which was why a second
+              // tab was stuck reading "New tab": its navigation kept landing
+              // under the shared workspace key, not its own).
+              workspaceId={t.id === basePaneId ? workspaceId : t.id}
               partition={partition}
               initialUrl={t.initialUrl}
               visible={visible && t.id === activeId}

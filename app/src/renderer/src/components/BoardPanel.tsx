@@ -3,6 +3,7 @@ import type { BoardCard } from '../../../preload'
 import { useEscapeClose } from '../hooks/useEscapeClose'
 import { useStore } from '../state'
 import { Markdown } from './Markdown'
+import { when } from '../lib/relative-time'
 
 type Status = BoardCard['status']
 
@@ -259,7 +260,7 @@ export function BoardPanel({
                         ))}
                       </div>
                     )}
-                    {openId !== c.id && (c.body || chatTitle(c.chatId) || c.branch) && (
+                    {openId !== c.id && (
                       <div className="board-row-meta">
                         {c.body && <span className="board-row-body">{c.body}</span>}
                         {chatTitle(c.chatId) && (
@@ -275,6 +276,12 @@ export function BoardPanel({
                           </button>
                         )}
                         {c.branch && <span className="board-row-branch">⎇ {c.branch}</span>}
+                        <span
+                          className="board-row-time"
+                          title={new Date(c.updatedAt).toLocaleString()}
+                        >
+                          {when(c.updatedAt)}
+                        </span>
                       </div>
                     )}
                   </div>

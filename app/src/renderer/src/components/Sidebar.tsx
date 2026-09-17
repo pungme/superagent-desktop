@@ -15,6 +15,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useStore, normalizeCwd, movedSinceSeen, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
 import { chatPending, isFolderRoot } from '../lib/folder-root'
+import { when } from '../lib/relative-time'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -1544,16 +1545,6 @@ function ActivityList(): React.JSX.Element {
 }
 
 /** "4m", "2h", "yesterday" — a sidebar has no room for a date. */
-function when(at?: number): string {
-  if (!at) return ''
-  const secs = Math.max(0, (Date.now() - at) / 1000)
-  if (secs < 60) return 'now'
-  if (secs < 3600) return `${Math.floor(secs / 60)}m`
-  if (secs < 86_400) return `${Math.floor(secs / 3600)}h`
-  if (secs < 172_800) return 'yesterday'
-  return `${Math.floor(secs / 86_400)}d`
-}
-
 export function Sidebar(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const overlay = useStore((s) => s.overlay)

@@ -607,6 +607,12 @@ export interface CoveApi {
   setAppIcon: (png: Uint8Array | null) => Promise<boolean>
   /** Disk usage by category; bytes are measured with du, not estimated. */
   storageUsage: () => Promise<{ key: string; label: string; bytes: number }[]>
+  /** The Conversations category, broken down by project — largest first. */
+  storageByProject: () => Promise<
+    { workspaceId: string; name: string; bytes: number; chatCount: number }[]
+  >
+  /** Empties every chat in a project — same as clearing one, for all of them. */
+  clearWorkspaceChats: (workspaceId: string) => Promise<void>
   /** Clears HTTP/code caches and service workers; never cookies or site data. */
   clearBrowserCaches: () => Promise<boolean>
   onMenu: (cb: (action: string) => void) => () => void
@@ -951,6 +957,9 @@ const cove: CoveApi = {
   setTheme: (source) => ipcRenderer.send('theme:set', source),
   setAppIcon: (png) => ipcRenderer.invoke('app:set-icon', png),
   storageUsage: () => ipcRenderer.invoke('app:storage-usage'),
+  storageByProject: () => ipcRenderer.invoke('app:storage-by-project'),
+  clearWorkspaceChats: (workspaceId) =>
+    ipcRenderer.invoke('app:clear-workspace-chats', workspaceId),
   clearBrowserCaches: () => ipcRenderer.invoke('app:clear-browser-caches'),
   onMenu: (cb) => {
     const actions = [
