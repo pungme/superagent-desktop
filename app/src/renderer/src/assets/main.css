@@ -7361,8 +7361,6 @@ button {
 }
 
 .easy-ctx {
-  /* Sits at the right end of the controls row — a status readout, not a control. */
-  margin-left: auto;
   align-self: center;
   display: flex;
   align-items: center;
@@ -7481,6 +7479,16 @@ button {
 
 /* Running total for this whole chat — sits right after the Memory gauge, same
    quiet weight, not a control. */
+/* Memory and the session total, as one unit — see the comment where this
+   renders: wrapping onto a new line together (not each landing on its own
+   near-empty line) is the whole point of this wrapper. */
+.easy-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
 .easy-session-tokens {
   align-self: center;
   font-size: 11px;
@@ -7489,6 +7497,13 @@ button {
   white-space: nowrap;
   padding: 0 2px;
   cursor: default;
+}
+/* A quiet divider — only shown between the two when Memory is also present;
+   .easy-stats' own gap already gives the right spacing when it's alone. */
+.easy-ctx + .easy-session-tokens::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--border-strong, var(--border));
 }
 
 .chat-tree-wt {

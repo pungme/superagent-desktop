@@ -32,8 +32,12 @@ import {
   registerStoreIpc,
   setChatPinned,
   storageByProject,
-  clearWorkspaceChats
+  clearWorkspaceChats,
+  kvGet,
+  kvSet,
+  kvDel
 } from './store'
+import { detectProjectIcon, iconFromPickedFile, DetectedIcon } from './project-icon'
 import { mergeLegacyPartitions, sweepMergedPartitions } from './session-merge'
 import { registerDesktopIpc } from './desktop'
 import { registerChatBrowserTabsIpc } from './chat-browser-tabs'
@@ -80,6 +84,8 @@ if (is.dev && process.env.COVE_REMOTE_DEBUG) {
 if (process.env.COVE_USER_DATA) {
   app.setPath('userData', process.env.COVE_USER_DATA)
 }
+
+const iconKvKey = (workspaceId: string): string => `icon:${workspaceId}`
 
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -483,7 +489,36 @@ app.whenReady().then(async () => {
       template.push(
         { type: 'separator' },
         { label: 'Reveal in Finder', click: () => shell.showItemInFolder(ws.path) },
-        { label: 'Copy Path', click: () => clipboard.writeText(ws.path) }
+        { label: 'Copy Path', click: () => clipboard.writeText(ws.path) },
+        { type: 'separator' },
+        {
+          label: 'Change icon…',
+          click: async () => {
+            const res = await dialog.showOpenDialog(win, {
+              title: 'Choose a project icon',
+              filters: [
+                { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'ico', 'svg', 'gif'] }
+              ],
+              properties: ['openFile']
+            })
+            if (res.canceled || !res.filePaths[0]) return
+            const dataUri = iconFromPickedFile(res.filePaths[0])
+            if (!dataUri) return
+            kvSet(iconKvKey(ws.id), dataUri)
+            win.webContents.send('projects:changed', {})
+          }
+        },
+        ...(kvGet(iconKvKey(ws.id))
+          ? [
+              {
+                label: 'Use detected icon',
+                click: (): void => {
+                  kvDel(iconKvKey(ws.id))
+                  win.webContents.send('projects:changed', {})
+                }
+              }
+            ]
+          : [])
       )
       Menu.buildFromTemplate(template).popup({ window: win })
     }
@@ -671,6 +706,42 @@ ipcMain.handle('app:storage-by-project', () => storageByProject())
 ipcMain.handle('app:clear-workspace-chats', (_e, workspaceId: string) => {
   const chatIds = clearWorkspaceChats(workspaceId)
   for (const chatId of chatIds) broadcastToWindows('chat:cleared', { chatId, workspaceId })
+})
+
+// A project's own icon: a manual override if one was ever set, otherwise
+// whatever's actually IN the folder — a website's favicon, a native app's own
+// app icon. Cheap enough (a handful of file reads, no directory walk past
+// node_modules/dotfiles) to run on demand rather than caching in main.
+ipcMain.handle(
+  'project:icon',
+  (
+    _e,
+    workspaceId: string,
+    path: string
+  ): DetectedIcon | { source: 'custom'; dataUri: string } | null => {
+    const override = kvGet(iconKvKey(workspaceId))
+    if (override) return { source: 'custom', dataUri: override }
+    return detectProjectIcon(path)
+  }
+)
+
+ipcMain.handle('project:set-icon', async (e, workspaceId: string) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  if (!win) return null
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Choose a project icon',
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'ico', 'svg', 'gif'] }],
+    properties: ['openFile']
+  })
+  if (res.canceled || !res.filePaths[0]) return null
+  const dataUri = iconFromPickedFile(res.filePaths[0])
+  if (!dataUri) return null
+  kvSet(iconKvKey(workspaceId), dataUri)
+  return dataUri
+})
+
+ipcMain.handle('project:clear-icon-override', (_e, workspaceId: string) => {
+  kvDel(iconKvKey(workspaceId))
 })
 
 process.on('uncaughtException', (err) => {

@@ -4554,51 +4554,62 @@ export function EasyChat({
           open={controlMenu === 'server'}
           onToggle={() => setControlMenu((m) => (m === 'server' ? null : 'server'))}
         />
-        {ctxTokens !== null && (
-          <span className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}>
-            {/* Our own tooltip rather than title=""; the native one waits about
-                a second and cannot show the numbers as numbers. */}
-            <span className="easy-ctx-tip" role="tooltip">
-              <b>
-                {ctxTokens.toLocaleString()} of {ctxWindow.toLocaleString()} tokens
-              </b>
-              <span>
-                {activeModel ? `${shortModel(activeModel)} · ` : ''}
-                {ctxWindow >= 1_000_000 ? '1M context window' : '200K context window'}
+        {/* Grouped so the two readouts wrap onto a new line TOGETHER when the
+            pane is narrow, instead of each independently landing on its own
+            near-empty line — Memory alone, then a stray "31.3M tokens" below
+            it with nothing else around it. */}
+        {(ctxTokens !== null || sessionTokens > 0) && (
+          <span className="easy-stats">
+            {ctxTokens !== null && (
+              <span className={`easy-ctx ${ctxPercent >= 75 ? 'warm' : ''}`}>
+                {/* Our own tooltip rather than title=""; the native one waits about
+                    a second and cannot show the numbers as numbers. */}
+                <span className="easy-ctx-tip" role="tooltip">
+                  <b>
+                    {ctxTokens.toLocaleString()} of {ctxWindow.toLocaleString()} tokens
+                  </b>
+                  <span>
+                    {activeModel ? `${shortModel(activeModel)} · ` : ''}
+                    {ctxWindow >= 1_000_000 ? '1M context window' : '200K context window'}
+                  </span>
+                  <span>
+                    When it fills, older turns are summarised automatically — nothing is lost, but
+                    detail fades. /compact does it now, on your terms.
+                  </span>
+                </span>
+                <span className="easy-ctx-label">Memory</span>
+                <span className="easy-ctx-track">
+                  <span
+                    className="easy-ctx-fill"
+                    style={{ width: `${Math.min(100, ctxPercent)}%` }}
+                  />
+                </span>
+                <span className="easy-ctx-pct">{ctxPercent}%</span>
+                {/* The bar only ever reported the problem. Past three quarters it
+                    offers the fix too — /compact summarises the conversation and
+                    hands the room back, which is otherwise something you have to
+                    know to type. */}
+                {ctxPercent >= 75 && (
+                  <button
+                    className="easy-ctx-compact"
+                    disabled={generating || thinking}
+                    title={
+                      generating || thinking
+                        ? 'Wait for Claude to finish, then compact'
+                        : 'Summarise the conversation so far to free up memory (/compact)'
+                    }
+                    onClick={() => submitRef.current?.('/compact')}
+                  >
+                    Compact
+                  </button>
+                )}
               </span>
-              <span>
-                When it fills, older turns are summarised automatically — nothing is lost, but
-                detail fades. /compact does it now, on your terms.
-              </span>
-            </span>
-            <span className="easy-ctx-label">Memory</span>
-            <span className="easy-ctx-track">
-              <span className="easy-ctx-fill" style={{ width: `${Math.min(100, ctxPercent)}%` }} />
-            </span>
-            <span className="easy-ctx-pct">{ctxPercent}%</span>
-            {/* The bar only ever reported the problem. Past three quarters it
-                offers the fix too — /compact summarises the conversation and
-                hands the room back, which is otherwise something you have to
-                know to type. */}
-            {ctxPercent >= 75 && (
-              <button
-                className="easy-ctx-compact"
-                disabled={generating || thinking}
-                title={
-                  generating || thinking
-                    ? 'Wait for Claude to finish, then compact'
-                    : 'Summarise the conversation so far to free up memory (/compact)'
-                }
-                onClick={() => submitRef.current?.('/compact')}
-              >
-                Compact
-              </button>
             )}
-          </span>
-        )}
-        {sessionTokens > 0 && (
-          <span className="easy-session-tokens" title="Tokens used across this whole chat">
-            {fmtTokens(sessionTokens)} tokens
+            {sessionTokens > 0 && (
+              <span className="easy-session-tokens" title="Tokens used across this whole chat">
+                {fmtTokens(sessionTokens)} tokens
+              </span>
+            )}
           </span>
         )}
       </div>

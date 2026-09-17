@@ -417,6 +417,14 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         ensureCompositing(pane)
         try {
           const url = await auto.navigate(pane, p.data.url)
+          // Warm the pane up before answering, not after: the first real
+          // browser.screenshot call pays for attaching the CDP debugger AND
+          // the pane's first successful paint, both one-time costs — which is
+          // exactly what made the phone's first picture slow. Paying that
+          // cost here instead, on a capture that's thrown away rather than
+          // sent, means the phone's own pull (which follows this call) lands
+          // on an already-warm pane. No extra image ever reaches the phone.
+          await auto.screenshot(pane).catch(() => {})
           return { ok: true, result: { url } }
         } finally {
           releaseCompositing(pane)

@@ -140,13 +140,50 @@ function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.J
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const
   }
-  return kind === 'browser' ? (
-    <svg {...common}>
-      <circle cx="8" cy="8" r="6.2" />
-      <path d="M1.8 8h12.4" />
-      <ellipse cx="8" cy="8" rx="3" ry="6.2" />
-    </svg>
-  ) : (
+  if (kind === 'browser') {
+    return (
+      <svg {...common}>
+        <circle cx="8" cy="8" r="6.2" />
+        <path d="M1.8 8h12.4" />
+        <ellipse cx="8" cy="8" rx="3" ry="6.2" />
+      </svg>
+    )
+  }
+  if (kind === 'screenplay') {
+    return (
+      <svg {...common}>
+        <path d="M2 5.2 3.6 2h9.2c.8 0 1.2.8.8 1.4L12 6.4" />
+        <rect x="2" y="6.4" width="12" height="7.6" rx="0.8" />
+        <path d="M2 9.8h12" />
+      </svg>
+    )
+  }
+  if (kind === 'design') {
+    return (
+      <svg {...common}>
+        <path d="M9.5 2.5 13.5 6.5 6 14H2v-4L9.5 2.5z" />
+        <path d="M7.8 4.2 11.8 8.2" />
+      </svg>
+    )
+  }
+  if (kind === 'music') {
+    return (
+      <svg {...common}>
+        <circle cx="4.3" cy="11.7" r="2" />
+        <circle cx="11.3" cy="10.2" r="2" />
+        <path d="M6.3 11.7V3.6L13.3 2v8.2" />
+      </svg>
+    )
+  }
+  if (kind === 'documents') {
+    return (
+      <svg {...common}>
+        <path d="M4 1.8h5.4L12 4.4V14a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V2.4a.6.6 0 0 1 .6-.6z" />
+        <path d="M5.6 7h4.8M5.6 9.4h4.8M5.6 11.8h3" />
+      </svg>
+    )
+  }
+  return (
     <svg {...common}>
       <path d="M2 4.6c0-.6.4-1 1-1h2.9l1.4 1.6H13c.6 0 1 .4 1 1v5.2c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1V4.6z" />
     </svg>
@@ -537,6 +574,72 @@ function ChatRow({
   )
 }
 
+type ProjectIconState =
+  | { source: 'app-icon' | 'favicon' | 'custom'; dataUri: string }
+  | { source: 'kind'; kind: string }
+  | null
+
+/** What a code/app project actually IS, read off its own files — a manual
+ *  override if one was set, else a website's favicon, a native app's own app
+ *  icon, or a symbolic glyph for a non-dev project (screenplay, design,
+ *  music, documents). Re-fetched on 'cove:workspace-idle' so "Change icon…"
+ *  and "Use detected icon" show up without a full reload. Browser-kind
+ *  projects use their own live-page favicon instead (see WorkspaceRow). */
+function useProjectIcon(workspaceId: string, path: string, kind: string): ProjectIconState {
+  const [icon, setIcon] = useState<ProjectIconState>(null)
+  const [seenKind, setSeenKind] = useState(kind)
+  if (seenKind !== kind) {
+    setSeenKind(kind)
+    if (kind !== 'app') setIcon(null)
+  }
+  useEffect(() => {
+    if (kind !== 'app') return
+    let alive = true
+    const refresh = (): void => {
+      window.cove.projectIcon(workspaceId, path).then((d) => {
+        if (alive) setIcon(d)
+      })
+    }
+    refresh()
+    window.addEventListener('cove:workspace-idle', refresh)
+    return () => {
+      alive = false
+      window.removeEventListener('cove:workspace-idle', refresh)
+    }
+  }, [workspaceId, path, kind])
+  return icon
+}
+
+function ProjectIcon({
+  icon,
+  kind,
+  size = 15
+}: {
+  icon: ProjectIconState
+  kind: string
+  size?: number
+}): React.JSX.Element {
+  const [broken, setBroken] = useState(false)
+  const [seenIcon, setSeenIcon] = useState(icon)
+  if (seenIcon !== icon) {
+    setSeenIcon(icon)
+    if (broken) setBroken(false)
+  }
+  if (icon && icon.source !== 'kind' && !broken) {
+    return (
+      <img
+        className="sidebar-favicon"
+        src={icon.dataUri}
+        alt=""
+        style={size !== 15 ? { width: size, height: size } : undefined}
+        // A picked/detected file that fails to render falls back to the plain glyph.
+        onError={() => setBroken(true)}
+      />
+    )
+  }
+  return <KindIcon kind={icon && icon.source === 'kind' ? icon.kind : kind} size={size} />
+}
+
 function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JSX.Element {
   const active = useStore((s) => s.activeWorkspaceId === ws.id && s.overlay === null)
   // Live only — no localStorage fallback. What was remembered is "the pane was
@@ -720,6 +823,8 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     }
   }, [ws.kind, ws.path, ws.id])
 
+  const projectIcon = useProjectIcon(ws.id, ws.path, ws.kind)
+
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: ws.id,
     data: { index, groupId: ws.groupId }
@@ -790,7 +895,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           ) : simHere ? (
             <PhoneIcon />
           ) : (
-            <KindIcon kind={ws.kind} />
+            <ProjectIcon icon={projectIcon} kind={ws.kind} />
           )}
           {/* The dot means "something of this project's is live right now". A
               dev server counted and an attached simulator did not, so a project
@@ -1312,6 +1417,7 @@ function PinnedRow({
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const [editing, setEditing] = useState(false)
+  const projectIcon = useProjectIcon(chat.workspaceId, projectPath ?? '', projectKind ?? '')
   // A root chat usually has no title of its own — "New chat" — so the
   // project's name is the useful label. But it can be renamed like any
   // other chat (the tree's own project row just doesn't expose that
@@ -1364,7 +1470,11 @@ function PinnedRow({
           it took two icon-widths of horizontal room from the title. Below
           costs one. */}
       <span className="activity-icon-stack">
-        {isRoot && projectKind ? <KindIcon kind={projectKind} size={11} /> : <PinGlyph />}
+        {isRoot && projectKind ? (
+          <ProjectIcon icon={projectIcon} kind={projectKind} size={11} />
+        ) : (
+          <PinGlyph />
+        )}
         {live ? (
           <span className="chat-tree-spinner" title="Working…" />
         ) : background ? (

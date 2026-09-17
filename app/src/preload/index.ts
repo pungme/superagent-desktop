@@ -99,6 +99,7 @@ export interface HookEvent {
 
 import type { PairPayload } from '../shared/companion-protocol'
 import type { AgentProvider } from '../shared/agent-provider'
+import type { DetectedIcon } from '../main/project-icon'
 
 /** Everything Settings → Phone shows. Mirrors companion/index.ts CompanionState. */
 export interface CompanionState {
@@ -613,6 +614,15 @@ export interface CoveApi {
   >
   /** Empties every chat in a project — same as clearing one, for all of them. */
   clearWorkspaceChats: (workspaceId: string) => Promise<void>
+  /** A manual override if one was set, else whatever's detected in the folder. */
+  projectIcon: (
+    workspaceId: string,
+    path: string
+  ) => Promise<DetectedIcon | { source: 'custom'; dataUri: string } | null>
+  /** Opens a file picker and sets it as the project's icon override. */
+  setProjectIcon: (workspaceId: string) => Promise<string | null>
+  /** Reverts to the detected icon (favicon/app icon/glyph), dropping any override. */
+  clearProjectIconOverride: (workspaceId: string) => Promise<void>
   /** Clears HTTP/code caches and service workers; never cookies or site data. */
   clearBrowserCaches: () => Promise<boolean>
   onMenu: (cb: (action: string) => void) => () => void
@@ -960,6 +970,10 @@ const cove: CoveApi = {
   storageByProject: () => ipcRenderer.invoke('app:storage-by-project'),
   clearWorkspaceChats: (workspaceId) =>
     ipcRenderer.invoke('app:clear-workspace-chats', workspaceId),
+  projectIcon: (workspaceId, path) => ipcRenderer.invoke('project:icon', workspaceId, path),
+  setProjectIcon: (workspaceId) => ipcRenderer.invoke('project:set-icon', workspaceId),
+  clearProjectIconOverride: (workspaceId) =>
+    ipcRenderer.invoke('project:clear-icon-override', workspaceId),
   clearBrowserCaches: () => ipcRenderer.invoke('app:clear-browser-caches'),
   onMenu: (cb) => {
     const actions = [
