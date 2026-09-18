@@ -1933,7 +1933,7 @@ export function EasyChat({
     const onWorkOn = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
       if (detail.workspaceId !== workspaceId || !visible) return
-      submitRef.current?.(detail.text)
+      submitRef.current?.(detail.text, [], { files: [], reply: null, keepComposer: true })
     }
     window.addEventListener('cove:work-on', onWorkOn)
     return () => window.removeEventListener('cove:work-on', onWorkOn)
@@ -2702,7 +2702,11 @@ export function EasyChat({
             loopTimerRef.current = setTimeout(() => {
               if (loopRef.current) {
                 loopRoundStartRef.current = Date.now()
-                submitRef.current?.(next.prompt + SELF_PACE_NOTE)
+                submitRef.current?.(next.prompt + SELF_PACE_NOTE, [], {
+                  files: [],
+                  reply: null,
+                  keepComposer: true
+                })
               }
             }, delay)
           }
@@ -3155,7 +3159,7 @@ export function EasyChat({
       }
       loopRef.current = { ...lp, count: lp.count + 1 }
       setLoop(loopRef.current)
-      submitRef.current?.(loopPrompt)
+      submitRef.current?.(loopPrompt, [], { files: [], reply: null, keepComposer: true })
     }, loopIntervalMs)
     return () => clearInterval(iv)
   }, [loopIntervalMs, loopPrompt, stopLoop])
@@ -3272,7 +3276,18 @@ export function EasyChat({
     return () => window.removeEventListener('cove:easy-user-message', onInjected)
   }, [workspaceId, wake, visible])
 
-  const submitRef = useRef<((t: string) => void) | null>(null)
+  const submitRef = useRef<
+    | ((
+        t: string,
+        images?: PendingImage[],
+        opts?: {
+          files?: { path: string; name: string }[]
+          reply?: { role: 'user' | 'assistant'; text: string } | null
+          keepComposer?: boolean
+        }
+      ) => void)
+    | null
+  >(null)
 
   const submit = (
     text: string,
@@ -3283,6 +3298,12 @@ export function EasyChat({
     opts?: {
       files?: { path: string; name: string }[]
       reply?: { role: 'user' | 'assistant'; text: string } | null
+      /** This text didn't come from the composer (a choice answer, a
+       *  "work on this" card) — leave whatever you're mid-typing there,
+       *  attachments and all, alone. Answering a choice used to wipe out a
+       *  draft and its attachments because this always cleared them, on the
+       *  assumption every send originated from the composer itself. */
+      keepComposer?: boolean
     }
   ): void => {
     const id = agentIdRef.current
@@ -3345,7 +3366,7 @@ export function EasyChat({
     const interjecting = turnInFlightRef.current
     turnInFlightRef.current = true
     const reply = opts && 'reply' in opts ? opts.reply : replyTarget
-    setReplyTarget(null)
+    if (!opts?.keepComposer) setReplyTarget(null)
     // Name an untitled chat after its opening message, so the sidebar list is
     // scannable without the user having to name anything.
     if (text.trim() && items.length === 0) {
@@ -3374,10 +3395,12 @@ export function EasyChat({
         }
       }
     ])
-    setInput('')
-    setPendingImages([])
-    setPendingFiles([])
-    if (inputRef.current) inputRef.current.style.height = 'auto'
+    if (!opts?.keepComposer) {
+      setInput('')
+      setPendingImages([])
+      setPendingFiles([])
+      if (inputRef.current) inputRef.current.style.height = 'auto'
+    }
     // The quote itself is main's job (see replyPrefix in agent.ts), so the phone
     // and this window say the same thing to the agent and both record the same
     // clean text beside it. What travels from here is `reply`, not a prefix.
@@ -3488,7 +3511,7 @@ export function EasyChat({
   }, [visible, interruptNow])
 
   const send = (): void => submit(input.trim(), pendingImages)
-  submitRef.current = (t: string) => submit(t)
+  submitRef.current = (t, images, opts) => submit(t, images, opts)
 
   // Hold Send while the agent is working to send AFTER it finishes, instead of
   // interjecting mid-task. Captures the composer as-is and clears it; the pill
@@ -3639,7 +3662,10 @@ export function EasyChat({
   )
   const onRowReply = useCallback((m: ChatMessage) => rowFnsRef.current.beginReply(m), [])
   const onRowEdit = useCallback((m: ChatMessage) => rowFnsRef.current.editMessage(m), [])
-  const onRowAnswer = useCallback((a: string) => rowFnsRef.current.submit(a), [])
+  const onRowAnswer = useCallback(
+    (a: string) => rowFnsRef.current.submit(a, [], { files: [], reply: null, keepComposer: true }),
+    []
+  )
   const onRowLightbox = useCallback((src: string) => rowFnsRef.current.setLightbox(src), [])
   // The transcript rows, recomputed only when the items actually change — not on
   // every keystroke/timer render of the surrounding component.
@@ -4647,7 +4673,13 @@ export function EasyChat({
                         ? 'Wait for Claude to finish, then compact'
                         : 'Summarise the conversation so far to free up memory (/compact)'
                     }
-                    onClick={() => submitRef.current?.('/compact')}
+                    onClick={() =>
+                      submitRef.current?.('/compact', [], {
+                        files: [],
+                        reply: null,
+                        keepComposer: true
+                      })
+                    }
                   >
                     Compact
                   </button>
