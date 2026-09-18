@@ -5,6 +5,7 @@ import { getHookUrl } from '../hooks'
 import { getMcpUrl } from '../mcp'
 import { buildAppendedPrompt } from '../prompts'
 import { findClaude } from '../claude-cli'
+import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import type { AgentBackend, AgentStartOptions, SessionContext, SessionHost } from '../agent-backend'
 
 /**
@@ -134,13 +135,13 @@ function claudeBackend(proc: ChildProcessWithoutNullStreams): AgentBackend {
     async hardInterrupt() {
       this.interrupt()
       if (await gone(700)) return true
-      proc.kill('SIGINT')
+      killProcessTree(proc, 'SIGINT')
       if (await gone(1200)) return true
-      proc.kill('SIGKILL')
+      killProcessTree(proc, 'SIGKILL')
       return true
     },
     kill() {
-      proc.kill()
+      killProcessTree(proc)
     }
   }
 }
@@ -173,7 +174,11 @@ export function startClaudeSession(
         ...(opts.workspaceId ? { COVE_WORKSPACE_ID: opts.workspaceId } : {})
       },
       // Login shell resolves the user's PATH (nvm/homebrew/~/.local/bin).
-      shell: false
+      shell: false,
+      // Its own process group, so hardInterrupt's kill can reach a Bash tool
+      // call's own children (an xcodebuild, a dev server) — not just this
+      // process. See kill-tree.ts.
+      detached: DETACH_FOR_TREE_KILL
     }) as ChildProcessWithoutNullStreams
 
     host.ready(claudeBackend(proc))
