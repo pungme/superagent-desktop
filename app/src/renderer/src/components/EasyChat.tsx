@@ -4001,7 +4001,7 @@ export function EasyChat({
             </button>
           </div>
         )}
-        <TasksPanel chatId={chatId} />
+        <TasksPanel chatId={chatId} workspaceId={workspaceId} />
       </div>
       <div className="easy-transcript">
         <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>

@@ -3478,6 +3478,20 @@ button {
   color: #3fb950;
 }
 
+.easy-task-clickable {
+  cursor: pointer;
+  border-radius: 5px;
+  margin: 0 -6px;
+  padding: 2px 6px;
+  transition: background 0.12s ease;
+}
+
+.easy-task-clickable:hover,
+.easy-task-clickable:focus-visible {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
 .easy-attachments {
   display: flex;
   gap: 8px;
