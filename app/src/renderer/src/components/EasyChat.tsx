@@ -3694,7 +3694,12 @@ export function EasyChat({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 88,
     overscan: 10,
-    gap: 12,
+    // This flat gap sits on top of .easy-msg's own margin-bottom (6px normal,
+    // 3px for a grouped burst) — at 12 it dwarfed that difference so badly a
+    // "collapsed" pair (3+12=15px) barely read any closer than an ordinary
+    // one (10+12=22px). Small enough now that the CSS margin actually does
+    // the talking, for message bubbles and for the gap before a tool card.
+    gap: 4,
     scrollMargin: listMargin,
     getItemKey: (i) => rowKeys[i] ?? i
   })

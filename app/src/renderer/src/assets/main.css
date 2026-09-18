@@ -2335,7 +2335,7 @@ button {
   transform: translateY(-2px) scale(0.92);
 }
 .easy-msg:not(.easy-system) {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   transition: margin-bottom 0.2s ease;
 }
 /* The timestamp fading out (above) said "this one's grouped with the next" —
