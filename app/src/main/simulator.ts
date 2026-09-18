@@ -968,12 +968,29 @@ export function registerSimulatorIpc(): void {
     await run('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
       timeout: 20_000
     }).catch(() => {})
-    // The whole reason it "did nothing": while mirroring we set the Simulator
-    // process invisible, and Superagent fills the screen — so a plain `open`
-    // left the window hidden behind us. Make it visible and bring it forward.
+    // Two separate reasons "open" alone did nothing: while mirroring we set
+    // the Simulator process invisible, and Superagent fills the screen, so a
+    // plain `open` left the window hidden behind us — the visible/activate
+    // below fixes that. But a Simulator already warm with a DIFFERENT
+    // device's window frontmost (this device just isn't a cold launch, e.g.
+    // one left open from an earlier build, or the phone streaming a second
+    // device) just gets re-activated as-is — --args is ignored on a warm
+    // launch, so the wrong window stays in front. Find this device's own
+    // window by name and raise that one specifically.
+    const name = (await listDevices()).find((d) => d.udid === udid)?.name
+    const escaped = name?.replace(/[\\"]/g, '\\$&')
     await run('osascript', [
       '-e',
       'tell application "System Events" to if exists process "Simulator" then set visible of process "Simulator" to true',
+      ...(escaped
+        ? [
+            '-e',
+            `tell application "System Events" to tell process "Simulator" to try
+              set targetWindows to (windows whose name contains "${escaped}")
+              if (count of targetWindows) > 0 then perform action "AXRaise" of item 1 of targetWindows
+            end try`
+          ]
+        : []),
       '-e',
       'tell application "Simulator" to activate'
     ]).catch(() => {})
