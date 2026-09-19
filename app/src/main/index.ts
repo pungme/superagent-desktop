@@ -37,7 +37,7 @@ import {
   kvSet,
   kvDel
 } from './store'
-import { detectProjectIcon, iconFromPickedFile, DetectedIcon } from './project-icon'
+import { detectProjectIcon, iconFromPickedFile, iconKvKey, DetectedIcon } from './project-icon'
 import { mergeLegacyPartitions, sweepMergedPartitions } from './session-merge'
 import { registerDesktopIpc } from './desktop'
 import { registerChatBrowserTabsIpc } from './chat-browser-tabs'
@@ -84,8 +84,6 @@ if (is.dev && process.env.COVE_REMOTE_DEBUG) {
 if (process.env.COVE_USER_DATA) {
   app.setPath('userData', process.env.COVE_USER_DATA)
 }
-
-const iconKvKey = (workspaceId: string): string => `icon:${workspaceId}`
 
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({

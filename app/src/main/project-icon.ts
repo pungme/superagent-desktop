@@ -108,6 +108,11 @@ function findXcodeAppIcon(root: string): string | null {
   return file ? fileToDataUri(file) : null
 }
 
+/** Where a workspace's manual icon override lives in the generic kv table —
+ *  shared by the Mac's own IPC handlers (index.ts) and the phone's RPC
+ *  (companion/rpc.ts), so both read/write the exact same override. */
+export const iconKvKey = (workspaceId: string): string => `icon:${workspaceId}`
+
 export type ProjectGlyphKind = 'screenplay' | 'design' | 'music' | 'documents'
 
 export type DetectedIcon =

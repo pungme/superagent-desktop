@@ -321,6 +321,7 @@ export type RpcMethod =
   | 'files.chunk'
   | 'chat.image'
   | 'chat.upload'
+  | 'project.icon'
   | 'background.list'
   | 'background.stop'
   | 'git.branches'

@@ -99,6 +99,7 @@ import type {
 } from '../../shared/companion-protocol'
 import { FILE_CHUNK_BYTES, FILE_CHUNK_MAX_BYTES } from '../../shared/companion-protocol'
 import { readThumbnail } from './attachments'
+import { detectProjectIcon, iconKvKey } from '../project-icon'
 import { listBackgroundTasks, stopBackgroundTask } from '../files'
 
 /**
@@ -193,6 +194,10 @@ const fileRead = z.object({
 const chatImage = z.object({
   messageId: z.string().min(1).max(200),
   index: z.number().int().min(0).max(32)
+})
+const projectIcon = z.object({
+  workspaceId: z.string().min(1),
+  path: z.string().min(1).max(4000)
 })
 const chatUpload = z.object({
   uploadId: z.string().min(1).max(64),
@@ -532,6 +537,13 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           ok: true,
           result: { messageId: p.data.messageId, index: p.data.index, ...found }
         }
+      }
+      case 'project.icon': {
+        const p = projectIcon.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const override = kvGet(iconKvKey(p.data.workspaceId))
+        if (override) return { ok: true, result: { source: 'custom', dataUri: override } }
+        return { ok: true, result: detectProjectIcon(p.data.path) }
       }
       case 'background.list': {
         const p = chatId.safeParse(params)
