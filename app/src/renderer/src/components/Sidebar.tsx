@@ -1425,7 +1425,11 @@ function PinnedRow({
   // folder name repeating what the icon already says.
   const hasOwnTitle = Boolean(chat.title && chat.title.trim() && chat.title !== 'New chat')
   const label = isRoot && !hasOwnTitle ? projectName : chat.title || 'New chat'
-  const showProjectLine = !isRoot || hasOwnTitle
+  // The project name is now the headline (top line); this is whether the
+  // chat's own title earns a second, subtitle line below it — skipped for a
+  // nameless root chat, where `label` already IS the project name and a
+  // second line would just repeat the headline.
+  const showSubtitle = !isRoot || hasOwnTitle
   const [draft, setDraft] = useState(label)
   // The same branch chip the tree shows — a worktree chat's own branch, or a
   // root chat's project's branch — read from git the same way, so a pinned
@@ -1485,44 +1489,44 @@ function PinnedRow({
       </span>
       <span className="activity-body">
         <span className="activity-top">
-          {editing ? (
-            <input
-              className="sidebar-item-rename"
-              value={draft}
-              autoFocus
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => {
-                const n = draft.trim()
-                if (n && n !== label) {
-                  // This row's own data comes from useAllChats' polled snapshot,
-                  // not the reactive store ChatRow reads — without this nudge
-                  // the new title wouldn't show here until the next 5s poll.
-                  void renameChat(chat.workspaceId, chat.id, n).then(() =>
-                    window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
-                  )
-                }
-                setEditing(false)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.currentTarget.blur()
-                if (e.key === 'Escape') setEditing(false)
-              }}
-            />
-          ) : (
-            <span className="activity-title">{label}</span>
-          )}
+          <span className="activity-title">{projectName}</span>
           <span className="activity-when">{when(chat.updatedAt)}</span>
         </span>
         {/* The label already IS the project name for a nameless root chat —
             a second line repeating it said nothing a normal project row
-            doesn't already say once. Once it has its own title, the project
-            name earns its place back (nothing else on the row names it);
-            the branch (if any) always earns its place. */}
-        {(showProjectLine || branch) && (
+            doesn't already say once. Once it has its own title, the chat's
+            own title earns its place as the subtitle (nothing else on the
+            row names it); the branch (if any) always earns its place. */}
+        {(showSubtitle || branch) && (
           <span className="activity-where">
-            {showProjectLine && projectName}
-            {showProjectLine && branch && ' · '}
+            {editing ? (
+              <input
+                className="sidebar-item-rename"
+                value={draft}
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => {
+                  const n = draft.trim()
+                  if (n && n !== label) {
+                    // This row's own data comes from useAllChats' polled snapshot,
+                    // not the reactive store ChatRow reads — without this nudge
+                    // the new title wouldn't show here until the next 5s poll.
+                    void renameChat(chat.workspaceId, chat.id, n).then(() =>
+                      window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+                    )
+                  }
+                  setEditing(false)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') setEditing(false)
+                }}
+              />
+            ) : (
+              showSubtitle && <span>{label}</span>
+            )}
+            {!editing && showSubtitle && branch && ' · '}
             {branch && `⎇ ${branch.replace(/^superagent\//, '')}`}
           </span>
         )}
