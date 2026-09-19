@@ -140,19 +140,34 @@ source — see [its README](https://github.com/pungme/superagent-ios).
   itself, for when that is what you want.
 - **A board the agent keeps.** Backlog, next, doing, done — per project, and
   Claude moves the cards as it works. Watch them move while you talk to it.
+- **A plan you can steer.** When the agent writes itself a to-do list, it shows
+  up pinned above the conversation — tap a pending step to send it straight
+  back as the next thing to work on.
 - **Routines.** "Check this site every hour," in plain language, on a timer.
+- **`/loop`, self-paced.** Ask it to keep going — reviewing, testing, refining
+  — and it decides its own pace between rounds instead of you re-prompting it
+  every few minutes.
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
   actually got your time. Computed locally.
+- **Every project shows what it is.** A website's favicon, a native app's own
+  icon, or a glyph for a screenplay, design or music folder — pulled straight
+  off the project's own files, right in the sidebar. Pick your own any time.
 - **Files & PDFs.** Click any file to read it — PDFs, images, markdown, source —
   right beside the tree; annotate PDFs in place; drag files into the chat.
+- **A screenshot lands in the chat, not just a link to it.** When a tool call
+  produces a picture — a simulator screenshot, a page it read — it shows up
+  inline, right under the step that made it.
 - **Snip to attach.** ✂ on the browser or the simulator (or ⌘⇧S): drag a box
   right on the page or the phone screen and the crop lands in your message, at
   full resolution.
+- **Multiple browser tabs per chat.** Open more than one page without leaving
+  the conversation — switch between them the way you would in a real browser.
 - **`@` reaches everything.** Type `@` for this project's files, the other
   projects in your sidebar by name, or any folder on the disk (`@/`, `@~/`) —
   and drill into folders one level at a time.
-- **Context gauge.** Every conversation shows how much of the context window
-  it has used.
+- **Context gauge, and what it's costing.** Every conversation shows how much
+  of the context window it has used, and a running token count for the turn
+  and the session — updating live while the agent works, not just at the end.
 
 ## The small things
 
@@ -171,9 +186,14 @@ source — see [its README](https://github.com/pungme/superagent-ios).
 - **Talk instead of typing.** Hold <kbd>⌥</kbd><kbd>Space</kbd>, speak, let go.
   Your voice is transcribed on your own Mac and never leaves it.
 - **Quiet by default.** A burst of activity folds into one line you can open,
-  instead of a wall of noise.
+  instead of a wall of noise. Consecutive messages sent moments apart cluster
+  together, iMessage-style, instead of every bubble standing on its own.
 - **See every edit** the moment it happens, with just the change highlighted.
 - **Model and mode pickers** that match Claude Code's own.
+- **Stop actually stops.** Interrupting a turn kills the whole job it started
+  — a build, a dev server — not just the agent process sitting above it.
+- **See what's using the space.** Settings breaks storage down by project, so
+  clearing an old conversation's history is a click, not a guess.
 - **Updates itself.** Signed, notarized, delivered in the background — restart
   when it suits you, with a "What's new" for each release.
 - **Light and dark**, following your system.
