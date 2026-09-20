@@ -298,6 +298,8 @@ export type RpcMethod =
   | 'chat.list'
   | 'chat.send'
   | 'chat.interrupt'
+  | 'chat.queueSend'
+  | 'chat.cancelQueuedSend'
   | 'chat.create'
   | 'chat.setAgent'
   | 'chat.rename'

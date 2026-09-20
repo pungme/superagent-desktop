@@ -162,6 +162,17 @@ export function initStore(): void {
       createdAt INTEGER NOT NULL,
       lastSeenAt INTEGER
     );
+    -- "Send when it finishes": a message a phone chose to hold rather than
+    -- interject, kept here (not just in the phone's own memory) so the Mac is
+    -- the one that actually sends it once the turn ends — that happens whether
+    -- or not the phone is still open, backgrounded, or even on the network.
+    CREATE TABLE IF NOT EXISTS queued_sends (
+      id TEXT PRIMARY KEY,
+      chatId TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      createdAt INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_queued_sends_chat ON queued_sends(chatId, createdAt);
   `)
 
   // Migration: pictures on a list item, for databases that predate them.
@@ -929,6 +940,33 @@ export function takePendingBranch(chatId: string): boolean {
   if (!isPendingBranch(chatId)) return false
   kvDel(pendingKey(chatId))
   return true
+}
+
+/** Hold a message here until the chat's current turn ends, then it is sent. */
+export function addQueuedSend(chatId: string, text: string): string {
+  const id = randomUUID()
+  db.prepare('INSERT INTO queued_sends (id, chatId, text, createdAt) VALUES (?, ?, ?, ?)').run(
+    id,
+    chatId,
+    text,
+    Date.now()
+  )
+  return id
+}
+
+export function cancelQueuedSend(chatId: string, id: string): boolean {
+  return (
+    db.prepare('DELETE FROM queued_sends WHERE id = ? AND chatId = ?').run(id, chatId).changes > 0
+  )
+}
+
+/** Claim every message waiting on this chat, oldest first, to send now. */
+export function takeQueuedSends(chatId: string): { id: string; text: string }[] {
+  const rows = db
+    .prepare('SELECT id, text FROM queued_sends WHERE chatId = ? ORDER BY createdAt ASC')
+    .all(chatId) as { id: string; text: string }[]
+  if (rows.length) db.prepare('DELETE FROM queued_sends WHERE chatId = ?').run(chatId)
+  return rows
 }
 
 export function kvSet(key: string, value: string): void {

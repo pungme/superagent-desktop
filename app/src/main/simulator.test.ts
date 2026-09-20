@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   baguetteCandidates,
+  escapeForAppleScript,
   navigationReplacesPage,
   simulatorScreenPoint,
   usesPersistentSimSession
@@ -44,6 +45,28 @@ describe('baguetteCandidates', () => {
     const c = baguetteCandidates(false, '/unused')
     expect(c[0].endsWith('/native/baguette')).toBe(true)
     expect(c).toContain('/opt/homebrew/bin/baguette')
+  })
+})
+
+/**
+ * A device name drops straight into an AppleScript `windows whose name
+ * contains "…"` string. Two or more conversations can each have their own
+ * device booted in the same Simulator.app process, so this is what keeps
+ * hiding your own device's window (see hideSimulatorApp) from also touching
+ * someone else's — get the escaping wrong and a name with a quote in it
+ * either breaks the script or, worse, matches every window instead of one.
+ */
+describe('escapeForAppleScript', () => {
+  it('leaves an ordinary device name alone', () => {
+    expect(escapeForAppleScript('iPhone 17 Pro')).toBe('iPhone 17 Pro')
+  })
+
+  it('escapes a double quote so it cannot close the string early', () => {
+    expect(escapeForAppleScript('My "Weird" iPhone')).toBe('My \\"Weird\\" iPhone')
+  })
+
+  it('escapes a backslash so it is not read as an escape sequence', () => {
+    expect(escapeForAppleScript('back\\slash')).toBe('back\\\\slash')
   })
 })
 

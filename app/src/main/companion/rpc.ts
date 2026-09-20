@@ -34,7 +34,10 @@ import {
   DESKTOP_WORKSPACE_ID,
   TABS_GROUP,
   setChatCwd,
-  getChatModel
+  getChatModel,
+  addQueuedSend,
+  cancelQueuedSend,
+  takeQueuedSends
 } from '../store'
 import { modelBelongsTo, modeBelongsTo, toProvider } from '../../shared/agent-provider'
 import { createHash } from 'crypto'
@@ -82,7 +85,7 @@ import {
 import { listRoutines, runRoutine, setRoutineEnabled } from '../routines'
 import { resolveGate } from '../hooks'
 import { workspaceStatuses } from './status'
-import { isGenerating } from './log'
+import { isGenerating, logBus } from './log'
 import { pushChats } from './index'
 import { broadcastToWindows } from '../util'
 import type {
@@ -136,6 +139,8 @@ const chatSetAgent = z.object({
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatPin = z.object({ chatId: z.string().min(1), pinned: z.boolean() })
 const chatId = z.object({ chatId: z.string().min(1) })
+const chatQueueSend = z.object({ chatId: z.string().min(1), text: z.string().min(1).max(200_000) })
+const chatCancelQueuedSend = z.object({ chatId: z.string().min(1), id: z.string().min(1) })
 const backgroundStop = z.object({ chatId: z.string().min(1), toolUseId: z.string().min(1) })
 // root: the conversation that lives in the project folder, which never cuts a
 // branch. Anything else is a new conversation and gets its own copy on its
@@ -275,7 +280,33 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         const s = findSessionByChat(p.data.chatId)
         if (!s) return fail('not-found', 'no running agent for this chat')
+        // Taking over is not "keep going": a message queued for after this
+        // turn stays queued for the NEXT one, the same as the desktop's own
+        // hold-to-send does, rather than firing straight into the interrupt.
+        interruptedChats.add(p.data.chatId)
         await hardInterruptAgent(s.id)
+        return { ok: true }
+      }
+      // Hold a message to send once the chat's current turn ends. Stored on
+      // this Mac (not the phone) so it goes out whether or not the phone is
+      // still around to see the turn finish — see the queued_sends flush below.
+      case 'chat.queueSend': {
+        const p = chatQueueSend.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        // Nothing running to wait for: send it now instead of queuing it
+        // forever, the same rule the composer itself applies before holding.
+        if (!isGenerating(p.data.chatId)) {
+          const sent = await sendToChat({ chatId: p.data.chatId, text: p.data.text })
+          return sent.ok ? { ok: true, result: { id: null, sent: true } } : sent
+        }
+        const id = addQueuedSend(p.data.chatId, p.data.text)
+        return { ok: true, result: { id } }
+      }
+      case 'chat.cancelQueuedSend': {
+        const p = chatCancelQueuedSend.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        cancelQueuedSend(p.data.chatId, p.data.id)
         return { ok: true }
       }
       case 'chat.create': {
@@ -1109,6 +1140,27 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
     ? { ok: true, result: { sessionId: session.id } }
     : fail('unavailable', 'agent not accepting input')
 }
+
+/** A chat whose current turn ended via a deliberate stop, not a finish — see `chat.interrupt`. */
+const interruptedChats = new Set<string>()
+
+// Send whatever a phone queued for this chat once its turn actually ends. Runs
+// off the same generating→false signal the desktop's own sidebar spinner uses
+// (see log.ts), so it fires whether or not any window or phone is connected —
+// that independence from both is the entire point of storing this on the Mac
+// instead of in the phone's own memory.
+logBus.on('busy', ({ chatId }: { chatId?: string; workspaceId?: string }) => {
+  if (!chatId || isGenerating(chatId)) return // a start, not a finish
+  if (interruptedChats.delete(chatId)) return // stopped, not finished — leave it queued for next time
+  const rows = takeQueuedSends(chatId)
+  if (!rows.length) return
+  void (async () => {
+    // One at a time — sending the next before the first lands would let two
+    // race into the branch-creation step `sendToChat` does for a chat's very
+    // first message.
+    for (const row of rows) await sendToChat({ chatId, text: row.text, localId: row.id })
+  })()
+})
 
 function permissionModeSetting(): AgentStartOptions['permissionMode'] {
   const v = kvGet('cove.permissionMode')

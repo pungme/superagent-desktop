@@ -83,12 +83,71 @@ export function allowSimulatorWindow(): void {
   simulatorWindowAllowed = true
 }
 
-/** Put Apple's Simulator out of sight — it is not what the user is watching. */
-async function hideSimulatorApp(): Promise<void> {
+/**
+ * Off any real display — far enough that no window manager or multi-monitor
+ * setup could ever consider it on-screen.
+ */
+const OFFSCREEN_X = -10_000
+const OFFSCREEN_Y = -10_000
+
+/** AppleScript string literal escaping for a name dropped into a `contains "…"`. */
+export function escapeForAppleScript(name: string): string {
+  return name.replace(/[\\"]/g, '\\$&')
+}
+
+/**
+ * Which of Apple's Simulator windows a hide/restore call should touch — one
+ * device's, or (only when the caller has no udid to resolve) every window
+ * Simulator has open.
+ *
+ * Two or more conversations can each be driving their own device in the same
+ * Simulator.app process (see `chatHoldingSimulator`) — a blanket
+ * `repeat with w in windows` moves ALL of them, so hiding your own device's
+ * window while its build runs used to yank every other conversation's window
+ * off whatever screen position (or visibility) it had, with no way back for
+ * them. Scoping by the window's name — the device name, same as the title
+ * bar — is what `sim:open-app`'s own raise-the-right-window logic already
+ * relies on for exactly this reason.
+ */
+async function simulatorWindows(udid: string | undefined): Promise<string> {
+  const name = udid ? (await listDevices()).find((d) => d.udid === udid)?.name : undefined
+  return name ? `windows whose name contains "${escapeForAppleScript(name)}"` : 'windows'
+}
+
+/**
+ * Put Apple's Simulator out of sight — it is not what the user is watching.
+ *
+ * This used to be `set visible of process "Simulator" to false`: the
+ * accessibility equivalent of Cmd+H, hiding the whole app. That stops macOS
+ * compositing its windows at all — and the live mirror (native or
+ * screenshot) reads straight off that composited surface, so a "hidden"
+ * Simulator fed the pane a stale, frozen picture instead of the JPEG-a-tick
+ * stream it usually gets. Every tap the agent computed from that picture
+ * landed on wherever the UI used to be. Moving the window off-screen instead
+ * keeps it composited — the same "behind ours or off-screen" case
+ * `sim:list`'s own comment already relies on for the native stream — while
+ * still keeping it out of the way.
+ */
+async function hideSimulatorApp(udid?: string): Promise<void> {
   if (simulatorWindowAllowed) return
+  const target = await simulatorWindows(udid)
   await run('osascript', [
     '-e',
-    'tell application "System Events" to if exists process "Simulator" then set visible of process "Simulator" to false'
+    `tell application "System Events" to if exists process "Simulator" then tell process "Simulator" to repeat with w in (${target})
+       set position of w to {${OFFSCREEN_X}, ${OFFSCREEN_Y}}
+     end repeat`
+  ]).catch(() => {})
+}
+
+/** The user (or sim:open-app) asked to actually see it — bring it back from
+ *  wherever hideSimulatorApp parked it. */
+async function restoreSimulatorWindowPosition(udid?: string): Promise<void> {
+  const target = await simulatorWindows(udid)
+  await run('osascript', [
+    '-e',
+    `tell application "System Events" to if exists process "Simulator" then tell process "Simulator" to repeat with w in (${target})
+       set position of w to {100, 100}
+     end repeat`
   ]).catch(() => {})
 }
 
@@ -96,13 +155,13 @@ async function hideSimulatorApp(): Promise<void> {
  * Keep it out of sight for a moment: xcodebuild opens the window some seconds
  * after it starts, so one hide at the end of a tool call misses it.
  */
-export function keepSimulatorHidden(): void {
+export function keepSimulatorHidden(udid?: string): void {
   if (simulatorWindowAllowed) return
-  void hideSimulatorApp()
+  void hideSimulatorApp(udid)
   for (const delay of [1500, 4000, 8000]) {
     setTimeout(() => {
       if (!simulatorWindowAllowed && (nativeStreams.size > 0 || streams.size > 0)) {
-        void hideSimulatorApp()
+        void hideSimulatorApp(udid)
       }
     }, delay)
   }
@@ -954,7 +1013,7 @@ export function registerSimulatorIpc(): void {
   ipcMain.handle('sim:attach-release', async () => {
     await unpinSimulator()
     simulatorWindowAllowed = false
-    void hideSimulatorApp()
+    void hideSimulatorApp(currentUdid ?? undefined)
     return true
   })
   /** The user explicitly asked for Apple's Simulator — stand aside and show it. */
@@ -978,8 +1037,13 @@ export function registerSimulatorIpc(): void {
     // launch, so the wrong window stays in front. Find this device's own
     // window by name and raise that one specifically.
     const name = (await listDevices()).find((d) => d.udid === udid)?.name
-    const escaped = name?.replace(/[\\"]/g, '\\$&')
+    const escaped = name ? escapeForAppleScript(name) : undefined
+    await restoreSimulatorWindowPosition(udid)
     await run('osascript', [
+      // Unhiding is not the risky direction — only ever setting this false
+      // touches every window in the process, which is why hideSimulatorApp
+      // no longer does. Setting it true here is still fine: it takes nothing
+      // away from any other conversation's window or position.
       '-e',
       'tell application "System Events" to if exists process "Simulator" then set visible of process "Simulator" to true',
       ...(escaped

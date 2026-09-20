@@ -268,7 +268,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       // Phones mirror it too, and they cannot see the window's localStorage.
       noteSimulatorOpen(CHAT_ID, udid)
       // A build with a simulator destination opens Apple's window by itself.
-      if (isMirroring(udid)) keepSimulatorHidden()
+      if (isMirroring(udid)) keepSimulatorHidden(udid)
       return {
         content: [
           {
@@ -344,7 +344,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         udid: simTarget(CHAT_ID)
       })
       noteSimulatorOpen(CHAT_ID, simTarget(CHAT_ID))
-      if (isMirroring(simTarget(CHAT_ID))) keepSimulatorHidden()
+      if (isMirroring(simTarget(CHAT_ID))) keepSimulatorHidden(simTarget(CHAT_ID))
       return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
     }
   )
