@@ -473,6 +473,8 @@ export interface CoveApi {
   updateNotes: (version: string) => Promise<string | null>
 
   storeTree: () => Promise<TreeGroup[]>
+  /** The id of the ungrouped section, made on demand. */
+  flatGroup: () => Promise<string>
   createGroup: (name: string) => Promise<TreeGroup[]>
   updateGroup: (
     id: string,
@@ -917,6 +919,7 @@ const cove: CoveApi = {
   onChatAppended: (cb) => subscribe('chat:appended', (p) => cb(p as { chatId: string })),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
+  flatGroup: () => ipcRenderer.invoke('store:flat-group'),
   createGroup: (name) => ipcRenderer.invoke('store:createGroup', name),
   updateGroup: (id, patch) => ipcRenderer.invoke('store:updateGroup', id, patch),
   deleteGroup: (id) => ipcRenderer.invoke('store:deleteGroup', id),

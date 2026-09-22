@@ -49,7 +49,13 @@ const runLoud = (cmd, args, opts = {}) =>
  */
 function loadEnv() {
   const file = join(APP, '.env')
-  if (!existsSync(file)) die('app/.env is missing.', 'copy app/.env.example to app/.env and fill it in')
+  if (!existsSync(file)) {
+    // CI has no .env: the same credentials arrive as repo secrets, already in
+    // the environment. Only a machine with neither is actually stuck.
+    if (process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID)
+      return
+    die('app/.env is missing.', 'copy app/.env.example to app/.env and fill it in')
+  }
   for (const line of readFileSync(file, 'utf8').split('\n')) {
     const m = line.match(/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
     if (m) process.env[m[1]] ??= m[2].trim().replace(/^["']|["']$/g, '')
@@ -58,13 +64,13 @@ function loadEnv() {
 
 function checkCredentials() {
   const { APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID } = process.env
-  if (!APPLE_ID) die('APPLE_ID is empty in app/.env.', 'your Apple ID email')
+  if (!APPLE_ID) die('APPLE_ID is not set (app/.env, or the APPLE_ID secret in CI).', 'your Apple ID email')
   if (!APPLE_APP_SPECIFIC_PASSWORD)
     die(
-      'APPLE_APP_SPECIFIC_PASSWORD is empty in app/.env.',
+      'APPLE_APP_SPECIFIC_PASSWORD is not set (app/.env, or the secret of that name in CI).',
       'generate one at appleid.apple.com → Sign-In and Security → App-Specific Passwords'
     )
-  if (!APPLE_TEAM_ID) die('APPLE_TEAM_ID is empty in app/.env.')
+  if (!APPLE_TEAM_ID) die('APPLE_TEAM_ID is not set (app/.env, or the secret of that name in CI).')
   // An app-specific password is xxxx-xxxx-xxxx-xxxx. A regular Apple ID
   // password here fails at the notarization step, minutes into the build.
   if (!/^[a-z]{4}(-[a-z]{4}){3}$/i.test(APPLE_APP_SPECIFIC_PASSWORD))

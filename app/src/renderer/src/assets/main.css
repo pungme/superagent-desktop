@@ -16,8 +16,14 @@
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
   --text-primary: rgba(255, 255, 255, 0.86);
-  --text-secondary: rgba(255, 255, 255, 0.5);
-  --text-tertiary: rgba(255, 255, 255, 0.32);
+  /* Dark-mode greys used to be mixed for looks against a bright mock rather
+     than measured against the surface they land on: secondary read 4.6:1 and
+     tertiary 2.9:1 on --bg-content, so quiet buttons ("Open a tab to browse",
+     a group's +, a row's ×) were grey-on-grey. These clear 3:1 — legible as
+     small labels — while staying quieter than primary, which is what the
+     hierarchy is for. */
+  --text-secondary: rgba(255, 255, 255, 0.62);
+  --text-tertiary: rgba(255, 255, 255, 0.44);
   --accent: #f0f0f2;
   --accent-soft: rgba(255, 255, 255, 0.14);
   --accent-fg: #17181d;
@@ -9298,7 +9304,9 @@ button {
 .settings-done {
   border: 1px solid transparent;
   background: var(--accent, #3b82f6);
-  color: #fff;
+  /* Not #fff: the accent is near-white in the dark theme, so white-on-accent
+     was white-on-white. --accent-fg is the colour that belongs on it. */
+  color: var(--accent-fg, #fff);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -11478,4 +11486,35 @@ button {
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1.5px var(--accent);
   color: var(--text-primary);
+}
+
+/* Projects that belong to no group: no header, just the rows — and a drop
+   target, so dragging one out of a group is the same gesture as dragging it
+   into another. */
+.sidebar-flat {
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  padding: 2px 0;
+}
+.sidebar-flat.droppable {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.sidebar-flat.over {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  background: var(--accent-soft);
+}
+.sidebar-flat-add {
+  margin: 2px 6px 6px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: left;
+}
+.sidebar-flat-add:hover {
+  background: var(--hover);
+  color: var(--text-secondary);
 }

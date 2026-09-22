@@ -389,6 +389,15 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
 
       cd app && npm run release
 
+  Or let CI do it: push a version bump (app/package.json + notes-<version>.md)
+  to main and .github/workflows/release.yml runs that same script on a macOS
+  runner. The channel is the version, not a branch — 1.9.1-beta.17 publishes
+  as a GitHub prerelease (the beta channel), 1.9.2 publishes as latest — so
+  betas and stable releases both come off main. CI needs five repo secrets:
+  MAC_CERT_P12_BASE64 (base64 of the Developer ID .p12) and MAC_CERT_PASSWORD
+  for signing, and APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID for
+  notarizing — the same three app/.env holds locally.
+
   That is the whole procedure, and it is the only supported one. Everything
   below is why the script exists rather than instructions to follow by hand —
   these notes were already here, in this file, and were not enough: the steps

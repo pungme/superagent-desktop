@@ -56,9 +56,10 @@ test('onboarding renders, then the main app loads with the seeded workspace', as
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
 
-  // Seeded group + workspace are present.
-  await expect(window.locator('.sidebar-group-title', { hasText: 'My projects' })).toBeVisible()
-  await expect(window.locator('.sidebar-item-name')).toContainText('e2e-project')
+  // A fresh install starts flat: the project is there with no group over it.
+  // Only the Browse section has a header; no project group was invented.
+  await expect(window.locator('.sidebar-group-title')).toHaveText(['Browse'])
+  await expect(window.locator('.sidebar-flat .sidebar-item-name')).toContainText('e2e-project')
 })
 
 test('opening the workspace shows the chat composer and toolbar actions', async () => {
@@ -90,12 +91,10 @@ test('Settings opens from the sidebar gear and closes with Done', async () => {
   await expect(heading).toHaveCount(0)
 })
 
-test('hovering a group reveals its New project button', async () => {
-  const header = window.locator('.sidebar-group-header').first()
-  await header.hover()
+test('a project can be added without making a group first', async () => {
   // Clicking it would open the native folder picker, which e2e can't drive —
-  // the affordance being there on hover is the contract.
-  await expect(header.locator('.group-add[title="New project"]')).toBeVisible()
+  // the affordance being there, at the top level, is the contract.
+  await expect(window.locator('.sidebar-flat-add')).toBeVisible()
 })
 
 test('@ mentions reach other projects and folders outside this one', async () => {

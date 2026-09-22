@@ -1197,7 +1197,6 @@ function GroupSection({
   const renameGroup = useStore((s) => s.renameGroup)
   const deleteGroup = useStore((s) => s.deleteGroup)
   const addWorkspace = useStore((s) => s.addWorkspace)
-  const groupCount = useStore((s) => s.tree.length)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(group.name)
   const { setNodeRef, isOver, active } = useDroppable({ id: `group:${group.id}` })
@@ -1231,7 +1230,7 @@ function GroupSection({
     const n = group.workspaces.length
     const msg =
       n > 0
-        ? `Delete the group "${group.name}"? Its ${n} project${n > 1 ? 's' : ''} will move to another group (not deleted).`
+        ? `Delete the group "${group.name}"? Its ${n} project${n > 1 ? 's' : ''} will move back to the top level (not deleted).`
         : `Delete the empty group "${group.name}"?`
     if (window.confirm(msg)) deleteGroup(group.id)
   }
@@ -1281,16 +1280,14 @@ function GroupSection({
             {group.name}
           </span>
         )}
-        {groupCount > 1 && (
-          <button
-            className="group-delete"
-            title="Delete group"
-            aria-label="Delete group"
-            onClick={onDelete}
-          >
-            ×
-          </button>
-        )}
+        <button
+          className="group-delete"
+          title="Delete group"
+          aria-label="Delete group"
+          onClick={onDelete}
+        >
+          ×
+        </button>
         <button
           className="group-add"
           title="New project"
@@ -1319,6 +1316,40 @@ function GroupSection({
 // The reserved group holding quick browser tabs — rendered as its own section
 // at the top, never as a normal (renamable/deletable) group.
 const TABS_GROUP = '__tabs'
+
+// Projects under no group of their own (see FLAT_GROUP in store.ts). Drawn
+// with no header over them, above the groups.
+const FLAT_GROUP = '__flat'
+
+/**
+ * The ungrouped projects, and the one button that adds one.
+ *
+ * It is a drop target under the same `group:` id every group header uses, so
+ * dragging a project out of a group and back to the top level is the same
+ * move as dragging it between two groups.
+ */
+function FlatProjects({
+  group
+}: {
+  group: ReturnType<typeof useStore.getState>['tree'][number]
+}): React.JSX.Element {
+  const addWorkspace = useStore((s) => s.addWorkspace)
+  const { setNodeRef, isOver, active } = useDroppable({ id: `group:${group.id}` })
+  const wanted = Boolean(active) && !String(active?.id ?? '').startsWith('chat:')
+  return (
+    <div
+      ref={setNodeRef}
+      className={`sidebar-flat${wanted ? ' droppable' : ''}${wanted && isOver ? ' over' : ''}`}
+    >
+      {group.workspaces.map((ws, i) => (
+        <WorkspaceRow key={ws.id} ws={ws} index={i} />
+      ))}
+      <button className="sidebar-flat-add" onClick={() => addWorkspace(group.id)}>
+        + Add a project
+      </button>
+    </div>
+  )
+}
 
 /**
  * Every conversation on this Mac, newest first.
@@ -1690,6 +1721,16 @@ export function Sidebar(): React.JSX.Element {
   const addGroup = useStore((s) => s.addGroup)
   const setActive = useStore((s) => s.setActive)
   const tabsGroup = tree.find((g) => g.name === TABS_GROUP)
+  // Made on first run, so it is normally right there; an older install gets
+  // one the moment it is needed (adding a project, or dropping one here).
+  const flatGroup = tree.find((g) => g.name === FLAT_GROUP) ?? {
+    id: '',
+    name: FLAT_GROUP,
+    color: '',
+    collapsed: 0,
+    position: 0,
+    workspaces: []
+  }
   const [mode, setMode] = useState<'activity' | 'projects'>(() =>
     localStorage.getItem('cove.sidebarMode') === 'activity' ? 'activity' : 'projects'
   )
@@ -1900,8 +1941,9 @@ export function Sidebar(): React.JSX.Element {
               </button>
             )}
           </div>
+          <FlatProjects group={flatGroup} />
           {tree
-            .filter((g) => g.name !== TABS_GROUP)
+            .filter((g) => g.name !== TABS_GROUP && g.name !== FLAT_GROUP)
             .map((group) => (
               <GroupSection key={group.id} group={group} />
             ))}

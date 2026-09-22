@@ -1,0 +1,75 @@
+# Cut a release the way `npm run release` does locally — same script, same
+# checks — on a macOS runner, so signing and notarizing don't need this Mac.
+#
+# The channel is NOT a branch. It is the version in app/package.json: a
+# version with a prerelease tag (1.9.1-beta.17) is published as a GitHub
+# prerelease, which is the beta channel, and a plain one (1.9.2) is published
+# as latest. So both come off main, and bumping the version IS the release.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    # Only a version bump can start a release. notes-<version>.md is required
+    # by the script itself, so a bump without notes fails loudly rather than
+    # shipping something nobody wrote down.
+    paths: ["app/package.json"]
+  workflow_dispatch:
+
+concurrency:
+  # Two releases at once would race for the same tag.
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The script compares HEAD against origin/main, and checks the tag
+          # for this version doesn't already exist.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      # Nothing ships that doesn't typecheck and pass its tests.
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Skip if this version is already released
+        id: check
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$version" >/dev/null 2>&1; then
+            echo "v$version is already tagged — nothing to release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build, sign, notarize, publish
+        if: steps.check.outputs.skip != 'true'
+        run: npm run release
+        env:
+          # Developer ID certificate: base64 of the .p12, and its password.
+          # electron-builder imports these into a temporary keychain itself.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          # Notarization, same three the local .env holds.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Publishing the release, and `gh` inside the script.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

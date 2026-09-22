@@ -281,12 +281,13 @@ export function initStore(): void {
     db.exec('UPDATE chats SET pinnedAt = updatedAt WHERE pinned = 1')
   }
 
-  // Seed a default group on first run so the sidebar is never empty.
+  // First run starts flat: projects with no group over them. A group is made
+  // when the user asks for one (see FLAT_GROUP).
   const count = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
   if (count === 0) {
     db.prepare(
       'INSERT INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, 0)'
-    ).run(randomUUID(), 'My projects', COLORS[0])
+    ).run(randomUUID(), FLAT_GROUP, COLORS[0])
   }
 
   // E2E test hook: seed a deterministic workspace so tests don't need the native dialog.
@@ -330,6 +331,33 @@ export const DESKTOP_WORKSPACE_ID = '__desktop_chat__'
 /** The sidebar section that holds browser tabs (the renderer names it too). */
 export const TABS_GROUP = '__tabs'
 
+/**
+ * Projects that belong to no group — the sidebar draws them at the top level,
+ * with no header over them.
+ *
+ * A group used to be the only place a project could live, so the first thing
+ * the app ever asked of anyone was to file work they hadn't started yet. Now
+ * projects start flat and a group is something you make when you actually
+ * want one, and drag projects into. It is a real row in `groups` (a workspace
+ * must belong to one) named like the tabs section, and hidden the same way.
+ */
+export const FLAT_GROUP = '__flat'
+
+/** The ungrouped section, made the first time anything needs it. */
+export function flatGroupId(): string {
+  const g = db.prepare('SELECT id FROM groups WHERE name = ?').get(FLAT_GROUP) as
+    | { id: string }
+    | undefined
+  if (g) return g.id
+  const id = randomUUID()
+  // Above every group the user made: ungrouped work is what you see first.
+  db.prepare('UPDATE groups SET position = position + 1').run()
+  db.prepare(
+    'INSERT INTO groups (id, name, color, collapsed, position) VALUES (?, ?, ?, 0, 0)'
+  ).run(id, FLAT_GROUP, COLORS[0])
+  return id
+}
+
 export function createGroup(name: string): string {
   const id = randomUUID()
   const color = COLORS[nextPosition('groups') % COLORS.length]
@@ -356,15 +384,18 @@ export function updateGroup(
 
 /** Deletes a group, moving its projects to the next one; the last group stays. */
 export function deleteGroup(id: string): boolean {
-  const n = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
-  if (n <= 1) return false
-  // Reassign this group's projects to the next group (by position) so they're
-  // never orphaned — deleting a group must not lose projects.
-  const other = db
-    .prepare('SELECT id FROM groups WHERE id != ? ORDER BY position LIMIT 1')
-    .get(id) as { id: string } | undefined
+  // The reserved sections are structure, not the user's own grouping.
+  const row = db.prepare('SELECT name FROM groups WHERE id = ?').get(id) as
+    | { name: string }
+    | undefined
+  if (!row || row.name === FLAT_GROUP || row.name === TABS_GROUP) return false
+  // Its projects come back to the top level rather than being filed into
+  // whichever group happened to be next — and never deleted with it. This
+  // used to refuse when it was the last group, because a project had to be
+  // in one; ungrouped is a real place now, so the last group can go too.
+  const flat = flatGroupId()
   const tx = db.transaction(() => {
-    if (other) db.prepare('UPDATE workspaces SET groupId = ? WHERE groupId = ?').run(other.id, id)
+    db.prepare('UPDATE workspaces SET groupId = ? WHERE groupId = ?').run(flat, id)
     db.prepare('DELETE FROM groups WHERE id = ?').run(id)
   })
   tx()
@@ -1708,7 +1739,13 @@ export function removeCalendarEvent(id: string): void {
 export function registerStoreIpc(): void {
   initStore()
 
-  ipcMain.handle('store:tree', () => getTree())
+  // Ensuring the ungrouped section here means the sidebar always has somewhere
+  // to draw a project with no group — including installs made before there
+  // was such a thing.
+  ipcMain.handle('store:tree', () => {
+    flatGroupId()
+    return getTree()
+  })
 
   // Every writer announces itself, so a board open in any window redraws no
   // matter who moved the card — the agent, this window, or another one. A
@@ -1820,6 +1857,7 @@ export function registerStoreIpc(): void {
    * user's home — the agent has to run somewhere, and somewhere it can write
    * scratch files without leaving them in the middle of anything.
    */
+  ipcMain.handle('store:flat-group', () => flatGroupId())
   ipcMain.handle('desktop:chat-home', () => ensureDesktopWorkspace())
   registerStoreIpcTail()
 }
