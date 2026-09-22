@@ -1766,7 +1766,7 @@ button {
   border: none;
   border-radius: 6px;
   background: var(--accent, #4a7cff);
-  color: #fff;
+  color: var(--accent-fg, #fff);
   font-size: 11px;
   padding: 4px 10px;
   cursor: pointer;
@@ -9467,7 +9467,7 @@ button {
   border-radius: 7px;
   border: none;
   background: var(--accent, #4f46e5);
-  color: #fff;
+  color: var(--accent-fg, #fff);
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -9987,7 +9987,7 @@ button {
   border-radius: 8px;
   border: none;
   background: var(--accent, #4f46e5);
-  color: #fff;
+  color: var(--accent-fg, #fff);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -10105,7 +10105,7 @@ button {
 .cal-new {
   border-color: transparent;
   background: var(--accent, #3b82f6);
-  color: #fff;
+  color: var(--accent-fg, #fff);
   font-weight: 600;
 }
 .cal-today:hover {
@@ -10171,7 +10171,7 @@ button {
 }
 .cal-daynum.today {
   background: var(--accent, #3b82f6);
-  color: #fff;
+  color: var(--accent-fg, #fff);
   border-radius: 999px;
   min-width: 20px;
   height: 20px;
@@ -10429,7 +10429,7 @@ button {
 .cal-modal-save {
   border-color: transparent;
   background: var(--accent, #3b82f6);
-  color: #fff;
+  color: var(--accent-fg, #fff);
   font-weight: 600;
 }
 
@@ -10498,7 +10498,7 @@ button {
 }
 .cal-viewseg button.on {
   background: var(--accent, #3b82f6);
-  color: #fff;
+  color: var(--accent-fg, #fff);
 }
 .cal-monthwrap {
   flex: 1;
@@ -10560,7 +10560,7 @@ button {
 }
 .cal-tg-dayhead.today .cal-tg-dnum {
   background: var(--accent, #3b82f6);
-  color: #fff;
+  color: var(--accent-fg, #fff);
   border-radius: 999px;
   width: 30px;
   height: 30px;
