@@ -3,6 +3,11 @@ import { EventEmitter } from 'events'
 import { generateKeyPairSync, createPrivateKey, createPublicKey, sign } from 'crypto'
 import WebSocket from 'ws'
 
+interface RelayServer {
+  address: () => { port: number } | null
+  close: () => void
+}
+
 /**
  * The whole desktop side against a real relay and a fake phone:
  * pair → hello/welcome → subscribe/replay → chat.send → live event → approval.
@@ -256,7 +261,18 @@ vi.mock('./identity', async () => {
   }
 })
 
-import { startRelay } from '../../../../../relay/src/node.js'
+// The relay is a sibling REPO, not a dependency of this one — present in a
+// full checkout of the workspace, absent on a machine (or a CI runner) that
+// only has the desktop. Resolved through a URL rather than a literal
+// specifier so the typechecker doesn't try to follow it either; the suite
+// skips itself below when it isn't there.
+const relayUrl = new URL('../../../../../relay/src/node.js', import.meta.url)
+// Asking for it IS the check: the path is source, so it resolves through
+// vite (node.js → node.ts) rather than existing on disk under that name.
+const relay = await import(relayUrl.href).catch(() => null)
+const hasRelay = relay !== null
+const startRelay: (port: number) => RelayServer =
+  relay?.startRelay ?? ((): RelayServer => ({ address: () => ({ port: 0 }), close: () => {} }))
 import { deriveKeys, aadFor, Sealer, Opener, pairingDigest } from './crypto'
 import {
   pairingCodeFromDigest,
@@ -328,7 +344,7 @@ afterAll(() => {
   server.close()
 })
 
-describe('desktop ⇄ relay ⇄ phone', () => {
+describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
   let token = ''
   let secret: Buffer
 
