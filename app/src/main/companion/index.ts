@@ -100,7 +100,7 @@ export function startCompanion(): void {
     for (const c of conns.values())
       if (c.authenticated && c.subs.has(event.chatId)) c.send({ t: 'event', event })
     // A chat's first event makes it "live"/renames it — keep the list fresh.
-    if (event.data.kind === 'session' || event.data.kind === 'turn_end') pushChats()
+    if (event.data.kind === 'session' || event.data.kind === 'turn_end') schedulePushChats()
     if (event.data.kind === 'turn_end') void nameIfNeeded(event.chatId)
   })
   logBus.on('delta', ({ chatId, text }: { chatId: string; text: string }) => {
@@ -132,7 +132,7 @@ export function startCompanion(): void {
       for (const c of conns.values())
         if (c.authenticated) c.send({ t: 'status', workspaceId, status })
     }
-    pushChats()
+    schedulePushChats()
     updateKeepAwake()
   })
   hookBus.on(
@@ -304,9 +304,33 @@ async function nameIfNeeded(chatId: string): Promise<void> {
   }
 }
 
+let pushChatsTimer: ReturnType<typeof setTimeout> | null = null
+
 export function pushChats(): void {
+  if (pushChatsTimer) {
+    clearTimeout(pushChatsTimer)
+    pushChatsTimer = null
+  }
+  // listChats reads every conversation and its preview — not worth doing for
+  // nobody.
+  if (![...conns.values()].some((c) => c.authenticated)) return
   const chats = listChats()
   for (const c of conns.values()) if (c.authenticated) c.send({ t: 'chats', chats })
+}
+
+/**
+ * The same push, coalesced — for the agent-driven paths only. Every turn
+ * starting or ending in ANY conversation used to resend the whole list, and a
+ * turn end did it twice (its `busy` flip and its `turn_end` event), so a
+ * handful of sessions working at once kept the phone decoding and redrawing
+ * its entire sidebar several times a second. A user's own action (create,
+ * rename, pin, delete) still calls pushChats directly: the phone opens a chat
+ * it just created by looking it up in the list, so that push must land before
+ * the RPC's answer does.
+ */
+function schedulePushChats(): void {
+  if (pushChatsTimer) return
+  pushChatsTimer = setTimeout(pushChats, 400)
 }
 
 /**

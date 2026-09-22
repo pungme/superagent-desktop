@@ -980,6 +980,7 @@ const cove: CoveApi = {
       'menu:settings',
       'menu:command-palette',
       'menu:new-project',
+      'menu:new-chat',
       'menu:new-group',
       'menu:skills',
       'menu:routines',

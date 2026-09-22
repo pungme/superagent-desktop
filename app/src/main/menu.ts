@@ -53,6 +53,12 @@ export function buildMenu(): void {
     {
       label: 'File',
       submenu: [
+        // A conversation that needs no project, in Chats. No accelerator:
+        // ⌘N is New Project, and people already have that in their hands.
+        {
+          label: 'New Chat',
+          click: () => send('menu:new-chat')
+        },
         {
           label: 'New Project…',
           accelerator: 'CmdOrCtrl+N',

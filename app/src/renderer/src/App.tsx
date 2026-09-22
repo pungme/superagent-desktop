@@ -247,6 +247,16 @@ function App(): React.JSX.Element {
     // One value, so opening either inherently closes the other.
     const openComputer = (): void => setOverlay('computer')
     const openChats = (): void => setOverlay('chats')
+    // A conversation that belongs to no project: straight into Chats with a
+    // fresh one open, rather than open Chats, then find its + New chat.
+    const newChatInChats = async (): Promise<void> => {
+      const home = await window.cove.desktopChatHome?.()
+      if (!home) return
+      setOverlay('chats')
+      await useStore.getState().newChat(home.workspaceId)
+    }
+    const onNewChat = (): void => void newChatInChats()
+    window.addEventListener('cove:new-chat', onNewChat)
     // These live on the desktop now. Show it, then let it raise the window —
     // after a tick, so a freshly mounted desktop is listening by then.
     const openOnDesktop = (app: 'dashboard' | 'skills' | 'routines') => (): void => {
@@ -278,6 +288,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('cove:open-dashboard', open)
       window.removeEventListener('cove:open-computer', openComputer)
       window.removeEventListener('cove:open-chats', openChats)
+      window.removeEventListener('cove:new-chat', onNewChat)
       window.removeEventListener('cove:close-dashboard', close)
     }
   }, [])
@@ -369,6 +380,7 @@ function App(): React.JSX.Element {
       if (action === 'settings') setSettingsOpen(true)
       else if (action === 'command-palette') setPaletteOpen((v) => !v)
       else if (action === 'new-group') addGroup()
+      else if (action === 'new-chat') window.dispatchEvent(new CustomEvent('cove:new-chat'))
       else if (action === 'new-project') {
         const firstGroup = useStore.getState().tree[0]
         if (firstGroup) addWorkspace(firstGroup.id)

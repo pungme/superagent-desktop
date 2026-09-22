@@ -29,6 +29,7 @@ import {
   PROVIDER_PRODUCT,
   type AgentProvider
 } from '../../../shared/agent-provider'
+import { bgLabel } from '../lib/bg-label'
 
 interface ChatMessage {
   id: string
@@ -380,41 +381,6 @@ const BG_DONE_RE =
  * so the time is recoverable — and null when it genuinely isn't, so the stamp is
  * simply omitted rather than rendering "Invalid Date" over old conversations.
  */
-/**
- * A short, meaningful name for a backgrounded command. The real command is
- * often buried behind env setup — `export PATH=…; SP_TOKEN=$(…); node deadline.mjs &`
- * — so skip leading assignments, `export`, `nohup`, `sudo` and the like, and
- * name it by the actual program (and its script, if it has one).
- */
-function bgLabel(command: string): string {
-  const bare = command.replace(/&\s*(disown)?\s*;?\s*$/, '').trim()
-  // The agent backgrounds `sleep N; echo done` as a wait/poll timer while other
-  // work runs. Naming it "sleep" reads like the app dozed off (and taking the
-  // last `;` segment would call it "echo"); say what it actually is.
-  const wait = bare.match(/^sleep\s+(\d+)\b/)
-  if (wait) {
-    const s = Number(wait[1])
-    return s >= 60 ? `wait ${Math.round(s / 60)}m` : `wait ${s}s`
-  }
-  // Last segment of a ; / && chain is usually the real work.
-  const seg = bare
-    .split(/;|&&/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .pop()
-  const tokens = (seg || command).split(/\s+/).filter(Boolean)
-  const skip = /^(export|nohup|sudo|env|time|VAR=|[A-Z_][A-Z0-9_]*=)/
-  let i = 0
-  while (i < tokens.length && (skip.test(tokens[i]) || tokens[i].includes('='))) i++
-  const prog = (tokens[i] || tokens[0] || 'job').split('/').pop() || 'job'
-  // For an interpreter, the script name is what the user recognises.
-  if (/^(node|python3?|ruby|bash|sh|deno|bun|npx)$/.test(prog)) {
-    const arg = tokens.slice(i + 1).find((t) => !t.startsWith('-'))
-    if (arg) return arg.split('/').pop() || prog
-  }
-  return prog
-}
-
 // Tools that change files on disk — after one of these a code preview may
 // genuinely look different, so the idle-reload should fire. (Bash is excluded
 // on purpose: it's mostly read-only inspection, and reloading on every command
@@ -992,11 +958,14 @@ const MessageRow = memo(function MessageRow({
     [isAssistant, msg.text]
   )
   const at = msg.streaming ? null : msgAt(msg)
+  // Whether anything hangs under the bubble (see .easy-msg-meta) that the gap
+  // to the next row has to make room for.
+  const hasMeta = (at !== null && showTime) || (isAssistant && !msg.streaming && !!msg.tokens)
   return (
     <div
       className={`easy-msg easy-${msg.role} ${msg.system ? 'easy-system' : ''} ${
         !msg.streaming && !showTime ? 'easy-msg-grouped' : ''
-      }`}
+      } ${hasMeta ? 'easy-msg-has-meta' : ''}`}
       onWheel={(e) => onWheelMsg(e, msg)}
     >
       {msg.replyTo && (
@@ -4761,7 +4730,7 @@ export function EasyChat({
                       <div className="easy-run-head">
                         <code>{t.command}</code>
                         <span className="easy-run-age">
-                          {Math.max(1, Math.round((now - t.startedAt) / 1000))}s
+                          {age < 60 ? `${age}s` : `${Math.round(age / 60)}m`}
                         </span>
                       </div>
                       <pre className="easy-run-out">

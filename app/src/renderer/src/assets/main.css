@@ -342,16 +342,20 @@ button {
    instead of side by side — two icons in a row cost two icon-widths (plus the
    row's own gap) out of the title; stacked, they cost one. */
 .activity-icon-stack {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   flex: none;
-  padding-top: 2px;
+  align-self: center;
 }
-.activity-icon-stack .activity-dot,
-.activity-icon-stack .chat-tree-spinner,
-.activity-icon-stack .chat-tree-bg {
+/* The status rides the icon's top-right corner, like an app badge. */
+.activity-icon-stack .activity-badge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
   margin: 0;
 }
 .activity-dot.unread {
@@ -2346,6 +2350,14 @@ button {
    just snapping. */
 .easy-msg.easy-msg-grouped {
   margin-bottom: 3px;
+}
+/* The time/token line hangs 17px under the bubble (absolutely, so a grouped
+   message's faded-out time takes no room). Tightening the gaps above left it
+   overlapping the next row — a turn's "N steps" strip, most visibly — so a
+   message that actually shows one keeps the room for it. After .grouped on
+   purpose: a grouped reply can still carry its token count. */
+.easy-msg.easy-msg-has-meta {
+  margin-bottom: 16px;
 }
 .easy-user .easy-msg-meta {
   right: 6px;
@@ -6345,12 +6357,16 @@ button {
  * stacked label-over-hint — so both selectors ask for a label that is a DIRECT
  * child, which its nested .easy-control-item-text does not satisfy.
  */
-.easy-control-menu:has(> .easy-control-item > .easy-control-item-label) {
+/* Not the background-task popover: its Stop button has a label too, which
+   pulled the whole popover into this grid — the command block landed in the
+   max-content column at its full unwrapped width, and the output and the
+   button's hint were squeezed into what was left, one letter per line. */
+.easy-control-menu:not(.easy-run-menu):has(> .easy-control-item > .easy-control-item-label) {
   display: grid;
   grid-template-columns: max-content 1fr;
   align-content: start;
 }
-.easy-control-item:has(> .easy-control-item-label) {
+.easy-control-menu:not(.easy-run-menu) > .easy-control-item:has(> .easy-control-item-label) {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: span 2;
@@ -8885,6 +8901,31 @@ button {
 }
 .sidebar-dash-row:hover {
   background: var(--hover);
+  color: var(--text-primary);
+}
+/* The Chats row with its compose button riding on its right edge. Always
+   visible, not hover-only: it's the quickest way to start any conversation,
+   so it shouldn't need finding. */
+.sidebar-dash-wrap {
+  position: relative;
+}
+.sidebar-dash-new {
+  position: absolute;
+  top: 2px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-tertiary);
+}
+.sidebar-dash-new:hover {
+  background: var(--active, var(--hover));
   color: var(--text-primary);
 }
 /* Selected reads the same here as it does on a project row — these take the
