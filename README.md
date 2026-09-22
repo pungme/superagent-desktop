@@ -389,14 +389,19 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
 
       cd app && npm run release
 
-  Or let CI do it: push a version bump (app/package.json + notes-<version>.md)
-  to main and .github/workflows/release.yml runs that same script on a macOS
-  runner. The channel is the version, not a branch — 1.9.1-beta.17 publishes
-  as a GitHub prerelease (the beta channel), 1.9.2 publishes as latest — so
-  betas and stable releases both come off main. CI needs five repo secrets:
-  MAC_CERT_P12_BASE64 (base64 of the Developer ID .p12) and MAC_CERT_PASSWORD
-  for signing, and APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID for
-  notarizing — the same three app/.env holds locally.
+  Or let CI do it, which is now the usual way — see CLAUDE.md for the short
+  version. Pushing to main releases NOTHING on its own: the trigger is
+  app/package.json's version changing, with a matching notes-<version>.md
+  beside it. .github/workflows/release.yml then runs this same script on a
+  macOS runner (proven since 1.9.1-beta.18; all five secrets are set).
+
+  The channel is the version, not a branch — 1.9.1-beta.19 publishes as a
+  GitHub prerelease (the beta channel), 1.9.2 publishes as latest — so betas
+  and stable releases both come off main. The secrets are MAC_CERT_P12_BASE64
+  (base64 of the Developer ID .p12) and MAC_CERT_PASSWORD for signing, and
+  APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID for notarizing — the
+  same three app/.env holds locally. Never release the same version both ways:
+  they race for the tag (CI skips one that already exists).
 
   That is the whole procedure, and it is the only supported one. Everything
   below is why the script exists rather than instructions to follow by hand —
