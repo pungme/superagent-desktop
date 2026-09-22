@@ -17,6 +17,8 @@ import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
 import { homedir } from 'os'
 import { setChatCwd, takePendingBranch } from './store'
 
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic'])
+
 export interface PublishedBackgroundTask {
   chatId: string
   toolUseId: string
@@ -904,6 +906,32 @@ export function registerFilesIpc(): void {
   // Read a text file for the in-app viewer/editor. Returns null if it's missing,
   // too large, or not decodable as UTF-8 text (so the caller can fall back to the OS).
   ipcMain.handle('files:read', (_e, path: string): string | null => readTextFile(path))
+  /**
+   * A picture small enough to sit in the transcript.
+   *
+   * The chat is HTML and the file viewer is a native pane loading file://, so
+   * the window cannot simply point an <img> at a path on disk. A screenshot
+   * the agent hands over is the answer to the question you asked, though —
+   * it belongs in the conversation, not only in a pane beside it.
+   */
+  ipcMain.handle(
+    'files:thumbnail',
+    (_e, path: string): { mediaType: string; data: string } | null => {
+      try {
+        if (!IMAGE_EXTS.has(extname(path).toLowerCase())) return null
+        // A picture the agent made is small; anything huge is not worth
+        // decoding on the main process to show at 900px.
+        if (statSync(path).size > 40_000_000) return null
+        const img = nativeImage.createFromPath(path)
+        if (img.isEmpty()) return null
+        const { width } = img.getSize()
+        const shown = width > 900 ? img.resize({ width: 900 }) : img
+        return { mediaType: 'image/jpeg', data: shown.toJPEG(72).toString('base64') }
+      } catch {
+        return null
+      }
+    }
+  )
   // Save edits from the in-app editor. Returns true on success.
   ipcMain.handle('files:write', (_e, path: string, content: string): boolean => {
     try {

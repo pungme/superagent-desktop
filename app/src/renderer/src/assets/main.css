@@ -11518,3 +11518,32 @@ button {
   background: var(--hover);
   color: var(--text-secondary);
 }
+
+/* A picture the agent handed over, shown in the transcript rather than
+   described by a file card. Click opens it full size. */
+.easy-file-shot {
+  display: block;
+  max-width: min(420px, 100%);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card, var(--bg-panel));
+  overflow: hidden;
+  text-align: left;
+}
+.easy-file-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  object-fit: cover;
+}
+.easy-file-shot-name {
+  display: block;
+  padding: 5px 9px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.easy-file-shot:hover {
+  border-color: var(--border-strong);
+}

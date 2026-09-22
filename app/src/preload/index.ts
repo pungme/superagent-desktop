@@ -656,6 +656,8 @@ export interface CoveApi {
   filesThumb: (path: string) => Promise<string | null>
   filesOpenExternal: (path: string) => Promise<string>
   fileRead: (path: string) => Promise<string | null>
+  /** A downscaled JPEG of an image file, for showing it inside the chat. */
+  fileThumbnail: (path: string) => Promise<{ mediaType: string; data: string } | null>
   fileWrite: (path: string, content: string) => Promise<boolean>
   gitBranch: (cwd: string) => Promise<string | null>
   /** Ahead/behind vs upstream from local refs (no fetch); null if no upstream. */
@@ -1020,6 +1022,7 @@ const cove: CoveApi = {
   filesThumb: (path) => ipcRenderer.invoke('files:thumb', path),
   filesOpenExternal: (path) => ipcRenderer.invoke('files:openExternal', path),
   fileRead: (path) => ipcRenderer.invoke('files:read', path),
+  fileThumbnail: (path) => ipcRenderer.invoke('files:thumbnail', path),
   fileWrite: (path, content) => ipcRenderer.invoke('files:write', path, content),
   gitBranch: (cwd) => ipcRenderer.invoke('git:branch', cwd),
   gitAheadBehind: (cwd) => ipcRenderer.invoke('git:aheadBehind', cwd),

@@ -695,7 +695,7 @@ const ActivityStrip = memo(function ActivityStrip({
     return e.kind === 'diff' ? (
       <DiffCard diff={e.diff} />
     ) : e.kind === 'file' ? (
-      <FileHandoffCard path={e.file.path} workspaceId={workspaceId} />
+      <FileHandoffCard path={e.file.path} workspaceId={workspaceId} onLightbox={onLightbox} />
     ) : (
       <div className="easy-tools">
         {toolChip(e.tool, 'easy-tool', e.tool.id)}
@@ -732,7 +732,12 @@ const ActivityStrip = memo(function ActivityStrip({
             e.kind === 'diff' ? (
               <DiffCard key={'d' + i} diff={e.diff} />
             ) : e.kind === 'file' ? (
-              <FileHandoffCard key={'f' + i} path={e.file.path} workspaceId={workspaceId} />
+              <FileHandoffCard
+                key={'f' + i}
+                path={e.file.path}
+                workspaceId={workspaceId}
+                onLightbox={onLightbox}
+              />
             ) : (
               <Fragment key={'t' + i}>
                 {toolChip(e.tool, 'easy-toolrow', e.tool.id + i)}
@@ -757,13 +762,41 @@ const ActivityStrip = memo(function ActivityStrip({
  */
 function FileHandoffCard({
   path,
-  workspaceId
+  workspaceId,
+  onLightbox
 }: {
   path: string
   workspaceId: string
+  onLightbox?: (src: string) => void
 }): React.JSX.Element {
   const openPath = useStore((s) => s.openPath)
   const name = path.split('/').pop() || path
+  // A picture the agent hands over belongs in the conversation, not only in
+  // the pane it opened: a card saying "screenshot.png" is a promise to go and
+  // look, and the answer was the picture. Fetched as a downscaled JPEG since
+  // the chat is HTML and cannot read a path on disk itself.
+  const [shot, setShot] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    void window.cove.fileThumbnail?.(path).then((im) => {
+      if (alive && im) setShot(`data:${im.mediaType};base64,${im.data}`)
+    })
+    return () => {
+      alive = false
+    }
+  }, [path])
+  if (shot) {
+    return (
+      <button
+        className="easy-file-shot"
+        onClick={() => (onLightbox ? onLightbox(shot) : openPath(workspaceId, path))}
+        title={path}
+      >
+        <img src={shot} alt={name} />
+        <span className="easy-file-shot-name">{name}</span>
+      </button>
+    )
+  }
   return (
     <button className="easy-file-card" onClick={() => openPath(workspaceId, path)} title={path}>
       <span className="easy-file-icon">📄</span>
