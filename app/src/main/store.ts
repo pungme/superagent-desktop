@@ -825,6 +825,35 @@ export function moveChat(chatId: string, toIndex: number): void {
   db.transaction(() => ids.forEach((id, i) => write.run(i, id)))()
 }
 
+/**
+ * Take a conversation out of its project and into Chats (or any workspace).
+ *
+ * The agent's own session is tied to the folder it ran in — resuming it
+ * somewhere else finds nothing — so the session id is dropped and the context
+ * marked lost, which is what the window already does when a chat changes
+ * agent: the transcript stays, and the caller marks the context lost so the
+ * next message hands the new session the conversation so far. A chat running in its own worktree keeps its branch,
+ * and so stays where it is.
+ */
+export function moveChatToWorkspace(chatId: string, toWorkspaceId: string): boolean {
+  const chat = getChat(chatId)
+  if (!chat || chat.workspaceId === toWorkspaceId) return false
+  if (chat.cwd && chat.cwd.includes('/.worktrees/')) return false
+  const position =
+    ((
+      db.prepare('SELECT COALESCE(MAX(position), -1) AS p FROM chats WHERE workspaceId = ?').get(
+        toWorkspaceId
+      ) as { p: number }
+    ).p ?? -1) + 1
+  db.prepare('UPDATE chats SET workspaceId = ?, cwd = NULL, position = ? WHERE id = ?').run(
+    toWorkspaceId,
+    position,
+    chatId
+  )
+  clearChatSession(chatId)
+  return true
+}
+
 export function deleteChat(chatId: string): void {
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId)
   kvDel(pendingKey(chatId))

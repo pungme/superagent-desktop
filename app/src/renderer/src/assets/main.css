@@ -11425,3 +11425,57 @@ button {
   font-size: 11.5px;
   color: var(--text-tertiary, var(--text-secondary));
 }
+
+/* @-mentions as pills in the composer (see lib/mention-pills.ts). A textarea
+   can't style part of its text, so when there's a pill the textarea's own
+   text goes transparent — the caret and selection stay its — and this layer,
+   laid out with exactly the same box and font, draws the text over it. The
+   pill's shape comes from background + box-shadow, which never move a glyph,
+   so the caret lines up with what you see. */
+.easy-input-box {
+  isolation: isolate;
+}
+.easy-input.has-pills {
+  color: transparent;
+  caret-color: var(--text-primary);
+}
+.easy-input.has-pills::placeholder {
+  color: transparent;
+}
+.easy-input-mirror {
+  position: absolute;
+  inset: 0;
+  padding: 10px 74px 10px 12px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  pointer-events: none;
+}
+.easy-input-mirror::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.easy-input-pill {
+  border-radius: 5px;
+  background: var(--card, var(--bg-content));
+  box-shadow:
+    0 0 0 2px var(--card, var(--bg-content)),
+    0 0 0 2.5px var(--border-strong);
+  color: var(--text-primary);
+}
+
+/* Chats as a drop target: dragging a conversation here takes it out of its
+   project. Only lit while a conversation is actually in hand — a row that
+   highlights for a project being reordered is a promise it can't keep. */
+.sidebar-dash-wrap.droppable .sidebar-dash-row {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.sidebar-dash-wrap.over .sidebar-dash-row {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--text-primary);
+}

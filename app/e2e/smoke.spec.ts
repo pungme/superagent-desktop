@@ -130,8 +130,10 @@ test('@ mentions reach other projects and folders outside this one', async () =>
   await expect(input).toHaveValue(`see @${other}/public/`)
   await input.pressSequentially('logo/m')
   await input.press('Enter')
-  // A file ends the mention with a space, ready for the next word.
-  await expect(input).toHaveValue(`see @${other}/public/logo/mark.svg `)
+  // A file ends the mention with a space, ready for the next word — shown as
+  // its pill (the full path goes back in when the message is sent).
+  await expect(input).toHaveValue('see @mark.svg ')
+  await expect(window.locator('.easy-input-pill')).toHaveText('@mark.svg')
   rmSync(other, { recursive: true, force: true })
 })
 

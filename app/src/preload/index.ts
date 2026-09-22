@@ -504,6 +504,8 @@ export interface CoveApi {
   /** Messages mentioning `query` across every conversation, newest first. */
   chatSearch: (query: string, limit?: number) => Promise<ChatSearchHit[]>
   chatCreate: (workspaceId: string, cwd?: string) => Promise<string>
+  /** Move a conversation to another workspace — Chats, to take it out of its project. */
+  chatMoveToWorkspace: (chatId: string, toWorkspaceId: string) => Promise<boolean>
   /** The desktop's own chat: a workspace that belongs to no project. */
   desktopChatHome: () => Promise<{ workspaceId: string; cwd: string }>
   /** Mirror the desktop's files into that chat's working directory. */
@@ -934,6 +936,8 @@ const cove: CoveApi = {
   chatMove: (chatId, toIndex) => ipcRenderer.invoke('chat:move', chatId, toIndex),
   chatSearch: (query, limit) => ipcRenderer.invoke('chat:search', query, limit),
   chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),
+  chatMoveToWorkspace: (chatId, toWorkspaceId) =>
+    ipcRenderer.invoke('chat:move-to-workspace', chatId, toWorkspaceId),
   desktopChatHome: () => ipcRenderer.invoke('desktop:chat-home'),
   desktopSyncFiles: (paths) => ipcRenderer.invoke('desktop:sync-files', paths),
   desktopReport: (patch) => ipcRenderer.send('desktop:report', patch),

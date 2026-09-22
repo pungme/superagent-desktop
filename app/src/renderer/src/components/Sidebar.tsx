@@ -1367,6 +1367,26 @@ function useAllChats(): Chat[] {
  *  hand-drawn thumbtack outline that read as an illegible smudge at 10px —
  *  two simple primitives hold up at that size where a multi-segment path
  *  doesn't. */
+const CHATS_DROP_ID = 'chats-home'
+
+/**
+ * The Chats row, as somewhere to drop a conversation. Dragging one here takes
+ * it out of its project — Chats is where a conversation that belongs to no
+ * project (and so to no group) lives.
+ */
+function ChatsDropZone({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const { setNodeRef, isOver, active } = useDroppable({ id: CHATS_DROP_ID })
+  const wanted = String(active?.id ?? '').startsWith('chat:')
+  return (
+    <div
+      ref={setNodeRef}
+      className={`sidebar-dash-wrap${wanted ? ' droppable' : ''}${wanted && isOver ? ' over' : ''}`}
+    >
+      {children}
+    </div>
+  )
+}
+
 function PinGlyph(): React.JSX.Element {
   return (
     <svg
@@ -1696,6 +1716,17 @@ export function Sidebar(): React.JSX.Element {
   const moveWorkspace = useStore((s) => s.moveWorkspace)
   const moveGroup = useStore((s) => s.moveGroup)
   const moveChat = useStore((s) => s.moveChat)
+  const moveChatOut = useStore((s) => s.moveChatOut)
+  // Chats' own workspace is made on demand in main, so ask for it at the drop
+  // rather than holding an id that may not exist yet.
+  const takeChatOutOfProject = async (chatId: string): Promise<void> => {
+    const home = await window.cove.desktopChatHome?.()
+    if (!home) return
+    const moved = await moveChatOut(chatId, home.workspaceId)
+    // A chat in its own worktree stays put: its branch lives with the project.
+    if (!moved) return
+    window.dispatchEvent(new CustomEvent('cove:open-chats'))
+  }
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
@@ -1710,6 +1741,11 @@ export function Sidebar(): React.JSX.Element {
     // A conversation dropped on another conversation in the same project.
     if (activeId.startsWith('chat:') && overId.startsWith('chat:')) {
       void moveChat(activeId.slice('chat:'.length), overId.slice('chat:'.length))
+      return
+    }
+    // A conversation dropped on Chats: out of its project it comes.
+    if (activeId.startsWith('chat:') && overId === CHATS_DROP_ID) {
+      void takeChatOutOfProject(activeId.slice('chat:'.length))
       return
     }
     // A conversation makes no sense anywhere else in this sidebar.
@@ -1805,7 +1841,7 @@ export function Sidebar(): React.JSX.Element {
               holds, filling the content area with nothing else around them.
               Its compose button is the one way to start talking that needs no
               project (or group) first. */}
-          <div className="sidebar-dash-wrap">
+          <ChatsDropZone>
             <button
               className={`sidebar-dash-row ${overlay === 'chats' ? 'on' : ''}`}
               onClick={() => window.dispatchEvent(new CustomEvent('cove:open-chats'))}
@@ -1844,7 +1880,7 @@ export function Sidebar(): React.JSX.Element {
                 <path d="M11.5 2.5l2 2L8 10H6V8z" />
               </svg>
             </button>
-          </div>
+          </ChatsDropZone>
           <PinnedShortcuts />
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">

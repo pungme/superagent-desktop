@@ -521,6 +521,8 @@ interface CoveState {
   startFirstChat: (workspaceId: string) => Promise<void>
   /** Put a conversation where you dropped it, within its project. */
   moveChat: (chatId: string, beforeChatId: string) => Promise<void>
+  /** Take a conversation out of its project, into Chats. */
+  moveChatOut: (chatId: string, toWorkspaceId: string) => Promise<boolean>
 }
 
 // Dedupe concurrent loadChats() calls per workspace. Without this, React
@@ -1459,6 +1461,25 @@ export const useStore = create<CoveState>((set, get) => ({
   // A newly created project gets one root conversation. WorkspaceView must not
   // independently create another for code folders: those two paths used to
   // race and leave a duplicate nested "New chat / no branch yet" row.
+  moveChatOut: async (chatId, toWorkspaceId) => {
+    const from = Object.keys(get().chats).find((wid) =>
+      (get().chats[wid] ?? []).some((c) => c.id === chatId)
+    )
+    const moved = await window.cove.chatMoveToWorkspace(chatId, toWorkspaceId)
+    if (!moved) return false
+    // Both ends of the move, so the row leaves its project and arrives in
+    // Chats without waiting for anything else to reload them.
+    await get().loadChats(toWorkspaceId)
+    if (from) {
+      await get().loadChats(from)
+      set((s) => {
+        const active = { ...s.activeChatId }
+        if (active[from] === chatId) active[from] = (s.chats[from] ?? [])[0]?.id ?? ''
+        return { activeChatId: active }
+      })
+    }
+    return true
+  },
   moveChat: async (chatId, beforeChatId) => {
     const workspaceId = Object.keys(get().chats).find((wid) =>
       (get().chats[wid] ?? []).some((c) => c.id === chatId)

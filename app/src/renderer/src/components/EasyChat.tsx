@@ -30,6 +30,14 @@ import {
   type AgentProvider
 } from '../../../shared/agent-provider'
 import { bgLabel } from '../lib/bg-label'
+import {
+  compactMentions,
+  expandMentions,
+  pillBefore,
+  pillSegments,
+  registerMention,
+  type MentionMap
+} from '../lib/mention-pills'
 
 interface ChatMessage {
   id: string
@@ -1079,6 +1087,14 @@ export function EasyChat({
 }: EasyChatProps): React.JSX.Element {
   const [items, setItems] = useState<Item[]>([])
   const [input, setInput] = useState('')
+  // Finished @mentions sit in the text as short tokens drawn as pills; this
+  // holds the full path each one stands for (see lib/mention-pills).
+  // One Map for the life of the chat, filled in place — it never needs to
+  // re-render anything on its own; the text change beside it already does.
+  const [mentionMap] = useState<MentionMap>(() => new Map())
+  const mirrorRef = useRef<HTMLDivElement>(null)
+  // Where the caret belongs after a mention was shortened under it.
+  const caretAfterRef = useRef<number | null>(null)
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
   const [agentFailed, setAgentFailed] = useState<boolean | 'missing-cwd'>(false)
@@ -1435,8 +1451,23 @@ export function EasyChat({
   const pendingTextRef = useRef(false)
   const pendingThinkRef = useRef('')
   const flushRafRef = useRef<number | null>(null)
+  // A chat that isn't on screen still streams: it stays mounted so its agent
+  // keeps running (see WorkspaceView's mountedChats). Flushing it every frame
+  // like the one you're looking at meant each background session re-rendered
+  // its whole chat 60 times a second — on the same thread as your typing, so
+  // a few busy sessions made the composer lag. Off screen, once a second is
+  // plenty; coming back on screen lands whatever is pending at once.
+  const flushTimerRef = useRef<number | null>(null)
+  const visibleRef = useRef(visible)
+  useLayoutEffect(() => {
+    visibleRef.current = visible
+  }, [visible])
   const flushStream = useCallback(() => {
     flushRafRef.current = null
+    if (flushTimerRef.current !== null) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
     const textDirty = pendingTextRef.current
     const addThink = pendingThinkRef.current
     pendingTextRef.current = false
@@ -1472,8 +1503,9 @@ export function EasyChat({
     )
   }, [])
   const scheduleFlush = useCallback(() => {
-    if (flushRafRef.current !== null) return
-    flushRafRef.current = requestAnimationFrame(flushStream)
+    if (flushRafRef.current !== null || flushTimerRef.current !== null) return
+    if (visibleRef.current) flushRafRef.current = requestAnimationFrame(flushStream)
+    else flushTimerRef.current = window.setTimeout(flushStream, 1000)
   }, [flushStream])
   // Flush synchronously NOW (used at block boundaries, before streamTextRef /
   // streamingIdRef are reset for the next block — a buffered tail must land on the
@@ -1488,9 +1520,14 @@ export function EasyChat({
   useEffect(
     () => () => {
       if (flushRafRef.current !== null) cancelAnimationFrame(flushRafRef.current)
+      if (flushTimerRef.current !== null) clearTimeout(flushTimerRef.current)
     },
     []
   )
+  // Switched to: don't make the reader wait out the background interval.
+  useEffect(() => {
+    if (visible && flushTimerRef.current !== null) drainStream()
+  }, [visible, drainStream])
   // Whether a turn is in flight, tracked as a ref so it's correct SYNCHRONOUSLY.
   // The `generating` state lags a render behind, so firing several messages in
   // quick succession made each one read `generating` as still false — so they
@@ -1986,7 +2023,10 @@ export function EasyChat({
       // Replace the trailing "@query" with "@path ". A folder gets no trailing
       // space and keeps the menu open, now listing what's inside it.
       const folder = item.text.endsWith('/')
-      setInput(input.replace(/@[\w./~-]*$/, `@${item.text}${folder ? '' : ' '}`))
+      // A folder keeps its full path while you're still inside it; a file is
+      // done, so it goes in as its pill.
+      const shown = folder ? item.text : registerMention(item.text, mentionMap)
+      setInput(input.replace(/@[\w./~-]*$/, `@${shown}${folder ? '' : ' '}`))
       setMentionQuery(folder ? item.text : null)
       setMentionIndex(0)
     }
@@ -3479,7 +3519,26 @@ export function EasyChat({
     return () => window.removeEventListener('cove:command-stop-agent', onStop)
   }, [visible, interruptNow])
 
-  const send = (): void => submit(input.trim(), pendingImages)
+  const pillRuns = useMemo(() => pillSegments(input, mentionMap), [input, mentionMap])
+  // After a mention was shortened under the caret, put the caret back where
+  // the typing was; and keep the pill layer scrolled (and gutter-matched) with
+  // the textarea it sits over.
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    if (caretAfterRef.current !== null) {
+      el.setSelectionRange(caretAfterRef.current, caretAfterRef.current)
+      caretAfterRef.current = null
+    }
+    const mirror = mirrorRef.current
+    if (mirror) {
+      mirror.style.overflowY = el.scrollHeight > el.clientHeight + 1 ? 'scroll' : 'hidden'
+      mirror.scrollTop = el.scrollTop
+    }
+  }, [input])
+
+  const send = (): void =>
+    submit(expandMentions(input.trim(), mentionMap), pendingImages)
   submitRef.current = (t, images, opts) => submit(t, images, opts)
 
   // Hold Send while the agent is working to send AFTER it finishes, instead of
@@ -3487,7 +3546,7 @@ export function EasyChat({
   // above the composer shows what's waiting, and the generating→false effect
   // sends it. Holding while idle is just a normal send (nothing to wait for).
   const queueForLater = (): void => {
-    const text = input.trim()
+    const text = expandMentions(input.trim(), mentionMap)
     if (!text && pendingImages.length === 0 && pendingFiles.length === 0) return
     setQueued((q) => [
       ...q,
@@ -4254,7 +4313,7 @@ export function EasyChat({
         <div className="easy-input-box">
           <textarea
             ref={inputRef}
-            className="easy-input"
+            className={`easy-input${pillRuns.some((r) => r.pill) ? ' has-pills' : ''}`}
             value={input}
             placeholder={
               ready || suspended
@@ -4266,11 +4325,30 @@ export function EasyChat({
             rows={1}
             disabled={!ready && !suspended}
             onChange={(e) => {
-              setInput(e.target.value)
+              const el = e.target
+              const c = compactMentions(el.value, el.selectionStart, mentionMap)
+              if (c.text !== el.value) caretAfterRef.current = c.caret
+              setInput(c.text)
               autoResize()
-              updateMention(e.target.value)
+              updateMention(c.text)
+            }}
+            onScroll={(e) => {
+              if (mirrorRef.current) mirrorRef.current.scrollTop = e.currentTarget.scrollTop
             }}
             onKeyDown={(e) => {
+              if (e.key === 'Backspace' && !e.metaKey && !e.altKey) {
+                const el = e.currentTarget
+                if (el.selectionStart === el.selectionEnd) {
+                  const start = pillBefore(input, el.selectionStart, mentionMap)
+                  if (start !== null) {
+                    e.preventDefault()
+                    caretAfterRef.current = start
+                    setInput(input.slice(0, start) + input.slice(el.selectionStart))
+                    setMentionQuery(null)
+                    return
+                  }
+                }
+              }
               if (mentionMatches.length > 0) {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault()
@@ -4313,7 +4391,7 @@ export function EasyChat({
                 // ⌘⏎ (or ⌥⏎) while it's working: stop what it's doing and take
                 // this message now, instead of queueing it behind the current step.
                 if ((e.metaKey || e.altKey) && (generating || thinking)) {
-                  const text = input.trim()
+                  const text = expandMentions(input.trim(), mentionMap)
                   if (text) {
                     setItems((prev) => [
                       ...prev,
@@ -4331,6 +4409,22 @@ export function EasyChat({
               }
             }}
           />
+          {pillRuns.some((r) => r.pill) && (
+            <div ref={mirrorRef} className="easy-input-mirror" aria-hidden="true">
+              {pillRuns.map((r, i) =>
+                r.pill ? (
+                  <span key={i} className="easy-input-pill">
+                    {r.text}
+                  </span>
+                ) : (
+                  <Fragment key={i}>{r.text}</Fragment>
+                )
+              )}
+              {/* A trailing newline lays out as a line in the textarea but not
+                  in a div; this keeps the two the same height. */}
+              {'\u200b'}
+            </div>
+          )}
           <input
             ref={fileInputRef}
             type="file"

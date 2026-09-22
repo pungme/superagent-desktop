@@ -29,6 +29,7 @@ import {
 import { startMcpServer } from './mcp'
 import {
   getChat,
+  moveChatToWorkspace,
   registerStoreIpc,
   setChatPinned,
   storageByProject,
@@ -44,7 +45,7 @@ import { registerChatBrowserTabsIpc } from './chat-browser-tabs'
 import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
-import { registerAgentIpc, killAllAgents } from './agent'
+import { registerAgentIpc, killAllAgents, markContextLost } from './agent'
 import { startCompanionLog, forgetChat } from './companion/log'
 import {
   startCompanion,
@@ -318,6 +319,18 @@ app.whenReady().then(async () => {
   ipcMain.on('chat:throw-request', (e, p: { chatId: string; workspaceId: string }) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (win) void askThrowAway(win, p)
+  })
+  // Dragged out of its project (onto Chats, say). Lives here rather than in
+  // store.ts so the store keeps out of the agent's business: the session goes
+  // with the folder it ran in, so the next message re-seeds the new one with
+  // the conversation so far.
+  ipcMain.handle('chat:move-to-workspace', (_e, chatId: string, toWorkspaceId: string) => {
+    const moved = moveChatToWorkspace(String(chatId), String(toWorkspaceId))
+    if (moved) {
+      markContextLost(String(chatId))
+      broadcastToWindows('projects:changed', {})
+    }
+    return moved
   })
   // Deleting a chat that still has unkept changes: the renderer asks here for
   // the three-way native dialog before anything happens.
