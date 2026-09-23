@@ -766,7 +766,14 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   >([])
   const [selfBranch, setSelfBranch] = useState<string | null>(null) // branch if the project folder is itself a repo
   const [aheadBehind, setAheadBehind] = useState<{ ahead: number; behind: number } | null>(null)
-  const [reposOpen, setReposOpen] = useState(false) // collapsed by default
+  // Collapsed by default, and remembered per project so a tidy sidebar stays tidy.
+  const [reposOpen, setReposOpenState] = useState(
+    () => localStorage.getItem(`repos-open:${ws.id}`) === '1'
+  )
+  const setReposOpen = (open: boolean): void => {
+    setReposOpenState(open)
+    localStorage.setItem(`repos-open:${ws.id}`, open ? '1' : '0')
+  }
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
   const openFolderAsProject = useStore((s) => s.openFolderAsProject)
 
@@ -925,6 +932,26 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         <span className="sidebar-item-name" title={ws.path}>
           {displayName}
         </span>
+        {/* The project row is the root of its repos: its own caret folds them
+            away, rather than a separate "N repos" row that stayed on screen
+            under every project even when collapsed. */}
+        {subrepos.length > 0 && (
+          <button
+            className="sidebar-item-caret"
+            title={reposOpen ? 'Hide repos' : `Show ${subrepos.length} repos`}
+            aria-expanded={reposOpen}
+            aria-label={reposOpen ? 'Hide repos' : `Show ${subrepos.length} repos`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              setReposOpen(!reposOpen)
+            }}
+          >
+            <span style={{ transform: reposOpen ? 'none' : 'rotate(-90deg)' }}>
+              <Chevron size={12} />
+            </span>
+          </button>
+        )}
         {unreadHere && !active && (
           <span className="sidebar-unread" title="Claude finished something you haven't read" />
         )}
@@ -960,23 +987,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           ×
         </button>
       </div>
-      {subrepos.length > 0 && (
+      {subrepos.length > 0 && reposOpen && (
         <div className="routine-tree">
-          <button
-            className="repo-tree-toggle"
-            onClick={() => setReposOpen((v) => !v)}
-            aria-expanded={reposOpen}
-          >
-            <span
-              className="repo-tree-caret"
-              style={{ transform: reposOpen ? 'none' : 'rotate(-90deg)' }}
-            >
-              <Chevron size={12} />
-            </span>
-            {subrepos.length} repos
-          </button>
-          {reposOpen &&
-            subrepos.map((r) => (
+          {subrepos.map((r) => (
               <div
                 key={r.path}
                 className={`routine-tree-row repo-tree-row ${selectedRepo === r.path ? 'selected' : ''}`}

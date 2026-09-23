@@ -914,28 +914,27 @@ button {
 }
 
 /* Git sub-repos nested under a code project. */
-.repo-tree-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  border: none;
-  background: none;
-  color: var(--text-tertiary);
-  font-size: 11px;
-  padding: 3px 8px 3px 10px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.repo-tree-toggle:hover {
-  color: var(--text-secondary);
-}
-
-.repo-tree-caret {
+/* Folds a project's repos away, from the project row itself. */
+.sidebar-item-caret {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
   color: var(--text-tertiary);
+  cursor: pointer;
+}
+.sidebar-item-caret:hover {
+  color: var(--text-primary);
+  background: var(--hover);
+}
+.sidebar-item-caret > span {
+  display: inline-flex;
   transition: transform 0.12s ease;
 }
 
