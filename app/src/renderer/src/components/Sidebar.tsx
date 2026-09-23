@@ -10,7 +10,12 @@ import {
   useDroppable,
   useDndContext
 } from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useStore, normalizeCwd, movedSinceSeen, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
@@ -1360,9 +1365,11 @@ function FlatProjects({
       {group.workspaces.map((ws, i) => (
         <WorkspaceRow key={ws.id} ws={ws} index={i} />
       ))}
-      <button className="sidebar-flat-add" onClick={() => addWorkspace(group.id)}>
-        + Add a project
-      </button>
+      {group.workspaces.length === 0 && (
+        <button className="sidebar-flat-add" onClick={() => addWorkspace(group.id)}>
+          + Add a project
+        </button>
+      )}
     </div>
   )
 }
@@ -1485,6 +1492,9 @@ function PinnedRow({
   const renameChat = useStore((s) => s.renameChat)
   const [editing, setEditing] = useState(false)
   const projectIcon = useProjectIcon(chat.workspaceId, projectPath ?? '', projectKind ?? '')
+  // Drag to reorder the Pinned list. The 5px activation distance keeps a
+  // click a click.
+  const drag = useSortable({ id: `pin:${chat.id}`, disabled: editing })
   // A root chat usually has no title of its own — "New chat" — so the
   // project's name is the useful label. But it can be renamed like any
   // other chat (the tree's own project row just doesn't expose that
@@ -1521,6 +1531,14 @@ function PinnedRow({
 
   return (
     <button
+      ref={drag.setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(drag.transform),
+        transition: drag.transition,
+        opacity: drag.isDragging ? 0.5 : 1
+      }}
+      {...drag.attributes}
+      {...drag.listeners}
       className={`activity-row ${open ? 'on' : ''}`}
       onClick={onOpen}
       onContextMenu={(e) => {
@@ -1631,14 +1649,48 @@ function PinnedShortcuts(): React.JSX.Element | null {
 
   // Most-recently-pinned first, and fixed there — sorting by updatedAt instead
   // reshuffled the whole list every time a pinned chat got a new message.
-  const pinned = chats
+  const sorted = chats
     .filter((c) => c.pinned)
     .sort((a, b) => (b.pinnedAt ?? b.updatedAt) - (a.pinnedAt ?? a.updatedAt))
+  // Drag to reorder. The dropped order shows at once and holds until the chat
+  // list's next poll brings the saved order back, so a row never snaps back
+  // to where it was for a few seconds.
+  const [order, setOrder] = useState<string[] | null>(null)
+  // Saved order is back from the poll: follow the data again, so a later
+  // change (a new pin, a reorder from the phone) isn't hidden behind this one.
+  if (order && sorted.map((c) => c.id).join() === order.join()) setOrder(null)
+  const pinned = order
+    ? [...sorted].sort((a, b) => {
+        const ia = order.indexOf(a.id)
+        const ib = order.indexOf(b.id)
+        return (ia < 0 ? -1 : ia) - (ib < 0 ? -1 : ib)
+      })
+    : sorted
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   if (pinned.length === 0) return null
+  const onDragEnd = (e: DragEndEvent): void => {
+    const from = pinned.findIndex((c) => `pin:${c.id}` === e.active.id)
+    const to = pinned.findIndex((c) => `pin:${c.id}` === e.over?.id)
+    if (from < 0 || to < 0 || from === to) return
+    const ids = arrayMove(
+      pinned.map((c) => c.id),
+      from,
+      to
+    )
+    setOrder(ids)
+    void window.cove.chatReorderPinned(ids)
+  }
 
   return (
     <div className="sidebar-pinned-shortcuts">
       <div className="pinned-section-label">Pinned</div>
+      {/* Its own drag context: a pinned row is a shortcut, not the chat itself,
+          so dropping it among the projects below must not move the real chat. */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext
+          items={pinned.map((c) => `pin:${c.id}`)}
+          strategy={verticalListSortingStrategy}
+        >
       {pinned.map((c) => (
         <PinnedRow
           key={c.id}
@@ -1657,6 +1709,8 @@ function PinnedShortcuts(): React.JSX.Element | null {
           }}
         />
       ))}
+        </SortableContext>
+      </DndContext>
     </div>
   )
 }
@@ -1736,6 +1790,7 @@ export function Sidebar(): React.JSX.Element {
   const refresh = useStore((s) => s.refresh)
   const addGroup = useStore((s) => s.addGroup)
   const setActive = useStore((s) => s.setActive)
+  const addWorkspace = useStore((s) => s.addWorkspace)
   const tabsGroup = tree.find((g) => g.name === TABS_GROUP)
   // Made on first run, so it is normally right there; an older install gets
   // one the moment it is needed (adding a project, or dropping one here).
@@ -1939,18 +1994,38 @@ export function Sidebar(): React.JSX.Element {
             </button>
           </ChatsDropZone>
           <PinnedShortcuts />
+          {/* One section for everything you work in: open tabs first (their
+              favicons set them apart), then projects. It used to be two — a
+              Browse header that, with no tabs open, sat straight on top of the
+              projects and made them read as browse items. The two ways to add
+              something are now two buttons on the one header. */}
           <div className="sidebar-group">
             <div className="sidebar-group-head tabs-head">
-              <span className="sidebar-group-title">Browse</span>
-              <button className="group-add" title="New tab" onClick={() => void newTab()}>
-                +
-              </button>
+              <span className="sidebar-group-title">Projects</span>
+              <span className="sidebar-head-actions">
+                <button className="group-add" title="New tab" onClick={() => void newTab()}>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+                    <circle cx="8" cy="8" r="6.2" />
+                    <path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2" />
+                  </svg>
+                </button>
+                <button
+                  className="group-add"
+                  title="Add a project"
+                  onClick={() => addWorkspace(flatGroup.id)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round">
+                    <path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z" />
+                    <path d="M8 7.3v4M6 9.3h4" />
+                  </svg>
+                </button>
+              </span>
             </div>
             {(tabsGroup?.workspaces ?? []).map((ws, i) => (
               <WorkspaceRow key={ws.id} ws={ws} index={i} />
             ))}
+            <FlatProjects group={flatGroup} />
           </div>
-          <FlatProjects group={flatGroup} />
           {tree
             .filter((g) => g.name !== TABS_GROUP && g.name !== FLAT_GROUP)
             .map((group) => (

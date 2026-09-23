@@ -7562,6 +7562,24 @@ button {
 .tabs-head .group-add {
   opacity: 1;
 }
+/* New tab and Add a project, side by side on the one header. */
+.sidebar-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.sidebar-head-actions .group-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 4px;
+}
+.sidebar-head-actions .group-add:hover {
+  background: var(--hover);
+}
 
 /* iOS Simulator mirrored in the pane. Frames are screenshots (see
    src/main/simulator.ts), so the picture is deliberately calm rather than

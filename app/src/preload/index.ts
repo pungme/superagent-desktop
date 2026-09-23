@@ -501,6 +501,8 @@ export interface CoveApi {
 
   chatList: (workspaceId: string) => Promise<Chat[]>
   chatListAll: () => Promise<Chat[]>
+  /** Save the Pinned section's order, top first. */
+  chatReorderPinned: (chatIds: string[]) => Promise<void>
   /** Reorder a conversation within its project. */
   chatMove: (chatId: string, toIndex: number) => Promise<boolean>
   /** Messages mentioning `query` across every conversation, newest first. */
@@ -942,6 +944,7 @@ const cove: CoveApi = {
 
   chatList: (workspaceId) => ipcRenderer.invoke('chat:list', workspaceId),
   chatListAll: () => ipcRenderer.invoke('chat:listAll'),
+  chatReorderPinned: (chatIds) => ipcRenderer.invoke('chat:reorder-pinned', chatIds),
   chatMove: (chatId, toIndex) => ipcRenderer.invoke('chat:move', chatId, toIndex),
   chatSearch: (query, limit) => ipcRenderer.invoke('chat:search', query, limit),
   chatCreate: (workspaceId, cwd) => ipcRenderer.invoke('chat:create', workspaceId, cwd),

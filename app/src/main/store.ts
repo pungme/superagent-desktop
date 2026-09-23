@@ -641,6 +641,19 @@ export function setChatPinned(chatId: string, pinned: boolean): void {
 }
 
 /**
+ * Put the Pinned list in the order given, top first. The list is sorted by
+ * pinnedAt, newest first, so reordering is rewriting those stamps in
+ * descending order — the phone sorts the same way and follows along.
+ */
+export function reorderPinned(chatIds: string[]): void {
+  const base = Date.now()
+  const stamp = db.prepare('UPDATE chats SET pinnedAt = ? WHERE id = ? AND pinned = 1')
+  db.transaction(() => {
+    chatIds.forEach((id, i) => stamp.run(base - i, id))
+  })()
+}
+
+/**
  * Where a conversation actually works: its own worktree when it has one, the
  * project otherwise. Files created by a chat on a worktree live there and
  * nowhere else, so anything that lists or reads files for a chat has to root

@@ -32,6 +32,7 @@ import {
   moveChatToWorkspace,
   registerStoreIpc,
   setChatPinned,
+  reorderPinned,
   storageByProject,
   clearWorkspaceChats,
   kvGet,
@@ -327,6 +328,11 @@ app.whenReady().then(async () => {
   // store.ts so the store keeps out of the agent's business: the session goes
   // with the folder it ran in, so the next message re-seeds the new one with
   // the conversation so far.
+  ipcMain.handle('chat:reorder-pinned', (_e, chatIds: string[]) => {
+    if (!Array.isArray(chatIds)) return
+    reorderPinned(chatIds.map(String))
+    pushChats()
+  })
   ipcMain.handle('chat:move-to-workspace', (_e, chatId: string, toWorkspaceId: string) => {
     const moved = moveChatToWorkspace(String(chatId), String(toWorkspaceId))
     if (moved) {
