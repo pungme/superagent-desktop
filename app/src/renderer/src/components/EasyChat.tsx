@@ -1985,6 +1985,7 @@ export function EasyChat({
     const onWorkOn = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
       if (detail.workspaceId !== workspaceId || !visible) return
+      setAtBottom(true)
       submitRef.current?.(detail.text, [], { files: [], reply: null, keepComposer: true })
     }
     window.addEventListener('cove:work-on', onWorkOn)
@@ -3586,8 +3587,14 @@ export function EasyChat({
     }
   }, [input])
 
-  const send = (): void =>
+  // You just sent something, so you want to see it — even if you'd scrolled up
+  // to read. Pinning to the bottom lets the auto-scroll effect follow the new
+  // message and the reply after it. Only where YOU send: a loop round or a
+  // held message going out on its own must not yank you away from reading.
+  const send = (): void => {
+    setAtBottom(true)
     submit(expandMentions(input.trim(), mentionMap), pendingImages)
+  }
   submitRef.current = (t, images, opts) => submit(t, images, opts)
 
   // Hold Send while the agent is working to send AFTER it finishes, instead of
@@ -3740,7 +3747,10 @@ export function EasyChat({
   const onRowReply = useCallback((m: ChatMessage) => rowFnsRef.current.beginReply(m), [])
   const onRowEdit = useCallback((m: ChatMessage) => rowFnsRef.current.editMessage(m), [])
   const onRowAnswer = useCallback(
-    (a: string) => rowFnsRef.current.submit(a, [], { files: [], reply: null, keepComposer: true }),
+    (a: string) => {
+      setAtBottom(true)
+      rowFnsRef.current.submit(a, [], { files: [], reply: null, keepComposer: true })
+    },
     []
   )
   const onRowLightbox = useCallback((src: string) => rowFnsRef.current.setLightbox(src), [])
@@ -4791,13 +4801,14 @@ export function EasyChat({
                         ? 'Wait for Claude to finish, then compact'
                         : 'Summarise the conversation so far to free up memory (/compact)'
                     }
-                    onClick={() =>
+                    onClick={() => {
+                      setAtBottom(true)
                       submitRef.current?.('/compact', [], {
                         files: [],
                         reply: null,
                         keepComposer: true
                       })
-                    }
+                    }}
                   >
                     Compact
                   </button>
