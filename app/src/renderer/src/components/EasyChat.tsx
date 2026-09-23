@@ -1030,7 +1030,7 @@ const MessageRow = memo(function MessageRow({
       {segments
         ? segments.map((seg, si) =>
             'md' in seg ? (
-              <Markdown key={si} text={seg.md} streaming={msg.streaming} />
+              <Markdown key={si} text={seg.md} streaming={msg.streaming} onImage={onLightbox} />
             ) : (
               <Choices key={si} spec={seg.ask} onAnswer={onAnswer} />
             )

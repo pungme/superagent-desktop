@@ -11502,6 +11502,34 @@ button {
   color: var(--text-secondary);
 }
 
+/* An image written into a reply's markdown: a preview, not a full-width
+   picture — the text around it stays readable. Click for the lightbox. */
+.md-img {
+  max-width: 100%;
+  height: auto;
+}
+.md-img-thumb {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  overflow: hidden;
+  cursor: zoom-in;
+  vertical-align: top;
+}
+.md-img-thumb img {
+  display: block;
+  max-width: min(280px, 100%);
+  max-height: 180px;
+  width: auto;
+  height: auto;
+}
+.md-img-thumb:hover {
+  border-color: var(--border-strong);
+}
+
 /* A picture the agent handed over, shown in the transcript rather than
    described by a file card. Click opens it full size. */
 .easy-file-shot {

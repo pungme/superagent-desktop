@@ -95,11 +95,15 @@ function CodeBlock({
 /** Renders assistant text as GitHub-flavored markdown, with copyable code blocks. */
 export const Markdown = memo(function Markdown({
   text,
-  streaming
+  streaming,
+  onImage
 }: {
   text: string
   /** The bubble is still receiving tokens — defer expensive syntax highlight. */
   streaming?: boolean
+  /** Show images as a small thumbnail that calls this with the full image —
+   *  the chat's lightbox. Without it (a file viewer) they render full width. */
+  onImage?: (src: string) => void
 }): React.JSX.Element {
   return (
     <div className="md">
@@ -116,6 +120,22 @@ export const Markdown = memo(function Markdown({
               <code className="md-inline-code" {...props}>
                 {children}
               </code>
+            )
+          },
+          // A screenshot in a reply used to fill the whole bubble width, pushing
+          // the text around it apart. In the chat it is a preview; the click
+          // opens it full size.
+          img({ src, alt }) {
+            if (typeof src !== 'string' || !src) return null
+            if (!onImage) return <img className="md-img" src={src} alt={alt ?? ''} />
+            return (
+              <button
+                className="md-img-thumb"
+                onClick={() => onImage(src)}
+                title={alt ? `${alt} — click to enlarge` : 'Click to enlarge'}
+              >
+                <img src={src} alt={alt ?? ''} />
+              </button>
             )
           },
           a({ children, href }) {
