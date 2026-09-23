@@ -1933,13 +1933,6 @@ export function Sidebar(): React.JSX.Element {
             {(tabsGroup?.workspaces ?? []).map((ws, i) => (
               <WorkspaceRow key={ws.id} ws={ws} index={i} />
             ))}
-            {(tabsGroup?.workspaces ?? []).length === 0 && (
-              // Was "Click + to browse" — grey text aiming you at a control an
-              // inch away. It opens the tab itself now.
-              <button className="tabs-empty" onClick={() => void newTab()}>
-                Open a tab to browse
-              </button>
-            )}
           </div>
           <FlatProjects group={flatGroup} />
           {tree
