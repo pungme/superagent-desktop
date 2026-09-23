@@ -6,6 +6,7 @@ import { getMcpUrl } from '../mcp'
 import { buildAppendedPrompt } from '../prompts'
 import { findClaude } from '../claude-cli'
 import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
+import { cachedClaudeModels } from './models'
 import type { AgentBackend, AgentStartOptions, SessionContext, SessionHost } from '../agent-backend'
 
 /**
@@ -197,7 +198,13 @@ export function startClaudeSession(
         if (!line) continue
         try {
           const event = JSON.parse(line)
-          if (event?.type === 'system' && event?.subtype === 'init') sawInit = true
+          if (event?.type === 'system' && event?.subtype === 'init') {
+            sawInit = true
+            // Carry the CLI's own model line-up on init, the way Codex's does, so
+            // the picker (here and on the phone) names whatever models are current.
+            const models = cachedClaudeModels()
+            if (models && !event.models) event.models = models
+          }
           host.event(event)
         } catch {
           // partial or non-JSON line; ignore

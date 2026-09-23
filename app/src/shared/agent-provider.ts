@@ -40,7 +40,8 @@ export const PROVIDER_BINARY: Record<AgentProvider, string> = {
  * other is not a bad setting, it is a CLI that refuses to start — which is how
  * a conversation on the wrong agent goes silent.
  */
-const CLAUDE_MODELS = /^(default|opus|sonnet|haiku|fable|mythos)(\[[^\]]+\])?$/i
+// Full ids too (claude-fable-5-1[1m]): the CLI's own picker hands some out.
+const CLAUDE_MODELS = /^(default|opus|sonnet|haiku|fable|mythos|claude-[\w.-]+)(\[[^\]]+\])?$/i
 
 export function modelBelongsTo(model: string | undefined, provider: AgentProvider): boolean {
   if (!model) return true

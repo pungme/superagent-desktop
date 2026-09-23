@@ -58,6 +58,7 @@ import { startTray, refreshTray } from './tray'
 import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
+import { registerClaudeModelsIpc } from './claude/models'
 import { registerFilesIpc } from './files'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
@@ -262,6 +263,7 @@ app.whenReady().then(async () => {
   registerSkillsIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
+  registerClaudeModelsIpc()
   registerFilesIpc()
   registerSimulatorIpc()
   buildMenu()

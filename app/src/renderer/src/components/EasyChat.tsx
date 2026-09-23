@@ -586,20 +586,16 @@ function extractPorts(text: string): number[] {
 
 // Model choices for the composer picker. '' = Claude's own default (whatever the
 // CLI is configured to use); the rest are passed as --model at spawn.
-// Order + wording follow Claude Code's own /model picker so the two agree.
-// The 1M variants for Opus/Sonnet are deliberate: plain `opus` runs the 200K
-// model, so picking it here quietly gave a fifth of the window the default
-// already had (the CLI resolves the default to claude-opus-5[1m]).
+// The real list comes from the installed CLI (window.cove.claudeModels — the
+// same line-up as its own /model picker, so new models appear on their own).
+// This is only the fallback while that's loading or if the CLI can't answer,
+// so it names families, never versions, to keep it from going stale.
 const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: '', label: 'Default', hint: 'Recommended · best for everyday, complex tasks' },
-  { value: 'opus[1m]', label: 'Opus', hint: 'Opus 5 · 1M context · everyday, complex tasks' },
-  {
-    value: 'fable',
-    label: 'Fable',
-    hint: 'Fable 5 · most capable, for the hardest, longest tasks'
-  },
-  { value: 'sonnet[1m]', label: 'Sonnet', hint: 'Sonnet 5 · efficient for routine tasks' },
-  { value: 'haiku', label: 'Haiku', hint: 'Haiku 4.5 · fastest for quick answers' }
+  { value: 'opus[1m]', label: 'Opus', hint: '1M context · everyday, complex tasks' },
+  { value: 'fable', label: 'Fable', hint: 'Most capable, for the hardest, longest tasks' },
+  { value: 'sonnet', label: 'Sonnet', hint: 'Efficient for routine tasks' },
+  { value: 'haiku', label: 'Haiku', hint: 'Fastest for quick answers' }
 ]
 
 /**
@@ -610,7 +606,10 @@ function shortModel(id: string): string {
   const known = ['opus', 'sonnet', 'haiku', 'fable', 'mythos']
   const hit = known.find((k) => id.toLowerCase().includes(k))
   if (!hit) return 'Default'
-  const version = /-(\d+(?:\.\d+)?)/.exec(id.toLowerCase().split(hit)[1] ?? '')?.[1]
+  // "-5-5" → 5.5, "-4-5-20251001" → 4.5, "-5-20260115" → 5 (a date isn't a minor).
+  const version = /-(\d+(?:[.-]\d{1,2})?)(?!\d)/
+    .exec(id.toLowerCase().split(hit)[1] ?? '')?.[1]
+    ?.replace('-', '.')
   return hit[0].toUpperCase() + hit.slice(1) + (version ? ` ${version}` : '')
 }
 
@@ -1662,14 +1661,28 @@ export function EasyChat({
   /**
    * The models the running session says this account can use.
    *
-   * Claude Code doesn't report a list, so its picker stays the curated constant
-   * below. Codex does, and asking beats hardcoding: its line-up moves, and a
-   * baked-in list goes stale silently — the picker would keep offering a model
+   * Both agents report one, and asking beats hardcoding: the line-up moves, and
+   * a baked-in list goes stale silently — the picker would keep offering a model
    * that no longer exists and quietly fall back to the default.
    */
   const [sessionModels, setSessionModels] = useState<
     { value: string; label: string; hint: string }[] | null
   >(null)
+  /** Claude's line-up asked of the CLI up front, so the picker is right before
+   * the first message starts a session. */
+  const [claudeModels, setClaudeModels] = useState<
+    { value: string; label: string; hint: string }[] | null
+  >(null)
+  useEffect(() => {
+    let alive = true
+    void window.cove.claudeModels?.().then((list) => {
+      if (alive && list?.length)
+        setClaudeModels(list.map((m) => ({ value: m.id, label: m.label, hint: m.hint })))
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   // Load files (@-mentions) and skills/commands (/-commands) once.
   useEffect(() => {
@@ -2159,8 +2172,11 @@ export function EasyChat({
         if (typeof win === 'number' && win > 0) setReportedCtxWindow(win)
         const reported = event.models as { id: string; label: string; hint: string }[] | undefined
         if (Array.isArray(reported) && reported.length) {
+          // Claude's list carries its own Default entry; Codex's doesn't.
           setSessionModels([
-            { value: '', label: 'Default', hint: 'Whatever your account uses' },
+            ...(reported.some((m) => m.id === '')
+              ? []
+              : [{ value: '', label: 'Default', hint: 'Whatever your account uses' }]),
             ...reported.map((m) => ({ value: m.id, label: m.label, hint: m.hint }))
           ])
         }
@@ -4004,8 +4020,14 @@ export function EasyChat({
    * its init event; until they do, a Codex chat offers Default alone rather than
    * Claude's line-up, which it cannot run.
    */
-  const modelOptions = sessionModels ?? (provider === 'claude' ? MODEL_OPTIONS : [MODEL_OPTIONS[0]])
-  const modelLabel = modelOptions.find((m) => m.value === effectiveModel)?.label ?? 'Default'
+  const modelOptions =
+    sessionModels ??
+    (provider === 'claude' ? (claudeModels ?? MODEL_OPTIONS) : [MODEL_OPTIONS[0]])
+  // A chat pinned to a model the line-up no longer lists (an old "sonnet[1m]")
+  // still runs on it — name it rather than claiming Default.
+  const modelLabel =
+    modelOptions.find((m) => m.value === effectiveModel)?.label ??
+    (effectiveModel ? shortModel(effectiveModel) : 'Default')
   /**
    * How much of the agent's memory this conversation fills. The window depends on
    * the model running — read from the id it reports at startup.

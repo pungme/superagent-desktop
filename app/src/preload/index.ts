@@ -639,6 +639,8 @@ export interface CoveApi {
     claudeVersion: string | null
     loggedIn: boolean
   }>
+  /** Claude Code's current model line-up, from the installed CLI; null if it couldn't say. */
+  claudeModels: () => Promise<{ id: string; label: string; hint: string }[] | null>
   envVersion: () => Promise<Record<AgentProvider, { installed: boolean; version: string | null }>>
   /** Install an agent's CLI; onLine streams the installer's progress. */
   installAgent: (
@@ -1007,6 +1009,7 @@ const cove: CoveApi = {
   },
 
   envDetect: () => ipcRenderer.invoke('env:detect'),
+  claudeModels: () => ipcRenderer.invoke('claude:models'),
   envVersion: () => ipcRenderer.invoke('env:version'),
   installAgent: (provider, onLine) => {
     const listener = (_e: Electron.IpcRendererEvent, line: string): void => onLine(line)
