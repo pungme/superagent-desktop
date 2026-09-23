@@ -664,7 +664,9 @@ export interface CoveApi {
   gitBranch: (cwd: string) => Promise<string | null>
   /** Ahead/behind vs upstream from local refs (no fetch); null if no upstream. */
   gitAheadBehind: (cwd: string) => Promise<{ ahead: number; behind: number } | null>
-  gitSubrepos: (root: string) => Promise<{ name: string; path: string; branch: string | null }[]>
+  gitSubrepos: (
+    root: string
+  ) => Promise<{ name: string; path: string; branch: string | null; cloning?: boolean }[]>
 
   routinesList: (workspaceId?: string) => Promise<Routine[]>
   routinesCreate: (

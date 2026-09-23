@@ -204,9 +204,27 @@ export function gitBranch(cwd: string): string | null {
     }
     const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim()
     const ref = head.match(/^ref:\s*refs\/heads\/(.+)$/)
+    // `.invalid` is the placeholder git clone points HEAD at until it knows the
+    // real branch — not a branch anyone is on. See isCloning.
+    if (ref?.[1] === CLONE_PLACEHOLDER) return null
     return ref ? ref[1] : head.slice(0, 7)
   } catch {
     return null
+  }
+}
+
+const CLONE_PLACEHOLDER = '.invalid'
+
+/** Whether `git clone` is still running in this repo: until it finishes, HEAD
+ *  points at the `.invalid` placeholder, which the sidebar showed as a branch. */
+function isCloning(cwd: string): boolean {
+  try {
+    return (
+      readFileSync(join(cwd, '.git', 'HEAD'), 'utf8').trim() ===
+      `ref: refs/heads/${CLONE_PLACEHOLDER}`
+    )
+  } catch {
+    return false
   }
 }
 
@@ -237,6 +255,8 @@ export interface SubRepo {
   name: string
   path: string
   branch: string | null
+  /** A clone still in progress — no branch yet. */
+  cloning?: boolean
 }
 
 /**
@@ -256,7 +276,7 @@ export function gitSubrepos(root: string): SubRepo[] {
       } catch {
         continue
       }
-      out.push({ name: e.name, path, branch: gitBranch(path) })
+      out.push({ name: e.name, path, branch: gitBranch(path), cloning: isCloning(path) || undefined })
     }
     return out.sort((a, b) => a.name.localeCompare(b.name))
   } catch {

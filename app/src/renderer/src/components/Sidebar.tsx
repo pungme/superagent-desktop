@@ -761,9 +761,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
 
   // Git repos nested inside a code project's folder (a folder-of-repos), shown
   // tree-style under it. Refreshed after Claude's turns (branches/repos change).
-  const [subrepos, setSubrepos] = useState<{ name: string; path: string; branch: string | null }[]>(
-    []
-  )
+  const [subrepos, setSubrepos] = useState<
+    { name: string; path: string; branch: string | null; cloning?: boolean }[]
+  >([])
   const [selfBranch, setSelfBranch] = useState<string | null>(null) // branch if the project folder is itself a repo
   const [aheadBehind, setAheadBehind] = useState<{ ahead: number; behind: number } | null>(null)
   const [reposOpen, setReposOpen] = useState(false) // collapsed by default
@@ -988,8 +988,11 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                   <KindIcon kind="code" size={12} />
                 </span>
                 <span className="routine-tree-prompt">{r.name}</span>
-                {r.branch && selectedRepo !== r.path && (
-                  <span className="repo-tree-branch">⎇ {r.branch}</span>
+                {r.cloning ? (
+                  <span className="repo-tree-branch">cloning…</span>
+                ) : (
+                  r.branch &&
+                  selectedRepo !== r.path && <span className="repo-tree-branch">⎇ {r.branch}</span>
                 )}
                 {selectedRepo === r.path && (
                   <button
