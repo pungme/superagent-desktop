@@ -613,7 +613,7 @@ function useProjectIcon(workspaceId: string, path: string, kind: string): Projec
 function ProjectIcon({
   icon,
   kind,
-  size = 15
+  size = 18
 }: {
   icon: ProjectIconState
   kind: string
@@ -631,7 +631,7 @@ function ProjectIcon({
         className="sidebar-favicon"
         src={icon.dataUri}
         alt=""
-        style={size !== 15 ? { width: size, height: size } : undefined}
+        style={size !== 18 ? { width: size, height: size } : undefined}
         // A picked/detected file that fails to render falls back to the plain glyph.
         onError={() => setBroken(true)}
       />
@@ -900,7 +900,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               onError={() => setFavicon('')}
             />
           ) : simHere ? (
-            <PhoneIcon />
+            <PhoneIcon size={18} />
           ) : (
             <ProjectIcon icon={projectIcon} kind={ws.kind} />
           )}
@@ -998,7 +998,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                 onClick={() => setSelectedRepo((cur) => (cur === r.path ? null : r.path))}
               >
                 <span className="repo-tree-icon">
-                  <KindIcon kind="code" size={12} />
+                  <KindIcon kind="code" size={14} />
                 </span>
                 <span className="routine-tree-prompt">{r.name}</span>
                 {r.cloning ? (

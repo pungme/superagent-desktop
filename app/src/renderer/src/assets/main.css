@@ -5099,8 +5099,8 @@ button {
 
 /* A site's own favicon, standing in for the globe on browser projects. */
 .sidebar-favicon {
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
   border-radius: 3px;
   object-fit: contain;
 }
