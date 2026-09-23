@@ -46,6 +46,7 @@ import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents, markContextLost } from './agent'
+import { killAllOneShots } from './kill-tree'
 import { startCompanionLog, forgetChat } from './companion/log'
 import {
   startCompanion,
@@ -764,6 +765,7 @@ process.on('uncaughtException', (err) => {
 app.on('before-quit', () => {
   stopCompanion()
   killAllAgents()
+  killAllOneShots()
   stopRoutines()
   stopAllSimStreams()
   stopAllSimInput()

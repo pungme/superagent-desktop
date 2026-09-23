@@ -1,6 +1,7 @@
 import { spawn } from 'child_process'
 import { getHookUrl } from '../hooks'
 import { findClaude } from '../claude-cli'
+import { killProcessTree, trackOneShot, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import type { RoutineOutcome, RoutineRunOptions, RoutineStep } from '../agent-backend'
 
 /**
@@ -87,9 +88,13 @@ export function runClaudeRoutine(opts: RoutineRunOptions): Promise<RoutineOutcom
           ...process.env,
           COVE_HOOK_URL: getHookUrl(),
           COVE_WORKSPACE_ID: opts.paneId
-        }
+        },
+        // Its own process group, so a timeout or quitting the app stops the
+        // tools it started too, not just the CLI.
+        detached: DETACH_FOR_TREE_KILL
       }
     )
+    trackOneShot(proc)
 
     const steps: RoutineStep[] = []
     let summary = '(no summary)'
@@ -133,7 +138,7 @@ export function runClaudeRoutine(opts: RoutineRunOptions): Promise<RoutineOutcom
     }
 
     const timer = setTimeout(() => {
-      proc.kill()
+      killProcessTree(proc)
       resolve({
         ok: false,
         summary: `Timed out after ${Math.round(opts.timeoutMs / 60000)} minutes.`,

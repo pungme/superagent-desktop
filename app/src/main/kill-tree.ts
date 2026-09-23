@@ -34,3 +34,24 @@ export function killProcessTree(proc: ChildProcess, signal: NodeJS.Signals = 'SI
  *  POSIX only — `detached: true` means something unrelated on Windows (its
  *  own console), and taskkill /T doesn't need it. */
 export const DETACH_FOR_TREE_KILL = process.platform !== 'win32'
+
+/**
+ * One-shot runs the app starts outside a chat session — routine runs, `codex
+ * exec` — so quitting can take them down too. Chat agents have their own
+ * registry (killAllAgents); without this one a routine mid-run kept going after
+ * the app quit, still driving tools until it ran out of turns.
+ */
+const oneShots = new Set<ChildProcess>()
+
+/** Register a one-shot run (spawned with DETACH_FOR_TREE_KILL) until it exits. */
+export function trackOneShot(proc: ChildProcess): void {
+  oneShots.add(proc)
+  proc.once('exit', () => oneShots.delete(proc))
+  proc.once('error', () => oneShots.delete(proc))
+}
+
+/** On quit: stop every one-shot still running, and everything it started. */
+export function killAllOneShots(): void {
+  for (const proc of oneShots) killProcessTree(proc)
+  oneShots.clear()
+}
