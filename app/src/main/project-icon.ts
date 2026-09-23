@@ -75,42 +75,90 @@ function pickBestAppIconFile(dir: string): string | null {
   }
 }
 
-/** Depth-limited so a big node_modules tree can't turn this into a slow walk;
- *  skips hidden dirs and node_modules outright rather than just capping depth. */
-function findAppIconSet(dir: string, depth: number): string | null {
-  let entries: string[]
-  try {
-    entries = readdirSync(dir)
-  } catch {
-    return null
-  }
-  for (const name of entries) {
-    if (name === 'node_modules' || name.startsWith('.')) continue
-    const p = join(dir, name)
-    if (name.endsWith('.appiconset') && existsSync(join(p, 'Contents.json'))) return p
-    if (depth <= 0) continue
-    try {
-      if (statSync(p).isDirectory()) {
-        const nested = findAppIconSet(p, depth - 1)
-        if (nested) return nested
+/** Never where a project's own icon lives, and often huge. */
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'Pods',
+  'Carthage',
+  'DerivedData',
+  'build',
+  'dist',
+  'out',
+  'target',
+  'vendor',
+  '__pycache__'
+])
+
+/** Past this many folders, give up — detection runs on the main process. */
+const MAX_DIRS_VISITED = 1500
+
+/**
+ * Breadth-first, so the shallowest icon set wins, and deep enough to reach an
+ * app inside a project that groups several repos:
+ * repo/SuperAgent/Resources/Assets.xcassets/AppIcon.appiconset is five levels
+ * down, which the old three-level walk never reached. At one level, the main
+ * `AppIcon` beats alternates like `AppIconAmber`, whichever readdir lists first.
+ */
+function findAppIconSet(root: string, maxDepth: number): string | null {
+  let level = [root]
+  let visited = 0
+  for (let depth = 0; depth <= maxDepth && level.length; depth++) {
+    const next: string[] = []
+    const found: string[] = []
+    for (const dir of level) {
+      if (++visited > MAX_DIRS_VISITED) return found[0] ?? null
+      let entries: string[]
+      try {
+        entries = readdirSync(dir)
+      } catch {
+        continue
       }
-    } catch {
-      // unreadable entry (permissions, broken symlink) — skip it
+      for (const name of entries) {
+        if (name.startsWith('.') || SKIP_DIRS.has(name)) continue
+        const p = join(dir, name)
+        if (name.endsWith('.appiconset')) {
+          if (existsSync(join(p, 'Contents.json'))) found.push(p)
+          continue
+        }
+        try {
+          if (statSync(p).isDirectory()) next.push(p)
+        } catch {
+          // unreadable entry (permissions, broken symlink) — skip it
+        }
+      }
     }
+    if (found.length) return found.find((p) => p.endsWith('/AppIcon.appiconset')) ?? found[0]
+    level = next
   }
   return null
 }
 
 function findXcodeAppIcon(root: string): string | null {
-  const set = findAppIconSet(root, 3)
+  const set = findAppIconSet(root, 5)
   if (!set) return null
   const file = pickBestAppIconFile(set)
   return file ? fileToDataUri(file) : null
 }
 
-/** Where a workspace's manual icon override lives in the generic kv table —
- *  shared by the Mac's own IPC handlers (index.ts) and the phone's RPC
- *  (companion/rpc.ts), so both read/write the exact same override. */
+/** The root's favicon, else one in any repo directly inside it — a project
+ *  that groups several repos keeps its web app's favicon a level down. */
+function findFaviconShallow(root: string): string | null {
+  const own = findFavicon(root)
+  if (own) return own
+  let entries: string[]
+  try {
+    entries = readdirSync(root)
+  } catch {
+    return null
+  }
+  for (const name of entries) {
+    if (name.startsWith('.') || SKIP_DIRS.has(name)) continue
+    const uri = findFavicon(join(root, name))
+    if (uri) return uri
+  }
+  return null
+}
+
 export const iconKvKey = (workspaceId: string): string => `icon:${workspaceId}`
 
 export type ProjectGlyphKind = 'screenplay' | 'design' | 'music' | 'documents'
@@ -169,7 +217,7 @@ function findGlyphKind(root: string): ProjectGlyphKind | null {
 export function detectProjectIcon(root: string): DetectedIcon | null {
   const appIcon = findXcodeAppIcon(root)
   if (appIcon) return { source: 'app-icon', dataUri: appIcon }
-  const favicon = findFavicon(root)
+  const favicon = findFaviconShallow(root)
   if (favicon) return { source: 'favicon', dataUri: favicon }
   const kind = findGlyphKind(root)
   if (kind) return { source: 'kind', kind }
