@@ -546,6 +546,10 @@ export interface CoveApi {
     basePaneId: string,
     tabs: { id: string; url: string; title: string; active: boolean }[]
   ) => void
+  /** browser_set_viewport, relayed to the pane showing this paneId. */
+  onBrowserViewportCommand: (
+    cb: (c: { paneId: string; viewport: 'none' | 'desktop' | 'mobile' | 'both' }) => void
+  ) => () => void
   /** browser_open_tab / browser_switch_tab / browser_close_tab, relayed to
    *  whichever BrowserTabs owns this basePaneId. */
   onBrowserTabsCommand: (
@@ -958,6 +962,8 @@ const cove: CoveApi = {
     ipcRenderer.send('browser:tabs-report', basePaneId, tabs),
   onBrowserTabsCommand: (cb) =>
     subscribe('browser:tabs-command', (c) => cb(c as Parameters<typeof cb>[0])),
+  onBrowserViewportCommand: (cb) =>
+    subscribe('browser:viewport-command', (c) => cb(c as Parameters<typeof cb>[0])),
   onLoopWait: (cb) => subscribe('loop:wait', (c) => cb(c as Parameters<typeof cb>[0])),
   deskRoot: () => ipcRenderer.invoke('desk:root'),
   deskList: (dir) => ipcRenderer.invoke('desk:list', dir),

@@ -58,7 +58,8 @@ test('onboarding renders, then the main app loads with the seeded workspace', as
 
   // A fresh install starts flat: the project is there with no group over it.
   // Only the Browse section has a header; no project group was invented.
-  await expect(window.locator('.sidebar-group-title')).toHaveText(['Browse'])
+  // One section for tabs and ungrouped projects (Browse was merged into it).
+  await expect(window.locator('.sidebar-group-title')).toHaveText(['Projects'])
   await expect(window.locator('.sidebar-flat .sidebar-item-name')).toContainText('e2e-project')
 })
 
@@ -77,9 +78,32 @@ test('the file tree lists project files', async () => {
 })
 
 test('a browser tab opens from the sidebar', async () => {
-  await window.click('button:has-text("Open a tab to browse")')
+  // The globe on the Projects header (the old "Open a tab to browse" line is gone).
+  await window.click('.sidebar-head-actions button[title="New tab"]')
   await window.waitForSelector('.browser-pane', { timeout: 10_000 })
   await expect(window.locator('.browser-address').first()).toBeVisible()
+})
+
+test("the agent's browser_set_viewport switches the pane to mobile", async () => {
+  // What mcp.ts broadcasts for browser_set_viewport('mobile'), aimed at this pane.
+  const paneId = await window.locator('[data-pane-id]').first().getAttribute('data-pane-id')
+  expect(paneId).toBeTruthy()
+  await app.evaluate(({ BrowserWindow }, id) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('browser:viewport-command', {
+      paneId: id,
+      viewport: 'mobile'
+    })
+  }, paneId)
+  await expect(window.locator('.browser-vp-btn.on').first()).toHaveAttribute('title', /Mobile/)
+  // A command for another pane leaves this one alone.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('browser:viewport-command', {
+      paneId: 'some-other-pane',
+      viewport: 'desktop'
+    })
+  })
+  await window.waitForTimeout(300)
+  await expect(window.locator('.browser-vp-btn.on').first()).toHaveAttribute('title', /Mobile/)
 })
 
 test('Settings opens from the sidebar gear and closes with Done', async () => {
@@ -94,7 +118,8 @@ test('Settings opens from the sidebar gear and closes with Done', async () => {
 test('a project can be added without making a group first', async () => {
   // Clicking it would open the native folder picker, which e2e can't drive —
   // the affordance being there, at the top level, is the contract.
-  await expect(window.locator('.sidebar-flat-add')).toBeVisible()
+  // The folder button on the Projects header (the bottom line shows only with no projects).
+  await expect(window.locator('.sidebar-head-actions button[title="Add a project"]')).toBeVisible()
 })
 
 test('@ mentions reach other projects and folders outside this one', async () => {

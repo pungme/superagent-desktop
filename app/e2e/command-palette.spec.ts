@@ -77,6 +77,8 @@ test('typing filters to a matching project, and Enter jumps to it', async () => 
   await window.keyboard.type('e2e-proj')
   const hit = window.locator('.cmdk-item', { hasText: 'e2e-project' })
   await expect(hit).toBeVisible()
+  // The project's own icon, as the sidebar shows it.
+  await expect(hit.locator('.cmdk-item-icon')).toBeVisible()
   await window.keyboard.press('Enter')
   await expect(window.locator('.cmdk-panel')).toHaveCount(0)
   await expect(window.locator('.workspace-toolbar')).toBeVisible()

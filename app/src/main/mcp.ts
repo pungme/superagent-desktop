@@ -655,6 +655,24 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   )
 
   server.registerTool(
+    'browser_set_viewport',
+    {
+      description:
+        "Switch the browser pane's device viewport, the same as the buttons beside its address bar: 'mobile' renders the page at a real phone size (390×844), 'desktop' at 1440×900, 'both' shows desktop and phone side by side, 'fit' fills the pane. To check or screenshot a mobile layout, switch to 'mobile' and use the normal browser tools — never build a wrapper page, iframe or narrow container to imitate a phone. Switch back when done if the user was on desktop.",
+      inputSchema: { viewport: z.enum(['mobile', 'desktop', 'both', 'fit']) }
+    },
+    async ({ viewport }) => {
+      broadcastToWindows('browser:viewport-command', {
+        paneId: browserPane(),
+        viewport: viewport === 'fit' ? 'none' : viewport
+      })
+      // The pane re-lays out and re-zooms; let it settle before a screenshot.
+      await new Promise((r) => setTimeout(r, 600))
+      return { content: [{ type: 'text', text: `Viewport is now ${viewport}.${tabNote()}` }] }
+    }
+  )
+
+  server.registerTool(
     'open_file',
     {
       description:

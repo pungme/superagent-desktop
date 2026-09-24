@@ -238,6 +238,18 @@ export function BrowserPane({
     autoFitRef.current = true // re-fit whenever a mode is (re)selected
     setViewport(v)
   }
+  // The agent's browser_set_viewport: the same switch as the buttons, so it
+  // checks a phone layout in the real mobile viewport instead of building a
+  // narrow wrapper page to imitate one.
+  useEffect(
+    () =>
+      window.cove.onBrowserViewportCommand?.((c) => {
+        if (c.paneId === paneId) pickViewport(c.viewport)
+      }),
+    // pickViewport only touches refs, setters and paneId.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [paneId]
+  )
   // Where the native view currently sits inside the host, and a still of it held
   // while an HTML overlay is up.
   const [viewRect, setViewRect] = useState<{

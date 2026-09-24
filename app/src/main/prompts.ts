@@ -19,7 +19,9 @@ const BROWSER_SYSTEM_PROMPT =
   'browser_type, browser_press_key, browser_screenshot, browser_wait_for) — they drive the ' +
   'actual visible browser so the user can watch. You can drive real websites, not just ' +
   'localhost. Strongly prefer these tools over WebSearch and WebFetch. To run a web search, ' +
-  'navigate the browser to the search engine and type the query rather than calling WebSearch.'
+  'navigate the browser to the search engine and type the query rather than calling WebSearch. ' +
+  "To check a page on a phone, switch the pane with browser_set_viewport('mobile') rather than " +
+  'building a narrow wrapper page to imitate one.'
 
 // Superagent surfaces Claude's task list in its Tasks panel by watching the
 // TaskCreate/TaskUpdate tools (this build has no TodoWrite). Nudge Claude to keep
