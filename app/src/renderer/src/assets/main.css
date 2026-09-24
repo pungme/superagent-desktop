@@ -781,6 +781,7 @@ button {
    dot that gently breathes — "something is running here", distinct from the
    spinner's "actively thinking". */
 .chat-tree-bg {
+  position: relative;
   width: 7px;
   height: 7px;
   margin: 0 6px 0 0;
@@ -789,21 +790,33 @@ button {
   vertical-align: middle;
   flex-shrink: 0;
   background: #22c55e;
-  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+}
+/* The pulse is a copy of the dot that grows and fades — transform and opacity
+   only, which the GPU composites without repainting. Animating box-shadow
+   repainted every frame: measured at ~26% CPU for one dot. */
+.chat-tree-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #22c55e;
   animation: chat-tree-bg-pulse 1.8s ease-in-out infinite;
 }
 @keyframes chat-tree-bg-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
   }
-  50% {
-    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0);
+  60%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .chat-tree-bg {
+  .chat-tree-bg::before {
     animation: none;
+    opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3322,7 +3335,7 @@ button {
   position: absolute;
   inset: 0;
   border-radius: 5px;
-  box-shadow: 0 0 0 0 rgba(23, 24, 29, 0.35);
+  border: 2px solid rgba(23, 24, 29, 0.35);
   animation: think-ring 1.6s ease-out infinite;
 }
 /* The dot stays home and breathes. An orbit read as a stuck dot at this size. */
@@ -3348,12 +3361,17 @@ button {
     opacity: 1;
   }
 }
+/* A ring that grows and fades — transform and opacity, no per-frame repaint
+   (the box-shadow version repainted every frame). */
 @keyframes think-ring {
-  70% {
-    box-shadow: 0 0 0 7px rgba(23, 24, 29, 0);
+  0% {
+    transform: scale(1);
+    opacity: 1;
   }
+  70%,
   100% {
-    box-shadow: 0 0 0 0 rgba(23, 24, 29, 0);
+    transform: scale(1.6);
+    opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -5662,20 +5680,33 @@ button {
 }
 
 .update-banner-dot {
+  position: relative;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: #6ee7b7;
-  box-shadow: 0 0 0 0 rgba(110, 231, 183, 0.6);
+}
+/* The pulse is a copy of the dot that grows and fades — transform and opacity
+   only, which the GPU composites without repainting. Animating box-shadow
+   repainted every frame: measured at ~26% CPU for one dot. */
+.update-banner-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #6ee7b7;
   animation: update-pulse 1.8s ease-out infinite;
 }
 
 @keyframes update-pulse {
-  70% {
-    box-shadow: 0 0 0 6px rgba(110, 231, 183, 0);
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
   }
+  70%,
   100% {
-    box-shadow: 0 0 0 0 rgba(110, 231, 183, 0);
+    transform: scale(2.5);
+    opacity: 0;
   }
 }
 
@@ -5830,8 +5861,9 @@ button {
 }
 .update-banner-dot-warn {
   background: #fbbf24;
-  box-shadow: none;
-  animation: none;
+}
+.update-banner-dot-warn::before {
+  display: none;
 }
 .update-banner-secondary {
   border: none;
@@ -6055,20 +6087,32 @@ button {
   color: color-mix(in srgb, #45b46a 70%, var(--text-secondary));
 }
 .easy-runs-label-pulse {
+  position: relative;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #45b46a;
-  box-shadow: 0 0 0 0 color-mix(in srgb, #45b46a 60%, transparent);
+}
+/* The pulse is a copy of the dot that grows and fades — transform and opacity
+   only, which the GPU composites without repainting. Animating box-shadow
+   repainted every frame: measured at ~26% CPU for one dot. */
+.easy-runs-label-pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #45b46a;
   animation: easy-runs-beacon 1.8s ease-out infinite;
 }
 @keyframes easy-runs-beacon {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, #45b46a 55%, transparent);
+    transform: scale(1);
+    opacity: 0.55;
   }
   70%,
   100% {
-    box-shadow: 0 0 0 6px transparent;
+    transform: scale(2.7);
+    opacity: 0;
   }
 }
 /* A running job, tinted to match the strip rather than the neutral Model pills. */
@@ -6118,8 +6162,9 @@ button {
   line-height: 1.35;
 }
 @media (prefers-reduced-motion: reduce) {
-  .easy-runs-label-pulse {
+  .easy-runs-label-pulse::before {
     animation: none;
+    opacity: 0;
   }
 }
 /* Folded: one quiet line — the beacon, a count, and Show. */
@@ -9017,17 +9062,20 @@ button {
   left: 0;
   height: 100%;
   width: 40%;
+  will-change: transform;
   border-radius: 2px;
   background: var(--accent);
   opacity: 1;
   animation: browser-load-sweep 0.9s ease-in-out infinite;
 }
+/* Slides by transform (in its own width's units: -35% of the bar = -87.5% of
+   this 40%-wide sweep) rather than animating left, which repainted. */
 @keyframes browser-load-sweep {
   0% {
-    left: -35%;
+    transform: translateX(-87.5%);
   }
   100% {
-    left: 100%;
+    transform: translateX(250%);
   }
 }
 
