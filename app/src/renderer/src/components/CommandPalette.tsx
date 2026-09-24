@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom'
 import { useStore, useOverlayLock } from '../state'
 import { useEscapeClose } from '../hooks/useEscapeClose'
 import { fuzzyFilter } from '../lib/fuzzy'
+import { ProjectIcon } from './ProjectIcon'
+import { useProjectIcon } from '../hooks/useProjectIcon'
+import type { Workspace } from '../../../preload'
 
 interface PaletteItem {
   id: string
@@ -11,6 +14,9 @@ interface PaletteItem {
   shortcut?: string
   /** Extra text a query can match beyond the visible label. */
   keywords?: string
+  /** A project, or a chat's project: shown with that project's icon, the
+   *  same one the sidebar shows, so you can tell results apart at a glance. */
+  workspace?: Workspace
   run: () => void
 }
 
@@ -171,6 +177,7 @@ export function CommandPalette({
         id: `recent.chat.${c.id}`,
         label: c.title || 'New chat',
         subtitle: projectNames.get(c.workspaceId),
+        workspace: workspaces.find((w) => w.id === c.workspaceId),
         run: () => {
           useStore.getState().setActive(c.workspaceId)
           useStore.getState().selectChat(c.workspaceId, c.id)
@@ -185,6 +192,7 @@ export function CommandPalette({
           id: `recent.project.${w.id}`,
           label: w.name,
           subtitle: 'Project',
+          workspace: w,
           run: () => useStore.getState().setActive(w.id)
         } as PaletteItem
       }))
@@ -201,12 +209,14 @@ export function CommandPalette({
       id: `project.${w.id}`,
       label: w.name,
       subtitle: 'Project',
+      workspace: w,
       run: () => useStore.getState().setActive(w.id)
     }))
     const chatItems = allChats.map((c) => ({
       id: `chat.${c.id}`,
       label: c.title || 'New chat',
       subtitle: projectNames.get(c.workspaceId),
+      workspace: workspaces.find((w) => w.id === c.workspaceId),
       run: () => {
         useStore.getState().setActive(c.workspaceId)
         useStore.getState().selectChat(c.workspaceId, c.id)
@@ -294,6 +304,7 @@ export function CommandPalette({
                     onMouseEnter={() => setSelected(idx)}
                     onClick={() => run(item)}
                   >
+                    {item.workspace && <PaletteIcon ws={item.workspace} />}
                     <span className="cmdk-item-label">{item.label}</span>
                     {item.subtitle && <span className="cmdk-item-subtitle">{item.subtitle}</span>}
                     {item.shortcut && <span className="cmdk-item-shortcut">{item.shortcut}</span>}
@@ -306,5 +317,21 @@ export function CommandPalette({
       </div>
     </div>,
     document.body
+  )
+}
+
+/** A project's icon, as the sidebar draws it: the app icon or favicon found in
+ *  its folder, a browser tab's favicon, or the kind glyph. */
+function PaletteIcon({ ws }: { ws: Workspace }): React.JSX.Element {
+  const icon = useProjectIcon(ws.id, ws.path, ws.kind)
+  const favicon = ws.kind === 'browser' ? localStorage.getItem(`favicon:${ws.id}`) : null
+  return (
+    <span className="cmdk-item-icon">
+      {favicon ? (
+        <img className="sidebar-favicon" src={favicon} alt="" />
+      ) : (
+        <ProjectIcon icon={icon} kind={ws.kind} size={16} />
+      )}
+    </span>
   )
 }

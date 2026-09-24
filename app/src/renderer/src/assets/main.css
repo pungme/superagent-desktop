@@ -1841,6 +1841,19 @@ button {
   letter-spacing: 0.06em;
   color: var(--text-secondary);
 }
+.cmdk-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: var(--text-tertiary);
+}
+.cmdk-item-icon .sidebar-favicon {
+  width: 16px;
+  height: 16px;
+}
 .cmdk-item {
   width: 100%;
   display: flex;
