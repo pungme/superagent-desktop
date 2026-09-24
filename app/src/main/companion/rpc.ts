@@ -19,6 +19,7 @@ import {
   chatCwd,
   setChatProvider,
   setChatPinned,
+  reorderPinned,
   clearChatSession,
   isPendingBranch,
   markPendingBranch,
@@ -138,6 +139,7 @@ const chatSetAgent = z.object({
 })
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatPin = z.object({ chatId: z.string().min(1), pinned: z.boolean() })
+const chatReorderPinned = z.object({ chatIds: z.array(z.string().min(1)).max(500) })
 const chatId = z.object({ chatId: z.string().min(1) })
 const chatQueueSend = z.object({ chatId: z.string().min(1), text: z.string().min(1).max(200_000) })
 const chatCancelQueuedSend = z.object({ chatId: z.string().min(1), id: z.string().min(1) })
@@ -371,6 +373,14 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
         setChatPinned(p.data.chatId, p.data.pinned)
+        broadcastToWindows('projects:changed', {})
+        pushChats()
+        return { ok: true }
+      }
+      case 'chat.reorderPinned': {
+        const p = chatReorderPinned.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        reorderPinned(p.data.chatIds)
         broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true }
@@ -1026,6 +1036,7 @@ export function listChats(): WireChat[] {
     title: c.title,
     updatedAt: c.updatedAt,
     pinned: Boolean(c.pinned),
+    pinnedAt: c.pinnedAt,
     live: isGenerating(c.id),
     preview: lastChatPreview(c.id),
     provider: getChatProvider(c.id),

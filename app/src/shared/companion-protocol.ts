@@ -149,7 +149,8 @@ export interface WireWorkspace {
   /** Browser projects: the site they live on (for a favicon). */
   browserUrl?: string | null
   /** Git repos one level inside a code project (a folder of repos), as the sidebar's tree. */
-  subrepos?: { name: string; path: string; branch: string | null }[]
+  /** `cloning`: a clone still in progress, with no branch yet. */
+  subrepos?: { name: string; path: string; branch: string | null; cloning?: boolean }[]
 }
 
 /** `fs.dirs`: one folder on the Mac, for picking a project. */
@@ -167,6 +168,12 @@ export interface WireChat {
   updatedAt: number
   /** Pinned conversations sort before unpinned ones on every client. */
   pinned?: boolean
+  /**
+   * The Pinned list's order: sorted by this, newest first, on every client —
+   * reordering rewrites it. Without it the phone sorted pins by last activity
+   * and ignored the order you set. Absent from older Macs.
+   */
+  pinnedAt?: number | null
   /** Whether a claude process is alive for this chat right now. */
   live: boolean
   /** The last thing said in it, for the list row. */
@@ -304,6 +311,7 @@ export type RpcMethod =
   | 'chat.setAgent'
   | 'chat.rename'
   | 'chat.pin'
+  | 'chat.reorderPinned'
   | 'chat.delete'
   | 'approval.answer'
   | 'routines.list'
