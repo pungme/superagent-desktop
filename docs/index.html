@@ -608,7 +608,6 @@
       border-top: 3px solid transparent; border-bottom: 3px solid transparent;
     }
     .ap-caret.down { transform: rotate(90deg); }
-    .ap-side .fv { width: 8px; height: 8px; border-radius: 2px; margin-left: 1px; }
     .ap-br {
       margin-left: auto; flex: none;
       font-size: 0.48rem; color: var(--faint); letter-spacing: 0.02em;
@@ -638,6 +637,51 @@
       padding: 8px 14px; border-top: 1px solid var(--line);
       font-size: 0.55rem; color: var(--faint);
     }
+    /* One "Projects" section, as in the app: open tabs first, then projects,
+       with New tab (globe) and Add project (folder-plus) on its header. */
+    .ap-group.ap-proj { display: flex; align-items: center; }
+    .ap-gbtns { margin-left: auto; display: flex; gap: 5px; }
+    .ap-gbtns svg {
+      width: 8px; height: 8px; fill: none; stroke: var(--faint);
+      stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+    }
+    /* Each project row leads with its own icon: a site's favicon or an app's
+       own icon, the way the app reads them off the project's files. */
+    .ap-side .fv { width: 11px; height: 11px; border-radius: 2.5px; margin-left: 0; }
+    .ap-pi {
+      width: 11px; height: 11px; flex: none; border-radius: 2.5px;
+      display: inline-grid; place-items: center; overflow: hidden;
+      font-size: 0.4rem; font-weight: 800; line-height: 1; color: #fff;
+    }
+    .ap-pi.app { border-radius: 3px; box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12); }
+    .ap-pi i { display: block; }
+    .pi-landing { background: var(--ink); }
+    .pi-design { background: var(--lilac); }
+    .pi-design i { width: 5px; height: 5px; border-radius: 50%; border: 1.2px solid #fff; }
+    .pi-mobile { background: linear-gradient(160deg, #9fc0dc, var(--deep)); }
+    .pi-mobile i { width: 4px; height: 5px; border-radius: 1px; background: #fff; }
+    .pi-shop { background: var(--gold); color: var(--ink); }
+    .pi-notes { background: linear-gradient(160deg, #f3dc9a, #e3b95a); }
+    .pi-notes i { width: 5px; height: 1px; background: #fff; box-shadow: 0 -2px 0 #fff, 0 2px 0 #fff; }
+    .pi-outreach { background: var(--blush); }
+    .pi-docs { background: var(--sage); }
+    .pi-studio { background: #c9c3b3; }
+    .pi-studio i { width: 5px; height: 4px; border-radius: 1px; border: 1.1px solid #fff; }
+    .pi-computer { background: var(--ink); }
+    .pi-computer i { width: 5px; height: 3.5px; border-radius: 0.8px; border: 1.1px solid #fff; }
+    /* a project holding several repos folds them with a caret on its own row */
+    .ap-row .ap-caret.end { margin-left: auto; transform: rotate(90deg); }
+    /* a simulator is attached: the project keeps its icon, a phone sits at the right */
+    .ap-sim { margin-left: auto; flex: none; display: inline-flex; }
+    .ap-sim svg { width: 6px; height: 8px; fill: none; stroke: var(--muted); stroke-width: 1.2; }
+    .ap-sim + .ap-br { margin-left: 4px; }
+    .ap-repos { padding: 1px 0 2px 13px; }
+    .ap-repo {
+      display: flex; align-items: center; gap: 5px; padding: 3px 6px;
+      font-size: 0.56rem; color: var(--muted); line-height: 1.2;
+    }
+    .ap-repo .ap-rk { font-family: var(--mono); font-size: 0.46rem; color: var(--faint); }
+    .ap-rb { margin-left: auto; font-size: 0.46rem; color: var(--faint); }
 
     /* ---- the toolbar, as it actually is ---- */
     .ap-main { display: flex; flex-direction: column; min-width: 0; }
@@ -2179,7 +2223,7 @@
       <div class="feat-copy" data-rv>
         <span class="kicker"><span class="num">I.</span>The sidebar<span class="jp">サイドバー</span></span>
         <h2>Every session, <em>one rail.</em></h2>
-        <p>One chat per task. Each one keeps its own context and picks up mid&#8209;thought. A spinner means it is still going. A dot means it finished without you.</p>
+        <p>One chat per task. Each one keeps its own context and picks up mid&#8209;thought. A spinner means it is still going. A dot means it finished without you. Every project leads with its own icon: the site&rsquo;s favicon, or the app&rsquo;s own icon from Xcode.</p>
       </div>
       <div class="pane-wrap" data-rv style="--d:.15s">
         <div class="pane" style="--bobd:10s">
@@ -2188,21 +2232,25 @@
             <aside class="ap-side">
             <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
             <div class="ap-scroll">
-            <div class="ap-group">Browsing</div>
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
             <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
             <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
-            <div class="ap-group">Work</div>
-            <div class="ap-row on"><i class="ap-caret down"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
             <div class="ap-chats">
             <div class="ap-crow"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
             </div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
             <div class="ap-group">Personal</div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-studio"><i></i></i><span>studio</span><i class="ap-caret end"></i></div>
+            <div class="ap-repos">
+            <div class="ap-repo"><span class="ap-rk">&lt;/&gt;</span><span>studio-web</span><span class="ap-rb">&#9095; main</span></div>
+            <div class="ap-repo"><span class="ap-rk">&lt;/&gt;</span><span>studio-ios</span><span class="ap-rb">cloning&hellip;</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
             </div>
             <div class="ap-foot">+ New group</div>
             </aside>
@@ -2288,7 +2336,7 @@
             </div>
           </div></div>
           <p class="pane-cap">Click a session. The whole conversation is already there.</p>
-          <ul class="spec"><li>One chat per task</li><li>Context survives a restart</li><li>Working and unread, at a glance</li></ul>
+          <ul class="spec"><li>One chat per task</li><li>Context survives a restart</li><li>Working and unread, at a glance</li><li>Each project&rsquo;s real icon</li></ul>
         </div>
       </div>
     </div>
@@ -2309,21 +2357,20 @@
             <aside class="ap-side">
             <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
             <div class="ap-scroll">
-            <div class="ap-group">Browsing</div>
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
             <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
             <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
-            <div class="ap-group">Work</div>
-            <div class="ap-row on"><i class="ap-caret down"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
             <div class="ap-chats">
             <div class="ap-crow"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
             <div class="ap-crow on"><span class="ap-clabel">Fix the flaky auth test</span><span class="ap-wt">worktree</span><i class="ap-unread"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
             </div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
             <div class="ap-group">Personal</div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
             </div>
             <div class="ap-foot">+ New group</div>
             </aside>
@@ -2399,21 +2446,20 @@
             <aside class="ap-side">
             <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
             <div class="ap-scroll">
-            <div class="ap-group">Browsing</div>
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
             <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
             <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
-            <div class="ap-group">Work</div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>landing-page</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
-            <div class="ap-row on"><i class="ap-caret down"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-sim" title="Simulator attached"><svg viewBox="0 0 6 8"><rect x="0.6" y="0.6" width="4.8" height="6.8" rx="1.1"/></svg></span><span class="ap-br">main</span></div>
             <div class="ap-chats">
             <div class="ap-crow on"><span class="ap-clabel">Check the confirm flow</span><i class="ap-spin"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Order sheet spacing</span><i class="ap-unread"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Bump to iOS 18.2</span></div>
             </div>
             <div class="ap-group">Personal</div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
             </div>
             <div class="ap-foot">+ New group</div>
             </aside>
@@ -2492,7 +2538,7 @@
       <div class="feat-copy" data-rv>
         <span class="kicker"><span class="num">IV.</span>Desktop &amp; phone at once<span class="jp">二重表示</span></span>
         <h2>One page, <em>seen twice.</em></h2>
-        <p>The same page as a desktop card and as a phone. One session, both live. Change something and it lands in both.</p>
+        <p>The same page as a desktop card and as a phone. One session, both live. Change something and it lands in both. The agent switches the view itself: a real 390&times;844 phone, desktop, or both.</p>
       </div>
       <div class="pane-wrap" data-rv style="--d:.15s">
         <div class="pane" style="--bobd:10.5s; --bobo:-1s">
@@ -2501,21 +2547,20 @@
             <aside class="ap-side">
             <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
             <div class="ap-scroll">
-            <div class="ap-group">Browsing</div>
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
             <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
             <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
-            <div class="ap-group">Work</div>
-            <div class="ap-row on"><i class="ap-caret down"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
             <div class="ap-chats">
             <div class="ap-crow on"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
             </div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
             <div class="ap-group">Personal</div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
             </div>
             <div class="ap-foot">+ New group</div>
             </aside>
@@ -2574,6 +2619,7 @@
             <div class="ap-stream">
             <div class="bubble bub-user">Show me the launch page on both.</div>
             <div class="ap-say">Same session, two viewports. Scroll one and the other follows.</div>
+            <div class="ap-tool"><i></i>browser_set_viewport &rsaquo; both</div>
             <div class="ap-tool"><i></i>browser_navigate &rsaquo; /launch</div>
             <div class="ap-say">The hero holds up at 390pt; the card row stacks below 520.</div>
             </div>
@@ -2588,7 +2634,7 @@
             </div>
           </div></div>
           <p class="pane-cap">Two screens. One truth.</p>
-          <ul class="spec"><li>One session, two viewports</li><li>Live, not screenshots</li><li>Every change lands in both</li></ul>
+          <ul class="spec"><li>One session, two viewports</li><li>A real phone size, 390&times;844</li><li>Every change lands in both</li></ul>
         </div>
       </div>
     </div>
@@ -2600,7 +2646,7 @@
       <div class="feat-copy" data-rv>
         <span class="kicker"><span class="num">V.</span>Browser automation<span class="jp">自動操作</span></span>
         <h2>Hands <em>on the page.</em></h2>
-        <p>Say what you want done. It opens the site you are already signed in to and works it the way you would &mdash; reading, writing, clicking, sending.</p>
+        <p>Say what you want done. It opens the site you are already signed in to and works it the way you would &mdash; reading, writing, clicking, sending. It keeps its own tab, so the one you opened to look something up stays yours.</p>
       </div>
       <div class="pane-wrap" data-rv style="--d:.15s">
         <div class="pane" style="--bobd:11.5s; --bobo:-5s">
@@ -2609,22 +2655,21 @@
             <aside class="ap-side">
             <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
             <div class="ap-scroll">
-            <div class="ap-group">Browsing</div>
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
             <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
             <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
-            <div class="ap-group">Work</div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>landing-page</span><span class="ap-br">main</span></div>
-            <div class="ap-row on"><i class="ap-caret down"></i><span>outreach</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-outreach">O</i><span>outreach</span><span class="ap-br">main</span></div>
             <div class="ap-chats">
             <div class="ap-crow on"><span class="ap-clabel">Pricing follow-ups</span><i class="ap-spin"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Launch note draft</span><i class="ap-unread"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Weekly digest</span></div>
             </div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
             <div class="ap-group">Personal</div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
             </div>
             <div class="ap-foot">+ New group</div>
             </aside>
@@ -2709,7 +2754,7 @@
             </div>
           </div></div>
           <p class="pane-cap">You ask once. It does the rest, in your own browser.</p>
-          <ul class="spec"><li>Your own logged-in sessions</li><li>Click, type, read back</li><li>A stop button, always</li></ul>
+          <ul class="spec"><li>Your own logged-in sessions</li><li>Its own tab, not yours</li><li>A stop button, always</li></ul>
         </div>
       </div>
     </div>
@@ -2732,21 +2777,20 @@
             <aside class="ap-side">
             <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
             <div class="ap-scroll">
-            <div class="ap-group">Browsing</div>
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
             <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
             <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
-            <div class="ap-group">Work</div>
-            <div class="ap-row on"><i class="ap-caret down"></i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
             <div class="ap-chats">
             <div class="ap-crow on"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
             <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
             </div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>design-system</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
             <div class="ap-group">Personal</div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
-            <div class="ap-row dim"><i class="ap-caret"></i><span>notes-app</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
             </div>
             <div class="ap-foot">+ New group</div>
             </aside>
@@ -2816,6 +2860,7 @@
         <span class="kicker"><span class="num">VII.</span>The phone<span class="jp">電話</span></span>
         <h2>Your Mac's agent, <em>in your pocket.</em></h2>
         <p>Pair the iPhone app once and it follows your Mac from anywhere: the conversation as it happens, a prompt from the sofa, a yes or no when the agent asks. End-to-end encrypted, through a relay that can't read a word of it.</p>
+        <p>The same sidebar as the Mac, pins in the same order, the same model list. More than one Mac? Switch from the title at the top.</p>
         <div class="hero-ctas" data-rv style="--d:.2s">
           <a class="btn" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener"><svg class="ph-glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.75" y="2" width="10.5" height="20" rx="2.6"/><path d="M10.4 4.7h3.2"/><path d="M10.6 19.6h2.8"/></svg> Get it on TestFlight</a>
         </div>
@@ -2847,7 +2892,7 @@
             </div>
           </div>
           <p class="pane-cap">Live while it's open. A push when it isn't. Nothing in between can read it.</p>
-          <ul class="spec"><li>Pair with a QR</li><li>Ask mode: approve from anywhere</li><li>End-to-end encrypted</li><li>Run your own relay</li></ul>
+          <ul class="spec"><li>Pair with a QR</li><li>Ask mode: approve from anywhere</li><li>Switch between Macs</li><li>End-to-end encrypted</li><li>Run your own relay</li></ul>
         </div>
       </div>
     </div>
@@ -2867,19 +2912,18 @@
               <aside class="ap-side">
             <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
             <div class="ap-scroll">
-              <div class="ap-group">Browsing</div>
+              <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
               <div class="ap-row dim"><i class="fv fv1"></i><span>stripe.com</span></div>
-              <div class="ap-group">Work</div>
-              <div class="ap-row on"><i class="ap-caret down"></i><span>Computer</span></div>
+              <div class="ap-row on"><i class="ap-pi pi-computer"><i></i></i><span>Computer</span></div>
               <div class="ap-chats">
                 <div class="ap-crow on"><span class="ap-clabel">Pricing page refresh</span><i class="ap-spin"></i></div>
                 <div class="ap-crow"><span class="ap-clabel">Ship the changelog</span><i class="ap-spin"></i></div>
                 <div class="ap-crow"><span class="ap-clabel">Weekly numbers</span><i class="ap-unread"></i></div>
               </div>
-              <div class="ap-row dim"><i class="ap-caret"></i><span>landing-page</span><span class="ap-br">main</span></div>
-              <div class="ap-row dim"><i class="ap-caret"></i><span>docs-site</span><span class="ap-br">main</span></div>
+              <div class="ap-row dim"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+              <div class="ap-row dim"><i class="ap-pi pi-docs">D</i><span>docs-site</span><span class="ap-br">main</span></div>
               <div class="ap-group">Personal</div>
-              <div class="ap-row dim"><i class="ap-caret"></i><span>shop-web</span><span class="ap-br">main</span></div>
+              <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
             </div>
             <div class="ap-foot">+ New group</div>
           </aside>
@@ -3098,6 +3142,12 @@
         <div class="det" data-rv style="--d:.26s"><div class="glyph">d.</div><b>Context gauge</b><span>Every conversation shows how much of the context window it has used.</span></div>
         <div class="det" data-rv style="--d:.33s"><div class="glyph">e.</div><b>Useful notifications</b><span>Done or has a question, with a summary of the agent's actual last reply.</span></div>
         <div class="det" data-rv style="--d:.4s"><div class="glyph">f.</div><b>Updates itself</b><span>Signed, notarized, delivered in the background. Restart when it suits you.</span></div>
+        <div class="det" data-rv style="--d:.05s"><div class="glyph">g.</div><b>Models stay current</b><span>The model list comes from the Claude Code you have installed. A new model shows up without an app update.</span></div>
+        <div class="det" data-rv style="--d:.12s"><div class="glyph">h.</div><b>Quit means quit</b><span>Quitting stops everything it started: the agents, their background tasks, routine runs.</span></div>
+        <div class="det" data-rv style="--d:.19s"><div class="glyph">i.</div><b>Stop actually stops</b><span>Interrupting a turn ends the whole job it started, a build or a dev server, not just the agent above it.</span></div>
+        <div class="det" data-rv style="--d:.26s"><div class="glyph">j.</div><b>Pins in your order</b><span>Drag pinned chats into any order. Your phone follows it.</span></div>
+        <div class="det" data-rv style="--d:.33s"><div class="glyph">k.</div><b>Pictures in the reply</b><span>Images the agent puts in a reply show as previews. Click one for full size.</span></div>
+        <div class="det" data-rv style="--d:.4s"><div class="glyph">l.</div><b>Light when idle</b><span>The status dots pulse without redrawing the window every frame, so an idle window uses far less CPU.</span></div>
       </div>
     </div>
   </section>

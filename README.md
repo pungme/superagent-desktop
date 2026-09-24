@@ -103,11 +103,12 @@ Mac's shape — sidebar left, conversation right, the page beside it.
 <td width="46%" valign="top">
 
 **Everything in its place.** The Computer sits at the top of the sidebar with
-its own conversations under it. Plain browser tabs come next: browse first,
-summon the agent when you need it. Below them, projects grouped the way you
-think about them, each conversation nested underneath — a spinner while the
-agent works, a dot when it needs you, and the git branch where you would expect
-it.
+its own conversations under it. Then one Projects section: your open browser
+tabs first, then your projects, each with its own icon and its conversations
+nested underneath — a spinner while the agent works, a dot when it needs you,
+and the git branch where you would expect it. The globe on its header opens a
+new tab; the folder adds a project. Pinned chats go in whatever order you drag
+them into.
 
 </td>
 <td valign="top"><img src="docs/sidebar.png" alt="The sidebar: grouped projects with nested chats and branch chips"></td>
@@ -121,6 +122,8 @@ source — see [its README](https://github.com/pungme/superagent-ios).
 
 - **Ask mode.** A permission mode where the agent checks with you before it
   acts — on the Mac, or on your phone if that is where you are.
+- **More than one Mac.** Switch between paired Macs from the title at the top
+  of the phone app; it reopens on the one you picked last.
 - **Private by construction.** Everything between the phone and the Mac is
   end-to-end encrypted with a per-device key from the pairing QR. Both sides
   dial out to a tiny blind relay
@@ -150,18 +153,29 @@ source — see [its README](https://github.com/pungme/superagent-ios).
 - **Dashboard.** Turns per day, tasks done, a streak — and which projects
   actually got your time. Computed locally.
 - **Every project shows what it is.** A website's favicon, a native app's own
-  icon, or a glyph for a screenplay, design or music folder — pulled straight
-  off the project's own files, right in the sidebar. Pick your own any time.
+  icon from its Xcode AppIcon, or a glyph for a screenplay, design or music
+  folder — pulled straight off the project's own files, even inside a folder
+  that holds several repos. It shows in the sidebar and next to projects and
+  conversations in <kbd>⌘</kbd><kbd>K</kbd>. Pick your own any time.
+- **Several repos, one row.** A project folder that holds several repos folds
+  them away under a caret on its own row, and remembers whether you left it
+  open. A repo that is still cloning says "cloning…".
 - **Files & PDFs.** Click any file to read it — PDFs, images, markdown, source —
   right beside the tree; annotate PDFs in place; drag files into the chat.
 - **A screenshot lands in the chat, not just a link to it.** When a tool call
   produces a picture — a simulator screenshot, a page it read — it shows up
-  inline, right under the step that made it.
+  inline, right under the step that made it. Images the agent puts in its reply
+  show as small previews; click one for full size.
 - **Snip to attach.** ✂ on the browser or the simulator (or ⌘⇧S): drag a box
   right on the page or the phone screen and the crop lands in your message, at
   full resolution.
 - **Multiple browser tabs per chat.** Open more than one page without leaving
   the conversation — switch between them the way you would in a real browser.
+  The agent keeps its own tab, so one you opened to look something up isn't
+  taken over by its next navigation.
+- **A real phone size.** The agent can switch the browser pane to a real
+  390×844 mobile viewport, to desktop, or to both side by side, so it checks a
+  mobile layout at that size instead of faking one.
 - **`@` reaches everything.** Type `@` for this project's files, the other
   projects in your sidebar by name, or any folder on the disk (`@/`, `@~/`) —
   and drill into folders one level at a time.
@@ -189,9 +203,16 @@ source — see [its README](https://github.com/pungme/superagent-ios).
   instead of a wall of noise. Consecutive messages sent moments apart cluster
   together, iMessage-style, instead of every bubble standing on its own.
 - **See every edit** the moment it happens, with just the change highlighted.
-- **Model and mode pickers** that match Claude Code's own.
+- **Model and mode pickers** that match Claude Code's own. The model list is
+  read from the Claude Code you have installed, so a new model shows up without
+  an app update, and "Default" says which model it actually is. The agent
+  picker shows the real Claude and Codex logos.
 - **Stop actually stops.** Interrupting a turn kills the whole job it started
   — a build, a dev server — not just the agent process sitting above it.
+- **Quit means quit.** Quitting Superagent stops everything it started: chat
+  agents, their background tasks, and routine runs.
+- **Light when idle.** The pulsing status dots no longer redraw the window
+  every frame, so an idle window uses much less CPU.
 - **See what's using the space.** Settings breaks storage down by project, so
   clearing an old conversation's history is a click, not a guess.
 - **Updates itself.** Signed, notarized, delivered in the background — restart

@@ -344,11 +344,19 @@ npm run dev</code></pre>
       <p>Everything the app is doing lives in one rail down the left.</p>
       <ul>
         <li><b>The Computer</b> sits at the top, with its own conversations under it.</li>
-        <li><b>Plain browser tabs</b> come next &mdash; browse first, summon the agent when you
-          need it.</li>
-        <li><b>Projects</b> are grouped the way you think about them, each with its
-          conversations nested underneath and the git branch shown where you'd expect it.</li>
+        <li><b>Projects</b> come next, in one section: open browser tabs first, then your
+          projects, each with its conversations nested underneath and the git branch shown where
+          you'd expect it. The globe on its header opens a new tab; the folder adds a project.
+          Groups you make yourself sit below it.</li>
+        <li><b>Pinned chats</b> can be dragged into any order, and the phone follows it.</li>
       </ul>
+      <p>Each project shows its own icon: a website's favicon, or a native app's icon from its
+        Xcode AppIcon, even inside a folder that holds several repos. <kbd>&#8984;</kbd> <kbd>K</kbd>
+        shows the same icon next to projects and conversations.</p>
+      <p>A project that holds several repos folds them away with a caret on its own row, and
+        remembers whether you left it open. A repo that is still cloning says so. When a
+        simulator is attached, the project keeps its icon and a small phone appears at the right
+        of the row.</p>
       <p>The dots tell you where things stand: a spinner while the agent works, a dot when it
         needs you, and a green dot when a background job is running.</p>
       <img src="../sidebar.png" alt="The Superagent sidebar: grouped projects with nested chats and branch chips" width="300" style="margin-top:16px" />
@@ -402,8 +410,13 @@ npm run dev</code></pre>
           pane, never your personal Chrome or Safari.</li>
         <li><b>Dev servers.</b> Point it at localhost, or ask it to start the server itself
           &mdash; it stays one click away in the toolbar.</li>
+        <li><b>Its own tab.</b> The agent keeps a tab of its own, so a tab you open to look
+          something up isn't taken over by its next navigation.</li>
         <li><b>One page, seen twice.</b> One click shows the page as a desktop card and an
           iPhone frame at the same time, same session, both live.</li>
+        <li><b>A real phone size.</b> The agent can switch the pane to a real 390&times;844 mobile
+          viewport, to desktop, or to both side by side, to check a mobile layout instead of
+          faking one.</li>
       </ul>
       <img src="../browser-view.png" alt="The browser pane beside the chat" style="margin-top:16px" />
     </section>
@@ -484,6 +497,10 @@ npm run dev</code></pre>
         once from <b>Settings &rarr; Phone</b> and it follows your Mac from anywhere: live
         transcripts, send a prompt, start a chat, and approve what the agent asks &mdash; with a
         push notification when it's done or needs you.</p>
+      <p>The phone has the same sidebar as the Mac, pinned chats in the same order (with Move up
+        and Move down in the long-press menu), and the Mac's current model list. Images in the
+        agent's replies open full screen with zoom. Paired with more than one Mac? Switch from
+        the title at the top of Projects or Activity; the app reopens on the one you picked last.</p>
       <h3>How to pair</h3>
       <ol class="steps">
         <li>Open <b>Settings &rarr; Phone</b> on the Mac.</li>
@@ -523,6 +540,15 @@ npm run dev</code></pre>
           instead of a wall of noise.</li>
         <li><b>Light on memory.</b> Sessions start on your first message and wind down when
           idle; preview panes are released when a chat is in the background.</li>
+        <li><b>Models stay current.</b> The model picker reads Claude Code's own model list from
+          the CLI you have installed, so a new model shows up without an app update. "Default"
+          says which model it actually is.</li>
+        <li><b>Pictures in the reply.</b> Images the agent puts in its answer show as small
+          previews; click one for full size.</li>
+        <li><b>Quit means quit.</b> Quitting Superagent stops everything it started: chat
+          agents, their background tasks and routine runs.</li>
+        <li><b>Light when idle.</b> The pulsing status dots no longer redraw the window every
+          frame, so an idle window uses much less CPU.</li>
         <li><b>Light and dark</b>, following your system.</li>
       </ul>
     </section>

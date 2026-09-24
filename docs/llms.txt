@@ -15,9 +15,12 @@ Superagent is not a browser-automation framework or a headless cloud sandbox. It
 
 ## Core capabilities
 
-- A real browser the agent drives directly (not a description of a hidden headless session) — the same window and logged-in session the developer sees
+- A real browser the agent drives directly (not a description of a hidden headless session) — the same window and logged-in session the developer sees. The agent keeps its own tab, and can switch the pane to a real 390×844 mobile viewport, desktop, or both side by side to check mobile layouts
 - A real iOS Simulator, streamed live, that the agent can tap, swipe, type into, build, and screenshot
-- A phone companion app that follows the conversation from anywhere and lets the developer answer the agent's questions remotely, end-to-end encrypted
+- A phone companion app that follows the conversation from anywhere and lets the developer answer the agent's questions remotely, end-to-end encrypted. It mirrors the Mac's sidebar and model list, and switches between paired Macs
+- A model picker that reads Claude Code's own model list from the installed CLI, so new models appear without an app update
+- A sidebar that shows each project's real icon (website favicon or Xcode app icon)
+- Quitting the app stops everything it started: chat agents, their background tasks, and routine runs
 - Per-conversation git worktrees, so each chat works in its own isolated copy of the project
 - A kanban board the agent updates as it works, routines that run on a schedule, and a local usage dashboard
 
