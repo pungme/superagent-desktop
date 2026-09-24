@@ -914,6 +914,15 @@ button {
 }
 
 /* Git sub-repos nested under a code project. */
+/* A simulator attached to the project: a small phone at the row's right,
+   leaving the project's own icon on the left. */
+.sidebar-item-sim {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
 /* Folds a project's repos away, from the project row itself. */
 .sidebar-item-caret {
   display: inline-flex;

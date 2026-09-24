@@ -195,9 +195,8 @@ function KindIcon({ kind, size = 15 }: { kind: string; size?: number }): React.J
   )
 }
 
-// A properly-sized disclosure chevron (points down; rotate -90° when collapsed).
-/** Stands in for the folder while a simulator is attached to the project. */
-function PhoneIcon({ size = 15 }: { size?: number }): React.JSX.Element {
+/** A simulator is attached to the project — shown at the row's right. */
+function PhoneIcon({ size = 14 }: { size?: number }): React.JSX.Element {
   return (
     <svg
       width={size}
@@ -214,6 +213,7 @@ function PhoneIcon({ size = 15 }: { size?: number }): React.JSX.Element {
   )
 }
 
+// A properly-sized disclosure chevron (points down; rotate -90° when collapsed).
 function Chevron({ size = 13 }: { size?: number }): React.JSX.Element {
   return (
     <svg
@@ -904,29 +904,24 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               // A favicon that fails to render falls back to the globe icon.
               onError={() => setFavicon('')}
             />
-          ) : simHere ? (
-            <PhoneIcon size={18} />
           ) : (
+            // Always the project's own icon. A phone glyph used to stand in for
+            // it while a simulator was attached, hiding the favicon or app icon
+            // that says which project this is; the phone sits at the row's
+            // right now (after the name).
             <ProjectIcon icon={projectIcon} kind={ws.kind} />
           )}
-          {/* The dot means "something of this project's is live right now". A
-              dev server counted and an attached simulator did not, so a project
-              running a phone looked as idle as one running nothing. */}
-          {(serverPorts.length > 0 || simHere) && (
+          {/* A dev server is running. An attached simulator has its own phone
+              at the row's right, so the dot means one thing. */}
+          {serverPorts.length > 0 && (
             <span
               className="sidebar-server-dot"
-              title={
-                serverPorts.length > 0 && simHere
-                  ? `Simulator attached · dev server on :${serverPorts.join(', :')}`
-                  : simHere
-                    ? 'A simulator is attached to this project'
-                    : `Dev server on :${serverPorts.join(', :')}`
-              }
+              title={`Dev server on :${serverPorts.join(', :')}`}
             />
           )}
           {/* A live page, when there is no dev server to report: the dot is the
               more specific claim, so it wins the corner. */}
-          {pageHere && serverPorts.length === 0 && !simHere && (
+          {pageHere && serverPorts.length === 0 && (
             <span className="sidebar-web-dot" title={pageBadge(pageUrl).title}>
               {pageBadge(pageUrl).icon}
             </span>
@@ -937,6 +932,11 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         <span className="sidebar-item-name" title={ws.path}>
           {displayName}
         </span>
+        {simHere && (
+          <span className="sidebar-item-sim" title="A simulator is attached to this project">
+            <PhoneIcon />
+          </span>
+        )}
         {/* The project row is the root of its repos: its own caret folds them
             away, rather than a separate "N repos" row that stayed on screen
             under every project even when collapsed. */}
@@ -995,37 +995,37 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       {subrepos.length > 0 && reposOpen && (
         <div className="routine-tree">
           {subrepos.map((r) => (
-              <div
-                key={r.path}
-                className={`routine-tree-row repo-tree-row ${selectedRepo === r.path ? 'selected' : ''}`}
-                title={r.path}
-                // Step 1: select. Step 2: the revealed "Start session" button opens it.
-                onClick={() => setSelectedRepo((cur) => (cur === r.path ? null : r.path))}
-              >
-                <span className="repo-tree-icon">
-                  <KindIcon kind="code" size={14} />
-                </span>
-                <span className="routine-tree-prompt">{r.name}</span>
-                {r.cloning ? (
-                  <span className="repo-tree-branch">cloning…</span>
-                ) : (
-                  r.branch &&
-                  selectedRepo !== r.path && <span className="repo-tree-branch">⎇ {r.branch}</span>
-                )}
-                {selectedRepo === r.path && (
-                  <button
-                    className="repo-tree-open"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openFolderAsProject(ws.groupId, r.name, r.path)
-                      setSelectedRepo(null)
-                    }}
-                  >
-                    Start session →
-                  </button>
-                )}
-              </div>
-            ))}
+            <div
+              key={r.path}
+              className={`routine-tree-row repo-tree-row ${selectedRepo === r.path ? 'selected' : ''}`}
+              title={r.path}
+              // Step 1: select. Step 2: the revealed "Start session" button opens it.
+              onClick={() => setSelectedRepo((cur) => (cur === r.path ? null : r.path))}
+            >
+              <span className="repo-tree-icon">
+                <KindIcon kind="code" size={14} />
+              </span>
+              <span className="routine-tree-prompt">{r.name}</span>
+              {r.cloning ? (
+                <span className="repo-tree-branch">cloning…</span>
+              ) : (
+                r.branch &&
+                selectedRepo !== r.path && <span className="repo-tree-branch">⎇ {r.branch}</span>
+              )}
+              {selectedRepo === r.path && (
+                <button
+                  className="repo-tree-open"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openFolderAsProject(ws.groupId, r.name, r.path)
+                    setSelectedRepo(null)
+                  }}
+                >
+                  Start session →
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
       {/* The branches. Each one is a real git worktree: its own copy of the
@@ -1494,7 +1494,10 @@ function PinnedRow({
   const projectIcon = useProjectIcon(chat.workspaceId, projectPath ?? '', projectKind ?? '')
   // Drag to reorder the Pinned list. The 5px activation distance keeps a
   // click a click.
-  const drag = useSortable({ id: `pin:${chat.id}`, disabled: editing })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `pin:${chat.id}`,
+    disabled: editing
+  })
   // A root chat usually has no title of its own — "New chat" — so the
   // project's name is the useful label. But it can be renamed like any
   // other chat (the tree's own project row just doesn't expose that
@@ -1531,14 +1534,14 @@ function PinnedRow({
 
   return (
     <button
-      ref={drag.setNodeRef}
+      ref={setNodeRef}
       style={{
-        transform: CSS.Transform.toString(drag.transform),
-        transition: drag.transition,
-        opacity: drag.isDragging ? 0.5 : 1
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1
       }}
-      {...drag.attributes}
-      {...drag.listeners}
+      {...attributes}
+      {...listeners}
       className={`activity-row ${open ? 'on' : ''}`}
       onClick={onOpen}
       onContextMenu={(e) => {
@@ -1691,24 +1694,24 @@ function PinnedShortcuts(): React.JSX.Element | null {
           items={pinned.map((c) => `pin:${c.id}`)}
           strategy={verticalListSortingStrategy}
         >
-      {pinned.map((c) => (
-        <PinnedRow
-          key={c.id}
-          chat={c}
-          projectName={names.get(c.workspaceId) ?? ''}
-          projectKind={kinds.get(c.workspaceId)}
-          projectPath={paths.get(c.workspaceId)}
-          isRoot={isFolderRoot(byWorkspace.get(c.workspaceId) ?? [c], c)}
-          open={c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId}
-          live={Boolean(busy[c.id]?.generating)}
-          background={(busy[c.id]?.background ?? 0) > 0}
-          unread={Boolean(unread[c.id]) || movedSinceSeen(c)}
-          onOpen={() => {
-            setActive(c.workspaceId)
-            selectChat(c.workspaceId, c.id)
-          }}
-        />
-      ))}
+          {pinned.map((c) => (
+            <PinnedRow
+              key={c.id}
+              chat={c}
+              projectName={names.get(c.workspaceId) ?? ''}
+              projectKind={kinds.get(c.workspaceId)}
+              projectPath={paths.get(c.workspaceId)}
+              isRoot={isFolderRoot(byWorkspace.get(c.workspaceId) ?? [c], c)}
+              open={c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId}
+              live={Boolean(busy[c.id]?.generating)}
+              background={(busy[c.id]?.background ?? 0) > 0}
+              unread={Boolean(unread[c.id]) || movedSinceSeen(c)}
+              onOpen={() => {
+                setActive(c.workspaceId)
+                selectChat(c.workspaceId, c.id)
+              }}
+            />
+          ))}
         </SortableContext>
       </DndContext>
     </div>
@@ -2004,7 +2007,14 @@ export function Sidebar(): React.JSX.Element {
               <span className="sidebar-group-title">Projects</span>
               <span className="sidebar-head-actions">
                 <button className="group-add" title="New tab" onClick={() => void newTab()}>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                  >
                     <circle cx="8" cy="8" r="6.2" />
                     <path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2" />
                   </svg>
@@ -2014,7 +2024,16 @@ export function Sidebar(): React.JSX.Element {
                   title="Add a project"
                   onClick={() => addWorkspace(flatGroup.id)}
                 >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  >
                     <path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z" />
                     <path d="M8 7.3v4M6 9.3h4" />
                   </svg>
