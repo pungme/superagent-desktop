@@ -43,7 +43,7 @@ import {
   getChat
 } from './store'
 import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
-import { activeChatTab, chatTabs } from './chat-browser-tabs'
+import { agentChatTab, chatTabs, setAgentChatTab } from './chat-browser-tabs'
 import { gitBranch } from './files'
 import { pushOpenFile } from './companion'
 import { requestApproval } from './hooks'
@@ -107,10 +107,23 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
    * application with tabs, so the tools follow the tab in front — the one the
    * user is actually looking at — exactly as they follow the visible pane
    * everywhere else. A chat's own browser can have tabs too now (browser_tabs
-   * etc., below); it follows the same rule, one level down.
+   * etc., below) — but there the agent keeps a tab of its own (agentChatTab),
+   * so a tab the user opens to look something up is not taken over by the
+   * agent's next navigate.
    */
   const browserPane = (): string =>
-    isDesktop ? (activeDesktopTab() ?? PANE_ID) : activeChatTab(PANE_ID)
+    isDesktop ? (activeDesktopTab() ?? PANE_ID) : agentChatTab(PANE_ID)
+  /** Said after a browser action when the user is looking at another tab, so
+   *  the agent knows its page is not the one on screen. */
+  const tabNote = (): string => {
+    if (isDesktop) return ''
+    const tabs = chatTabs(PANE_ID)
+    const mine = tabs.findIndex((t) => t.id === agentChatTab(PANE_ID))
+    const front = tabs.findIndex((t) => t.active)
+    return tabs.length > 1 && mine >= 0 && front >= 0 && mine !== front
+      ? ` (in your tab ${mine}; the user is looking at tab ${front} — leave it alone unless asked)`
+      : ''
+  }
 
   // --- Ask mode: Claude Code's permission prompt, answered by a person --------
   // Headless `claude -p` has no terminal to ask in; --permission-prompt-tool
@@ -635,7 +648,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { url: z.string() }
     },
     async ({ url }) => ({
-      content: [{ type: 'text', text: `Now at ${await auto.navigate(browserPane(), url)}` }]
+      content: [
+        { type: 'text', text: `Now at ${await auto.navigate(browserPane(), url)}${tabNote()}` }
+      ]
     })
   )
 
@@ -1062,7 +1077,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       'browser_tabs',
       {
         description:
-          "List this chat's open browser tabs and which one the other browser_* tools currently act on. Empty until the browser has been opened at least once.",
+          "List this chat's open browser tabs: which one is yours (the other browser_* tools act on it) and which one the user is looking at — they can differ, since the user opens tabs of their own. Empty until the browser has been opened at least once.",
         inputSchema: {}
       },
       async () => {
@@ -1072,9 +1087,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
             content: [{ type: 'text', text: 'No browser tabs open — is the browser open?' }]
           }
         }
-        const lines = tabs.map(
-          (t, i) => `${i}: ${t.title || t.url || 'New tab'}${t.active ? '  <-- active' : ''}`
-        )
+        const mine = agentChatTab(PANE_ID)
+        const lines = tabs.map((t, i) => {
+          const marks = [t.id === mine ? 'yours' : '', t.active ? 'user is looking at it' : '']
+            .filter(Boolean)
+            .join(', ')
+          return `${i}: ${t.title || t.url || 'New tab'}${marks ? `  <-- ${marks}` : ''}`
+        })
         return { content: [{ type: 'text', text: lines.join('\n') }] }
       }
     )
@@ -1087,11 +1106,15 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         inputSchema: { url: z.string().optional().describe('Leave empty for a blank new tab') }
       },
       async ({ url }) => {
-        const before = chatTabs(PANE_ID).length
+        const beforeTabs = chatTabs(PANE_ID)
+        const before = beforeTabs.length
         tabOp('open', { url })
         // The tab is created in the renderer and reports back; give it a beat
         // rather than answering before it exists, same margin computer_browser_open uses.
         await new Promise((r) => setTimeout(r, 700))
+        // The new tab is the agent's from now on.
+        const added = chatTabs(PANE_ID).find((t) => !beforeTabs.some((b) => b.id === t.id))
+        if (added) setAgentChatTab(PANE_ID, added.id)
         return {
           content: [{ type: 'text', text: `Opened tab ${before}${url ? ` at ${url}` : ''}.` }]
         }
@@ -1114,6 +1137,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
             ]
           }
         }
+        setAgentChatTab(PANE_ID, tabs[index].id)
         tabOp('switch', { index })
         await new Promise((r) => setTimeout(r, 200))
         return { content: [{ type: 'text', text: `Switched to tab ${index}.` }] }
@@ -1124,9 +1148,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       'browser_close_tab',
       {
         description:
-          'Close a browser tab — the active one if no index is given. Refuses on the last tab; close the browser itself instead.',
+          'Close a browser tab — your own tab if no index is given. Refuses on the last tab; close the browser itself instead.',
         inputSchema: {
-          index: z.number().optional().describe('Defaults to the active tab')
+          index: z.number().optional().describe('Defaults to your own tab')
         }
       },
       async ({ index }) => {
@@ -1138,7 +1162,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
             ]
           }
         }
-        const target = index ?? tabs.findIndex((t) => t.active)
+        const target = index ?? tabs.findIndex((t) => t.id === agentChatTab(PANE_ID))
         if (target < 0 || target >= tabs.length) {
           return {
             content: [
