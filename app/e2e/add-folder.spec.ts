@@ -42,7 +42,9 @@ test.afterAll(async () => {
 })
 
 test('adding a code folder creates one usable root chat without a nested row', async () => {
-  await window.getByRole('button', { name: 'New project' }).click()
+  // The folder button on the Projects header (a fresh install has no groups, whose
+  // headers carry the older "New project" button).
+  await window.click('.sidebar-head-actions button[title="Add a project"]')
   await expect(window.locator('.sidebar-item', { hasText: 'cove-added-folder-' })).toBeVisible()
 
   const chats = await window.evaluate(async () => {

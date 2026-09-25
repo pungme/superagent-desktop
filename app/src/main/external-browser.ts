@@ -171,6 +171,8 @@ export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
     bin,
     [
       '--remote-debugging-pipe',
+      // Quiet tests: the same browser, with no window on the user's screen.
+      ...(process.env.COVE_E2E_QUIET === '1' ? ['--headless=new'] : []),
       `--user-data-dir=${profile}`,
       '--no-first-run',
       '--no-default-browser-check',

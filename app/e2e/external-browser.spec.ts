@@ -228,7 +228,7 @@ test('Brave already open with its profile, outside Superagent: a clear message, 
   await expect.poll(braveRunning, { timeout: 15_000 }).toBe('')
   const manual = spawn(
     BRAVE,
-    [`--user-data-dir=${join(userDataDir, 'browsers', 'brave')}`, '--no-first-run'],
+    [`--user-data-dir=${join(userDataDir, 'browsers', 'brave')}`, '--no-first-run', ...(process.env.COVE_E2E_QUIET === '1' ? ['--headless=new'] : [])],
     {
       stdio: 'ignore',
       detached: true

@@ -1,3 +1,4 @@
+import { QUIET } from './quiet'
 import {
   app,
   shell,
@@ -278,7 +279,8 @@ app.whenReady().then(async () => {
   registerCompanionIpc()
   startCompanion()
   // Menu-bar presence while a phone is paired; follows pairing/relay changes.
-  startTray()
+  // Quiet tests leave the menu bar alone too.
+  if (!QUIET) startTray()
   companionBus.on('state', refreshTray)
 
   // Which Superagent this is. Worth surfacing now that builds auto-update in the

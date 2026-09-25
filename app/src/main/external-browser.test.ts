@@ -5,6 +5,9 @@ import { mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
+// The real Brave these tests start runs headless: no window on the user's screen.
+process.env.COVE_E2E_QUIET ??= '1'
+
 const kv = new Map<string, string>()
 const dataDir = mkdtempSync(join(tmpdir(), 'sa-ext-browser-'))
 vi.mock('electron', () => ({
