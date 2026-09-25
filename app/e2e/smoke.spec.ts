@@ -2,6 +2,8 @@ import { test, expect, _electron as electron, ElectronApplication, Page } from '
 import { join } from 'path'
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
+import { createServer } from 'http'
+import type { AddressInfo } from 'net'
 
 /**
  * End-to-end smoke suite. Launches the built Electron app against a throwaway
@@ -82,6 +84,34 @@ test('a browser tab opens from the sidebar', async () => {
   await window.click('.sidebar-head-actions button[title="New tab"]')
   await window.waitForSelector('.browser-pane', { timeout: 10_000 })
   await expect(window.locator('.browser-address').first()).toBeVisible()
+})
+
+test('a tab row shows the page it is on: its favicon and site name', async () => {
+  // A real page with a real favicon, from a local server.
+  const icon = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+  )
+  const server = createServer((req, res) => {
+    if (req.url === '/icon.png') {
+      res.writeHead(200, { 'Content-Type': 'image/png' })
+      return res.end(icon)
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.end('<link rel="icon" href="/icon.png"><title>Fav</title><h1>Hello</h1>')
+  })
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
+  const port = (server.address() as AddressInfo).port
+  try {
+    const address = window.locator('.browser-address').first()
+    await address.fill(`http://127.0.0.1:${port}/`)
+    await address.press('Enter')
+    const tab = window.locator('.sidebar-item.has-remove').first()
+    await expect(tab.locator('img.sidebar-favicon')).toBeVisible({ timeout: 10_000 })
+    await expect(tab.locator('.sidebar-item-name')).toHaveText('127.0.0.1')
+  } finally {
+    server.close()
+  }
 })
 
 test('only a browser tab row has a hover ×; a project is removed from its right-click menu', async () => {

@@ -665,18 +665,29 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const [favicon, setFavicon] = useState<string>(
     () => localStorage.getItem(`favicon:${ws.id}`) ?? ''
   )
+  // The page lives in the tab's chat pane ("<tab>::<chat>") once it has a
+  // conversation, not in a pane named after the tab itself — listening only to
+  // the tab's own id missed every update, so the favicon and site name often
+  // never arrived. Listen to both.
+  const tabChatId = useStore((s) => s.activeChatId[ws.id])
   useEffect(() => {
     if (ws.kind !== 'browser') return
-    return window.cove.onBrowserState(ws.id, (s) => {
+    const onState = (s: { url?: string; favicon?: string }): void => {
       if (s.url) setSiteUrl(s.url)
-      if (s.favicon && s.favicon !== favicon) {
+      if (s.favicon) {
         setFavicon(s.favicon)
         localStorage.setItem(`favicon:${ws.id}`, s.favicon)
       }
-    })
-  }, [ws.kind, ws.id, favicon])
+    }
+    const offs = [window.cove.onBrowserState(ws.id, onState)]
+    if (tabChatId) offs.push(window.cove.onBrowserState(`${ws.id}::${tabChatId}`, onState))
+    return () => offs.forEach((off) => off())
+  }, [ws.kind, ws.id, tabChatId])
+  // A tab with a default name is labelled with the site it's on. New tabs are
+  // created as "New Tab"; older ones as "Browser project".
+  const defaultTabName = ws.name === 'Browser project' || ws.name === 'New Tab'
   const displayName =
-    ws.kind === 'browser' && ws.name === 'Browser project' ? hostOfUrl(siteUrl) || ws.name : ws.name
+    ws.kind === 'browser' && defaultTabName ? hostOfUrl(siteUrl) || ws.name : ws.name
   useEffect(() => {
     if (ws.kind === 'browser') return
     let alive = true
