@@ -4,6 +4,7 @@ import { EasyChat } from './EasyChat'
 import { BrowserTabs } from './BrowserTabs'
 import { ExternalBrowserPane } from './ExternalBrowserPane'
 import { useProjectBrowser } from '../hooks/useProjectBrowser'
+import { useMountedChats } from '../hooks/useMountedChats'
 import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
@@ -291,31 +292,9 @@ export function WorkspaceView({
   // read up top, where it drives deskKey).
   const chats = useStore((s) => s.chats[ws.id])
   const loadChats = useStore((s) => s.loadChats)
-  // A chat with a turn (or a background command) in flight has to keep its
-  // `claude` process alive even when you switch to a sibling — its agent lives
-  // inside the mounted <EasyChat>, so unmounting it on switch would kill the
-  // work mid-stream. Keep the on-screen chat mounted plus any that's still busy.
-  const busy = useStore((s) => s.busy)
-  // Keep the last few chats you were in mounted, not just the active one. The
-  // agent can leave background work running (builders, a long shell) that the app
-  // can't always see as "busy" — and unmounting a chat kills its claude process
-  // (and that work) instantly. Holding a small window of recent chats means
-  // switching away doesn't nuke a session the moment you look elsewhere. Bounded
-  // to a few, so this can't leak sessions. (React's adjust-state-in-render idiom
-  // — no effect.)
-  const [recentChats, setRecentChats] = useState<string[]>(() =>
-    activeChatId ? [activeChatId] : []
-  )
-  if (activeChatId && recentChats[0] !== activeChatId) {
-    setRecentChats([activeChatId, ...recentChats.filter((id) => id !== activeChatId)].slice(0, 3))
-  }
-  const mountedChats = (chats ?? []).filter(
-    (c) =>
-      c.id === activeChatId ||
-      recentChats.includes(c.id) ||
-      busy[c.id]?.generating ||
-      (busy[c.id]?.background ?? 0) > 0
-  )
+  // The on-screen chat, the last few you were in, and any still busy stay
+  // mounted — unmounting one stops its agent. See useMountedChats.
+  const mountedChats = useMountedChats(chats, activeChatId)
   useEffect(() => {
     loadChats(ws.id)
   }, [ws.id, loadChats])

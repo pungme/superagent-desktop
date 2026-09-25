@@ -1,3 +1,4 @@
+import { useMountedChats } from '../hooks/useMountedChats'
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
@@ -62,13 +63,11 @@ export function DesktopChat({
   const pinned = (chats ?? []).filter((c) => c.pinned).sort(byRecency)
   const rest = (chats ?? []).filter((c) => !c.pinned).sort(byRecency)
   const ordered = [...pinned, ...rest]
-  // Same rule as the project chats: keep the active conversation mounted plus any
-  // still-busy sibling, so switching Computer chats never tears down a running
-  // turn. Only the active one is shown.
-  const busy = useStore((s) => s.busy)
-  const mountedChats = (chats ?? []).filter(
-    (c) => c.id === activeChatId || busy[c.id]?.generating || (busy[c.id]?.background ?? 0) > 0
-  )
+  // Same rule as the project chats (useMountedChats): the on-screen chat, the
+  // last few you were in, and any still busy. Only the on-screen one is shown.
+  // It used to keep just the on-screen and busy ones, so switching away right
+  // after sending stopped the agent before it had even started.
+  const mountedChats = useMountedChats(chats, activeChatId)
 
   const openChat = (id: string): void => {
     selectChat(workspaceId, id)

@@ -145,6 +145,20 @@ test("the agent's browser_set_viewport switches the pane to mobile", async () =>
   await expect(window.locator('.browser-vp-btn.on').first()).toHaveAttribute('title', /Mobile/)
 })
 
+test('switching Computer chats keeps the one you left running', async () => {
+  // Unmounting a chat stops its agent. The Chats list kept only the on-screen
+  // chat (and ones flagged busy), so switching away just after sending stopped
+  // it; like projects, the last few chats now stay mounted.
+  await window.click('.sidebar-dash-row:has-text("Chats")')
+  await window.waitForSelector('.dchat', { timeout: 10_000 })
+  await window.click('.dchat-new')
+  await expect(window.locator('.dchat .chat-mount')).toHaveCount(1, { timeout: 10_000 })
+  await window.click('.dchat-new')
+  await expect(window.locator('.dchat .chat-mount')).toHaveCount(2, { timeout: 10_000 })
+  // Only the one on screen is shown.
+  await expect(window.locator('.dchat .chat-mount:visible')).toHaveCount(1)
+})
+
 test('Settings opens from the sidebar gear and closes with Done', async () => {
   await window.click('.sidebar-settings[title="Settings"]')
   const heading = window.locator('main h1', { hasText: 'Settings' })
