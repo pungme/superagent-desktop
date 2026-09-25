@@ -611,8 +611,9 @@ button {
   transition: padding-right 0.12s ease;
 }
 
-/* Open a gap for the remove button so it never lands on the branch chip. */
-.sidebar-item:hover {
+/* Open a gap for the remove button so it never lands on the branch chip —
+   only on rows that have one, so a project's caret never shifts on hover. */
+.sidebar-item.has-remove:hover {
   padding-right: 28px;
 }
 

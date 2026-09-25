@@ -538,7 +538,11 @@ app.whenReady().then(async () => {
                 }
               }
             ]
-          : [])
+          : []),
+        { type: 'separator' },
+        // The row's hover × was removed (it sat where the repos caret had been);
+        // this is the one place a project comes off the list now.
+        { label: 'Remove from Superagent', click: () => send('remove') }
       )
       Menu.buildFromTemplate(template).popup({ window: win })
     }

@@ -84,6 +84,15 @@ test('a browser tab opens from the sidebar', async () => {
   await expect(window.locator('.browser-address').first()).toBeVisible()
 })
 
+test('only a browser tab row has a hover ×; a project is removed from its right-click menu', async () => {
+  const project = window.locator('.sidebar-item', { hasText: 'e2e-project' })
+  await project.hover()
+  await expect(project.locator('.sidebar-item-remove')).toHaveCount(0)
+  const tab = window.locator('.sidebar-item.has-remove').first()
+  await tab.hover()
+  await expect(tab.locator('.sidebar-item-remove')).toHaveCount(1)
+})
+
 test("the agent's browser_set_viewport switches the pane to mobile", async () => {
   // What mcp.ts broadcasts for browser_set_viewport('mobile'), aimed at this pane.
   const paneId = await window.locator('[data-pane-id]').first().getAttribute('data-pane-id')

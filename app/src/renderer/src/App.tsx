@@ -213,6 +213,8 @@ function App(): React.JSX.Element {
         s.setActive(id)
         await s.newChat(id)
       }
+      // Takes it off the list; the folder and its files are untouched.
+      if (action === 'remove') s.removeWorkspace(id)
     })
   }, [])
 

@@ -735,7 +735,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     <div className="sidebar-item-wrap">
       <div
         ref={setRefs}
-        className={`sidebar-item ${rootSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver && !draggingGroup ? 'drop-before' : ''}`}
+        className={`sidebar-item ${ws.kind === 'browser' ? 'has-remove' : ''} ${rootSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver && !draggingGroup ? 'drop-before' : ''}`}
         onClick={() => {
           setActive(ws.id)
           // This row IS the conversation in the folder itself — the root chat.
@@ -854,18 +854,23 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             ↑{aheadBehind.ahead}
           </span>
         )}
-        {/* The running-server chip lives in the workspace toolbar now (more room);
-            the sidebar row was too cramped next to the branch + close button. */}
-        <button
-          className="sidebar-item-remove"
-          title="Remove from Superagent"
-          onClick={(e) => {
-            e.stopPropagation()
-            removeWorkspace(ws.id)
-          }}
-        >
-          ×
-        </button>
+        {/* Only a browser tab gets a hover ×: closing tabs is routine, and a tab
+            has no right-click menu. A project's × appeared on hover right where
+            its repos caret had been (the row made room for it), so a quick click
+            meant for the caret removed the project — projects are removed from
+            the right-click menu instead. */}
+        {ws.kind === 'browser' && (
+          <button
+            className="sidebar-item-remove"
+            title="Close tab"
+            onClick={(e) => {
+              e.stopPropagation()
+              removeWorkspace(ws.id)
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
       {subrepos.length > 0 && reposOpen && (
         <div className="routine-tree">
