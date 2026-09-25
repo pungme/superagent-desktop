@@ -67,15 +67,6 @@ const braveRunning = (): string =>
   execSync(`pgrep -f ${JSON.stringify('[-]-user-data-dir=' + braveProfile())} || true`)
     .toString()
     .trim()
-/** Superagent starts Brave with --remote-debugging-port; read it back off the process. */
-function bravePort(): string {
-  const line = execSync('ps -Ao command')
-    .toString()
-    .split('\n')
-    .find((l) => l.includes(braveProfile()) && l.includes('--remote-debugging-port='))!
-  return /--remote-debugging-port=(\d+)/.exec(line)![1]
-}
-
 test.beforeAll(async () => {
   userDataDir = mkdtempSync(join(tmpdir(), 'cove-e2e-ext-data-'))
   projectDir = mkdtempSync(join(tmpdir(), 'cove-e2e-ext-proj-'))
@@ -210,34 +201,17 @@ test('asking the user for help waits for Done', async () => {
 
 // --- When things go wrong around the agent -----------------------------------
 
-/** Brave's own view of its tabs, over its remote-control port (in the profile). */
-async function braveTabs(): Promise<{ id: string; url: string; type: string }[]> {
-  const port = bravePort()
-  const list = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as {
-    id: string
-    url: string
-    type: string
-  }[]
-  return list.filter((t) => t.type === 'page')
-}
-
-test('closing the agent’s tab: its next step opens a fresh one', async () => {
-  const tab = (await braveTabs()).find((t) => t.url.startsWith(siteUrl))!
-  await fetch(`http://127.0.0.1:${bravePort()}/json/close/${tab.id}`)
-  await expect.poll(async () => (await braveTabs()).some((t) => t.id === tab.id)).toBe(false)
-  expect(await tool('browser_navigate', { url: `${siteUrl}?again` })).toContain('again')
-  expect(await tool('browser_evaluate', { expression: 'document.title' })).toContain('Shop')
-})
-
 test('two chats in one project each get their own tab', async () => {
   const other = await window.evaluate((id) => window.cove.chatCreate(id), wsId)
   await tool('browser_navigate', { url: `${siteUrl}?chat=one` })
   await tool('browser_navigate', { url: `${siteUrl}?chat=two` }, other)
-  const urls = (await braveTabs()).map((t) => t.url)
-  expect(urls).toEqual(expect.arrayContaining([`${siteUrl}?chat=one`, `${siteUrl}?chat=two`]))
-  // Each chat still drives its own.
+  // A mark left in one tab isn't in the other: they're separate tabs.
+  await tool('browser_evaluate', { expression: '(window.name = "chat-one")' })
   expect(await tool('browser_evaluate', { expression: 'location.search' })).toContain('one')
   expect(await tool('browser_evaluate', { expression: 'location.search' }, other)).toContain('two')
+  expect(await tool('browser_evaluate', { expression: 'window.name' }, other)).not.toContain(
+    'chat-one'
+  )
 })
 
 test('quitting Brave mid-task: the next step starts it again', async () => {

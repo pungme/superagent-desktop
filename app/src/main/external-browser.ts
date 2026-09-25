@@ -1,6 +1,6 @@
 import { spawn, ChildProcess, execFile } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
-import { createServer } from 'net'
+import type { Readable, Writable } from 'stream'
 import { homedir } from 'os'
 import { join } from 'path'
 import { app, ipcMain, WebContents } from 'electron'
@@ -77,110 +77,140 @@ export function externalBrowserForPane(paneId: string): BrowserId | null {
 }
 
 // --- Running the browser ----------------------------------------------------
+//
+// Remote control goes over a private pipe (--remote-debugging-pipe): two file
+// descriptors only Superagent holds. A debugging *port* would let any program
+// on the Mac drive this profile — its cookies and signed-in sessions included,
+// which is why Chrome stopped allowing it on everyday profiles. With a pipe the
+// browser listens on nothing, and it quits by itself if Superagent goes away.
 
-interface Running {
-  pid: number
-  port: number
-  /** Ours from this launch; absent for one adopted after a crash. */
-  proc?: ChildProcess
-}
-const running = new Map<BrowserId, Running>()
+type Listener = (method: string, params: Record<string, unknown>, sessionId?: string) => void
 
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const srv = createServer()
-    srv.once('error', reject)
-    srv.listen(0, '127.0.0.1', () => {
-      const addr = srv.address()
-      const port = typeof addr === 'object' && addr ? addr.port : 0
-      srv.close(() => resolve(port))
+/** One running browser, spoken to over its pipe (NUL-delimited JSON, CDP). */
+class BrowserConnection {
+  private seq = 0
+  private buf = ''
+  private waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
+  private listeners = new Set<Listener>()
+  closed = false
+
+  constructor(readonly proc: ChildProcess) {
+    const incoming = proc.stdio[4] as Readable
+    incoming.on('data', (chunk: Buffer) => {
+      this.buf += chunk.toString('utf8')
+      let i: number
+      while ((i = this.buf.indexOf('\0')) >= 0) {
+        const raw = this.buf.slice(0, i)
+        this.buf = this.buf.slice(i + 1)
+        let msg: {
+          id?: number
+          result?: unknown
+          error?: { message: string }
+          method?: string
+          params?: Record<string, unknown>
+          sessionId?: string
+        }
+        try {
+          msg = JSON.parse(raw)
+        } catch {
+          continue
+        }
+        if (msg.id !== undefined) {
+          const w = this.waiting.get(msg.id)
+          this.waiting.delete(msg.id)
+          if (msg.error) w?.reject(new Error(msg.error.message))
+          else w?.resolve(msg.result)
+        } else if (msg.method) {
+          for (const l of this.listeners) l(msg.method, msg.params ?? {}, msg.sessionId)
+        }
+      }
     })
-  })
-}
+    const end = (): void => {
+      if (this.closed) return
+      this.closed = true
+      for (const w of this.waiting.values()) w.reject(new Error('The browser closed.'))
+      this.waiting.clear()
+    }
+    incoming.on('close', end)
+    proc.once('exit', end)
+    ;(proc.stdio[3] as Writable).on('error', end)
+  }
 
-async function alive(port: number): Promise<boolean> {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/json/version`, {
-      signal: AbortSignal.timeout(1500)
+  send<T = unknown>(
+    method: string,
+    params: Record<string, unknown> = {},
+    sessionId?: string
+  ): Promise<T> {
+    if (this.closed) return Promise.reject(new Error('The browser closed.'))
+    const id = ++this.seq
+    return new Promise<T>((resolve, reject) => {
+      this.waiting.set(id, { resolve: resolve as (v: unknown) => void, reject })
+      ;(this.proc.stdio[3] as Writable).write(
+        JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0'
+      )
     })
-    return res.ok
-  } catch {
-    return false
+  }
+
+  on(listener: Listener): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
   }
 }
 
-/**
- * A copy of this browser already running on our profile with remote control
- * on — one Superagent started before it crashed or was force-quit. Reusing it
- * beats launching a second copy, which the profile's lock would turn away.
- */
-async function adoptRunning(profile: string): Promise<Running | null> {
-  const out = await new Promise<string>((resolve) =>
-    execFile('ps', ['-Ao', 'pid=,command='], { maxBuffer: 8 * 1024 * 1024 }, (_e, stdout) =>
-      resolve(stdout ?? '')
-    )
-  )
-  for (const line of out.split('\n')) {
-    if (!line.includes(`--user-data-dir=${profile}`)) continue
-    const port = Number(/--remote-debugging-port=(\d+)/.exec(line)?.[1])
-    const pid = Number(line.trim().split(/\s+/)[0])
-    if (port && pid && (await alive(port))) return { pid, port }
-  }
-  return null
-}
+const running = new Map<BrowserId, BrowserConnection>()
 
-/** Start the browser with its Superagent profile (or reuse it), and return its CDP port. */
-export async function ensureRunning(id: BrowserId): Promise<number> {
+/** Start the browser with its Superagent profile (or reuse it), and return its connection. */
+export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
   const existing = running.get(id)
-  if (existing && (await alive(existing.port))) return existing.port
+  if (existing && !existing.closed) return existing
   const bin = executablePath(id)
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
   const profile = join(app.getPath('userData'), 'browsers', id)
   mkdirSync(profile, { recursive: true })
-  // Adopted, it's ours again — so quitting Superagent closes it too.
-  const adopted = await adoptRunning(profile)
-  if (adopted) {
-    running.set(id, adopted)
-    return adopted.port
-  }
-  const port = await freePort()
   const proc = spawn(
     bin,
     [
-      `--remote-debugging-port=${port}`,
+      '--remote-debugging-pipe',
       `--user-data-dir=${profile}`,
       '--no-first-run',
       '--no-default-browser-check',
       'about:blank'
     ],
-    { stdio: 'ignore', detached: true }
+    { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], detached: true }
   )
-  proc.unref()
-  running.set(id, { proc, pid: proc.pid ?? 0, port })
+  const conn = new BrowserConnection(proc)
+  running.set(id, conn)
   proc.once('exit', () => {
-    if (running.get(id)?.proc === proc) running.delete(id)
+    if (running.get(id) === conn) running.delete(id)
   })
-  for (let i = 0; i < 60; i++) {
-    if (await alive(port)) return port
-    await new Promise((r) => setTimeout(r, 250))
+  // Ready when it answers. If this profile is already open in a copy of the
+  // browser started some other way, ours hands over to it and exits at once.
+  const ready = await Promise.race([
+    conn.send('Browser.getVersion').then(
+      () => true,
+      () => false
+    ),
+    new Promise<boolean>((r) => setTimeout(() => r(false), 15_000))
+  ])
+  if (!ready) {
+    proc.kill('SIGTERM')
+    throw new Error(
+      `${browserName(id)} didn't start with remote control. If it's already open with this profile, quit it and try again.`
+    )
   }
-  throw new Error(
-    `${browserName(id)} didn't start with remote control. If it's already open with this profile, quit it and try again.`
-  )
+  return conn
 }
 
 /**
  * On quit: close the browsers Superagent started. They run with remote control
  * switched on, which shouldn't outlive the app that asked for it — and "quit
- * means quit" already holds for every agent and routine it started.
+ * means quit" already holds for every agent and routine it started. (Closing
+ * the pipe alone would do it too; SIGTERM is the prompt, clean way.)
  */
 export function closeExternalBrowsers(): void {
-  // SIGTERM is a normal quit for Chromium (it saves the profile), and unlike a
-  // CDP Browser.close it lands before the app — which won't wait — is gone.
-  for (const [id, r] of running) {
+  for (const [id, conn] of running) {
     try {
-      if (r.proc) r.proc.kill('SIGTERM')
-      else if (r.pid) process.kill(r.pid, 'SIGTERM')
+      conn.proc.kill('SIGTERM')
     } catch {
       // already gone
     }
@@ -201,17 +231,19 @@ export async function showBrowserWindow(id: BrowserId, paneId?: string): Promise
       await page.sendCommand('Page.bringToFront')
       return
     }
-    const r = running.get(id)
-    if (r && (await alive(r.port))) {
-      const tabs = (await (await fetch(`http://127.0.0.1:${r.port}/json/list`)).json()) as {
-        type: string
-        webSocketDebuggerUrl: string
-      }[]
-      const tab = tabs.find((t) => t.type === 'page')
+    const conn = running.get(id)
+    if (conn && !conn.closed) {
+      const { targetInfos } = await conn.send<{
+        targetInfos: { targetId: string; type: string }[]
+      }>('Target.getTargets')
+      const tab = targetInfos.find((t) => t.type === 'page')
       if (tab) {
-        const session = await CdpSession.connect(tab.webSocketDebuggerUrl)
-        await session.send('Page.bringToFront')
-        session.close()
+        const { sessionId } = await conn.send<{ sessionId: string }>('Target.attachToTarget', {
+          targetId: tab.targetId,
+          flatten: true
+        })
+        await conn.send('Page.bringToFront', {}, sessionId)
+        await conn.send('Target.detachFromTarget', { sessionId }).catch(() => {})
         return
       }
     }
@@ -222,71 +254,41 @@ export async function showBrowserWindow(id: BrowserId, paneId?: string): Promise
   if (a) execFile('open', ['-a', a.bundle.replace(/\.app$/, '')], () => {})
 }
 
-// --- Talking to a tab over CDP ----------------------------------------------
+// --- Talking to a tab ----------------------------------------------------------
+
+const WEBDRIVER_MASK =
+  "Object.defineProperty(Navigator.prototype,'webdriver',{get:()=>false,configurable:true});"
 
 type CdpEvent = (method: string, params: Record<string, unknown>) => void
 
+/** One tab's session, over its browser's pipe. */
 export class CdpSession {
-  private seq = 0
-  private waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
-  private listeners = new Set<CdpEvent>()
-  closed = false
+  private detached = false
 
-  private constructor(private ws: WebSocket) {
-    ws.addEventListener('message', (m) => {
-      const msg = JSON.parse(String(m.data)) as {
-        id?: number
-        result?: unknown
-        error?: { message: string }
-        method?: string
-        params?: Record<string, unknown>
+  constructor(
+    private conn: BrowserConnection,
+    readonly sessionId: string
+  ) {
+    conn.on((method, params) => {
+      if (method === 'Target.detachedFromTarget' && params.sessionId === sessionId) {
+        this.detached = true
       }
-      if (msg.id !== undefined) {
-        const w = this.waiting.get(msg.id)
-        this.waiting.delete(msg.id)
-        if (msg.error) w?.reject(new Error(msg.error.message))
-        else w?.resolve(msg.result)
-      } else if (msg.method) {
-        for (const l of this.listeners) l(msg.method, msg.params ?? {})
-      }
-    })
-    ws.addEventListener('close', () => {
-      this.closed = true
-      for (const w of this.waiting.values()) w.reject(new Error('The browser tab closed.'))
-      this.waiting.clear()
     })
   }
 
-  static connect(url: string): Promise<CdpSession> {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket(url)
-      ws.addEventListener('open', () => resolve(new CdpSession(ws)), { once: true })
-      ws.addEventListener(
-        'error',
-        () => reject(new Error('Could not connect to the browser tab.')),
-        {
-          once: true
-        }
-      )
-    })
+  get closed(): boolean {
+    return this.detached || this.conn.closed
   }
 
   send<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     if (this.closed) return Promise.reject(new Error('The browser tab closed.'))
-    const id = ++this.seq
-    return new Promise<T>((resolve, reject) => {
-      this.waiting.set(id, { resolve: resolve as (v: unknown) => void, reject })
-      this.ws.send(JSON.stringify({ id, method, params }))
-    })
+    return this.conn.send<T>(method, params, this.sessionId)
   }
 
   on(listener: CdpEvent): () => void {
-    this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
-  }
-
-  close(): void {
-    this.ws.close()
+    return this.conn.on((method, params, sessionId) => {
+      if (sessionId === this.sessionId) listener(method, params)
+    })
   }
 }
 
@@ -295,7 +297,8 @@ export class ExternalPage {
   constructor(
     readonly browser: BrowserId,
     readonly session: CdpSession,
-    readonly targetId: string
+    readonly targetId: string,
+    private conn: BrowserConnection
   ) {}
 
   async loadURL(url: string): Promise<void> {
@@ -336,6 +339,11 @@ export class ExternalPage {
   sendCommand<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     return this.session.send<T>(method, params)
   }
+
+  /** Close this tab in the browser. */
+  async close(): Promise<void> {
+    await this.conn.send('Target.closeTarget', { targetId: this.targetId }).catch(() => {})
+  }
 }
 
 const pages = new Map<string, ExternalPage>()
@@ -356,27 +364,45 @@ export function existingExternalPage(paneId: string): ExternalPage | undefined {
 export async function externalPage(paneId: string, id: BrowserId): Promise<ExternalPage> {
   const have = existingExternalPage(paneId)
   if (have && have.browser === id) return have
-  const port = await ensureRunning(id)
-  const target = (await (
-    await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })
-  ).json()) as { id: string; webSocketDebuggerUrl: string }
-  const session = await CdpSession.connect(target.webSocketDebuggerUrl)
+  const conn = await ensureRunning(id)
+  // The browser opens with one blank tab: use that before opening another.
+  const ours = new Set([...pages.values()].map((p) => p.targetId))
+  const { targetInfos } = await conn.send<{
+    targetInfos: { targetId: string; type: string; url: string; attached: boolean }[]
+  }>('Target.getTargets')
+  const blank = targetInfos.find(
+    (t) => t.type === 'page' && t.url === 'about:blank' && !t.attached && !ours.has(t.targetId)
+  )
+  const targetId =
+    blank?.targetId ??
+    (await conn.send<{ targetId: string }>('Target.createTarget', { url: 'about:blank' })).targetId
+  const { sessionId } = await conn.send<{ sessionId: string }>('Target.attachToTarget', {
+    targetId,
+    flatten: true
+  })
+  const session = new CdpSession(conn, sessionId)
   await Promise.all([
     session.send('Page.enable'),
     session.send('Runtime.enable'),
-    session.send('Network.enable')
+    session.send('Network.enable'),
+    // Pipe control marks the browser as automated (navigator.webdriver is
+    // true), which is what Google sign-in and Cloudflare turn away. Set it back
+    // before any page script runs, as the built-in pane does. (The launch flag
+    // that avoids it shows an "unsupported command-line flag" warning bar.)
+    session.send('Page.addScriptToEvaluateOnNewDocument', { source: WEBDRIVER_MASK }),
+    session.send('Runtime.evaluate', { expression: WEBDRIVER_MASK })
   ])
-  const page = new ExternalPage(id, session, target.id)
+  const page = new ExternalPage(id, session, targetId, conn)
   pages.set(paneId, page)
   for (const l of pageListeners) l(paneId, page)
   return page
 }
 
-/** Pick a different browser for a project: its open tabs are let go. */
+/** Pick a different browser for a project: its tabs there are closed. */
 export function forgetExternalPages(workspaceId: string): void {
   for (const [paneId, page] of pages) {
     if (workspaceIdFromPane(paneId) === workspaceId) {
-      page.session.close()
+      void page.close()
       pages.delete(paneId)
     }
   }

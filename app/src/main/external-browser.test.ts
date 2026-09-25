@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { existsSync } from 'fs'
+import { execSync } from 'child_process'
 import { mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -58,54 +59,19 @@ describe('which browser a pane uses', () => {
   })
 })
 
-describe.skipIf(!haveBrave)('after a crash', () => {
-  it('reuses the Brave it started last time instead of launching a second copy', async () => {
-    // What a crash leaves behind: our Brave, still running with remote control on.
-    const { spawn } = await import('child_process')
-    const profile = join(dataDir, 'browsers', 'brave')
-    const { mkdirSync } = await import('fs')
-    mkdirSync(profile, { recursive: true })
-    const leftover = spawn(
-      BRAVE,
-      [
-        '--remote-debugging-port=9377',
-        `--user-data-dir=${profile}`,
-        '--no-first-run',
-        'about:blank'
-      ],
-      { stdio: 'ignore', detached: true }
-    )
-    try {
-      for (let i = 0; i < 40; i++) {
-        const ok = await fetch('http://127.0.0.1:9377/json/version').then(
-          (r) => r.ok,
-          () => false
-        )
-        if (ok) break
-        await new Promise((r) => setTimeout(r, 250))
-      }
-      expect(await ensureRunning('brave')).toBe(9377)
-      // Adopted means ours: quitting Superagent closes it too.
-      const exited = new Promise((r) => leftover.once('exit', r))
-      closeExternalBrowsers()
-      await Promise.race([exited, new Promise((r) => setTimeout(r, 8000))])
-      expect(leftover.exitCode !== null || leftover.signalCode !== null).toBe(true)
-    } finally {
-      leftover.kill('SIGTERM')
-      await new Promise((r) => setTimeout(r, 1500))
-    }
-  }, 30_000)
-})
-
 // Against the real browser, with a throwaway profile. Skipped where Brave isn't
 // installed (CI), so it proves the CDP path on a developer's Mac.
 describe.skipIf(!haveBrave)('driving a real Brave', () => {
   it('launches, navigates, reads, screenshots, emulates a phone and streams frames', async () => {
     try {
-      const port = await ensureRunning('brave')
-      expect(port).toBeGreaterThan(0)
+      const conn = await ensureRunning('brave')
       // Reused, not relaunched.
-      expect(await ensureRunning('brave')).toBe(port)
+      expect(await ensureRunning('brave')).toBe(conn)
+      // Controlled over a private pipe only: the browser listens on no port
+      // another program on the Mac could connect to.
+      const pid = conn.proc.pid!
+      const tcp = execSync(`lsof -nP -iTCP -sTCP:LISTEN -a -p ${pid} || true`).toString().trim()
+      expect(tcp).toBe('')
 
       const page = await externalPage('ws1::chat1', 'brave')
       await page.loadURL(
@@ -152,6 +118,22 @@ describe.skipIf(!haveBrave)('driving a real Brave', () => {
 
       // Same pane → same tab.
       expect(await externalPage('ws1::chat1', 'brave')).toBe(page)
+
+      // The tab is closed (by the user, say): the next step opens a fresh one.
+      await page.close()
+      await new Promise((r) => setTimeout(r, 500))
+      const again = await externalPage('ws1::chat1', 'brave')
+      expect(again).not.toBe(page)
+      await again.loadURL('data:text/html,<title>Again</title>')
+      expect(await again.executeJavaScript('document.title')).toBe('Again')
+
+      // A crash: Superagent's end of the pipe goes away, and the browser quits
+      // by itself — no remote-controllable browser is left behind.
+      const exited = new Promise((r) => conn.proc.once('exit', r))
+      ;(conn.proc.stdio[3] as import('stream').Writable).destroy()
+      ;(conn.proc.stdio[4] as import('stream').Readable).destroy()
+      await Promise.race([exited, new Promise((r) => setTimeout(r, 8000))])
+      expect(conn.proc.exitCode !== null || conn.proc.signalCode !== null).toBe(true)
     } finally {
       closeExternalBrowsers()
       await new Promise((r) => setTimeout(r, 1500))
