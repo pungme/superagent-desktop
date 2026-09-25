@@ -44,6 +44,12 @@ import {
 } from './store'
 import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
 import { agentChatTab, chatTabs, setAgentChatTab } from './chat-browser-tabs'
+import {
+  browserName,
+  existingExternalPage,
+  externalBrowserForPane,
+  showBrowserWindow
+} from './external-browser'
 import { gitBranch } from './files'
 import { pushOpenFile } from './companion'
 import { requestApproval } from './hooks'
@@ -662,6 +668,22 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { viewport: z.enum(['mobile', 'desktop', 'both', 'fit']) }
     },
     async ({ viewport }) => {
+      // A project browsing in the user's real browser: emulate the phone in that tab.
+      const external = externalBrowserForPane(browserPane())
+      if (external && (await auto.setExternalViewport(browserPane(), viewport))) {
+        const note =
+          viewport === 'both'
+            ? ` Side by side isn't available in ${browserName(external)}, so it's showing desktop.`
+            : ''
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Viewport is now ${viewport === 'both' ? 'desktop' : viewport}.${note}`
+            }
+          ]
+        }
+      }
       broadcastToWindows('browser:viewport-command', {
         paneId: browserPane(),
         viewport: viewport === 'fit' ? 'none' : viewport
@@ -669,6 +691,40 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       // The pane re-lays out and re-zooms; let it settle before a screenshot.
       await new Promise((r) => setTimeout(r, 600))
       return { content: [{ type: 'text', text: `Viewport is now ${viewport}.${tabNote()}` }] }
+    }
+  )
+
+  server.registerTool(
+    'browser_ask_user',
+    {
+      description:
+        'Ask the user to do something in the browser that only a person can: a captcha, a Cloudflare or "are you human" check, a login, a two-factor code, a "confirm it\'s you" page. Call this as soon as one blocks you, instead of retrying or working around it. Say plainly what\'s needed and where (e.g. "Solve the Cloudflare check on shop.com, then press Done"). It waits until they press Done or Skip, then tells you which; on Done, take a screenshot and carry on.',
+      inputSchema: {
+        what: z.string().describe('What the user needs to do, in one or two plain sentences')
+      }
+    },
+    async ({ what }) => {
+      const pane = browserPane()
+      const external = externalBrowserForPane(pane)
+      // Their real browser: bring it forward so the thing to solve is right there.
+      if (external) showBrowserWindow(external)
+      const done = await requestApproval(
+        workspaceIdFromPane(PANE_ID),
+        CHAT_ID ?? PANE_ID,
+        external ? browserName(external) : 'browser',
+        what,
+        'handoff'
+      )
+      return {
+        content: [
+          {
+            type: 'text',
+            text: done
+              ? 'The user says it’s done. Take a screenshot to confirm, then continue.'
+              : 'The user skipped it. Don’t retry the same step; tell them what you couldn’t finish.'
+          }
+        ]
+      }
     }
   )
 
@@ -1088,6 +1144,15 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   // one page open at once — comparing two docs, one tab mid-flow while
   // another loads — so it gets a small tab set of its own.
   if (!isDesktop) {
+    // In the user's real browser each chat keeps to one tab for now.
+    const externalOneTab = (): { content: { type: 'text'; text: string }[] } => ({
+      content: [
+        {
+          type: 'text',
+          text: `This project browses in ${browserName(externalBrowserForPane(PANE_ID) ?? 'builtin')}, where each chat has one tab. Use browser_navigate in it.`
+        }
+      ]
+    })
     const tabOp = (op: 'open' | 'switch' | 'close', payload: Record<string, unknown> = {}): void =>
       broadcastToWindows('browser:tabs-command', { basePaneId: PANE_ID, op, ...payload })
 
@@ -1099,6 +1164,18 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         inputSchema: {}
       },
       async () => {
+        if (externalBrowserForPane(PANE_ID)) {
+          const page = existingExternalPage(browserPane())
+          const url = page ? await page.getURL().catch(() => '') : ''
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `This project browses in ${browserName(externalBrowserForPane(PANE_ID)!)}, with one tab per chat.${url ? `\n0: ${url}  <-- yours` : ''}`
+              }
+            ]
+          }
+        }
         const tabs = chatTabs(PANE_ID)
         if (!tabs.length) {
           return {
@@ -1124,6 +1201,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         inputSchema: { url: z.string().optional().describe('Leave empty for a blank new tab') }
       },
       async ({ url }) => {
+        if (externalBrowserForPane(PANE_ID)) return externalOneTab()
         const beforeTabs = chatTabs(PANE_ID)
         const before = beforeTabs.length
         tabOp('open', { url })
@@ -1147,6 +1225,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         inputSchema: { index: z.number() }
       },
       async ({ index }) => {
+        if (externalBrowserForPane(PANE_ID)) return externalOneTab()
         const tabs = chatTabs(PANE_ID)
         if (index < 0 || index >= tabs.length) {
           return {
@@ -1172,6 +1251,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         }
       },
       async ({ index }) => {
+        if (externalBrowserForPane(PANE_ID)) return externalOneTab()
         const tabs = chatTabs(PANE_ID)
         if (tabs.length <= 1) {
           return {

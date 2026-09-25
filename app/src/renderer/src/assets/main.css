@@ -10975,6 +10975,9 @@ button {
   flex: 0 0 auto;
   margin: 0 14px 8px;
   background: #fff;
+  /* Always a white card, so its ink is fixed too. Inheriting the theme's text
+     colour made the title white-on-white in dark mode ("Claude wants to use…"). */
+  color: #18181b;
   border: 1px solid #e4e4e7;
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
@@ -11646,4 +11649,92 @@ button {
 }
 .easy-file-shot:hover {
   border-color: var(--border-strong);
+}
+
+/* A project browsing in the user's real browser: that tab, live, in the pane. */
+.external-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-content);
+}
+.external-pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.external-pane-badge {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.external-pane-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.external-pane-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.external-pane-btn:hover {
+  background: var(--hover);
+}
+.external-pane-close {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  width: 22px;
+  cursor: pointer;
+}
+.external-pane-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+.external-pane-view img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.25);
+}
+.external-pane-empty {
+  max-width: 320px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+/* The agent is stuck and hands over: what to do, in plain words. The card is
+   always white (see .easy-guard), so the ink is fixed too. */
+.easy-handoff-what {
+  margin: 6px 0 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #18181b;
 }

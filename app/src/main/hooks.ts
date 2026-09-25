@@ -81,7 +81,9 @@ let gateSeq = 0
 // a web page may have planted. Bounded so the agent never hangs indefinitely.
 const GATE_TIMEOUT_MS = 120_000
 
-export type ApprovalKind = 'guardrail' | 'permission'
+/** `handoff`: the agent is stuck on something only a person can do (a captcha,
+ *  a login, a two-factor code) and waits for them to do it and say Done. */
+export type ApprovalKind = 'guardrail' | 'permission' | 'handoff'
 
 // A real permission prompt can wait as long as a person might be away from
 // both screens; the injection gate self-denies sooner (an unattended machine
@@ -97,7 +99,8 @@ export function requestApproval(
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const requestId = `gate-${++gateSeq}`
-    const timeoutMs = kind === 'permission' ? PERMISSION_TIMEOUT_MS : GATE_TIMEOUT_MS
+    // A person asked to act (answer a prompt, solve a check) gets the long wait.
+    const timeoutMs = kind === 'guardrail' ? GATE_TIMEOUT_MS : PERMISSION_TIMEOUT_MS
     const timer = setTimeout(() => {
       pendingGates.delete(requestId)
       broadcastToWindows('guardrail:resolved', { requestId })
