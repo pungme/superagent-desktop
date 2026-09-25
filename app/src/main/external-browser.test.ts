@@ -58,6 +58,40 @@ describe('which browser a pane uses', () => {
   })
 })
 
+describe.skipIf(!haveBrave)('after a crash', () => {
+  it('reuses the Brave it started last time instead of launching a second copy', async () => {
+    // What a crash leaves behind: our Brave, still running with remote control on.
+    const { spawn } = await import('child_process')
+    const profile = join(dataDir, 'browsers', 'brave')
+    const { mkdirSync } = await import('fs')
+    mkdirSync(profile, { recursive: true })
+    const leftover = spawn(
+      BRAVE,
+      [
+        '--remote-debugging-port=9377',
+        `--user-data-dir=${profile}`,
+        '--no-first-run',
+        'about:blank'
+      ],
+      { stdio: 'ignore', detached: true }
+    )
+    try {
+      for (let i = 0; i < 40; i++) {
+        const ok = await fetch('http://127.0.0.1:9377/json/version').then(
+          (r) => r.ok,
+          () => false
+        )
+        if (ok) break
+        await new Promise((r) => setTimeout(r, 250))
+      }
+      expect(await ensureRunning('brave')).toBe(9377)
+    } finally {
+      leftover.kill('SIGTERM')
+      await new Promise((r) => setTimeout(r, 1500))
+    }
+  }, 30_000)
+})
+
 // Against the real browser, with a throwaway profile. Skipped where Brave isn't
 // installed (CI), so it proves the CDP path on a developer's Mac.
 describe.skipIf(!haveBrave)('driving a real Brave', () => {

@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs
 import { tmpdir } from 'os'
 import { createServer, Server } from 'http'
 import type { AddressInfo } from 'net'
-import { execSync } from 'child_process'
+import { execSync, spawn } from 'child_process'
 
 /**
  * A project whose agent browses in the user's real Brave: pick it, then drive it
@@ -27,10 +27,10 @@ let site: Server
 let siteUrl: string
 
 /** Call one of the agent's tools, the way Claude Code does over HTTP. */
-async function tool(name: string, args: Record<string, unknown>): Promise<string> {
+async function tool(name: string, args: Record<string, unknown>, chat = chatId): Promise<string> {
   // With the chat, as a real session's tool calls are: the pane is per chat.
   const res = await fetch(
-    `${mcpUrl}?ws=${encodeURIComponent(wsId)}&chat=${encodeURIComponent(chatId)}`,
+    `${mcpUrl}?ws=${encodeURIComponent(wsId)}&chat=${encodeURIComponent(chat)}`,
     {
       method: 'POST',
       headers: {
@@ -59,6 +59,21 @@ async function tool(name: string, args: Record<string, unknown>): Promise<string
   if (msg.error) throw new Error(msg.error.message)
   // Text, or an image's base64 (browser_screenshot).
   return msg.result!.content.map((c) => c.text ?? c.data ?? '').join('\n')
+}
+
+const braveProfile = (): string => join(userDataDir, 'browsers', 'brave')
+/** Any process still using that profile. The [-] keeps pgrep from matching its own shell. */
+const braveRunning = (): string =>
+  execSync(`pgrep -f ${JSON.stringify('[-]-user-data-dir=' + braveProfile())} || true`)
+    .toString()
+    .trim()
+/** Superagent starts Brave with --remote-debugging-port; read it back off the process. */
+function bravePort(): string {
+  const line = execSync('ps -Ao command')
+    .toString()
+    .split('\n')
+    .find((l) => l.includes(braveProfile()) && l.includes('--remote-debugging-port='))!
+  return /--remote-debugging-port=(\d+)/.exec(line)![1]
 }
 
 test.beforeAll(async () => {
@@ -115,9 +130,7 @@ test.afterAll(async () => {
   site?.close()
   // Quitting Superagent quits the Brave it started (closeExternalBrowsers).
   await new Promise((r) => setTimeout(r, 2000))
-  const left = execSync(`pgrep -f ${JSON.stringify(userDataDir)} || true`)
-    .toString()
-    .trim()
+  const left = braveRunning()
   for (const dir of [userDataDir, projectDir]) rmSync(dir, { recursive: true, force: true })
   expect(left, 'Brave should quit with Superagent').toBe('')
 })
@@ -193,6 +206,71 @@ test('asking the user for help waits for Done', async () => {
   expect(ask.preview).toContain('Solve the check')
   await window.evaluate((id) => window.cove.guardrailResolve(id, true, false), ask.requestId)
   expect(await pending).toContain('done')
+})
+
+// --- When things go wrong around the agent -----------------------------------
+
+/** Brave's own view of its tabs, over its remote-control port (in the profile). */
+async function braveTabs(): Promise<{ id: string; url: string; type: string }[]> {
+  const port = bravePort()
+  const list = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as {
+    id: string
+    url: string
+    type: string
+  }[]
+  return list.filter((t) => t.type === 'page')
+}
+
+test('closing the agent’s tab: its next step opens a fresh one', async () => {
+  const tab = (await braveTabs()).find((t) => t.url.startsWith(siteUrl))!
+  await fetch(`http://127.0.0.1:${bravePort()}/json/close/${tab.id}`)
+  await expect.poll(async () => (await braveTabs()).some((t) => t.id === tab.id)).toBe(false)
+  expect(await tool('browser_navigate', { url: `${siteUrl}?again` })).toContain('again')
+  expect(await tool('browser_evaluate', { expression: 'document.title' })).toContain('Shop')
+})
+
+test('two chats in one project each get their own tab', async () => {
+  const other = await window.evaluate((id) => window.cove.chatCreate(id), wsId)
+  await tool('browser_navigate', { url: `${siteUrl}?chat=one` })
+  await tool('browser_navigate', { url: `${siteUrl}?chat=two` }, other)
+  const urls = (await braveTabs()).map((t) => t.url)
+  expect(urls).toEqual(expect.arrayContaining([`${siteUrl}?chat=one`, `${siteUrl}?chat=two`]))
+  // Each chat still drives its own.
+  expect(await tool('browser_evaluate', { expression: 'location.search' })).toContain('one')
+  expect(await tool('browser_evaluate', { expression: 'location.search' }, other)).toContain('two')
+})
+
+test('quitting Brave mid-task: the next step starts it again', async () => {
+  execSync(`pkill -TERM -f ${JSON.stringify(join(userDataDir, 'browsers', 'brave'))} || true`)
+  await expect.poll(braveRunning, { timeout: 15_000 }).toBe('')
+  expect(await tool('browser_navigate', { url: `${siteUrl}?back` })).toContain('back')
+  expect(await tool('browser_evaluate', { expression: 'document.title' })).toContain('Shop')
+})
+
+test('Brave already open with its profile, outside Superagent: a clear message, no hang', async () => {
+  // Quit ours, then open the same profile the way a person might — without
+  // remote control. Superagent can't take it over, and must say so.
+  execSync(`pkill -TERM -f ${JSON.stringify(join(userDataDir, 'browsers', 'brave'))} || true`)
+  await expect.poll(braveRunning, { timeout: 15_000 }).toBe('')
+  const manual = spawn(
+    BRAVE,
+    [`--user-data-dir=${join(userDataDir, 'browsers', 'brave')}`, '--no-first-run'],
+    {
+      stdio: 'ignore',
+      detached: true
+    }
+  )
+  try {
+    await new Promise((r) => setTimeout(r, 2500))
+    const started = Date.now()
+    const out = await tool('browser_navigate', { url: siteUrl }).catch((e: Error) => e.message)
+    expect(Date.now() - started).toBeLessThan(25_000)
+    expect(out).toMatch(/quit it and try again/i)
+  } finally {
+    manual.kill('SIGTERM')
+    execSync(`pkill -TERM -f ${JSON.stringify(join(userDataDir, 'browsers', 'brave'))} || true`)
+    await new Promise((r) => setTimeout(r, 1500))
+  }
 })
 
 test('switching back to the built-in browser restores the normal pane', async () => {

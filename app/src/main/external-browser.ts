@@ -107,6 +107,25 @@ async function alive(port: number): Promise<boolean> {
   }
 }
 
+/**
+ * A copy of this browser already running on our profile with remote control
+ * on — one Superagent started before it crashed or was force-quit. Reusing it
+ * beats launching a second copy, which the profile's lock would turn away.
+ */
+async function adoptRunning(profile: string): Promise<number | null> {
+  const out = await new Promise<string>((resolve) =>
+    execFile('ps', ['-Ao', 'command'], { maxBuffer: 8 * 1024 * 1024 }, (_e, stdout) =>
+      resolve(stdout ?? '')
+    )
+  )
+  for (const line of out.split('\n')) {
+    if (!line.includes(`--user-data-dir=${profile}`)) continue
+    const port = Number(/--remote-debugging-port=(\d+)/.exec(line)?.[1])
+    if (port && (await alive(port))) return port
+  }
+  return null
+}
+
 /** Start the browser with its Superagent profile (or reuse it), and return its CDP port. */
 export async function ensureRunning(id: BrowserId): Promise<number> {
   const existing = running.get(id)
@@ -115,6 +134,8 @@ export async function ensureRunning(id: BrowserId): Promise<number> {
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
   const profile = join(app.getPath('userData'), 'browsers', id)
   mkdirSync(profile, { recursive: true })
+  const adopted = await adoptRunning(profile)
+  if (adopted) return adopted
   const port = await freePort()
   const proc = spawn(
     bin,
