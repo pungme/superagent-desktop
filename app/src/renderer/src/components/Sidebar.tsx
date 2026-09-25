@@ -812,26 +812,6 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             <PhoneIcon />
           </span>
         )}
-        {/* The project row is the root of its repos: its own caret folds them
-            away, rather than a separate "N repos" row that stayed on screen
-            under every project even when collapsed. */}
-        {subrepos.length > 0 && (
-          <button
-            className="sidebar-item-caret"
-            title={reposOpen ? 'Hide repos' : `Show ${subrepos.length} repos`}
-            aria-expanded={reposOpen}
-            aria-label={reposOpen ? 'Hide repos' : `Show ${subrepos.length} repos`}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation()
-              setReposOpen(!reposOpen)
-            }}
-          >
-            <span style={{ transform: reposOpen ? 'none' : 'rotate(-90deg)' }}>
-              <Chevron size={12} />
-            </span>
-          </button>
-        )}
         {unreadHere && !active && (
           <span className="sidebar-unread" title="Claude finished something you haven't read" />
         )}
@@ -853,6 +833,28 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           >
             ↑{aheadBehind.ahead}
           </span>
+        )}
+        {/* The project row is the root of its repos: its own caret folds them
+            away, rather than a separate "N repos" row that stayed on screen
+            under every project even when collapsed. Last on the row, after the
+            unread dot, branch and ↓/↑ badges, so it stays put while those come
+            and go. */}
+        {subrepos.length > 0 && (
+          <button
+            className="sidebar-item-caret"
+            title={reposOpen ? 'Hide repos' : `Show ${subrepos.length} repos`}
+            aria-expanded={reposOpen}
+            aria-label={reposOpen ? 'Hide repos' : `Show ${subrepos.length} repos`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              setReposOpen(!reposOpen)
+            }}
+          >
+            <span style={{ transform: reposOpen ? 'none' : 'rotate(-90deg)' }}>
+              <Chevron size={12} />
+            </span>
+          </button>
         )}
         {/* Only a browser tab gets a hover ×: closing tabs is routine, and a tab
             has no right-click menu. A project's × appeared on hover right where
