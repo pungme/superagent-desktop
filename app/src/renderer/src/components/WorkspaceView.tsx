@@ -2,6 +2,8 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserTabs } from './BrowserTabs'
+import { ExternalBrowserPane } from './ExternalBrowserPane'
+import { useProjectBrowser } from '../hooks/useProjectBrowser'
 import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
 import { FileTree } from './FileTree'
@@ -9,6 +11,8 @@ import { FileViewer } from './FileViewer'
 import { RoutineRunView } from './RoutineRunView'
 import { BranchMenu } from './BranchMenu'
 import type { Workspace, Routine } from '../../../preload'
+
+const EXTERNAL_NAMES: Record<string, string> = { brave: 'Brave', chrome: 'Chrome', edge: 'Edge' }
 
 const EMPTY_ROUTINES: Routine[] = []
 const EMPTY_PORTS: number[] = []
@@ -77,6 +81,10 @@ export function WorkspaceView({
     return ws.kind === 'browser' ? !s.coldStart : false
   })
   const toggleBrowser = useStore((s) => s.toggleBrowser)
+  // The agent may browse in the user's real browser for this project; the pane
+  // then streams that tab instead of hosting a page itself.
+  const projectBrowser = useProjectBrowser(ws.id)
+  const external = ws.kind !== 'browser' && projectBrowser !== 'builtin'
   const filesOpen = useStore((s) => s.filesOpen[deskKey] ?? savedDesk.filesOpen)
   // A text file open in the in-app viewer takes the content pane over the browser.
   // undefined = untouched this run (fall back to what was open last run);
@@ -146,6 +154,13 @@ export function WorkspaceView({
     />
   ) : openFilePath ? (
     <FileViewer path={openFilePath} cwd={filesRoot} onClose={() => closeFile(ws.id)} />
+  ) : browserOpen && external ? (
+    <ExternalBrowserPane
+      paneId={browserPaneId}
+      browserName={EXTERNAL_NAMES[projectBrowser] ?? projectBrowser}
+      visible={visible}
+      onClose={() => toggleBrowser(ws.id, true)}
+    />
   ) : browserOpen ? (
     <BrowserTabs
       basePaneId={browserPaneId}
@@ -182,7 +197,12 @@ export function WorkspaceView({
       if (!(e.metaKey || e.ctrlKey)) return
       if (e.shiftKey && e.key.toLowerCase() === 's') {
         const source: 'browser' | 'sim' | null =
-          browserOpen && !boardOpen && !openFilePath ? 'browser' : simOpen ? 'sim' : null
+          // Snip draws on the built-in pane; a live view of an external browser has none.
+          browserOpen && !external && !boardOpen && !openFilePath
+            ? 'browser'
+            : simOpen
+              ? 'sim'
+              : null
         if (!source) return
         e.preventDefault()
         window.dispatchEvent(
@@ -204,7 +224,7 @@ export function WorkspaceView({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visible, browserOpen, boardOpen, openFilePath, simOpen, ws.id])
+  }, [visible, browserOpen, external, boardOpen, openFilePath, simOpen, ws.id])
 
   // The board and a file preview share the one working surface, and the board
   // was drawn on top — so clicking a file while the board was open did nothing

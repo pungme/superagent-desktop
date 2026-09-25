@@ -11,6 +11,7 @@ import {
   nativeImage
 } from 'electron'
 import { basename } from 'path'
+import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { SHARED_BROWSER_PARTITION, broadcastToWindows } from './util'
 import { execFile } from 'child_process'
@@ -61,6 +62,7 @@ import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerClaudeModelsIpc } from './claude/models'
+import { registerExternalBrowserIpc, closeExternalBrowsers } from './external-browser'
 import { registerFilesIpc } from './files'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
@@ -266,6 +268,7 @@ app.whenReady().then(async () => {
   registerRoutinesIpc()
   registerEnvironmentIpc()
   registerClaudeModelsIpc()
+  registerExternalBrowserIpc()
   registerFilesIpc()
   registerSimulatorIpc()
   buildMenu()
@@ -610,7 +613,11 @@ app.whenReady().then(async () => {
 
   // Every launch writes its own per-workspace MCP config (with ?ws=…), so no
   // global config file is needed.
-  startMcpServer()
+  // E2E hook, like COVE_E2E_PROJECT: tell the test where the agent's tools
+  // live, so it can call them as an agent would without running one.
+  void startMcpServer().then(({ url }) => {
+    if (process.env.COVE_E2E_MCP_URL_FILE) writeFileSync(process.env.COVE_E2E_MCP_URL_FILE, url)
+  })
 
   // Before any pane exists: the old per-project cookie jars fold into the one
   // shared session, so an update doesn't read as "it logged me out". One-time,
@@ -776,6 +783,7 @@ app.on('before-quit', () => {
   stopCompanion()
   killAllAgents()
   killAllOneShots()
+  closeExternalBrowsers()
   stopRoutines()
   stopAllSimStreams()
   stopAllSimInput()

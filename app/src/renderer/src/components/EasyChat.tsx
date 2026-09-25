@@ -12,6 +12,8 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
+import { useProjectBrowser } from '../hooks/useProjectBrowser'
+import type { BrowserChoice } from '../../../preload'
 import { ProviderLogo } from './ProviderLogo'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
@@ -105,6 +107,78 @@ function cardId(item: Item): string | null {
  * under the composer is already where this chat says what it is running on;
  * something the project is running belongs in the same row.
  */
+/**
+ * Which browser this project's agent uses: the built-in pane, or the user's
+ * real Brave or Chrome (for their logins, extensions and password manager).
+ * Only shown when there's an installed browser to pick.
+ */
+function BrowserPill({
+  workspaceId,
+  open,
+  onToggle,
+  onPicked
+}: {
+  workspaceId: string
+  open: boolean
+  onToggle: () => void
+  onPicked: () => void
+}): React.JSX.Element | null {
+  const current = useProjectBrowser(workspaceId)
+  const [options, setOptions] = useState<{ id: BrowserChoice; name: string }[]>([])
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    void window.cove.browsersList?.().then(setOptions)
+  }, [])
+  if (options.length < 2) return null
+  const name = options.find((o) => o.id === current)?.name ?? 'Superagent'
+  const pick = async (id: BrowserChoice): Promise<void> => {
+    onPicked()
+    setError(null)
+    const res = await window.cove.browsersSet(workspaceId, id)
+    if (!res.ok) setError(res.error ?? 'Could not switch browsers')
+  }
+  return (
+    <div className="easy-control">
+      <button
+        className={`easy-control-btn ${open ? 'open' : ''}`}
+        onClick={onToggle}
+        title={error ?? 'Which browser the agent uses in this project'}
+      >
+        <span className="easy-control-key">Browser</span>
+        <span className="easy-control-val">{name}</span>
+        <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+          <path
+            d="M2 3.5L5 6.5L8 3.5"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      {open && (
+        <div className="easy-control-menu">
+          {options.map((o) => (
+            <button
+              key={o.id}
+              className={`easy-control-item ${o.id === current ? 'on' : ''}`}
+              onClick={() => void pick(o.id)}
+            >
+              <span className="easy-control-item-label">{o.name}</span>
+              <span className="easy-control-item-hint">
+                {o.id === 'builtin'
+                  ? 'Built in, beside the chat'
+                  : `Your real ${o.name}: your logins, extensions and passwords`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DevServerPill({
   workspaceId,
   open,
@@ -1840,7 +1914,6 @@ export function EasyChat({
     document.addEventListener('paste', onDocPaste)
     return () => document.removeEventListener('paste', onDocPaste)
     // attachImage only closes over stable setState, so re-subscribing per render is unnecessary.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, visible])
 
   // A crop from the snip tool (WorkspaceView) lands here — attach it like a
@@ -1862,7 +1935,6 @@ export function EasyChat({
     }
     window.addEventListener('cove:attach-image', onSnip)
     return () => window.removeEventListener('cove:attach-image', onSnip)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, visible])
 
   // Drag a file onto the chat: images attach (like a paste); other files become
@@ -3746,13 +3818,10 @@ export function EasyChat({
   )
   const onRowReply = useCallback((m: ChatMessage) => rowFnsRef.current.beginReply(m), [])
   const onRowEdit = useCallback((m: ChatMessage) => rowFnsRef.current.editMessage(m), [])
-  const onRowAnswer = useCallback(
-    (a: string) => {
-      setAtBottom(true)
-      rowFnsRef.current.submit(a, [], { files: [], reply: null, keepComposer: true })
-    },
-    []
-  )
+  const onRowAnswer = useCallback((a: string) => {
+    setAtBottom(true)
+    rowFnsRef.current.submit(a, [], { files: [], reply: null, keepComposer: true })
+  }, [])
   const onRowLightbox = useCallback((src: string) => rowFnsRef.current.setLightbox(src), [])
   // The transcript rows, recomputed only when the items actually change — not on
   // every keystroke/timer render of the surrounding component.
@@ -4031,8 +4100,7 @@ export function EasyChat({
    * Claude's line-up, which it cannot run.
    */
   const modelOptions =
-    sessionModels ??
-    (provider === 'claude' ? (claudeModels ?? MODEL_OPTIONS) : [MODEL_OPTIONS[0]])
+    sessionModels ?? (provider === 'claude' ? (claudeModels ?? MODEL_OPTIONS) : [MODEL_OPTIONS[0]])
   // A chat pinned to a model the line-up no longer lists (an old "sonnet[1m]")
   // still runs on it — name it rather than claiming Default.
   const modelLabel =
@@ -4235,7 +4303,45 @@ export function EasyChat({
           other chat over one project's decision. A chat you aren't looking at
           shows "Needs you" in the sidebar instead (Sidebar.tsx), so nothing
           waits silently; this is just where you actually answer it. */}
-      {myGuardrailAsk && (
+      {/* The agent is stuck on something only a person can do — a captcha, a
+          login, a two-factor code — and waits for you to do it. Same place and
+          plumbing as a permission ask (sidebar "Needs you", the phone), with
+          Done / Skip instead of Approve / Deny. */}
+      {myGuardrailAsk?.kind === 'handoff' && (
+        <div className="easy-guard easy-handoff" role="alertdialog" aria-modal="false">
+          <div className="easy-guard-head">
+            <span className="easy-guard-shield" aria-hidden>
+              ✋
+            </span>
+            <strong>The agent needs you</strong>
+          </div>
+          <p className="easy-handoff-what">{myGuardrailAsk.preview}</p>
+          <div className="easy-guard-actions">
+            <button
+              className="easy-guard-deny"
+              onClick={() => resolveGuardrailAsk(myGuardrailAsk.requestId, false, false)}
+            >
+              Skip
+            </button>
+            <div className="easy-guard-spacer" />
+            {myGuardrailAsk.toolName !== 'browser' && (
+              <button
+                className="easy-guard-once"
+                onClick={() => void window.cove.browsersShow(`${workspaceId}::${chatId}`)}
+              >
+                Open {myGuardrailAsk.toolName}
+              </button>
+            )}
+            <button
+              className="easy-guard-trust"
+              onClick={() => resolveGuardrailAsk(myGuardrailAsk.requestId, true, false)}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+      {myGuardrailAsk && myGuardrailAsk.kind !== 'handoff' && (
         <div className="easy-guard" role="alertdialog" aria-modal="false">
           <div className="easy-guard-head">
             <span className="easy-guard-shield" aria-hidden>
@@ -4752,6 +4858,14 @@ export function EasyChat({
             </div>
           )}
         </div>
+        {!browserProject && workspaceId !== '__desktop_chat__' && (
+          <BrowserPill
+            workspaceId={workspaceId}
+            open={controlMenu === 'browser'}
+            onToggle={() => setControlMenu((m) => (m === 'browser' ? null : 'browser'))}
+            onPicked={() => setControlMenu(null)}
+          />
+        )}
         <DevServerPill
           workspaceId={workspaceId}
           open={controlMenu === 'server'}

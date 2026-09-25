@@ -110,7 +110,7 @@ export type WireEventData =
       id: string
       toolName: string
       preview: string
-      approvalKind: 'guardrail' | 'permission'
+      approvalKind: 'guardrail' | 'permission' | 'handoff'
       expiresAt: number
     }
   | {

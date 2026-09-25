@@ -99,6 +99,9 @@ export interface HookEvent {
 
 import type { PairPayload } from '../shared/companion-protocol'
 import type { AgentProvider } from '../shared/agent-provider'
+
+/** Which browser a project's agent uses: the built-in pane, or the user's real one. */
+export type BrowserChoice = 'builtin' | 'brave' | 'chrome' | 'edge'
 import type { DetectedIcon } from '../main/project-icon'
 
 /** Everything Settings → Phone shows. Mirrors companion/index.ts CompanionState. */
@@ -140,7 +143,7 @@ export interface GuardrailAsk {
   toolName: string
   preview: string
   /** 'permission' = a real Ask-mode prompt; 'guardrail' = the prompt-injection gate. */
-  kind?: 'guardrail' | 'permission'
+  kind?: 'guardrail' | 'permission' | 'handoff'
 }
 
 export interface BoardCard {
@@ -645,6 +648,20 @@ export interface CoveApi {
     claudeVersion: string | null
     loggedIn: boolean
   }>
+  /** The browsers a project can pick: the built-in one, plus installed Chromium browsers. */
+  browsersList: () => Promise<{ id: BrowserChoice; name: string }[]>
+  /** A project's browser pick. */
+  browsersGet: (workspaceId: string) => Promise<BrowserChoice>
+  /** Pick a project's browser. An external one opens right away (first time: sign in there). */
+  browsersSet: (workspaceId: string, id: BrowserChoice) => Promise<{ ok: boolean; error?: string }>
+  /** Bring a pane's external browser window forward. */
+  browsersShow: (paneId: string) => Promise<void>
+  /** Stream a pane's external tab live (frames arrive via onBrowsersFrame) — stop with unwatch. */
+  browsersWatch: (paneId: string) => void
+  browsersUnwatch: (paneId: string) => void
+  onBrowsersFrame: (cb: (f: { paneId: string; data: string }) => void) => () => void
+  onBrowsersUrl: (cb: (u: { paneId: string; url: string }) => void) => () => void
+  onBrowsersChanged: (cb: (c: { workspaceId: string; id: BrowserChoice }) => void) => () => void
   /** Claude Code's current model line-up, from the installed CLI; null if it couldn't say. */
   claudeModels: () => Promise<{ id: string; label: string; hint: string }[] | null>
   envVersion: () => Promise<Record<AgentProvider, { installed: boolean; version: string | null }>>
@@ -1021,6 +1038,16 @@ const cove: CoveApi = {
 
   envDetect: () => ipcRenderer.invoke('env:detect'),
   claudeModels: () => ipcRenderer.invoke('claude:models'),
+  browsersList: () => ipcRenderer.invoke('browsers:list'),
+  browsersGet: (workspaceId) => ipcRenderer.invoke('browsers:get', workspaceId),
+  browsersSet: (workspaceId, id) => ipcRenderer.invoke('browsers:set', workspaceId, id),
+  browsersShow: (paneId) => ipcRenderer.invoke('browsers:show', paneId),
+  browsersWatch: (paneId) => ipcRenderer.send('browsers:watch', paneId),
+  browsersUnwatch: (paneId) => ipcRenderer.send('browsers:unwatch', paneId),
+  onBrowsersFrame: (cb) => subscribe('browsers:frame', (f) => cb(f as Parameters<typeof cb>[0])),
+  onBrowsersUrl: (cb) => subscribe('browsers:url', (u) => cb(u as Parameters<typeof cb>[0])),
+  onBrowsersChanged: (cb) =>
+    subscribe('browsers:changed', (c) => cb(c as Parameters<typeof cb>[0])),
   envVersion: () => ipcRenderer.invoke('env:version'),
   installAgent: (provider, onLine) => {
     const listener = (_e: Electron.IpcRendererEvent, line: string): void => onLine(line)

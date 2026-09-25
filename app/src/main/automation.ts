@@ -1,6 +1,7 @@
 import { WebContents, ipcMain } from 'electron'
 import { getPaneWebContents, paneLog, withoutStealingFocus, markAgentLoad } from './browser'
 import { broadcastToWindows, pushBounded, normalizeUrl } from './util'
+import { externalBrowserForPane, externalPage, ExternalPage } from './external-browser'
 
 /**
  * Browser automation primitives operating on a workspace's browser pane.
@@ -135,6 +136,73 @@ function wc(paneId: string): WebContents {
   return contents
 }
 
+/**
+ * What every tool needs from a page, whichever browser it's in: the built-in
+ * pane (an Electron WebContents plus its debugger) or a tab in the user's real
+ * browser (an ExternalPage over CDP). The tools below are written against this
+ * and nothing else, so they work the same in both.
+ */
+interface PageDriver {
+  loadURL(url: string): Promise<void>
+  getURL(): Promise<string>
+  executeJavaScript(expression: string): Promise<unknown>
+  sendCommand<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>
+}
+
+/** Console and network events, into the pane's buffers — same shape from either browser. */
+function recordCdpEvent(paneId: string, method: string, params: Record<string, unknown>): void {
+  if (method === 'Runtime.consoleAPICalled') {
+    const args = (params.args ?? []) as { value?: unknown; description?: string }[]
+    const message = args
+      .map((a) => (a.value !== undefined ? String(a.value) : (a.description ?? '')))
+      .join(' ')
+    pushBounded(consoleBuffers, paneId, {
+      level: String(params.type),
+      message: message.slice(0, 500),
+      ts: Date.now()
+    })
+  } else if (method === 'Network.responseReceived') {
+    const response = params.response as { url?: string; status?: number } | undefined
+    pushBounded(netBuffers, paneId, {
+      url: response?.url ?? '(unknown)',
+      status: response?.status,
+      ts: Date.now()
+    })
+  } else if (method === 'Network.loadingFailed') {
+    const request = params.request as { url?: string } | undefined
+    pushBounded(netBuffers, paneId, {
+      url: request?.url ?? '(unknown)',
+      failed: String(params.errorText ?? ''),
+      ts: Date.now()
+    })
+  }
+}
+
+const listening = new WeakSet<ExternalPage>()
+
+/** The page this pane's tools act on: its tab in the project's external browser, or the pane. */
+async function driver(paneId: string): Promise<PageDriver> {
+  assertNotStopped(paneId)
+  const external = externalBrowserForPane(paneId)
+  if (!external) {
+    const contents = wc(paneId)
+    return {
+      loadURL: (url) => contents.loadURL(url),
+      getURL: async () => contents.getURL(),
+      executeJavaScript: (expression) => contents.executeJavaScript(expression),
+      sendCommand: <T>(method: string, params?: Record<string, unknown>) =>
+        ensureDebugger(paneId).debugger.sendCommand(method, params) as Promise<T>
+    }
+  }
+  signalActivity(paneId)
+  const page = await externalPage(paneId, external)
+  if (!listening.has(page)) {
+    listening.add(page)
+    page.session.on((method, params) => recordCdpEvent(paneId, method, params))
+  }
+  return page
+}
+
 // Attaching the CDP debugger flips navigator.webdriver → true, which hostile
 // sites (X, Google) read as a bot and block. This masks it back to false on the
 // user's own browser/logins. Runs before any page script on every document.
@@ -152,32 +220,7 @@ function ensureDebugger(paneId: string): WebContents {
       netBuffers.delete(paneId)
     })
     contents.debugger.on('detach', () => attached.delete(paneId))
-    contents.debugger.on('message', (_e, method, params) => {
-      if (method === 'Runtime.consoleAPICalled') {
-        const message = (params.args ?? [])
-          .map((a: { value?: unknown; description?: string }) =>
-            a.value !== undefined ? String(a.value) : (a.description ?? '')
-          )
-          .join(' ')
-        pushBounded(consoleBuffers, paneId, {
-          level: params.type,
-          message: message.slice(0, 500),
-          ts: Date.now()
-        })
-      } else if (method === 'Network.responseReceived') {
-        pushBounded(netBuffers, paneId, {
-          url: params.response?.url,
-          status: params.response?.status,
-          ts: Date.now()
-        })
-      } else if (method === 'Network.loadingFailed') {
-        pushBounded(netBuffers, paneId, {
-          url: params.request?.url ?? '(unknown)',
-          failed: params.errorText,
-          ts: Date.now()
-        })
-      }
-    })
+    contents.debugger.on('message', (_e, method, params) => recordCdpEvent(paneId, method, params))
     contents.debugger.sendCommand('Runtime.enable').catch(() => {})
     contents.debugger.sendCommand('Network.enable').catch(() => {})
     // The one thing this session must undo: attaching the debugger flips
@@ -227,6 +270,15 @@ export async function navigate(paneId: string, url: string): Promise<string> {
 }
 
 async function navigateInner(paneId: string, url: string): Promise<string> {
+  // The project browses in the user's real browser: open the pane so its live
+  // view shows, then drive that tab. None of the built-in pane's cold-start
+  // dance applies — there's no WebContents to wait for.
+  if (externalBrowserForPane(paneId)) {
+    broadcastToWindows('browser:request-open', paneId)
+    const page = await driver(paneId)
+    await page.loadURL(normalizeUrl(url))
+    return page.getURL()
+  }
   // Cold start: the agent may drive the browser before the user has opened the
   // preview, so no pane exists yet. Ask the renderer to open it — EXCEPT for
   // routine panes, which carry a "::routine" suffix and run offscreen. Note the
@@ -288,17 +340,17 @@ async function navigateInner(paneId: string, url: string): Promise<string> {
 
 export async function screenshot(paneId: string): Promise<string> {
   return withoutStealingFocus(async () => {
-    const contents = ensureDebugger(paneId)
-    const { data } = (await contents.debugger.sendCommand('Page.captureScreenshot', {
+    const page = await driver(paneId)
+    const { data } = await page.sendCommand<{ data: string }>('Page.captureScreenshot', {
       format: 'png'
-    })) as { data: string }
+    })
     return data
   })
 }
 
 export async function readPage(paneId: string): Promise<unknown> {
-  const contents = wc(paneId)
-  return withTimeout(contents.executeJavaScript(READ_PAGE_JS), 15000, 'read_page')
+  const page = await driver(paneId)
+  return withTimeout(page.executeJavaScript(READ_PAGE_JS), 15000, 'read_page')
 }
 
 export async function click(
@@ -313,7 +365,7 @@ async function clickInner(
   paneId: string,
   target: { index?: number; text?: string; x?: number; y?: number }
 ): Promise<string> {
-  const contents = ensureDebugger(paneId)
+  const page = await driver(paneId)
   // x/y bypasses element lookup entirely — the fallback for a target
   // read_page's selector list can't see at all: a <div>/<span> styled as a
   // control with only a JS click handler, no semantic tag or role. Pick the
@@ -329,11 +381,11 @@ async function clickInner(
   const pos =
     target.x !== undefined && target.y !== undefined
       ? await (async () => {
-          const dpr = (await contents.executeJavaScript('window.devicePixelRatio || 1')) as number
+          const dpr = (await page.executeJavaScript('window.devicePixelRatio || 1')) as number
           return { x: Math.round(target.x! / dpr), y: Math.round(target.y! / dpr) }
         })()
       : ((await withTimeout(
-          contents.executeJavaScript(elementCenterJs(target)),
+          page.executeJavaScript(elementCenterJs(target)),
           8000,
           'locate element'
         )) as { x: number; y: number } | null)
@@ -347,28 +399,22 @@ async function clickInner(
   // Hover first: some SPA buttons (React/pointer-event handlers) only react to a
   // click after a pointer-enter, and it moves the cursor onto the target so the
   // press/release land on the element the framework expects.
-  await contents.debugger.sendCommand('Input.dispatchMouseEvent', {
+  await page.sendCommand('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: pos.x,
     y: pos.y
   })
   const base = { x: pos.x, y: pos.y, button: 'left', buttons: 1, clickCount: 1 }
-  await contents.debugger.sendCommand('Input.dispatchMouseEvent', {
-    ...base,
-    type: 'mousePressed'
-  })
-  await contents.debugger.sendCommand('Input.dispatchMouseEvent', {
-    ...base,
-    type: 'mouseReleased'
-  })
+  await page.sendCommand('Input.dispatchMouseEvent', { ...base, type: 'mousePressed' })
+  await page.sendCommand('Input.dispatchMouseEvent', { ...base, type: 'mouseReleased' })
   return `clicked at ${pos.x},${pos.y}`
 }
 
 export async function typeText(paneId: string, text: string): Promise<string> {
   return withoutStealingFocus(async () => {
-    const contents = ensureDebugger(paneId)
+    const page = await driver(paneId)
     for (const char of text) {
-      await contents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'char', text: char })
+      await page.sendCommand('Input.dispatchKeyEvent', { type: 'char', text: char })
     }
     return `typed ${text.length} characters`
   })
@@ -379,7 +425,7 @@ export async function pressKey(paneId: string, key: string): Promise<string> {
 }
 
 async function pressKeyInner(paneId: string, key: string): Promise<string> {
-  const contents = ensureDebugger(paneId)
+  const page = await driver(paneId)
   const codes: Record<string, { keyCode: number; code: string }> = {
     Enter: { keyCode: 13, code: 'Enter' },
     Tab: { keyCode: 9, code: 'Tab' },
@@ -390,13 +436,13 @@ async function pressKeyInner(paneId: string, key: string): Promise<string> {
   }
   const k = codes[key]
   if (!k) throw new Error(`Unsupported key "${key}" (supported: ${Object.keys(codes).join(', ')})`)
-  await contents.debugger.sendCommand('Input.dispatchKeyEvent', {
+  await page.sendCommand('Input.dispatchKeyEvent', {
     type: 'rawKeyDown',
     windowsVirtualKeyCode: k.keyCode,
     code: k.code,
     key
   })
-  await contents.debugger.sendCommand('Input.dispatchKeyEvent', {
+  await page.sendCommand('Input.dispatchKeyEvent', {
     type: 'keyUp',
     windowsVirtualKeyCode: k.keyCode,
     code: k.code,
@@ -406,7 +452,8 @@ async function pressKeyInner(paneId: string, key: string): Promise<string> {
 }
 
 export function consoleLogs(paneId: string): ConsoleEntry[] {
-  ensureDebugger(paneId)
+  // An external tab records from the moment it's opened (see driver()).
+  if (!externalBrowserForPane(paneId)) ensureDebugger(paneId)
   const buf = consoleBuffers.get(paneId) ?? []
   return [
     ...buf.filter((e) => e.level === 'error'),
@@ -415,9 +462,9 @@ export function consoleLogs(paneId: string): ConsoleEntry[] {
 }
 
 export async function evaluate(paneId: string, expression: string): Promise<string> {
-  const contents = wc(paneId)
+  const page = await driver(paneId)
   const result = await withTimeout(
-    contents.executeJavaScript(
+    page.executeJavaScript(
       `(() => { try { return JSON.stringify((function(){ return (${expression}); })()); } catch (e) { return 'ERROR: ' + e.message; } })()`
     ),
     10000,
@@ -427,7 +474,7 @@ export async function evaluate(paneId: string, expression: string): Promise<stri
 }
 
 export function network(paneId: string): NetEntry[] {
-  ensureDebugger(paneId)
+  if (!externalBrowserForPane(paneId)) ensureDebugger(paneId)
   const buf = netBuffers.get(paneId) ?? []
   // Failed and error-status requests first — that's what a debugging agent wants.
   const bad = buf.filter((e) => e.failed || (e.status && e.status >= 400))
@@ -436,15 +483,45 @@ export function network(paneId: string): NetEntry[] {
 }
 
 export async function waitFor(paneId: string, text: string, timeoutMs: number): Promise<string> {
-  const contents = wc(paneId)
+  const page = await driver(paneId)
   const deadline = Date.now() + Math.min(timeoutMs, 15000)
   const needle = JSON.stringify(text)
   while (Date.now() < deadline) {
-    const found = (await contents.executeJavaScript(
+    const found = (await page.executeJavaScript(
       `(document.body?.innerText || '').toLowerCase().includes(${needle}.toLowerCase())`
     )) as boolean
     if (found) return `"${text}" is on the page`
     await new Promise((r) => setTimeout(r, 250))
   }
   throw new Error(`Timed out waiting for "${text}"`)
+}
+
+/**
+ * browser_set_viewport for a project browsing in the user's real browser: that
+ * tab has no pane around it to resize, so Chrome's own phone emulation does it
+ * (390×844, touch, mobile layout). Returns false for the built-in pane, whose
+ * device buttons the caller switches instead.
+ */
+export async function setExternalViewport(
+  paneId: string,
+  viewport: 'mobile' | 'desktop' | 'both' | 'fit'
+): Promise<boolean> {
+  if (!externalBrowserForPane(paneId)) return false
+  const page = await driver(paneId)
+  if (viewport === 'mobile') {
+    await page.sendCommand('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 3,
+      mobile: true
+    })
+    await page.sendCommand('Emulation.setTouchEmulationEnabled', {
+      enabled: true,
+      maxTouchPoints: 5
+    })
+  } else {
+    await page.sendCommand('Emulation.clearDeviceMetricsOverride')
+    await page.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: false })
+  }
+  return true
 }

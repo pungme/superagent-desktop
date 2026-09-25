@@ -165,7 +165,7 @@ export function startCompanion(): void {
       sessionId: string
       toolName: string
       preview: string
-      kind?: 'guardrail' | 'permission'
+      kind?: 'guardrail' | 'permission' | 'handoff'
       expiresAt: number
     }) => {
       const chatId = chatForSession(a.sessionId)
