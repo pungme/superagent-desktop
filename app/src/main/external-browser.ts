@@ -79,8 +79,10 @@ export function externalBrowserForPane(paneId: string): BrowserId | null {
 // --- Running the browser ----------------------------------------------------
 
 interface Running {
-  proc: ChildProcess
+  pid: number
   port: number
+  /** Ours from this launch; absent for one adopted after a crash. */
+  proc?: ChildProcess
 }
 const running = new Map<BrowserId, Running>()
 
@@ -112,16 +114,17 @@ async function alive(port: number): Promise<boolean> {
  * on — one Superagent started before it crashed or was force-quit. Reusing it
  * beats launching a second copy, which the profile's lock would turn away.
  */
-async function adoptRunning(profile: string): Promise<number | null> {
+async function adoptRunning(profile: string): Promise<Running | null> {
   const out = await new Promise<string>((resolve) =>
-    execFile('ps', ['-Ao', 'command'], { maxBuffer: 8 * 1024 * 1024 }, (_e, stdout) =>
+    execFile('ps', ['-Ao', 'pid=,command='], { maxBuffer: 8 * 1024 * 1024 }, (_e, stdout) =>
       resolve(stdout ?? '')
     )
   )
   for (const line of out.split('\n')) {
     if (!line.includes(`--user-data-dir=${profile}`)) continue
     const port = Number(/--remote-debugging-port=(\d+)/.exec(line)?.[1])
-    if (port && (await alive(port))) return port
+    const pid = Number(line.trim().split(/\s+/)[0])
+    if (port && pid && (await alive(port))) return { pid, port }
   }
   return null
 }
@@ -134,8 +137,12 @@ export async function ensureRunning(id: BrowserId): Promise<number> {
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
   const profile = join(app.getPath('userData'), 'browsers', id)
   mkdirSync(profile, { recursive: true })
+  // Adopted, it's ours again — so quitting Superagent closes it too.
   const adopted = await adoptRunning(profile)
-  if (adopted) return adopted
+  if (adopted) {
+    running.set(id, adopted)
+    return adopted.port
+  }
   const port = await freePort()
   const proc = spawn(
     bin,
@@ -149,7 +156,7 @@ export async function ensureRunning(id: BrowserId): Promise<number> {
     { stdio: 'ignore', detached: true }
   )
   proc.unref()
-  running.set(id, { proc, port })
+  running.set(id, { proc, pid: proc.pid ?? 0, port })
   proc.once('exit', () => {
     if (running.get(id)?.proc === proc) running.delete(id)
   })
@@ -172,7 +179,8 @@ export function closeExternalBrowsers(): void {
   // CDP Browser.close it lands before the app — which won't wait — is gone.
   for (const [id, r] of running) {
     try {
-      r.proc.kill('SIGTERM')
+      if (r.proc) r.proc.kill('SIGTERM')
+      else if (r.pid) process.kill(r.pid, 'SIGTERM')
     } catch {
       // already gone
     }
@@ -180,8 +188,36 @@ export function closeExternalBrowsers(): void {
   }
 }
 
-/** Bring the browser's window forward — "Open window" in the pane, and the stuck card. */
-export function showBrowserWindow(id: BrowserId): void {
+/**
+ * Bring the agent's browser window forward — "Open window", the stuck card, and
+ * the first sign-in. Asked of that browser itself (CDP Page.bringToFront):
+ * `open -a Brave` raised whichever Brave macOS liked, usually the user's
+ * everyday one rather than the agent's. `open -a` is only the last resort.
+ */
+export async function showBrowserWindow(id: BrowserId, paneId?: string): Promise<void> {
+  try {
+    const page = paneId ? existingExternalPage(paneId) : undefined
+    if (page) {
+      await page.sendCommand('Page.bringToFront')
+      return
+    }
+    const r = running.get(id)
+    if (r && (await alive(r.port))) {
+      const tabs = (await (await fetch(`http://127.0.0.1:${r.port}/json/list`)).json()) as {
+        type: string
+        webSocketDebuggerUrl: string
+      }[]
+      const tab = tabs.find((t) => t.type === 'page')
+      if (tab) {
+        const session = await CdpSession.connect(tab.webSocketDebuggerUrl)
+        await session.send('Page.bringToFront')
+        session.close()
+        return
+      }
+    }
+  } catch {
+    // fall through to the last resort
+  }
   const a = APPS.find((x) => x.id === id)
   if (a) execFile('open', ['-a', a.bundle.replace(/\.app$/, '')], () => {})
 }
@@ -259,7 +295,6 @@ export class ExternalPage {
   constructor(
     readonly browser: BrowserId,
     readonly session: CdpSession,
-    private port: number,
     readonly targetId: string
   ) {}
 
@@ -301,11 +336,6 @@ export class ExternalPage {
   sendCommand<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     return this.session.send<T>(method, params)
   }
-
-  /** Bring this tab forward in its window. */
-  async activate(): Promise<void> {
-    await fetch(`http://127.0.0.1:${this.port}/json/activate/${this.targetId}`).catch(() => {})
-  }
 }
 
 const pages = new Map<string, ExternalPage>()
@@ -336,7 +366,7 @@ export async function externalPage(paneId: string, id: BrowserId): Promise<Exter
     session.send('Runtime.enable'),
     session.send('Network.enable')
   ])
-  const page = new ExternalPage(id, session, port, target.id)
+  const page = new ExternalPage(id, session, target.id)
   pages.set(paneId, page)
   for (const l of pageListeners) l(paneId, page)
   return page
@@ -398,7 +428,7 @@ export function registerExternalBrowserIpc(): void {
     // Open it now: the first time, this is where the user signs in.
     try {
       await ensureRunning(id)
-      showBrowserWindow(id)
+      await showBrowserWindow(id)
       return { ok: true }
     } catch (err) {
       return { ok: false, error: (err as Error).message }
@@ -407,8 +437,7 @@ export function registerExternalBrowserIpc(): void {
   ipcMain.handle('browsers:show', async (_e, paneId: string) => {
     const id = externalBrowserForPane(String(paneId))
     if (!id) return
-    await existingExternalPage(String(paneId))?.activate()
-    showBrowserWindow(id)
+    await showBrowserWindow(id, String(paneId))
   })
   ipcMain.on('browsers:watch', (e, paneId: string) => {
     const page = existingExternalPage(String(paneId))

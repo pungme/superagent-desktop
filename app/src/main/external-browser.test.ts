@@ -85,6 +85,11 @@ describe.skipIf(!haveBrave)('after a crash', () => {
         await new Promise((r) => setTimeout(r, 250))
       }
       expect(await ensureRunning('brave')).toBe(9377)
+      // Adopted means ours: quitting Superagent closes it too.
+      const exited = new Promise((r) => leftover.once('exit', r))
+      closeExternalBrowsers()
+      await Promise.race([exited, new Promise((r) => setTimeout(r, 8000))])
+      expect(leftover.exitCode !== null || leftover.signalCode !== null).toBe(true)
     } finally {
       leftover.kill('SIGTERM')
       await new Promise((r) => setTimeout(r, 1500))

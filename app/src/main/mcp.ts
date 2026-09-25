@@ -707,7 +707,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       const pane = browserPane()
       const external = externalBrowserForPane(pane)
       // Their real browser: bring it forward so the thing to solve is right there.
-      if (external) showBrowserWindow(external)
+      if (external) void showBrowserWindow(external, pane)
       const done = await requestApproval(
         workspaceIdFromPane(PANE_ID),
         CHAT_ID ?? PANE_ID,
