@@ -128,11 +128,22 @@ export function registerAutomationIpc(): void {
   ipcMain.on('browser:stop-automation', (_e, paneId: string) => stopAutomation(paneId))
 }
 
-function wc(paneId: string): WebContents {
+/**
+ * `quiet`: the phone is watching (mirroring the page, or opening one for you),
+ * not the agent acting. Don't announce "the agent is browsing": that signal
+ * opens the pane in the Mac's window, and the phone asks for a frame about once
+ * a second, so the browser kept popping up on the desktop while you watched it
+ * on your phone.
+ */
+interface Quiet {
+  quiet?: boolean
+}
+
+function wc(paneId: string, opts: Quiet = {}): WebContents {
   assertNotStopped(paneId)
   const contents = getPaneWebContents(paneId)
   if (!contents) throw new Error(`No browser pane "${paneId}" — is the browser open?`)
-  signalActivity(paneId)
+  if (!opts.quiet) signalActivity(paneId)
   return contents
 }
 
@@ -181,20 +192,20 @@ function recordCdpEvent(paneId: string, method: string, params: Record<string, u
 const listening = new WeakSet<ExternalPage>()
 
 /** The page this pane's tools act on: its tab in the project's external browser, or the pane. */
-async function driver(paneId: string): Promise<PageDriver> {
+async function driver(paneId: string, opts: Quiet = {}): Promise<PageDriver> {
   assertNotStopped(paneId)
   const external = externalBrowserForPane(paneId)
   if (!external) {
-    const contents = wc(paneId)
+    const contents = wc(paneId, opts)
     return {
       loadURL: (url) => contents.loadURL(url),
       getURL: async () => contents.getURL(),
       executeJavaScript: (expression) => contents.executeJavaScript(expression),
       sendCommand: <T>(method: string, params?: Record<string, unknown>) =>
-        ensureDebugger(paneId).debugger.sendCommand(method, params) as Promise<T>
+        ensureDebugger(paneId, opts).debugger.sendCommand(method, params) as Promise<T>
     }
   }
-  signalActivity(paneId)
+  if (!opts.quiet) signalActivity(paneId)
   const page = await externalPage(paneId, external)
   if (!listening.has(page)) {
     listening.add(page)
@@ -209,8 +220,8 @@ async function driver(paneId: string): Promise<PageDriver> {
 const WEBDRIVER_MASK =
   "Object.defineProperty(navigator,'webdriver',{get:()=>false,configurable:true});"
 
-function ensureDebugger(paneId: string): WebContents {
-  const contents = wc(paneId)
+function ensureDebugger(paneId: string, opts: Quiet = {}): WebContents {
+  const contents = wc(paneId, opts)
   if (!attached.has(paneId)) {
     contents.debugger.attach('1.3')
     attached.add(paneId)
@@ -263,19 +274,19 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer)) as Promise<T>
 }
 
-export async function navigate(paneId: string, url: string): Promise<string> {
+export async function navigate(paneId: string, url: string, opts: Quiet = {}): Promise<string> {
   // The whole call runs behind the focus guard: pane creation, attachment and
   // the load itself are all points where the page can ask macOS to raise us.
-  return withoutStealingFocus(() => navigateInner(paneId, url))
+  return withoutStealingFocus(() => navigateInner(paneId, url, opts))
 }
 
-async function navigateInner(paneId: string, url: string): Promise<string> {
+async function navigateInner(paneId: string, url: string, opts: Quiet = {}): Promise<string> {
   // The project browses in the user's real browser: open the pane so its live
   // view shows, then drive that tab. None of the built-in pane's cold-start
   // dance applies — there's no WebContents to wait for.
   if (externalBrowserForPane(paneId)) {
-    broadcastToWindows('browser:request-open', paneId)
-    const page = await driver(paneId)
+    if (!opts.quiet) broadcastToWindows('browser:request-open', paneId)
+    const page = await driver(paneId, opts)
     await page.loadURL(normalizeUrl(url))
     return page.getURL()
   }
@@ -285,7 +296,9 @@ async function navigateInner(paneId: string, url: string): Promise<string> {
   // suffix test is "::routine" specifically: a per-chat pane is "<ws>::<chatId>"
   // and DOES need the reveal (this gate used to be `.includes('::')`, which
   // silently skipped every per-chat pane — "there's no pane to drive").
-  if (!paneId.endsWith('::routine')) {
+  // A quiet navigate (the phone opening a page) needs the pane to exist already
+  // — the phone's handler makes a hidden one — and must not reveal it.
+  if (!paneId.endsWith('::routine') && !opts.quiet) {
     // Always ask the UI to reveal the pane. A pane whose WebContents already
     // exists but is *hidden* (the user closed the preview) would otherwise be
     // navigated invisibly — the "sometimes it doesn't open" bug. If no pane
@@ -306,7 +319,7 @@ async function navigateInner(paneId: string, url: string): Promise<string> {
       await new Promise((r) => setTimeout(r, 350))
     }
   }
-  const contents = wc(paneId)
+  const contents = wc(paneId, opts)
   const target = normalizeUrl(url)
   // The agent drives the user's own browser on their own machine — real sites
   // included (that's the whole point of browser automation / routines).
@@ -321,7 +334,7 @@ async function navigateInner(paneId: string, url: string): Promise<string> {
       // still matters, so try once more after the dust settles.
       paneLog('agent-navigate-aborted-retry', paneId, target.slice(0, 120))
       await new Promise((r) => setTimeout(r, 600))
-      await wc(paneId).loadURL(target)
+      await wc(paneId, opts).loadURL(target)
     } else {
       // A rejected loadURL leaves the pane blank — the empty-pane report.
       // Record it here too (did-fail-load in browser.ts has the event view).
@@ -338,9 +351,9 @@ async function navigateInner(paneId: string, url: string): Promise<string> {
   return contents.getURL()
 }
 
-export async function screenshot(paneId: string): Promise<string> {
+export async function screenshot(paneId: string, opts: Quiet = {}): Promise<string> {
   return withoutStealingFocus(async () => {
-    const page = await driver(paneId)
+    const page = await driver(paneId, opts)
     const { data } = await page.sendCommand<{ data: string }>('Page.captureScreenshot', {
       format: 'png'
     })

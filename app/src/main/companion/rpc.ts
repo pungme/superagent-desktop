@@ -462,7 +462,9 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         // in the Mac's window.
         ensureCompositing(pane)
         try {
-          const url = await auto.navigate(pane, p.data.url)
+          // Quiet: the phone is opening a page for you to watch there, which
+          // must not pop the browser open on the Mac.
+          const url = await auto.navigate(pane, p.data.url, { quiet: true })
           // Warm the pane up before answering, not after: the first real
           // browser.screenshot call pays for attaching the CDP debugger AND
           // the pane's first successful paint, both one-time costs — which is
@@ -470,7 +472,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           // cost here instead, on a capture that's thrown away rather than
           // sent, means the phone's own pull (which follows this call) lands
           // on an already-warm pane. No extra image ever reaches the phone.
-          await auto.screenshot(pane).catch(() => {})
+          await auto.screenshot(pane, { quiet: true }).catch(() => {})
           return { ok: true, result: { url } }
         } finally {
           releaseCompositing(pane)
@@ -490,7 +492,8 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         ensureCompositing(pane)
         try {
           const png = await withTimeout(
-            auto.screenshot(pane),
+            // Quiet: a mirror frame, not the agent browsing (see automation.ts).
+            auto.screenshot(pane, { quiet: true }),
             8000,
             'the browser did not produce a frame'
           )
