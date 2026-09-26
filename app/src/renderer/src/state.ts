@@ -1174,19 +1174,20 @@ export const useStore = create<CoveState>((set, get) => ({
     const want = normalizeCwd(cwd)
     get().setActive(workspaceId)
     const list = await window.cove.chatList(workspaceId)
-    const existing = list.find((c) => normalizeCwd(c.cwd ?? null) === want)
     set((s) => ({ chats: { ...s.chats, [workspaceId]: list } }))
-    if (existing) {
-      get().selectChat(workspaceId, existing.id)
-      return
-    }
     // Never a SECOND conversation in the project folder itself. A chat on a
     // branch has a copy of its own and cannot be disturbed; a chat on the folder
     // has no copy at all, so two of them are two agents editing one set of files
     // — which is precisely how two sessions trampled each other. main is a place
     // you visit, not a place a second agent can sit down in.
     if (cwd === null) {
-      const onFolder = list.find((c) => normalizeCwd(c.cwd ?? null) === '')
+      // The folder's own chat — not a New chat still waiting to cut its branch,
+      // which has no cwd yet either and so looked the same: clicking the project
+      // row opened that new chat instead of the project (the sidebar's rule, see
+      // isFolderRoot).
+      const onFolder = list.find(
+        (c) => !c.cwd && (!(c.pending === 1 || isPendingBranch(c.id)) || list.length === 1)
+      )
       if (onFolder) {
         get().selectChat(workspaceId, onFolder.id)
         return
@@ -1197,6 +1198,11 @@ export const useStore = create<CoveState>((set, get) => ({
       // ask for one and at no other time — clicking a project to look at it
       // used to leave a new empty conversation behind every time.
       set((s) => ({ activeChatId: { ...s.activeChatId, [workspaceId]: '' } }))
+      return
+    }
+    const existing = list.find((c) => normalizeCwd(c.cwd ?? null) === want)
+    if (existing) {
+      get().selectChat(workspaceId, existing.id)
       return
     }
     const id = await window.cove.chatCreate(workspaceId, cwd ?? undefined)

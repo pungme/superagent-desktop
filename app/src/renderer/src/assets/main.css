@@ -11738,3 +11738,27 @@ button {
   line-height: 1.5;
   color: #18181b;
 }
+
+/* A code project whose folder has no conversation of its own. */
+.project-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.project-empty-new {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.project-empty-new:hover {
+  background: var(--hover);
+}

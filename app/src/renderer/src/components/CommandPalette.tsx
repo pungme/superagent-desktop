@@ -267,6 +267,9 @@ export function CommandPalette({
       <div className="cmdk-panel">
         <input
           ref={inputRef}
+          // Focused as it mounts, so a key typed straight after ⌘K lands here;
+          // the effect's frame-late focus alone lost the first keystroke.
+          autoFocus
           className="cmdk-input"
           placeholder="Search projects, chats, and commands…"
           value={query}

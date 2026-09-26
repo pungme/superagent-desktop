@@ -842,6 +842,20 @@ export function WorkspaceView({
                 </div>
               )
             })}
+            {/* The folder has no conversation of its own (its chats are all on
+                branches, or it has none): say so and offer one, rather than a
+                blank page with nothing to type into. */}
+            {ws.kind !== 'browser' &&
+              chats !== undefined &&
+              !activeRun &&
+              !mountedChats.some((c) => c.id === activeChatId) && (
+                <div className="project-empty">
+                  <p>No conversation in {ws.name} yet.</p>
+                  <button className="project-empty-new" onClick={() => void newChat(ws.id)}>
+                    + New chat
+                  </button>
+                </div>
+              )}
             {activeRun && visible && <RoutineRunView routine={activeRun} />}
           </div>
         </div>
