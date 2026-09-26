@@ -1,3 +1,4 @@
+import { browserFor, browserName } from '../external-browser'
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process'
 import { randomUUID } from 'crypto'
 import os from 'os'
@@ -71,6 +72,7 @@ export function buildAgentArgs(
     buildAppendedPrompt({
       browserProject: opts.browserProject,
       workspaceId: opts.workspaceId,
+      browser: opts.workspaceId ? browserName(browserFor(opts.workspaceId)) : undefined,
       provider: 'claude'
     })
   )

@@ -23,6 +23,27 @@ const BROWSER_SYSTEM_PROMPT =
   "To check a page on a phone, switch the pane with browser_set_viewport('mobile') rather than " +
   'building a narrow wrapper page to imitate one.'
 
+/**
+ * Which browser the tools drive, and that the agent can move to the user's own.
+ * Without this an agent on the built-in pane told the user it "can't control
+ * Brave" — the feature existed, but nothing had said so.
+ */
+function realBrowserPrompt(current: string): string {
+  const now =
+    current === 'Superagent'
+      ? "Your browser tools currently drive Superagent's built-in browser pane."
+      : `Your browser tools currently drive the user's own ${current}, with a Superagent profile of its own.`
+  return (
+    now +
+    " They can also drive the user's real browser app (Brave, Chrome or Edge), whose logins " +
+    "persist: call browser_use('yours') when the user asks you to use their browser, or when a " +
+    'site needs their own accounts or turns the built-in browser away. Never tell the user you ' +
+    "can't use their browser, and never ask them which one: browser_use picks it. The first " +
+    'time, they sign in there once; when a page wants a login, captcha or 2FA, call ' +
+    'browser_ask_user.'
+  )
+}
+
 // Superagent surfaces Claude's task list in its Tasks panel by watching the
 // TaskCreate/TaskUpdate tools (this build has no TodoWrite). Nudge Claude to keep
 // that list current so the panel reflects real progress. Codex has its own plan
@@ -160,6 +181,8 @@ export interface PromptContext {
   /** Browser-first workspace: steer the agent to drive the visible browser. */
   browserProject?: boolean
   workspaceId?: string
+  /** The browser this project's tools drive at spawn, by name ('Superagent' = built-in). */
+  browser?: string
   provider: AgentProvider
 }
 
@@ -180,6 +203,7 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
     FILE_OPEN_PROMPT,
     SIMULATOR_PROMPT,
     ctx.browserProject ? BROWSER_SYSTEM_PROMPT : '',
+    ctx.browser && ctx.workspaceId !== DESKTOP_WORKSPACE_ID ? realBrowserPrompt(ctx.browser) : '',
     // The desktop chat has no project, no board and no repository — it has a
     // computer, and a different set of tools for driving it.
     ctx.workspaceId === DESKTOP_WORKSPACE_ID ? DESKTOP_PROMPT : ''

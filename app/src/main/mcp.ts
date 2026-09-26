@@ -45,10 +45,13 @@ import {
 import { activeDesktopTab, describeDesktop, desktopState } from './desktop'
 import { agentChatTab, chatTabs, setAgentChatTab } from './chat-browser-tabs'
 import {
+  browserFor,
   browserName,
   existingExternalPage,
   externalBrowserForPane,
-  showBrowserWindow
+  showBrowserWindow,
+  switchBrowser,
+  yourBrowser
 } from './external-browser'
 import { gitBranch } from './files'
 import { pushOpenFile } from './companion'
@@ -651,15 +654,65 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'browser_navigate',
     {
       description:
-        "Open a URL in Superagent's browser pane (visible to the user). Bare hosts get https://, localhost gets http://.",
+        "Open a URL in this project's browser, visible to the user: Superagent's pane, or the user's own browser after browser_use. Bare hosts get https://, localhost gets http://.",
       inputSchema: { url: z.string() }
     },
-    async ({ url }) => ({
-      content: [
-        { type: 'text', text: `Now at ${await auto.navigate(browserPane(), url)}${tabNote()}` }
-      ]
-    })
+    async ({ url }) => {
+      const at = await auto.navigate(browserPane(), url)
+      // The user can switch browsers mid-conversation; say where this landed.
+      const external = externalBrowserForPane(browserPane())
+      const where = external ? ` (in ${browserName(external)})` : ''
+      return { content: [{ type: 'text', text: `Now at ${at}${where}${tabNote()}` }] }
+    }
   )
+
+  // The user shouldn't have to name a browser, or find the pill, for the agent to
+  // use theirs: it switches itself when a site needs their logins. Routines and
+  // the Computer chat always use the built-in browser (externalBrowserForPane).
+  if (!isDesktop && !PANE_ID.endsWith('::routine')) {
+    server.registerTool(
+      'browser_use',
+      {
+        description:
+          "Choose which browser this project's browser tools drive. 'yours' is the user's real " +
+          "browser app (their default if it's Brave, Chrome or Edge, otherwise one of those that's " +
+          'installed) with a Superagent profile of its own. Switch to it, without asking, when the ' +
+          'user asks you to use their browser, or when a site needs their own logins or turns the ' +
+          "built-in browser away (Google sign-in, Cloudflare checks, 'browser not supported'). " +
+          "'built-in' is Superagent's pane beside the chat, the default. The user can also switch " +
+          'with the Browser pill under the composer.',
+        inputSchema: { which: z.enum(['yours', 'built-in']) }
+      },
+      async ({ which }) => {
+        const text = (t: string): { content: { type: 'text'; text: string }[] } => ({
+          content: [{ type: 'text', text: t }]
+        })
+        const ws = workspaceIdFromPane(PANE_ID)
+        const current = browserFor(ws)
+        if (which === 'built-in') {
+          if (current !== 'builtin') await switchBrowser(ws, 'builtin')
+          return text("Browser tools now drive Superagent's built-in browser pane.")
+        }
+        const id = current !== 'builtin' ? current : yourBrowser()
+        if (!id)
+          return text(
+            "Brave, Chrome and Edge aren't installed on this Mac, so the built-in browser is the " +
+              "only one available (Safari can't be driven). Tell the user one of those would let you " +
+              'use their logins.'
+          )
+        if (id !== current) {
+          const r = await switchBrowser(ws, id)
+          if (!r.ok) return text(`Couldn't switch to ${browserName(id)}: ${r.error}`)
+        }
+        return text(
+          `Browser tools now drive ${browserName(id)}, the user's own browser app, with a ` +
+            'Superagent profile separate from their everyday one: the first time, they sign in ' +
+            'there once and it stays signed in. It opens on your next browser_navigate. When a page ' +
+            'wants a login, captcha or 2FA, call browser_ask_user rather than asking in chat.'
+        )
+      }
+    )
+  }
 
   server.registerTool(
     'browser_set_viewport',

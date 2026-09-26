@@ -1,4 +1,4 @@
-import { spawn, ChildProcess, execFile } from 'child_process'
+import { spawn, ChildProcess, execFile, execFileSync } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
 import type { Readable, Writable } from 'stream'
 import { homedir } from 'os'
@@ -22,12 +22,36 @@ import { broadcastToWindows, workspaceIdFromPane } from './util'
 
 export type BrowserId = 'builtin' | 'brave' | 'chrome' | 'edge'
 
-const APPS: { id: Exclude<BrowserId, 'builtin'>; name: string; bundle: string; binary: string }[] =
-  [
-    { id: 'brave', name: 'Brave', bundle: 'Brave Browser.app', binary: 'Brave Browser' },
-    { id: 'chrome', name: 'Chrome', bundle: 'Google Chrome.app', binary: 'Google Chrome' },
-    { id: 'edge', name: 'Edge', bundle: 'Microsoft Edge.app', binary: 'Microsoft Edge' }
-  ]
+const APPS: {
+  id: Exclude<BrowserId, 'builtin'>
+  name: string
+  bundle: string
+  binary: string
+  /** How macOS names it as the default browser. */
+  bundleId: string
+}[] = [
+  {
+    id: 'brave',
+    name: 'Brave',
+    bundle: 'Brave Browser.app',
+    binary: 'Brave Browser',
+    bundleId: 'com.brave.browser'
+  },
+  {
+    id: 'chrome',
+    name: 'Chrome',
+    bundle: 'Google Chrome.app',
+    binary: 'Google Chrome',
+    bundleId: 'com.google.chrome'
+  },
+  {
+    id: 'edge',
+    name: 'Edge',
+    bundle: 'Microsoft Edge.app',
+    binary: 'Microsoft Edge',
+    bundleId: 'com.microsoft.edgemac'
+  }
+]
 
 function executablePath(id: BrowserId): string | null {
   const a = APPS.find((x) => x.id === id)
@@ -57,6 +81,61 @@ const kvKey = (workspaceId: string): string => `browser:${workspaceId}`
 export function browserFor(workspaceId: string): BrowserId {
   const v = kvGet(kvKey(workspaceId)) as BrowserId | undefined
   return v && v !== 'builtin' && executablePath(v) ? v : 'builtin'
+}
+
+/** The Mac's default browser's bundle id (lowercased), or null for Safari or unset. */
+function macDefaultBrowser(): string | null {
+  try {
+    const plist = join(
+      homedir(),
+      'Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist'
+    )
+    const json = execFileSync('plutil', ['-convert', 'json', '-o', '-', plist], {
+      encoding: 'utf8',
+      timeout: 2000
+    })
+    const handlers =
+      (JSON.parse(json) as { LSHandlers?: Record<string, string>[] }).LSHandlers ?? []
+    const https = handlers.find((h) => h.LSHandlerURLScheme === 'https')
+    return https?.LSHandlerRoleAll?.toLowerCase() ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The user's real browser, for when the agent needs one without being told
+ * which: the Mac's default if Superagent can drive it, else the first of
+ * Brave, Chrome and Edge that's installed. Null when none is.
+ */
+export function yourBrowser(): Exclude<BrowserId, 'builtin'> | null {
+  const installed = APPS.filter((a) => executablePath(a.id))
+  const dflt = macDefaultBrowser()
+  return (installed.find((a) => a.bundleId === dflt) ?? installed[0])?.id ?? null
+}
+
+/**
+ * Point a project's browser tools at `id` — the pill, and the agent's
+ * browser_use. `open` also launches it and brings its window forward, which is
+ * where the user signs in the first time.
+ */
+export async function switchBrowser(
+  workspaceId: string,
+  id: BrowserId,
+  opts: { open?: boolean } = {}
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!installedBrowsers().some((b) => b.id === id)) return { ok: false, error: 'Not installed' }
+  setBrowserFor(workspaceId, id)
+  forgetExternalPages(workspaceId)
+  broadcastToWindows('browsers:changed', { workspaceId, id })
+  if (id === 'builtin' || !opts.open) return { ok: true }
+  try {
+    await ensureRunning(id)
+    await showBrowserWindow(id)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
 }
 
 export function setBrowserFor(workspaceId: string, id: BrowserId): void {
@@ -446,22 +525,10 @@ async function startScreencast(paneId: string, page: ExternalPage, to: WebConten
 export function registerExternalBrowserIpc(): void {
   ipcMain.handle('browsers:list', () => installedBrowsers())
   ipcMain.handle('browsers:get', (_e, workspaceId: string) => browserFor(String(workspaceId)))
-  ipcMain.handle('browsers:set', async (_e, workspaceId: string, id: BrowserId) => {
-    const ws = String(workspaceId)
-    if (!installedBrowsers().some((b) => b.id === id)) return { ok: false, error: 'Not installed' }
-    setBrowserFor(ws, id)
-    forgetExternalPages(ws)
-    broadcastToWindows('browsers:changed', { workspaceId: ws, id })
-    if (id === 'builtin') return { ok: true }
-    // Open it now: the first time, this is where the user signs in.
-    try {
-      await ensureRunning(id)
-      await showBrowserWindow(id)
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, error: (err as Error).message }
-    }
-  })
+  // Picked on the pill: open it now — the first time, this is where the user signs in.
+  ipcMain.handle('browsers:set', (_e, workspaceId: string, id: BrowserId) =>
+    switchBrowser(String(workspaceId), id, { open: true })
+  )
   ipcMain.handle('browsers:show', async (_e, paneId: string) => {
     const id = externalBrowserForPane(String(paneId))
     if (!id) return

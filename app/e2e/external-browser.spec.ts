@@ -132,6 +132,18 @@ test('the project offers the installed browsers and starts on the built-in one',
   expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('builtin')
 })
 
+test("the agent moves to the user's browser by itself, and back", async () => {
+  // The user never names a browser: the agent picks theirs (the Mac's default if
+  // it can drive it, else the first installed of Brave, Chrome, Edge).
+  expect(await tool('browser_use', { which: 'yours' })).toContain('Brave')
+  expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('brave')
+  // Navigate says where it landed, since the user can switch mid-conversation.
+  expect(await tool('browser_navigate', { url: siteUrl })).toContain('(in Brave)')
+  await expect(window.locator('.external-pane-badge')).toHaveText('Brave', { timeout: 10_000 })
+  expect(await tool('browser_use', { which: 'built-in' })).toContain('built-in')
+  expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('builtin')
+})
+
 test('picking Brave launches it with its own profile', async () => {
   const res = await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
   expect(res.ok).toBe(true)
@@ -228,7 +240,11 @@ test('Brave already open with its profile, outside Superagent: a clear message, 
   await expect.poll(braveRunning, { timeout: 15_000 }).toBe('')
   const manual = spawn(
     BRAVE,
-    [`--user-data-dir=${join(userDataDir, 'browsers', 'brave')}`, '--no-first-run', ...(process.env.COVE_E2E_QUIET === '1' ? ['--headless=new'] : [])],
+    [
+      `--user-data-dir=${join(userDataDir, 'browsers', 'brave')}`,
+      '--no-first-run',
+      ...(process.env.COVE_E2E_QUIET === '1' ? ['--headless=new'] : [])
+    ],
     {
       stdio: 'ignore',
       detached: true
