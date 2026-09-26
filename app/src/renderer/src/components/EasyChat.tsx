@@ -21,6 +21,7 @@ import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { splitLoopNote } from '../lib/loop-note'
 import { humanInterval, isLoopCommand } from '../../../shared/loop'
+import { SignInsDialog } from './SignInsDialog'
 import type { ChatLoop } from '../../../preload'
 import { visibleTimeIds } from '../lib/message-time-groups'
 import { fmtTokens } from '../lib/format-tokens'
@@ -128,6 +129,7 @@ function BrowserPill({
   const current = useProjectBrowser(workspaceId)
   const [options, setOptions] = useState<{ id: BrowserChoice; name: string }[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [signIns, setSignIns] = useState(false)
   useEffect(() => {
     void window.cove.browsersList?.().then(setOptions)
   }, [])
@@ -171,11 +173,28 @@ function BrowserPill({
               <span className="easy-control-item-hint">
                 {o.id === 'builtin'
                   ? 'Built in, beside the chat'
-                  : `Your real ${o.name}: your logins, extensions and passwords`}
+                  : `Your ${o.name}, with a Superagent profile you sign in to once`}
               </span>
             </button>
           ))}
+          {current !== 'builtin' && (
+            <button
+              className="easy-control-item"
+              onClick={() => {
+                onPicked()
+                setSignIns(true)
+              }}
+            >
+              <span className="easy-control-item-label">Bring sign-ins over…</span>
+              <span className="easy-control-item-hint">
+                Copy the logins of sites you pick from your everyday {name}
+              </span>
+            </button>
+          )}
         </div>
+      )}
+      {signIns && current !== 'builtin' && (
+        <SignInsDialog browser={current} name={name} onClose={() => setSignIns(false)} />
       )}
     </div>
   )

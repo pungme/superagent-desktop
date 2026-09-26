@@ -65,6 +65,7 @@ import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerClaudeModelsIpc } from './claude/models'
 import { registerExternalBrowserIpc, closeExternalBrowsers } from './external-browser'
+import { registerSignInsIpc } from './sign-ins'
 import { registerFilesIpc } from './files'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
@@ -272,6 +273,7 @@ app.whenReady().then(async () => {
   registerEnvironmentIpc()
   registerClaudeModelsIpc()
   registerExternalBrowserIpc()
+  registerSignInsIpc()
   registerFilesIpc()
   registerSimulatorIpc()
   buildMenu()

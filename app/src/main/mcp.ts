@@ -706,9 +706,10 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         }
         return text(
           `Browser tools now drive ${browserName(id)}, the user's own browser app, with a ` +
-            'Superagent profile separate from their everyday one: the first time, they sign in ' +
-            'there once and it stays signed in. It opens on your next browser_navigate. When a page ' +
-            'wants a login, captcha or 2FA, call browser_ask_user rather than asking in chat.'
+            'Superagent profile separate from their everyday one: they sign in there once, or use ' +
+            '"Bring sign-ins over…" in the Browser pill to copy chosen sites\' logins from their ' +
+            'everyday browser. It opens on your next browser_navigate. When a page wants a login, ' +
+            'captcha or 2FA, call browser_ask_user rather than asking in chat.'
         )
       }
     )

@@ -38,9 +38,10 @@ function realBrowserPrompt(current: string): string {
     " They can also drive the user's real browser app (Brave, Chrome or Edge), whose logins " +
     "persist: call browser_use('yours') when the user asks you to use their browser, or when a " +
     'site needs their own accounts or turns the built-in browser away. Never tell the user you ' +
-    "can't use their browser, and never ask them which one: browser_use picks it. The first " +
-    'time, they sign in there once; when a page wants a login, captcha or 2FA, call ' +
-    'browser_ask_user.'
+    "can't use their browser, and never ask them which one: browser_use picks it. It starts " +
+    "signed out: the user signs in there once, or brings sites' sign-ins over from their " +
+    'everyday browser with "Bring sign-ins over…" in the Browser pill under the composer. When a ' +
+    'page wants a login, captcha or 2FA, call browser_ask_user.'
   )
 }
 

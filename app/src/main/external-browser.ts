@@ -238,13 +238,39 @@ class BrowserConnection {
 
 const running = new Map<BrowserId, BrowserConnection>()
 
+/** Where the agent's copy of a browser keeps its profile — never the user's own. */
+export function profileDir(id: BrowserId): string {
+  return join(app.getPath('userData'), 'browsers', id)
+}
+
+/**
+ * Quit the agent's copy of a browser and wait until it has: its profile's files
+ * are only safe to change once it's gone. True if it was running.
+ */
+export async function stopBrowser(id: BrowserId): Promise<boolean> {
+  const conn = running.get(id)
+  if (!conn || conn.closed || conn.proc.exitCode !== null) return false
+  running.delete(id)
+  await new Promise<void>((resolve) => {
+    const kill = setTimeout(() => conn.proc.kill('SIGKILL'), 10_000)
+    conn.proc.once('exit', () => {
+      clearTimeout(kill)
+      resolve()
+    })
+    // Asked to close, it saves its cookies first; SIGTERM alone lost the last
+    // ~30 seconds of them (a sign-in made just before). SIGTERM if it won't.
+    conn.send('Browser.close').catch(() => conn.proc.kill('SIGTERM'))
+  })
+  return true
+}
+
 /** Start the browser with its Superagent profile (or reuse it), and return its connection. */
 export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
   const existing = running.get(id)
   if (existing && !existing.closed) return existing
   const bin = executablePath(id)
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
-  const profile = join(app.getPath('userData'), 'browsers', id)
+  const profile = profileDir(id)
   mkdirSync(profile, { recursive: true })
   const proc = spawn(
     bin,
@@ -290,11 +316,17 @@ export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
  */
 export function closeExternalBrowsers(): void {
   for (const [id, conn] of running) {
-    try {
-      conn.proc.kill('SIGTERM')
-    } catch {
-      // already gone
-    }
+    // Browser.close saves its cookies first — a sign-in made just before quitting
+    // survives. SIGTERM a moment later in case it doesn't answer.
+    conn.send('Browser.close').catch(() => undefined)
+    const t = setTimeout(() => {
+      try {
+        conn.proc.kill('SIGTERM')
+      } catch {
+        // already gone
+      }
+    }, 1500)
+    conn.proc.once('exit', () => clearTimeout(t))
     running.delete(id)
   }
 }

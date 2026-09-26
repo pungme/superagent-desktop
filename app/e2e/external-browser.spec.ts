@@ -25,6 +25,7 @@ let wsId: string
 let chatId: string
 let site: Server
 let siteUrl: string
+let everyday: string
 
 /** Call one of the agent's tools, the way Claude Code does over HTTP. */
 async function tool(name: string, args: Record<string, unknown>, chat = chatId): Promise<string> {
@@ -67,8 +68,31 @@ const braveRunning = (): string =>
   execSync(`pgrep -f ${JSON.stringify('[-]-user-data-dir=' + braveProfile())} || true`)
     .toString()
     .trim()
+/**
+ * A stand-in for the user's everyday Brave profile, signed in to a shop and a
+ * bank: Chromium's cookie schema (v24), values stored unencrypted, which
+ * Chromium also reads. The real encrypted path is sign-ins.test.ts.
+ */
+function everydayFixture(dir: string): void {
+  const expires = (Date.now() + 86_400_000) * 1000 + 11_644_473_600_000_000
+  const row = (host: string, name: string, value: string): string =>
+    `INSERT INTO cookies VALUES (13400000000000000,'${host}','','${name}','${value}',X'','/',${expires},0,0,13400000000000000,1,1,1,0,1,80,13400000000000000,0,0);`
+  execSync(`sqlite3 '${join(dir, 'Cookies')}'`, {
+    input: [
+      'CREATE TABLE meta(key LONGVARCHAR NOT NULL UNIQUE PRIMARY KEY, value LONGVARCHAR);',
+      "INSERT INTO meta VALUES ('version','24'),('last_compatible_version','24');",
+      'CREATE TABLE cookies(creation_utc INTEGER NOT NULL,host_key TEXT NOT NULL,top_frame_site_key TEXT NOT NULL,name TEXT NOT NULL,value TEXT NOT NULL,encrypted_value BLOB NOT NULL,path TEXT NOT NULL,expires_utc INTEGER NOT NULL,is_secure INTEGER NOT NULL,is_httponly INTEGER NOT NULL,last_access_utc INTEGER NOT NULL,has_expires INTEGER NOT NULL,is_persistent INTEGER NOT NULL,priority INTEGER NOT NULL,samesite INTEGER NOT NULL,source_scheme INTEGER NOT NULL,source_port INTEGER NOT NULL,last_update_utc INTEGER NOT NULL,source_type INTEGER NOT NULL,has_cross_site_ancestor INTEGER NOT NULL);',
+      'CREATE UNIQUE INDEX cookies_unique_index ON cookies(host_key, top_frame_site_key, has_cross_site_ancestor, name, path, source_scheme, source_port);',
+      row('admin.shopfixture.test', 'sid', 'shop'),
+      row('.bankfixture.test', 'b', 'bank')
+    ].join('\n')
+  })
+}
+
 test.beforeAll(async () => {
   userDataDir = mkdtempSync(join(tmpdir(), 'cove-e2e-ext-data-'))
+  everyday = mkdtempSync(join(tmpdir(), 'cove-e2e-everyday-'))
+  everydayFixture(everyday)
   projectDir = mkdtempSync(join(tmpdir(), 'cove-e2e-ext-proj-'))
   writeFileSync(join(projectDir, 'README.md'), '# e2e\n')
   site = createServer((_req, res) => {
@@ -89,6 +113,7 @@ test.beforeAll(async () => {
       COVE_USER_DATA: userDataDir,
       COVE_E2E_PROJECT: projectDir,
       COVE_E2E_MCP_URL_FILE: urlFile,
+      COVE_E2E_EVERYDAY_PROFILE: everyday,
       NODE_ENV: 'production'
     }
   })
@@ -122,7 +147,8 @@ test.afterAll(async () => {
   // Quitting Superagent quits the Brave it started (closeExternalBrowsers).
   await new Promise((r) => setTimeout(r, 2000))
   const left = braveRunning()
-  for (const dir of [userDataDir, projectDir]) rmSync(dir, { recursive: true, force: true })
+  for (const dir of [userDataDir, projectDir, everyday])
+    rmSync(dir, { recursive: true, force: true })
   expect(left, 'Brave should quit with Superagent').toBe('')
 })
 
@@ -150,6 +176,28 @@ test('picking Brave launches it with its own profile', async () => {
   expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('brave')
   // Its profile is Superagent's, under the app's data folder — never the user's own.
   expect(existsSync(join(userDataDir, 'browsers', 'brave'))).toBe(true)
+})
+
+test('bringing sign-ins over copies only the sites you tick', async () => {
+  const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Browser"))').first()
+  await expect(pill.locator('.easy-control-val')).toHaveText('Brave')
+  await pill.click()
+  await window.locator('.easy-control-item:has-text("Bring sign-ins over")').click()
+  const dialog = window.getByRole('dialog', { name: 'Bring sign-ins over' })
+  await expect(dialog.locator('.signins-row')).toHaveText(['bankfixture.test', 'shopfixture.test'])
+  await dialog.getByText('shopfixture.test').click()
+  await dialog.getByRole('button', { name: 'Bring over 1 site' }).click()
+  await expect(dialog).toContainText('now signed in to shopfixture.test', { timeout: 20_000 })
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  // The agent's profile has the shop's sign-in and not the bank's.
+  const hosts = execSync(
+    `sqlite3 '${join(userDataDir, 'browsers', 'brave', 'Default', 'Cookies')}' 'SELECT host_key FROM cookies'`
+  )
+    .toString()
+    .trim()
+    .split('\n')
+  expect(hosts).toContain('admin.shopfixture.test')
+  expect(hosts).not.toContain('.bankfixture.test')
 })
 
 test("the agent's navigate drives Brave, and the pane streams it live", async () => {

@@ -661,6 +661,15 @@ export interface CoveApi {
   browsersSet: (workspaceId: string, id: BrowserChoice) => Promise<{ ok: boolean; error?: string }>
   /** Bring a pane's external browser window forward. */
   browsersShow: (paneId: string) => Promise<void>
+  /** The sites the user's everyday copy of a browser is signed in to. */
+  browsersSites: (
+    id: BrowserChoice
+  ) => Promise<{ ok: boolean; sites?: { site: string; count: number }[]; error?: string }>
+  /** Copy those sites' sign-ins into the agent's profile of that browser. */
+  browsersImport: (
+    id: BrowserChoice,
+    sites: string[]
+  ) => Promise<{ ok: boolean; copied?: number; sites?: string[]; error?: string }>
   /** Stream a pane's external tab live (frames arrive via onBrowsersFrame) — stop with unwatch. */
   browsersWatch: (paneId: string) => void
   browsersUnwatch: (paneId: string) => void
@@ -1052,6 +1061,8 @@ const cove: CoveApi = {
   browsersGet: (workspaceId) => ipcRenderer.invoke('browsers:get', workspaceId),
   browsersSet: (workspaceId, id) => ipcRenderer.invoke('browsers:set', workspaceId, id),
   browsersShow: (paneId) => ipcRenderer.invoke('browsers:show', paneId),
+  browsersSites: (id) => ipcRenderer.invoke('browsers:sites', id),
+  browsersImport: (id, sites) => ipcRenderer.invoke('browsers:import', id, sites),
   browsersWatch: (paneId) => ipcRenderer.send('browsers:watch', paneId),
   browsersUnwatch: (paneId) => ipcRenderer.send('browsers:unwatch', paneId),
   onBrowsersFrame: (cb) => subscribe('browsers:frame', (f) => cb(f as Parameters<typeof cb>[0])),
