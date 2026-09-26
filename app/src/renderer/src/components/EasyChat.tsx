@@ -20,6 +20,8 @@ import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { splitLoopNote } from '../lib/loop-note'
+import { humanInterval, isLoopCommand } from '../../../shared/loop'
+import type { ChatLoop } from '../../../preload'
 import { visibleTimeIds } from '../lib/message-time-groups'
 import { fmtTokens } from '../lib/format-tokens'
 import { useAnimatedNumber } from '../lib/animated-number'
@@ -575,72 +577,6 @@ const BUILTIN_COMMAND_DESCRIPTIONS: Record<string, string> = {
   rewind: 'Roll code and conversation back to a checkpoint',
   'design-sync': 'Upload your React design system to Claude Design',
   help: 'Show all available commands'
-}
-
-/** Safety cap so a loop can't run away forever. */
-const LOOP_CAP = 100
-/**
- * A terminal's self-paced /loop is the model calling ScheduleWakeup, clamped
- * to [60, 3600] seconds by the CLI's own runtime — Superagent disallows that
- * tool (it works by asking whatever runs the CLI to relaunch the process
- * later, which only exists for an interactive terminal, not a spawned agent
- * process) and gives loop_wait instead: same shape, same clamp, but Superagent
- * itself holds the wait and resubmits, since it already keeps this chat's
- * process alive between turns. DEFAULT_LOOP_ROUND_GAP_MS is what applies when
- * the model doesn't call it at all — the same floor a bare ScheduleWakeup
- * call would hit, so a round that does nothing still doesn't fire "immediately."
- */
-const DEFAULT_LOOP_ROUND_GAP_MS = 60_000
-const MAX_LOOP_ROUND_GAP_MS = 3_600_000
-const UNIT_MS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }
-
-/**
- * Parse a `/loop` command like the terminal's: `/loop <prompt>` runs the prompt
- * again each time the turn finishes; `/loop 5m <prompt>` (or `<prompt> every 5
- * minutes`) runs it on that interval. Returns null if it isn't a /loop command;
- * an empty prompt tells the caller to show usage.
- */
-function parseLoopCmd(raw: string): { intervalMs: number | null; prompt: string } | null {
-  const m = /^\/loop\b\s*(.*)$/is.exec(raw.trim())
-  if (!m) return null
-  const body = m[1].trim()
-  if (!body) return { intervalMs: null, prompt: '' }
-  const lead = /^(\d+)\s*([smhd])\s+(.+)$/is.exec(body)
-  if (lead)
-    return { intervalMs: Number(lead[1]) * UNIT_MS[lead[2].toLowerCase()], prompt: lead[3].trim() }
-  const trail =
-    /^(.+?)\s+every\s+(\d+)\s*(s|m|h|d|sec|secs|second|seconds|min|mins|minute|minutes|hour|hours|day|days)$/is.exec(
-      body
-    )
-  if (trail) {
-    const u = trail[3].toLowerCase()[0] as 's' | 'm' | 'h' | 'd'
-    return { intervalMs: Number(trail[2]) * UNIT_MS[u], prompt: trail[1].trim() }
-  }
-  return { intervalMs: null, prompt: body }
-}
-
-/**
- * A no-interval /loop hands the cadence to the model, as the terminal's does
- * — in a terminal that's a ScheduleWakeup call, clamped to [60, 3600]s by the
- * CLI's own runtime. Superagent disallows that tool (see session.ts for why)
- * and points the model at loop_wait instead: the same call, the same clamp,
- * the same judgment about what delay fits what you're waiting for — just
- * answered by Superagent's own timer rather than the CLI relaunching later.
- * Not calling it isn't an "immediate" round either: DEFAULT_LOOP_ROUND_GAP_MS
- * (where the re-fire is scheduled) is the floor a bare ScheduleWakeup call
- * would hit anyway, so a round that does nothing still gets that much space.
- */
-const SELF_PACE_NOTE =
-  '\n\n(/loop, self-paced: pick your own pace with the loop_wait tool, exactly as you would call ' +
-  "ScheduleWakeup in a terminal — clamped to [60, 3600]s. Don't bother for a short, ~60s gap; " +
-  'Superagent already waits that long by default. Call it once, before ending the turn, when this ' +
-  "round's wait should be longer than that. Keep rounds brief; the loop runs until stopped.)"
-
-function humanInterval(ms: number): string {
-  if (ms % UNIT_MS.d === 0) return `${ms / UNIT_MS.d}d`
-  if (ms % UNIT_MS.h === 0) return `${ms / UNIT_MS.h}h`
-  if (ms % UNIT_MS.m === 0) return `${ms / UNIT_MS.m}m`
-  return `${Math.round(ms / 1000)}s`
 }
 
 // Pull dev-server ports out of a tool's output — "Local: http://localhost:3000",
@@ -1203,6 +1139,10 @@ export function EasyChat({
   const caretAfterRef = useRef<number | null>(null)
   const [thinking, setThinking] = useState(false)
   const [ready, setReady] = useState(false)
+  const readyRef = useRef(false)
+  useEffect(() => {
+    readyRef.current = ready
+  }, [ready])
   const [agentFailed, setAgentFailed] = useState<boolean | 'missing-cwd'>(false)
   /**
    * This chat's agent has been alive at least once.
@@ -1376,45 +1316,23 @@ export function EasyChat({
   const [runningAgents, setRunningAgents] = useState<
     { toolUseId: string; label: string; startedAt: number }[]
   >([])
-  // The in-chat /loop: re-runs a prompt in THIS conversation until stopped —
-  // continuously (re-fire when the turn ends) or on an interval. loopRef mirrors
-  // it so the ref-held event handler can read the live value without a stale
-  // closure; loopTimerRef holds the pending re-fire so Stop can cancel it.
-  const [loop, setLoop] = useState<{
-    prompt: string
-    intervalMs: number | null
-    count: number
-  } | null>(null)
-  const loopRef = useRef<typeof loop>(null)
+  // The in-chat /loop runs on main (main/loops.ts), so the phone sees it too
+  // and it outlives this view. This only mirrors it for the bar.
+  const [loop, setLoop] = useState<ChatLoop | null>(null)
   useEffect(() => {
-    loopRef.current = loop
-  }, [loop])
-  const loopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // When the current round's prompt was actually submitted — set right before
-  // each submit, read back when that round's turn ends, to work out how much
-  // more (if any) of the round's target gap is still owed.
-  const loopRoundStartRef = useRef(0)
-  // The model's own loop_wait call for the round in progress, if any — cleared
-  // once consumed so it never leaks into a later round that didn't ask for one.
-  const loopRequestedGapMsRef = useRef<number | null>(null)
-  useEffect(() => {
-    return window.cove.onLoopWait(({ chatId: forId, delaySeconds }) => {
-      if (forId !== chatId) return
-      loopRequestedGapMsRef.current = Math.min(
-        MAX_LOOP_ROUND_GAP_MS,
-        Math.max(DEFAULT_LOOP_ROUND_GAP_MS, delaySeconds * 1000)
-      )
+    let alive = true
+    void window.cove.loopGet(chatId).then((l) => alive && setLoop(l))
+    const off = window.cove.onLoopsChanged((c) => {
+      if (c.chatId === chatId) setLoop(c.loop)
     })
+    return () => {
+      alive = false
+      off()
+    }
   }, [chatId])
   const stopLoop = useCallback((): void => {
-    if (loopTimerRef.current) {
-      clearTimeout(loopTimerRef.current)
-      loopTimerRef.current = null
-    }
-    loopRef.current = null
-    loopRequestedGapMsRef.current = null
-    setLoop(null)
-  }, [])
+    void window.cove.loopStop(chatId)
+  }, [chatId])
   // Tail each job's output while one of their pills is open, so you watch it
   // happen rather than waiting for the agent to check on it.
   const bgOpen = controlMenu?.startsWith('bg-') ?? false
@@ -2797,51 +2715,6 @@ export function EasyChat({
         // agent spawned can keep running after the turn ends (it will say so),
         // and clearing on turn-end hid that work. Pills clear when their own
         // result block arrives, on interrupt/exit, or when the next turn starts.
-        // /loop (continuous): the turn finished, so run the prompt again — unless
-        // the user stopped it, we hit the safety cap, or the turn was interrupted.
-        const lp = loopRef.current
-        if (lp && lp.intervalMs === null && !interruptedRef.current) {
-          if (lp.count >= LOOP_CAP) {
-            loopRef.current = null
-            setLoop(null)
-            setItems((prev) => [
-              ...prev,
-              {
-                kind: 'msg',
-                msg: {
-                  id: `sys-${Date.now()}`,
-                  at: Date.now(),
-                  role: 'assistant',
-                  text: `⏹ Loop stopped after ${LOOP_CAP} runs (safety cap).`,
-                  system: true
-                }
-              }
-            ])
-          } else {
-            const next = { ...lp, count: lp.count + 1 }
-            loopRef.current = next
-            setLoop(next)
-            if (loopTimerRef.current) clearTimeout(loopTimerRef.current)
-            // loop_wait, if the model called it this round, sets the target gap;
-            // otherwise it defaults to the same floor a bare ScheduleWakeup call
-            // would hit. Either way, only wait out what's left of it — a round
-            // that spent real time working (or really did sleep) never waits twice.
-            const targetGapMs = loopRequestedGapMsRef.current ?? DEFAULT_LOOP_ROUND_GAP_MS
-            loopRequestedGapMsRef.current = null
-            const elapsed = Date.now() - loopRoundStartRef.current
-            const delay = Math.max(900, targetGapMs - elapsed)
-            loopTimerRef.current = setTimeout(() => {
-              if (loopRef.current) {
-                loopRoundStartRef.current = Date.now()
-                submitRef.current?.(next.prompt + SELF_PACE_NOTE, [], {
-                  files: [],
-                  reply: null,
-                  keepComposer: true
-                })
-              }
-            }, delay)
-          }
-        }
         // Surface a failed or empty turn. Without this the app silently swallows an
         // error result (usage limit, max turns, an execution/auth error) — so a
         // message like "continue" looks like it did nothing at all.
@@ -3273,29 +3146,18 @@ export function EasyChat({
   }, [chatId, generating, thinking, bgTasks.length, setBusy])
   useEffect(() => () => clearBusy(chatId), [chatId, clearBusy])
 
-  // Interval /loop: fire the prompt every N ms while idle (skip a tick if a turn
-  // is still running, so runs don't pile up). Keyed on interval+prompt only, so
-  // the per-run count bump doesn't restart the timer. Continuous loops (null
-  // interval) re-fire from the turn-end handler instead, not here.
-  const loopIntervalMs = loop?.intervalMs ?? null
-  const loopPrompt = loop?.prompt ?? ''
+  // A loop round main wants sent from here, as if typed: this view owns the
+  // chat's agent, its recap and its retries. Busy while the agent is mid-restart
+  // — main holds the round and asks again.
   useEffect(() => {
-    if (loopIntervalMs === null || !loopPrompt) return
-    const iv = setInterval(() => {
-      const lp = loopRef.current
-      if (!lp || turnInFlightRef.current) return
-      if (lp.count >= LOOP_CAP) {
-        stopLoop()
-        return
-      }
-      loopRef.current = { ...lp, count: lp.count + 1 }
-      setLoop(loopRef.current)
-      submitRef.current?.(loopPrompt, [], { files: [], reply: null, keepComposer: true })
-    }, loopIntervalMs)
-    return () => clearInterval(iv)
-  }, [loopIntervalMs, loopPrompt, stopLoop])
-  // Stop any loop when the chat unmounts, so a re-fire never lands in a torn-down chat.
-  useEffect(() => () => stopLoop(), [stopLoop])
+    return window.cove.onLoopRound(({ chatId: forId, text, nonce }) => {
+      if (forId !== chatId) return
+      const id = agentIdRef.current
+      const canSend = id ? readyRef.current : suspendedRef.current
+      window.cove.loopRoundReply(nonce, canSend ? 'taken' : 'busy')
+      if (canSend) submitRef.current?.(text, [], { files: [], reply: null, keepComposer: true })
+    })
+  }, [chatId])
 
   // Drives the sidebar dot: full while this project has a live claude process,
   // half once it doesn't (reaped while idle, or torn down when the chat closes).
@@ -3379,7 +3241,7 @@ export function EasyChat({
     }
     window.addEventListener('cove:chat-cleared', onCleared)
     return () => window.removeEventListener('cove:chat-cleared', onCleared)
-  }, [chatId, workspaceId])
+  }, [chatId, workspaceId, stopLoop])
 
   // Messages injected from toolbar actions (e.g. the Skills panel) in Easy mode.
   useEffect(() => {
@@ -3446,9 +3308,12 @@ export function EasyChat({
     // /loop — Superagent's in-chat loop, like the terminal: re-run this prompt in
     // this conversation until you stop. Intercept it here so the literal command
     // is never sent to Claude as a message.
-    const loopCmd = /^\/loop(\s|$)/i.test(text.trim()) ? parseLoopCmd(text) : null
-    if (loopCmd !== null) {
-      const sys = (t: string): void =>
+    // Main runs it (main/loops.ts) and sends each round back here to submit.
+    if (isLoopCommand(text)) {
+      const typed = text
+      setInput('')
+      void window.cove.loopCommand(chatId, typed).then((said) => {
+        if (!said) return
         setItems((prev) => [
           ...prev,
           {
@@ -3457,37 +3322,12 @@ export function EasyChat({
               id: `sys-${Date.now()}`,
               at: Date.now(),
               role: 'assistant',
-              text: t,
+              text: said,
               system: true
             }
           }
         ])
-      if (/^\/loop\s+stop\s*$/i.test(text.trim())) {
-        stopLoop()
-        sys('⏹ Loop stopped.')
-        setInput('')
-        return
-      }
-      if (!loopCmd.prompt) {
-        sys(
-          'Usage: /loop [5m·2h·…] <prompt> — repeats the prompt in this chat until you Stop it. `/loop stop` ends it.'
-        )
-        return
-      }
-      const { prompt, intervalMs } = loopCmd
-      loopRef.current = { prompt, intervalMs, count: 1 }
-      setLoop(loopRef.current)
-      sys(
-        intervalMs
-          ? `🔁 Looping every ${humanInterval(intervalMs)}: “${prompt}”. Stop anytime.`
-          : `🔁 Looping: “${prompt}” — self-paced: the agent decides when each next round runs. Stop anytime.`
-      )
-      setInput('')
-      // Kick off the first iteration now. A self-paced loop carries its pacing
-      // note from round one, so the model knows the wait is its job.
-      loopRoundStartRef.current = Date.now()
-      loopRequestedGapMsRef.current = null
-      submit(intervalMs === null ? prompt + SELF_PACE_NOTE : prompt)
+      })
       return
     }
     // Sent while a turn is already running — this is a mid-task interjection.

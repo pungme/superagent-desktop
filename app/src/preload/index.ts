@@ -97,7 +97,9 @@ export interface HookEvent {
   body: Record<string, unknown>
 }
 
-import type { PairPayload } from '../shared/companion-protocol'
+import type { PairPayload, WireLoop } from '../shared/companion-protocol'
+/** The /loop running in a chat — the same shape the phone gets. */
+export type ChatLoop = WireLoop
 import type { AgentProvider } from '../shared/agent-provider'
 
 /** Which browser a project's agent uses: the built-in pane, or the user's real one. */
@@ -563,11 +565,14 @@ export interface CoveApi {
       index?: number
     }) => void
   ) => () => void
-  /** The loop_wait MCP tool — the agent's own pick for a self-paced /loop's
-   *  next-round delay, the same judgment call ScheduleWakeup asks for. */
-  onLoopWait: (
-    cb: (c: { chatId: string; delaySeconds: number; reason?: string }) => void
-  ) => () => void
+  /** A typed `/loop …`, run by main (main/loops.ts); returns the line to show. */
+  loopCommand: (chatId: string, text: string) => Promise<string | null>
+  loopStop: (chatId: string) => Promise<boolean>
+  loopGet: (chatId: string) => Promise<ChatLoop | null>
+  onLoopsChanged: (cb: (c: { chatId: string; loop: ChatLoop | null }) => void) => () => void
+  /** Main asks the window showing a chat to send a loop round as if typed. */
+  onLoopRound: (cb: (c: { chatId: string; text: string; nonce: string }) => void) => () => void
+  loopRoundReply: (nonce: string, answer: 'taken' | 'busy') => void
   /** The desktop as a real folder: its entries, and what you can do to them. */
   deskRoot: () => Promise<string>
   deskList: (
@@ -981,7 +986,12 @@ const cove: CoveApi = {
     subscribe('browser:tabs-command', (c) => cb(c as Parameters<typeof cb>[0])),
   onBrowserViewportCommand: (cb) =>
     subscribe('browser:viewport-command', (c) => cb(c as Parameters<typeof cb>[0])),
-  onLoopWait: (cb) => subscribe('loop:wait', (c) => cb(c as Parameters<typeof cb>[0])),
+  loopCommand: (chatId, text) => ipcRenderer.invoke('loops:command', chatId, text),
+  loopStop: (chatId) => ipcRenderer.invoke('loops:stop', chatId),
+  loopGet: (chatId) => ipcRenderer.invoke('loops:get', chatId),
+  onLoopsChanged: (cb) => subscribe('loops:changed', (c) => cb(c as Parameters<typeof cb>[0])),
+  onLoopRound: (cb) => subscribe('loops:round', (c) => cb(c as Parameters<typeof cb>[0])),
+  loopRoundReply: (nonce, answer) => ipcRenderer.send('loops:round-reply', nonce, answer),
   deskRoot: () => ipcRenderer.invoke('desk:root'),
   deskList: (dir) => ipcRenderer.invoke('desk:list', dir),
   deskNewFolder: (dir, name) => ipcRenderer.invoke('desk:newFolder', dir, name),

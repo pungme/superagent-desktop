@@ -57,6 +57,7 @@ import { toolPreview } from './guardrail'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 import { isAbsolute, resolve } from 'path'
 import { homedir } from 'os'
+import { requestLoopWait } from './loops'
 
 let port = 0
 let secret = ''
@@ -196,7 +197,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       },
       async ({ delaySeconds, reason }) => {
         const clamped = Math.min(3600, Math.max(60, Math.round(delaySeconds)))
-        broadcastToWindows('loop:wait', { chatId: CHAT_ID, delaySeconds: clamped, reason })
+        requestLoopWait(CHAT_ID, clamped)
         return {
           content: [
             { type: 'text', text: `Next round in ${clamped}s${reason ? ` — ${reason}` : ''}.` }

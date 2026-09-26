@@ -63,6 +63,7 @@ const sessions = new Map<string, AgentSession>()
  *  - 'resume-lost' { id, chatId, workspaceId }
  *  - 'user'        { id, chatId, workspaceId, text, images, from, localId }
  *  - 'started'     { id, chatId, workspaceId }
+ *  - 'interrupted' { chatId }                           a deliberate hard interrupt
  */
 export const agentBus = new EventEmitter()
 agentBus.setMaxListeners(50)
@@ -414,6 +415,8 @@ export function sendToAgent(
     localId?: string
     /** WhatsApp-style quote. The agent gets a blockquote; the log gets this. */
     replyTo?: { role: 'user' | 'assistant'; text: string }
+    /** Not typed in the window that owns the session (a /loop round): show it there too. */
+    notifyOwner?: boolean
   } = { from: 'desktop' }
 ): boolean {
   const session = sessions.get(id)
@@ -437,7 +440,7 @@ export function sendToAgent(
     replyTo: origin.replyTo
   })
   // A prompt from the phone also has to reach the window showing this chat.
-  if (origin.from !== 'desktop') {
+  if (origin.from !== 'desktop' || origin.notifyOwner) {
     const o = session.owner
     if (o && !o.isDestroyed())
       o.send(`agent:user:${id}`, remoteUserMessage(messageId, text, images.length))
@@ -481,6 +484,7 @@ export async function hardInterruptAgent(id: string): Promise<boolean> {
   const session = sessions.get(id)
   if (!session) return true
   session.killed = true // a deliberate interrupt is not a crash
+  agentBus.emit('interrupted', { chatId: session.chatId })
   const ended = await session.backend.hardInterrupt()
   if (ended) sessions.delete(id)
   return ended

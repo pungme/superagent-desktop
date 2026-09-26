@@ -199,6 +199,19 @@ export interface WireChat {
    * older Macs, which is why the Mac also drops a setting that does not belong.
    */
   provider?: 'claude' | 'codex'
+  /** The /loop running in this conversation, if any. Absent from older Macs. */
+  loop?: WireLoop | null
+}
+
+/** A /loop repeating a prompt in a conversation until it's stopped (see main/loops.ts). */
+export interface WireLoop {
+  prompt: string
+  /** Fixed interval between rounds; null when the agent paces itself. */
+  intervalMs: number | null
+  /** Rounds sent so far, this one included. */
+  count: number
+  /** When the next round is due, when one is scheduled. */
+  nextAt: number | null
 }
 
 export interface WireMachine {
@@ -305,6 +318,7 @@ export type RpcMethod =
   | 'chat.list'
   | 'chat.send'
   | 'chat.interrupt'
+  | 'chat.loop'
   | 'chat.queueSend'
   | 'chat.cancelQueuedSend'
   | 'chat.create'

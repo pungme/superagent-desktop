@@ -34,6 +34,7 @@ import { prettyHostname } from './pairing'
 import { EventEmitter } from 'events'
 import { loadedMachineId } from './identity'
 import { listChats } from './rpc'
+import { loopsBus } from '../loops'
 import type { WireEvent, WireBrowser } from '../../shared/companion-protocol'
 
 /**
@@ -135,6 +136,8 @@ export function startCompanion(): void {
     schedulePushChats()
     updateKeepAwake()
   })
+  // A /loop starting, stopping or counting a round: each chat carries its loop.
+  loopsBus.on('changed', () => schedulePushChats())
   hookBus.on(
     'event',
     (e: {

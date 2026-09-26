@@ -86,7 +86,8 @@ import {
 import { listRoutines, runRoutine, setRoutineEnabled } from '../routines'
 import { resolveGate } from '../hooks'
 import { workspaceStatuses } from './status'
-import { isGenerating, logBus } from './log'
+import { isGenerating, logBus, record } from './log'
+import { loopCommand, loopFor, setUnattendedSend } from '../loops'
 import { pushChats } from './index'
 import { broadcastToWindows } from '../util'
 import type {
@@ -141,6 +142,7 @@ const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1
 const chatPin = z.object({ chatId: z.string().min(1), pinned: z.boolean() })
 const chatReorderPinned = z.object({ chatIds: z.array(z.string().min(1)).max(500) })
 const chatId = z.object({ chatId: z.string().min(1) })
+const chatLoop = z.object({ chatId: z.string().min(1), text: z.string().min(1).max(20_000) })
 const chatQueueSend = z.object({ chatId: z.string().min(1), text: z.string().min(1).max(200_000) })
 const chatCancelQueuedSend = z.object({ chatId: z.string().min(1), id: z.string().min(1) })
 const backgroundStop = z.object({ chatId: z.string().min(1), toolUseId: z.string().min(1) })
@@ -276,6 +278,17 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const p = chatSend.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
         return sendToChat(p.data)
+      }
+      // A `/loop …` typed on the phone: start, stop or explain, the same as the
+      // window's composer. The answer lands in the conversation as a notice.
+      case 'chat.loop': {
+        const p = chatLoop.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        const said = loopCommand(p.data.chatId, p.data.text)
+        if (said === null) return fail('bad-params', 'not a /loop command')
+        record(p.data.chatId, { kind: 'notice', text: said })
+        return { ok: true, result: { message: said } }
       }
       case 'chat.interrupt': {
         const p = chatId.safeParse(params)
@@ -1044,7 +1057,8 @@ export function listChats(): WireChat[] {
     preview: lastChatPreview(c.id),
     provider: getChatProvider(c.id),
     cwd: c.cwd ?? '',
-    pending: isPendingBranch(c.id)
+    pending: isPendingBranch(c.id),
+    loop: loopFor(c.id)
   }))
 }
 
@@ -1154,6 +1168,10 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
     ? { ok: true, result: { sessionId: session.id } }
     : fail('unavailable', 'agent not accepting input')
 }
+
+// A loop round for a chat no window has open starts its agent the way a
+// phone message does.
+setUnattendedSend(async (chatId, text) => (await sendToChat({ chatId, text })).ok)
 
 /** A chat whose current turn ended via a deliberate stop, not a finish — see `chat.interrupt`. */
 const interruptedChats = new Set<string>()

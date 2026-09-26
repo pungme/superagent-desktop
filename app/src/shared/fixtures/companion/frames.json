@@ -71,7 +71,42 @@
     },
     {
       "t": "chats",
-      "chats": []
+      "chats": [
+        {
+          "id": "c2",
+          "workspaceId": "w1",
+          "title": "Watch the deploy",
+          "updatedAt": 1756400000000,
+          "live": false,
+          "loop": {
+            "prompt": "Check the deploy",
+            "intervalMs": 300000,
+            "count": 3,
+            "nextAt": 1756400300000
+          }
+        },
+        {
+          "id": "c3",
+          "workspaceId": "w1",
+          "title": null,
+          "updatedAt": 1756400000000,
+          "live": true,
+          "loop": {
+            "prompt": "Keep going",
+            "intervalMs": null,
+            "count": 1,
+            "nextAt": null
+          }
+        },
+        {
+          "id": "c4",
+          "workspaceId": "w1",
+          "title": null,
+          "updatedAt": 1756400000000,
+          "live": false,
+          "loop": null
+        }
+      ]
     },
     {
       "t": "res",

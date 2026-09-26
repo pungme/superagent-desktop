@@ -49,6 +49,7 @@ import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents, markContextLost } from './agent'
+import { registerLoops } from './loops'
 import { killAllOneShots } from './kill-tree'
 import { startCompanionLog, forgetChat } from './companion/log'
 import {
@@ -263,6 +264,7 @@ app.whenReady().then(async () => {
   registerHookIpc()
   registerAutomationIpc()
   registerAgentIpc()
+  registerLoops()
   // Must attach before any session starts: it is what the phone reads from.
   startCompanionLog()
   registerSkillsIpc()
