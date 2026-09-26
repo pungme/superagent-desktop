@@ -84,3 +84,35 @@ test('asked to use "my browser", the agent switches to it by itself', async () =
   )
   await expect(window.locator('.easy-assistant').last()).not.toContainText(/can.?t (control|use)/i)
 })
+
+test('switched to Brave mid-conversation, the agent just uses it', async () => {
+  const wsId = await window.evaluate(async () => {
+    const tree = await window.cove.storeTree()
+    return tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!.id
+  })
+  // A new chat that starts on the built-in browser…
+  await window.evaluate((id) => window.cove.browsersSet(id, 'builtin'), wsId)
+  await window.evaluate(async (id) => {
+    await window.cove.chatCreate(id)
+  }, wsId)
+  await window.click('.sidebar-item:has-text("e2e-project")')
+  const input = window.locator('textarea.easy-input:visible').first()
+  await input.fill('Reply with just: ready')
+  await input.press('Enter')
+  await expect(window.locator('.easy-assistant:not(.easy-system)').last()).toContainText(/ready/i, {
+    timeout: 120_000
+  })
+  // …then the user flips the pill, the way the screenshot showed.
+  await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
+  await input.fill(
+    "I've switched this project's browser to Brave. Open https://example.com and tell me the page title."
+  )
+  await input.press('Enter')
+  await expect(window.locator('.external-pane-url')).toContainText('example.com', {
+    timeout: 180_000
+  })
+  await expect(window.locator('.easy-assistant:not(.easy-system)').last()).toContainText(
+    /Example Domain/i,
+    { timeout: 180_000 }
+  )
+})

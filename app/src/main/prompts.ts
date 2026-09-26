@@ -31,11 +31,13 @@ const BROWSER_SYSTEM_PROMPT =
 function realBrowserPrompt(current: string): string {
   const now =
     current === 'Superagent'
-      ? "Your browser tools currently drive Superagent's built-in browser pane."
-      : `Your browser tools currently drive the user's own ${current}, with a Superagent profile of its own.`
+      ? "When this conversation started, your browser tools drove Superagent's built-in browser pane."
+      : `When this conversation started, your browser tools drove the user's own ${current}, with a Superagent profile of its own.`
   return (
     now +
-    " They can also drive the user's real browser app (Brave, Chrome or Edge), whose logins " +
+    ' The user can switch that at any time with the Browser pill under the composer, and your ' +
+    'tools follow at once: if they say they switched, just use the tools — browser_navigate ' +
+    "says which browser it landed in. They can also drive the user's real browser app (Brave, Chrome or Edge), whose logins " +
     "persist: call browser_use('yours') when the user asks you to use their browser, or when a " +
     'site needs their own accounts or turns the built-in browser away. Never tell the user you ' +
     "can't use their browser, and never ask them which one: browser_use picks it. It starts " +
