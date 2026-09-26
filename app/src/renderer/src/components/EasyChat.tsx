@@ -1383,8 +1383,17 @@ export function EasyChat({
   // Sub-agents (the Task tool) currently running. They live inside the same
   // claude process — we can't see their internal steps, but we can show that one
   // is working: a pill appears when Task starts and clears when its result lands.
+  // `background`: launched with run_in_background — its tool result only says
+  // "launched", so it runs on until its task_notification; `taskId` is the CLI's
+  // id for it (task_started), for reconciling against background_tasks_changed.
   const [runningAgents, setRunningAgents] = useState<
-    { toolUseId: string; label: string; startedAt: number }[]
+    {
+      toolUseId: string
+      label: string
+      startedAt: number
+      background?: boolean
+      taskId?: string
+    }[]
   >([])
   // The in-chat /loop runs on main (main/loops.ts), so the phone sees it too
   // and it outlives this view. This only mirrors it for the bar.
@@ -2208,6 +2217,42 @@ export function EasyChat({
     (event: Record<string, unknown>) => {
       const type = event.type as string
 
+      // Background sub-agents, as the CLI reports them: started (and moved to the
+      // background), finished, and the full list of what's still running. A
+      // background agent's tool result only says "launched", so these are what
+      // keep its pill up until it's actually done.
+      if (type === 'system' && (event.subtype as string) === 'task_started') {
+        const toolUseId = event.tool_use_id as string | undefined
+        if (toolUseId && event.task_type === 'local_agent')
+          setRunningAgents((prev) =>
+            prev.map((a) =>
+              a.toolUseId === toolUseId
+                ? {
+                    ...a,
+                    taskId: event.task_id as string,
+                    background: a.background || event.is_backgrounded === true
+                  }
+                : a
+            )
+          )
+        return
+      }
+      if (type === 'system' && (event.subtype as string) === 'task_notification') {
+        const toolUseId = event.tool_use_id as string | undefined
+        if (toolUseId) setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== toolUseId))
+        return
+      }
+      if (type === 'system' && (event.subtype as string) === 'background_tasks_changed') {
+        const live = new Set(
+          ((event.tasks as { task_id?: string }[] | undefined) ?? []).map((t) => t.task_id)
+        )
+        setRunningAgents((prev) => {
+          const next = prev.filter((a) => !a.background || !a.taskId || live.has(a.taskId))
+          return next.length === prev.length ? prev : next
+        })
+        return
+      }
+
       if (type === 'system' && (event.subtype as string) === 'init') {
         setReady(true)
         // The agent is genuinely up: signed in, session valid. Not the moment
@@ -2665,8 +2710,14 @@ export function EasyChat({
                   return next
                 })
               }
-              // A sub-agent finished — drop its pill.
-              setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== resultFor))
+              // A sub-agent finished — drop its pill. Unless it only went to the
+              // background: that result is "Async agent launched", and the agent
+              // is working until its task_notification.
+              if (/^Async agent launched/.test(text.trim()))
+                setRunningAgents((prev) =>
+                  prev.map((a) => (a.toolUseId === resultFor ? { ...a, background: true } : a))
+                )
+              else setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== resultFor))
               // TaskCreate's result carries the assigned id ("Task #7 created…").
               // Re-key our provisional entry to it so later TaskUpdates land.
               const provisional = taskCreates.current.get(resultFor)
@@ -3159,21 +3210,64 @@ export function EasyChat({
     setThinking(true)
   }
 
+  // Stop a background sub-agent — from the phone's Running strip, which lists
+  // them beside the shell jobs. Only the agent can stop its own sub-agent
+  // (TaskStop), so ask it to, the way stopBgTask does for a job.
+  const stopAgentRef = useRef<((toolUseId: string) => void) | null>(null)
+  useEffect(() => {
+    stopAgentRef.current = (toolUseId) => {
+      const a = runningAgents.find((x) => x.toolUseId === toolUseId)
+      if (!a) return
+      setRunningAgents((prev) => prev.filter((x) => x.toolUseId !== toolUseId))
+      const id = agentIdRef.current
+      if (!id) return
+      setItems((prev) => [
+        ...prev,
+        {
+          kind: 'msg',
+          msg: {
+            id: `u-stop-${Date.now()}`,
+            at: Date.now(),
+            role: 'assistant',
+            text: `⏹ Stopping background agent: ${a.label}`,
+            system: true
+          }
+        }
+      ])
+      window.cove.agentSend(
+        id,
+        `Stop the background sub-agent "${a.label}" you started earlier` +
+          (a.taskId ? ` (task ${a.taskId})` : '') +
+          ' with TaskStop, then confirm in one short line that it has stopped.',
+        []
+      )
+    }
+  }, [runningAgents])
+
   // Main mirrors this small, non-secret status list to paired phones. Stop
   // requests come back to the same function as the desktop button, so both
   // surfaces have identical semantics.
   useEffect(() => {
-    window.cove.bgSync(
-      chatId,
-      bgTasks.map(({ outputPath: _path, expiresAt: _expiry, shellId: _shell, ...task }) => task)
-    )
-  }, [chatId, bgTasks])
+    window.cove.bgSync(chatId, [
+      ...bgTasks.map(({ outputPath: _path, expiresAt: _expiry, shellId: _shell, ...task }) => task),
+      // Background sub-agents too, so the phone's Running strip shows them.
+      ...runningAgents
+        .filter((a) => a.background)
+        .map((a) => ({
+          toolUseId: a.toolUseId,
+          command: a.label,
+          description: `Agent: ${a.label}`,
+          startedAt: a.startedAt
+        }))
+    ])
+  }, [chatId, bgTasks, runningAgents])
   useEffect(
     () =>
       window.cove.onBgStop((p) => {
         if (p.chatId !== chatId) return
         const task = bgTasksRef.current.find((t) => t.toolUseId === p.toolUseId)
         if (task) stopBgTask(task)
+        else stopAgentRef.current?.(p.toolUseId)
       }),
     [chatId]
   )
@@ -3474,7 +3568,9 @@ export function EasyChat({
     // says so — "running now, I'll pick up as each finishes"), and sweeping them
     // when the turn ended hid genuinely-running work. They persist now until you
     // send the next message.
-    if (!interjecting) setRunningAgents([])
+    // Background sub-agents stay: they're still working, and their own
+    // notification clears them.
+    if (!interjecting) setRunningAgents((prev) => prev.filter((a) => a.background))
     const payload = images.map((im) => ({ mediaType: im.mediaType, data: im.data }))
     if (!interjecting) {
       inFlightSendRef.current = { text: agentText, images: payload, replyTo: reply ?? undefined }
