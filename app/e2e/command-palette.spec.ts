@@ -21,6 +21,7 @@ async function openPalette(): Promise<void> {
     BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command-palette')
   })
   await window.waitForSelector('.cmdk-panel', { timeout: 5_000 })
+  await expect(window.locator('.cmdk-input')).toBeFocused()
 }
 
 test.beforeAll(async () => {

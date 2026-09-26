@@ -49,6 +49,13 @@ test.beforeAll(async () => {
   await window.evaluate(() => localStorage.setItem('cove.onboarded', '1'))
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  // Adding a folder in the app gives it one conversation; the test seed
+  // doesn't, so make it here.
+  await window.evaluate(async () => {
+    const tree = await window.cove.storeTree()
+    const ws = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!
+    await window.cove.chatCreate(ws.id)
+  })
   await window.click('.sidebar-item:has-text("e2e-project")')
   await window.waitForSelector('.workspace-toolbar', { timeout: 10_000 })
 })
@@ -77,7 +84,9 @@ test('New Chat still works, and makes no worktree folder', async () => {
   // Two chats now, so the rows show — this is the regression: the branch list
   // had replaced the chat list, so a non-git folder rendered no rows at all and
   // there was no way to reach a conversation.
-  await expect.poll(() => window.locator('.chat-tree-row').count(), { timeout: 15_000 }).toBeGreaterThan(1)
+  await expect
+    .poll(() => window.locator('.chat-tree-row').count(), { timeout: 15_000 })
+    .toBeGreaterThan(1)
   expect(existsSync(join(projectDir, '.worktrees'))).toBe(false)
 })
 

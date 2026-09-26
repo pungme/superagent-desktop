@@ -35,6 +35,13 @@ test.beforeAll(async () => {
   })
   window = await app.firstWindow()
   await window.waitForLoadState('domcontentloaded')
+  // Adding a folder in the app gives it one conversation; the test seed
+  // doesn't, and without one there is no composer to test.
+  await window.evaluate(async () => {
+    const tree = await window.cove.storeTree()
+    const ws = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!
+    await window.cove.chatCreate(ws.id)
+  })
 })
 
 test.afterAll(async () => {

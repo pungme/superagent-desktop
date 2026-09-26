@@ -37,9 +37,11 @@ off, so a failure there has shipped nothing and a re-run is safe.
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and
 `npx playwright test` for e2e — from `app/`.
 
-Two known e2e failures on a clean tree (`opening the workspace…` and
-`@ mentions…`): the smoke suite seeds a project with no conversation, so the
-composer never appears. Tracked on the board; not something you broke.
+The e2e suite runs quietly (no windows, headless Brave) and should be all
+green. `COVE_E2E_PROJECT` seeds a project with no conversation, unlike adding
+one in the app, so a spec that needs the composer creates a chat first (see
+smoke.spec.ts). Opt-in live specs spend tokens: `CLAUDE_LIVE=1` for
+loop-live, `CODEX_LIVE=1` for codex-live.
 
 The companion e2e suite needs the relay repo beside this one. Without it the
 suite skips itself, which is why CI stays green.

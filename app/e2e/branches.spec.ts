@@ -145,7 +145,7 @@ test('the first message cuts the branch, named after what was asked for', async 
     .toContain(created)
 })
 
-test('the folder\'s own chat lives on the project row, not in the list', async () => {
+test("the folder's own chat lives on the project row, not in the list", async () => {
   // The project row IS the root conversation, and says which branch the folder
   // is on. Repeating it as a child of itself made the root look like just
   // another branch beneath it.
@@ -167,9 +167,9 @@ test('clicking the project row opens the folder chat, and the list survives', as
   await window.waitForTimeout(500)
   // The regression this guards: clicking changed the row count and the guard
   // hid the whole block, taking every row with it.
-  await expect.poll(() => branchRows().count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(
-    Math.max(before - 1, 1)
-  )
+  await expect
+    .poll(() => branchRows().count(), { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(Math.max(before - 1, 1))
 })
 
 test('every worktree git has is reachable in the sidebar — none hidden', async () => {
@@ -186,10 +186,13 @@ test('every worktree git has is reachable in the sidebar — none hidden', async
   const mustBeListed = expected.filter((b) => b !== 'main')
   expect(mustBeListed.length).toBeGreaterThan(0)
   await expect
-    .poll(async () => {
-      const shown = (await shownBranches()).join('|')
-      return mustBeListed.every((b) => shown.includes(b))
-    }, { timeout: 15_000 })
+    .poll(
+      async () => {
+        const shown = (await shownBranches()).join('|')
+        return mustBeListed.every((b) => shown.includes(b))
+      },
+      { timeout: 15_000 }
+    )
     .toBe(true)
   // And the folder's own branch is on the project row.
   await expect(window.locator('.sidebar-item-branch', { hasText: 'main' }).first()).toBeVisible()
@@ -240,7 +243,7 @@ const worktreePaths = (): Record<string, string> => {
   return out
 }
 
-test('right-click Merge lands a branch\'s commit on main and clears the branch', async () => {
+test("right-click Merge lands a branch's commit on main and clears the branch", async () => {
   window.on('dialog', (d) => void d.accept())
   const before = gitBranches()
   await startChat('work to merge')
@@ -326,9 +329,7 @@ test('rows stay distinguishable even when every chat is still untitled', async (
     expect(named).toBeGreaterThanOrEqual(1)
   }
   // And no branch is listed twice — one row per branch.
-  const names = (await shownBranches()).filter(
-    (b) => b !== 'copy gone' && b !== 'no branch yet'
-  )
+  const names = (await shownBranches()).filter((b) => b !== 'copy gone' && b !== 'no branch yet')
   expect(new Set(names).size).toBe(names.length)
 })
 
@@ -342,9 +343,12 @@ test('deleting a chat takes its branch and its row with it', async () => {
   const wtPath = worktreePaths()[branch]
 
   const rowsBefore = await branchRows().count()
-  await app.evaluate(({ BrowserWindow }, p) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('worktree:menu-action', p)
-  }, { action: 'delete', projectPath: projectDir, wtPath, branch, base: 'main' })
+  await app.evaluate(
+    ({ BrowserWindow }, p) => {
+      BrowserWindow.getAllWindows()[0].webContents.send('worktree:menu-action', p)
+    },
+    { action: 'delete', projectPath: projectDir, wtPath, branch, base: 'main' }
+  )
 
   // Branch gone from git...
   await expect.poll(() => gitBranches(), { timeout: 20_000 }).not.toContain(branch)
@@ -389,9 +393,7 @@ test('one branch never ends up with two chats', async () => {
     await window.evaluate(
       ([wsKey, p]) => {
         const id = localStorage.getItem(wsKey)
-        window.dispatchEvent(
-          new CustomEvent('cove:e2e-open-branch', { detail: { id, cwd: p } })
-        )
+        window.dispatchEvent(new CustomEvent('cove:e2e-open-branch', { detail: { id, cwd: p } }))
       },
       ['activeWorkspace', wtPath] as const
     )
@@ -432,7 +434,9 @@ test('a chat you open and never use leaves no branch behind', async () => {
   await window.waitForTimeout(1500)
   expect(gitBranches()).toEqual(before)
   // And it says so rather than pretending to be on main.
-  await expect(window.locator('.sidebar-branch', { hasText: 'no branch yet' }).first()).toBeVisible()
+  await expect(
+    window.locator('.sidebar-branch', { hasText: 'no branch yet' }).first()
+  ).toBeVisible()
 })
 
 test('the project folder never gets a second chat', async () => {
@@ -467,10 +471,11 @@ test('exactly one row is highlighted at a time', async () => {
 
   // On the folder: the project row is selected, no branch row is.
   await window.locator('.sidebar-item:has-text("e2e-project")').first().click()
-  await window.waitForTimeout(600)
-  await expect.poll(selected, { timeout: 10_000 }).toBe(1)
-  expect(await window.locator('.sidebar-item.active').count()).toBe(1)
-  expect(await window.locator('.sidebar-branch.on').count()).toBe(0)
+  // Wait for the switch itself: "one row lit" is already true of the branch
+  // row that was on before the click lands.
+  await expect(window.locator('.sidebar-item.active')).toHaveCount(1, { timeout: 10_000 })
+  await expect(window.locator('.sidebar-branch.on')).toHaveCount(0)
+  expect(await selected()).toBe(1)
 
   // On a chat that has not sent anything yet: it has no cwd either, which made
   // it read as the folder's own chat — so its row AND the project row lit up.
