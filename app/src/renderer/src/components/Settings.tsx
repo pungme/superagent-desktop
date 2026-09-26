@@ -343,6 +343,20 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // Irreversible, so a plain-words confirm first. The window's own memory
+  // (localStorage) goes too; main wipes the rest and restarts the app.
+  const resetApp = async (): Promise<void> => {
+    const ok = window.confirm(
+      'Reset Superagent?\n\nThis removes every project, group, chat and its history, the Todo ' +
+        'board, routines and loops, then restarts Superagent like a new install.\n\nYour files ' +
+        'and folders, paired phones and browser logins stay. This can’t be undone.'
+    )
+    if (!ok) return
+    localStorage.clear()
+    await window.cove.resetApp()
+    // Tests stay in the same window (no relaunch); start it over.
+    window.location.reload()
+  }
   const toggleDev = (v: boolean): void => {
     localStorage.setItem('cove.devMode', v ? '1' : '0')
     setDevMode(v)
@@ -619,6 +633,14 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
               </Row>
               <Row title="Developer mode" desc="Show DevTools and verbose details.">
                 <Toggle checked={devMode} onChange={toggleDev} />
+              </Row>
+              <Row
+                title="Reset Superagent"
+                desc="Start fresh: removes every project, chat, board and routine. Your files, paired phones and browser logins stay."
+              >
+                <button className="storage-clear settings-reset" onClick={() => void resetApp()}>
+                  Reset…
+                </button>
               </Row>
             </section>
           )}

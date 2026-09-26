@@ -66,6 +66,7 @@ import { registerEnvironmentIpc } from './environment'
 import { registerClaudeModelsIpc } from './claude/models'
 import { registerExternalBrowserIpc, closeExternalBrowsers } from './external-browser'
 import { registerSignInsIpc } from './sign-ins'
+import { registerResetIpc } from './reset'
 import { signInBus } from './google-signin'
 import { registerFilesIpc } from './files'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
@@ -280,6 +281,7 @@ app.whenReady().then(async () => {
   registerClaudeModelsIpc()
   registerExternalBrowserIpc()
   registerSignInsIpc()
+  registerResetIpc()
   registerFilesIpc()
   registerSimulatorIpc()
   buildMenu()

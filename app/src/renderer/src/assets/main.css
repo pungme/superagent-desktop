@@ -11876,3 +11876,8 @@ button {
   background: var(--accent-soft);
   border-bottom: 1px solid var(--border);
 }
+
+/* Settings → Reset Superagent: the one destructive button there. */
+.settings-reset {
+  color: var(--danger, #d93025);
+}
