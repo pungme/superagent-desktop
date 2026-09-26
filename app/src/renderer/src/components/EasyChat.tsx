@@ -1002,6 +1002,41 @@ function RemoteImages({
   )
 }
 
+const PASTE_PREVIEW_LINES = 6
+const PASTE_TRUNCATE_CHARS = 500
+
+/**
+ * A giant paste — a crash log, a stack trace, a spindump — dropped straight
+ * into the composer used to render in full, so a single message could push
+ * the entire rest of the conversation off screen. Collapse it to a preview
+ * with a chip to see the whole thing, the same "quiet until asked for"
+ * treatment as a tool step or a diff.
+ */
+function PastedText({ text }: { text: string }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const lines = useMemo(() => text.split('\n'), [text])
+  const isLong = text.length > PASTE_TRUNCATE_CHARS && lines.length > PASTE_PREVIEW_LINES
+  if (!isLong) return <>{text}</>
+  if (open) {
+    return (
+      <>
+        {text}
+        <button className="easy-paste-toggle" onClick={() => setOpen(false)} aria-expanded={true}>
+          Show less
+        </button>
+      </>
+    )
+  }
+  return (
+    <>
+      {lines.slice(0, PASTE_PREVIEW_LINES).join('\n')}
+      <button className="easy-paste-toggle" onClick={() => setOpen(true)} aria-expanded={false}>
+        Show all {lines.length.toLocaleString()} lines
+      </button>
+    </>
+  )
+}
+
 const MessageRow = memo(function MessageRow({
   msg,
   showEdit,
@@ -1078,7 +1113,9 @@ const MessageRow = memo(function MessageRow({
               <Choices key={si} spec={seg.ask} onAnswer={onAnswer} />
             )
           )
-        : (loopSplit?.main ?? msg.text)}
+        : (
+            <PastedText text={loopSplit?.main ?? msg.text} />
+          )}
       {loopSplit?.note && <div className="easy-loop-note">{loopSplit.note}</div>}
       {msg.streaming && <span className="easy-caret" />}
       {!msg.streaming && msg.text && (
