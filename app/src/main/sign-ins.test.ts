@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterAll, describe, it, expect, vi } from 'vitest'
 import { cpSync, existsSync, mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -19,7 +19,16 @@ vi.mock('./store', () => ({
 }))
 
 import { copySignIns, hostMatches, siteOf } from './sign-ins'
-import { ensureRunning, profileDir, stopBrowser } from './external-browser'
+import {
+  endSignIn,
+  ensureRunning,
+  profileDir,
+  signInYourself,
+  stopBrowser
+} from './external-browser'
+import { execSync } from 'child_process'
+
+afterAll(() => rmSync(dataDir, { recursive: true, force: true }))
 
 const haveBrave = existsSync('/Applications/Brave Browser.app/Contents/MacOS/Brave Browser')
 
@@ -90,7 +99,32 @@ describe.skipIf(!haveBrave)('bringing sign-ins over in a real Brave', () => {
     } finally {
       await stopBrowser('brave')
       rmSync(aside, { recursive: true, force: true })
-      rmSync(dataDir, { recursive: true, force: true })
     }
   }, 90_000)
+
+  it('opens for the user to sign in with no remote control, and the agent waits for it', async () => {
+    try {
+      await ensureRunning('brave')
+      const done = signInYourself('brave', 'about:blank')
+      await new Promise((r) => setTimeout(r, 1500))
+      // Google checks for remote control at sign-in: this copy must have none.
+      const args = execSync(
+        `ps -axo args | grep -- '--user-data-dir=${profileDir('brave')}' | grep -v grep || true`
+      )
+        .toString()
+        .split('\n')
+        .filter((l) => !l.includes('--type='))
+        .join('\n')
+      expect(args).toContain(profileDir('brave'))
+      expect(args).not.toContain('remote-debugging')
+      await expect(ensureRunning('brave')).rejects.toThrow(/signing in/)
+      endSignIn('brave')
+      await done
+      // Quit: the agent takes over again.
+      const conn = await ensureRunning('brave')
+      expect(conn.closed).toBe(false)
+    } finally {
+      await stopBrowser('brave')
+    }
+  }, 60_000)
 })

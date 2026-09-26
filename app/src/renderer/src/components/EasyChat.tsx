@@ -182,6 +182,20 @@ function BrowserPill({
               className="easy-control-item"
               onClick={() => {
                 onPicked()
+                void window.cove.browsersSignIn(current)
+              }}
+            >
+              <span className="easy-control-item-label">Sign in yourself…</span>
+              <span className="easy-control-item-hint">
+                Opens it without the agent. Google won’t let you sign in otherwise
+              </span>
+            </button>
+          )}
+          {current !== 'builtin' && (
+            <button
+              className="easy-control-item"
+              onClick={() => {
+                onPicked()
                 setSignIns(true)
               }}
             >

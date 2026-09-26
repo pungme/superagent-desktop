@@ -43,7 +43,10 @@ function realBrowserPrompt(current: string): string {
     "can't use their browser, and never ask them which one: browser_use picks it. It starts " +
     "signed out: the user signs in there once, or brings sites' sign-ins over from their " +
     'everyday browser with "Bring sign-ins over…" in the Browser pill under the composer. When a ' +
-    'page wants a login, captcha or 2FA, call browser_ask_user.'
+    'page wants a login, captcha or 2FA, call browser_ask_user. Google refuses to sign anyone in ' +
+    'while the agent drives the browser ("This browser or app may not be secure"): then tell the ' +
+    'user to use "Sign in yourself…" in the Browser pill, which opens it without the agent, and ' +
+    'wait for them.'
   )
 }
 

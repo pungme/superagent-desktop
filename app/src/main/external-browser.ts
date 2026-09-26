@@ -237,6 +237,52 @@ class BrowserConnection {
 }
 
 const running = new Map<BrowserId, BrowserConnection>()
+/** Opened for the user to sign in, with no remote control — see signInYourself. */
+const signingIn = new Map<BrowserId, ChildProcess>()
+
+/**
+ * Open the agent's profile of a browser with remote control OFF, for the user
+ * to sign in. Google refuses sign-in in any browser it can tell is remote
+ * controlled ("This browser or app may not be secure"), but only at sign-in:
+ * the session it leaves in the profile keeps working once the agent drives it
+ * again. Resolves when the user closes that window.
+ */
+export async function signInYourself(
+  id: BrowserId,
+  url = 'https://accounts.google.com'
+): Promise<void> {
+  const bin = executablePath(id)
+  if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
+  if (signingIn.has(id)) return
+  await stopBrowser(id)
+  const profile = profileDir(id)
+  mkdirSync(profile, { recursive: true })
+  const proc = spawn(
+    bin,
+    [
+      ...(process.env.COVE_E2E_QUIET === '1' ? ['--headless=new'] : []),
+      `--user-data-dir=${profile}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      url
+    ],
+    { stdio: 'ignore', detached: true }
+  )
+  signingIn.set(id, proc)
+  broadcastToWindows('browsers:signing-in', { name: browserName(id), on: true })
+  await new Promise<void>((resolve) => {
+    proc.once('exit', () => {
+      signingIn.delete(id)
+      broadcastToWindows('browsers:signing-in', { name: browserName(id), on: false })
+      resolve()
+    })
+  })
+}
+
+/** Close a sign-in window Superagent opened (on quit, or from the pane). */
+export function endSignIn(id: BrowserId): void {
+  signingIn.get(id)?.kill('SIGTERM')
+}
 
 /** Where the agent's copy of a browser keeps its profile — never the user's own. */
 export function profileDir(id: BrowserId): string {
@@ -268,6 +314,10 @@ export async function stopBrowser(id: BrowserId): Promise<boolean> {
 export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
   const existing = running.get(id)
   if (existing && !existing.closed) return existing
+  if (signingIn.has(id))
+    throw new Error(
+      `The user is signing in to ${browserName(id)} on their own. Wait until they close that window, then try again.`
+    )
   const bin = executablePath(id)
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
   const profile = profileDir(id)
@@ -315,6 +365,7 @@ export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
  * the pipe alone would do it too; SIGTERM is the prompt, clean way.)
  */
 export function closeExternalBrowsers(): void {
+  for (const id of [...signingIn.keys()]) endSignIn(id)
   for (const [id, conn] of running) {
     // Browser.close saves its cookies first — a sign-in made just before quitting
     // survives. SIGTERM a moment later in case it doesn't answer.
@@ -556,6 +607,11 @@ async function startScreencast(paneId: string, page: ExternalPage, to: WebConten
 
 export function registerExternalBrowserIpc(): void {
   ipcMain.handle('browsers:list', () => installedBrowsers())
+  // Not awaited: it resolves only when the user closes the sign-in window.
+  ipcMain.handle('browsers:sign-in', (_e, id: BrowserId) => {
+    void signInYourself(id).catch(() => undefined)
+    return { ok: true }
+  })
   ipcMain.handle('browsers:get', (_e, workspaceId: string) => browserFor(String(workspaceId)))
   // Picked on the pill: open it now — the first time, this is where the user signs in.
   ipcMain.handle('browsers:set', (_e, workspaceId: string, id: BrowserId) =>

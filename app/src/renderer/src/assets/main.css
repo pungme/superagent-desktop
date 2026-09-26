@@ -11835,3 +11835,13 @@ button {
 .signins-primary:disabled {
   opacity: 0.45;
 }
+
+/* The user is signing in to the agent's browser with remote control off. */
+.external-pane-signin {
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+}

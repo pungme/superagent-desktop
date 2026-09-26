@@ -317,3 +317,17 @@ test('switching back to the built-in browser restores the normal pane', async ()
   await expect(window.locator('.external-pane')).toHaveCount(0)
   await expect(window.locator('.browser-address').first()).toBeVisible({ timeout: 10_000 })
 })
+
+test('"Sign in yourself…" opens it without the agent and says how to finish', async () => {
+  await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
+  await tool('browser_navigate', { url: siteUrl })
+  const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Browser"))').first()
+  await pill.click()
+  await window.locator('.easy-control-item:has-text("Sign in yourself")').click()
+  await expect(window.locator('.external-pane-signin')).toContainText('quit it with ⌘Q', {
+    timeout: 10_000
+  })
+  // The agent waits rather than taking the profile back mid-sign-in.
+  expect(await tool('browser_navigate', { url: siteUrl })).toMatch(/signing in/)
+  // Quitting Superagent closes that window too (checked in afterAll).
+})

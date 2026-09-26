@@ -18,6 +18,14 @@ export function ExternalBrowserPane({
 }): React.JSX.Element {
   const [frame, setFrame] = useState<string | null>(null)
   const [url, setUrl] = useState('')
+  const [signingIn, setSigningIn] = useState(false)
+  useEffect(
+    () =>
+      window.cove.onBrowsersSigningIn((s) => {
+        if (s.name === browserName) setSigningIn(s.on)
+      }),
+    [browserName]
+  )
   // A new pane (another chat) starts blank rather than showing the last one's page.
   const [seen, setSeen] = useState(paneId)
   if (seen !== paneId) {
@@ -55,6 +63,12 @@ export function ExternalBrowserPane({
           ×
         </button>
       </div>
+      {signingIn && (
+        <div className="external-pane-signin">
+          Sign in in the {browserName} window, then quit it with ⌘Q. Closing the window isn’t
+          enough: quitting is what saves the sign-in. The agent carries on signed in.
+        </div>
+      )}
       <div className="external-pane-view">
         {frame ? (
           <img src={frame} alt={`${browserName}: ${url}`} />
