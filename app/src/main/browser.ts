@@ -1,4 +1,11 @@
 import {
+  isGoogleSignIn,
+  isGoogleSignInRejected,
+  isHandsOff,
+  setHandsOff,
+  signInRetryUrl
+} from './google-signin'
+import {
   BrowserWindow,
   screen,
   WebContentsView,
@@ -872,6 +879,23 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   }
   wc.on('did-navigate', sendState)
   wc.on('did-navigate-in-page', sendState)
+  // Google turned the sign-in away because the agent's debugger is attached:
+  // take the agent's hands off and try once more; give them back when the
+  // user is through (see google-signin.ts). Refused again with the agent off
+  // means it's the embedded browser itself — say so rather than loop.
+  wc.on('did-navigate', (_e, url) => {
+    if (isGoogleSignInRejected(url)) {
+      if (isHandsOff(id)) {
+        setHandsOff(id, true, true)
+        return
+      }
+      setHandsOff(id, true)
+      if (wc.debugger.isAttached()) wc.debugger.detach()
+      void wc.loadURL(signInRetryUrl(url)).catch(() => {})
+    } else if (isHandsOff(id) && !isGoogleSignIn(url)) {
+      setHandsOff(id, false)
+    }
+  })
   wc.on('page-title-updated', sendState)
   wc.on('did-start-loading', sendState)
   wc.on('did-stop-loading', sendState)

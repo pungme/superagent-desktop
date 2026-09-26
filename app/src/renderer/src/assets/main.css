@@ -11845,3 +11845,13 @@ button {
   background: var(--accent-soft);
   border-bottom: 1px solid var(--border);
 }
+
+/* The built-in pane paused the agent so the user can sign in to Google. */
+.browser-handsoff {
+  padding: 9px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+}

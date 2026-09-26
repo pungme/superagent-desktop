@@ -22,6 +22,7 @@ import { copySignIns, hostMatches, siteOf } from './sign-ins'
 import {
   endSignIn,
   ensureRunning,
+  externalPage,
   profileDir,
   signInYourself,
   stopBrowser
@@ -123,6 +124,52 @@ describe.skipIf(!haveBrave)('bringing sign-ins over in a real Brave', () => {
       // Quit: the agent takes over again.
       const conn = await ensureRunning('brave')
       expect(conn.closed).toBe(false)
+    } finally {
+      await stopBrowser('brave')
+    }
+  }, 60_000)
+
+  it('reopens without remote control by itself when Google refuses the sign-in', async () => {
+    const running = async (): Promise<string> =>
+      ensureRunning('brave').then(
+        () => 'agent',
+        (e: Error) => (/signing in/.test(e.message) ? 'user' : e.message)
+      )
+    try {
+      const page = await externalPage('ws1::c1', 'brave')
+      // Google's refusal page, faked: no real network for it.
+      await page.session.send('Fetch.enable', {
+        patterns: [{ urlPattern: 'https://accounts.google.com/*' }]
+      })
+      page.session.on((method, params) => {
+        if (method !== 'Fetch.requestPaused') return
+        void page.session
+          .send('Fetch.fulfillRequest', {
+            requestId: params.requestId,
+            responseCode: 200,
+            responseHeaders: [{ name: 'content-type', value: 'text/html' }],
+            body: Buffer.from('<title>Couldn’t sign you in</title>').toString('base64')
+          })
+          .catch(() => undefined)
+      })
+      await page
+        .loadURL(
+          'https://accounts.google.com/v3/signin/rejected?continue=https%3A%2F%2Fads.google.com%2F'
+        )
+        .catch(() => undefined)
+      await expect.poll(running, { timeout: 15_000 }).toBe('user')
+      const args = (): string =>
+        execSync(
+          `ps -axo args | grep -- '--user-data-dir=${profileDir('brave')}' | grep -v grep || true`
+        )
+          .toString()
+          .split('\n')
+          .filter((l) => !l.includes('--type='))
+          .join('\n')
+      await expect.poll(args, { timeout: 15_000 }).toContain('accounts.google.com/ServiceLogin')
+      expect(args()).not.toContain('remote-debugging')
+      endSignIn('brave')
+      await expect.poll(running, { timeout: 15_000 }).toBe('agent')
     } finally {
       await stopBrowser('brave')
     }

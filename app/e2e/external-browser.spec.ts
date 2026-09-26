@@ -318,6 +318,72 @@ test('switching back to the built-in browser restores the normal pane', async ()
   await expect(window.locator('.browser-address').first()).toBeVisible({ timeout: 10_000 })
 })
 
+test('Google refusing sign-in in the built-in browser pauses the agent until you are through', async () => {
+  // Google's pages, faked inside the pane's browser session: no real network.
+  await app.evaluate(({ session, net }) => {
+    session.fromPartition('persist:browser').protocol.handle('https', (req) => {
+      const host = new URL(req.url).hostname
+      const page = (title: string): Response =>
+        new Response(`<title>${title}</title><h1>${title}</h1>`, {
+          headers: { 'content-type': 'text/html' }
+        })
+      if (host === 'accounts.google.com')
+        return page(req.url.includes('/rejected') ? 'Couldn’t sign you in' : 'Sign in')
+      if (host === 'ads.google.com') return page('Google Ads')
+      return net.fetch(req, { bypassCustomProtocolHandlers: true })
+    })
+  })
+  const REJECTED =
+    'https://accounts.google.com/v3/signin/rejected?continue=https%3A%2F%2Fads.google.com%2F'
+  const paneUrl = (): Promise<string> =>
+    app.evaluate(({ webContents }) =>
+      webContents
+        .getAllWebContents()
+        .map((w) => w.getURL())
+        .filter((u) => u.includes('google.com'))
+        .join(' ')
+    )
+  await tool('browser_navigate', { url: REJECTED })
+  const banner = window.locator('.browser-handsoff:visible')
+  await expect(banner).toContainText('the agent is paused', { timeout: 10_000 })
+  // It tried the sign-in again, going on to Ads, with the agent's debugger off.
+  await expect.poll(paneUrl).toContain('accounts.google.com/ServiceLogin?continue=')
+  expect(
+    await app.evaluate(({ webContents }) =>
+      webContents
+        .getAllWebContents()
+        .filter((w) => w.getURL().includes('accounts.google.com'))
+        .some((w) => w.debugger.isAttached())
+    )
+  ).toBe(false)
+  // The agent waits rather than grabbing the page mid-sign-in.
+  expect(await tool('browser_evaluate', { expression: 'document.title' })).toMatch(
+    /signing in to Google/
+  )
+  // Signed in: Google sends the user on to Ads, and the agent carries on.
+  await app.evaluate(({ webContents }) => {
+    for (const w of webContents.getAllWebContents())
+      if (w.getURL().includes('accounts.google.com')) void w.loadURL('https://ads.google.com/')
+  })
+  await expect(banner).toHaveCount(0, { timeout: 10_000 })
+  expect(await tool('browser_evaluate', { expression: 'document.title' })).toContain('Google Ads')
+
+  // Refused again with the agent off: the built-in browser can't get past it —
+  // say so, and don't loop.
+  await tool('browser_navigate', { url: REJECTED })
+  await expect.poll(paneUrl).toContain('ServiceLogin')
+  await app.evaluate(({ webContents }, url) => {
+    for (const w of webContents.getAllWebContents())
+      if (w.getURL().includes('accounts.google.com')) void w.loadURL(url)
+  }, REJECTED)
+  await expect(banner).toContainText('won’t sign in here', { timeout: 10_000 })
+  await app.evaluate(({ webContents }) => {
+    for (const w of webContents.getAllWebContents())
+      if (w.getURL().includes('accounts.google.com')) void w.loadURL('https://ads.google.com/')
+  })
+  await expect(banner).toHaveCount(0, { timeout: 10_000 })
+})
+
 test('"Sign in yourself…" opens it without the agent and says how to finish', async () => {
   await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
   await tool('browser_navigate', { url: siteUrl })

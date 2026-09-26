@@ -1,3 +1,4 @@
+import { isGoogleSignInRejected, signInRetryUrl } from './google-signin'
 import { spawn, ChildProcess, execFile, execFileSync } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
 import type { Readable, Writable } from 'stream'
@@ -238,7 +239,7 @@ class BrowserConnection {
 
 const running = new Map<BrowserId, BrowserConnection>()
 /** Opened for the user to sign in, with no remote control — see signInYourself. */
-const signingIn = new Map<BrowserId, ChildProcess>()
+const signingIn = new Map<BrowserId, ChildProcess | null>()
 
 /**
  * Open the agent's profile of a browser with remote control OFF, for the user
@@ -254,7 +255,15 @@ export async function signInYourself(
   const bin = executablePath(id)
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
   if (signingIn.has(id)) return
-  await stopBrowser(id)
+  // Claimed before the agent's copy is closed: an agent step landing in that
+  // gap would otherwise start it again and take the profile back.
+  signingIn.set(id, null)
+  try {
+    await stopBrowser(id)
+  } catch (err) {
+    signingIn.delete(id)
+    throw err
+  }
   const profile = profileDir(id)
   mkdirSync(profile, { recursive: true })
   const proc = spawn(
@@ -557,6 +566,15 @@ export async function externalPage(paneId: string, id: BrowserId): Promise<Exter
     session.send('Runtime.evaluate', { expression: WEBDRIVER_MASK })
   ])
   const page = new ExternalPage(id, session, targetId, conn)
+  // Google turned the sign-in away because the browser is remote controlled:
+  // reopen it without remote control on the sign-in page (signInYourself); the
+  // pane tells the user to quit with ⌘Q when they're through.
+  session.on((method, params) => {
+    if (method !== 'Page.frameNavigated') return
+    const frame = params.frame as { parentId?: string; url?: string }
+    if (!frame.parentId && frame.url && isGoogleSignInRejected(frame.url))
+      void signInYourself(id, signInRetryUrl(frame.url)).catch(() => undefined)
+  })
   pages.set(paneId, page)
   for (const l of pageListeners) l(paneId, page)
   return page

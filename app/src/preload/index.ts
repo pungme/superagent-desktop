@@ -678,6 +678,10 @@ export interface CoveApi {
   /** Open the agent's profile without remote control, for the user to sign in (Google refuses otherwise). */
   browsersSignIn: (id: BrowserChoice) => Promise<{ ok: boolean }>
   onBrowsersSigningIn: (cb: (s: { name: string; on: boolean }) => void) => () => void
+  /** The built-in pane paused the agent for a Google sign-in; refused = Google said no anyway. */
+  onBrowserHandsOff: (
+    cb: (s: { paneId: string; on: boolean; refused: boolean }) => void
+  ) => () => void
   onBrowsersChanged: (cb: (c: { workspaceId: string; id: BrowserChoice }) => void) => () => void
   /** Claude Code's current model line-up, from the installed CLI; null if it couldn't say. */
   claudeModels: () => Promise<{ id: string; label: string; hint: string }[] | null>
@@ -1071,6 +1075,8 @@ const cove: CoveApi = {
   onBrowsersFrame: (cb) => subscribe('browsers:frame', (f) => cb(f as Parameters<typeof cb>[0])),
   onBrowsersUrl: (cb) => subscribe('browsers:url', (u) => cb(u as Parameters<typeof cb>[0])),
   browsersSignIn: (id) => ipcRenderer.invoke('browsers:sign-in', id),
+  onBrowserHandsOff: (cb) =>
+    subscribe('browser:hands-off', (s) => cb(s as Parameters<typeof cb>[0])),
   onBrowsersSigningIn: (cb) =>
     subscribe('browsers:signing-in', (s) => cb(s as Parameters<typeof cb>[0])),
   onBrowsersChanged: (cb) =>

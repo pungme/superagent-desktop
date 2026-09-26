@@ -66,6 +66,7 @@ import { registerEnvironmentIpc } from './environment'
 import { registerClaudeModelsIpc } from './claude/models'
 import { registerExternalBrowserIpc, closeExternalBrowsers } from './external-browser'
 import { registerSignInsIpc } from './sign-ins'
+import { signInBus } from './google-signin'
 import { registerFilesIpc } from './files'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
@@ -264,6 +265,11 @@ app.whenReady().then(async () => {
   registerDeskIpc()
   registerHookIpc()
   registerAutomationIpc()
+  // The built-in pane took the agent's hands off for a Google sign-in (or Google
+  // refused anyway): the pane says so.
+  signInBus.on('changed', (paneId: string, on: boolean, refused: boolean) =>
+    broadcastToWindows('browser:hands-off', { paneId, on, refused })
+  )
   registerAgentIpc()
   registerLoops()
   // Must attach before any session starts: it is what the phone reads from.

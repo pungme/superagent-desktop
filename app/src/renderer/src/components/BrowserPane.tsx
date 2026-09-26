@@ -182,6 +182,18 @@ export function BrowserPane({
   const stopBrowsing = useStore((s) => s.stopBrowsing)
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const hostRef = useRef<HTMLDivElement>(null)
+  // Paused for a Google sign-in (main/google-signin.ts): say so over the page.
+  const [handsOff, setHandsOff] = useState<{ on: boolean; refused: boolean }>({
+    on: false,
+    refused: false
+  })
+  useEffect(
+    () =>
+      window.cove.onBrowserHandsOff((s) => {
+        if (s.paneId === paneId) setHandsOff({ on: s.on, refused: s.refused })
+      }),
+    [paneId]
+  )
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<BrowserState>({
     url: '',
@@ -433,14 +445,29 @@ export function BrowserPane({
     const lr = snipLayerRect
     const twinBox =
       twinStill && twinFrame && lr
-        ? { x: twinFrame.left - lr.left, y: twinFrame.top - lr.top, w: twinFrame.width, h: twinFrame.height }
+        ? {
+            x: twinFrame.left - lr.left,
+            y: twinFrame.top - lr.top,
+            w: twinFrame.width,
+            h: twinFrame.height
+          }
         : null
     const mainBox =
       viewRect && lr
-        ? { x: viewRect.left - lr.left, y: viewRect.top - lr.top, w: viewRect.width, h: viewRect.height }
+        ? {
+            x: viewRect.left - lr.left,
+            y: viewRect.top - lr.top,
+            w: viewRect.width,
+            h: viewRect.height
+          }
         : null
     const fromTwin =
-      !!twinBox && !!s && s.x >= twinBox.x && s.x <= twinBox.x + twinBox.w && s.y >= twinBox.y && s.y <= twinBox.y + twinBox.h
+      !!twinBox &&
+      !!s &&
+      s.x >= twinBox.x &&
+      s.x <= twinBox.x + twinBox.w &&
+      s.y >= twinBox.y &&
+      s.y <= twinBox.y + twinBox.h
     const source = fromTwin ? twinStill : frozen
     if (!s || !rect || rect.w < 6 || rect.h < 6 || !source || !layer || !mainBox) {
       setSnipping(false)
@@ -1068,7 +1095,9 @@ export function BrowserPane({
           onClick={() => window.cove.browserBack(paneId)}
           title="Back"
         >
-          <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.2 5.4 8l4.6 4.8" /></svg>
+          <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M10 3.2 5.4 8l4.6 4.8" />
+          </svg>
         </button>
         <button
           className="browser-nav-btn"
@@ -1076,7 +1105,9 @@ export function BrowserPane({
           onClick={() => window.cove.browserForward(paneId)}
           title="Forward"
         >
-          <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.2 10.6 8 6 12.8" /></svg>
+          <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M6 3.2 10.6 8 6 12.8" />
+          </svg>
         </button>
         <button
           className={`browser-nav-btn browser-reload-btn ${state.loading || reloadFeedback ? 'loading' : ''}`}
@@ -1097,7 +1128,10 @@ export function BrowserPane({
               that never finishes is mid-load forever, so the reload button read
               as broken. Now a click always reloads. */}
           <span className="browser-reload-glyph">
-            <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.75" /><path d="M13.4 2.4v3.1h-3.1" /></svg>
+            <svg className="browser-nav-ic" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.75" />
+              <path d="M13.4 2.4v3.1h-3.1" />
+            </svg>
           </span>
         </button>
         <div className="browser-omnibox">
@@ -1239,6 +1273,13 @@ export function BrowserPane({
           </button>
         )}
       </div>
+      {handsOff.on && (
+        <div className="browser-handsoff">
+          {handsOff.refused
+            ? 'Google won’t sign in here, even with the agent paused. Switch the Browser pill under the composer to Brave or Chrome, then use “Sign in yourself…” there.'
+            : 'Google won’t sign in while the agent drives the browser, so the agent is paused. Sign in here; it carries on once you’re through.'}
+        </div>
+      )}
       <div
         ref={hostRef}
         className={`browser-host ${viewport !== 'none' ? 'sim' : ''}`}
