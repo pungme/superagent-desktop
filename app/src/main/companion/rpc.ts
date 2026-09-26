@@ -34,7 +34,6 @@ import {
   ensureDesktopWorkspace,
   DESKTOP_WORKSPACE_ID,
   TABS_GROUP,
-  setChatCwd,
   getChatModel,
   addQueuedSend,
   cancelQueuedSend,
@@ -60,7 +59,7 @@ import {
   releaseCompositing
 } from '../browser'
 import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
-import { listWorktrees, ensureChatBranch, removeWorktree } from '../files'
+import { listWorktrees, cutChatBranch, removeWorktree } from '../files'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { extname, resolve, sep, join } from 'path'
@@ -1105,11 +1104,10 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   if (!chat.cwd && takePendingBranch(chat.id)) {
     const ws = getWorkspace(chat.workspaceId)
     if (ws && ws.kind !== 'browser' && gitBranch(ws.path) !== null) {
-      const cwd = await ensureChatBranch(ws.path, p.text)
-      if (cwd) {
-        setChatCwd(chat.id, cwd)
-        broadcastToWindows('projects:changed', {})
-      }
+      const cwd = await cutChatBranch(chat.id, ws.path, p.text)
+      if (cwd) broadcastToWindows('projects:changed', {})
+      // Deleted while its branch was being cut: nothing left to send to.
+      if (!getChat(chat.id)) return fail('not-found', 'no such chat')
     }
   }
   let session = findSessionByChat(p.chatId)

@@ -15,7 +15,8 @@ import {
 } from 'fs'
 import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
 import { homedir } from 'os'
-import { setChatCwd, takePendingBranch } from './store'
+import { getChat, setChatCwd, takePendingBranch } from './store'
+import { broadcastToWindows } from './util'
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic'])
 
@@ -33,7 +34,10 @@ export const listBackgroundTasks = (chatId: string): PublishedBackgroundTask[] =
   backgroundTasks.get(chatId) ?? []
 export const stopBackgroundTask = (chatId: string, toolUseId: string): boolean => {
   const found = (backgroundTasks.get(chatId) ?? []).some((t) => t.toolUseId === toolUseId)
-  if (found) BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('bg:stop', { chatId, toolUseId }))
+  if (found)
+    BrowserWindow.getAllWindows().forEach((w) =>
+      w.webContents.send('bg:stop', { chatId, toolUseId })
+    )
   return found
 }
 
@@ -276,7 +280,12 @@ export function gitSubrepos(root: string): SubRepo[] {
       } catch {
         continue
       }
-      out.push({ name: e.name, path, branch: gitBranch(path), cloning: isCloning(path) || undefined })
+      out.push({
+        name: e.name,
+        path,
+        branch: gitBranch(path),
+        cloning: isCloning(path) || undefined
+      })
     }
     return out.sort((a, b) => a.name.localeCompare(b.name))
   } catch {
@@ -375,116 +384,116 @@ export async function createWorktree(
   projectPath: string,
   opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
 ): Promise<{ path: string; branch: string; base: string | null } | null> {
-      const run = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
-        new Promise((resolve) =>
-          execFile('git', args, { cwd, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) =>
-            resolve({
-              code: err ? ((err as { code?: number }).code ?? 1) : 0,
-              out: (stdout || '') + (stderr || '')
-            })
-          )
-        )
-      const slug = `wt-${Date.now().toString(36)}`
-      const dir = join(projectPath, '.worktrees', slug)
-      // Keep .worktrees out of git status without touching the project's .gitignore.
-      try {
-        const exclude = join(projectPath, '.git', 'info', 'exclude')
-        if (existsSync(join(projectPath, '.git')) && existsSync(exclude)) {
-          const cur = readFileSync(exclude, 'utf8')
-          if (!cur.includes('.worktrees/')) writeFileSync(exclude, cur + '\n.worktrees/\n')
-        }
-      } catch {
-        // exclusion is best-effort
+  const run = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
+    new Promise((resolve) =>
+      execFile('git', args, { cwd, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) =>
+        resolve({
+          code: err ? ((err as { code?: number }).code ?? 1) : 0,
+          out: (stdout || '') + (stderr || '')
+        })
+      )
+    )
+  const slug = `wt-${Date.now().toString(36)}`
+  const dir = join(projectPath, '.worktrees', slug)
+  // Keep .worktrees out of git status without touching the project's .gitignore.
+  try {
+    const exclude = join(projectPath, '.git', 'info', 'exclude')
+    if (existsSync(join(projectPath, '.git')) && existsSync(exclude)) {
+      const cur = readFileSync(exclude, 'utf8')
+      if (!cur.includes('.worktrees/')) writeFileSync(exclude, cur + '\n.worktrees/\n')
+    }
+  } catch {
+    // exclusion is best-effort
+  }
+  // The BASE is the project folder's current branch, resolved NOW — not
+  // whatever HEAD drifts to later. A chat's work must land back where it
+  // came from (worktree:merge reads the recorded base), even if the user
+  // switches the project to another branch meanwhile. Detached HEAD falls
+  // back to the literal commit.
+  const sym = await run(['symbolic-ref', '--short', 'HEAD'], projectPath)
+  const base =
+    sym.code === 0 && sym.out.trim()
+      ? sym.out.trim()
+      : (await run(['rev-parse', 'HEAD'], projectPath)).out.trim()
+  // Three ways to say which branch the worktree is on:
+  //  - opts.branch: check out an EXISTING branch (feature-1) in the worktree.
+  //  - opts.newBranch: create a NEW branch, optionally from opts.base.
+  //  - neither: the default — a fresh auto-named superagent/ branch off base.
+  let args: string[]
+  let branch: string
+  if (opts?.branch) {
+    branch = opts.branch
+    args = ['worktree', 'add', dir, branch]
+  } else if (opts?.newBranch) {
+    branch = opts.newBranch
+    args = ['worktree', 'add', dir, '-b', branch, ...(opts.base ? [opts.base] : [])]
+  } else {
+    // No prefix. The branch is named for the chat, and `superagent/…` in a
+    // list of your own branches reads as if it belonged to some other
+    // project. Whether the app chose the name is recorded below instead.
+    branch = slug
+    args = ['worktree', 'add', dir, '-b', branch, ...(base ? [base] : [])]
+  }
+  // "The app chose this name, so it may follow the chat's title later." A
+  // lazily-cut branch is named from the user's first message but is still
+  // the app's choice, so it opts in explicitly.
+  const autoNamed = opts?.autoName ?? (!opts?.branch && !opts?.newBranch)
+  const added = await run(args, projectPath)
+  if (added.code !== 0) return null
+  // Record the base inside the worktree's own gitdir. `git worktree remove`
+  // deletes it with everything else, and merge/status read it back.
+  try {
+    const gd = await run(['rev-parse', '--git-dir'], dir)
+    if (gd.code === 0) {
+      writeFileSync(join(gd.out.trim(), 'superagent-base'), base)
+      // "The app picked this name, so it may rename it when the chat gets a
+      // title." A branch the USER named has no marker and is never touched.
+      // This replaces the old superagent/ prefix as the way to tell them
+      // apart, so the prefix can go without losing the guard.
+      if (autoNamed) writeFileSync(join(gd.out.trim(), 'superagent-autoname'), '1')
+    }
+  } catch {
+    // merge falls back to the project's current branch without it
+  }
+  // Heavy git-ignored dependency dirs are symlinked in, not re-installed —
+  // a worktree copies the SOURCE, but node_modules/.venv/target can be GBs
+  // and every fresh chat would otherwise start with a broken toolchain.
+  // Tracked paths are skipped (check-ignore says so); failures are logged
+  // and ignored — a missing symlink just means "npm install" as before.
+  const linked: string[] = []
+  for (const dep of ['node_modules', '.venv', 'vendor', 'target']) {
+    try {
+      const src = join(projectPath, dep)
+      if (!existsSync(src)) continue
+      const ignored = await run(['check-ignore', '-q', dep], projectPath)
+      if (ignored.code !== 0) continue // tracked (or check failed) — leave it to git
+      const dst = join(dir, dep)
+      if (existsSync(dst)) continue
+      symlinkSync(src, dst)
+      linked.push(dep)
+      console.log(`[worktree] linked ${dep} into ${dir}`)
+    } catch (err) {
+      console.log(`[worktree] could not link ${dep}:`, err)
+    }
+  }
+  // A gitignore pattern like "node_modules/" (trailing slash) matches only
+  // DIRECTORIES — the symlink we just made is not one, so `git add -A`
+  // during Keep would COMMIT the symlink into the repo (caught by the
+  // acceptance run: an absolute scratch path landed on main). Exclude the
+  // linked names explicitly, repo-locally.
+  if (linked.length) {
+    try {
+      const exclude = join(projectPath, '.git', 'info', 'exclude')
+      const cur = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
+      const missing = linked.filter((d) => !cur.split('\n').includes(`/${d}`))
+      if (missing.length) {
+        writeFileSync(exclude, cur + '\n' + missing.map((d) => `/${d}`).join('\n') + '\n')
       }
-      // The BASE is the project folder's current branch, resolved NOW — not
-      // whatever HEAD drifts to later. A chat's work must land back where it
-      // came from (worktree:merge reads the recorded base), even if the user
-      // switches the project to another branch meanwhile. Detached HEAD falls
-      // back to the literal commit.
-      const sym = await run(['symbolic-ref', '--short', 'HEAD'], projectPath)
-      const base =
-        sym.code === 0 && sym.out.trim()
-          ? sym.out.trim()
-          : (await run(['rev-parse', 'HEAD'], projectPath)).out.trim()
-      // Three ways to say which branch the worktree is on:
-      //  - opts.branch: check out an EXISTING branch (feature-1) in the worktree.
-      //  - opts.newBranch: create a NEW branch, optionally from opts.base.
-      //  - neither: the default — a fresh auto-named superagent/ branch off base.
-      let args: string[]
-      let branch: string
-      if (opts?.branch) {
-        branch = opts.branch
-        args = ['worktree', 'add', dir, branch]
-      } else if (opts?.newBranch) {
-        branch = opts.newBranch
-        args = ['worktree', 'add', dir, '-b', branch, ...(opts.base ? [opts.base] : [])]
-      } else {
-        // No prefix. The branch is named for the chat, and `superagent/…` in a
-        // list of your own branches reads as if it belonged to some other
-        // project. Whether the app chose the name is recorded below instead.
-        branch = slug
-        args = ['worktree', 'add', dir, '-b', branch, ...(base ? [base] : [])]
-      }
-      // "The app chose this name, so it may follow the chat's title later." A
-      // lazily-cut branch is named from the user's first message but is still
-      // the app's choice, so it opts in explicitly.
-      const autoNamed = opts?.autoName ?? (!opts?.branch && !opts?.newBranch)
-      const added = await run(args, projectPath)
-      if (added.code !== 0) return null
-      // Record the base inside the worktree's own gitdir. `git worktree remove`
-      // deletes it with everything else, and merge/status read it back.
-      try {
-        const gd = await run(['rev-parse', '--git-dir'], dir)
-        if (gd.code === 0) {
-          writeFileSync(join(gd.out.trim(), 'superagent-base'), base)
-          // "The app picked this name, so it may rename it when the chat gets a
-          // title." A branch the USER named has no marker and is never touched.
-          // This replaces the old superagent/ prefix as the way to tell them
-          // apart, so the prefix can go without losing the guard.
-          if (autoNamed) writeFileSync(join(gd.out.trim(), 'superagent-autoname'), '1')
-        }
-      } catch {
-        // merge falls back to the project's current branch without it
-      }
-      // Heavy git-ignored dependency dirs are symlinked in, not re-installed —
-      // a worktree copies the SOURCE, but node_modules/.venv/target can be GBs
-      // and every fresh chat would otherwise start with a broken toolchain.
-      // Tracked paths are skipped (check-ignore says so); failures are logged
-      // and ignored — a missing symlink just means "npm install" as before.
-      const linked: string[] = []
-      for (const dep of ['node_modules', '.venv', 'vendor', 'target']) {
-        try {
-          const src = join(projectPath, dep)
-          if (!existsSync(src)) continue
-          const ignored = await run(['check-ignore', '-q', dep], projectPath)
-          if (ignored.code !== 0) continue // tracked (or check failed) — leave it to git
-          const dst = join(dir, dep)
-          if (existsSync(dst)) continue
-          symlinkSync(src, dst)
-          linked.push(dep)
-          console.log(`[worktree] linked ${dep} into ${dir}`)
-        } catch (err) {
-          console.log(`[worktree] could not link ${dep}:`, err)
-        }
-      }
-      // A gitignore pattern like "node_modules/" (trailing slash) matches only
-      // DIRECTORIES — the symlink we just made is not one, so `git add -A`
-      // during Keep would COMMIT the symlink into the repo (caught by the
-      // acceptance run: an absolute scratch path landed on main). Exclude the
-      // linked names explicitly, repo-locally.
-      if (linked.length) {
-        try {
-          const exclude = join(projectPath, '.git', 'info', 'exclude')
-          const cur = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
-          const missing = linked.filter((d) => !cur.split('\n').includes(`/${d}`))
-          if (missing.length) {
-            writeFileSync(exclude, cur + '\n' + missing.map((d) => `/${d}`).join('\n') + '\n')
-          }
-        } catch {
-          // best-effort; worst case is the old behavior
-        }
-      }
-      return { path: dir, branch, base }
+    } catch {
+      // best-effort; worst case is the old behavior
+    }
+  }
+  return { path: dir, branch, base }
 }
 
 /** A branch name from what was actually asked for: "Fix the flaky auth test"
@@ -520,15 +529,92 @@ export function branchSlug(text: string): string {
  * branchSlug: those are already written to be names.
  */
 const FILLER = new Set([
-  'a', 'an', 'the', 'this', 'that', 'these', 'those', 'it', 'its',
-  'i', 'me', 'my', 'we', 'our', 'you', 'u', 'your', 'yours',
-  'can', 'could', 'would', 'should', 'will', 'shall', 'may', 'might', 'must',
-  'please', 'pls', 'plz', 'thanks', 'thank', 'thx', 'hey', 'hi', 'hello', 'ok', 'okay',
-  'and', 'or', 'but', 'so', 'then', 'also', 'just', 'now', 'again',
-  'to', 'of', 'for', 'in', 'on', 'at', 'by', 'with', 'from', 'into',
-  'is', 'are', 'was', 'were', 'be', 'been', 'am', 'do', 'does', 'did',
-  'have', 'has', 'had', 'get', 'got', 'let', 'lets', 'want', 'need',
-  'if', 'when', 'what', 'why', 'how', 'all', 'some', 'any', 'very', 'really'
+  'a',
+  'an',
+  'the',
+  'this',
+  'that',
+  'these',
+  'those',
+  'it',
+  'its',
+  'i',
+  'me',
+  'my',
+  'we',
+  'our',
+  'you',
+  'u',
+  'your',
+  'yours',
+  'can',
+  'could',
+  'would',
+  'should',
+  'will',
+  'shall',
+  'may',
+  'might',
+  'must',
+  'please',
+  'pls',
+  'plz',
+  'thanks',
+  'thank',
+  'thx',
+  'hey',
+  'hi',
+  'hello',
+  'ok',
+  'okay',
+  'and',
+  'or',
+  'but',
+  'so',
+  'then',
+  'also',
+  'just',
+  'now',
+  'again',
+  'to',
+  'of',
+  'for',
+  'in',
+  'on',
+  'at',
+  'by',
+  'with',
+  'from',
+  'into',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'am',
+  'do',
+  'does',
+  'did',
+  'have',
+  'has',
+  'had',
+  'get',
+  'got',
+  'let',
+  'lets',
+  'want',
+  'need',
+  'if',
+  'when',
+  'what',
+  'why',
+  'how',
+  'all',
+  'some',
+  'any',
+  'very',
+  'really'
 ])
 export function branchSlugFromMessage(text: string, maxWords = 4): string {
   const words = text
@@ -543,12 +629,36 @@ export function branchSlugFromMessage(text: string, maxWords = 4): string {
   return branchSlug(chosen.join('-'))
 }
 
-export async function ensureChatBranch(
+/**
+ * Cut a chat's branch and file it under the chat. Cutting takes a moment, and a
+ * chat deleted in that moment had no branch yet for the delete to remove — so
+ * the new one was left behind, a branch row with no conversation that came back
+ * a second after the delete. If the chat is gone by the time its branch exists,
+ * throw the branch away too.
+ */
+export async function cutChatBranch(
+  chatId: string,
   projectPath: string,
   hint: string
 ): Promise<string | null> {
+  const cwd = await ensureChatBranch(projectPath, hint)
+  if (!cwd) return null
+  if (!getChat(chatId)) {
+    await removeWorktree(projectPath, cwd)
+    // The sidebar may have listed it in between; have it ask git again.
+    broadcastToWindows('projects:changed', {})
+    return null
+  }
+  setChatCwd(chatId, cwd)
+  return cwd
+}
+
+export async function ensureChatBranch(projectPath: string, hint: string): Promise<string | null> {
   const name = branchSlugFromMessage(hint)
-  const wt = await createWorktree(projectPath, name ? { newBranch: name, autoName: true } : undefined)
+  const wt = await createWorktree(
+    projectPath,
+    name ? { newBranch: name, autoName: true } : undefined
+  )
   return wt?.path ?? null
 }
 
@@ -608,7 +718,10 @@ export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
 
 export function registerFilesIpc(): void {
   ipcMain.on('bg:sync', (_e, chatId: string, tasks: Omit<PublishedBackgroundTask, 'chatId'>[]) => {
-    backgroundTasks.set(chatId, tasks.map((task) => ({ ...task, chatId })))
+    backgroundTasks.set(
+      chatId,
+      tasks.map((task) => ({ ...task, chatId }))
+    )
   })
   // Background shells write their output to a file, and the Bash result says
   // where. Reading it directly means the strip can show what a job is doing
@@ -684,9 +797,7 @@ export function registerFilesIpc(): void {
       // too, so the phone cannot come along and cut a second branch for a chat
       // that already has one.
       takePendingBranch(chatId)
-      const cwd = await ensureChatBranch(projectPath, hint)
-      if (cwd) setChatCwd(chatId, cwd)
-      return cwd
+      return cutChatBranch(chatId, projectPath, hint)
     }
   )
   /**

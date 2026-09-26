@@ -1256,7 +1256,12 @@ export const useStore = create<CoveState>((set, get) => ({
     // renderer that otherwise leaked for the life of the app, since only whole
     // workspaces were ever torn down (and even then by the bare id).
     window.cove.browserDestroy(`${workspaceId}::${chatId}`)
-    const dying = get().chats[workspaceId]?.find((c) => c.id === chatId)
+    // Ask the database, not the store: a branch cut a moment ago is in the
+    // chat's row before the store hears of it, and deleting from the stale copy
+    // left that branch behind as a row with no conversation.
+    const dying =
+      (await window.cove.chatList(workspaceId)).find((c) => c.id === chatId) ??
+      get().chats[workspaceId]?.find((c) => c.id === chatId)
     if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
       const projectPath = dying.cwd.split('/.worktrees/')[0]
       // Await it, then tell the sidebar. Firing and forgetting left the branch
