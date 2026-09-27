@@ -38,7 +38,8 @@ function realBrowserPrompt(current: string): string {
     ' The user can switch that at any time with the Browser pill under the composer, and your ' +
     'tools follow at once: if they say they switched, just use the tools — browser_navigate ' +
     "says which browser it landed in. They can also drive the user's real browser app (Brave, Chrome or Edge), whose logins " +
-    "persist: call browser_use('yours') when the user asks you to use their browser, or when a " +
+    "persist, and where browser_tabs lists every tab in that window, the user's own included: " +
+    "call browser_use('yours') when the user asks you to use their browser, or when a " +
     'site needs their own accounts or turns the built-in browser away. Never tell the user you ' +
     "can't use their browser, and never ask them which one: browser_use picks it. It starts " +
     "signed out: the user signs in there once, or brings sites' sign-ins over from their " +

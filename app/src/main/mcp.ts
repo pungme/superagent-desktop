@@ -47,8 +47,11 @@ import { agentChatTab, chatTabs, setAgentChatTab } from './chat-browser-tabs'
 import {
   browserFor,
   browserName,
-  existingExternalPage,
+  closeExternalTab,
   externalBrowserForPane,
+  externalTabs,
+  openExternalTab,
+  switchExternalTab,
   showBrowserWindow,
   switchBrowser,
   yourBrowser
@@ -1200,14 +1203,18 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   // another loads — so it gets a small tab set of its own.
   if (!isDesktop) {
     // In the user's real browser each chat keeps to one tab for now.
-    const externalOneTab = (): { content: { type: 'text'; text: string }[] } => ({
-      content: [
-        {
-          type: 'text',
-          text: `This project browses in ${browserName(externalBrowserForPane(PANE_ID) ?? 'builtin')}, where each chat has one tab. Use browser_navigate in it.`
-        }
-      ]
+    const said = (text: string): { content: { type: 'text'; text: string }[] } => ({
+      content: [{ type: 'text', text }]
     })
+    /** A tab in the user's browser, as a line of the list. */
+    const tabLine = (
+      t: { title: string; url: string; mine: boolean; taken: boolean },
+      i: number
+    ): string => {
+      const mark = t.mine ? '  <-- yours' : t.taken ? "  <-- another chat's" : ''
+      const name = t.title && t.title !== t.url ? `${t.title} — ${t.url}` : t.url || 'New tab'
+      return `${i}: ${name}${mark}`
+    }
     const tabOp = (op: 'open' | 'switch' | 'close', payload: Record<string, unknown> = {}): void =>
       broadcastToWindows('browser:tabs-command', { basePaneId: PANE_ID, op, ...payload })
 
@@ -1215,21 +1222,21 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       'browser_tabs',
       {
         description:
-          "List this chat's open browser tabs: which one is yours (the other browser_* tools act on it) and which one the user is looking at — they can differ, since the user opens tabs of their own. Empty until the browser has been opened at least once.",
+          "List the open browser tabs: which one is yours (the other browser_* tools act on it) and, in the built-in browser, which one the user is looking at — they can differ, since the user opens tabs of their own. In the user's own browser (Brave, Chrome, Edge) this lists every tab in the agent's window, the ones the user opened included: when they say 'look at the tab I opened', find it here and browser_switch_tab to it. Empty until the browser has been opened at least once.",
         inputSchema: {}
       },
       async () => {
-        if (externalBrowserForPane(PANE_ID)) {
-          const page = existingExternalPage(browserPane())
-          const url = page ? await page.getURL().catch(() => '') : ''
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `This project browses in ${browserName(externalBrowserForPane(PANE_ID)!)}, with one tab per chat.${url ? `\n0: ${url}  <-- yours` : ''}`
-              }
-            ]
-          }
+        const external = externalBrowserForPane(PANE_ID)
+        if (external) {
+          // Every tab in the agent's window, the user's own included.
+          const tabs = await externalTabs(browserPane(), external)
+          return said(
+            `Tabs open in ${browserName(external)} (the agent's window, not the user's everyday one):\n` +
+              (tabs.map(tabLine).join('\n') || 'none') +
+              (tabs.some((t) => t.mine)
+                ? ''
+                : '\nNone is yours yet: browser_switch_tab to one, or browser_navigate to open your own.')
+          )
         }
         const tabs = chatTabs(PANE_ID)
         if (!tabs.length) {
@@ -1256,7 +1263,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         inputSchema: { url: z.string().optional().describe('Leave empty for a blank new tab') }
       },
       async ({ url }) => {
-        if (externalBrowserForPane(PANE_ID)) return externalOneTab()
+        const external = externalBrowserForPane(PANE_ID)
+        if (external) {
+          const page = await openExternalTab(browserPane(), external, url)
+          return said(
+            `Opened a new tab${url ? ` at ${await page.getURL()}` : ''}. It is yours now.`
+          )
+        }
         const beforeTabs = chatTabs(PANE_ID)
         const before = beforeTabs.length
         tabOp('open', { url })
@@ -1280,7 +1293,16 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         inputSchema: { index: z.number() }
       },
       async ({ index }) => {
-        if (externalBrowserForPane(PANE_ID)) return externalOneTab()
+        const external = externalBrowserForPane(PANE_ID)
+        if (external) {
+          const list = await externalTabs(browserPane(), external)
+          const tab = list[index]
+          if (!tab) return said(`There is no tab ${index} — there are ${list.length}.`)
+          if (tab.taken)
+            return said(`Tab ${index} is another chat's: its agent is working in it. Pick another.`)
+          await switchExternalTab(browserPane(), external, tab.targetId)
+          return said(`Switched to tab ${index}: ${tab.title || tab.url}. It is yours now.`)
+        }
         const tabs = chatTabs(PANE_ID)
         if (index < 0 || index >= tabs.length) {
           return {
@@ -1306,7 +1328,23 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         }
       },
       async ({ index }) => {
-        if (externalBrowserForPane(PANE_ID)) return externalOneTab()
+        const external = externalBrowserForPane(PANE_ID)
+        if (external) {
+          const list = await externalTabs(browserPane(), external)
+          const at = index ?? list.findIndex((t) => t.mine)
+          const tab = list[at]
+          if (!tab)
+            return said(
+              index === undefined
+                ? 'You have no tab open.'
+                : `There is no tab ${at} — there are ${list.length}.`
+            )
+          if (tab.taken) return said(`Tab ${at} is another chat's: leave it open.`)
+          if (list.length <= 1)
+            return said('There is only one tab open — nothing to close it down to.')
+          await closeExternalTab(external, tab.targetId)
+          return said(`Closed tab ${at}.`)
+        }
         const tabs = chatTabs(PANE_ID)
         if (tabs.length <= 1) {
           return {

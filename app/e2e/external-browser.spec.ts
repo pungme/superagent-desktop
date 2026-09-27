@@ -282,6 +282,32 @@ test('two chats in one project each get their own tab', async () => {
   )
 })
 
+test('the agent sees every tab in its Brave window and can move between them', async () => {
+  // After the test above there are two: this chat's and the other chat's.
+  const list = await tool('browser_tabs', {})
+  expect(list).toContain("the agent's window")
+  expect(list).toMatch(/chat=one.*<-- yours/)
+  expect(list).toMatch(/chat=two.*<-- another chat's/)
+  const theirs = Number(/^(\d+): .*chat=two/m.exec(list)![1])
+  // Another chat's tab is off limits.
+  expect(await tool('browser_switch_tab', { index: theirs })).toContain("another chat's")
+
+  // A new tab becomes the agent's; the old one stays open to come back to.
+  expect(await tool('browser_open_tab', { url: `${siteUrl}?tab=new` })).toContain('yours now')
+  expect(await tool('browser_evaluate', { expression: 'location.search' })).toContain('tab=new')
+  const after = await tool('browser_tabs', {})
+  expect(after).toMatch(/tab=new.*<-- yours/)
+  const first = Number(/^(\d+): .*chat=one/m.exec(after)![1])
+  expect(await tool('browser_switch_tab', { index: first })).toContain('Switched to tab')
+  expect(await tool('browser_evaluate', { expression: 'location.search' })).toContain('chat=one')
+  // The pane's live view follows the agent to the tab it is on.
+  await expect(window.locator('.external-pane-url')).toContainText('chat=one', { timeout: 10_000 })
+
+  const fresh = Number(/^(\d+): .*tab=new/m.exec(await tool('browser_tabs', {}))![1])
+  expect(await tool('browser_close_tab', { index: fresh })).toContain('Closed tab')
+  expect(await tool('browser_tabs', {})).not.toContain('tab=new')
+})
+
 test('quitting Brave mid-task: the next step starts it again', async () => {
   execSync(`pkill -TERM -f ${JSON.stringify(join(userDataDir, 'browsers', 'brave'))} || true`)
   await expect.poll(braveRunning, { timeout: 15_000 }).toBe('')

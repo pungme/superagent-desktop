@@ -27,6 +27,11 @@ import {
   installedBrowsers,
   ensureRunning,
   externalPage,
+  externalTabs,
+  switchExternalTab,
+  openExternalTab,
+  closeExternalTab,
+  stopBrowser,
   closeExternalBrowsers
 } from './external-browser'
 
@@ -141,6 +146,54 @@ describe.skipIf(!haveBrave)('driving a real Brave', () => {
       closeExternalBrowsers()
       await new Promise((r) => setTimeout(r, 1500))
       rmSync(dataDir, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  it("sees every tab in the window, the user's own included, and can move to one", async () => {
+    try {
+      const conn = await ensureRunning('brave')
+      const mine = await externalPage('ws1::chat1', 'brave')
+      await mine.loadURL('data:text/html,<title>Agent tab</title>')
+      // A tab the user opened themselves: the agent never attached to it.
+      const { targetId } = await conn.send<{ targetId: string }>('Target.createTarget', {
+        url: 'data:text/html,<title>Merchant Center</title><h1>opened by hand</h1>'
+      })
+      const titles = async (): Promise<string[]> =>
+        (await externalTabs('ws1::chat1', 'brave')).map(
+          (t) => `${t.title}${t.mine ? ' (mine)' : ''}${t.taken ? ' (taken)' : ''}`
+        )
+      await expect
+        .poll(titles, { timeout: 10_000 })
+        .toEqual(expect.arrayContaining(['Agent tab (mine)', 'Merchant Center']))
+      // Another chat sees the same tabs, with the first chat's marked as taken.
+      const other = await externalTabs('ws1::chat2', 'brave')
+      expect(other.find((t) => t.title === 'Agent tab')).toMatchObject({ mine: false, taken: true })
+
+      // "Look at the tab I opened": the agent moves to it and reads it.
+      const moved = await switchExternalTab('ws1::chat1', 'brave', targetId)
+      expect(await moved.executeJavaScript('document.querySelector("h1").textContent')).toBe(
+        'opened by hand'
+      )
+      expect(await moved.executeJavaScript('navigator.webdriver')).toBe(false)
+      expect(await externalPage('ws1::chat1', 'brave')).toBe(moved)
+      await expect
+        .poll(titles)
+        .toEqual(expect.arrayContaining(['Agent tab', 'Merchant Center (mine)']))
+
+      // A new tab of its own, then closing it.
+      const fresh = await openExternalTab(
+        'ws1::chat1',
+        'brave',
+        'data:text/html,<title>Fresh</title>'
+      )
+      await expect.poll(titles).toEqual(expect.arrayContaining(['Fresh (mine)', 'Merchant Center']))
+      await closeExternalTab('brave', fresh.targetId)
+      await expect.poll(titles).not.toEqual(expect.arrayContaining(['Fresh (mine)']))
+      // Its tab gone, the chat's next step opens one rather than failing.
+      const again = await externalPage('ws1::chat1', 'brave')
+      expect(again.targetId).not.toBe(fresh.targetId)
+    } finally {
+      await stopBrowser('brave')
     }
   }, 60_000)
 })

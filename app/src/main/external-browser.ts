@@ -216,6 +216,8 @@ class BrowserConnection {
   private waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   private listeners = new Set<Listener>()
   closed = false
+  /** Every tab open in this browser, in the order they were opened (see watchTabs). */
+  readonly tabs = new Map<string, { title: string; url: string }>()
 
   constructor(readonly proc: ChildProcess) {
     const incoming = proc.stdio[4] as Readable
@@ -447,34 +449,45 @@ export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
       `${browserName(id)} didn't start with remote control. If it's already open with this profile, quit it and try again.`
     )
   }
-  watchForRefusedSignIn(id, conn)
+  watchTabs(id, conn)
   return conn
 }
 
 /**
- * Google turned a sign-in away because the browser is remote controlled: reopen
- * it without remote control, on the sign-in page (signInYourself).
+ * Follow every tab in the browser, the user's own included: the agent can list
+ * them and move to one (externalTabs), and a Google sign-in turned away in any
+ * of them reopens the browser without remote control (signInYourself).
  *
  * Watched for the whole browser rather than per tab. Google's sign-in moves
  * between its pages without loading one (history.pushState), which a tab's
  * Page.frameNavigated never reports; and the tab it happens in is often one
  * the user opened themselves, which the agent isn't attached to at all.
  */
-function watchForRefusedSignIn(id: BrowserId, conn: BrowserConnection): void {
+function watchTabs(id: BrowserId, conn: BrowserConnection): void {
   // Only a tab ARRIVING at the refusal counts. The browser restores its tabs
   // when it starts, the refused page among them, and reacting to a page that
   // was already there handed the browser straight back to the user, for ever.
   const refused = new Set<string>()
   conn.on((method, params) => {
+    if (method === 'Target.targetDestroyed') {
+      conn.tabs.delete(String(params.targetId))
+      refused.delete(String(params.targetId))
+      return
+    }
     if (method !== 'Target.targetInfoChanged' && method !== 'Target.targetCreated') return
-    const info = params.targetInfo as { targetId?: string; type?: string; url?: string } | undefined
+    const info = params.targetInfo as
+      { targetId?: string; type?: string; url?: string; title?: string } | undefined
     if (!info?.targetId || info.type !== 'page') return
-    const now = isGoogleSignInRejected(info.url ?? '')
+    const url = info.url ?? ''
+    // The browser's own pages (DevTools, extension pages) aren't tabs to offer.
+    if (/^(devtools|chrome-extension):/.test(url)) conn.tabs.delete(info.targetId)
+    else conn.tabs.set(info.targetId, { title: info.title ?? '', url })
+    const now = isGoogleSignInRejected(url)
     const was = refused.has(info.targetId)
     if (now) refused.add(info.targetId)
     else refused.delete(info.targetId)
     if (now && !was && method === 'Target.targetInfoChanged')
-      void signInYourself(id, signInRetryUrl(info.url ?? '')).catch(() => undefined)
+      void signInYourself(id, signInRetryUrl(url)).catch(() => undefined)
   })
   conn.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined)
 }
@@ -645,22 +658,13 @@ export function existingExternalPage(paneId: string): ExternalPage | undefined {
   return p && !p.session.closed ? p : undefined
 }
 
-/** The pane's tab in its external browser, opened on first use. */
-export async function externalPage(paneId: string, id: BrowserId): Promise<ExternalPage> {
-  const have = existingExternalPage(paneId)
-  if (have && have.browser === id) return have
-  const conn = await ensureRunning(id)
-  // The browser opens with one blank tab: use that before opening another.
-  const ours = new Set([...pages.values()].map((p) => p.targetId))
-  const { targetInfos } = await conn.send<{
-    targetInfos: { targetId: string; type: string; url: string; attached: boolean }[]
-  }>('Target.getTargets')
-  const blank = targetInfos.find(
-    (t) => t.type === 'page' && t.url === 'about:blank' && !t.attached && !ours.has(t.targetId)
-  )
-  const targetId =
-    blank?.targetId ??
-    (await conn.send<{ targetId: string }>('Target.createTarget', { url: 'about:blank' })).targetId
+/** Take a tab for a pane: attach to it and make it the one the pane's tools act on. */
+async function attach(
+  paneId: string,
+  id: BrowserId,
+  conn: BrowserConnection,
+  targetId: string
+): Promise<ExternalPage> {
   const { sessionId } = await conn.send<{ sessionId: string }>('Target.attachToTarget', {
     targetId,
     flatten: true
@@ -681,6 +685,107 @@ export async function externalPage(paneId: string, id: BrowserId): Promise<Exter
   pages.set(paneId, page)
   for (const l of pageListeners) l(paneId, page)
   return page
+}
+
+/** The pane's tab in its external browser, opened on first use. */
+export async function externalPage(paneId: string, id: BrowserId): Promise<ExternalPage> {
+  const have = existingExternalPage(paneId)
+  if (have && have.browser === id) return have
+  const conn = await ensureRunning(id)
+  // The browser opens with one blank tab: use that before opening another.
+  const ours = new Set([...pages.values()].map((p) => p.targetId))
+  const { targetInfos } = await conn.send<{
+    targetInfos: { targetId: string; type: string; url: string; attached: boolean }[]
+  }>('Target.getTargets')
+  const blank = targetInfos.find(
+    (t) => t.type === 'page' && t.url === 'about:blank' && !t.attached && !ours.has(t.targetId)
+  )
+  const targetId =
+    blank?.targetId ??
+    (await conn.send<{ targetId: string }>('Target.createTarget', { url: 'about:blank' })).targetId
+  return attach(paneId, id, conn, targetId)
+}
+
+/** A tab in the external browser, as the agent's tab tools list it. */
+export interface ExternalTab {
+  targetId: string
+  title: string
+  url: string
+  /** The tab this pane's tools act on. */
+  mine: boolean
+  /** Another chat's agent is working in it. */
+  taken: boolean
+}
+
+/**
+ * Every tab open in the project's external browser, oldest first — the ones the
+ * user opened themselves included, so "look at the tab I just opened" works.
+ */
+export async function externalTabs(paneId: string, id: BrowserId): Promise<ExternalTab[]> {
+  const conn = await ensureRunning(id)
+  const mine = existingExternalPage(paneId)?.targetId
+  const others = new Set(
+    [...pages]
+      .filter(([p, page]) => p !== paneId && !page.session.closed)
+      .map(([, p]) => p.targetId)
+  )
+  // Titles and addresses asked for now (the events that fill conn.tabs lag a
+  // page's title); the order is conn.tabs', which is the order they were opened.
+  const { targetInfos } = await conn.send<{
+    targetInfos: { targetId: string; type: string; url: string; title: string }[]
+  }>('Target.getTargets')
+  const live = new Map(
+    targetInfos
+      .filter((t) => t.type === 'page' && !/^(devtools|chrome-extension):/.test(t.url))
+      .map((t) => [t.targetId, t])
+  )
+  const order = [...conn.tabs.keys()].filter((id) => live.has(id))
+  for (const id of live.keys()) if (!order.includes(id)) order.push(id)
+  return order.map((targetId) => ({
+    targetId,
+    title: live.get(targetId)!.title,
+    url: live.get(targetId)!.url,
+    mine: targetId === mine,
+    taken: others.has(targetId)
+  }))
+}
+
+/** Move a pane's tools to another tab. The tab they leave stays open. */
+export async function switchExternalTab(
+  paneId: string,
+  id: BrowserId,
+  targetId: string
+): Promise<ExternalPage> {
+  const conn = await ensureRunning(id)
+  const was = existingExternalPage(paneId)
+  if (was?.targetId === targetId) return was
+  const page = await attach(paneId, id, conn, targetId)
+  if (was)
+    void conn.send('Target.detachFromTarget', { sessionId: was.session.sessionId }).catch(() => {})
+  return page
+}
+
+/** Open a new tab and move the pane's tools to it. */
+export async function openExternalTab(
+  paneId: string,
+  id: BrowserId,
+  url?: string
+): Promise<ExternalPage> {
+  const conn = await ensureRunning(id)
+  const { targetId } = await conn.send<{ targetId: string }>('Target.createTarget', {
+    url: 'about:blank'
+  })
+  const page = await switchExternalTab(paneId, id, targetId)
+  if (url) await page.loadURL(url)
+  return page
+}
+
+/** Close a tab. The pane whose tab it was opens a new one on its next step. */
+export async function closeExternalTab(id: BrowserId, targetId: string): Promise<void> {
+  const conn = await ensureRunning(id)
+  await conn.send('Target.closeTarget', { targetId }).catch(() => {})
+  conn.tabs.delete(targetId)
+  for (const [paneId, page] of pages) if (page.targetId === targetId) pages.delete(paneId)
 }
 
 /** Pick a different browser for a project: its tabs there are closed. */
