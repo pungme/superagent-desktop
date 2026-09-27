@@ -263,6 +263,27 @@ test('asking the user for help waits for Done', async () => {
   )) as { requestId: string; kind: string; preview: string }
   expect(ask.kind).toBe('handoff')
   expect(ask.preview).toContain('Solve the check')
+  // Readable in both themes: the message is in the card's own ink, well apart
+  // from its background (it was near-black on the dark card).
+  const card = window.locator('.easy-handoff:visible')
+  await expect(card.locator('.easy-handoff-what')).toContainText('Solve the check')
+  for (const colorScheme of ['dark', 'light'] as const) {
+    await window.emulateMedia({ colorScheme })
+    const [ink, paper] = await card.evaluate((el) => {
+      const what = el.querySelector('.easy-handoff-what')!
+      return [getComputedStyle(what).color, getComputedStyle(el).backgroundColor]
+    })
+    const lum = (rgb: string): number => {
+      const [r, g, b] = (rgb.match(/\d+/g) ?? []).slice(0, 3).map((v) => {
+        const c = Number(v) / 255
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    const [hi, lo] = [lum(ink), lum(paper)].sort((a, b) => b - a)
+    expect((hi + 0.05) / (lo + 0.05), `${colorScheme}: ${ink} on ${paper}`).toBeGreaterThan(7)
+  }
+  await window.emulateMedia({ colorScheme: null })
   await window.evaluate((id) => window.cove.guardrailResolve(id, true, false), ask.requestId)
   expect(await pending).toContain('done')
 })

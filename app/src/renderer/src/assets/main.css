@@ -11772,13 +11772,14 @@ button {
   color: var(--text-tertiary);
 }
 
-/* The agent is stuck and hands over: what to do, in plain words. The card is
-   always white (see .easy-guard), so the ink is fixed too. */
+/* The agent is stuck and hands over: what to do, in plain words. In the card's
+   own ink — it goes dark in dark mode (see .easy-guard), and a fixed near-black
+   here left the message unreadable on it. */
 .easy-handoff-what {
   margin: 6px 0 10px;
   font-size: 13.5px;
   line-height: 1.5;
-  color: #18181b;
+  color: inherit;
 }
 
 /* A code project whose folder has no conversation of its own. */
