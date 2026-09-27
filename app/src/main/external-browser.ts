@@ -1,4 +1,4 @@
-import { isGoogleSignInRejected, signInRetryUrl } from './google-signin'
+import { isGoogleSignInRejected, sessionCookieTime, signInRetryUrl } from './google-signin'
 import { spawn, ChildProcess, execFile, execFileSync } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
 import type { Readable, Writable } from 'stream'
@@ -241,16 +241,32 @@ const running = new Map<BrowserId, BrowserConnection>()
 /** Opened for the user to sign in, with no remote control — see signInYourself. */
 const signingIn = new Map<BrowserId, ChildProcess | null>()
 
+/** How long an agent's browser step waits for the user to finish signing in. */
+const signInWaitMs = (): number => (process.env.COVE_E2E_QUIET === '1' ? 1500 : 120_000)
+/** How often the profile is checked for a finished sign-in. */
+const SIGNED_IN_POLL_MS = 3000
+/**
+ * After the sign-in shows in the profile, how long the window stays before it
+ * is closed: one more of the browser's cookie saves (every 30s), so what the
+ * sites set right after signing in is kept too.
+ */
+const SIGNED_IN_GRACE_MS = 32_000
+
 /**
  * Open the agent's profile of a browser with remote control OFF, for the user
  * to sign in. Google refuses sign-in in any browser it can tell is remote
  * controlled ("This browser or app may not be secure"), but only at sign-in:
  * the session it leaves in the profile keeps working once the agent drives it
- * again. Resolves when the user closes that window.
+ * again.
+ *
+ * Ends by itself: once the sign-in shows in the profile's cookies the window
+ * is closed and the agent has its browser back. Quitting the browser by hand
+ * ends it too. Resolves when that window is gone.
  */
 export async function signInYourself(
   id: BrowserId,
-  url = 'https://accounts.google.com'
+  url = 'https://accounts.google.com',
+  opts: { cookieHost?: string; graceMs?: number } = {}
 ): Promise<void> {
   const bin = executablePath(id)
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
@@ -266,6 +282,8 @@ export async function signInYourself(
   }
   const profile = profileDir(id)
   mkdirSync(profile, { recursive: true })
+  const cookies = join(profile, 'Default')
+  const before = sessionCookieTime(cookies, opts.cookieHost)
   const proc = spawn(
     bin,
     [
@@ -278,11 +296,25 @@ export async function signInYourself(
     { stdio: 'ignore', detached: true }
   )
   signingIn.set(id, proc)
-  broadcastToWindows('browsers:signing-in', { name: browserName(id), on: true })
+  const say = (state: 'signing-in' | 'signed-in' | 'off'): void =>
+    broadcastToWindows('browsers:signing-in', {
+      name: browserName(id),
+      on: state !== 'off',
+      signedIn: state === 'signed-in'
+    })
+  say('signing-in')
+  let close: ReturnType<typeof setTimeout> | null = null
+  const poll = setInterval(() => {
+    if (close || sessionCookieTime(cookies, opts.cookieHost) <= before) return
+    say('signed-in')
+    close = setTimeout(() => proc.kill('SIGTERM'), opts.graceMs ?? SIGNED_IN_GRACE_MS)
+  }, SIGNED_IN_POLL_MS)
   await new Promise<void>((resolve) => {
     proc.once('exit', () => {
+      clearInterval(poll)
+      if (close) clearTimeout(close)
       signingIn.delete(id)
-      broadcastToWindows('browsers:signing-in', { name: browserName(id), on: false })
+      say('off')
       resolve()
     })
   })
@@ -323,10 +355,18 @@ export async function stopBrowser(id: BrowserId): Promise<boolean> {
 export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
   const existing = running.get(id)
   if (existing && !existing.closed) return existing
+  // The user is signing in (signInYourself): wait for them rather than fail —
+  // an agent told "try again later" tried again at once, over and over.
+  const waitUntil = Date.now() + signInWaitMs()
+  while (signingIn.has(id) && Date.now() < waitUntil) await new Promise((r) => setTimeout(r, 500))
   if (signingIn.has(id))
     throw new Error(
-      `The user is signing in to ${browserName(id)} on their own. Wait until they close that window, then try again.`
+      `The user is still signing in to ${browserName(id)} in its own window, and hasn't finished. ` +
+        'Your browser tools work again as soon as they have. Ask them to finish signing in there, ' +
+        'then wait for their reply before trying again.'
     )
+  const again = running.get(id)
+  if (again && !again.closed) return again
   const bin = executablePath(id)
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
   const profile = profileDir(id)
@@ -364,7 +404,36 @@ export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
       `${browserName(id)} didn't start with remote control. If it's already open with this profile, quit it and try again.`
     )
   }
+  watchForRefusedSignIn(id, conn)
   return conn
+}
+
+/**
+ * Google turned a sign-in away because the browser is remote controlled: reopen
+ * it without remote control, on the sign-in page (signInYourself).
+ *
+ * Watched for the whole browser rather than per tab. Google's sign-in moves
+ * between its pages without loading one (history.pushState), which a tab's
+ * Page.frameNavigated never reports; and the tab it happens in is often one
+ * the user opened themselves, which the agent isn't attached to at all.
+ */
+function watchForRefusedSignIn(id: BrowserId, conn: BrowserConnection): void {
+  // Only a tab ARRIVING at the refusal counts. The browser restores its tabs
+  // when it starts, the refused page among them, and reacting to a page that
+  // was already there handed the browser straight back to the user, for ever.
+  const refused = new Set<string>()
+  conn.on((method, params) => {
+    if (method !== 'Target.targetInfoChanged' && method !== 'Target.targetCreated') return
+    const info = params.targetInfo as { targetId?: string; type?: string; url?: string } | undefined
+    if (!info?.targetId || info.type !== 'page') return
+    const now = isGoogleSignInRejected(info.url ?? '')
+    const was = refused.has(info.targetId)
+    if (now) refused.add(info.targetId)
+    else refused.delete(info.targetId)
+    if (now && !was && method === 'Target.targetInfoChanged')
+      void signInYourself(id, signInRetryUrl(info.url ?? '')).catch(() => undefined)
+  })
+  conn.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined)
 }
 
 /**
@@ -566,15 +635,6 @@ export async function externalPage(paneId: string, id: BrowserId): Promise<Exter
     session.send('Runtime.evaluate', { expression: WEBDRIVER_MASK })
   ])
   const page = new ExternalPage(id, session, targetId, conn)
-  // Google turned the sign-in away because the browser is remote controlled:
-  // reopen it without remote control on the sign-in page (signInYourself); the
-  // pane tells the user to quit with ⌘Q when they're through.
-  session.on((method, params) => {
-    if (method !== 'Page.frameNavigated') return
-    const frame = params.frame as { parentId?: string; url?: string }
-    if (!frame.parentId && frame.url && isGoogleSignInRejected(frame.url))
-      void signInYourself(id, signInRetryUrl(frame.url)).catch(() => undefined)
-  })
   pages.set(paneId, page)
   for (const l of pageListeners) l(paneId, page)
   return page

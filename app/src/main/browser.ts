@@ -883,7 +883,7 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // take the agent's hands off and try once more; give them back when the
   // user is through (see google-signin.ts). Refused again with the agent off
   // means it's the embedded browser itself — say so rather than loop.
-  wc.on('did-navigate', (_e, url) => {
+  const onGoogleSignIn = (url: string): void => {
     if (isGoogleSignInRejected(url)) {
       if (isHandsOff(id)) {
         setHandsOff(id, true, true)
@@ -895,6 +895,12 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
     } else if (isHandsOff(id) && !isGoogleSignIn(url)) {
       setHandsOff(id, false)
     }
+  }
+  wc.on('did-navigate', (_e, url) => onGoogleSignIn(url))
+  // Google's sign-in moves between its pages without loading one, so the
+  // refusal usually arrives as an in-page navigation.
+  wc.on('did-navigate-in-page', (_e, url, isMainFrame) => {
+    if (isMainFrame) onGoogleSignIn(url)
   })
   wc.on('page-title-updated', sendState)
   wc.on('did-start-loading', sendState)

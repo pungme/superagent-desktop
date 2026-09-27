@@ -28,6 +28,8 @@ import {
   stopBrowser
 } from './external-browser'
 import { execSync } from 'child_process'
+import { createServer } from 'http'
+import type { AddressInfo } from 'net'
 
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }))
 
@@ -174,4 +176,97 @@ describe.skipIf(!haveBrave)('bringing sign-ins over in a real Brave', () => {
       await stopBrowser('brave')
     }
   }, 60_000)
+
+  it('catches the refusal in a tab the agent never opened, arriving without a page load', async () => {
+    // Both of the ways it was missed: Google's sign-in moves between pages with
+    // history.pushState, and the tab is often one the user opened themselves.
+    const running = async (): Promise<string> =>
+      ensureRunning('brave').then(
+        () => 'agent',
+        (e: Error) => (/signing in/.test(e.message) ? 'user' : e.message)
+      )
+    try {
+      const conn = await ensureRunning('brave')
+      const { targetId } = await conn.send<{ targetId: string }>('Target.createTarget', {
+        url: 'about:blank'
+      })
+      const { sessionId } = await conn.send<{ sessionId: string }>('Target.attachToTarget', {
+        targetId,
+        flatten: true
+      })
+      await conn.send('Page.enable', {}, sessionId)
+      await conn.send(
+        'Fetch.enable',
+        { patterns: [{ urlPattern: 'https://accounts.google.com/*' }] },
+        sessionId
+      )
+      conn.on((method, params, from) => {
+        if (method !== 'Fetch.requestPaused' || from !== sessionId) return
+        void conn
+          .send(
+            'Fetch.fulfillRequest',
+            {
+              requestId: params.requestId,
+              responseCode: 200,
+              responseHeaders: [{ name: 'content-type', value: 'text/html' }],
+              body: Buffer.from('<title>Sign in</title>').toString('base64')
+            },
+            sessionId
+          )
+          .catch(() => undefined)
+      })
+      await conn.send(
+        'Page.navigate',
+        { url: 'https://accounts.google.com/v3/signin/identifier' },
+        sessionId
+      )
+      await new Promise((r) => setTimeout(r, 1000))
+      expect(await running()).toBe('agent')
+      await conn
+        .send(
+          'Runtime.evaluate',
+          {
+            expression:
+              "history.pushState({}, '', '/v3/signin/rejected?continue=https%3A%2F%2Fads.google.com%2F')"
+          },
+          sessionId
+        )
+        .catch(() => undefined)
+      await expect.poll(running, { timeout: 15_000 }).toBe('user')
+      endSignIn('brave')
+      await expect.poll(running, { timeout: 15_000 }).toBe('agent')
+    } finally {
+      endSignIn('brave')
+      await stopBrowser('brave')
+    }
+  }, 60_000)
+
+  it('notices by itself that the user has signed in, and hands the browser back', async () => {
+    // A stand-in for Google: visiting it signs you in (sets the session cookie).
+    const site = createServer((_req, res) => {
+      res.writeHead(200, {
+        'Set-Cookie': 'SID=signed-in; Max-Age=86400; Path=/',
+        'content-type': 'text/html'
+      })
+      res.end('<title>Signed in</title>')
+    })
+    await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()))
+    const url = `http://127.0.0.1:${(site.address() as AddressInfo).port}/`
+    try {
+      const started = Date.now()
+      // No ⌘Q, no endSignIn: it ends on its own once the cookie is in the profile
+      // (the browser saves cookies every 30 seconds).
+      await signInYourself('brave', url, { cookieHost: '127.0.0.1', graceMs: 500 })
+      expect(Date.now() - started).toBeLessThan(60_000)
+      const conn = await ensureRunning('brave')
+      const { cookies } = await conn.send<{ cookies: Cookie[] }>('Storage.getCookies')
+      expect(cookies.map((c) => `${c.domain}:${c.name}=${c.value}`)).toContain(
+        '127.0.0.1:SID=signed-in'
+      )
+    } finally {
+      site.close()
+      endSignIn('brave')
+      await stopBrowser('brave')
+    }
+  }, 90_000)
 })

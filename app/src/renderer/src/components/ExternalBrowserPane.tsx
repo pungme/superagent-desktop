@@ -18,11 +18,12 @@ export function ExternalBrowserPane({
 }): React.JSX.Element {
   const [frame, setFrame] = useState<string | null>(null)
   const [url, setUrl] = useState('')
-  const [signingIn, setSigningIn] = useState(false)
+  const [signingIn, setSigningIn] = useState<'no' | 'signing-in' | 'signed-in'>('no')
   useEffect(
     () =>
       window.cove.onBrowsersSigningIn((s) => {
-        if (s.name === browserName) setSigningIn(s.on)
+        if (s.name === browserName)
+          setSigningIn(!s.on ? 'no' : s.signedIn ? 'signed-in' : 'signing-in')
       }),
     [browserName]
   )
@@ -63,10 +64,11 @@ export function ExternalBrowserPane({
           ×
         </button>
       </div>
-      {signingIn && (
+      {signingIn !== 'no' && (
         <div className="external-pane-signin">
-          Sign in in the {browserName} window, then quit it with ⌘Q. Closing the window isn’t
-          enough: quitting is what saves the sign-in. The agent carries on signed in.
+          {signingIn === 'signed-in'
+            ? `You’re signed in. ${browserName} closes in a moment and the agent carries on.`
+            : `Google won’t sign in while the agent drives ${browserName}, so the agent is paused. Sign in in the ${browserName} window; it closes by itself once you’re in.`}
         </div>
       )}
       <div className="external-pane-view">

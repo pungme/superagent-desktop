@@ -679,7 +679,9 @@ export interface CoveApi {
   browsersSignIn: (id: BrowserChoice) => Promise<{ ok: boolean }>
   /** Settings → Reset Superagent: wipe projects, chats and the rest, then restart. */
   resetApp: () => Promise<{ ok: boolean }>
-  onBrowsersSigningIn: (cb: (s: { name: string; on: boolean }) => void) => () => void
+  onBrowsersSigningIn: (
+    cb: (s: { name: string; on: boolean; signedIn?: boolean }) => void
+  ) => () => void
   /** The built-in pane paused the agent for a Google sign-in; refused = Google said no anyway. */
   onBrowserHandsOff: (
     cb: (s: { paneId: string; on: boolean; refused: boolean }) => void

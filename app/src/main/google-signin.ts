@@ -1,4 +1,8 @@
 import { EventEmitter } from 'events'
+import Database from 'better-sqlite3'
+import { copyFileSync, mkdtempSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 
 /**
  * Google refuses to sign anyone in on a browser it can tell is being driven
@@ -41,6 +45,42 @@ export function signInRetryUrl(rejectedUrl: string): string {
   return 'https://accounts.google.com/'
 }
 
+/** The cookies that mean "signed in to Google". */
+const SESSION_COOKIES = ['SID', '__Secure-1PSID', '__Secure-3PSID']
+
+/**
+ * When a browser profile last got a Google session cookie (Chromium's clock,
+ * microseconds since 1601), or 0n if it has none. This is how Superagent tells
+ * that the user finished signing in while it has no remote control to look
+ * with: the browser saves its cookies to the profile within ~30 seconds.
+ * Read through a copy, as the running browser holds the file.
+ */
+export function sessionCookieTime(profile: string, host = 'google.com'): bigint {
+  const tmp = mkdtempSync(join(tmpdir(), 'sa-signin-'))
+  try {
+    copyFileSync(join(profile, 'Cookies'), join(tmp, 'Cookies'))
+    const db = new Database(join(tmp, 'Cookies'), { readonly: true })
+    try {
+      const row = db
+        .prepare(
+          `SELECT MAX(creation_utc) AS at FROM cookies
+           WHERE name IN (${SESSION_COOKIES.map(() => '?').join(', ')})
+             AND (host_key = ? OR host_key = ? OR host_key LIKE ?)`
+        )
+        .safeIntegers(true)
+        .get(...SESSION_COOKIES, host, '.' + host, '%.' + host) as { at: bigint | null }
+      return row.at ?? 0n
+    } finally {
+      db.close()
+    }
+  } catch {
+    // No cookie file yet, or mid-write: nothing to report this time.
+    return 0n
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
 /**
  * Built-in panes whose agent is kept off while the user signs in to Google.
  * 'changed' (paneId, on, refused): refused = Google said no even with the agent
@@ -60,6 +100,6 @@ export function setHandsOff(paneId: string, on: boolean, refused = false): void 
 }
 
 export const HANDS_OFF_MESSAGE =
-  'The user is signing in to Google in the browser. Google refuses sign-in while an agent ' +
-  "drives it, so your browser tools are paused until they're through. Wait for them, then " +
-  'carry on.'
+  'The user is signing in to Google in the browser and has not finished. Google refuses sign-in ' +
+  'while an agent drives it, so your browser tools are paused until they are through. Ask them ' +
+  'to finish signing in, then wait for their reply before trying again.'

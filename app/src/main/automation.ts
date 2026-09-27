@@ -195,9 +195,20 @@ function recordCdpEvent(paneId: string, method: string, params: Record<string, u
 
 const listening = new WeakSet<ExternalPage>()
 
+/**
+ * The user is signing in to Google in this pane: wait for them rather than fail
+ * at once — an agent told "try again later" tries again straight away.
+ */
+async function untilSignedIn(paneId: string, opts: Quiet = {}): Promise<void> {
+  if (opts.quiet) return
+  const until = Date.now() + (process.env.COVE_E2E_QUIET === '1' ? 1500 : 120_000)
+  while (isHandsOff(paneId) && Date.now() < until) await new Promise((r) => setTimeout(r, 500))
+}
+
 /** The page this pane's tools act on: its tab in the project's external browser, or the pane. */
 async function driver(paneId: string, opts: Quiet = {}): Promise<PageDriver> {
   assertNotStopped(paneId)
+  await untilSignedIn(paneId, opts)
   const external = externalBrowserForPane(paneId)
   if (!external) {
     const contents = wc(paneId, opts)
@@ -287,6 +298,7 @@ export async function navigate(paneId: string, url: string, opts: Quiet = {}): P
 }
 
 async function navigateInner(paneId: string, url: string, opts: Quiet = {}): Promise<string> {
+  await untilSignedIn(paneId, opts)
   // The project browses in the user's real browser: open the pane so its live
   // view shows, then drive that tab. None of the built-in pane's cold-start
   // dance applies — there's no WebContents to wait for.

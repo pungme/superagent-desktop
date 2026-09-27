@@ -343,7 +343,14 @@ test('Google refusing sign-in in the built-in browser pauses the agent until you
         .filter((u) => u.includes('google.com'))
         .join(' ')
     )
-  await tool('browser_navigate', { url: REJECTED })
+  // As Google does it: the sign-in page, then on to the refusal without loading
+  // a page (history.pushState).
+  await tool('browser_navigate', { url: 'https://accounts.google.com/v3/signin/identifier' })
+  expect(
+    await tool('browser_evaluate', {
+      expression: `(history.pushState({}, '', ${JSON.stringify(REJECTED.replace('https://accounts.google.com', ''))}), 'moved')`
+    })
+  ).toContain('moved')
   const banner = window.locator('.browser-handsoff:visible')
   await expect(banner).toContainText('the agent is paused', { timeout: 10_000 })
   // It tried the sign-in again, going on to Ads, with the agent's debugger off.
@@ -384,13 +391,13 @@ test('Google refusing sign-in in the built-in browser pauses the agent until you
   await expect(banner).toHaveCount(0, { timeout: 10_000 })
 })
 
-test('"Sign in yourself…" opens it without the agent and says how to finish', async () => {
+test('"Sign in yourself…" opens it without the agent and says what happens next', async () => {
   await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
   await tool('browser_navigate', { url: siteUrl })
   const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Browser"))').first()
   await pill.click()
   await window.locator('.easy-control-item:has-text("Sign in yourself")').click()
-  await expect(window.locator('.external-pane-signin')).toContainText('quit it with ⌘Q', {
+  await expect(window.locator('.external-pane-signin')).toContainText('closes by itself', {
     timeout: 10_000
   })
   // The agent waits rather than taking the profile back mid-sign-in.
