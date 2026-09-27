@@ -185,8 +185,9 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       'loop_wait',
       {
         description:
-          "Set how long before this /loop's next round starts. Only affects a self-paced /loop " +
-          '(no interval was given) — harmless no-op otherwise. Call once, before ending the turn, ' +
+          "Set how long before this /loop's next round starts. Only for a self-paced /loop that is " +
+          'running now (no interval was given); its answer says if there is none — then there is no ' +
+          'next round, so never tell the user one is coming. Call once, before ending the turn, ' +
           'the same way you would call ScheduleWakeup in a terminal: pick the delay to match what ' +
           "you're actually waiting for. A short delay (60-270s) for actively polling external state " +
           'the harness cannot track (a CI run, a deploy, a remote queue); a long one (1200-1800s) for ' +
@@ -203,12 +204,17 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       },
       async ({ delaySeconds, reason }) => {
         const clamped = Math.min(3600, Math.max(60, Math.round(delaySeconds)))
-        requestLoopWait(CHAT_ID, clamped)
-        return {
-          content: [
-            { type: 'text', text: `Next round in ${clamped}s${reason ? ` — ${reason}` : ''}.` }
-          ]
-        }
+        const text = {
+          set: `Next round in ${clamped}s${reason ? ` — ${reason}` : ''}.`,
+          paused: `Noted: ${clamped}s once the user resumes it. The loop is paused, so no round starts until they do.`,
+          interval:
+            'This /loop runs on a fixed interval, so its rounds keep their own schedule; nothing changed.',
+          none:
+            'No /loop is running in this chat: the user stopped it, or it ended. There is no next ' +
+            'round. Do not tell the user one is coming or keep working in rounds; answer what they ' +
+            'ask, and they can start a new /loop if they want one.'
+        }[requestLoopWait(CHAT_ID, clamped)]
+        return { content: [{ type: 'text', text }] }
       }
     )
   }

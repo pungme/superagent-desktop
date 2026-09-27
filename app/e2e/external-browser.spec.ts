@@ -438,3 +438,10 @@ test('"Sign in yourself…" opens it without the agent and says what happens nex
   expect(await tool('browser_navigate', { url: siteUrl })).toMatch(/signing in/)
   // Quitting Superagent closes that window too (checked in afterAll).
 })
+
+test("loop_wait with no loop running says there's no next round", async () => {
+  // An agent that remembers a stopped loop must not be told a round is coming.
+  expect(await tool('loop_wait', { delaySeconds: 360, reason: 'check the build' })).toContain(
+    'No /loop is running'
+  )
+})

@@ -309,13 +309,23 @@ export function loopCommand(chatId: string, text: string): string | null {
 }
 
 /** The model's loop_wait call (mcp.ts): the gap before this chat's next round. */
-export function requestLoopWait(chatId: string, delaySeconds: number): void {
+/**
+ * Which loop, if any, the wait applies to — the agent is told plainly, because
+ * after the user stopped a loop it kept calling loop_wait from memory, was told
+ * "Next round in 360s", and promised the user a round that was never coming.
+ */
+export function requestLoopWait(
+  chatId: string,
+  delaySeconds: number
+): 'set' | 'none' | 'paused' | 'interval' {
   const l = loops.get(chatId)
-  if (!l) return
+  if (!l) return 'none'
+  if (l.intervalMs !== null) return 'interval'
   l.requestedGapMs = Math.min(
     MAX_LOOP_ROUND_GAP_MS,
     Math.max(DEFAULT_LOOP_ROUND_GAP_MS, delaySeconds * 1000)
   )
+  return l.paused ? 'paused' : 'set'
 }
 
 let wired = false

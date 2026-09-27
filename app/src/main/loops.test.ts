@@ -258,4 +258,18 @@ describe('loops', () => {
     expect(loopCommand('c9', '/loop pause')).toMatch(/No loop/)
     expect(loopCommand('c9', '/loop resume')).toMatch(/No loop/)
   })
+
+  it("tells the agent when there's no loop to wait for", async () => {
+    // The user stopped it; the agent still remembers the loop and asks for a wait.
+    loopCommand('c1', '/loop tidy up')
+    await vi.advanceTimersByTimeAsync(0)
+    loopCommand('c1', '/loop stop')
+    expect(requestLoopWait('c1', 360)).toBe('none')
+    loopCommand('c2', '/loop 5m check')
+    expect(requestLoopWait('c2', 360)).toBe('interval')
+    loopCommand('c3', '/loop tidy')
+    expect(requestLoopWait('c3', 360)).toBe('set')
+    pauseLoop('c3', true)
+    expect(requestLoopWait('c3', 360)).toBe('paused')
+  })
 })
