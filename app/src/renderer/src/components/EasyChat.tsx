@@ -127,7 +127,7 @@ function BrowserPill({
   onPicked: () => void
 }): React.JSX.Element | null {
   const current = useProjectBrowser(workspaceId)
-  const [options, setOptions] = useState<{ id: BrowserChoice; name: string }[]>([])
+  const [options, setOptions] = useState<{ id: BrowserChoice; name: string; icon?: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [signIns, setSignIns] = useState(false)
   useEffect(() => {
@@ -169,6 +169,11 @@ function BrowserPill({
               className={`easy-control-item ${o.id === current ? 'on' : ''}`}
               onClick={() => void pick(o.id)}
             >
+              {o.icon ? (
+                <img className="easy-browser-icon" src={o.icon} alt="" />
+              ) : (
+                <span className="easy-browser-icon" />
+              )}
               <span className="easy-control-item-text">
                 <span className="easy-control-item-label">{o.name}</span>
                 <span className="easy-control-item-hint">
@@ -189,11 +194,10 @@ function BrowserPill({
                   void window.cove.browsersSignIn(current)
                 }}
               >
+                <span className="easy-browser-icon" />
                 <span className="easy-control-item-text">
                   <span className="easy-control-item-label">Sign in yourself…</span>
-                  <span className="easy-control-item-hint">
-                    Opens {name} without the agent, for Google
-                  </span>
+                  <span className="easy-control-item-hint">Opens {name} without the agent</span>
                 </span>
               </button>
               <button
@@ -203,6 +207,7 @@ function BrowserPill({
                   setSignIns(true)
                 }}
               >
+                <span className="easy-browser-icon" />
                 <span className="easy-control-item-text">
                   <span className="easy-control-item-label">Bring sign-ins over…</span>
                   <span className="easy-control-item-hint">

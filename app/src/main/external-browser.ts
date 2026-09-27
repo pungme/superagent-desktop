@@ -1,8 +1,8 @@
 import { isGoogleSignInRejected, sessionCookieTime, signInRetryUrl } from './google-signin'
 import { spawn, ChildProcess, execFile, execFileSync } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs'
 import type { Readable, Writable } from 'stream'
-import { homedir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { join } from 'path'
 import { app, ipcMain, WebContents } from 'electron'
 import { kvGet, kvSet, DESKTOP_WORKSPACE_ID } from './store'
@@ -70,6 +70,49 @@ export function installedBrowsers(): { id: BrowserId; name: string }[] {
     { id: 'builtin', name: 'Superagent' },
     ...APPS.filter((a) => executablePath(a.id)).map((a) => ({ id: a.id, name: a.name }))
   ]
+}
+
+const icons = new Map<BrowserId, string>()
+/** Superagent's own icon file, handed over at registration (see index.ts). */
+let ownIcon: string | undefined
+const asDataUrl = (png: string): string =>
+  `data:image/png;base64,${readFileSync(png).toString('base64')}`
+
+/**
+ * Each app's own icon for the picker, read from its bundle's .icns (macOS's
+ * icon lookup answered with the generic app icon); Superagent's own for the
+ * built-in browser. '' when it can't be read — the row shows its name alone.
+ */
+function browserIcon(id: BrowserId): string {
+  const cached = icons.get(id)
+  if (cached !== undefined) return cached
+  let url = ''
+  try {
+    if (id === 'builtin') {
+      if (ownIcon && existsSync(ownIcon)) url = asDataUrl(ownIcon)
+    } else {
+      const exe = executablePath(id)
+      if (exe) {
+        const contents = join(exe, '..', '..')
+        const name = execFileSync(
+          'plutil',
+          ['-extract', 'CFBundleIconFile', 'raw', join(contents, 'Info.plist')],
+          { encoding: 'utf8', timeout: 2000 }
+        ).trim()
+        const icns = join(contents, 'Resources', name.endsWith('.icns') ? name : `${name}.icns`)
+        const out = join(mkdtempSync(join(tmpdir(), 'sa-icon-')), 'icon.png')
+        execFileSync('sips', ['-s', 'format', 'png', '-Z', '64', icns, '--out', out], {
+          timeout: 5000
+        })
+        url = asDataUrl(out)
+        rmSync(join(out, '..'), { recursive: true, force: true })
+      }
+    }
+  } catch {
+    // no icon
+  }
+  icons.set(id, url)
+  return url
 }
 
 export function browserName(id: BrowserId): string {
@@ -683,8 +726,11 @@ async function startScreencast(paneId: string, page: ExternalPage, to: WebConten
   if (url && !to.isDestroyed()) to.send('browsers:url', { paneId, url })
 }
 
-export function registerExternalBrowserIpc(): void {
-  ipcMain.handle('browsers:list', () => installedBrowsers())
+export function registerExternalBrowserIpc(appIcon?: string): void {
+  ownIcon = appIcon
+  ipcMain.handle('browsers:list', () =>
+    installedBrowsers().map((b) => ({ ...b, icon: browserIcon(b.id) }))
+  )
   // Not awaited: it resolves only when the user closes the sign-in window.
   ipcMain.handle('browsers:sign-in', (_e, id: BrowserId) => {
     void signInYourself(id).catch(() => undefined)

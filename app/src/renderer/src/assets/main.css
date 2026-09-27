@@ -11955,3 +11955,12 @@ button {
     animation: none;
   }
 }
+
+/* The browser's own app icon in the Browser menu; an empty one keeps the
+   actions below lined up with the names above. */
+.easy-browser-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}

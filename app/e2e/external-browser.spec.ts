@@ -182,6 +182,13 @@ test('bringing sign-ins over copies only the sites you tick', async () => {
   const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Browser"))').first()
   await expect(pill.locator('.easy-control-val')).toHaveText('Brave')
   await pill.click()
+  // Each browser shows its own app icon.
+  await expect(
+    window.locator('.easy-control-item:has-text("Brave") img.easy-browser-icon')
+  ).toBeVisible()
+  await expect(
+    window.locator('.easy-control-item:has-text("Superagent") img.easy-browser-icon')
+  ).toBeVisible()
   await window.locator('.easy-control-item:has-text("Bring sign-ins over")').click()
   const dialog = window.getByRole('dialog', { name: 'Bring sign-ins over' })
   await expect(dialog.locator('.signins-row')).toHaveText(['bankfixture.test', 'shopfixture.test'])

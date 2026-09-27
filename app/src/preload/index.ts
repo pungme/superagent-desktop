@@ -654,7 +654,7 @@ export interface CoveApi {
     loggedIn: boolean
   }>
   /** The browsers a project can pick: the built-in one, plus installed Chromium browsers. */
-  browsersList: () => Promise<{ id: BrowserChoice; name: string }[]>
+  browsersList: () => Promise<{ id: BrowserChoice; name: string; icon?: string }[]>
   /** A project's browser pick. */
   browsersGet: (workspaceId: string) => Promise<BrowserChoice>
   /** Pick a project's browser. An external one opens right away (first time: sign in there). */

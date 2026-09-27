@@ -279,7 +279,7 @@ app.whenReady().then(async () => {
   registerRoutinesIpc()
   registerEnvironmentIpc()
   registerClaudeModelsIpc()
-  registerExternalBrowserIpc()
+  registerExternalBrowserIpc(icon)
   registerSignInsIpc()
   registerResetIpc()
   registerFilesIpc()
