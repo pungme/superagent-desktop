@@ -25,6 +25,8 @@ const UNIT_MS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 8
 
 export type LoopCommand =
   | { kind: 'stop' }
+  | { kind: 'pause' }
+  | { kind: 'resume' }
   | { kind: 'usage' }
   | { kind: 'start'; intervalMs: number | null; prompt: string }
 
@@ -45,6 +47,8 @@ export function parseLoopCmd(raw: string): LoopCommand | null {
   const body = m[1].trim()
   if (!body) return { kind: 'usage' }
   if (/^stop$/i.test(body)) return { kind: 'stop' }
+  if (/^pause$/i.test(body)) return { kind: 'pause' }
+  if (/^(resume|continue)$/i.test(body)) return { kind: 'resume' }
   const lead = /^(\d+)\s*([smhd])\s+(.+)$/is.exec(body)
   if (lead)
     return {
@@ -76,7 +80,7 @@ export const SELF_PACE_NOTE =
   "round's wait should be longer than that. Keep rounds brief; the loop runs until stopped.)"
 
 export const LOOP_USAGE =
-  'Usage: /loop [5m·2h·…] <prompt> — repeats the prompt in this chat until you Stop it. `/loop stop` ends it.'
+  'Usage: /loop [5m·2h·…] <prompt> — repeats the prompt in this chat until you Stop it. `/loop pause` and `/loop resume` hold and continue it; `/loop stop` ends it.'
 
 export function humanInterval(ms: number): string {
   if (ms % UNIT_MS.d === 0) return `${ms / UNIT_MS.d}d`

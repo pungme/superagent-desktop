@@ -568,6 +568,8 @@ export interface CoveApi {
   /** A typed `/loop …`, run by main (main/loops.ts); returns the line to show. */
   loopCommand: (chatId: string, text: string) => Promise<string | null>
   loopStop: (chatId: string) => Promise<boolean>
+  /** Hold the loop (the round in flight finishes) or let it go on. */
+  loopPause: (chatId: string, paused: boolean) => Promise<boolean>
   loopGet: (chatId: string) => Promise<ChatLoop | null>
   onLoopsChanged: (cb: (c: { chatId: string; loop: ChatLoop | null }) => void) => () => void
   /** Main asks the window showing a chat to send a loop round as if typed. */
@@ -1008,6 +1010,7 @@ const cove: CoveApi = {
     subscribe('browser:viewport-command', (c) => cb(c as Parameters<typeof cb>[0])),
   loopCommand: (chatId, text) => ipcRenderer.invoke('loops:command', chatId, text),
   loopStop: (chatId) => ipcRenderer.invoke('loops:stop', chatId),
+  loopPause: (chatId, paused) => ipcRenderer.invoke('loops:pause', chatId, paused),
   loopGet: (chatId) => ipcRenderer.invoke('loops:get', chatId),
   onLoopsChanged: (cb) => subscribe('loops:changed', (c) => cb(c as Parameters<typeof cb>[0])),
   onLoopRound: (cb) => subscribe('loops:round', (c) => cb(c as Parameters<typeof cb>[0])),

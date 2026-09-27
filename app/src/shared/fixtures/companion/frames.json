@@ -82,7 +82,8 @@
             "prompt": "Check the deploy",
             "intervalMs": 300000,
             "count": 3,
-            "nextAt": 1756400300000
+            "nextAt": 1756400300000,
+            "paused": false
           }
         },
         {
@@ -95,7 +96,8 @@
             "prompt": "Keep going",
             "intervalMs": null,
             "count": 1,
-            "nextAt": null
+            "nextAt": null,
+            "paused": true
           }
         },
         {

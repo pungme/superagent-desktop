@@ -26,6 +26,7 @@ import type { WireLoop } from '../shared/companion-protocol'
 
 interface Loop extends WireLoop {
   chatId: string
+  paused: boolean
   /** The pending next round (continuous) or the ticking interval. */
   timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null
   /** Retry or watchdog for the round in flight; see fire(). */
@@ -53,7 +54,15 @@ const BUSY_RETRY_MS = 5000
 
 export function loopFor(chatId: string): WireLoop | null {
   const l = loops.get(chatId)
-  return l ? { prompt: l.prompt, intervalMs: l.intervalMs, count: l.count, nextAt: l.nextAt } : null
+  return l
+    ? {
+        prompt: l.prompt,
+        intervalMs: l.intervalMs,
+        count: l.count,
+        nextAt: l.nextAt,
+        paused: l.paused
+      }
+    : null
 }
 
 function changed(chatId: string): void {
@@ -123,7 +132,7 @@ function stopWith(chatId: string, notice: string): void {
 
 /** Run one round now: bump the count, hand the prompt over, watch that it started. */
 async function fire(l: Loop): Promise<void> {
-  if (loops.get(l.chatId) !== l) return
+  if (loops.get(l.chatId) !== l || l.paused) return
   if (!getChat(l.chatId)) {
     stopLoop(l.chatId)
     return
@@ -178,7 +187,7 @@ function nextTick(l: Loop): number | null {
 
 /** Continuous loops: the round is done, so queue the next after its gap. */
 function scheduleNext(l: Loop): void {
-  if (l.intervalMs !== null || l.timer) return
+  if (l.intervalMs !== null || l.timer || l.paused) return
   // loop_wait, if the model called it this round, sets the target gap;
   // otherwise it's the same floor a bare ScheduleWakeup call would hit. Only
   // wait out what's left of it — a round that spent real time working never
@@ -207,6 +216,7 @@ export function startLoop(chatId: string, prompt: string, intervalMs: number | n
     intervalMs,
     count: 0,
     nextAt: null,
+    paused: false,
     timer: null,
     guard: null,
     roundStart: 0,
@@ -217,6 +227,7 @@ export function startLoop(chatId: string, prompt: string, intervalMs: number | n
   loops.set(chatId, l)
   if (intervalMs !== null) {
     l.timer = setInterval(() => {
+      if (l.paused) return
       // Skip a tick while a turn is still running, so runs don't pile up.
       if (isGenerating(chatId)) {
         l.nextAt = nextTick(l)
@@ -227,6 +238,39 @@ export function startLoop(chatId: string, prompt: string, intervalMs: number | n
     }, intervalMs)
   }
   void fire(l)
+}
+
+/**
+ * Hold a loop, or let it go on. Pausing lets the round in flight finish and
+ * starts no new one; the count, the prompt and an interval's clock are kept.
+ */
+export function pauseLoop(chatId: string, paused: boolean): boolean {
+  const l = loops.get(chatId)
+  if (!l) return false
+  if (l.paused === paused) return true
+  l.paused = paused
+  if (paused) {
+    // A continuous loop's pending round; an interval's clock keeps ticking and
+    // skips while held, so it resumes on the beat it always had.
+    if (l.intervalMs === null && l.timer) {
+      clearTimeout(l.timer as ReturnType<typeof setTimeout>)
+      l.timer = null
+    }
+    l.nextAt = null
+    changed(chatId)
+    return true
+  }
+  if (l.intervalMs !== null) {
+    l.nextAt = nextTick(l)
+    changed(chatId)
+  } else if (!isGenerating(chatId) && !l.awaiting) {
+    // Nothing running: pick up where it left off. A turn still running
+    // schedules the next round itself when it ends.
+    scheduleNext(l)
+  } else {
+    changed(chatId)
+  }
+  return true
 }
 
 export function stopLoop(chatId: string): boolean {
@@ -248,6 +292,14 @@ export function loopCommand(chatId: string, text: string): string | null {
   if (cmd.kind === 'usage') return LOOP_USAGE
   if (cmd.kind === 'stop') {
     return stopLoop(chatId) ? '⏹ Loop stopped.' : 'No loop is running in this chat.'
+  }
+  if (cmd.kind === 'pause') {
+    return pauseLoop(chatId, true)
+      ? '⏸ Loop paused. `/loop resume` continues it.'
+      : 'No loop is running in this chat.'
+  }
+  if (cmd.kind === 'resume') {
+    return pauseLoop(chatId, false) ? '▶ Loop resumed.' : 'No loop is running in this chat.'
   }
   if (!cmd.prompt) return LOOP_USAGE
   startLoop(chatId, cmd.prompt, cmd.intervalMs)
@@ -286,6 +338,9 @@ export function registerLoops(): void {
   })
   ipcMain.handle('loops:command', (_e, chatId: string, text: string) => loopCommand(chatId, text))
   ipcMain.handle('loops:stop', (_e, chatId: string) => stopLoop(chatId))
+  ipcMain.handle('loops:pause', (_e, chatId: string, paused: boolean) =>
+    pauseLoop(chatId, Boolean(paused))
+  )
   ipcMain.handle('loops:get', (_e, chatId: string) => loopFor(chatId))
   ipcMain.on('loops:round-reply', (_e, nonce: string, answer: 'taken' | 'busy') =>
     offers.get(nonce)?.(answer)

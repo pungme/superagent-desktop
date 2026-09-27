@@ -90,8 +90,21 @@ test('a loop runs its first round through the window and shows its bar', async (
   })
 })
 
+test('Pause holds it and Resume carries on', async () => {
+  const bar = window.locator('.easy-loop-bar:visible')
+  await bar.getByRole('button', { name: 'Pause' }).click()
+  await expect(bar).toContainText('Paused every 1m · run 1', { timeout: 5_000 })
+  await expect(bar).toHaveClass(/paused/)
+  await type('/loop resume')
+  await expect(bar).toContainText('Looping every 1m · run 1', { timeout: 5_000 })
+  await type('/loop pause')
+  await expect(bar.getByRole('button', { name: 'Resume' })).toBeVisible()
+  await bar.getByRole('button', { name: 'Resume' }).click()
+  await expect(bar).toContainText('Looping', { timeout: 5_000 })
+})
+
 test('Stop ends it everywhere', async () => {
-  await window.locator('.easy-loop-stop:visible').click()
+  await window.locator('.easy-loop-bar:visible').getByRole('button', { name: 'Stop' }).click()
   await expect(window.locator('.easy-loop-bar:visible')).toHaveCount(0, { timeout: 5_000 })
   await type('/loop stop')
   await expect(window.locator('.easy-system').last()).toContainText('No loop is running', {

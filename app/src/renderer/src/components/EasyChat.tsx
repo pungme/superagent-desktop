@@ -4197,13 +4197,24 @@ export function EasyChat({
           and nothing else. */}
       <div className="easy-topstack">
         {loop && (
-          <div className="easy-loop-bar">
+          <div className={`easy-loop-bar ${loop.paused ? 'paused' : ''}`}>
             <span className="easy-loop-spin" />
             <span className="easy-loop-text">
-              Looping{loop.intervalMs ? ` every ${humanInterval(loop.intervalMs)}` : ''} · run{' '}
-              {loop.count}
+              {loop.paused ? 'Paused' : 'Looping'}
+              {loop.intervalMs ? ` every ${humanInterval(loop.intervalMs)}` : ''} · run {loop.count}
               <span className="easy-loop-prompt"> — “{loop.prompt}”</span>
             </span>
+            <button
+              className="easy-loop-stop"
+              onClick={() => void window.cove.loopPause(chatId, !loop.paused)}
+              title={
+                loop.paused
+                  ? 'Carry on with the next round'
+                  : 'Hold the next round. The one running now finishes.'
+              }
+            >
+              {loop.paused ? 'Resume' : 'Pause'}
+            </button>
             <button className="easy-loop-stop" onClick={stopLoop}>
               Stop
             </button>

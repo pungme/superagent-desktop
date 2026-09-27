@@ -45,6 +45,7 @@ vi.mock('./store', () => ({ getChat: (id: string) => (id === 'gone' ? undefined 
 import {
   loopCommand,
   loopFor,
+  pauseLoop,
   registerLoops,
   requestLoopWait,
   setUnattendedSend,
@@ -93,6 +94,8 @@ describe('parseLoopCmd', () => {
       prompt: 'keep going'
     })
     expect(parseLoopCmd('/loop stop')).toEqual({ kind: 'stop' })
+    expect(parseLoopCmd('/loop pause')).toEqual({ kind: 'pause' })
+    expect(parseLoopCmd('/loop resume')).toEqual({ kind: 'resume' })
     expect(parseLoopCmd('/loop')).toEqual({ kind: 'usage' })
     expect(parseLoopCmd('/looper')).toBeNull()
     expect(parseLoopCmd('hello')).toBeNull()
@@ -205,5 +208,54 @@ describe('loops', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(loopFor('gone')).toBeNull()
     expect(h.rounds).toHaveLength(0)
+  })
+
+  it('pause holds the next round and resume picks it up, for a self-paced loop', async () => {
+    loopCommand('c1', '/loop tidy up')
+    await vi.advanceTimersByTimeAsync(0)
+    turn('c1')
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(loopCommand('c1', '/loop pause')).toMatch(/paused/)
+    expect(loopFor('c1')).toMatchObject({ paused: true, nextAt: null, count: 1 })
+    // Long past when the next round was due: nothing goes out.
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(h.rounds).toHaveLength(1)
+    expect(loopCommand('c1', '/loop resume')).toMatch(/resumed/)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(h.rounds).toHaveLength(2)
+    expect(loopFor('c1')).toMatchObject({ paused: false, count: 2 })
+  })
+
+  it('paused mid-round, the round finishes and the next one waits for resume', async () => {
+    loopCommand('c1', '/loop tidy up')
+    await vi.advanceTimersByTimeAsync(0)
+    h.generating.add('c1')
+    h.logBus.emit('busy', { chatId: 'c1' })
+    pauseLoop('c1', true)
+    h.generating.delete('c1')
+    h.logBus.emit('busy', { chatId: 'c1' })
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(h.rounds).toHaveLength(1)
+    pauseLoop('c1', false)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(h.rounds).toHaveLength(2)
+  })
+
+  it('an interval loop skips its ticks while paused and keeps its beat after', async () => {
+    loopCommand('c1', '/loop 5m check prices')
+    await vi.advanceTimersByTimeAsync(0)
+    pauseLoop('c1', true)
+    await vi.advanceTimersByTimeAsync(900_000)
+    expect(h.rounds).toHaveLength(1)
+    expect(loopFor('c1')).toMatchObject({ paused: true, nextAt: null })
+    pauseLoop('c1', false)
+    expect(loopFor('c1')?.nextAt).toBeTypeOf('number')
+    await vi.advanceTimersByTimeAsync(300_000)
+    expect(h.rounds).toHaveLength(2)
+  })
+
+  it('pause and resume with no loop say so', () => {
+    expect(loopCommand('c9', '/loop pause')).toMatch(/No loop/)
+    expect(loopCommand('c9', '/loop resume')).toMatch(/No loop/)
   })
 })

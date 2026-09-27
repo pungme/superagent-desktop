@@ -11964,3 +11964,18 @@ button {
   height: 20px;
   object-fit: contain;
 }
+
+/* A loop held with Pause: the bar goes quiet, the spinner stops. */
+.easy-loop-bar.paused {
+  background: var(--hover);
+  border-color: var(--border);
+}
+.easy-loop-bar.paused .easy-loop-spin {
+  animation: none;
+  background: var(--text-tertiary);
+  -webkit-mask: none;
+  mask: none;
+  width: 6px;
+  height: 6px;
+  margin: 0 1.5px;
+}

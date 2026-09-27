@@ -212,6 +212,8 @@ export interface WireLoop {
   count: number
   /** When the next round is due, when one is scheduled. */
   nextAt: number | null
+  /** Held: the round in flight finishes, no new one starts until resumed. Absent from older Macs. */
+  paused?: boolean
 }
 
 export interface WireMachine {
