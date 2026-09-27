@@ -1327,10 +1327,139 @@ function ChatsDropZone({ children }: { children: React.ReactNode }): React.JSX.E
   return (
     <div
       ref={setNodeRef}
-      className={`sidebar-dash-wrap${wanted ? ' droppable' : ''}${wanted && isOver ? ' over' : ''}`}
+      className={`sidebar-chats${wanted ? ' droppable' : ''}${wanted && isOver ? ' over' : ''}`}
     >
       {children}
     </div>
+  )
+}
+
+/** How many chats the section shows before "Show all". */
+const CHATS_SHOWN = 6
+
+/**
+ * Chats: the conversations that belong to no project, listed right here, above
+ * Projects — the way Pinned lists its chats. It used to be one row that opened
+ * a second list in the content area, so reaching a chat took two lists. Its
+ * header is also where a conversation dragged out of a project lands.
+ */
+function ChatsSection(): React.JSX.Element {
+  const [home, setHome] = useState<string | null>(null)
+  const loadChats = useStore((s) => s.loadChats)
+  useEffect(() => {
+    let alive = true
+    void window.cove.desktopChatHome?.().then((h) => {
+      if (!alive || !h) return
+      setHome(h.workspaceId)
+      void loadChats(h.workspaceId)
+    })
+    return () => {
+      alive = false
+    }
+  }, [loadChats])
+  const chats = useStore((s) => (home ? s.chats[home] : undefined))
+  const activeChatId = useStore((s) => (home ? s.activeChatId[home] : undefined))
+  const overlay = useStore((s) => s.overlay)
+  const selectChat = useStore((s) => s.selectChat)
+  const renameChat = useStore((s) => s.renameChat)
+  const busy = useStore((s) => s.busy)
+  const unread = useStore((s) => s.unread)
+  const [all, setAll] = useState(false)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  // Pinned ones are already listed under Pinned.
+  const list = (chats ?? []).filter((c) => !c.pinned).sort((a, b) => b.updatedAt - a.updatedAt)
+  const shown = all ? list : list.slice(0, CHATS_SHOWN)
+  const open = (id: string): void => {
+    if (!home) return
+    selectChat(home, id)
+    window.dispatchEvent(new CustomEvent('cove:open-chats'))
+  }
+
+  return (
+    <ChatsDropZone>
+      <div className="sidebar-group-head tabs-head sidebar-chats-head">
+        <span className="sidebar-group-title">Chats</span>
+        <span className="sidebar-head-actions">
+          <button
+            className="group-add"
+            title="New chat — no project needed"
+            aria-label="New chat"
+            onClick={() => window.dispatchEvent(new CustomEvent('cove:new-chat'))}
+          >
+            <svg
+              viewBox="0 0 16 16"
+              width="13"
+              height="13"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M13.5 8.5v4a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h4" />
+              <path d="M11.5 2.5l2 2L8 10H6V8z" />
+            </svg>
+          </button>
+        </span>
+      </div>
+      {shown.map((c) => {
+        const on = overlay === 'chats' && c.id === activeChatId
+        const live = Boolean(busy[c.id]?.generating)
+        const fresh = !on && (Boolean(unread[c.id]) || movedSinceSeen(c))
+        return (
+          <div
+            key={c.id}
+            className={`sidebar-item sidebar-chat-row ${on ? 'active' : ''}`}
+            data-chat-id={c.id}
+            onClick={() => open(c.id)}
+            onDoubleClick={() => {
+              setDraft(c.title ?? '')
+              setEditing(c.id)
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              window.cove.chatMenu(c.id, c.workspaceId, c.cwd)
+            }}
+            title={c.title ?? 'New chat'}
+          >
+            {editing === c.id ? (
+              <input
+                className="sidebar-item-rename"
+                value={draft}
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => {
+                  const n = draft.trim()
+                  if (home && n && n !== c.title) void renameChat(home, c.id, n)
+                  setEditing(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') setEditing(null)
+                }}
+              />
+            ) : (
+              <>
+                {live ? (
+                  <span className="chat-tree-spinner" title="Working…" />
+                ) : (
+                  <span className={`sidebar-chat-dot ${fresh ? 'unread' : ''}`} />
+                )}
+                <span className="sidebar-item-name">{c.title ?? 'New chat'}</span>
+                <span className="sidebar-chat-when">{when(c.updatedAt)}</span>
+              </>
+            )}
+          </div>
+        )
+      })}
+      {list.length > CHATS_SHOWN && (
+        <button className="sidebar-chats-more" onClick={() => setAll((v) => !v)}>
+          {all ? 'Show fewer' : `Show all ${list.length}`}
+        </button>
+      )}
+    </ChatsDropZone>
   )
 }
 
@@ -1845,51 +1974,8 @@ export function Sidebar(): React.JSX.Element {
             </svg>
             Computer
           </button>
-          {/* Chats, plain: the same conversations the Computer's Chat window
-              holds, filling the content area with nothing else around them.
-              Its compose button is the one way to start talking that needs no
-              project (or group) first. */}
-          <ChatsDropZone>
-            <button
-              className={`sidebar-dash-row ${overlay === 'chats' ? 'on' : ''}`}
-              onClick={() => window.dispatchEvent(new CustomEvent('cove:open-chats'))}
-            >
-              <svg
-                className="sidebar-dash-icon"
-                viewBox="0 0 16 16"
-                width="14"
-                height="14"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              >
-                <path d="M2.5 3.5h11a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 2.5V11.5H2.5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" />
-              </svg>
-              Chats
-            </button>
-            <button
-              className="sidebar-dash-new"
-              title="New chat — no project needed"
-              aria-label="New chat"
-              onClick={() => window.dispatchEvent(new CustomEvent('cove:new-chat'))}
-            >
-              <svg
-                viewBox="0 0 16 16"
-                width="13"
-                height="13"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M13.5 8.5v4a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h4" />
-                <path d="M11.5 2.5l2 2L8 10H6V8z" />
-              </svg>
-            </button>
-          </ChatsDropZone>
           <PinnedShortcuts />
+          <ChatsSection />
           {/* One section for everything you work in: open tabs first (their
               favicons set them apart), then projects. It used to be two — a
               Browse header that, with no tabs open, sat straight on top of the

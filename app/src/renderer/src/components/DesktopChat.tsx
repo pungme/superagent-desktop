@@ -29,10 +29,13 @@ function when(ts: number): string {
  */
 export function DesktopChat({
   workspaceId,
-  cwd
+  cwd,
+  list = true
 }: {
   workspaceId: string
   cwd: string
+  /** The conversations down the side. Off in Chats, whose list is the sidebar's. */
+  list?: boolean
 }): React.JSX.Element {
   const chats = useStore((s) => s.chats[workspaceId])
   const activeChatId = useStore((s) => s.activeChatId[workspaceId])
@@ -76,7 +79,7 @@ export function DesktopChat({
 
   return (
     <div
-      className={`dchat ${narrow ? 'narrow' : ''} ${narrow && !showList ? 'on-chat' : ''}`}
+      className={`dchat ${!list ? 'no-list' : narrow ? 'narrow' : ''} ${list && narrow && !showList ? 'on-chat' : ''}`}
       ref={rootRef}
     >
       <aside className="dchat-list">
@@ -150,7 +153,7 @@ export function DesktopChat({
       </aside>
 
       <div className="dchat-main">
-        {narrow && (
+        {list && narrow && (
           <button className="dchat-back" onClick={() => setShowList(true)}>
             ‹ Chats
           </button>
@@ -175,6 +178,18 @@ export function DesktopChat({
               </div>
             )
           })
+        ) : !list && chats !== undefined ? (
+          // No list here to pick from: say where it is, and offer a new one.
+          <div className="project-empty">
+            <p>
+              {(chats ?? []).length > 0
+                ? 'Pick a chat on the left, or start a new one.'
+                : 'No chats yet.'}
+            </p>
+            <button className="project-empty-new" onClick={() => void newChat(workspaceId)}>
+              + New chat
+            </button>
+          </div>
         ) : (
           <div className="desktop-app-empty">Starting…</div>
         )}

@@ -11980,3 +11980,58 @@ button {
   height: 6px;
   margin: 0 1.5px;
 }
+
+/* Chats, in the sidebar above Projects: its conversations listed right here. */
+.sidebar-chats {
+  margin-bottom: 6px;
+  border-radius: 8px;
+}
+.sidebar-chats-head {
+  padding: 10px 6px 4px 10px;
+}
+.sidebar-chat-row {
+  cursor: default;
+  padding: 5px 8px 5px 10px;
+}
+.sidebar-chat-row .sidebar-item-name {
+  font-size: 13px;
+  font-weight: 450;
+}
+.sidebar-chat-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.sidebar-chat-dot.unread {
+  background: var(--accent);
+}
+.sidebar-chat-when {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.sidebar-chats-more {
+  display: block;
+  margin: 2px 0 0 26px;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.sidebar-chats-more:hover {
+  color: var(--text-primary);
+}
+/* Dragging a conversation out of a project: this section is where it lands. */
+.sidebar-chats.droppable {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.sidebar-chats.over {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+/* In Chats the sidebar is the list; the conversation takes the whole page. */
+.dchat.no-list .dchat-list {
+  display: none;
+}

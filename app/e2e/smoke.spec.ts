@@ -67,8 +67,9 @@ test('onboarding renders, then the main app loads with the seeded workspace', as
 
   // A fresh install starts flat: the project is there with no group over it.
   // Only the Browse section has a header; no project group was invented.
-  // One section for tabs and ungrouped projects (Browse was merged into it).
-  await expect(window.locator('.sidebar-group-title')).toHaveText(['Projects'])
+  // One section for tabs and ungrouped projects (Browse was merged into it),
+  // with Chats above it.
+  await expect(window.locator('.sidebar-group-title')).toHaveText(['Chats', 'Projects'])
   await expect(window.locator('.sidebar-flat .sidebar-item-name')).toContainText('e2e-project')
 })
 
@@ -169,11 +170,11 @@ test('switching Computer chats keeps the one you left running', async () => {
   // Unmounting a chat stops its agent. The Chats list kept only the on-screen
   // chat (and ones flagged busy), so switching away just after sending stopped
   // it; like projects, the last few chats now stay mounted.
-  await window.click('.sidebar-dash-row:has-text("Chats")')
+  const newChat = window.locator('.sidebar-chats-head button[aria-label="New chat"]')
+  await newChat.click()
   await window.waitForSelector('.dchat', { timeout: 10_000 })
-  await window.click('.dchat-new')
   await expect(window.locator('.dchat .chat-mount')).toHaveCount(1, { timeout: 10_000 })
-  await window.click('.dchat-new')
+  await newChat.click()
   await expect(window.locator('.dchat .chat-mount')).toHaveCount(2, { timeout: 10_000 })
   // Only the one on screen is shown.
   await expect(window.locator('.dchat .chat-mount:visible')).toHaveCount(1)
@@ -234,10 +235,20 @@ test('@ mentions reach other projects and folders outside this one', async () =>
   rmSync(other, { recursive: true, force: true })
 })
 
-test('Chats is a plain chat app — no desktop around it', async () => {
-  await window.click('.sidebar-dash-row:has-text("Chats")')
+test('Chats lives in the sidebar, above Projects, and opens a chat straight away', async () => {
+  // A section of its own before Projects, not a row that opens a second list.
+  const heads = await window.locator('.sidebar-scroll .sidebar-group-title').allTextContents()
+  expect(heads.indexOf('Chats')).toBeGreaterThanOrEqual(0)
+  expect(heads.indexOf('Chats')).toBeLessThan(heads.indexOf('Projects'))
+  const rows = window.locator('.sidebar-chats .sidebar-chat-row')
+  await expect(rows).toHaveCount(2, { timeout: 10_000 })
+  // One click from the sidebar is the conversation, with no list in between.
+  await window.click('.sidebar-item:has-text("e2e-project")')
+  await rows.first().click()
   await expect(window.locator('.chats-host .dchat')).toBeVisible({ timeout: 10_000 })
+  await expect(window.locator('.chats-host .dchat-list:visible')).toHaveCount(0)
+  await expect(window.locator('.chats-host .chat-mount:visible')).toHaveCount(1)
+  await expect(rows.first()).toHaveClass(/active/)
   // The Computer's desktop is not what is on screen.
   await expect(window.locator('.computer-host:visible')).toHaveCount(0)
-  await expect(window.locator('.chats-host .dchat-new')).toBeVisible()
 })

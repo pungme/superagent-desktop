@@ -25,7 +25,8 @@ export function ChatsView(): React.JSX.Element {
   if (!home) return <div className="chats-view chats-view-empty">Starting…</div>
   return (
     <div className="chats-view">
-      <DesktopChat workspaceId={home.workspaceId} cwd={home.cwd} />
+      {/* The list is the sidebar's Chats section; this is the conversation. */}
+      <DesktopChat workspaceId={home.workspaceId} cwd={home.cwd} list={false} />
     </div>
   )
 }
