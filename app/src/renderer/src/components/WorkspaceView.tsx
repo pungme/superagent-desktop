@@ -590,17 +590,20 @@ export function WorkspaceView({
         {/* Leads the toolbar because the pane it opens is the leftmost column. */}
         {ws.kind !== 'browser' && (
           <button
-            className={`toolbar-btn ${filesOpen ? 'on' : ''}`}
+            className={`toolbar-btn toolbar-icon ${filesOpen ? 'on' : ''}`}
             onClick={() => toggleFiles(ws.id)}
-            title="Project files"
+            title="Files"
           >
-            📁 Files
+            <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.5H13c.7 0 1.2.5 1.2 1.2v6.1c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z" />
+            </svg>
+            <span className="toolbar-label">Files</span>
           </button>
         )}
         {/* Sits next to Files, top-left: both open a left-hand surface for this
             project, so they read as a pair. */}
         <button
-          className={`toolbar-btn ${boardOpen ? 'on' : ''}`}
+          className={`toolbar-btn toolbar-icon ${boardOpen ? 'on' : ''}`}
           onClick={() =>
             setBoardOpen((v) => {
               if (!v) widenForBoard()
@@ -608,10 +611,28 @@ export function WorkspaceView({
               return !v
             })
           }
-          title="This project's to-do — what's left, and what Claude finished"
+          title="Todo: what's left, and what the agent finished"
         >
-          ▤ Todo
+          <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2.2 4.3l1.3 1.3 2.2-2.4M8 4.5h5.8M2.2 10.3l1.3 1.3 2.2-2.4M8 10.5h5.8" />
+          </svg>
+          <span className="toolbar-label">Todo</span>
         </button>
+        {/* The third of the pair: the browser, without waiting for the agent to
+            open a page. A browser project's own toggle is on the right. */}
+        {ws.kind !== 'browser' && (
+          <button
+            className={`toolbar-btn toolbar-icon ${browserOpen ? 'on' : ''}`}
+            onClick={() => toggleBrowser(ws.id, browserOpen)}
+            title={browserOpen ? 'Hide the browser' : 'Browser'}
+          >
+            <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="6.2" />
+              <path d="M1.8 8h12.4M8 1.8c1.8 1.7 2.7 3.8 2.7 6.2S9.8 12.5 8 14.2C6.2 12.5 5.3 10.4 5.3 8S6.2 3.5 8 1.8z" />
+            </svg>
+            <span className="toolbar-label">Browser</span>
+          </button>
+        )}
         {ws.kind === 'browser' ? (
           <>
             <span className="workspace-title">{site.title || hostOf(site.url) || 'New tab'}</span>

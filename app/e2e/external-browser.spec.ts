@@ -207,6 +207,7 @@ test("the agent's navigate drives Brave, and the pane streams it live", async ()
   await expect(window.locator('.external-pane-badge')).toHaveText('Brave')
   await expect(window.locator('.external-pane-view img')).toBeVisible({ timeout: 10_000 })
   await expect(window.locator('.external-pane-url')).toContainText('127.0.0.1')
+  await expect(window.locator('.pane-source.live')).toHaveText('Brave')
   expect(await tool('browser_evaluate', { expression: 'document.title' })).toContain('Shop')
 })
 

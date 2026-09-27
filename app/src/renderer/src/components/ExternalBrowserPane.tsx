@@ -53,7 +53,13 @@ export function ExternalBrowserPane({
   return (
     <div className="external-pane">
       <div className="external-pane-bar">
-        <span className="external-pane-badge">{browserName}</span>
+        <span
+          className="pane-source live"
+          title={`Streamed live from ${browserName}. To click or type, use its window.`}
+        >
+          <span className="pane-source-dot" />
+          <span className="external-pane-badge">{browserName}</span>
+        </span>
         <span className="external-pane-url" title={url}>
           {url && url !== 'about:blank' ? url : 'Waiting for the agent to open a page'}
         </span>

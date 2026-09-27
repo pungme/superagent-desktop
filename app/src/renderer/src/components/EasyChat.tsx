@@ -162,48 +162,55 @@ function BrowserPill({
         </svg>
       </button>
       {open && (
-        <div className="easy-control-menu">
+        <div className="easy-control-menu easy-menu-end">
           {options.map((o) => (
             <button
               key={o.id}
               className={`easy-control-item ${o.id === current ? 'on' : ''}`}
               onClick={() => void pick(o.id)}
             >
-              <span className="easy-control-item-label">{o.name}</span>
-              <span className="easy-control-item-hint">
-                {o.id === 'builtin'
-                  ? 'Built in, beside the chat'
-                  : `Your ${o.name}, with a Superagent profile you sign in to once`}
+              <span className="easy-control-item-text">
+                <span className="easy-control-item-label">{o.name}</span>
+                <span className="easy-control-item-hint">
+                  {o.id === 'builtin'
+                    ? 'Built in, beside the chat'
+                    : `Your ${o.name} app, with its own sign-ins`}
+                </span>
               </span>
             </button>
           ))}
           {current !== 'builtin' && (
-            <button
-              className="easy-control-item"
-              onClick={() => {
-                onPicked()
-                void window.cove.browsersSignIn(current)
-              }}
-            >
-              <span className="easy-control-item-label">Sign in yourself…</span>
-              <span className="easy-control-item-hint">
-                Opens it without the agent. Google won’t let you sign in otherwise
-              </span>
-            </button>
-          )}
-          {current !== 'builtin' && (
-            <button
-              className="easy-control-item"
-              onClick={() => {
-                onPicked()
-                setSignIns(true)
-              }}
-            >
-              <span className="easy-control-item-label">Bring sign-ins over…</span>
-              <span className="easy-control-item-hint">
-                Copy the logins of sites you pick from your everyday {name}
-              </span>
-            </button>
+            <>
+              <div className="easy-menu-rule" />
+              <button
+                className="easy-control-item"
+                onClick={() => {
+                  onPicked()
+                  void window.cove.browsersSignIn(current)
+                }}
+              >
+                <span className="easy-control-item-text">
+                  <span className="easy-control-item-label">Sign in yourself…</span>
+                  <span className="easy-control-item-hint">
+                    Opens {name} without the agent, for Google
+                  </span>
+                </span>
+              </button>
+              <button
+                className="easy-control-item"
+                onClick={() => {
+                  onPicked()
+                  setSignIns(true)
+                }}
+              >
+                <span className="easy-control-item-text">
+                  <span className="easy-control-item-label">Bring sign-ins over…</span>
+                  <span className="easy-control-item-hint">
+                    Copy logins from your everyday {name}
+                  </span>
+                </span>
+              </button>
+            </>
           )}
         </div>
       )}
@@ -1105,17 +1112,17 @@ const MessageRow = memo(function MessageRow({
       ) : msg.imageCount ? (
         <RemoteImages id={msg.id} count={msg.imageCount} onLightbox={onLightbox} />
       ) : null}
-      {segments
-        ? segments.map((seg, si) =>
-            'md' in seg ? (
-              <Markdown key={si} text={seg.md} streaming={msg.streaming} onImage={onLightbox} />
-            ) : (
-              <Choices key={si} spec={seg.ask} onAnswer={onAnswer} />
-            )
+      {segments ? (
+        segments.map((seg, si) =>
+          'md' in seg ? (
+            <Markdown key={si} text={seg.md} streaming={msg.streaming} onImage={onLightbox} />
+          ) : (
+            <Choices key={si} spec={seg.ask} onAnswer={onAnswer} />
           )
-        : (
-            <PastedText text={loopSplit?.main ?? msg.text} />
-          )}
+        )
+      ) : (
+        <PastedText text={loopSplit?.main ?? msg.text} />
+      )}
       {loopSplit?.note && <div className="easy-loop-note">{loopSplit.note}</div>}
       {msg.streaming && <span className="easy-caret" />}
       {!msg.streaming && msg.text && (

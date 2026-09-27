@@ -1089,6 +1089,10 @@ export function BrowserPane({
     <div className="browser-pane">
       <div className={`browser-toolbar ${onCard ? 'on-card' : ''}`} style={toolbarStyle}>
         {state.loading && <span className="browser-loadbar" />}
+        <span className="pane-source" title="Superagent's built-in browser">
+          <span className="pane-source-dot" />
+          In app
+        </span>
         <button
           className="browser-nav-btn"
           disabled={!state.canGoBack}

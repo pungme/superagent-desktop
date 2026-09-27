@@ -86,6 +86,19 @@ test('the file tree lists project files', async () => {
   await window.click('.toolbar-btn:has-text("Files")')
 })
 
+test('the toolbar opens the browser without waiting for the agent', async () => {
+  // Files, Todo and Browser sit together, top-left, as glyphs.
+  const browser = window.locator('.workspace-toolbar:visible .toolbar-btn:has-text("Browser")')
+  await expect(browser).toHaveAttribute('title', 'Browser')
+  await browser.click()
+  await expect(window.locator('.browser-address:visible')).toBeVisible({ timeout: 10_000 })
+  // Which browser this is, said quietly.
+  await expect(window.locator('.pane-source:visible')).toHaveText('In app')
+  await expect(browser).toHaveAttribute('title', 'Hide the browser')
+  await browser.click()
+  await expect(window.locator('.browser-address:visible')).toHaveCount(0)
+})
+
 test('a browser tab opens from the sidebar', async () => {
   // The globe on the Projects header (the old "Open a tab to browse" line is gone).
   await window.click('.sidebar-head-actions button[title="New tab"]')
