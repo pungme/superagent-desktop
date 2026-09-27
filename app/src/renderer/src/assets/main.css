@@ -2712,11 +2712,16 @@ button {
   color: var(--text-primary);
 }
 
+/* What sits between the conversation and the composer: queued messages and
+   the reply bar, each taking its own room. */
+.easy-above-input {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 14px;
+}
 .easy-queued {
-  position: absolute;
-  bottom: calc(100% + 2px);
-  left: 14px;
-  right: 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2764,10 +2769,6 @@ button {
 }
 
 .easy-reply-bar {
-  position: absolute;
-  bottom: calc(100% + 2px);
-  left: 14px;
-  right: 14px;
   display: flex;
   align-items: center;
   gap: 9px;

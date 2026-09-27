@@ -3941,6 +3941,9 @@ export function EasyChat({
       if (atBottomRef.current && visible) scrollEl.scrollTo({ top: scrollEl.scrollHeight })
     })
     ro.observe(listEl)
+    // The window onto the list shrinking counts too: a queued message or a
+    // reply bar taking room below would otherwise hide the newest lines.
+    ro.observe(scrollEl)
     return () => ro.disconnect()
   }, [visible, vrows.length > 0])
 
@@ -4427,45 +4430,51 @@ export function EasyChat({
           ))}
         </div>
       )}
+      {/* In the layout, not floating over it: the chip used to cover the last
+          message and the "Working" line. The conversation gives up the room. */}
+      {(queued.length > 0 || replyTarget) && (
+        <div className="easy-above-input">
+          {queued.length > 0 && (
+            <div className="easy-queued">
+              {queued.map((m) => (
+                <div key={m.id} className="easy-queued-item" title="Sends when the agent finishes">
+                  <span className="easy-queued-icon">⏱</span>
+                  <span className="easy-queued-text">
+                    {(m.text || (m.images.length ? '🖼 image' : '📎 files'))
+                      .replace(/\s+/g, ' ')
+                      .trim()
+                      .slice(0, 120)}
+                  </span>
+                  <span className="easy-queued-when">sends when done</span>
+                  <button
+                    className="easy-queued-cancel"
+                    title="Don't send this"
+                    onClick={() => cancelQueued(m.id)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {replyTarget && (
+            <div className="easy-reply-bar">
+              <span className="easy-reply-bar-icon">↩</span>
+              <span className="easy-reply-bar-text">
+                {replyTarget.text.replace(/\s+/g, ' ').trim().slice(0, 160)}
+              </span>
+              <button
+                className="easy-reply-bar-cancel"
+                title="Cancel reply"
+                onClick={() => setReplyTarget(null)}
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       <div className="easy-input-row">
-        {queued.length > 0 && (
-          <div className="easy-queued">
-            {queued.map((m) => (
-              <div key={m.id} className="easy-queued-item" title="Sends when the agent finishes">
-                <span className="easy-queued-icon">⏱</span>
-                <span className="easy-queued-text">
-                  {(m.text || (m.images.length ? '🖼 image' : '📎 files'))
-                    .replace(/\s+/g, ' ')
-                    .trim()
-                    .slice(0, 120)}
-                </span>
-                <span className="easy-queued-when">sends when done</span>
-                <button
-                  className="easy-queued-cancel"
-                  title="Don't send this"
-                  onClick={() => cancelQueued(m.id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {replyTarget && (
-          <div className="easy-reply-bar">
-            <span className="easy-reply-bar-icon">↩</span>
-            <span className="easy-reply-bar-text">
-              {replyTarget.text.replace(/\s+/g, ' ').trim().slice(0, 160)}
-            </span>
-            <button
-              className="easy-reply-bar-cancel"
-              title="Cancel reply"
-              onClick={() => setReplyTarget(null)}
-            >
-              ×
-            </button>
-          </div>
-        )}
         {mentionMatches.length > 0 && (
           <div className="easy-mention-menu">
             {mentionMatches.map((f, idx) => (
