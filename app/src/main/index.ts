@@ -48,7 +48,7 @@ import { registerChatBrowserTabsIpc } from './chat-browser-tabs'
 import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
-import { registerAgentIpc, killAllAgents, markContextLost } from './agent'
+import { registerAgentIpc, killAllAgents, markContextLost, agentBus } from './agent'
 import { registerLoops } from './loops'
 import { killAllOneShots } from './kill-tree'
 import { startCompanionLog, forgetChat } from './companion/log'
@@ -64,7 +64,7 @@ import { registerSkillsIpc } from './skills'
 import { startRoutines, stopRoutines, registerRoutinesIpc } from './routines'
 import { registerEnvironmentIpc } from './environment'
 import { registerClaudeModelsIpc } from './claude/models'
-import { registerExternalBrowserIpc, closeExternalBrowsers } from './external-browser'
+import { registerExternalBrowserIpc, closeExternalBrowsers, finishSignIn } from './external-browser'
 import { registerSignInsIpc } from './sign-ins'
 import { registerResetIpc } from './reset'
 import { signInBus } from './google-signin'
@@ -280,6 +280,9 @@ app.whenReady().then(async () => {
   registerEnvironmentIpc()
   registerClaudeModelsIpc()
   registerExternalBrowserIpc(icon)
+  // A message from the user, on the Mac or the phone, means they're back from
+  // any sign-in window: hand the browser back to the agent without being asked.
+  agentBus.on('user', () => finishSignIn())
   registerSignInsIpc()
   registerResetIpc()
   registerFilesIpc()

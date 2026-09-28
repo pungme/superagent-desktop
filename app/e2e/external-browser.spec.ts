@@ -452,9 +452,13 @@ test('"Sign in yourself…" opens it without the agent and says what happens nex
   const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Browser"))').first()
   await pill.click()
   await window.locator('.easy-control-item:has-text("Sign in yourself")').click()
-  await expect(window.locator('.external-pane-signin')).toContainText('closes by itself', {
+  await expect(window.locator('.external-pane-signin')).toContainText('carries on by itself', {
     timeout: 10_000
   })
+  // It says how to finish, and offers to end it now.
+  await expect(
+    window.locator('.external-pane-signin').getByRole('button', { name: 'I’m signed in' })
+  ).toBeVisible()
   // The agent waits rather than taking the profile back mid-sign-in.
   expect(await tool('browser_navigate', { url: siteUrl })).toMatch(/signing in/)
   // Quitting Superagent closes that window too (checked in afterAll).

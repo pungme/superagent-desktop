@@ -32,13 +32,23 @@ import {
   openExternalTab,
   closeExternalTab,
   stopBrowser,
-  closeExternalBrowsers
+  closeExternalBrowsers,
+  windowCount
 } from './external-browser'
 
 const BRAVE = '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
 const haveBrave = existsSync(BRAVE)
 
 beforeEach(() => kv.clear())
+
+describe('seeing the sign-in window close', () => {
+  it("counts a process's real windows from the system list, and none for one without", async () => {
+    // This test process has no windows; the reading works and says so.
+    expect(await windowCount(process.pid)).toBe(0)
+    // A pid that doesn't exist has none either — never a false "still open".
+    expect(await windowCount(999_999)).toBe(0)
+  })
+})
 
 describe('which browser a pane uses', () => {
   it('is the built-in pane unless the project picked another', () => {

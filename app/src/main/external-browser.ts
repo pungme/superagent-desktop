@@ -1,6 +1,6 @@
 import { isGoogleSignInRejected, sessionCookieTime, signInRetryUrl } from './google-signin'
 import { spawn, ChildProcess, execFile, execFileSync } from 'child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'fs'
 import type { Readable, Writable } from 'stream'
 import { homedir, tmpdir } from 'os'
 import { join } from 'path'
@@ -291,11 +291,44 @@ const signInWaitMs = (): number => (process.env.COVE_E2E_QUIET === '1' ? 1500 : 
 /** How often the profile is checked for a finished sign-in. */
 const SIGNED_IN_POLL_MS = 3000
 /**
- * After the sign-in shows in the profile, how long the window stays before it
- * is closed: one more of the browser's cookie saves (every 30s), so what the
- * sites set right after signing in is kept too.
+ * The browser writes cookies to disk at most 30 seconds after they change, and
+ * closing it before then loses them — a sign-in made just before would be gone.
+ * So a sign-in window is closed only once the profile has been saved since it
+ * was told to finish (or this long has passed, which covers everything).
  */
-const SIGNED_IN_GRACE_MS = 32_000
+const COOKIE_SAVE_MS = 31_000
+/** Nobody finished and nobody came back: hand the browser back anyway. */
+const SIGN_IN_IDLE_MS = 10 * 60_000
+/**
+ * How many real windows a process has on screen — a browser window, not a menu,
+ * a tooltip, or the hidden one the browser keeps for itself. On a Mac closing a browser's last window doesn't quit it, so this is
+ * how Superagent sees the user close the sign-in window. Read from the system's
+ * window list (no permission needed); null when it can't be read.
+ */
+export function windowCount(pid: number): Promise<number | null> {
+  const script = `ObjC.import('CoreGraphics'); ObjC.import('Foundation');
+    const arr = ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionAll | $.kCGWindowListExcludeDesktopElements, 0));
+    let n = 0;
+    for (let i = 0; i < arr.count; i++) {
+      const d = arr.objectAtIndex(i);
+      if (ObjC.unwrap(d.objectForKey('kCGWindowOwnerPID')) !== ${Number(pid)}) continue;
+      if (ObjC.unwrap(d.objectForKey('kCGWindowLayer')) !== 0) continue;
+      // On screen only: the browser keeps a hidden window of its own that never goes.
+      if (!ObjC.unwrap(d.objectForKey('kCGWindowIsOnscreen'))) continue;
+      const b = ObjC.unwrap(d.objectForKey('kCGWindowBounds'));
+      if (b && ObjC.unwrap(b.Height) > 200 && ObjC.unwrap(b.Width) > 200) n++;
+    }
+    n`
+  return new Promise((resolve) => {
+    execFile('osascript', ['-l', 'JavaScript', '-e', script], { timeout: 5000 }, (err, out) => {
+      const n = Number(String(out).trim())
+      resolve(err || !Number.isFinite(n) ? null : n)
+    })
+  })
+}
+
+/** How each open sign-in window is told to finish (see finishSignIn). */
+const finishers = new Map<BrowserId, (why: string) => void>()
 
 /**
  * Open the agent's profile of a browser with remote control OFF, for the user
@@ -304,14 +337,16 @@ const SIGNED_IN_GRACE_MS = 32_000
  * the session it leaves in the profile keeps working once the agent drives it
  * again.
  *
- * Ends by itself: once the sign-in shows in the profile's cookies the window
- * is closed and the agent has its browser back. Quitting the browser by hand
- * ends it too. Resolves when that window is gone.
+ * Ends by itself — the user should never have to close a window to get the
+ * agent going again. It finishes when the sign-in shows in the profile's
+ * cookies (made or refreshed), when the user sends a message anywhere in
+ * Superagent (they're back), after ten minutes, or from the pane's "I'm signed
+ * in". Quitting the browser by hand ends it too. Resolves when it's gone.
  */
 export async function signInYourself(
   id: BrowserId,
   url = 'https://accounts.google.com',
-  opts: { cookieHost?: string; graceMs?: number } = {}
+  opts: { cookieHost?: string; saveMs?: number; idleMs?: number } = {}
 ): Promise<void> {
   const bin = executablePath(id)
   if (!bin) throw new Error(`${browserName(id)} isn't installed.`)
@@ -348,21 +383,76 @@ export async function signInYourself(
       signedIn: state === 'signed-in'
     })
   say('signing-in')
-  let close: ReturnType<typeof setTimeout> | null = null
-  const poll = setInterval(() => {
-    if (close || sessionCookieTime(cookies, opts.cookieHost) <= before) return
+  const savedAt = (): number => {
+    try {
+      return statSync(join(cookies, 'Cookies')).mtimeMs
+    } catch {
+      return 0
+    }
+  }
+  let finishing = false
+  let wait: ReturnType<typeof setInterval> | null = null
+  let cap: ReturnType<typeof setTimeout> | null = null
+  /** `saved`: the sign-in is already on disk (we read it there), so no wait for a save. */
+  const finish = (saved = false): void => {
+    if (finishing) return
+    finishing = true
     say('signed-in')
-    close = setTimeout(() => proc.kill('SIGTERM'), opts.graceMs ?? SIGNED_IN_GRACE_MS)
+    const from = Date.now()
+    const done = (): void => {
+      if (wait) clearInterval(wait)
+      if (cap) clearTimeout(cap)
+      proc.kill('SIGTERM')
+    }
+    // Saved since we were told: nothing of the sign-in is left in memory.
+    wait = setInterval(() => {
+      if (savedAt() > from) done()
+    }, 1000)
+    cap = setTimeout(done, saved ? 3000 : (opts.saveMs ?? COOKIE_SAVE_MS))
+  }
+  finishers.set(id, () => finish())
+  // Its windows: once there has been one and there are none (twice running, so
+  // a window being swapped doesn't count), the user closed it.
+  let hadWindow = false
+  let noneSeen = 0
+  let polling = false
+  const poll = setInterval(() => {
+    if (sessionCookieTime(cookies, opts.cookieHost) > before) return finish(true)
+    if (polling || !proc.pid) return
+    polling = true
+    void windowCount(proc.pid).then((n) => {
+      polling = false
+      if (n === null) return
+      if (n > 0) {
+        hadWindow = true
+        noneSeen = 0
+      } else if (hadWindow && ++noneSeen >= 2) finish()
+    })
   }, SIGNED_IN_POLL_MS)
+  const idle = setTimeout(finish, opts.idleMs ?? SIGN_IN_IDLE_MS)
   await new Promise<void>((resolve) => {
     proc.once('exit', () => {
       clearInterval(poll)
-      if (close) clearTimeout(close)
+      clearTimeout(idle)
+      if (wait) clearInterval(wait)
+      if (cap) clearTimeout(cap)
+      finishers.delete(id)
       signingIn.delete(id)
       say('off')
       resolve()
     })
   })
+}
+
+/**
+ * The user is done with the sign-in window, or back in Superagent: close it
+ * (once its cookies are saved) and give the browser back to the agent.
+ * All of them when no browser is named. False when none was open.
+ */
+export function finishSignIn(id?: BrowserId): boolean {
+  const ids = id ? [id] : [...finishers.keys()]
+  for (const b of ids) finishers.get(b)?.('')
+  return ids.some((b) => finishers.has(b))
 }
 
 /** Close a sign-in window Superagent opened (on quit, or from the pane). */
@@ -406,9 +496,9 @@ export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
   while (signingIn.has(id) && Date.now() < waitUntil) await new Promise((r) => setTimeout(r, 500))
   if (signingIn.has(id))
     throw new Error(
-      `The user is still signing in to ${browserName(id)} in its own window, and hasn't finished. ` +
-        'Your browser tools work again as soon as they have. Ask them to finish signing in there, ' +
-        'then wait for their reply before trying again.'
+      `The user is still signing in to ${browserName(id)} in its own window. It hands the ` +
+        'browser back by itself as soon as they have (or when they next send a message). Ask ' +
+        'them to finish signing in there, then wait for their reply before trying again.'
     )
   const again = running.get(id)
   if (again && !again.closed) return again
@@ -841,6 +931,8 @@ export function registerExternalBrowserIpc(appIcon?: string): void {
     void signInYourself(id).catch(() => undefined)
     return { ok: true }
   })
+  // The pane's "I'm signed in".
+  ipcMain.handle('browsers:sign-in-done', () => finishSignIn())
   ipcMain.handle('browsers:get', (_e, workspaceId: string) => browserFor(String(workspaceId)))
   // Picked on the pill: open it now — the first time, this is where the user signs in.
   ipcMain.handle('browsers:set', (_e, workspaceId: string, id: BrowserId) =>

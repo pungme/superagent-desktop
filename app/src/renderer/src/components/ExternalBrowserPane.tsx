@@ -72,9 +72,19 @@ export function ExternalBrowserPane({
       </div>
       {signingIn !== 'no' && (
         <div className="external-pane-signin">
-          {signingIn === 'signed-in'
-            ? `You’re signed in. ${browserName} closes in a moment and the agent carries on.`
-            : `Google won’t sign in while the agent drives ${browserName}, so the agent is paused. Sign in in the ${browserName} window; it closes by itself once you’re in.`}
+          <span>
+            {signingIn === 'signed-in'
+              ? `Saving your sign-in. ${browserName} closes in a moment and the agent carries on.`
+              : `Sign in in the ${browserName} window. The agent carries on by itself once you have, or as soon as you send it a message.`}
+          </span>
+          {signingIn === 'signing-in' && (
+            <button
+              className="external-pane-btn"
+              onClick={() => void window.cove.browsersSignInDone()}
+            >
+              I’m signed in
+            </button>
+          )}
         </div>
       )}
       <div className="external-pane-view">

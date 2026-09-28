@@ -63,7 +63,9 @@ export function sessionCookieTime(profile: string, host = 'google.com'): bigint 
     try {
       const row = db
         .prepare(
-          `SELECT MAX(creation_utc) AS at FROM cookies
+          // Created or refreshed: signing in again while already signed in
+          // rewrites them rather than making new ones.
+          `SELECT MAX(MAX(creation_utc), MAX(last_update_utc)) AS at FROM cookies
            WHERE name IN (${SESSION_COOKIES.map(() => '?').join(', ')})
              AND (host_key = ? OR host_key = ? OR host_key LIKE ?)`
         )

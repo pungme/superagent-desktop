@@ -11881,6 +11881,9 @@ button {
 
 /* The user is signing in to the agent's browser with remote control off. */
 .external-pane-signin {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 10px 14px;
   font-size: 12.5px;
   line-height: 1.45;

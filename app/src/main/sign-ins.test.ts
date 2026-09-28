@@ -22,6 +22,7 @@ import { copySignIns, hostMatches, siteOf } from './sign-ins'
 import {
   endSignIn,
   ensureRunning,
+  finishSignIn,
   externalPage,
   profileDir,
   signInYourself,
@@ -256,7 +257,7 @@ describe.skipIf(!haveBrave)('bringing sign-ins over in a real Brave', () => {
       const started = Date.now()
       // No ⌘Q, no endSignIn: it ends on its own once the cookie is in the profile
       // (the browser saves cookies every 30 seconds).
-      await signInYourself('brave', url, { cookieHost: '127.0.0.1', graceMs: 500 })
+      await signInYourself('brave', url, { cookieHost: '127.0.0.1' })
       expect(Date.now() - started).toBeLessThan(60_000)
       const conn = await ensureRunning('brave')
       const { cookies } = await conn.send<{ cookies: Cookie[] }>('Storage.getCookies')
@@ -269,4 +270,49 @@ describe.skipIf(!haveBrave)('bringing sign-ins over in a real Brave', () => {
       await stopBrowser('brave')
     }
   }, 90_000)
+
+  it('already signed in: closes by itself when the user is back, keeping what they did', async () => {
+    // A site the user does something on in the sign-in window (a cookie set a
+    // moment before they return), in a profile already signed in to Google — so
+    // no new Google sign-in ever shows up to end it.
+    const site = createServer((_req, res) => {
+      res.writeHead(200, {
+        'Set-Cookie': 'shop=signed-in; Max-Age=86400; Path=/',
+        'content-type': 'text/html'
+      })
+      res.end('<title>Shop admin</title>')
+    })
+    await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()))
+    const url = `http://127.0.0.1:${(site.address() as AddressInfo).port}/`
+    try {
+      const done = signInYourself('brave', url)
+      await new Promise((r) => setTimeout(r, 3000))
+      // The user sends a message: that's them back.
+      const started = Date.now()
+      expect(finishSignIn()).toBe(true)
+      await done
+      // Not straight away (that loses what was just done) and not for ever.
+      expect(Date.now() - started).toBeLessThan(40_000)
+      const conn = await ensureRunning('brave')
+      const { cookies } = await conn.send<{ cookies: Cookie[] }>('Storage.getCookies')
+      expect(cookies.map((c) => `${c.name}=${c.value}`)).toContain('shop=signed-in')
+      expect(finishSignIn()).toBe(false)
+    } finally {
+      site.close()
+      endSignIn('brave')
+      await stopBrowser('brave')
+    }
+  }, 90_000)
+
+  it('nobody comes back: it hands the browser back on its own', async () => {
+    try {
+      const started = Date.now()
+      await signInYourself('brave', 'about:blank', { idleMs: 1500, saveMs: 1500 })
+      expect(Date.now() - started).toBeLessThan(15_000)
+      expect((await ensureRunning('brave')).closed).toBe(false)
+    } finally {
+      endSignIn('brave')
+      await stopBrowser('brave')
+    }
+  }, 60_000)
 })
