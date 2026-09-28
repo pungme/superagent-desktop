@@ -252,3 +252,32 @@ test('Chats lives in the sidebar, above Projects, and opens a chat straight away
   // The Computer's desktop is not what is on screen.
   await expect(window.locator('.computer-host:visible')).toHaveCount(0)
 })
+
+test('Chats lines up with Projects, and folds away with a click on its header', async () => {
+  // The labels start at the same place — they used to sit 10px apart.
+  const left = (sel: string): Promise<number> =>
+    window
+      .locator(sel)
+      .first()
+      .evaluate((el) => {
+        const r = document.createRange()
+        r.selectNodeContents(el)
+        return Math.round(r.getBoundingClientRect().left)
+      })
+  expect(await left('.sidebar-chats-head .sidebar-group-title')).toBe(
+    await left('.tabs-head:not(.sidebar-chats-head) .sidebar-group-title')
+  )
+  const rows = window.locator('.sidebar-chats .sidebar-chat-row')
+  const toggle = window.locator('.sidebar-chats-toggle')
+  await expect(rows).not.toHaveCount(0)
+  await toggle.click()
+  await expect(rows).toHaveCount(0)
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(window.locator('.sidebar-chats-count')).toHaveText(/\d+/)
+  // Kept folded after a reload.
+  await window.reload()
+  await window.waitForSelector('.sidebar-chats-toggle')
+  await expect(rows).toHaveCount(0)
+  await window.locator('.sidebar-chats-toggle').click()
+  await expect(rows).not.toHaveCount(0)
+})

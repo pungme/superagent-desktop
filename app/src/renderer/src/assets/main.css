@@ -11990,7 +11990,43 @@ button {
   border-radius: 8px;
 }
 .sidebar-chats-head {
-  padding: 10px 6px 4px 10px;
+  /* The label starts where Projects' and Pinned's do. */
+  padding: 10px 6px 4px 0;
+}
+/* The whole label folds the section; the caret shows on hover, the count
+   when folded. */
+.sidebar-chats-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+}
+.sidebar-chats-toggle .sidebar-group-title {
+  flex: 0 1 auto;
+}
+.sidebar-chats-caret {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+.sidebar-chats-toggle:hover .sidebar-chats-caret,
+.sidebar-chats-toggle[aria-expanded='false'] .sidebar-chats-caret {
+  opacity: 1;
+}
+.sidebar-chats-count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+/* In the sidebar Pinned's label lines up with Chats' and Projects'. */
+.sidebar-pinned-shortcuts .pinned-section-label {
+  padding-left: 0;
 }
 .sidebar-chat-row {
   cursor: default;

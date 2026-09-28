@@ -1365,6 +1365,15 @@ function ChatsSection(): React.JSX.Element {
   const busy = useStore((s) => s.busy)
   const unread = useStore((s) => s.unread)
   const [all, setAll] = useState(false)
+  // Folded away with a click on the header, and kept that way next time.
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem('sidebar.chatsCollapsed') === '1'
+  )
+  const toggleCollapsed = (): void =>
+    setCollapsed((v) => {
+      localStorage.setItem('sidebar.chatsCollapsed', v ? '0' : '1')
+      return !v
+    })
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   // Pinned ones are already listed under Pinned.
@@ -1379,7 +1388,23 @@ function ChatsSection(): React.JSX.Element {
   return (
     <ChatsDropZone>
       <div className="sidebar-group-head tabs-head sidebar-chats-head">
-        <span className="sidebar-group-title">Chats</span>
+        <button
+          className="sidebar-chats-toggle"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Show chats' : 'Hide chats'}
+        >
+          <span className="sidebar-group-title">Chats</span>
+          <span
+            className="sidebar-chats-caret"
+            style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
+          >
+            <Chevron size={11} />
+          </span>
+          {collapsed && list.length > 0 && (
+            <span className="sidebar-chats-count">{list.length}</span>
+          )}
+        </button>
         <span className="sidebar-head-actions">
           <button
             className="group-add"
@@ -1403,58 +1428,59 @@ function ChatsSection(): React.JSX.Element {
           </button>
         </span>
       </div>
-      {shown.map((c) => {
-        const on = overlay === 'chats' && c.id === activeChatId
-        const live = Boolean(busy[c.id]?.generating)
-        const fresh = !on && (Boolean(unread[c.id]) || movedSinceSeen(c))
-        return (
-          <div
-            key={c.id}
-            className={`sidebar-item sidebar-chat-row ${on ? 'active' : ''}`}
-            data-chat-id={c.id}
-            onClick={() => open(c.id)}
-            onDoubleClick={() => {
-              setDraft(c.title ?? '')
-              setEditing(c.id)
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              window.cove.chatMenu(c.id, c.workspaceId, c.cwd)
-            }}
-            title={c.title ?? 'New chat'}
-          >
-            {editing === c.id ? (
-              <input
-                className="sidebar-item-rename"
-                value={draft}
-                autoFocus
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={() => {
-                  const n = draft.trim()
-                  if (home && n && n !== c.title) void renameChat(home, c.id, n)
-                  setEditing(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur()
-                  if (e.key === 'Escape') setEditing(null)
-                }}
-              />
-            ) : (
-              <>
-                {live ? (
-                  <span className="chat-tree-spinner" title="Working…" />
-                ) : (
-                  <span className={`sidebar-chat-dot ${fresh ? 'unread' : ''}`} />
-                )}
-                <span className="sidebar-item-name">{c.title ?? 'New chat'}</span>
-                <span className="sidebar-chat-when">{when(c.updatedAt)}</span>
-              </>
-            )}
-          </div>
-        )
-      })}
-      {list.length > CHATS_SHOWN && (
+      {!collapsed &&
+        shown.map((c) => {
+          const on = overlay === 'chats' && c.id === activeChatId
+          const live = Boolean(busy[c.id]?.generating)
+          const fresh = !on && (Boolean(unread[c.id]) || movedSinceSeen(c))
+          return (
+            <div
+              key={c.id}
+              className={`sidebar-item sidebar-chat-row ${on ? 'active' : ''}`}
+              data-chat-id={c.id}
+              onClick={() => open(c.id)}
+              onDoubleClick={() => {
+                setDraft(c.title ?? '')
+                setEditing(c.id)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                window.cove.chatMenu(c.id, c.workspaceId, c.cwd)
+              }}
+              title={c.title ?? 'New chat'}
+            >
+              {editing === c.id ? (
+                <input
+                  className="sidebar-item-rename"
+                  value={draft}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => {
+                    const n = draft.trim()
+                    if (home && n && n !== c.title) void renameChat(home, c.id, n)
+                    setEditing(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur()
+                    if (e.key === 'Escape') setEditing(null)
+                  }}
+                />
+              ) : (
+                <>
+                  {live ? (
+                    <span className="chat-tree-spinner" title="Working…" />
+                  ) : (
+                    <span className={`sidebar-chat-dot ${fresh ? 'unread' : ''}`} />
+                  )}
+                  <span className="sidebar-item-name">{c.title ?? 'New chat'}</span>
+                  <span className="sidebar-chat-when">{when(c.updatedAt)}</span>
+                </>
+              )}
+            </div>
+          )
+        })}
+      {!collapsed && list.length > CHATS_SHOWN && (
         <button className="sidebar-chats-more" onClick={() => setAll((v) => !v)}>
           {all ? 'Show fewer' : `Show all ${list.length}`}
         </button>
