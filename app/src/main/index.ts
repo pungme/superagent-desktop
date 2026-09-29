@@ -67,6 +67,7 @@ import { registerClaudeModelsIpc } from './claude/models'
 import { registerExternalBrowserIpc, closeExternalBrowsers, finishSignIn } from './external-browser'
 import { registerSignInsIpc } from './sign-ins'
 import { registerResetIpc } from './reset'
+import { registerAccountsIpc } from './accounts'
 import { signInBus } from './google-signin'
 import { registerFilesIpc } from './files'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
@@ -285,6 +286,7 @@ app.whenReady().then(async () => {
   agentBus.on('user', () => finishSignIn())
   registerSignInsIpc()
   registerResetIpc()
+  registerAccountsIpc()
   registerFilesIpc()
   registerSimulatorIpc()
   buildMenu()

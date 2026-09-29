@@ -12115,3 +12115,114 @@ button {
     display: none;
   }
 }
+
+/* Settings → Agents → Accounts: one list per agent, with an inline add form. */
+.settings-accounts-provider {
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--border);
+}
+.settings-accounts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.settings-accounts-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  font-size: 12px;
+}
+.settings-account-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.settings-account-state {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.settings-account.limited .settings-account-state {
+  color: var(--warning, #c98a1b);
+}
+.settings-account-remove {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.settings-account-remove:hover {
+  color: var(--danger, #d64545);
+}
+.settings-accounts-add {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-accounts-input {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+.settings-accounts-error {
+  margin: 0;
+  font-size: 11px;
+  color: var(--danger, #d64545);
+}
+.settings-accounts-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* The chat's out-of-allowance card: same frame as the handoff card. */
+.easy-limit .easy-guard-shield {
+  filter: none;
+}
+
+.settings-account-who {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.settings-account-detail {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-account.needs-auth .settings-account-state,
+.settings-account.needs-auth .settings-account-detail {
+  color: var(--danger, #d64545);
+  white-space: normal;
+}
+.settings-accounts-foot {
+  padding: 8px 0 0;
+}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Account } from '../../../preload'
 import { useStore, ACCENTS, ICON_COLOURS, type Accent } from '../state'
 import { PhoneSettings } from './PhoneSettings'
 import {
@@ -121,6 +122,215 @@ const SECTIONS: { id: SectionId; label: string; icon: string }[] = [
 ]
 
 /** A labeled row: title + description on the left, a control on the right. */
+/**
+ * More than one subscription per agent. The CLI's own login is always there;
+ * extra Claude accounts are tokens from `claude setup-token`, extra Codex
+ * accounts sign in through the browser into their own home. When the account
+ * a chat is on runs dry, the chat asks to switch — or just does, in auto.
+ */
+function AccountsPanel(): React.JSX.Element {
+  const [list, setList] = useState<{
+    claude: Account[]
+    codex: Account[]
+    mode: 'ask' | 'auto'
+  } | null>(null)
+  const [adding, setAdding] = useState<AgentProvider | null>(null)
+  const [name, setName] = useState('')
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+  const refresh = (recheck = false): Promise<void> => {
+    if (recheck) setChecking(true)
+    return window.cove
+      .accountsList(recheck)
+      .then(setList)
+      .finally(() => setChecking(false))
+  }
+  useEffect(() => {
+    void window.cove.accountsList().then(setList)
+    return window.cove.onAccountsChanged?.(() => void window.cove.accountsList().then(setList))
+  }, [])
+  const fixHint = (a: Account): string =>
+    a.kind === 'login'
+      ? a.provider === 'claude'
+        ? 'Sign in again with `claude auth login` in Terminal.'
+        : 'Sign in again with `codex login` in Terminal.'
+      : a.kind === 'token'
+        ? 'Make a new token with `claude setup-token` and add it again.'
+        : 'Remove it and add it again to sign in afresh.'
+  const timeLeft = (until: number | null): string => {
+    if (!until) return ''
+    return `out until ${new Date(until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  }
+  const startAdd = (p: AgentProvider): void => {
+    setAdding(p)
+    setName('')
+    setToken('')
+    setError(null)
+  }
+  const add = async (): Promise<void> => {
+    if (!adding) return
+    setError(null)
+    try {
+      if (adding === 'claude') {
+        await window.cove.accountsAddClaude(name, token)
+      } else {
+        setBusy('Finish signing in in your browser…')
+        await window.cove.accountsAddCodex(name)
+      }
+      setAdding(null)
+      await refresh()
+    } catch (e) {
+      setError(
+        String((e as Error)?.message ?? e).replace(
+          /^Error invoking remote method '[^']*': (Error: )?/,
+          ''
+        )
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+  const remove = async (id: string): Promise<void> => {
+    await window.cove.accountsRemove(id)
+    await refresh()
+  }
+  const setMode = async (mode: 'ask' | 'auto'): Promise<void> => {
+    await window.cove.accountsSetMode(mode)
+    await refresh()
+  }
+  return (
+    <div className="settings-accounts">
+      <Row
+        title="Accounts"
+        desc="Add a second subscription and a chat can carry on when the first hits its limit. Each chat stays on one account at a time."
+      >
+        <span />
+      </Row>
+      {AGENT_PROVIDERS.map((p) => (
+        <div key={p} className="settings-accounts-provider">
+          <div className="settings-accounts-head">
+            <strong>{PROVIDER_LABEL[p]}</strong>
+            {adding !== p && (
+              <button className="settings-agent-btn ghost" onClick={() => startAdd(p)}>
+                Add account…
+              </button>
+            )}
+          </div>
+          <ul className="settings-accounts-list">
+            {(list?.[p] ?? []).map((a) => (
+              <li
+                key={a.id}
+                className={`settings-account ${a.limitedUntil ? 'limited' : ''} ${a.needsAuth ? 'needs-auth' : ''}`}
+              >
+                <span className="settings-account-who">
+                  <span className="settings-account-name">{a.name}</span>
+                  {(a.detail || a.needsAuth) && (
+                    <span className="settings-account-detail">
+                      {a.needsAuth ? `${a.needsAuth} — ${fixHint(a)}` : a.detail}
+                    </span>
+                  )}
+                </span>
+                <span className="settings-account-state">
+                  {a.needsAuth
+                    ? 'needs sign-in'
+                    : a.limitedUntil
+                      ? timeLeft(a.limitedUntil)
+                      : a.kind === 'login'
+                        ? 'signed in'
+                        : 'ready'}
+                </span>
+                {a.kind !== 'login' && (
+                  <button
+                    className="settings-account-remove"
+                    title="Remove this account"
+                    onClick={() => void remove(a.id)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {adding === p && (
+            <div className="settings-accounts-add">
+              {p === 'claude' ? (
+                <p className="settings-agent-hint">
+                  In Terminal, run <code>claude setup-token</code>, sign in with the other account,
+                  and paste the token it prints here.
+                </p>
+              ) : (
+                <p className="settings-agent-hint">
+                  Codex opens your browser to sign in; use the other account there.
+                </p>
+              )}
+              <input
+                className="settings-accounts-input"
+                placeholder="Name, e.g. Work"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
+              {p === 'claude' && (
+                <input
+                  className="settings-accounts-input"
+                  placeholder="sk-ant-oat01-…"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  spellCheck={false}
+                />
+              )}
+              {error && <p className="settings-accounts-error">{error}</p>}
+              <div className="settings-accounts-actions">
+                <button
+                  className="settings-agent-btn ghost"
+                  onClick={() => setAdding(null)}
+                  disabled={!!busy}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="settings-agent-btn"
+                  onClick={() => void add()}
+                  disabled={!!busy || (p === 'claude' && !token.trim())}
+                >
+                  {busy ?? (p === 'claude' ? 'Add' : 'Sign in…')}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+      <div className="settings-accounts-foot">
+        <button
+          className="settings-agent-btn ghost"
+          onClick={() => void refresh(true)}
+          disabled={checking}
+        >
+          {checking ? 'Checking…' : 'Re-check sign-ins'}
+        </button>
+      </div>
+      <Row
+        title="When an account hits its limit"
+        desc="Ask shows a card in the chat with the accounts that still have allowance. Automatic switches on its own and says so."
+      >
+        <div className="mode-switch">
+          {(['ask', 'auto'] as const).map((m) => (
+            <button
+              key={m}
+              className={`mode-switch-btn ${(list?.mode ?? 'ask') === m ? 'active' : ''}`}
+              onClick={() => void setMode(m)}
+            >
+              {m === 'ask' ? 'Ask' : 'Automatic'}
+            </button>
+          ))}
+        </div>
+      </Row>
+    </div>
+  )
+}
+
 function Row({
   title,
   desc,
@@ -512,6 +722,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                   ))}
                 </div>
               </Row>
+              <AccountsPanel />
               <div className="settings-agents-foot">
                 <button
                   className="settings-agent-btn ghost"

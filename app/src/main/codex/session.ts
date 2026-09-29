@@ -1,4 +1,5 @@
 import { browserFor, browserName } from '../external-browser'
+import { limitFromCodexRateLimits, limitFromEvent } from '../accounts'
 import { app } from 'electron'
 import { basename } from 'path'
 import os from 'os'
@@ -86,10 +87,10 @@ export function codexThreadOptions(opts: AgentStartOptions): CodexThreadOptions 
 
 export function startCodexSession(
   opts: AgentStartOptions,
-  _ctx: SessionContext,
+  ctx: SessionContext,
   host: SessionHost
 ): void {
-  const client = new CodexClient()
+  const client = new CodexClient({ ...process.env, ...ctx.env })
   const translator = new CodexTranslator()
   const threadOptions = codexThreadOptions(opts)
 
@@ -250,7 +251,15 @@ export function startCodexSession(
       return
     }
     if (method === 'turn/completed') activeTurn = null
-    for (const event of translator.handle(method, params)) host.event(event)
+    if (method === 'account/rateLimits/updated') {
+      const limit = limitFromCodexRateLimits(params)
+      if (limit) host.limit(limit.until)
+    }
+    for (const event of translator.handle(method, params)) {
+      const limit = limitFromEvent(event)
+      if (limit) host.limit(limit.until)
+      host.event(event)
+    }
     if (method === 'turn/completed') lifecycle('Stop')
   })
 

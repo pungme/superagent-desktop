@@ -68,7 +68,8 @@ function start(opts: Record<string, unknown>): Promise<Run> {
         },
         resumeLost: () => {
           run.resumeLost = true
-        }
+        },
+        limit: () => {}
       }
     )
   })

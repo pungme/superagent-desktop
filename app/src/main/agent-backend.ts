@@ -84,12 +84,22 @@ export interface SessionHost {
    * none of it, and the next message needs a recap.
    */
   resumeLost(): void
+  /**
+   * The CLI said its account is out of allowance, `until` epoch ms if it said
+   * when (null otherwise). The host decides whether the chat moves accounts.
+   */
+  limit(until: number | null): void
 }
 
 /** Everything a backend is given beyond the user's own options. */
 export interface SessionContext {
   /** Path to the MCP config file naming Superagent's own tool server. */
   mcpConfigPath?: string
+  /**
+   * Env additions that make the CLI run as the account this chat is on — a
+   * Claude token, a Codex home. Empty for the CLI's own login. See accounts.ts.
+   */
+  env?: Record<string, string>
 }
 
 /**

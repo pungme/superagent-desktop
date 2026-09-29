@@ -1,6 +1,12 @@
 import { HANDS_OFF_MESSAGE, isHandsOff } from './google-signin'
-import { WebContents, ipcMain } from 'electron'
-import { getPaneWebContents, paneLog, withoutStealingFocus, markAgentLoad } from './browser'
+import { BrowserWindow, WebContents, ipcMain } from 'electron'
+import {
+  ensureBackgroundPane,
+  getPaneWebContents,
+  paneLog,
+  withoutStealingFocus,
+  markAgentLoad
+} from './browser'
 import { broadcastToWindows, pushBounded, normalizeUrl } from './util'
 import { externalBrowserForPane, externalPage, ExternalPage } from './external-browser'
 
@@ -145,7 +151,18 @@ function wc(paneId: string, opts: Quiet = {}): WebContents {
   // The user is signing in to Google here: the agent waits (the phone's
   // mirror may still look).
   if (!opts.quiet && isHandsOff(paneId)) throw new Error(HANDS_OFF_MESSAGE)
-  const contents = getPaneWebContents(paneId)
+  let contents = getPaneWebContents(paneId)
+  // A chat driven from the phone, or one the Mac isn't showing, has no pane
+  // yet: the window's chat view is what normally makes one. Give it the same
+  // live-but-hidden pane the window adopts when the chat opens, instead of
+  // telling the agent the browser is closed.
+  if (!contents) {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win && !win.isDestroyed()) {
+      ensureBackgroundPane(win, paneId)
+      contents = getPaneWebContents(paneId)
+    }
+  }
   if (!contents) throw new Error(`No browser pane "${paneId}" — is the browser open?`)
   if (!opts.quiet) signalActivity(paneId)
   return contents

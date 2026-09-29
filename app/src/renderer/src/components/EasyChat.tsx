@@ -13,7 +13,7 @@ import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { useProjectBrowser } from '../hooks/useProjectBrowser'
-import type { BrowserChoice } from '../../../preload'
+import type { BrowserChoice, LimitNotice } from '../../../preload'
 import { ProviderLogo } from './ProviderLogo'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
@@ -1236,6 +1236,10 @@ export function EasyChat({
     readyRef.current = ready
   }, [ready])
   const [agentFailed, setAgentFailed] = useState<boolean | 'missing-cwd'>(false)
+  /** The account this chat was on ran dry: the card offering the switch. */
+  const [limitNotice, setLimitNotice] = useState<LimitNotice | null>(null)
+  /** Set when the notice lands ahead of the failed result, so that result's ⚠ note stays quiet. */
+  const limitPendingRef = useRef(false)
   /**
    * This chat's agent has been alive at least once.
    *
@@ -2905,6 +2909,13 @@ export function EasyChat({
           setThinking(true)
           return
         }
+        // Out of allowance: the limit card says so and offers the switch; the
+        // generic ⚠ note would only repeat it.
+        if (limitPendingRef.current) {
+          limitPendingRef.current = false
+          streamedThisTurnRef.current = false
+          return
+        }
         if (isError || !streamedThisTurnRef.current) {
           // If the CLI wrote a real reason to stderr this turn — an org-access or
           // auth problem, a bad key — that's exactly what the user needs to see,
@@ -4119,6 +4130,61 @@ export function EasyChat({
     setThinking(false)
     setResetKey((k) => k + 1)
   }
+  /**
+   * Carry on as another account: pin the chat to it, restart the agent (it
+   * resumes the same session, now with that account's login) and send the
+   * message that ran into the limit again, once the new process is up.
+   */
+  const switchAccount = (accountId: string): void => {
+    setLimitNotice(null)
+    limitPendingRef.current = false
+    void window.cove.accountsSwitch(chatId, accountId)
+    const again = inFlightSendRef.current
+    if (again) {
+      pendingSendsRef.current.push({
+        text: again.text,
+        images: again.images,
+        replyTo: again.replyTo
+      })
+      setGenerating(true)
+      setThinking(true)
+    }
+    applyRespawn()
+  }
+  const switchAccountRef = useRef(switchAccount)
+  switchAccountRef.current = switchAccount
+  useEffect(() => {
+    return window.cove.onAccountsLimit?.((n) => {
+      if (n.chatId !== chatId) return
+      limitPendingRef.current = true
+      const to = n.switchedTo
+      if (to) {
+        // Auto mode: main already moved the chat; say so and carry on.
+        const when = n.until
+          ? ` until ${new Date(n.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+          : ''
+        setItems((prev) => [
+          ...prev,
+          {
+            kind: 'msg',
+            msg: {
+              id: `sys-limit-${Date.now()}`,
+              at: Date.now(),
+              role: 'assistant',
+              text: `↻ ${n.account.name} is out of allowance${when} — continuing on ${to.name}.`,
+              system: true
+            }
+          }
+        ])
+        // The failed result may still be on its way; let it pass quietly.
+        setTimeout(() => switchAccountRef.current(to.id), 300)
+        return
+      }
+      setLimitNotice(n)
+      setGenerating(false)
+      setThinking(false)
+    })
+  }, [chatId])
   const pickModel = (value: string): void => {
     if (value !== effectiveModel) {
       setChatModel(value)
@@ -4386,6 +4452,37 @@ export function EasyChat({
           login, a two-factor code — and waits for you to do it. Same place and
           plumbing as a permission ask (sidebar "Needs you", the phone), with
           Done / Skip instead of Approve / Deny. */}
+      {limitNotice && (
+        <div className="easy-guard easy-limit" role="alertdialog" aria-modal="false">
+          <div className="easy-guard-head">
+            <span className="easy-guard-shield" aria-hidden>
+              ⏳
+            </span>
+            <strong>
+              {limitNotice.account.name} is out of allowance
+              {limitNotice.until
+                ? ` until ${new Date(limitNotice.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                : ''}
+            </strong>
+          </div>
+          <p className="easy-handoff-what">
+            {limitNotice.alternatives.length
+              ? 'Carry on with another account? The conversation continues where it is.'
+              : `Every ${limitNotice.provider === 'codex' ? 'Codex' : 'Claude'} account you've added is out. Add one under Settings → Agents, or wait for the reset.`}
+          </p>
+          <div className="easy-guard-actions">
+            <button className="easy-guard-deny" onClick={() => setLimitNotice(null)}>
+              Wait
+            </button>
+            <div className="easy-guard-spacer" />
+            {limitNotice.alternatives.slice(0, 3).map((a) => (
+              <button key={a.id} className="easy-guard-trust" onClick={() => switchAccount(a.id)}>
+                Switch to {a.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {myGuardrailAsk?.kind === 'handoff' && (
         <div className="easy-guard easy-handoff" role="alertdialog" aria-modal="false">
           <div className="easy-guard-head">

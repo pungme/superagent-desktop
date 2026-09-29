@@ -8,6 +8,7 @@ import { buildAppendedPrompt } from '../prompts'
 import { findClaude } from '../claude-cli'
 import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import { cachedClaudeModels } from './models'
+import { limitFromEvent } from '../accounts'
 import type { AgentBackend, AgentStartOptions, SessionContext, SessionHost } from '../agent-backend'
 
 /**
@@ -172,6 +173,7 @@ export function startClaudeSession(
       cwd: opts.cwd || os.homedir(),
       env: {
         ...process.env,
+        ...ctx.env,
         COVE_HOOK_URL: getHookUrl(),
         COVE_MCP_URL: getMcpUrl(),
         ...(opts.workspaceId ? { COVE_WORKSPACE_ID: opts.workspaceId } : {})
@@ -207,6 +209,10 @@ export function startClaudeSession(
             const models = cachedClaudeModels()
             if (models && !event.models) event.models = models
           }
+          // Out of allowance: the CLI says so (with the reset time) before the
+          // failed result lands.
+          const limit = limitFromEvent(event)
+          if (limit) host.limit(limit.until)
           host.event(event)
         } catch {
           // partial or non-JSON line; ignore

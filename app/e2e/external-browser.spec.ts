@@ -170,6 +170,16 @@ test("the agent moves to the user's browser by itself, and back", async () => {
   expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('builtin')
 })
 
+test('a chat the Mac is not showing still gets a browser when its agent asks', async () => {
+  // Driven from the phone, a chat's agent can run before the window has ever
+  // shown it — so nothing has made its pane. The tool used to answer "No
+  // browser pane … is the browser open?"; it should make one and carry on.
+  const other = await window.evaluate((id) => window.cove.chatCreate(id), wsId)
+  const answer = await tool('browser_navigate', { url: siteUrl }, other)
+  expect(answer).not.toContain('No browser pane')
+  expect(answer).toMatch(/Shop|127\.0\.0\.1/)
+})
+
 test('picking Brave launches it with its own profile', async () => {
   const res = await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
   expect(res.ok).toBe(true)

@@ -9,6 +9,14 @@ import { writeWorkspaceMcpConfig } from './mcp'
 import { loadChatItems, getChatProvider, setChatSession } from './store'
 import type { LegacyItem } from './transcript'
 import { startClaudeSession, suggestTitleWithClaude } from './claude/session'
+import {
+  accountEnv,
+  accountForChat,
+  authFailureFrom,
+  authFailureFromEvent,
+  markAuth,
+  reportLimit
+} from './accounts'
 import { startCodexSession, suggestTitleWithCodex } from './codex/session'
 import type {
   AgentBackend,
@@ -285,6 +293,10 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   }
 
   const provider = opts.provider ?? (opts.chatId ? safeChatProvider(opts.chatId) : DEFAULT_PROVIDER)
+  // Which subscription this run is on. The chat's own pick when it still has
+  // allowance, else the first that does; the CLI's own login by default.
+  const account = accountForChat(provider, opts.chatId)
+  let limitReported = false
 
   const host: SessionHost = {
     ready(backend) {
@@ -309,6 +321,8 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
       const session = sessions.get(id)
       if (event?.type === 'system' && event?.subtype === 'init') {
         if (session) session.lastInit = event
+        // The CLI took this account's credentials: whatever it refused before is over.
+        markAuth(account.id, null)
         // Stamp the backend onto the chat alongside the session id it just
         // issued: a Codex thread id resumed with `claude --resume` finds
         // nothing, and the conversation silently starts over.
@@ -321,11 +335,15 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
           }
         }
       }
+      const refused = authFailureFromEvent(event)
+      if (refused) markAuth(account.id, refused)
       agentBus.emit('event', { ...meta, event })
       const o = session?.owner
       if (o && !o.isDestroyed()) o.send(`agent:event:${id}`, event)
     },
     stderr(text) {
+      const refused = authFailureFrom(text)
+      if (refused) markAuth(account.id, refused)
       agentBus.emit('stderr', { ...meta, text })
       const o = sessions.get(id)?.owner
       if (o && !o.isDestroyed()) o.send(`agent:stderr:${id}`, text)
@@ -341,10 +359,17 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
     },
     resumeLost() {
       notifyResumeLost(sessions.get(id)?.owner ?? owner, meta)
+    },
+    limit(until) {
+      // Once per process: the CLI repeats itself (event, then the result), and
+      // a second notice would offer the switch twice.
+      if (limitReported || !opts.chatId) return
+      limitReported = true
+      reportLimit(opts.chatId, provider, account.id, until)
     }
   }
 
-  const ctx: SessionContext = { mcpConfigPath: mcpConfig }
+  const ctx: SessionContext = { mcpConfigPath: mcpConfig, env: accountEnv(account.id) }
   // The one place the two backends meet. Below this line nothing is shared:
   // each starter owns its own process, its own wire format and its own retry.
   if (provider === 'codex') startCodexSession(opts, ctx, host)

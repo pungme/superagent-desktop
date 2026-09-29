@@ -1,6 +1,28 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
+/** One subscription an agent can run on (main/accounts.ts). */
+export interface Account {
+  id: string
+  provider: 'claude' | 'codex'
+  name: string
+  kind: 'login' | 'token' | 'home'
+  limitedUntil: number | null
+  detail: string
+  needsAuth: string | null
+}
+
+/** An account ran dry mid-chat; what the window may do about it. */
+export interface LimitNotice {
+  chatId: string
+  provider: 'claude' | 'codex'
+  account: { id: string; name: string }
+  until: number | null
+  alternatives: { id: string; name: string }[]
+  switchedTo: { id: string; name: string } | null
+  mode: 'ask' | 'auto'
+}
+
 export interface BrowserState {
   url: string
   title: string
@@ -683,6 +705,18 @@ export interface CoveApi {
   browsersSignInDone: () => Promise<boolean>
   /** Settings → Reset Superagent: wipe projects, chats and the rest, then restart. */
   resetApp: () => Promise<{ ok: boolean }>
+  /** Settings → Accounts: more than one subscription per agent (see main/accounts.ts). */
+  accountsList: (
+    recheck?: boolean
+  ) => Promise<{ claude: Account[]; codex: Account[]; mode: 'ask' | 'auto' }>
+  onAccountsChanged: (cb: () => void) => () => void
+  accountsAddClaude: (name: string, token: string) => Promise<Account>
+  accountsAddCodex: (name: string) => Promise<Account>
+  accountsRemove: (id: string) => Promise<void>
+  accountsSetMode: (mode: 'ask' | 'auto') => Promise<void>
+  /** Move a chat onto an account; takes effect when its agent next starts. */
+  accountsSwitch: (chatId: string, id: string) => Promise<void>
+  onAccountsLimit: (cb: (n: LimitNotice) => void) => () => void
   onBrowsersSigningIn: (
     cb: (s: { name: string; on: boolean; signedIn?: boolean }) => void
   ) => () => void
@@ -1086,6 +1120,14 @@ const cove: CoveApi = {
   browsersSignIn: (id) => ipcRenderer.invoke('browsers:sign-in', id),
   browsersSignInDone: () => ipcRenderer.invoke('browsers:sign-in-done'),
   resetApp: () => ipcRenderer.invoke('app:reset'),
+  accountsList: (recheck) => ipcRenderer.invoke('accounts:list', recheck),
+  onAccountsChanged: (cb) => subscribe('accounts:changed', () => cb()),
+  accountsAddClaude: (name, token) => ipcRenderer.invoke('accounts:add-claude', name, token),
+  accountsAddCodex: (name) => ipcRenderer.invoke('accounts:add-codex', name),
+  accountsRemove: (id) => ipcRenderer.invoke('accounts:remove', id),
+  accountsSetMode: (mode) => ipcRenderer.invoke('accounts:set-mode', mode),
+  accountsSwitch: (chatId, id) => ipcRenderer.invoke('accounts:switch', chatId, id),
+  onAccountsLimit: (cb) => subscribe('accounts:limit', (n) => cb(n as LimitNotice)),
   onBrowserHandsOff: (cb) =>
     subscribe('browser:hands-off', (s) => cb(s as Parameters<typeof cb>[0])),
   onBrowsersSigningIn: (cb) =>
