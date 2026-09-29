@@ -156,6 +156,27 @@ test("the folder's own chat lives on the project row, not in the list", async ()
   expect(listed.length).toBeGreaterThan(0)
 })
 
+test('a narrow sidebar keeps the project name whole and drops the branch chip', async () => {
+  const row = window.locator('.sidebar-item:has-text("e2e-project")').first()
+  const nameCut = (): Promise<boolean> =>
+    row.locator('.sidebar-item-name').evaluate((el) => el.scrollWidth > el.clientWidth + 1)
+  const setWidth = (w: number): Promise<void> =>
+    window.evaluate(
+      (px) => document.documentElement.style.setProperty('--sidebar-width', `${px}px`),
+      w
+    )
+  // Wide: the name and its branch both show.
+  await setWidth(360)
+  await expect(row.locator('.sidebar-item-branch')).toBeVisible()
+  expect(await nameCut()).toBe(false)
+  // Narrow: the name wins; the branch steps out (it's in the name's tooltip).
+  await setWidth(200)
+  await expect(row.locator('.sidebar-item-branch')).toBeHidden()
+  expect(await nameCut()).toBe(false)
+  expect(await row.locator('.sidebar-item-name').getAttribute('title')).toContain('⎇ main')
+  await window.evaluate(() => document.documentElement.style.removeProperty('--sidebar-width'))
+})
+
 test('the auto-named branch carries no superagent/ prefix', async () => {
   const branches = git(['branch', '--list'])
   expect(branches).not.toContain('superagent/')

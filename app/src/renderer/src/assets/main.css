@@ -658,7 +658,10 @@ button {
 }
 
 .sidebar-item-name {
-  flex: 1;
+  /* The name comes first: it claims its own width before the branch chip and
+     the ↑/↓ counts do (they give way, then hide — see below). */
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 13.5px;
   font-weight: 500;
   white-space: nowrap;
@@ -12088,4 +12091,16 @@ button {
 /* In Chats the sidebar is the list; the conversation takes the whole page. */
 .dchat.no-list .dchat-list {
   display: none;
+}
+
+/* A project row too narrow for its name and its git details: the name wins,
+   and the branch chip and ↑/↓ counts step out (the name's tooltip has them). */
+.sidebar-item {
+  container-type: inline-size;
+}
+@container (max-width: 200px) {
+  .sidebar-item-branch,
+  .sidebar-item-git {
+    display: none;
+  }
 }

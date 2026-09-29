@@ -815,7 +815,17 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
         </span>
         {/* Not editable: the name mirrors the folder, and renaming here changed
             only the label — which read as if it would move or rename the folder. */}
-        <span className="sidebar-item-name" title={ws.path}>
+        <span
+          className="sidebar-item-name"
+          title={[
+            ws.path,
+            selfBranch && `⎇ ${selfBranch}`,
+            aheadBehind?.behind ? `↓${aheadBehind.behind} to pull` : '',
+            aheadBehind?.ahead ? `↑${aheadBehind.ahead} to push` : ''
+          ]
+            .filter(Boolean)
+            .join('\n')}
+        >
           {displayName}
         </span>
         {simHere && (
