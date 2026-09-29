@@ -157,7 +157,12 @@ const SIMULATOR_PROMPT =
   'Simulator app by name.\n' +
   '2. Build, install and launch onto the device the pane is showing — sim_list_devices ' +
   'marks it. If you run simctl directly, pass that UDID rather than the word `booted`, ' +
-  'which picks an arbitrary device when several are running.'
+  'which picks an arbitrary device when several are running.\n' +
+  '3. A foldable (iPhone Duo) cannot be folded or unfolded from here: no simctl command, ' +
+  'tool or display setting does it (turning a screen off with `simctl io … screenConfig` ' +
+  'only blacks it out). When the task needs the other posture, ask the user to fold or ' +
+  "unfold it with the hinge slider in Xcode's Device Hub, then carry on — the pane and " +
+  'sim_screen follow whichever screen is in use.'
 
 // The desktop chat is not a project's agent: it is the computer's own, and the
 // computer is the thing it is being asked about.

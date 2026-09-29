@@ -795,6 +795,48 @@ export function orientationFrom(raw: number[], up: number[], w = 24, h = 34): 'l
   return cw <= ccw ? 'left' : 'right'
 }
 
+/**
+ * Xcode's Device Hub, when there is no Simulator app (Xcode 27 on). Several
+ * Xcodes can each carry one; the newest wins. Null where Simulator.app exists.
+ */
+export async function deviceHubPath(): Promise<string | null> {
+  try {
+    await run('open', ['-Ra', 'Simulator'], { timeout: 5000 })
+    return null
+  } catch {
+    // no Simulator app: look for Device Hub
+  }
+  try {
+    const { stdout } = await run(
+      'mdfind',
+      ["kMDItemCFBundleIdentifier == 'com.apple.dt.Devices'"],
+      { timeout: 10_000 }
+    )
+    const hubs = stdout.split('\n').filter((p) => p.endsWith('.app') && existsSync(p))
+    if (!hubs.length) return null
+    const version = (hub: string): number[] => {
+      const xcode = hub.replace(/\/Contents\/Applications\/[^/]+\.app$/, '')
+      try {
+        const plist = readFileSync(join(xcode, 'Contents', 'Info.plist'), 'utf8')
+        const v =
+          /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)</.exec(plist)?.[1] ?? '0'
+        return v.split('.').map(Number)
+      } catch {
+        return [0]
+      }
+    }
+    return hubs.sort((a, b) => {
+      const va = version(a)
+      const vb = version(b)
+      for (let i = 0; i < Math.max(va.length, vb.length); i++)
+        if ((va[i] ?? 0) !== (vb[i] ?? 0)) return (vb[i] ?? 0) - (va[i] ?? 0)
+      return 0
+    })[0]
+  } catch {
+    return null
+  }
+}
+
 /** simfb's exit code when a multi-screen device changed which screen is lit. */
 const SCREEN_SWITCHED = 4
 
@@ -1167,6 +1209,15 @@ export function registerSimulatorIpc(): void {
     simulatorWindowAllowed = true
     // Boot first, or Simulator comes up on "No devices" — ignore "already booted".
     await run('xcrun', ['simctl', 'boot', udid], { timeout: 30_000 }).catch(() => {})
+    // Xcode 27 has no Simulator app: Device Hub replaced it, and `open -a
+    // Simulator` fails outright — so this button opened nothing. Open Device
+    // Hub instead (the newest Xcode's: the one whose runtime a new device like
+    // the iPhone Duo needs, and whose hinge slider folds it).
+    const hub = await deviceHubPath()
+    if (hub) {
+      await run('open', ['-a', hub], { timeout: 20_000 }).catch(() => {})
+      return true
+    }
     // Launch (or focus) Apple's Simulator pointed at this device. --args only
     // takes on a cold launch, but a warm Simulator still gets activated below.
     await run('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', udid], {
