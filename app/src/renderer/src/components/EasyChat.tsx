@@ -1566,8 +1566,36 @@ export function EasyChat({
   const resolveGuardrailAsk = useStore((s) => s.resolveGuardrailAsk)
   const myGuardrailAsk = guardrailAsks.find((a) => a.sessionId === chatId)
   // Same reason as the lightbox: the native browser view paints above all
-  // HTML, so without this the one thing you must answer can hide under it.
-  useOverlayLock(!!myGuardrailAsk && visible)
+  // HTML, so a card under it would be hidden. But the lock freezes the page
+  // into a still picture, and the card normally sits in the chat column BESIDE
+  // the browser — locking always froze the browser for as long as the agent
+  // waited, including when what it waited for was you, in that browser
+  // ("The agent needs you": a login, a captcha). Lock only when the card is
+  // actually under a browser pane.
+  const guardRef = useRef<HTMLDivElement>(null)
+  const [guardCovered, setGuardCovered] = useState(false)
+  useLayoutEffect(() => {
+    if (!myGuardrailAsk || !visible) return
+    const measure = (): void => {
+      const card = guardRef.current?.getBoundingClientRect()
+      if (!card) return
+      const under = [...document.querySelectorAll('[data-pane-id]')].some((el) => {
+        const r = el.getBoundingClientRect()
+        if (!r.width || !r.height) return false
+        return !(
+          r.right <= card.left ||
+          r.left >= card.right ||
+          r.bottom <= card.top ||
+          r.top >= card.bottom
+        )
+      })
+      setGuardCovered(under)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [myGuardrailAsk, visible])
+  useOverlayLock(!!myGuardrailAsk && visible && guardCovered)
   // WhatsApp-style quote-reply: the message the next send will reply to.
   const [replyTarget, setReplyTarget] = useState<{
     role: 'user' | 'assistant'
@@ -4595,7 +4623,12 @@ export function EasyChat({
         </div>
       )}
       {myGuardrailAsk?.kind === 'handoff' && (
-        <div className="easy-guard easy-handoff" role="alertdialog" aria-modal="false">
+        <div
+          ref={guardRef}
+          className="easy-guard easy-handoff"
+          role="alertdialog"
+          aria-modal="false"
+        >
           <div className="easy-guard-head">
             <span className="easy-guard-shield" aria-hidden>
               ✋
@@ -4629,7 +4662,7 @@ export function EasyChat({
         </div>
       )}
       {myGuardrailAsk && myGuardrailAsk.kind !== 'handoff' && (
-        <div className="easy-guard" role="alertdialog" aria-modal="false">
+        <div ref={guardRef} className="easy-guard" role="alertdialog" aria-modal="false">
           <div className="easy-guard-head">
             <span className="easy-guard-shield" aria-hidden>
               🛡️

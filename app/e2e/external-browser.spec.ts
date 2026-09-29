@@ -180,6 +180,26 @@ test('a chat the Mac is not showing still gets a browser when its agent asks', a
   expect(answer).toMatch(/Shop|127\.0\.0\.1/)
 })
 
+test('the browser stays live while the agent waits for you', async () => {
+  // The waiting card sits in the chat column beside the browser. It used to
+  // freeze the browser into a still picture for as long as the agent waited —
+  // including when what it waited for was you, in that browser.
+  await tool('browser_navigate', { url: siteUrl })
+  const attached = (): Promise<number> =>
+    app.evaluate(
+      ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.length
+    )
+  await expect.poll(attached, { timeout: 10_000 }).toBeGreaterThan(0)
+  const before = await attached()
+  const pending = tool('browser_ask_user', { what: 'Log in on the page, then press Done.' })
+  const card = window.locator('.easy-handoff:visible')
+  await expect(card).toContainText('Log in on the page')
+  await window.waitForTimeout(800)
+  expect(await attached()).toBe(before)
+  await card.getByRole('button', { name: 'Done' }).click()
+  await pending
+})
+
 test('picking Brave launches it with its own profile', async () => {
   const res = await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
   expect(res.ok).toBe(true)
