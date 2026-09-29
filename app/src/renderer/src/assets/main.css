@@ -12233,3 +12233,81 @@ button {
 .easy-control-menu.easy-control-menu-wide {
   min-width: 320px;
 }
+
+/* A screenshot just taken, offered above the composer: thumbnails, Attach, ×. */
+.easy-shots {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px var(--shadow);
+  font-size: 12.5px;
+}
+.easy-shots-thumbs {
+  display: flex;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-top: 5px; /* room for the × that sits on a thumbnail's corner */
+}
+.easy-shots-thumbs::-webkit-scrollbar {
+  display: none;
+}
+.easy-shot {
+  position: relative;
+  flex: 0 0 auto;
+}
+.easy-shot img {
+  display: block;
+  height: 40px;
+  max-width: 72px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.easy-shot-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.easy-shot:hover .easy-shot-remove {
+  opacity: 1;
+}
+.easy-shots-text {
+  flex: 1 1 auto;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.easy-shots-attach {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.easy-shots-dismiss {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 15px;
+  cursor: pointer;
+}

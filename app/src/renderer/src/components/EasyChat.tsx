@@ -61,6 +61,10 @@ interface ChatMessage {
   tokens?: number
 }
 
+/** A screenshot suggestion lasts this long, and holds at most this many. */
+const SHOT_TTL_MS = 5 * 60_000
+const SHOTS_MAX = 6
+
 interface PendingImage {
   mediaType: string
   data: string // base64 (no data-URL prefix)
@@ -1363,6 +1367,12 @@ export function EasyChat({
   // narrow chat column; below this width only the short form fits on one line.
   const [narrowComposer, setNarrowComposer] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  /**
+   * Screenshots taken since you last looked, offered above the composer. Only
+   * the chat on screen collects them; several stack into one suggestion, and
+   * they go stale after a few minutes rather than hanging about.
+   */
+  const [shots, setShots] = useState<(PendingImage & { name: string; at: number })[]>([])
   // Non-image files dropped on the chat — shown as chips, sent as paths.
   const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
   // "Send when it's done": messages the user chose (by holding Send) to hold
@@ -1925,6 +1935,37 @@ export function EasyChat({
       setPendingImages((prev) => [...prev, { mediaType: file.type, data, url }])
     }
     reader.readAsDataURL(file)
+  }
+
+  useEffect(() => {
+    if (!isActive || !visible) return
+    return window.cove.onScreenshot?.((s) => {
+      setShots((prev) =>
+        prev.some((p) => p.name === s.name)
+          ? prev
+          : [
+              ...prev.filter((p) => Date.now() - p.at < SHOT_TTL_MS),
+              { ...s, url: `data:${s.mediaType};base64,${s.data}` }
+            ].slice(-SHOTS_MAX)
+      )
+    })
+  }, [isActive, visible])
+  // Stale ones go on their own.
+  useEffect(() => {
+    if (!shots.length) return
+    const t = setTimeout(
+      () => setShots((prev) => prev.filter((p) => Date.now() - p.at < SHOT_TTL_MS)),
+      SHOT_TTL_MS
+    )
+    return () => clearTimeout(t)
+  }, [shots])
+  const attachShots = (which: typeof shots): void => {
+    setPendingImages((prev) => [
+      ...prev,
+      ...which.map((s) => ({ mediaType: s.mediaType, data: s.data, url: s.url }))
+    ])
+    setShots((prev) => prev.filter((p) => !which.includes(p)))
+    inputRef.current?.focus()
   }
 
   // Cmd+V an image anywhere in the active chat (not only when the input is
@@ -4662,8 +4703,41 @@ export function EasyChat({
       )}
       {/* In the layout, not floating over it: the chip used to cover the last
           message and the "Working" line. The conversation gives up the room. */}
-      {(queued.length > 0 || replyTarget) && (
+      {(queued.length > 0 || replyTarget || shots.length > 0) && (
         <div className="easy-above-input">
+          {shots.length > 0 && (
+            <div className="easy-shots" role="group" aria-label="Screenshot suggestion">
+              <div className="easy-shots-thumbs">
+                {shots.map((s) => (
+                  <div key={s.name} className="easy-shot" title={s.name}>
+                    <img src={s.url} alt={s.name} onClick={() => attachShots([s])} />
+                    <button
+                      className="easy-shot-remove"
+                      title="Not this one"
+                      aria-label="Not this one"
+                      onClick={() => setShots((prev) => prev.filter((p) => p !== s))}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <span className="easy-shots-text">
+                {shots.length === 1 ? 'Screenshot just taken' : `${shots.length} screenshots`}
+              </span>
+              <button className="easy-shots-attach" onClick={() => attachShots(shots)}>
+                {shots.length === 1 ? 'Attach' : 'Attach all'}
+              </button>
+              <button
+                className="easy-shots-dismiss"
+                title="Dismiss"
+                aria-label="Dismiss"
+                onClick={() => setShots([])}
+              >
+                ×
+              </button>
+            </div>
+          )}
           {queued.length > 0 && (
             <div className="easy-queued">
               {queued.map((m) => (

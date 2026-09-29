@@ -718,6 +718,10 @@ export interface CoveApi {
   accountsSwitch: (chatId: string, id: string) => Promise<void>
   onAccountsLimit: (cb: (n: LimitNotice) => void) => () => void
   /** One model's allowance is used up: move this chat to the next one down. */
+  /** A screenshot macOS just saved, to offer above the composer. */
+  onScreenshot: (
+    cb: (s: { path: string; name: string; mediaType: string; data: string; at: number }) => void
+  ) => () => void
   onModelLimit: (
     cb: (n: { chatId: string; model: string; fallback: string; until: number }) => void
   ) => () => void
@@ -1132,6 +1136,7 @@ const cove: CoveApi = {
   accountsSetMode: (mode) => ipcRenderer.invoke('accounts:set-mode', mode),
   accountsSwitch: (chatId, id) => ipcRenderer.invoke('accounts:switch', chatId, id),
   onAccountsLimit: (cb) => subscribe('accounts:limit', (n) => cb(n as LimitNotice)),
+  onScreenshot: (cb) => subscribe('screenshots:new', (s) => cb(s as Parameters<typeof cb>[0])),
   onModelLimit: (cb) => subscribe('accounts:model-limit', (n) => cb(n as Parameters<typeof cb>[0])),
   onBrowserHandsOff: (cb) =>
     subscribe('browser:hands-off', (s) => cb(s as Parameters<typeof cb>[0])),

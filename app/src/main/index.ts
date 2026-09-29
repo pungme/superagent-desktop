@@ -68,6 +68,7 @@ import { registerExternalBrowserIpc, closeExternalBrowsers, finishSignIn } from 
 import { registerSignInsIpc } from './sign-ins'
 import { registerResetIpc } from './reset'
 import { registerAccountsIpc } from './accounts'
+import { watchScreenshots } from './screenshots'
 import { signInBus } from './google-signin'
 import { registerFilesIpc } from './files'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
@@ -287,6 +288,7 @@ app.whenReady().then(async () => {
   registerSignInsIpc()
   registerResetIpc()
   registerAccountsIpc()
+  void watchScreenshots()
   registerFilesIpc()
   registerSimulatorIpc()
   buildMenu()
