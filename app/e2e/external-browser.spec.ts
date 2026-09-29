@@ -173,6 +173,12 @@ test("the agent moves to the user's browser by itself, and back", async () => {
 test('picking Brave launches it with its own profile', async () => {
   const res = await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
   expect(res.ok).toBe(true)
+  // Shown right away: the pane streams Brave's own tab before the agent has
+  // done anything, instead of "Waiting for the agent to open a page".
+  const browserBtn = window.locator('.workspace-toolbar:visible .toolbar-btn:has-text("Browser")')
+  if ((await browserBtn.getAttribute('title')) !== 'Hide the browser') await browserBtn.click()
+  await expect(window.locator('.external-pane-view img')).toBeVisible({ timeout: 15_000 })
+  await expect(window.locator('.external-pane-url')).not.toContainText('Waiting for the agent')
   expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('brave')
   // Its profile is Superagent's, under the app's data folder — never the user's own.
   expect(existsSync(join(userDataDir, 'browsers', 'brave'))).toBe(true)

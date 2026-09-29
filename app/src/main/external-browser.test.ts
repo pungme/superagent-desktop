@@ -33,13 +33,40 @@ import {
   closeExternalTab,
   stopBrowser,
   closeExternalBrowsers,
-  windowCount
+  windowCount,
+  BrowserConnection
 } from './external-browser'
 
 const BRAVE = '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
 const haveBrave = existsSync(BRAVE)
 
 beforeEach(() => kv.clear())
+
+describe('talking to the browser', () => {
+  it("gives up on a command the browser never answers, instead of hanging the agent's step", async () => {
+    vi.useFakeTimers()
+    try {
+      // A browser that reads commands and never replies.
+      const { PassThrough } = await import('stream')
+      const { EventEmitter } = await import('events')
+      const proc = Object.assign(new EventEmitter(), {
+        stdio: [null, null, null, new PassThrough(), new PassThrough()]
+      })
+      const conn = new BrowserConnection(proc as never)
+      const pending = conn.send('Page.navigate', { url: 'https://example.com' })
+      const settled = pending.then(
+        () => 'answered',
+        (e: Error) => e.message
+      )
+      await vi.advanceTimersByTimeAsync(29_000)
+      expect(await Promise.race([settled, Promise.resolve('still waiting')])).toBe('still waiting')
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(await settled).toMatch(/didn't answer \(Page\.navigate\)/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
 
 describe('seeing the sign-in window close', () => {
   it("counts a process's real windows from the system list, and none for one without", async () => {

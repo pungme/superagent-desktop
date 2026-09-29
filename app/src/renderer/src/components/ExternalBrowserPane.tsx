@@ -61,7 +61,7 @@ export function ExternalBrowserPane({
           <span className="external-pane-badge">{browserName}</span>
         </span>
         <span className="external-pane-url" title={url}>
-          {url && url !== 'about:blank' ? url : 'Waiting for the agent to open a page'}
+          {!url ? 'Waiting for the agent to open a page' : url === 'about:blank' ? 'New tab' : url}
         </span>
         <button className="external-pane-btn" onClick={() => void window.cove.browsersShow(paneId)}>
           Open window

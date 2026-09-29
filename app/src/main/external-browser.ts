@@ -175,6 +175,10 @@ export async function switchBrowser(
   if (id === 'builtin' || !opts.open) return { ok: true }
   try {
     await ensureRunning(id)
+    // The project's panes were already showing (and waiting) when the browser
+    // came up: fill them now.
+    for (const paneId of watchers.keys())
+      if (workspaceIdFromPane(paneId) === workspaceId) void adoptTab(paneId).catch(() => undefined)
     await showBrowserWindow(id)
     return { ok: true }
   } catch (err) {
@@ -209,8 +213,11 @@ export function externalBrowserForPane(paneId: string): BrowserId | null {
 
 type Listener = (method: string, params: Record<string, unknown>, sessionId?: string) => void
 
+/** How long any one command to the browser may take before it counts as lost. */
+const CDP_TIMEOUT_MS = 30_000
+
 /** One running browser, spoken to over its pipe (NUL-delimited JSON, CDP). */
-class BrowserConnection {
+export class BrowserConnection {
   private seq = 0
   private buf = ''
   private waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
@@ -269,7 +276,23 @@ class BrowserConnection {
     if (this.closed) return Promise.reject(new Error('The browser closed.'))
     const id = ++this.seq
     return new Promise<T>((resolve, reject) => {
-      this.waiting.set(id, { resolve: resolve as (v: unknown) => void, reject })
+      // Never wait for ever: a browser busy starting up or restoring its tabs
+      // can leave a command unanswered, and the agent's step hung with it
+      // ("Working 182s" and counting). An error it can retry instead.
+      const timer = setTimeout(() => {
+        if (!this.waiting.delete(id)) return
+        reject(new Error(`The browser didn't answer (${method}). Try the step again.`))
+      }, CDP_TIMEOUT_MS)
+      this.waiting.set(id, {
+        resolve: (v) => {
+          clearTimeout(timer)
+          ;(resolve as (v: unknown) => void)(v)
+        },
+        reject: (e) => {
+          clearTimeout(timer)
+          reject(e)
+        }
+      })
       ;(this.proc.stdio[3] as Writable).write(
         JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0'
       )
@@ -510,6 +533,14 @@ export async function ensureRunning(id: BrowserId): Promise<BrowserConnection> {
     bin,
     [
       '--remote-debugging-pipe',
+      // Keep drawing when the window is covered or the tab is in the
+      // background. A browser stops painting what it thinks nobody can see —
+      // Brave behind Superagent's own window — and then a screenshot or the
+      // pane's live view waits for a frame that never comes: the agent's step
+      // hung ("Working 511s"). The flags every automation tool starts with.
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-background-timer-throttling',
       // Quiet tests: the same browser, with no window on the user's screen.
       ...(process.env.COVE_E2E_QUIET === '1' ? ['--headless=new'] : []),
       `--user-data-dir=${profile}`,
@@ -840,6 +871,34 @@ export async function externalTabs(paneId: string, id: BrowserId): Promise<Exter
   }))
 }
 
+/**
+ * A pane shown with no tab of its own yet: give it the browser's newest tab
+ * that no other chat is using (or a new one), so the pane streams at once.
+ * Only when the browser is already running — showing a project never launches
+ * it on its own; picking it, or the agent's first step, does.
+ */
+async function adoptTab(paneId: string): Promise<ExternalPage | null> {
+  const id = externalBrowserForPane(paneId)
+  if (!id) return null
+  const conn = running.get(id)
+  if (!conn || conn.closed || signingIn.has(id)) return null
+  if (existingExternalPage(paneId)) return null
+  const taken = new Set([...pages.values()].filter((p) => !p.session.closed).map((p) => p.targetId))
+  const { targetInfos } = await conn.send<{
+    targetInfos: { targetId: string; type: string; url: string }[]
+  }>('Target.getTargets')
+  const open = targetInfos.filter(
+    (t) =>
+      t.type === 'page' && !/^(devtools|chrome-extension):/.test(t.url) && !taken.has(t.targetId)
+  )
+  // The newest, by the order this browser opened them (see watchTabs).
+  const order = [...conn.tabs.keys()]
+  const newest =
+    [...open].sort((a, b) => order.indexOf(b.targetId) - order.indexOf(a.targetId))[0] ?? null
+  if (existingExternalPage(paneId)) return null
+  return newest ? attach(paneId, id, conn, newest.targetId) : externalPage(paneId, id)
+}
+
 /** Move a pane's tools to another tab. The tab they leave stays open. */
 export async function switchExternalTab(
   paneId: string,
@@ -946,7 +1005,12 @@ export function registerExternalBrowserIpc(appIcon?: string): void {
   ipcMain.on('browsers:watch', (e, paneId: string) => {
     const page = existingExternalPage(String(paneId))
     if (page) void startScreencast(String(paneId), page, e.sender)
-    else watchers.set(String(paneId), { to: e.sender, stop: () => {} })
+    else {
+      watchers.set(String(paneId), { to: e.sender, stop: () => {} })
+      // Show the browser straight away rather than a blank "waiting" pane:
+      // take its newest tab (onExternalPage below starts the stream).
+      void adoptTab(String(paneId)).catch(() => undefined)
+    }
   })
   ipcMain.on('browsers:unwatch', (_e, paneId: string) => {
     watchers.get(String(paneId))?.stop()
