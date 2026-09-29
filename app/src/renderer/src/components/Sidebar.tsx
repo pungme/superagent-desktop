@@ -662,10 +662,20 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   }
   const hasChatList = chats.length > 1 || worktrees.some((w) => !w.main)
   const hasTree = hasChatList || subrepos.length > 0
-  const treeOpen =
-    treeOpenState ?? (hasChatList ? true : localStorage.getItem(`repos-open:${ws.id}`) === '1')
-  const reposOpen = treeOpen
+  const treeOpen = treeOpenState ?? true
   const treeCount = (hasChatList ? chats.length : 0) + subrepos.length
+  /**
+   * A folder-of-repos' repos are a list of their own, folded apart from the
+   * conversations: one caret for both put seventeen repos in among the chats
+   * every time you opened the project. Closed until asked for, remembered.
+   */
+  const [reposOpen, setReposOpenState] = useState(
+    () => localStorage.getItem(`repos-open:${ws.id}`) === '1'
+  )
+  const setReposOpen = (open: boolean): void => {
+    setReposOpenState(open)
+    localStorage.setItem(`repos-open:${ws.id}`, open ? '1' : '0')
+  }
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
   const openFolderAsProject = useStore((s) => s.openFolderAsProject)
 
@@ -907,40 +917,62 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           </button>
         )}
       </div>
-      {subrepos.length > 0 && reposOpen && (
+      {treeOpen && subrepos.length > 0 && (
         <div className="routine-tree">
-          {subrepos.map((r) => (
-            <div
-              key={r.path}
-              className={`routine-tree-row repo-tree-row ${selectedRepo === r.path ? 'selected' : ''}`}
-              title={r.path}
-              // Step 1: select. Step 2: the revealed "Start session" button opens it.
-              onClick={() => setSelectedRepo((cur) => (cur === r.path ? null : r.path))}
+          <div
+            className="routine-tree-row repo-tree-toggle"
+            role="button"
+            aria-expanded={reposOpen}
+            onClick={() => setReposOpen(!reposOpen)}
+          >
+            <span
+              className="repo-tree-caret"
+              style={{ transform: reposOpen ? 'none' : 'rotate(-90deg)' }}
             >
-              <span className="repo-tree-icon">
-                <KindIcon kind="code" size={14} />
-              </span>
-              <span className="routine-tree-prompt">{r.name}</span>
-              {r.cloning ? (
-                <span className="repo-tree-branch">cloning…</span>
-              ) : (
-                r.branch &&
-                selectedRepo !== r.path && <span className="repo-tree-branch">⎇ {r.branch}</span>
-              )}
-              {selectedRepo === r.path && (
-                <button
-                  className="repo-tree-open"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openFolderAsProject(ws.groupId, r.name, r.path)
-                    setSelectedRepo(null)
-                  }}
+              <Chevron size={12} />
+            </span>
+            <span className="routine-tree-prompt">
+              {subrepos.length} {subrepos.length === 1 ? 'repo' : 'repos'}
+            </span>
+          </div>
+          {reposOpen && (
+            <div className="repo-tree-list">
+              {subrepos.map((r) => (
+                <div
+                  key={r.path}
+                  className={`routine-tree-row repo-tree-row ${selectedRepo === r.path ? 'selected' : ''}`}
+                  title={r.path}
+                  // Step 1: select. Step 2: the revealed "Start session" button opens it.
+                  onClick={() => setSelectedRepo((cur) => (cur === r.path ? null : r.path))}
                 >
-                  Start session →
-                </button>
-              )}
+                  <span className="repo-tree-icon">
+                    <KindIcon kind="code" size={14} />
+                  </span>
+                  <span className="routine-tree-prompt">{r.name}</span>
+                  {r.cloning ? (
+                    <span className="repo-tree-branch">cloning…</span>
+                  ) : (
+                    r.branch &&
+                    selectedRepo !== r.path && (
+                      <span className="repo-tree-branch">⎇ {r.branch}</span>
+                    )
+                  )}
+                  {selectedRepo === r.path && (
+                    <button
+                      className="repo-tree-open"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openFolderAsProject(ws.groupId, r.name, r.path)
+                        setSelectedRepo(null)
+                      }}
+                    >
+                      Start session →
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
       {/* The branches. Each one is a real git worktree: its own copy of the

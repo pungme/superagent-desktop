@@ -12311,3 +12311,32 @@ button {
   font-size: 15px;
   cursor: pointer;
 }
+
+/* The "N repos" row: folds a folder-of-repos' repos apart from its chats. */
+.repo-tree-toggle {
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.repo-tree-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  transition: transform 120ms ease;
+}
+.repo-tree-caret svg {
+  display: block;
+}
+/* The repos themselves sit one step in from their toggle, on their own line. */
+.repo-tree-list {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: 16px;
+}
+.repo-tree-list .routine-tree-row::before {
+  display: none;
+}
