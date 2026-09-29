@@ -86,7 +86,7 @@ export type WireEventData =
       claudeSessionId: string
       model?: string
       commands?: string[]
-      models?: { id: string; label: string; hint: string }[]
+      models?: { id: string; label: string; hint: string; older?: true }[]
     }
   | { kind: 'notice'; text: string }
   /**

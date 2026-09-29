@@ -32,6 +32,29 @@ describe('toModelOptions', () => {
     ])
   })
 
+  it('marks earlier versions of a family the list already carries as older', () => {
+    const list = toModelOptions([
+      { value: 'default', displayName: 'Default (recommended)', description: 'Opus 5.5' },
+      { value: 'opus', displayName: 'Opus 5.5', description: 'For complex work' },
+      { value: 'claude-fable-5-1', displayName: 'Fable 5.1', description: 'Toughest' },
+      { value: 'sonnet', displayName: 'Sonnet 5', description: 'Routine' },
+      { value: 'claude-opus-5', displayName: 'Opus 5', description: 'Everyday' },
+      { value: 'claude-fable-5', displayName: 'Fable 5', description: 'Hardest' },
+      { value: 'claude-opus-4-8', displayName: 'Opus 4.8', description: 'Everyday' },
+      { value: 'claude-sonnet-4-6', displayName: 'Sonnet 4.6', description: 'Routine' }
+    ])
+    expect(list.map((m) => [m.label, m.older ?? false])).toEqual([
+      ['Default', false],
+      ['Opus 5.5', false],
+      ['Fable 5.1', false],
+      ['Sonnet 5', false],
+      ['Opus 5', true],
+      ['Fable 5', true],
+      ['Opus 4.8', true],
+      ['Sonnet 4.6', true]
+    ])
+  })
+
   it('returns nothing for a malformed reply', () => {
     expect(toModelOptions(undefined)).toEqual([])
   })

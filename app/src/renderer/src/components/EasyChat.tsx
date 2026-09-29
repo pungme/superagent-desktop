@@ -645,7 +645,7 @@ function extractPorts(text: string): number[] {
 // same line-up as its own /model picker, so new models appear on their own).
 // This is only the fallback while that's loading or if the CLI can't answer,
 // so it names families, never versions, to keep it from going stale.
-const MODEL_OPTIONS: { value: string; label: string; hint: string }[] = [
+const MODEL_OPTIONS: { value: string; label: string; hint: string; older?: true }[] = [
   { value: '', label: 'Default', hint: 'Recommended · best for everyday, complex tasks' },
   { value: 'opus[1m]', label: 'Opus', hint: '1M context · everyday, complex tasks' },
   { value: 'fable', label: 'Fable', hint: 'Most capable, for the hardest, longest tasks' },
@@ -1387,6 +1387,11 @@ export function EasyChat({
   // is still going is a sentence that scrolls away.
   /** Which pill's menu is open — 'model', 'mode', 'server', or `bg-<id>`. */
   const [controlMenu, setControlMenu] = useState<string | null>(null)
+  const [olderOpen, setOlderOpen] = useState(false)
+  // Fold the older models back away each time the menu opens.
+  useEffect(() => {
+    if (controlMenu !== 'model') setOlderOpen(false)
+  }, [controlMenu])
   // Dismiss an open control menu (model / mode / a background-task pill) when you
   // click anywhere outside it — the expected way out of a popover. Clicks on a
   // trigger button or inside a menu are left alone (they handle themselves).
@@ -1759,18 +1764,20 @@ export function EasyChat({
    * that no longer exists and quietly fall back to the default.
    */
   const [sessionModels, setSessionModels] = useState<
-    { value: string; label: string; hint: string }[] | null
+    { value: string; label: string; hint: string; older?: true }[] | null
   >(null)
   /** Claude's line-up asked of the CLI up front, so the picker is right before
    * the first message starts a session. */
   const [claudeModels, setClaudeModels] = useState<
-    { value: string; label: string; hint: string }[] | null
+    { value: string; label: string; hint: string; older?: true }[] | null
   >(null)
   useEffect(() => {
     let alive = true
     void window.cove.claudeModels?.().then((list) => {
       if (alive && list?.length)
-        setClaudeModels(list.map((m) => ({ value: m.id, label: m.label, hint: m.hint })))
+        setClaudeModels(
+          list.map((m) => ({ value: m.id, label: m.label, hint: m.hint, older: m.older }))
+        )
     })
     return () => {
       alive = false
@@ -2298,14 +2305,15 @@ export function EasyChat({
         // falls back to inferring one from the model id (see ctxWindow below).
         const win = event.context_window
         if (typeof win === 'number' && win > 0) setReportedCtxWindow(win)
-        const reported = event.models as { id: string; label: string; hint: string }[] | undefined
+        const reported = event.models as
+          { id: string; label: string; hint: string; older?: true }[] | undefined
         if (Array.isArray(reported) && reported.length) {
           // Claude's list carries its own Default entry; Codex's doesn't.
           setSessionModels([
             ...(reported.some((m) => m.id === '')
               ? []
               : [{ value: '', label: 'Default', hint: 'Whatever your account uses' }]),
-            ...reported.map((m) => ({ value: m.id, label: m.label, hint: m.hint }))
+            ...reported.map((m) => ({ value: m.id, label: m.label, hint: m.hint, older: m.older }))
           ])
         }
         // Claude reports every slash command this session can actually run (built-ins
@@ -4154,6 +4162,13 @@ export function EasyChat({
    */
   const modelOptions =
     sessionModels ?? (provider === 'claude' ? (claudeModels ?? MODEL_OPTIONS) : [MODEL_OPTIONS[0]])
+  /**
+   * The CLI lists every version still available (Opus 4.6 up to 5.5); the menu
+   * shows the current one per family and keeps the rest behind "Older models",
+   * open only when asked for or when this chat is pinned to one of them.
+   */
+  const olderModels = modelOptions.filter((m) => m.older)
+  const showOlder = olderOpen || olderModels.some((m) => m.value === effectiveModel)
   // A chat pinned to a model the line-up no longer lists (an old "sonnet[1m]")
   // still runs on it — name it rather than claiming Default.
   const modelLabel =
@@ -4885,23 +4900,36 @@ export function EasyChat({
           </button>
           {controlMenu === 'model' && (
             <div className="easy-control-menu">
-              {modelOptions.map((o) => (
-                <button
-                  key={o.value || 'default'}
-                  className={`easy-control-item ${o.value === effectiveModel ? 'on' : ''}`}
-                  onClick={() => pickModel(o.value)}
-                >
-                  <span className="easy-control-item-label">{o.label}</span>
-                  <span className="easy-control-item-hint">
-                    {/* Naming the resolution here rather than on the pill: the
+              {modelOptions
+                .filter((o) => !o.older || showOlder)
+                .map((o) => (
+                  <button
+                    key={o.value || 'default'}
+                    className={`easy-control-item ${o.value === effectiveModel ? 'on' : ''} ${o.older ? 'older' : ''}`}
+                    onClick={() => pickModel(o.value)}
+                  >
+                    <span className="easy-control-item-label">{o.label}</span>
+                    <span className="easy-control-item-hint">
+                      {/* Naming the resolution here rather than on the pill: the
                         pill showing "Opus 5" while the menu said Default read
                         as though Opus had been picked. */}
-                    {o.value === '' && activeModel
-                      ? `${o.hint} — right now ${shortModel(activeModel)}`
-                      : o.hint}
+                      {o.value === '' && activeModel
+                        ? `${o.hint} — right now ${shortModel(activeModel)}`
+                        : o.hint}
+                    </span>
+                  </button>
+                ))}
+              {olderModels.length > 0 && !showOlder && (
+                <button
+                  className="easy-control-item easy-control-more"
+                  onClick={() => setOlderOpen(true)}
+                >
+                  <span className="easy-control-item-label">Older models…</span>
+                  <span className="easy-control-item-hint">
+                    {olderModels.map((m) => m.label).join(', ')}
                   </span>
                 </button>
-              ))}
+              )}
             </div>
           )}
         </div>

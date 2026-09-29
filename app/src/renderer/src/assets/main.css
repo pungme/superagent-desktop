@@ -6475,6 +6475,17 @@ button {
   color: var(--text-tertiary);
 }
 
+/* The fold at the bottom of the model menu: a row that opens the older versions. */
+.easy-control-more {
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  margin-top: 2px;
+}
+.easy-control-more .easy-control-item-label,
+.easy-control-item.older .easy-control-item-label {
+  color: var(--text-secondary);
+}
+
 /**
  * The label/hint menus (model, mode, the dev-server one) put a short label
  * beside a hint that wraps, and the row was flex with align-items: center. Two

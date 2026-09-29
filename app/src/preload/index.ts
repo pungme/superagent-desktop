@@ -692,7 +692,7 @@ export interface CoveApi {
   ) => () => void
   onBrowsersChanged: (cb: (c: { workspaceId: string; id: BrowserChoice }) => void) => () => void
   /** Claude Code's current model line-up, from the installed CLI; null if it couldn't say. */
-  claudeModels: () => Promise<{ id: string; label: string; hint: string }[] | null>
+  claudeModels: () => Promise<{ id: string; label: string; hint: string; older?: true }[] | null>
   envVersion: () => Promise<Record<AgentProvider, { installed: boolean; version: string | null }>>
   /** Install an agent's CLI; onLine streams the installer's progress. */
   installAgent: (

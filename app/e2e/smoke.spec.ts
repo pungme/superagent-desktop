@@ -281,3 +281,23 @@ test('Chats lines up with Projects, and folds away with a click on its header', 
   await window.locator('.sidebar-chats-toggle').click()
   await expect(rows).not.toHaveCount(0)
 })
+
+test('the model menu keeps older versions behind a fold', async () => {
+  const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Model"))').first()
+  await pill.click()
+  const menu = window.locator('.easy-control-menu')
+  await expect(menu).toBeVisible()
+  const fold = menu.locator('.easy-control-more')
+  // The list comes from the installed claude; without one (CI) the fallback
+  // names families only and there is nothing to fold.
+  if ((await fold.count()) === 0) {
+    await expect(menu.locator('.easy-control-item.older')).toHaveCount(0)
+    return
+  }
+  await expect(fold).toContainText('Older models')
+  await expect(menu.locator('.easy-control-item.older')).toHaveCount(0)
+  await fold.click()
+  await expect(menu.locator('.easy-control-item.older').first()).toBeVisible()
+  await expect(fold).toHaveCount(0)
+  await window.keyboard.press('Escape')
+})

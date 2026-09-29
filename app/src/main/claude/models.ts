@@ -19,6 +19,12 @@ export interface ModelOption {
   id: string
   label: string
   hint: string
+  /**
+   * An earlier version of a family the list also carries current (Opus 4.8
+   * beside Opus 5.5). Pickers fold these away: the CLI began listing every
+   * version still available, and eleven rows buried the five that matter.
+   */
+  older?: true
 }
 
 /** One entry of the CLI's `initialize` response `models` array. */
@@ -34,15 +40,21 @@ interface CliModel {
  */
 export function toModelOptions(models: unknown): ModelOption[] {
   if (!Array.isArray(models)) return []
+  // The CLI lists each family newest first, so the first Opus is the current
+  // one and any Opus after it is an older version.
+  const seen = new Set<string>()
   return models.flatMap((raw: CliModel) => {
     if (!raw || typeof raw.value !== 'string' || typeof raw.displayName !== 'string') return []
-    return [
-      {
-        id: raw.value === 'default' ? '' : raw.value,
-        label: raw.displayName.replace(/\s*\([^)]*\)\s*$/, '') || raw.displayName,
-        hint: typeof raw.description === 'string' ? raw.description : ''
-      }
-    ]
+    const label = raw.displayName.replace(/\s*\([^)]*\)\s*$/, '') || raw.displayName
+    const family = label.split(/\s+/)[0].toLowerCase()
+    const option: ModelOption = {
+      id: raw.value === 'default' ? '' : raw.value,
+      label,
+      hint: typeof raw.description === 'string' ? raw.description : ''
+    }
+    if (seen.has(family)) option.older = true
+    seen.add(family)
+    return [option]
   })
 }
 
