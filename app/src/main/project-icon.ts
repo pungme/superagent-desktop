@@ -40,6 +40,15 @@ function fileToDataUri(path: string): string | null {
     if (!mime) return null
     const buf = readFileSync(path)
     if (buf.length === 0 || buf.length > MAX_ICON_BYTES) return null
+    // A 1024px App Store icon is often a megabyte or two; the sidebar draws it
+    // at 16px. Shrink anything big to a size that still looks sharp on Retina.
+    if (buf.length > 100_000 && mime !== 'image/svg+xml') {
+      const img = nativeImage.createFromBuffer(buf)
+      if (!img.isEmpty()) {
+        const small = img.resize({ width: 128, height: 128, quality: 'best' }).toPNG()
+        return `data:image/png;base64,${small.toString('base64')}`
+      }
+    }
     return `data:${mime};base64,${buf.toString('base64')}`
   } catch {
     return null
@@ -99,14 +108,14 @@ const MAX_DIRS_VISITED = 1500
  * down, which the old three-level walk never reached. At one level, the main
  * `AppIcon` beats alternates like `AppIconAmber`, whichever readdir lists first.
  */
-function findAppIconSet(root: string, maxDepth: number): string | null {
+function findAppIconSets(root: string, maxDepth: number): string[] {
   let level = [root]
   let visited = 0
   for (let depth = 0; depth <= maxDepth && level.length; depth++) {
     const next: string[] = []
     const found: string[] = []
     for (const dir of level) {
-      if (++visited > MAX_DIRS_VISITED) return found[0] ?? null
+      if (++visited > MAX_DIRS_VISITED) return found
       let entries: string[]
       try {
         entries = readdirSync(dir)
@@ -127,17 +136,31 @@ function findAppIconSet(root: string, maxDepth: number): string | null {
         }
       }
     }
-    if (found.length) return found.find((p) => p.endsWith('/AppIcon.appiconset')) ?? found[0]
+    // The main `AppIcon` first, then alternates; the caller takes the first
+    // that actually has a picture in it.
+    if (found.length)
+      return [
+        ...found.filter((p) => p.endsWith('/AppIcon.appiconset')),
+        ...found.filter((p) => !p.endsWith('/AppIcon.appiconset'))
+      ]
     level = next
   }
-  return null
+  return []
 }
 
+/**
+ * The first icon set with a picture in it. An app's widget or extension has
+ * an AppIcon set of its own, often empty (its Contents.json names no file) —
+ * and found at the same depth as the app's, it was taken and gave nothing, so
+ * the project kept the plain folder.
+ */
 function findXcodeAppIcon(root: string): string | null {
-  const set = findAppIconSet(root, 5)
-  if (!set) return null
-  const file = pickBestAppIconFile(set)
-  return file ? fileToDataUri(file) : null
+  for (const set of findAppIconSets(root, 5)) {
+    const file = pickBestAppIconFile(set)
+    const uri = file ? fileToDataUri(file) : null
+    if (uri) return uri
+  }
+  return null
 }
 
 /** The root's favicon, else one in any repo directly inside it — a project
