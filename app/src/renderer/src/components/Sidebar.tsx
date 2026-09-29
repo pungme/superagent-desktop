@@ -646,14 +646,26 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   >([])
   const [selfBranch, setSelfBranch] = useState<string | null>(null) // branch if the project folder is itself a repo
   const [aheadBehind, setAheadBehind] = useState<{ ahead: number; behind: number } | null>(null)
-  // Collapsed by default, and remembered per project so a tidy sidebar stays tidy.
-  const [reposOpen, setReposOpenState] = useState(
-    () => localStorage.getItem(`repos-open:${ws.id}`) === '1'
-  )
-  const setReposOpen = (open: boolean): void => {
-    setReposOpenState(open)
-    localStorage.setItem(`repos-open:${ws.id}`, open ? '1' : '0')
+  /**
+   * Everything under the project row — its conversations and branches, and a
+   * folder-of-repos' repos — folds away with the caret on the row, remembered
+   * per project. Conversations start open (they always showed); repos keep
+   * their old default of closed until the caret is used.
+   */
+  const [treeOpenState, setTreeOpenState] = useState<boolean | null>(() => {
+    const v = localStorage.getItem(`tree-open:${ws.id}`)
+    return v === null ? null : v === '1'
+  })
+  const setTreeOpen = (open: boolean): void => {
+    setTreeOpenState(open)
+    localStorage.setItem(`tree-open:${ws.id}`, open ? '1' : '0')
   }
+  const hasChatList = chats.length > 1 || worktrees.some((w) => !w.main)
+  const hasTree = hasChatList || subrepos.length > 0
+  const treeOpen =
+    treeOpenState ?? (hasChatList ? true : localStorage.getItem(`repos-open:${ws.id}`) === '1')
+  const reposOpen = treeOpen
+  const treeCount = (hasChatList ? chats.length : 0) + subrepos.length
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null) // step 1 of 2
   const openFolderAsProject = useStore((s) => s.openFolderAsProject)
 
@@ -860,19 +872,19 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             under every project even when collapsed. Last on the row, after the
             unread dot, branch and ↓/↑ badges, so it stays put while those come
             and go. */}
-        {subrepos.length > 0 && (
+        {hasTree && (
           <button
             className="sidebar-item-caret"
-            title={reposOpen ? 'Hide repos' : `Show ${subrepos.length} repos`}
-            aria-expanded={reposOpen}
-            aria-label={reposOpen ? 'Hide repos' : `Show ${subrepos.length} repos`}
+            title={treeOpen ? 'Collapse' : `Show ${treeCount} more`}
+            aria-expanded={treeOpen}
+            aria-label={treeOpen ? `Collapse ${displayName}` : `Expand ${displayName}`}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation()
-              setReposOpen(!reposOpen)
+              setTreeOpen(!treeOpen)
             }}
           >
-            <span style={{ transform: reposOpen ? 'none' : 'rotate(-90deg)' }}>
+            <span style={{ transform: treeOpen ? 'none' : 'rotate(-90deg)' }}>
               <Chevron size={12} />
             </span>
           </button>
@@ -943,7 +955,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       {/* Drag to reorder. The order is the app's to keep here — these are plain
           conversations in a folder. A branch row's place comes from git, so
           those are left alone. */}
-      {worktrees.length === 0 && chats.length > 1 && (
+      {treeOpen && worktrees.length === 0 && chats.length > 1 && (
         <SortableContext
           items={chats.map((c) => `chat:${c.id}`)}
           strategy={verticalListSortingStrategy}
@@ -970,7 +982,8 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
           one chat each, which is what a chat IS: a branch with someone talking
           to it. A chat that has not sent anything yet has no branch, so it sits
           at the end until its first message cuts one. */}
-      {worktrees.length > 0 &&
+      {treeOpen &&
+        worktrees.length > 0 &&
         (() => {
           const chatOn = (wtPath: string | null): Chat | undefined =>
             chats.find(

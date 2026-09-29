@@ -219,6 +219,24 @@ test('every worktree git has is reachable in the sidebar — none hidden', async
   await expect(window.locator('.sidebar-item-branch', { hasText: 'main' }).first()).toBeVisible()
 })
 
+test("a project's list folds away with the caret on its row, and stays folded", async () => {
+  const before = await branchRows().count()
+  expect(before).toBeGreaterThan(0)
+  const caret = window.locator('.sidebar-item:has-text("e2e-project") .sidebar-item-caret').first()
+  await expect(caret).toHaveAttribute('aria-expanded', 'true')
+  await caret.click()
+  await expect(caret).toHaveAttribute('aria-expanded', 'false')
+  await expect(branchRows()).toHaveCount(0)
+  // Remembered: a reload keeps it folded.
+  await window.reload()
+  await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  const again = window.locator('.sidebar-item:has-text("e2e-project") .sidebar-item-caret').first()
+  await expect(again).toHaveAttribute('aria-expanded', 'false')
+  await expect(branchRows()).toHaveCount(0)
+  await again.click()
+  await expect.poll(() => branchRows().count(), { timeout: 10_000 }).toBe(before)
+})
+
 test('a chat row can still be renamed by double-clicking it', async () => {
   await expect.poll(() => chatRows().count(), { timeout: 10_000 }).toBeGreaterThan(1)
   // Deliberately a chat with a branch of its own: renaming the one on main is a
