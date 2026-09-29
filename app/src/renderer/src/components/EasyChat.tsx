@@ -3711,6 +3711,8 @@ export function EasyChat({
     if (inputRef.current) inputRef.current.style.height = 'auto'
   }
   const cancelQueued = (id: string): void => setQueued((q) => q.filter((m) => m.id !== id))
+  /** The queued message opened to its full text, if any. */
+  const [openQueued, setOpenQueued] = useState<string | null>(null)
 
   // Send the held messages once the turn is over. Covers every way a turn can
   // end (result, exit, crash) since all flip `generating`. Not after a manual
@@ -4453,19 +4455,30 @@ export function EasyChat({
           {queued.length > 0 && (
             <div className="easy-queued">
               {queued.map((m) => (
-                <div key={m.id} className="easy-queued-item" title="Sends when the agent finishes">
+                <div
+                  key={m.id}
+                  className={`easy-queued-item ${openQueued === m.id ? 'open' : ''}`}
+                  title={openQueued === m.id ? 'Click to fold' : 'Click to see all of it'}
+                  onClick={() => setOpenQueued((v) => (v === m.id ? null : m.id))}
+                >
                   <span className="easy-queued-icon">⏱</span>
+                  {/* One line until clicked; then the whole message, as written. */}
                   <span className="easy-queued-text">
-                    {(m.text || (m.images.length ? '🖼 image' : '📎 files'))
-                      .replace(/\s+/g, ' ')
-                      .trim()
-                      .slice(0, 120)}
+                    {openQueued === m.id
+                      ? m.text || (m.images.length ? '🖼 image' : '📎 files')
+                      : (m.text || (m.images.length ? '🖼 image' : '📎 files'))
+                          .replace(/\s+/g, ' ')
+                          .trim()
+                          .slice(0, 200)}
                   </span>
                   <span className="easy-queued-when">sends when done</span>
                   <button
                     className="easy-queued-cancel"
                     title="Don't send this"
-                    onClick={() => cancelQueued(m.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      cancelQueued(m.id)
+                    }}
                   >
                     ×
                   </button>

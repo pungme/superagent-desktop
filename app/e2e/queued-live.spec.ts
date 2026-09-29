@@ -72,11 +72,22 @@ test('a queued message takes its own room instead of covering the chat', async (
   await input.press('Enter')
   await window.waitForTimeout(4000)
 
-  await input.fill('can u also fix this')
+  const long =
+    'can u also fix this. the backend dev and test for ingenia, did we do the migration and the seed data, and is staging on the same schema as prod? the backend dev and test for ingenia, did we do the migration and the seed data, and is staging on the same schema as prod? the backend dev and test for ingenia, did we do the migration and the seed data, and is staging on the same schema as prod?\nLast line: check the webhook too.'
+  await input.fill(long)
   await window.getByRole('button', { name: 'Send message' }).click({ button: 'right' })
   await window.getByRole('menuitem', { name: 'Send when it finishes' }).click()
   const chip = window.locator('.easy-queued-item:visible')
   await expect(chip).toContainText('can u also fix this')
+  // One line until clicked; a click shows all of it, as written.
+  await expect(chip).not.toContainText('Last line: check the webhook too.')
+  await chip.locator('.easy-queued-text').click()
+  await expect(chip).toHaveClass(/open/)
+  await expect(chip).toContainText('Last line: check the webhook too.')
+  const tall = (await chip.boundingBox())!.height
+  expect(tall).toBeGreaterThan(40)
+  await chip.locator('.easy-queued-text').click()
+  await expect(chip).not.toHaveClass(/open/)
 
   // The conversation ends where the chip begins: nothing is underneath it.
   const scroll = (await window.locator('.easy-scroll:visible').first().boundingBox())!

@@ -2767,6 +2767,21 @@ button {
 .easy-queued-cancel:hover {
   color: var(--text-primary);
 }
+.easy-queued-item {
+  cursor: pointer;
+}
+/* Opened: the whole message, wrapped, scrolling if it's very long. */
+.easy-queued-item.open {
+  align-items: flex-start;
+}
+.easy-queued-item.open .easy-queued-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  max-height: 40vh;
+  line-height: 1.45;
+  user-select: text;
+}
 
 .easy-reply-bar {
   display: flex;
