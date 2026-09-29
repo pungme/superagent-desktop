@@ -117,9 +117,7 @@ describe('TranscriptProjector', () => {
         images: [{ mediaType: 'image/png', size: 3 }]
       }
     ])
-    expect(out.images).toEqual([
-      { id: 't1', images: [{ mediaType: 'image/png', data: 'AAAA' }] }
-    ])
+    expect(out.images).toEqual([{ id: 't1', images: [{ mediaType: 'image/png', data: 'AAAA' }] }])
   })
 
   it('surfaces API errors as notices and ends the turn', () => {

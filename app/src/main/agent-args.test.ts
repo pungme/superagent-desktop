@@ -57,10 +57,10 @@ describe('buildAgentArgs', () => {
     expect(valueAfter(fable, '--fallback-model')).toBe('opus')
     // Nothing sensible below Sonnet to fall to unasked.
     expect(buildAgentArgs({ model: 'sonnet' }).includes('--fallback-model')).toBe(false)
-    // Default sends no --model, so Claude still chooses first; Opus is used only
-    // when that preferred model is unavailable or its allowance is exhausted.
-    expect(buildAgentArgs({}).includes('--model')).toBe(false)
-    expect(buildAgentArgs({ model: '' }).includes('--model')).toBe(false)
+    // Default is named: resuming without --model keeps the session's last
+    // model, so a chat once on Fable stayed there under a "Default" pill.
+    expect(valueAfter(buildAgentArgs({}), '--model')).toBe('default')
+    expect(valueAfter(buildAgentArgs({ model: '' }), '--model')).toBe('default')
     expect(valueAfter(buildAgentArgs({}), '--fallback-model')).toBe('opus')
     expect(valueAfter(buildAgentArgs({ model: '' }), '--fallback-model')).toBe('opus')
   })
@@ -68,7 +68,7 @@ describe('buildAgentArgs', () => {
   it('keeps automatic fallback when resuming a Default session', () => {
     const args = buildAgentArgs({}, { resume: 'fable-session' })
     expect(valueAfter(args, '--fallback-model')).toBe('opus')
-    expect(args.includes('--model')).toBe(false)
+    expect(valueAfter(args, '--model')).toBe('default')
   })
 
   it('resumes in front of -p, where the CLI expects it', () => {
@@ -108,5 +108,33 @@ describe('buildAgentArgs', () => {
     expect(args[i + 1]).toBe('default')
     const j = args.indexOf('--permission-prompt-tool')
     expect(args[j + 1]).toBe('mcp__cove-browser__permission_prompt')
+  })
+})
+
+describe('a model whose allowance is used up', () => {
+  it('starts chats on the next one down until the reset, then goes back', async () => {
+    const { mkdtempSync, rmSync } = await import('fs')
+    const { join } = await import('path')
+    const { tmpdir } = await import('os')
+    const dir = mkdtempSync(join(tmpdir(), 'cove-args-'))
+    process.env.COVE_USER_DATA = dir
+    const { markModelLimited, clearLimit, _resetAccountsForTests } = await import('./accounts')
+    _resetAccountsForTests()
+    try {
+      markModelLimited('fable', Date.now() + 60_000)
+      const args = buildAgentArgs({ model: 'claude-fable-5-1' })
+      expect(valueAfter(args, '--model')).toBe('opus')
+      expect(valueAfter(args, '--fallback-model')).toBe('sonnet')
+      // Default resolves to Opus on the CLI's side: unaffected.
+      expect(valueAfter(buildAgentArgs({}), '--model')).toBe('default')
+      clearLimit('model:fable')
+      expect(valueAfter(buildAgentArgs({ model: 'claude-fable-5-1' }), '--model')).toBe(
+        'claude-fable-5-1'
+      )
+    } finally {
+      _resetAccountsForTests()
+      delete process.env.COVE_USER_DATA
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

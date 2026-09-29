@@ -249,6 +249,15 @@ export function markLimited(accountId: string, until: number | null): number {
   return at
 }
 
+/** One model out of allowance on this Mac's accounts, until the reset. */
+export function markModelLimited(family: string, until: number | null): number {
+  return markLimited(`model:${family}`, until)
+}
+
+export function modelLimitedUntil(family: string | null): number | null {
+  return family ? limitedUntil(`model:${family}`) : null
+}
+
 export function clearLimit(accountId: string): void {
   delete load().limits[accountId]
   save()
@@ -331,19 +340,46 @@ export function reportLimit(
  * resetsAt in epoch seconds) ahead of the failed result; both CLIs put the
  * reason in the result text.
  */
-export function limitFromEvent(event: Record<string, unknown>): { until: number | null } | null {
+export interface Limit {
+  until: number | null
+  /**
+   * Set when only one model is out ("You've reached your Fable limit"), not the
+   * account: the chat moves to the next model down rather than to another
+   * account. The CLI's --fallback-model does not cover usage limits — only a
+   * model that is overloaded or unavailable — so Superagent makes the move.
+   */
+  model?: string
+}
+
+const MODEL_LIMIT_TYPES: Record<string, string> = {
+  seven_day_opus: 'opus',
+  seven_day_sonnet: 'sonnet'
+}
+
+export function limitFromEvent(event: Record<string, unknown>): Limit | null {
   if (event.type === 'rate_limit_event') {
-    const info = event.rate_limit_info as { status?: string; resetsAt?: number } | undefined
-    if (info?.status === 'rejected') return { until: epochMs(info.resetsAt) }
-    return null
+    const info = event.rate_limit_info as
+      { status?: string; resetsAt?: number; rateLimitType?: string } | undefined
+    if (info?.status !== 'rejected') return null
+    const model = MODEL_LIMIT_TYPES[info.rateLimitType ?? '']
+    return { until: epochMs(info.resetsAt), ...(model ? { model } : {}) }
   }
-  if (event.type === 'result' && event.is_error) {
-    const text = [event.result, ...((event.errors as unknown[]) ?? [])]
+  // The failed result, or the synthetic assistant message the CLI puts the
+  // same words in.
+  let text = ''
+  if (event.type === 'result' && event.is_error)
+    text = [event.result, ...((event.errors as unknown[]) ?? [])]
       .map((e) => (typeof e === 'string' ? e : JSON.stringify(e ?? '')))
       .join('\n')
-    if (/hit your (usage )?limit|usage limit|out of (usage|credits)|limit reached/i.test(text))
-      return { until: null }
+  else if (event.type === 'assistant') {
+    const msg = event.message as { model?: string; content?: { text?: string }[] } | undefined
+    if (msg?.model === '<synthetic>') text = (msg.content ?? []).map((c) => c.text ?? '').join('\n')
   }
+  if (!text) return null
+  const model = /reached your (fable|mythos|opus|sonnet|haiku) limit/i.exec(text)?.[1]
+  if (model) return { until: null, model: model.toLowerCase() }
+  if (/hit your (usage )?limit|usage limit|out of (usage|credits)|limit reached/i.test(text))
+    return { until: null }
   return null
 }
 
@@ -357,11 +393,14 @@ export function limitFromEvent(event: Record<string, unknown>): { until: number 
  * account is out; a fallback, or a turn that finished, means it is not.
  */
 export class LimitGate {
-  private held: { until: number | null } | null = null
+  private held: Limit | null = null
 
-  hold(until: number | null): void {
-    // The first report of a turn carries the reset time; the result's text does not.
-    if (!this.held || (this.held.until === null && until !== null)) this.held = { until }
+  hold(limit: Limit): void {
+    // The first report of a turn carries the reset time; the text carries
+    // which model. Keep both, whichever order they come in.
+    const until = this.held?.until ?? limit.until
+    const model = this.held?.model ?? limit.model
+    this.held = { until, ...(model ? { model } : {}) }
   }
 
   fellBack(): void {
@@ -369,7 +408,7 @@ export class LimitGate {
   }
 
   /** The turn's result: the limit to act on, or null. Clears what was held. */
-  result(event: Record<string, unknown>): { until: number | null } | null {
+  result(event: Record<string, unknown>): Limit | null {
     const held = this.held
     this.held = null
     if (event.type !== 'result' || !event.is_error) return null

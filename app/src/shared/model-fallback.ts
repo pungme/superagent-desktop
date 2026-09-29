@@ -15,11 +15,16 @@
 export function fallbackModelFor(model: string | null | undefined): string | null {
   const m = (model ?? '').toLowerCase()
   // Default: the CLI picks (Fable, where the account has it), Opus behind it.
-  if (!m) return 'opus'
+  if (!m || m === 'default') return 'opus'
   if (m.includes('opus')) return 'sonnet'
   // Below Sonnet the step down is too far to take without being asked.
   if (m.includes('sonnet') || m.includes('haiku')) return null
   return 'opus'
+}
+
+/** "claude-fable-5-1[1m]" → "fable"; null for Default or a model that is not Claude's. */
+export function modelFamily(id: string | null | undefined): string | null {
+  return /(fable|mythos|opus|sonnet|haiku)/i.exec(id ?? '')?.[1].toLowerCase() ?? null
 }
 
 /** "claude-fable-5-1[1m]" → "Fable 5.1", "opus" → "Opus". */
@@ -47,12 +52,14 @@ export function fallbackNotice(f: { original: string; fallback: string; trigger:
   const from = f.original ? prettyModel(f.original) : 'The model'
   const to = prettyModel(f.fallback)
   const why =
-    f.trigger === 'overloaded' || f.trigger === 'server_error'
-      ? 'is overloaded right now'
-      : f.trigger === 'model_not_found' || f.trigger === 'model_blocked'
-        ? "isn't available"
-        : f.trigger === 'permission_denied'
-          ? "isn't on this account"
-          : "isn't available right now (its allowance may be used up)"
+    f.trigger === 'usage_limit'
+      ? 'has used up its allowance for now'
+      : f.trigger === 'overloaded' || f.trigger === 'server_error'
+        ? 'is overloaded right now'
+        : f.trigger === 'model_not_found' || f.trigger === 'model_blocked'
+          ? "isn't available"
+          : f.trigger === 'permission_denied'
+            ? "isn't on this account"
+            : "isn't available right now (its allowance may be used up)"
   return `↻ ${from} ${why} — continuing on ${to}. It goes back to ${from} as soon as it can.`
 }

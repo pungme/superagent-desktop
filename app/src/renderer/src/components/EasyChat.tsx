@@ -14,7 +14,7 @@ import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { useProjectBrowser } from '../hooks/useProjectBrowser'
 import type { BrowserChoice, LimitNotice } from '../../../preload'
-import { fallbackNotice, modelFallbackFrom } from '../../../shared/model-fallback'
+import { fallbackNotice, modelFallbackFrom, prettyModel } from '../../../shared/model-fallback'
 import { ProviderLogo } from './ProviderLogo'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
@@ -4149,6 +4149,7 @@ export function EasyChat({
 
   // Apply a new model or mode: persist it, then respawn the agent (resuming this
   // conversation) so the flag takes effect now. Stops any in-flight turn first.
+  const applyRespawnRef = useRef<() => void>(() => {})
   const applyRespawn = (): void => {
     setControlMenu(null)
     if (agentIdRef.current) window.cove.agentInterrupt(agentIdRef.current)
@@ -4180,6 +4181,47 @@ export function EasyChat({
   }
   const switchAccountRef = useRef(switchAccount)
   switchAccountRef.current = switchAccount
+  /**
+   * The model this chat is on has used up its allowance (the account has
+   * not). Main already starts it on the next one down until the reset; say
+   * so, restart the agent and send the message that hit the limit again.
+   */
+  useEffect(() => {
+    return window.cove.onModelLimit?.((n) => {
+      if (n.chatId !== chatId) return
+      limitPendingRef.current = true
+      const at = new Date(n.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      setItems((prev) => [
+        ...prev,
+        {
+          kind: 'msg',
+          msg: {
+            id: `sys-model-limit-${Date.now()}`,
+            at: Date.now(),
+            role: 'assistant',
+            text: `↻ ${prettyModel(n.model)} has used up its allowance until about ${at} — continuing on ${prettyModel(n.fallback)}. New messages go back to ${prettyModel(n.model)} after that.`,
+            system: true
+          }
+        }
+      ])
+      // Let the failed result pass quietly first; then the same resend as a
+      // switch of account, minus the pin.
+      setTimeout(() => {
+        limitPendingRef.current = false
+        const again = inFlightSendRef.current
+        if (again) {
+          pendingSendsRef.current.push({
+            text: again.text,
+            images: again.images,
+            replyTo: again.replyTo
+          })
+          setGenerating(true)
+          setThinking(true)
+        }
+        applyRespawnRef.current()
+      }, 300)
+    })
+  }, [chatId])
   useEffect(() => {
     return window.cove.onAccountsLimit?.((n) => {
       if (n.chatId !== chatId) return
@@ -4212,6 +4254,7 @@ export function EasyChat({
       setThinking(false)
     })
   }, [chatId])
+  applyRespawnRef.current = applyRespawn
   const pickModel = (value: string): void => {
     if (value !== effectiveModel) {
       setChatModel(value)
@@ -5023,7 +5066,7 @@ export function EasyChat({
             </svg>
           </button>
           {controlMenu === 'model' && (
-            <div className="easy-control-menu">
+            <div className="easy-control-menu easy-control-menu-wide">
               {modelOptions
                 .filter((o) => !o.older || showOlder)
                 .map((o) => (

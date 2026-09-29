@@ -253,11 +253,11 @@ export function startCodexSession(
     if (method === 'turn/completed') activeTurn = null
     if (method === 'account/rateLimits/updated') {
       const limit = limitFromCodexRateLimits(params)
-      if (limit) host.limit(limit.until)
+      if (limit) host.limit(limit)
     }
     for (const event of translator.handle(method, params)) {
       const limit = limitFromEvent(event)
-      if (limit) host.limit(limit.until)
+      if (limit) host.limit(limit)
       host.event(event)
     }
     if (method === 'turn/completed') lifecycle('Stop')

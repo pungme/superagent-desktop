@@ -44,6 +44,8 @@ import {
   LOGIN_ID,
   markAuth,
   markLimited,
+  markModelLimited,
+  modelLimitedUntil,
   pinChatAccount,
   removeAccount,
   reportLimit,
@@ -229,8 +231,8 @@ describe('accounts', () => {
 describe('a reported limit waits for the turn to say whether it mattered', () => {
   it('a failed turn means the account is out', () => {
     const gate = new LimitGate()
-    gate.hold(1_800_000_000_000)
-    gate.hold(null) // the result's own text, with no time
+    gate.hold({ until: 1_800_000_000_000 })
+    gate.hold({ until: null }) // the result's own text, with no time
     expect(gate.result({ type: 'result', is_error: true })).toEqual({ until: 1_800_000_000_000 })
     // Spent: the next turn starts clean.
     expect(gate.result({ type: 'result', is_error: true })).toBeNull()
@@ -238,15 +240,67 @@ describe('a reported limit waits for the turn to say whether it mattered', () =>
 
   it('a fallback model carrying the turn on means it is not', () => {
     const gate = new LimitGate()
-    gate.hold(1_800_000_000_000)
+    gate.hold({ until: 1_800_000_000_000 })
     gate.fellBack()
     expect(gate.result({ type: 'result', is_error: false })).toBeNull()
   })
 
   it('nor is a turn that simply finished', () => {
     const gate = new LimitGate()
-    gate.hold(null)
+    gate.hold({ until: null })
     expect(gate.result({ type: 'result', is_error: false })).toBeNull()
     expect(gate.result({ type: 'result', is_error: true })).toBeNull()
+  })
+})
+
+describe('one model out, not the account', () => {
+  it("reads which model from the CLI's words and its limit type", () => {
+    const words =
+      "You've reached your Fable limit. Switch to another model, or manage usage credits at claude.ai/settings/usage to continue."
+    expect(limitFromEvent({ type: 'result', is_error: true, result: words })).toEqual({
+      until: null,
+      model: 'fable'
+    })
+    expect(
+      limitFromEvent({
+        type: 'assistant',
+        message: { model: '<synthetic>', content: [{ type: 'text', text: words }] }
+      })
+    ).toEqual({ until: null, model: 'fable' })
+    // A real reply that happens to say the words is not a limit.
+    expect(
+      limitFromEvent({
+        type: 'assistant',
+        message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: words }] }
+      })
+    ).toBeNull()
+    expect(
+      limitFromEvent({
+        type: 'rate_limit_event',
+        rate_limit_info: {
+          status: 'rejected',
+          resetsAt: 1_800_000_000,
+          rateLimitType: 'seven_day_opus'
+        }
+      })
+    ).toEqual({ until: 1_800_000_000_000, model: 'opus' })
+  })
+
+  it('keeps the reset time and the model, whichever arrives first', () => {
+    const gate = new LimitGate()
+    gate.hold({ until: 1_800_000_000_000 })
+    gate.hold({ until: null, model: 'fable' })
+    expect(gate.result({ type: 'result', is_error: true })).toEqual({
+      until: 1_800_000_000_000,
+      model: 'fable'
+    })
+  })
+
+  it('is remembered until the reset', () => {
+    expect(modelLimitedUntil('fable')).toBeNull()
+    markModelLimited('fable', Date.now() + 60_000)
+    expect(modelLimitedUntil('fable')).toBeGreaterThan(Date.now())
+    expect(modelLimitedUntil('opus')).toBeNull()
+    expect(modelLimitedUntil(null)).toBeNull()
   })
 })

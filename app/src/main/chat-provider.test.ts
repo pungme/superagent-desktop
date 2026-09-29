@@ -36,7 +36,10 @@ describe('a conversation keeps its own agent', () => {
     create('a', 'claude')
     create('b', 'claude')
     // Switching b — the same write the app makes — and the default moving with it.
-    db.prepare('UPDATE chats SET provider = ?, claudeSessionId = NULL WHERE id = ?').run('codex', 'b')
+    db.prepare('UPDATE chats SET provider = ?, claudeSessionId = NULL WHERE id = ?').run(
+      'codex',
+      'b'
+    )
     expect(providerOf('b')).toBe('codex')
     expect(providerOf('a')).toBe('claude')
   })

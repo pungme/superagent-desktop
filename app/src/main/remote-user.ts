@@ -6,10 +6,6 @@ export interface RemoteUserMessage {
 }
 
 /** The live renderer event must identify the same logged message whose thumbnails it fetches. */
-export function remoteUserMessage(
-  id: string,
-  text: string,
-  imageCount: number
-): RemoteUserMessage {
+export function remoteUserMessage(id: string, text: string, imageCount: number): RemoteUserMessage {
   return { id, text, from: 'ios', imageCount }
 }

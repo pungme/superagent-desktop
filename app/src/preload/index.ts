@@ -717,6 +717,10 @@ export interface CoveApi {
   /** Move a chat onto an account; takes effect when its agent next starts. */
   accountsSwitch: (chatId: string, id: string) => Promise<void>
   onAccountsLimit: (cb: (n: LimitNotice) => void) => () => void
+  /** One model's allowance is used up: move this chat to the next one down. */
+  onModelLimit: (
+    cb: (n: { chatId: string; model: string; fallback: string; until: number }) => void
+  ) => () => void
   onBrowsersSigningIn: (
     cb: (s: { name: string; on: boolean; signedIn?: boolean }) => void
   ) => () => void
@@ -1128,6 +1132,7 @@ const cove: CoveApi = {
   accountsSetMode: (mode) => ipcRenderer.invoke('accounts:set-mode', mode),
   accountsSwitch: (chatId, id) => ipcRenderer.invoke('accounts:switch', chatId, id),
   onAccountsLimit: (cb) => subscribe('accounts:limit', (n) => cb(n as LimitNotice)),
+  onModelLimit: (cb) => subscribe('accounts:model-limit', (n) => cb(n as Parameters<typeof cb>[0])),
   onBrowserHandsOff: (cb) =>
     subscribe('browser:hands-off', (s) => cb(s as Parameters<typeof cb>[0])),
   onBrowsersSigningIn: (cb) =>

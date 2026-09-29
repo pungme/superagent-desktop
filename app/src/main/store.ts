@@ -346,8 +346,7 @@ export const FLAT_GROUP = '__flat'
 /** The ungrouped section, made the first time anything needs it. */
 export function flatGroupId(): string {
   const g = db.prepare('SELECT id FROM groups WHERE name = ?').get(FLAT_GROUP) as
-    | { id: string }
-    | undefined
+    { id: string } | undefined
   if (g) return g.id
   const id = randomUUID()
   // Above every group the user made: ungrouped work is what you see first.
@@ -386,8 +385,7 @@ export function updateGroup(
 export function deleteGroup(id: string): boolean {
   // The reserved sections are structure, not the user's own grouping.
   const row = db.prepare('SELECT name FROM groups WHERE id = ?').get(id) as
-    | { name: string }
-    | undefined
+    { name: string } | undefined
   if (!row || row.name === FLAT_GROUP || row.name === TABS_GROUP) return false
   // Its projects come back to the top level rather than being filed into
   // whichever group happened to be next — and never deleted with it. This
@@ -885,9 +883,9 @@ export function moveChatToWorkspace(chatId: string, toWorkspaceId: string): bool
   if (chat.cwd && chat.cwd.includes('/.worktrees/')) return false
   const position =
     ((
-      db.prepare('SELECT COALESCE(MAX(position), -1) AS p FROM chats WHERE workspaceId = ?').get(
-        toWorkspaceId
-      ) as { p: number }
+      db
+        .prepare('SELECT COALESCE(MAX(position), -1) AS p FROM chats WHERE workspaceId = ?')
+        .get(toWorkspaceId) as { p: number }
     ).p ?? -1) + 1
   db.prepare('UPDATE chats SET workspaceId = ?, cwd = NULL, position = ? WHERE id = ?').run(
     toWorkspaceId,

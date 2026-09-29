@@ -18,8 +18,13 @@ vi.mock('electron', () => ({
 }))
 vi.mock('./browser', () => ({ agentIsDriving: () => false }))
 
-const { simTarget, noteSimulatorOpen, noteSimulatorClosed, noteSimulatorClosedForChat, chatHoldingSimulator } =
-  await import('./simulator')
+const {
+  simTarget,
+  noteSimulatorOpen,
+  noteSimulatorClosed,
+  noteSimulatorClosedForChat,
+  chatHoldingSimulator
+} = await import('./simulator')
 
 const A = 'chat-a'
 const B = 'chat-b'

@@ -1,4 +1,5 @@
 import { ipcMain, WebContents } from 'electron'
+import { broadcastToWindows } from './util'
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
 import os from 'os'
@@ -16,9 +17,10 @@ import {
   authFailureFromEvent,
   LimitGate,
   markAuth,
+  markModelLimited,
   reportLimit
 } from './accounts'
-import { modelFallbackFrom } from '../shared/model-fallback'
+import { fallbackModelFor, modelFallbackFrom } from '../shared/model-fallback'
 import { startCodexSession, suggestTitleWithCodex } from './codex/session'
 import type {
   AgentBackend,
@@ -354,7 +356,25 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
           limitReported = true
           // Before the result goes to the window, so the card is what it shows
           // for this turn rather than the generic "hit an error" note.
-          reportLimit(opts.chatId, provider, account.id, out.until)
+          const fallback = out.model ? fallbackModelFor(out.model) : null
+          if (out.model && fallback) {
+            // One model is out, not the account: remember it until the reset
+            // (runModelFor starts chats on the next one down meanwhile) and
+            // have the window restart this one on it and send again.
+            const until = markModelLimited(out.model, out.until)
+            broadcastToWindows('accounts:model-limit', {
+              chatId: opts.chatId,
+              model: out.model,
+              fallback,
+              until
+            })
+            agentBus.emit('model-fallback', {
+              ...meta,
+              original: out.model,
+              fallback,
+              trigger: 'usage_limit'
+            })
+          } else reportLimit(opts.chatId, provider, account.id, out.until)
         }
       }
       agentBus.emit('event', { ...meta, event })
@@ -380,9 +400,9 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
     resumeLost() {
       notifyResumeLost(sessions.get(id)?.owner ?? owner, meta)
     },
-    limit(until) {
+    limit(limit) {
       // Held until the turn's result says whether it ended the turn (LimitGate).
-      limits.hold(until)
+      limits.hold(limit)
     }
   }
 

@@ -8,8 +8,19 @@ import { buildAppendedPrompt } from '../prompts'
 import { findClaude } from '../claude-cli'
 import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import { cachedClaudeModels } from './models'
-import { limitFromEvent } from '../accounts'
-import { fallbackModelFor } from '../../shared/model-fallback'
+import { limitFromEvent, modelLimitedUntil } from '../accounts'
+import { fallbackModelFor, modelFamily } from '../../shared/model-fallback'
+
+/**
+ * The model to start a chat on: its pick, unless that model's allowance is
+ * used up for now — then the next one down, until the reset. Default resolves
+ * to Opus on the CLI's side, which is what its own fallback already is.
+ */
+export function runModelFor(picked: string | undefined): string {
+  const model = picked || 'default'
+  if (modelLimitedUntil(modelFamily(model))) return fallbackModelFor(model) ?? model
+  return model
+}
 import type { AgentBackend, AgentStartOptions, SessionContext, SessionHost } from '../agent-backend'
 
 /**
@@ -61,10 +72,14 @@ export function buildAgentArgs(
   // but also asks the CLI to fall back to Opus when its preferred model (for
   // example Fable) is unavailable or its allowance is exhausted. Without the
   // fallback flag, a Default session simply ended on the Fable-limit notice.
-  if (opts.model) args.push('--model', opts.model)
-  // A pinned model gets the next one down behind it too (Fable → Opus): its
-  // allowance running out used to end the turn. See shared/model-fallback.ts.
-  const fallback = fallbackModelFor(opts.model)
+  // Default is named, not left out: resuming a session with no --model keeps
+  // whatever model it last ran on, so a chat once on Fable stayed on Fable
+  // after the picker said Default.
+  const model = runModelFor(opts.model)
+  args.push('--model', model)
+  // The next one down behind it, for a model that is overloaded or
+  // unavailable. (A used-up allowance is Superagent's to handle: runModelFor.)
+  const fallback = fallbackModelFor(model)
   if (fallback) args.push('--fallback-model', fallback)
   // Ask mode: headless claude can't show a prompt, so it asks our MCP server,
   // which asks the user (Mac modal or phone). See mcp.ts permission_prompt.
@@ -216,7 +231,7 @@ export function startClaudeSession(
           // Out of allowance: the CLI says so (with the reset time) before the
           // failed result lands.
           const limit = limitFromEvent(event)
-          if (limit) host.limit(limit.until)
+          if (limit) host.limit(limit)
           host.event(event)
         } catch {
           // partial or non-JSON line; ignore

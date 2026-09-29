@@ -199,12 +199,7 @@ export async function runRoutine(routine: Routine): Promise<void> {
     const win = BrowserWindow.getAllWindows()[0]
     // Match the visible pane's partition (shared for browser projects) so the
     // routine runs against the same logged-in session the user set up by hand.
-    if (win)
-      ensureOffscreenPane(
-        win,
-        paneId,
-        SHARED_BROWSER_PARTITION
-      )
+    if (win) ensureOffscreenPane(win, paneId, SHARED_BROWSER_PARTITION)
     // Seed the offscreen pane with the project's last-viewed URL so the agent has a
     // real page to act on. Without this it starts on about:blank, so a prompt like
     // "refresh the Instagram page and follow 5 people" has no page — the agent reads

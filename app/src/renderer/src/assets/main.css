@@ -12226,3 +12226,10 @@ button {
 .settings-accounts-foot {
   padding: 8px 0 0;
 }
+
+/* The model menu: its hints ("Most capable for your hardest and longest-running
+   tasks") wrapped to three lines at the shared 190px, and read as a column of
+   fragments. Wide enough that each fits on a line or two. */
+.easy-control-menu.easy-control-menu-wide {
+  min-width: 320px;
+}

@@ -150,3 +150,36 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
     )
     .toBe(workId)
 })
+
+test('one model running out moves the chat to the next one down, and says so', async () => {
+  const chatId = await window.evaluate(async () => {
+    const tree = await window.cove.storeTree()
+    const ws = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!
+    return (await window.cove.chatList(ws.id))[0].id
+  })
+  await app.evaluate(({ BrowserWindow }, id) => {
+    for (const w of BrowserWindow.getAllWindows())
+      w.webContents.send('accounts:model-limit', {
+        chatId: id,
+        model: 'fable',
+        fallback: 'opus',
+        until: Date.now() + 3_600_000
+      })
+  }, chatId)
+  await expect(window.locator('.easy-system').last()).toContainText(
+    'Fable has used up its allowance until about'
+  )
+  await expect(window.locator('.easy-system').last()).toContainText('continuing on Opus')
+  // No account card: the account is fine.
+  await expect(window.locator('.easy-limit')).toHaveCount(0)
+})
+
+test('the model menu is wide enough for its hints', async () => {
+  const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Model"))').first()
+  await pill.click()
+  const menu = window.locator('.easy-control-menu')
+  await expect(menu).toBeVisible()
+  expect((await menu.boundingBox())!.width).toBeGreaterThanOrEqual(320)
+  await menu.screenshot({ path: 'test-results/model-menu.png' })
+  await window.keyboard.press('Escape')
+})

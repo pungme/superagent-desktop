@@ -88,7 +88,7 @@ export interface SessionHost {
    * The CLI said its account is out of allowance, `until` epoch ms if it said
    * when (null otherwise). The host decides whether the chat moves accounts.
    */
-  limit(until: number | null): void
+  limit(limit: import('./accounts').Limit): void
 }
 
 /** Everything a backend is given beyond the user's own options. */
