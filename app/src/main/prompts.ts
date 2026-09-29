@@ -123,7 +123,11 @@ const CHOICES_PROMPT =
   'selection back as their next message. Use this only for genuine small multiple-choice decisions ' +
   '(2–4 options); for anything open-ended, just ask in prose as normal. Example:\n' +
   '```ask\n{"question": "Which theme?", "multiple": false, "options": [{"label": "Dark"}, ' +
-  '{"label": "Light"}, {"label": "Match system", "hint": "Follow macOS appearance"}]}\n```'
+  '{"label": "Light"}, {"label": "Match system", "hint": "Follow macOS appearance"}]}\n```' +
+  ' An answer can belong to an earlier question, not your last message: the user picks an ' +
+  'option or replies to one from further up. When it arrives with a quote, that quote is the ' +
+  'question it answers. When a short reply fits an earlier question better than your latest ' +
+  'message, act on that question, and say which one you took it for.'
 
 // Files the user should see belong INSIDE Superagent, not a separate OS window.
 const FILE_OPEN_PROMPT =

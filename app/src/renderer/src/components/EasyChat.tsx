@@ -1069,7 +1069,8 @@ const MessageRow = memo(function MessageRow({
   onWheelMsg: (e: React.WheelEvent<HTMLDivElement>, msg: ChatMessage) => void
   onReply: (msg: ChatMessage) => void
   onEdit: (msg: ChatMessage) => void
-  onAnswer: (a: string) => void
+  /** `from`: the message the choice was in, and what it asked. */
+  onAnswer: (a: string, from: { id: string; question: string }) => void
   onLightbox: (src: string) => void
 }): React.JSX.Element {
   const isAssistant = msg.role === 'assistant'
@@ -1122,7 +1123,16 @@ const MessageRow = memo(function MessageRow({
           'md' in seg ? (
             <Markdown key={si} text={seg.md} streaming={msg.streaming} onImage={onLightbox} />
           ) : (
-            <Choices key={si} spec={seg.ask} onAnswer={onAnswer} />
+            <Choices
+              key={si}
+              spec={seg.ask}
+              onAnswer={(a, question) =>
+                onAnswer(a, {
+                  id: msg.id,
+                  question: question || msg.text.replace(/```ask[\s\S]*?```/g, '').trim()
+                })
+              }
+            />
           )
         )
       ) : (
@@ -3838,9 +3848,29 @@ export function EasyChat({
   )
   const onRowReply = useCallback((m: ChatMessage) => rowFnsRef.current.beginReply(m), [])
   const onRowEdit = useCallback((m: ChatMessage) => rowFnsRef.current.editMessage(m), [])
-  const onRowAnswer = useCallback((a: string) => {
+  // A choice picked in an older message goes with that message's question
+  // quoted, the way Reply sends one. Sent bare, "Push and cut beta.15" read
+  // as an answer to whatever the agent said last — not to the question five
+  // messages up that it was actually picked from.
+  const lastAssistantIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i]
+      if (it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system) {
+        lastAssistantIdRef.current = it.msg.id
+        return
+      }
+    }
+    lastAssistantIdRef.current = null
+  }, [items])
+  const onRowAnswer = useCallback((a: string, from: { id: string; question: string }) => {
     setAtBottom(true)
-    rowFnsRef.current.submit(a, [], { files: [], reply: null, keepComposer: true })
+    const older = from.id !== lastAssistantIdRef.current
+    rowFnsRef.current.submit(a, [], {
+      files: [],
+      reply: older ? { role: 'assistant', text: from.question.slice(0, 600) } : null,
+      keepComposer: true
+    })
   }, [])
   const onRowLightbox = useCallback((src: string) => rowFnsRef.current.setLightbox(src), [])
   // The transcript rows, recomputed only when the items actually change — not on

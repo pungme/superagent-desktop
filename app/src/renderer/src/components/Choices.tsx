@@ -6,7 +6,8 @@ export function Choices({
   onAnswer
 }: {
   spec: ChoiceSpec
-  onAnswer: (text: string) => void
+  /** `question`: what was asked, so an answer to an older question can say which. */
+  onAnswer: (text: string, question?: string) => void
 }): React.JSX.Element {
   const multiple = !!spec.multiple
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -33,7 +34,7 @@ export function Choices({
     const ans = spec.options.filter((o) => picked.has(o.label)).map((o) => o.label)
     if (!ans.length) return
     setAnswered(ans.join(', '))
-    onAnswer(ans.join(', '))
+    onAnswer(ans.join(', '), spec.question)
   }
 
   return (
@@ -48,13 +49,11 @@ export function Choices({
               if (multiple) toggle(o.label)
               else {
                 setAnswered(o.label)
-                onAnswer(o.label)
+                onAnswer(o.label, spec.question)
               }
             }}
           >
-            {multiple && (
-              <span className="easy-choice-box">{picked.has(o.label) ? '☑' : '☐'}</span>
-            )}
+            {multiple && <span className="easy-choice-box">{picked.has(o.label) ? '☑' : '☐'}</span>}
             <span className="easy-choice-label">{o.label}</span>
             {o.hint && <span className="easy-choice-hint">{o.hint}</span>}
           </button>
