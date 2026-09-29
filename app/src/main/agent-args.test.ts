@@ -49,9 +49,14 @@ describe('buildAgentArgs', () => {
     expect(args.slice(i + 1).some((a) => a.startsWith('--'))).toBe(false)
   })
 
-  it('pins an explicit model and gives Default an Opus fallback', () => {
+  it('pins an explicit model, with the next one down behind it', () => {
     expect(valueAfter(buildAgentArgs({ model: 'opus' }), '--model')).toBe('opus')
-    expect(buildAgentArgs({ model: 'opus' }).includes('--fallback-model')).toBe(false)
+    expect(valueAfter(buildAgentArgs({ model: 'opus' }), '--fallback-model')).toBe('sonnet')
+    const fable = buildAgentArgs({ model: 'claude-fable-5-1' })
+    expect(valueAfter(fable, '--model')).toBe('claude-fable-5-1')
+    expect(valueAfter(fable, '--fallback-model')).toBe('opus')
+    // Nothing sensible below Sonnet to fall to unasked.
+    expect(buildAgentArgs({ model: 'sonnet' }).includes('--fallback-model')).toBe(false)
     // Default sends no --model, so Claude still chooses first; Opus is used only
     // when that preferred model is unavailable or its allowance is exhausted.
     expect(buildAgentArgs({}).includes('--model')).toBe(false)

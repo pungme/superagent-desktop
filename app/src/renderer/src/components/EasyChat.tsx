@@ -14,6 +14,7 @@ import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { useProjectBrowser } from '../hooks/useProjectBrowser'
 import type { BrowserChoice, LimitNotice } from '../../../preload'
+import { fallbackNotice, modelFallbackFrom } from '../../../shared/model-fallback'
 import { ProviderLogo } from './ProviderLogo'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
@@ -1240,6 +1241,8 @@ export function EasyChat({
   const [limitNotice, setLimitNotice] = useState<LimitNotice | null>(null)
   /** Set when the notice lands ahead of the failed result, so that result's ⚠ note stays quiet. */
   const limitPendingRef = useRef(false)
+  /** Fallbacks already announced in this chat ("fable>opus"). */
+  const saidFallbackRef = useRef(new Set<string>())
   /**
    * This chat's agent has been alive at least once.
    *
@@ -2254,6 +2257,30 @@ export function EasyChat({
       // background), finished, and the full list of what's still running. A
       // background agent's tool result only says "launched", so these are what
       // keep its pill up until it's actually done.
+      // The model's allowance ran out (or it is overloaded) and the CLI carried
+      // the turn on with the next one down. Said once: it tries the first
+      // choice again every turn, and would repeat this on each.
+      const fellBack = modelFallbackFrom(event)
+      if (fellBack) {
+        const key = `${fellBack.original}>${fellBack.fallback}`
+        if (!saidFallbackRef.current.has(key)) {
+          saidFallbackRef.current.add(key)
+          setItems((prev) => [
+            ...prev,
+            {
+              kind: 'msg',
+              msg: {
+                id: `sys-fallback-${Date.now()}`,
+                at: Date.now(),
+                role: 'assistant',
+                text: fallbackNotice(fellBack),
+                system: true
+              }
+            }
+          ])
+        }
+        return
+      }
       if (type === 'system' && (event.subtype as string) === 'task_started') {
         const toolUseId = event.tool_use_id as string | undefined
         if (toolUseId && event.task_type === 'local_agent')

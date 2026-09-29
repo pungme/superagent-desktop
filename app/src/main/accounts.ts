@@ -347,6 +347,36 @@ export function limitFromEvent(event: Record<string, unknown>): { until: number 
   return null
 }
 
+/**
+ * Whether a limit the CLI reported actually ended the turn.
+ *
+ * "Rejected" is about one request. With a fallback model behind it the CLI
+ * carries the turn on (Fable's allowance gone, Opus takes over), and offering
+ * another account then would be answering a question nobody asked. So a
+ * reported limit is held until the turn's result: a failed turn means the
+ * account is out; a fallback, or a turn that finished, means it is not.
+ */
+export class LimitGate {
+  private held: { until: number | null } | null = null
+
+  hold(until: number | null): void {
+    // The first report of a turn carries the reset time; the result's text does not.
+    if (!this.held || (this.held.until === null && until !== null)) this.held = { until }
+  }
+
+  fellBack(): void {
+    this.held = null
+  }
+
+  /** The turn's result: the limit to act on, or null. Clears what was held. */
+  result(event: Record<string, unknown>): { until: number | null } | null {
+    const held = this.held
+    this.held = null
+    if (event.type !== 'result' || !event.is_error) return null
+    return held
+  }
+}
+
 /** Codex's `account/rateLimits/updated`: out when a window is fully used. */
 export function limitFromCodexRateLimits(
   params: Record<string, unknown>

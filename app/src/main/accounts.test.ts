@@ -37,6 +37,7 @@ import {
   DEFAULT_LIMIT_MS,
   epochMs,
   limitFromCodexRateLimits,
+  LimitGate,
   limitFromEvent,
   linkCodexHome,
   listAccounts,
@@ -222,5 +223,30 @@ describe('accounts', () => {
     _resetAccountsForTests()
     expect(listAccounts('claude').map((a) => a.id)).toEqual([LOGIN_ID.claude])
     expect(accountForChat('claude', 'c1').id).toBe(LOGIN_ID.claude)
+  })
+})
+
+describe('a reported limit waits for the turn to say whether it mattered', () => {
+  it('a failed turn means the account is out', () => {
+    const gate = new LimitGate()
+    gate.hold(1_800_000_000_000)
+    gate.hold(null) // the result's own text, with no time
+    expect(gate.result({ type: 'result', is_error: true })).toEqual({ until: 1_800_000_000_000 })
+    // Spent: the next turn starts clean.
+    expect(gate.result({ type: 'result', is_error: true })).toBeNull()
+  })
+
+  it('a fallback model carrying the turn on means it is not', () => {
+    const gate = new LimitGate()
+    gate.hold(1_800_000_000_000)
+    gate.fellBack()
+    expect(gate.result({ type: 'result', is_error: false })).toBeNull()
+  })
+
+  it('nor is a turn that simply finished', () => {
+    const gate = new LimitGate()
+    gate.hold(null)
+    expect(gate.result({ type: 'result', is_error: false })).toBeNull()
+    expect(gate.result({ type: 'result', is_error: true })).toBeNull()
   })
 })

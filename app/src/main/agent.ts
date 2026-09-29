@@ -14,9 +14,11 @@ import {
   accountForChat,
   authFailureFrom,
   authFailureFromEvent,
+  LimitGate,
   markAuth,
   reportLimit
 } from './accounts'
+import { modelFallbackFrom } from '../shared/model-fallback'
 import { startCodexSession, suggestTitleWithCodex } from './codex/session'
 import type {
   AgentBackend,
@@ -297,6 +299,7 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   // allowance, else the first that does; the CLI's own login by default.
   const account = accountForChat(provider, opts.chatId)
   let limitReported = false
+  const limits = new LimitGate()
 
   const host: SessionHost = {
     ready(backend) {
@@ -337,6 +340,23 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
       }
       const refused = authFailureFromEvent(event)
       if (refused) markAuth(account.id, refused)
+      // The model ran out, not the account: the CLI carries on with the next
+      // one down. Say so (the phone hears it from the bus).
+      const fellBack = modelFallbackFrom(event)
+      if (fellBack) {
+        limits.fellBack()
+        agentBus.emit('model-fallback', { ...meta, ...fellBack })
+      }
+      if (event?.type === 'result') {
+        const out = limits.result(event)
+        // Once per process: a second notice would offer the switch twice.
+        if (out && !limitReported && opts.chatId) {
+          limitReported = true
+          // Before the result goes to the window, so the card is what it shows
+          // for this turn rather than the generic "hit an error" note.
+          reportLimit(opts.chatId, provider, account.id, out.until)
+        }
+      }
       agentBus.emit('event', { ...meta, event })
       const o = session?.owner
       if (o && !o.isDestroyed()) o.send(`agent:event:${id}`, event)
@@ -361,11 +381,8 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
       notifyResumeLost(sessions.get(id)?.owner ?? owner, meta)
     },
     limit(until) {
-      // Once per process: the CLI repeats itself (event, then the result), and
-      // a second notice would offer the switch twice.
-      if (limitReported || !opts.chatId) return
-      limitReported = true
-      reportLimit(opts.chatId, provider, account.id, until)
+      // Held until the turn's result says whether it ended the turn (LimitGate).
+      limits.hold(until)
     }
   }
 

@@ -9,6 +9,7 @@ import { findClaude } from '../claude-cli'
 import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import { cachedClaudeModels } from './models'
 import { limitFromEvent } from '../accounts'
+import { fallbackModelFor } from '../../shared/model-fallback'
 import type { AgentBackend, AgentStartOptions, SessionContext, SessionHost } from '../agent-backend'
 
 /**
@@ -61,7 +62,10 @@ export function buildAgentArgs(
   // example Fable) is unavailable or its allowance is exhausted. Without the
   // fallback flag, a Default session simply ended on the Fable-limit notice.
   if (opts.model) args.push('--model', opts.model)
-  else args.push('--fallback-model', 'opus')
+  // A pinned model gets the next one down behind it too (Fable → Opus): its
+  // allowance running out used to end the turn. See shared/model-fallback.ts.
+  const fallback = fallbackModelFor(opts.model)
+  if (fallback) args.push('--fallback-model', fallback)
   // Ask mode: headless claude can't show a prompt, so it asks our MCP server,
   // which asks the user (Mac modal or phone). See mcp.ts permission_prompt.
   if (opts.permissionMode === 'ask')

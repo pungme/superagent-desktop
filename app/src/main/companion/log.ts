@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { fallbackNotice } from '../../shared/model-fallback'
 import { basename, extname, isAbsolute, relative } from 'path'
 import { statSync } from 'fs'
 import { agentBus, listSessions, getSessionOpts } from '../agent'
@@ -307,6 +308,20 @@ export function startCompanionLog(): void {
         appendChatItems(chatId, toLegacyItems([ev.data]))
         broadcastToWindows('chat:appended', { chatId })
       }
+    }
+  )
+
+  // The CLI tries the first-choice model again every turn, so this would
+  // otherwise repeat on each one until the allowance is back.
+  const saidFallback = new Map<string, number>()
+  agentBus.on(
+    'model-fallback',
+    (f: { chatId?: string; original: string; fallback: string; trigger: string }) => {
+      if (!f.chatId) return
+      const key = `${f.chatId}:${f.original}>${f.fallback}`
+      if (Date.now() - (saidFallback.get(key) ?? 0) < 30 * 60_000) return
+      saidFallback.set(key, Date.now())
+      record(f.chatId, { kind: 'notice', text: fallbackNotice(f) })
     }
   )
 
