@@ -11,7 +11,8 @@ import {
   sendSimInput,
   simulatorScreenPoint,
   noteSimulatorOpen,
-  chatHoldingSimulator
+  chatHoldingSimulator,
+  litDisplayArgs
 } from './simulator'
 import { withoutStealingFocus } from './browser'
 import { recordFileHandover } from './companion/log'
@@ -323,7 +324,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     },
     async () => {
       const file = `${tmpdir()}/sim-${Date.now()}.png`
-      await simctl(['io', simTarget(CHAT_ID), 'screenshot', file])
+      await simctl([
+        'io',
+        simTarget(CHAT_ID),
+        'screenshot',
+        ...(await litDisplayArgs(simTarget(CHAT_ID))),
+        file
+      ])
       const ws = workspaceIdFromPane(PANE_ID)
       // Reveal the pane, the same as reading/driving does — a screenshot means
       // the agent is looking at the device, so the user should be too.
@@ -438,7 +445,13 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
 
   const grabScreen = async (): Promise<{ buf: Buffer; w: number; h: number }> => {
     const file = `${tmpdir()}/sim-${Date.now()}.png`
-    await simctl(['io', simTarget(CHAT_ID), 'screenshot', file])
+    await simctl([
+      'io',
+      simTarget(CHAT_ID),
+      'screenshot',
+      ...(await litDisplayArgs(simTarget(CHAT_ID))),
+      file
+    ])
     try {
       const buf = readFileSync(file)
       const size = nativeImage.createFromPath(file).getSize()

@@ -56,9 +56,17 @@ static NSString *loadFrameworks(void) {
 
   if (!dlopen("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/CoreSimulator", RTLD_NOW))
     fail("CoreSimulator.framework would not load");
-  NSString *sk =
-      [dev stringByAppendingString:@"/Library/PrivateFrameworks/SimulatorKit.framework/SimulatorKit"];
-  if (!dlopen(sk.UTF8String, RTLD_NOW)) fail("SimulatorKit.framework would not load");
+  // Xcode 27 moved SimulatorKit from Developer/Library/PrivateFrameworks to
+  // Contents/SharedFrameworks; try both, newest first.
+  NSString *contents = [dev stringByDeletingLastPathComponent];
+  NSArray *candidates = @[
+    [contents stringByAppendingString:@"/SharedFrameworks/SimulatorKit.framework/SimulatorKit"],
+    [dev stringByAppendingString:@"/Library/PrivateFrameworks/SimulatorKit.framework/SimulatorKit"]
+  ];
+  BOOL loaded = NO;
+  for (NSString *sk in candidates)
+    if (dlopen(sk.UTF8String, RTLD_NOW)) { loaded = YES; break; }
+  if (!loaded) fail("SimulatorKit.framework would not load");
   return dev;
 }
 
@@ -84,15 +92,31 @@ static id findDevice(NSString *dev, NSString *wantUDID) {
   return nil;
 }
 
-/**
- * The display port. Several ports claim the protocol but only one hands back a
- * surface — the others answer nil, so pick by what actually works.
- */
-static id findDisplayPort(id device) {
+/** How lit a surface is: the mean of a sparse grid of pixels, 0–255. */
+static double brightness(IOSurfaceRef r) {
+  size_t w = IOSurfaceGetWidth(r), h = IOSurfaceGetHeight(r), pitch = IOSurfaceGetBytesPerRow(r);
+  if (!w || !h) return 0;
+  IOSurfaceLock(r, kIOSurfaceLockReadOnly, NULL);
+  uint8_t *b = IOSurfaceGetBaseAddress(r);
+  unsigned long long sum = 0, n = 0;
+  size_t sy = h / 40 ? h / 40 : 1, sx = w / 40 ? w / 40 : 1;
+  for (size_t y = 0; y < h; y += sy)
+    for (size_t x = 0; x < w; x += sx) {
+      uint8_t *px = b + y * pitch + x * 4;
+      sum += px[0] + px[1] + px[2];
+      n++;
+    }
+  IOSurfaceUnlock(r, kIOSurfaceLockReadOnly, NULL);
+  return n ? (double)sum / (n * 3) : 0;
+}
+
+/** Every screen the device has that hands back a framebuffer. */
+static NSArray *displayPorts(id device) {
   id io = ((id(*)(id, SEL))objc_msgSend)(device, @selector(io));
   if (!io) fail("device has no io client");
   Protocol *proto = objc_getProtocol("SimDisplayIOSurfaceRenderable");
   if (!proto) fail("SimDisplayIOSurfaceRenderable missing — private API moved");
+  NSMutableArray *out = [NSMutableArray array];
   for (id port in ((id(*)(id, SEL))objc_msgSend)(io, @selector(ioPorts))) {
     id desc = nil;
     @try {
@@ -107,9 +131,31 @@ static id findDisplayPort(id device) {
     } @catch (NSException *e) {
       continue;
     }
-    if (surface) return desc;
+    if (surface) [out addObject:desc];
   }
-  return nil;
+  return out;
+}
+
+static double portBrightness(id desc) {
+  IOSurfaceRef s =
+      (__bridge IOSurfaceRef)((id(*)(id, SEL))objc_msgSend)(desc, @selector(framebufferSurface));
+  return s ? brightness(s) : 0;
+}
+
+/** Below this the screen is off (a folded foldable's inner screen reads 0). */
+static const double DARK = 2.0;
+
+/**
+ * The display port. Most devices have one screen; a foldable (iPhone Duo) has
+ * two, and only the one in use is lit — the other is black. Taking the first
+ * that answered showed a black pane whenever that was the one switched off.
+ * Take the lit one; the first when none is (a device still starting up).
+ */
+static id findDisplayPort(id device) {
+  NSArray *ports = displayPorts(device);
+  for (id d in ports)
+    if (portBrightness(d) > DARK) return d;
+  return ports.firstObject;
 }
 
 static NSData *encodeJPEG(IOSurfaceRef surface, double scale, double quality) {
@@ -179,6 +225,9 @@ int main(int argc, const char **argv) {
   @autoreleasepool {
     NSString *udid = @"";
     double scale = 0.5, quality = 0.6, maxFps = 30;
+    BOOL probe = NO;
+    for (int i = 1; i < argc; i++)
+      if (!strcmp(argv[i], "--probe")) probe = YES;
     for (int i = 1; i < argc - 1; i++) {
       if (!strcmp(argv[i], "--udid")) udid = @(argv[i + 1]);
       else if (!strcmp(argv[i], "--scale")) scale = atof(argv[i + 1]);
@@ -189,6 +238,22 @@ int main(int argc, const char **argv) {
     NSString *dev = loadFrameworks();
     id device = findDevice(dev, udid);
     if (!device) fail("no booted simulator");
+    // --probe: which screens the device has and which is lit, then exit — for
+    // tools that capture one screen (simctl) to be told which.
+    if (probe) {
+      printf("[");
+      BOOL first = YES;
+      for (id d in displayPorts(device)) {
+        IOSurfaceRef ps =
+            (__bridge IOSurfaceRef)((id(*)(id, SEL))objc_msgSend)(d, @selector(framebufferSurface));
+        if (!ps) continue;
+        printf("%s{\"width\":%zu,\"height\":%zu,\"lit\":%s}", first ? "" : ",",
+               IOSurfaceGetWidth(ps), IOSurfaceGetHeight(ps), brightness(ps) > DARK ? "true" : "false");
+        first = NO;
+      }
+      printf("]\n");
+      return 0;
+    }
     id port = findDisplayPort(device);
     if (!port) fail("no display port handed back a framebuffer");
 
@@ -197,8 +262,10 @@ int main(int argc, const char **argv) {
     if (!surface) fail("framebuffer surface disappeared");
     size_t w = IOSurfaceGetWidth(surface), h = IOSurfaceGetHeight(surface);
 
-    printf("{\"type\":\"info\",\"width\":%zu,\"height\":%zu,\"scale\":%.3f,\"device\":\"%s\"}\n",
-           w, h, scale, [[device valueForKey:@"name"] UTF8String]);
+    NSUInteger screens = displayPorts(device).count;
+    printf("{\"type\":\"info\",\"width\":%zu,\"height\":%zu,\"scale\":%.3f,\"device\":\"%s\","
+           "\"screens\":%lu}\n",
+           w, h, scale, [[device valueForKey:@"name"] UTF8String], (unsigned long)screens);
     fflush(stdout);
 
     // Damage callbacks say *when* to encode, so a still screen costs nothing.
@@ -253,6 +320,23 @@ int main(int argc, const char **argv) {
       if ([[device valueForKey:@"state"] unsignedLongValue] != 3) {
         fprintf(stderr, "simfb: device is no longer booted\n");
         exit(3);
+      }
+      // A foldable folded or unfolded: this screen went dark and another lit
+      // up. Hand back to the app, which starts again on the lit one (with its
+      // size, which differs). Two dark ticks in a row, so a black frame in an
+      // app's own content does not trigger it.
+      static int darkTicks = 0;
+      if (screens > 1 && portBrightness(port) <= DARK) {
+        BOOL otherLit = NO;
+        for (id d in displayPorts(device))
+          if (d != port && portBrightness(d) > DARK) otherLit = YES;
+        darkTicks = otherLit ? darkTicks + 1 : 0;
+        if (darkTicks >= 2) {
+          fprintf(stderr, "simfb: the screen switched\n");
+          exit(4);
+        }
+      } else {
+        darkTicks = 0;
       }
       if (!dirty) emit();
       dirty = NO;

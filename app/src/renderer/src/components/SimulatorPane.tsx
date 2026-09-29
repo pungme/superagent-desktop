@@ -682,6 +682,27 @@ export function SimulatorPane({
     const saved = udid ? localStorage.getItem(`cove.simOrientation:${udid}`) : null
     setOrientation(saved === 'left' || saved === 'right' ? saved : 'portrait')
   }, [udid])
+  // Follow the device rather than trust the last button press: the agent, an
+  // app, or unfolding a Duo turns it without the pane knowing. Checked when a
+  // device (or a switched screen) first shows, then now and then.
+  const hasFrame = !!frame
+  useEffect(() => {
+    if (!udid || !hasFrame) return
+    let alive = true
+    const check = (): void => {
+      void window.cove.simOrientation?.(udid).then((o) => {
+        if (!alive || !o) return
+        setOrientation(o)
+        localStorage.setItem(`cove.simOrientation:${udid}`, o)
+      })
+    }
+    check()
+    const t = setInterval(check, 8000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [udid, hasFrame, frame?.width, frame?.height])
   const landscape = orientation !== 'portrait'
   /**
    * How big to draw a turned picture.

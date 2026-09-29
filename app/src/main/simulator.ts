@@ -432,9 +432,13 @@ async function grabFrame(
 ): Promise<{ url: string; width: number; height: number; hash: string } | null> {
   const file = join(tmpdir(), `sa-sim-${udid.slice(0, 8)}.jpg`)
   try {
-    await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], {
-      timeout: 15_000
-    })
+    await run(
+      'xcrun',
+      ['simctl', 'io', udid, 'screenshot', '--type=jpeg', ...(await litDisplayArgs(udid)), file],
+      {
+        timeout: 15_000
+      }
+    )
     const img = nativeImage.createFromBuffer(readFileSync(file))
     if (img.isEmpty()) return null
     const { width: pxW, height: pxH } = img.getSize()
@@ -617,9 +621,13 @@ const SIM_MIRROR_BYTES = 120_000
 export async function simStill(udid: string): Promise<string | null> {
   const file = join(tmpdir(), `sa-sim-companion-${udid.slice(0, 8)}.jpg`)
   try {
-    await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], {
-      timeout: 15_000
-    })
+    await run(
+      'xcrun',
+      ['simctl', 'io', udid, 'screenshot', '--type=jpeg', ...(await litDisplayArgs(udid)), file],
+      {
+        timeout: 15_000
+      }
+    )
     let img = nativeImage.createFromPath(file)
     if (img.isEmpty()) return `data:image/jpeg;base64,${readFileSync(file).toString('base64')}`
     if (img.getSize().width > SIM_MIRROR_WIDTH) img = img.resize({ width: SIM_MIRROR_WIDTH })
@@ -675,6 +683,120 @@ function simfbPath(): string | null {
   for (const p of candidates) if (existsSync(p)) return p
   return null
 }
+
+/**
+ * `--display <uuid>` for simctl's screenshot on a device with more than one
+ * screen (iPhone Duo): the lit one. simctl's default is the first screen,
+ * which on a folded Duo is the switched-off inner one — a black picture that
+ * the agent then tried to tap. Nothing for a one-screen device, or when it
+ * cannot tell.
+ */
+const displayArgCache = new Map<string, { at: number; args: string[] }>()
+export async function litDisplayArgs(udid: string): Promise<string[]> {
+  if (!/^[0-9A-F-]{36}$/i.test(udid)) return []
+  const hit = displayArgCache.get(udid)
+  if (hit && Date.now() - hit.at < 2000) return hit.args
+  const done = (args: string[]): string[] => {
+    displayArgCache.set(udid, { at: Date.now(), args })
+    return args
+  }
+  try {
+    const { stdout } = await run('xcrun', ['simctl', 'io', udid, 'enumerate'], { timeout: 10_000 })
+    const screens = parseScreens(stdout)
+    if (screens.length < 2) return done([])
+    const bin = simfbPath()
+    if (!bin) return done([])
+    const probe = await run(bin, ['--probe', '--udid', udid], { timeout: 10_000 })
+    const lit = (
+      JSON.parse(probe.stdout) as { width: number; height: number; lit: boolean }[]
+    ).find((d) => d.lit)
+    const match = lit && screens.find((d) => d.width === lit.width && d.height === lit.height)
+    return done(match ? ['--display', match.uuid] : [])
+  } catch {
+    return done([])
+  }
+}
+
+/** The screens in `simctl io <udid> enumerate`: display ports that carry a framebuffer. */
+export function parseScreens(out: string): { uuid: string; width: number; height: number }[] {
+  return out
+    .split(/\n(?=Port:)/)
+    .filter((b) => /Class: Display/.test(b) && /IOSurface port:/.test(b))
+    .flatMap((b) => {
+      const uuid = /UUID: ([0-9A-F-]{36})/i.exec(b)?.[1]
+      const w = /IOSurface port:[\s\S]*?width\s*=\s*(\d+)/.exec(b)?.[1]
+      const h = /IOSurface port:[\s\S]*?height\s*=\s*(\d+)/.exec(b)?.[1]
+      return uuid && w && h ? [{ uuid, width: Number(w), height: Number(h) }] : []
+    })
+}
+
+/**
+ * Which way the device is turned, worked out rather than remembered.
+ *
+ * The framebuffer is portrait-shaped whatever the device is doing, and the
+ * pane only knew what its own rotate button last asked for — so a device
+ * turned by the agent or by an app (the unfolded iPhone Duo runs landscape)
+ * arrived lying on its side. simctl's screenshot is always upright; the raw
+ * frame (baguette's) is not. Upright-shaped: portrait. Otherwise the raw
+ * frame turned whichever way matches the upright picture better.
+ */
+export async function detectOrientation(
+  udid: string
+): Promise<'portrait' | 'left' | 'right' | null> {
+  const bin = await findBaguette()
+  if (!bin) return null
+  const upFile = join(tmpdir(), `sa-up-${udid.slice(0, 8)}.png`)
+  const rawFile = join(tmpdir(), `sa-raw-${udid.slice(0, 8)}.jpg`)
+  try {
+    await Promise.all([
+      run(
+        'xcrun',
+        ['simctl', 'io', udid, 'screenshot', '--type=png', ...(await litDisplayArgs(udid)), upFile],
+        { timeout: 15_000 }
+      ),
+      run(bin, ['screenshot', '--udid', udid, '--scale', '8', '-o', rawFile], { timeout: 15_000 })
+    ])
+    const up = nativeImage.createFromPath(upFile)
+    const raw = nativeImage.createFromPath(rawFile)
+    if (up.isEmpty() || raw.isEmpty()) return null
+    const u = up.getSize()
+    if (u.height >= u.width) return 'portrait'
+    return orientationFrom(
+      grey(raw.resize({ width: 24, height: 34 }).toBitmap(), 24, 34),
+      grey(up.resize({ width: 34, height: 24 }).toBitmap(), 34, 24)
+    )
+  } catch {
+    return null
+  }
+}
+
+/** BGRA → one grey value per pixel. */
+function grey(bgra: Buffer, w: number, h: number): number[] {
+  const out: number[] = []
+  for (let i = 0; i < w * h; i++) out.push((bgra[i * 4] + bgra[i * 4 + 1] + bgra[i * 4 + 2]) / 3)
+  return out
+}
+
+/**
+ * `raw` is w × h (portrait, 24 × 34), `up` is h × w (landscape). 'left' is the
+ * pane drawing the frame turned 90° clockwise; 'right', anticlockwise.
+ */
+export function orientationFrom(raw: number[], up: number[], w = 24, h = 34): 'left' | 'right' {
+  let cw = 0
+  let ccw = 0
+  for (let y = 0; y < w; y++)
+    for (let x = 0; x < h; x++) {
+      const target = up[y * h + x]
+      // Turned clockwise, (x, y) of the result comes from raw (y, h-1-x).
+      cw += Math.abs(target - raw[(h - 1 - x) * w + y])
+      // Anticlockwise, from raw (w-1-y, x).
+      ccw += Math.abs(target - raw[x * w + (w - 1 - y)])
+    }
+  return cw <= ccw ? 'left' : 'right'
+}
+
+/** simfb's exit code when a multi-screen device changed which screen is lit. */
+const SCREEN_SWITCHED = 4
 
 /** @returns true if the native stream took over; false to use the mirror. */
 function startNativeStream(window: BrowserWindow, udid: string, name: string): boolean {
@@ -732,10 +854,17 @@ function startNativeStream(window: BrowserWindow, udid: string, name: string): b
     stderr += c.toString()
   })
 
-  const done = (): void => {
+  const done = (code?: number | null): void => {
     const deliberate = nativeStreams.get(udid) !== proc
     nativeStreams.delete(udid)
     if (deliberate || window.isDestroyed()) return
+    // A foldable folded or unfolded: the screen being shown went dark and the
+    // other lit up (simfb exits 4). Start again — it picks the lit one, and
+    // the new frame size tells the pane how to map taps.
+    if (code === SCREEN_SWITCHED) {
+      startNativeStream(window, udid, name)
+      return
+    }
     if (sawFrame) {
       // It was working and stopped — almost always the device shutting down.
       // Say so rather than leaving a frozen picture on screen.
@@ -748,8 +877,8 @@ function startNativeStream(window: BrowserWindow, udid: string, name: string): b
     console.error('[simfb] no frames:', stderr.trim() || 'exited silently')
     if (!streams.has(udid)) startStream(window, udid, 2, name)
   }
-  proc.on('exit', done)
-  proc.on('error', done)
+  proc.on('exit', (code) => done(code))
+  proc.on('error', () => done())
 
   nativeStreams.set(udid, proc)
   return true
@@ -922,9 +1051,13 @@ export function registerSimulatorIpc(): void {
   ipcMain.handle('sim:screenshot', async (_e, udid: string) => {
     const file = join(tmpdir(), `sa-sim-still-${udid.slice(0, 8)}.jpg`)
     try {
-      await run('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=jpeg', file], {
-        timeout: 15_000
-      })
+      await run(
+        'xcrun',
+        ['simctl', 'io', udid, 'screenshot', '--type=jpeg', ...(await litDisplayArgs(udid)), file],
+        {
+          timeout: 15_000
+        }
+      )
       return `data:image/jpeg;base64,${readFileSync(file).toString('base64')}`
     } catch {
       return null
@@ -1028,6 +1161,7 @@ export function registerSimulatorIpc(): void {
     return true
   })
   /** The user explicitly asked for Apple's Simulator — stand aside and show it. */
+  ipcMain.handle('sim:orientation', (_e, udid: string) => detectOrientation(udid))
   ipcMain.handle('sim:open-app', async (_e, udid: string) => {
     // Stop the mirror's keep-hidden logic from putting it away again.
     simulatorWindowAllowed = true

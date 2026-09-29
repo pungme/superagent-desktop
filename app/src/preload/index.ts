@@ -471,6 +471,8 @@ export interface CoveApi {
   simAttachRelease: () => Promise<boolean>
   /** The user asked for Apple's Simulator window — open it and stop hiding it. */
   simOpenApp: (udid: string) => Promise<boolean>
+  /** Which way the device is actually turned (worked out from its screen). */
+  simOrientation: (udid: string) => Promise<'portrait' | 'left' | 'right' | null>
   simAttach: (
     udid: string,
     rect: { x: number; y: number; width: number; height: number }
@@ -992,6 +994,7 @@ const cove: CoveApi = {
   simAttachSettings: () => ipcRenderer.invoke('sim:attach-settings'),
   simAttachRelease: () => ipcRenderer.invoke('sim:attach-release'),
   simOpenApp: (udid) => ipcRenderer.invoke('sim:open-app', udid),
+  simOrientation: (udid) => ipcRenderer.invoke('sim:orientation', udid),
   simAttach: (udid, rect) => ipcRenderer.invoke('sim:attach', udid, rect),
   simAttachMove: (rect) => ipcRenderer.invoke('sim:attach-move', rect),
   simAttachHide: () => ipcRenderer.invoke('sim:attach-hide'),

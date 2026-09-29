@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import {
   baguetteCandidates,
   escapeForAppleScript,
   navigationReplacesPage,
   simulatorScreenPoint,
-  usesPersistentSimSession
+  usesPersistentSimSession,
+  orientationFrom,
+  parseScreens
 } from './simulator'
 
 /**
@@ -104,5 +108,27 @@ describe('usesPersistentSimSession', () => {
   it('never creates a persistent session for text and hardware buttons', () => {
     expect(usesPersistentSimSession({ type: 'text' })).toBe(false)
     expect(usesPersistentSimSession({ type: 'press' })).toBe(false)
+  })
+})
+
+describe('a device with more than one screen (iPhone Duo)', () => {
+  it("lists its screens from simctl's enumerate: the ports that carry a framebuffer", () => {
+    const out = readFileSync(join(__dirname, '__fixtures__', 'simctl-enumerate-duo.txt'), 'utf8')
+    expect(parseScreens(out)).toEqual([
+      { uuid: '5B875575-6FBE-4AF9-896C-AC322256B864', width: 1398, height: 2034 },
+      { uuid: '3A9A8F16-6A4C-4F5A-B366-E4D68CA83175', width: 2007, height: 2853 }
+    ])
+  })
+
+  it('works out which way a turned frame faces', () => {
+    // A 24 × 34 portrait frame with a bright top row: turned clockwise, that
+    // row becomes the right-hand column of the 34 × 24 upright picture.
+    const w = 24
+    const h = 34
+    const raw = Array.from({ length: w * h }, (_, i) => (Math.floor(i / w) === 0 ? 255 : 0))
+    const turnedCw = Array.from({ length: h * w }, (_, i) => (i % h === h - 1 ? 255 : 0))
+    const turnedCcw = Array.from({ length: h * w }, (_, i) => (i % h === 0 ? 255 : 0))
+    expect(orientationFrom(raw, turnedCw)).toBe('left')
+    expect(orientationFrom(raw, turnedCcw)).toBe('right')
   })
 })
