@@ -31,8 +31,8 @@ const MIME: Record<string, string> = {
   '.gif': 'image/gif'
 }
 
-/** A file this small is either a real icon or a broken one — never worth reading past. */
-const MAX_ICON_BYTES = 2_000_000
+/** Past this it is not an icon. (Big ones are shrunk before use; see fileToDataUri.) */
+const MAX_ICON_BYTES = 10_000_000
 
 function fileToDataUri(path: string): string | null {
   try {
@@ -102,20 +102,27 @@ const SKIP_DIRS = new Set([
 const MAX_DIRS_VISITED = 1500
 
 /**
- * Breadth-first, so the shallowest icon set wins, and deep enough to reach an
- * app inside a project that groups several repos:
- * repo/SuperAgent/Resources/Assets.xcassets/AppIcon.appiconset is five levels
- * down, which the old three-level walk never reached. At one level, the main
- * `AppIcon` beats alternates like `AppIconAmber`, whichever readdir lists first.
+ * Not the app itself: a widget, extension, watch app, App Clip or test target
+ * keeps an icon set of its own, and it must never stand in for the app's.
  */
-function findAppIconSets(root: string, maxDepth: number): string[] {
+const SIDE_TARGET = /(widget|extension|watch|clip|intents?|share|notification|tests?)/i
+
+/**
+ * Every app icon in the project — `.appiconset`s and Icon Composer `.icon`s —
+ * best first: the app's own before a side target's, an icon set (an exact
+ * picture) before an `.icon` (which has to be drawn), shallower before deeper,
+ * and the main `AppIcon` before alternates like `AppIconAmber`. The caller
+ * takes the first that actually has a picture in it: stopping at the first set
+ * found meant an empty one (a widget's) left the project with a folder.
+ */
+function findAppIcons(root: string, maxDepth: number): string[] {
+  const found: { path: string; depth: number }[] = []
   let level = [root]
   let visited = 0
   for (let depth = 0; depth <= maxDepth && level.length; depth++) {
     const next: string[] = []
-    const found: string[] = []
     for (const dir of level) {
-      if (++visited > MAX_DIRS_VISITED) return found
+      if (++visited > MAX_DIRS_VISITED) break
       let entries: string[]
       try {
         entries = readdirSync(dir)
@@ -126,7 +133,11 @@ function findAppIconSets(root: string, maxDepth: number): string[] {
         if (name.startsWith('.') || SKIP_DIRS.has(name)) continue
         const p = join(dir, name)
         if (name.endsWith('.appiconset')) {
-          if (existsSync(join(p, 'Contents.json'))) found.push(p)
+          if (existsSync(join(p, 'Contents.json'))) found.push({ path: p, depth })
+          continue
+        }
+        if (name.endsWith('.icon')) {
+          if (existsSync(join(p, 'icon.json'))) found.push({ path: p, depth })
           continue
         }
         try {
@@ -136,28 +147,77 @@ function findAppIconSets(root: string, maxDepth: number): string[] {
         }
       }
     }
-    // The main `AppIcon` first, then alternates; the caller takes the first
-    // that actually has a picture in it.
-    if (found.length)
-      return [
-        ...found.filter((p) => p.endsWith('/AppIcon.appiconset')),
-        ...found.filter((p) => !p.endsWith('/AppIcon.appiconset'))
-      ]
     level = next
   }
-  return []
+  const rank = (f: { path: string; depth: number }): number[] => [
+    SIDE_TARGET.test(f.path.slice(root.length)) ? 1 : 0,
+    // An exact picture beats one we have to draw, wherever it sits.
+    f.path.endsWith('.icon') ? 1 : 0,
+    f.depth,
+    /\/AppIcon\.(appiconset|icon)$/.test(f.path) ? 0 : 1
+  ]
+  return found
+    .sort((a, b) => {
+      const ra = rank(a)
+      const rb = rank(b)
+      for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return ra[i] - rb[i]
+      return a.path.localeCompare(b.path)
+    })
+    .map((f) => f.path)
+}
+
+/** "srgb:0.1,0.2,0.3,1" (Icon Composer's fill) → a CSS colour. */
+function iconFill(fill: unknown): string {
+  const solid = (fill as { solid?: string } | undefined)?.solid
+  const m = /^(?:srgb|extended-srgb|display-p3):([\d.]+),([\d.]+),([\d.]+)(?:,([\d.]+))?/.exec(
+    solid ?? ''
+  )
+  if (!m) return '#e5e5ea'
+  const c = (v: string): number => Math.round(Math.min(1, Math.max(0, Number(v))) * 255)
+  return `rgba(${c(m[1])},${c(m[2])},${c(m[3])},${Number(m[4] ?? 1)})`
 }
 
 /**
- * The first icon set with a picture in it. An app's widget or extension has
- * an AppIcon set of its own, often empty (its Contents.json names no file) —
- * and found at the same depth as the app's, it was taken and gave nothing, so
- * the project kept the plain folder.
+ * An Icon Composer `.icon` drawn as a picture: its fill as a rounded square,
+ * its layers on top (the first group is the frontmost). Approximate — no glass,
+ * shadow or blend — but it is the app's own mark and colour, which is what a
+ * 16px sidebar glyph needs.
  */
+function renderIconComposer(dir: string): string | null {
+  try {
+    const json = JSON.parse(readFileSync(join(dir, 'icon.json'), 'utf8')) as {
+      fill?: unknown
+      groups?: { layers?: { 'image-name'?: string; hidden?: boolean }[]; hidden?: boolean }[]
+    }
+    const layers: string[] = []
+    for (const g of [...(json.groups ?? [])].reverse()) {
+      if (g.hidden) continue
+      for (const l of [...(g.layers ?? [])].reverse()) {
+        if (l.hidden || !l['image-name']) continue
+        const uri = fileToDataUri(join(dir, 'Assets', l['image-name']))
+        if (uri) layers.push(uri)
+      }
+    }
+    if (!layers.length) return null
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">` +
+      `<rect width="128" height="128" rx="28" fill="${iconFill(json.fill)}"/>` +
+      layers.map((u) => `<image href="${u}" width="128" height="128"/>`).join('') +
+      `</svg>`
+    return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+  } catch {
+    return null
+  }
+}
+
 function findXcodeAppIcon(root: string): string | null {
-  for (const set of findAppIconSets(root, 5)) {
-    const file = pickBestAppIconFile(set)
-    const uri = file ? fileToDataUri(file) : null
+  for (const icon of findAppIcons(root, 5)) {
+    let uri: string | null
+    if (icon.endsWith('.icon')) uri = renderIconComposer(icon)
+    else {
+      const file = pickBestAppIconFile(icon)
+      uri = file ? fileToDataUri(file) : null
+    }
     if (uri) return uri
   }
   return null
@@ -201,7 +261,7 @@ const GLYPH_EXTENSIONS: [ProjectGlyphKind, string[]][] = [
 ]
 
 /** Whether ANY file with one of these extensions exists within a couple
- *  levels of root — same depth/skip rules as findAppIconSet, for the same
+ *  levels of root — same depth/skip rules as findAppIcons, for the same
  *  reason (a real project's telling files are never buried in node_modules). */
 function hasFileWithExt(dir: string, exts: string[], depth: number): boolean {
   let entries: string[]

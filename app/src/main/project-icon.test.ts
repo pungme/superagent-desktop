@@ -53,4 +53,51 @@ describe('an app icon', () => {
       `data:image/png;base64,${Buffer.from('small').toString('base64')}`
     )
   })
+
+  it("prefers the app's icon to a widget's that has a picture of its own", () => {
+    root = mkdtempSync(join(tmpdir(), 'cove-icon-'))
+    // The widget's is shallower and would have won on depth alone.
+    iconSet(join(root, 'LaterWidget', 'Assets.xcassets', 'AppIcon.appiconset'), {
+      name: 'widget.png',
+      bytes: 10
+    })
+    iconSet(join(root, 'App', 'Sources', 'Assets.xcassets', 'AppIcon.appiconset'), {
+      name: 'app.png',
+      bytes: 20
+    })
+    const icon = detectProjectIcon(root)
+    const b64 = icon && 'dataUri' in icon ? icon.dataUri.split(',')[1] : ''
+    expect(Buffer.from(b64, 'base64').length).toBe(20)
+  })
+
+  it('looks deeper when every icon set near the top is empty', () => {
+    root = mkdtempSync(join(tmpdir(), 'cove-icon-'))
+    iconSet(join(root, 'App', 'Assets.xcassets', 'AppIcon.appiconset'))
+    iconSet(join(root, 'App', 'Nested', 'Deeper', 'Assets.xcassets', 'AppIcon.appiconset'), {
+      name: 'icon.png',
+      bytes: 30
+    })
+    expect(detectProjectIcon(root)?.source).toBe('app-icon')
+  })
+
+  it('draws an Icon Composer icon: its fill, with its layers on top', () => {
+    root = mkdtempSync(join(tmpdir(), 'cove-icon-'))
+    const dir = join(root, 'App', 'Resources', 'AppIcon.icon')
+    mkdirSync(join(dir, 'Assets'), { recursive: true })
+    writeFileSync(join(dir, 'Assets', 'star.png'), Buffer.alloc(40, 1))
+    writeFileSync(
+      join(dir, 'icon.json'),
+      JSON.stringify({
+        fill: { solid: 'srgb:0.00000,0.50000,1.00000,1.00000' },
+        groups: [{ layers: [{ 'image-name': 'star.png', name: 'star' }] }]
+      })
+    )
+    const icon = detectProjectIcon(root)
+    expect(icon?.source).toBe('app-icon')
+    const uri = icon && 'dataUri' in icon ? icon.dataUri : ''
+    expect(uri).toMatch(/^data:image\/svg\+xml;base64,/)
+    const svg = Buffer.from(uri.split(',')[1], 'base64').toString()
+    expect(svg).toContain('fill="rgba(0,128,255,1)"')
+    expect(svg).toContain('<image href="data:image/png;base64,')
+  })
 })
