@@ -335,6 +335,31 @@ export function SimulatorPane({
   }, [refresh])
 
   /**
+   * A pane without a device keeps an eye out for its own. The claim can point
+   * at a device that is mid-reboot when the pane opens (the agent restarting
+   * it, or switching between devices from the terminal), and the pane then sat
+   * on "Choose a simulator" for good. Take it back once it is running again.
+   */
+  useEffect(() => {
+    if (udid) return
+    const t = setInterval(() => {
+      const mine = localStorage.getItem(`cove.simDevice:${workspaceId}`)
+      if (!mine) return
+      void refresh().then((list) => {
+        const back = list.find(
+          (d) => d.udid === mine && (d.state === 'Booted' || d.state === 'Booting')
+        )
+        if (back) {
+          setFrame(null)
+          setGone(false)
+          setUdid(back.udid)
+        }
+      })
+    }, 3000)
+    return () => clearInterval(t)
+  }, [udid, workspaceId, refresh])
+
+  /**
    * Follow the agent onto whatever device it just used.
    *
    * The pane kept showing the device you last picked while the agent booted and
@@ -695,10 +720,7 @@ export function SimulatorPane({
   const turnedSize = ((): { width: number; height: number } | null => {
     if (!landscape || !frame || !stageBox || !stageBox.w || !stageBox.h) return null
     const pad = 20
-    const s = Math.min(
-      (stageBox.w - pad) / frame.height,
-      (stageBox.h - pad) / frame.width
-    )
+    const s = Math.min((stageBox.w - pad) / frame.height, (stageBox.h - pad) / frame.width)
     if (!(s > 0)) return null
     return { width: Math.round(frame.width * s), height: Math.round(frame.height * s) }
   })()
@@ -708,7 +730,8 @@ export function SimulatorPane({
     localStorage.setItem(`cove.simOrientation:${udid}`, next)
     void window.cove.simInput(udid, {
       type: 'orientation',
-      value: next === 'portrait' ? 'portrait' : next === 'left' ? 'landscape-left' : 'landscape-right'
+      value:
+        next === 'portrait' ? 'portrait' : next === 'left' ? 'landscape-left' : 'landscape-right'
     })
   }
 
@@ -789,9 +812,9 @@ export function SimulatorPane({
             then it is kept out of sight, because a build opens it uninvited. */}
         <button
           className="sim-btn sim-open-app"
-          title="Open this device in Apple's Simulator app"
-          disabled={!udid}
-          onClick={() => udid && void window.cove.simOpenApp?.(udid)}
+          // No device chosen: it used to sit disabled and look broken. Pick one first.
+          title={udid ? "Open this device in Apple's Simulator app" : 'Choose a simulator first'}
+          onClick={() => (udid ? void window.cove.simOpenApp?.(udid) : setPicking(true))}
         >
           ↗
         </button>

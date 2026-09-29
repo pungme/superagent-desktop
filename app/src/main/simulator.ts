@@ -12,6 +12,17 @@ import { EventEmitter } from 'events'
 const run = promisify(execFile)
 
 /**
+ * Every AppleScript here goes through System Events, and System Events can
+ * wedge (seen on a real Mac: every call timing out). Without a timeout the
+ * call — and whatever IPC is awaiting it, like "Open in Simulator" — waited
+ * forever, so the button looked dead. Callers already ignore failures.
+ */
+const OSASCRIPT_TIMEOUT_MS = 8000
+function osascript(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return run('osascript', args, { timeout: OSASCRIPT_TIMEOUT_MS })
+}
+
+/**
  * The simulator pane's main-process half: frames, gestures, and the Simulator
  * window itself.
  *
@@ -131,7 +142,7 @@ async function simulatorWindows(udid: string | undefined): Promise<string> {
 async function hideSimulatorApp(udid?: string): Promise<void> {
   if (simulatorWindowAllowed) return
   const target = await simulatorWindows(udid)
-  await run('osascript', [
+  await osascript([
     '-e',
     `tell application "System Events" to if exists process "Simulator" then tell process "Simulator" to repeat with w in (${target})
        set position of w to {${OFFSCREEN_X}, ${OFFSCREEN_Y}}
@@ -143,7 +154,7 @@ async function hideSimulatorApp(udid?: string): Promise<void> {
  *  wherever hideSimulatorApp parked it. */
 async function restoreSimulatorWindowPosition(udid?: string): Promise<void> {
   const target = await simulatorWindows(udid)
-  await run('osascript', [
+  await osascript([
     '-e',
     `tell application "System Events" to if exists process "Simulator" then tell process "Simulator" to repeat with w in (${target})
        set position of w to {100, 100}
@@ -195,7 +206,7 @@ async function frontmostApp(): Promise<string> {
 async function unpinSimulator(): Promise<void> {
   if (!pinnedOnce) return
   pinnedOnce = false
-  await run('osascript', [
+  await osascript([
     '-e',
     `tell application "Simulator" to activate
      delay 0.35
@@ -845,7 +856,7 @@ function nudge(udid: string): void {
  * or the app goes to the back.
  */
 async function osa(script: string): Promise<string> {
-  const { stdout } = await run('osascript', ['-e', script], { timeout: 8000 })
+  const { stdout } = await osascript(['-e', script])
   return stdout.trim()
 }
 
@@ -955,7 +966,7 @@ export function registerSimulatorIpc(): void {
         // Two Simulator settings make an attached window behave: "Stay On Top"
         // (otherwise clicking back into Superagent to type sends the device
         // behind our window and the pane looks empty) and bezels off.
-        await run('osascript', [
+        await osascript([
           '-e',
           `tell application "System Events" to tell process "Simulator"
            try
@@ -970,7 +981,7 @@ export function registerSimulatorIpc(): void {
       // window refuses to shrink into a pane (measured: 972px tall against a
       // 682px pane). Off, the same window fits happily, and the pane's own
       // frame reads better than a second one inside it.
-      await run('osascript', [
+      await osascript([
         '-e',
         `tell application "System Events" to tell process "Simulator"
            try
@@ -999,7 +1010,7 @@ export function registerSimulatorIpc(): void {
     if ((await frontmostApp()) === 'Simulator') return true
     // Hiding beats un-pinning: a window told to stay on top would otherwise
     // float over whatever the user switches to.
-    await run('osascript', [
+    await osascript([
       '-e',
       'tell application "System Events" to set visible of process "Simulator" to false'
     ]).catch(() => {})
@@ -1039,7 +1050,7 @@ export function registerSimulatorIpc(): void {
     const name = (await listDevices()).find((d) => d.udid === udid)?.name
     const escaped = name ? escapeForAppleScript(name) : undefined
     await restoreSimulatorWindowPosition(udid)
-    await run('osascript', [
+    await osascript([
       // Unhiding is not the risky direction — only ever setting this false
       // touches every window in the process, which is why hideSimulatorApp
       // no longer does. Setting it true here is still fine: it takes nothing
@@ -1061,7 +1072,7 @@ export function registerSimulatorIpc(): void {
     return true
   })
   ipcMain.handle('sim:attach-show', async () => {
-    await run('osascript', [
+    await osascript([
       '-e',
       'tell application "System Events" to set visible of process "Simulator" to true'
     ]).catch(() => {})
