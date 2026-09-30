@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -153,6 +153,11 @@ function PhoneIcon({ size = 14 }: { size?: number }): React.JSX.Element {
     </svg>
   )
 }
+
+/** A sidebar row that opens a session: a pin, a chat, a project, a branch. */
+const SESSION_ROW = '.activity-row, .sidebar-chat-row, .sidebar-item, .chat-tree-row'
+/** …and the one that is open now. */
+const SESSION_ROW_OPEN = '.activity-row.on, .sidebar-item.active, .chat-tree-row.selected'
 
 // A properly-sized disclosure chevron (points down; rotate -90° when collapsed).
 function Chevron({ size = 13 }: { size?: number }): React.JSX.Element {
@@ -2010,8 +2015,53 @@ export function Sidebar(): React.JSX.Element {
     moveWorkspace(activeId, dst.groupId, toIndex)
   }
 
+  /**
+   * ↑/↓ open the previous / next session, in the order the sidebar shows them
+   * (pinned, chats, projects and their branches) — only while the sidebar has
+   * the keyboard, never while typing in a field (a rename, the search box).
+   * The row you last clicked is where it counts from; otherwise the open one.
+   */
+  const asideRef = useRef<HTMLElement>(null)
+  const cursorRow = useRef<HTMLElement | null>(null)
+  const onSidebarKeyDown = (e: React.KeyboardEvent<HTMLElement>): void => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+    const t = e.target as HTMLElement
+    if (t.closest('input, textarea, select, [contenteditable="true"]')) return
+    const aside = asideRef.current
+    if (!aside) return
+    const rows = [...aside.querySelectorAll<HTMLElement>(SESSION_ROW)].filter(
+      (r) => r.offsetParent !== null && !r.classList.contains('disabled')
+    )
+    if (!rows.length) return
+    e.preventDefault()
+    let at = cursorRow.current ? rows.indexOf(cursorRow.current) : -1
+    if (at < 0) at = rows.findIndex((r) => r.matches(SESSION_ROW_OPEN))
+    const next =
+      rows[
+        at < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))
+      ]
+    if (!next || next === rows[at]) return
+    cursorRow.current = next
+    next.click()
+    next.scrollIntoView({ block: 'nearest' })
+    // Opening a session must not take the keyboard away from here.
+    aside.focus({ preventScroll: true })
+  }
+
   return (
-    <aside className="sidebar">
+    <aside
+      className="sidebar"
+      ref={asideRef}
+      // Focusable, so a click anywhere in it puts the keyboard here: ↑/↓ then
+      // walk the sessions (see onSidebarKeyDown).
+      tabIndex={-1}
+      onMouseDownCapture={(e) => {
+        const row = (e.target as HTMLElement).closest<HTMLElement>(SESSION_ROW)
+        if (row) cursorRow.current = row
+      }}
+      onKeyDown={onSidebarKeyDown}
+    >
       <div className="sidebar-drag-region" />
       {/* Two ways of reading the same Mac. Projects is where a conversation
           lives; Activity is what happened, newest first — which is the question

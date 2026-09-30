@@ -12394,3 +12394,8 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .onboarding-waiting-mark { animation: none; }
 }
+
+/* The sidebar takes the keyboard for ↑/↓ between sessions; no focus ring. */
+.sidebar:focus {
+  outline: none;
+}
