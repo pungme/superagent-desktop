@@ -117,9 +117,18 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
 
   const ready = isReady(env)
 
-  // Nothing to show while the auto-setup probe decides — a card that flashes up
-  // and vanishes is worse than a beat of nothing.
-  if (checking && !env) return null
+  // While the probe decides, a quiet mark rather than a blank window: on a
+  // first launch it takes several seconds (the intro usually covers it). No
+  // card, since one that flashes up and vanishes is worse.
+  if (checking && !env)
+    return (
+      <div className="onboarding onboarding-waiting" aria-busy="true">
+        <div className="onboarding-waiting-mark" aria-hidden="true">
+          <span />
+        </div>
+        <p>Getting things ready…</p>
+      </div>
+    )
 
   return (
     <div className="onboarding">

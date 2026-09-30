@@ -5,6 +5,8 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
+import { FirstRunIntro } from './components/FirstRunIntro'
+import { shouldPlayFirstRunIntro } from './firstRun'
 import { ComputerPanel } from './components/ComputerPanel'
 import { ChatsView } from './components/ChatsView'
 import { Onboarding } from './components/Onboarding'
@@ -84,6 +86,11 @@ function App(): React.JSX.Element {
   const startGuardrailListener = useStore((s) => s.startGuardrailListener)
   const allWorkspaces = tree.flatMap((g) => g.workspaces)
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
+  // A brand-new install opens on the reel's intro, over whatever loads beneath.
+  const [firstRunIntro, setFirstRunIntro] = useState(
+    () => localStorage.getItem('cove.onboarded') !== '1' && shouldPlayFirstRunIntro()
+  )
+  if (firstRunIntro) sessionStorage.setItem('cove.introPlayed', '1') // not the short splash too
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('cove.sidebarCollapsed') === '1'
@@ -406,9 +413,12 @@ function App(): React.JSX.Element {
     })
   }, [addGroup, addWorkspace])
 
+  const intro = firstRunIntro && <FirstRunIntro onDone={() => setFirstRunIntro(false)} />
+
   if (!onboarded) {
     return (
       <>
+        {intro}
         <IntroSplash />
         <Onboarding
           onDone={() => {
@@ -493,6 +503,7 @@ function App(): React.JSX.Element {
       <PreviewToast />
       <UpdateBanner />
       <IntroSplash />
+      {intro}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )

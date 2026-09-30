@@ -288,6 +288,12 @@ app.whenReady().then(async () => {
   registerSignInsIpc()
   registerResetIpc()
   registerAccountsIpc()
+  // The first-run intro plays with sound. Test runs launch the app fresh with a
+  // settings folder of their own (COVE_USER_DATA), so it would play out of the
+  // speakers on every one; they get it only when they ask (COVE_E2E_INTRO).
+  ipcMain.on('app:intro-allowed', (e) => {
+    e.returnValue = !process.env.COVE_USER_DATA || process.env.COVE_E2E_INTRO === '1'
+  })
   void watchScreenshots()
   registerFilesIpc()
   registerSimulatorIpc()
