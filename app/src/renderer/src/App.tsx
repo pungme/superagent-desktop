@@ -239,6 +239,11 @@ function App(): React.JSX.Element {
   // Once opened it stays in the tree; before that there is nothing to keep.
   const [computerEverOpened, setComputerEverOpened] = useState(false)
   if (computerOpen && !computerEverOpened) setComputerEverOpened(true)
+  // The same for Chats: it was unmounted whenever you went to a project (or
+  // Settings), and unmounting a chat stops its agent — so a standalone chat
+  // stopped the moment you moved to another session.
+  const [chatsEverOpened, setChatsEverOpened] = useState(false)
+  if (chatsOpen && !chatsEverOpened) setChatsEverOpened(true)
   /** Any full-window section — all four cover the projects the same way. */
   const sectionOpen = overlay !== null
   // Settings is a full page too: like a section it must hide the workspace (and
@@ -475,9 +480,12 @@ function App(): React.JSX.Element {
         {/* A full page (not a modal): covers the content area, above the hosts,
             with the native panes already detached via contentCovered. */}
         {/* Chats, plain: the Computer's conversations without the desktop. */}
-        {chatsOpen && !settingsOpen && (
-          <div className="chats-host">
-            <ChatsView />
+        {chatsEverOpened && (
+          <div
+            className="chats-host"
+            style={{ display: chatsOpen && !settingsOpen ? undefined : 'none' }}
+          >
+            <ChatsView visible={chatsOpen && !settingsOpen} />
           </div>
         )}
         {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}

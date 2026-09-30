@@ -8,7 +8,7 @@ import { DesktopChat } from './DesktopChat'
  * Computer's Chat window holds — this is them without the desktop around
  * them, for when you just want to talk.
  */
-export function ChatsView(): React.JSX.Element {
+export function ChatsView({ visible = true }: { visible?: boolean }): React.JSX.Element {
   const [home, setHome] = useState<{ workspaceId: string; cwd: string } | null>(null)
   const loadChats = useStore((s) => s.loadChats)
   useEffect(() => {
@@ -26,7 +26,7 @@ export function ChatsView(): React.JSX.Element {
   return (
     <div className="chats-view">
       {/* The list is the sidebar's Chats section; this is the conversation. */}
-      <DesktopChat workspaceId={home.workspaceId} cwd={home.cwd} list={false} />
+      <DesktopChat workspaceId={home.workspaceId} cwd={home.cwd} list={false} visible={visible} />
     </div>
   )
 }

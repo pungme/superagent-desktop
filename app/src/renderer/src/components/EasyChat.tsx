@@ -3809,10 +3809,34 @@ export function EasyChat({
   // to read. Pinning to the bottom lets the auto-scroll effect follow the new
   // message and the reply after it. Only where YOU send: a loop round or a
   // held message going out on its own must not yank you away from reading.
+  /**
+   * Put the cursor back in the composer after a send. Clicking Send moved
+   * focus to the button, and the composer is disabled for a moment while an
+   * agent starts (a new chat's first message) — a disabled field drops focus
+   * — so the cursor was sometimes there after sending and sometimes not.
+   */
+  const refocusAfterSendRef = useRef(false)
   const send = (): void => {
     setAtBottom(true)
     submit(expandMentions(input.trim(), mentionMap), pendingImages)
+    refocusAfterSendRef.current = true
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (el && !el.disabled) {
+        el.focus()
+        refocusAfterSendRef.current = false
+      }
+    })
   }
+  // The composer came back from being disabled: finish that refocus, unless
+  // you have since clicked into something else.
+  useEffect(() => {
+    if (!refocusAfterSendRef.current || !(ready || suspended) || !visible) return
+    const active = document.activeElement
+    refocusAfterSendRef.current = false
+    if (active && active !== document.body && active !== inputRef.current) return
+    inputRef.current?.focus()
+  }, [ready, suspended, visible])
   submitRef.current = (t, images, opts) => submit(t, images, opts)
 
   // Hold Send while the agent is working to send AFTER it finishes, instead of
@@ -5061,6 +5085,8 @@ export function EasyChat({
           <div className="easy-send-wrap">
             <button
               className="easy-send"
+              // Keep the cursor in the composer: a click would move focus here.
+              onMouseDown={(e) => e.preventDefault()}
               onClick={onSendClick}
               onPointerDown={onSendPointerDown}
               onPointerUp={onSendPointerEnd}

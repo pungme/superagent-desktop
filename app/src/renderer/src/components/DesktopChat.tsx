@@ -30,12 +30,15 @@ function when(ts: number): string {
 export function DesktopChat({
   workspaceId,
   cwd,
-  list = true
+  list = true,
+  visible = true
 }: {
   workspaceId: string
   cwd: string
   /** The conversations down the side. Off in Chats, whose list is the sidebar's. */
   list?: boolean
+  /** Off while the page holding it is hidden: its chats keep running, off screen. */
+  visible?: boolean
 }): React.JSX.Element {
   const chats = useStore((s) => s.chats[workspaceId])
   const activeChatId = useStore((s) => s.activeChatId[workspaceId])
@@ -160,12 +163,12 @@ export function DesktopChat({
         )}
         {activeChatId ? (
           mountedChats.map((c) => {
-            const onScreen = c.id === activeChatId
+            const onScreen = visible && c.id === activeChatId
             return (
               <div
                 key={c.id}
                 className="chat-mount"
-                style={{ display: onScreen ? 'flex' : 'none' }}
+                style={{ display: c.id === activeChatId ? 'flex' : 'none' }}
               >
                 <EasyChat
                   cwd={c.cwd || cwd}
