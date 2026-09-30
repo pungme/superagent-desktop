@@ -20,6 +20,8 @@ let app: ElectronApplication
 let window: Page
 let userDataDir: string
 let projectDir: string
+/** The conversation under test: the browser is chosen per conversation. */
+let chatId: string
 
 test.describe.configure({ mode: 'serial' })
 
@@ -44,10 +46,10 @@ test.beforeAll(async () => {
   await window.evaluate(() => localStorage.setItem('cove.onboarded', '1'))
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
-  await window.evaluate(async () => {
+  chatId = await window.evaluate(async () => {
     const tree = await window.cove.storeTree()
     const ws = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!
-    await window.cove.chatCreate(ws.id)
+    return window.cove.chatCreate(ws.id)
   })
   await window.click('.sidebar-item:has-text("e2e-project")')
   await window.waitForSelector('textarea.easy-input', { timeout: 20_000 })
@@ -76,7 +78,9 @@ test('asked to use "my browser", the agent switches to it by itself', async () =
     return tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!.id
   })
   await expect
-    .poll(() => window.evaluate((id) => window.cove.browsersGet(id), wsId), { timeout: 180_000 })
+    .poll(() => window.evaluate((id) => window.cove.browsersGet(id), `${wsId}::${chatId}`), {
+      timeout: 180_000
+    })
     .not.toBe('builtin')
   await expect(window.locator('.easy-assistant:not(.easy-system)').last()).toContainText(
     /Example Domain/i,
@@ -90,11 +94,11 @@ test('switched to Brave mid-conversation, the agent just uses it', async () => {
     const tree = await window.cove.storeTree()
     return tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!.id
   })
-  // A new chat that starts on the built-in browser…
-  await window.evaluate((id) => window.cove.browsersSet(id, 'builtin'), wsId)
-  await window.evaluate(async (id) => {
-    await window.cove.chatCreate(id)
-  }, wsId)
+  // A new chat, which starts on the built-in browser…
+  chatId = await window.evaluate((id) => window.cove.chatCreate(id), wsId)
+  expect(await window.evaluate((id) => window.cove.browsersGet(id), `${wsId}::${chatId}`)).toBe(
+    'builtin'
+  )
   await window.click('.sidebar-item:has-text("e2e-project")')
   const input = window.locator('textarea.easy-input:visible').first()
   await input.fill('Reply with just: ready')
@@ -103,9 +107,9 @@ test('switched to Brave mid-conversation, the agent just uses it', async () => {
     timeout: 120_000
   })
   // …then the user flips the pill, the way the screenshot showed.
-  await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
+  await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), `${wsId}::${chatId}`)
   await input.fill(
-    "I've switched this project's browser to Brave. Open https://example.com and tell me the page title."
+    "I've switched this chat's browser to Brave. Open https://example.com and tell me the page title."
   )
   await input.press('Enter')
   await expect(window.locator('.external-pane-url')).toContainText('example.com', {

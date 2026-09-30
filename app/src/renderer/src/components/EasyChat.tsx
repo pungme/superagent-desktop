@@ -12,7 +12,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
-import { useProjectBrowser } from '../hooks/useProjectBrowser'
+import { useChatBrowser } from '../hooks/useChatBrowser'
 import type { BrowserChoice, LimitNotice } from '../../../preload'
 import { fallbackNotice, modelFallbackFrom, prettyModel } from '../../../shared/model-fallback'
 import { ProviderLogo } from './ProviderLogo'
@@ -122,16 +122,18 @@ function cardId(item: Item): string | null {
  */
 function BrowserPill({
   workspaceId,
+  chatId,
   open,
   onToggle,
   onPicked
 }: {
   workspaceId: string
+  chatId: string
   open: boolean
   onToggle: () => void
   onPicked: () => void
 }): React.JSX.Element | null {
-  const current = useProjectBrowser(workspaceId)
+  const current = useChatBrowser(workspaceId, chatId)
   const [options, setOptions] = useState<{ id: BrowserChoice; name: string; icon?: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [signIns, setSignIns] = useState(false)
@@ -143,7 +145,8 @@ function BrowserPill({
   const pick = async (id: BrowserChoice): Promise<void> => {
     onPicked()
     setError(null)
-    const res = await window.cove.browsersSet(workspaceId, id)
+    // This conversation only.
+    const res = await window.cove.browsersSet(`${workspaceId}::${chatId}`, id)
     if (!res.ok) setError(res.error ?? 'Could not switch browsers')
   }
   return (
@@ -151,7 +154,7 @@ function BrowserPill({
       <button
         className={`easy-control-btn ${open ? 'open' : ''}`}
         onClick={onToggle}
-        title={error ?? 'Which browser the agent uses in this project'}
+        title={error ?? 'Which browser the agent uses in this chat'}
       >
         <span className="easy-control-key">Browser</span>
         <span className="easy-control-val">{name}</span>
@@ -5244,6 +5247,7 @@ export function EasyChat({
         {!browserProject && workspaceId !== '__desktop_chat__' && (
           <BrowserPill
             workspaceId={workspaceId}
+            chatId={chatId}
             open={controlMenu === 'browser'}
             onToggle={() => setControlMenu((m) => (m === 'browser' ? null : 'browser'))}
             onPicked={() => setControlMenu(null)}

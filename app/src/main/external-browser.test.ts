@@ -96,11 +96,17 @@ describe('which browser a pane uses', () => {
     expect(browserFor('ws1')).toBe(edgeInstalled ? 'edge' : 'builtin')
   })
 
-  it.skipIf(!haveBrave)('routes every pane of a Brave project to Brave', () => {
-    kv.set('browser:ws1', 'brave')
-    expect(externalBrowserForPane('ws1')).toBe('brave')
+  it.skipIf(!haveBrave)("routes a conversation's panes to its own pick, and no one else's", () => {
+    kv.set('browser:ws1::chat1', 'brave')
     expect(externalBrowserForPane('ws1::chat1')).toBe('brave')
+    // A tab of that conversation goes with it.
     expect(externalBrowserForPane('ws1::chat1::t1')).toBe('brave')
+    // Another conversation in the same project keeps the built-in browser —
+    // one chat switching to Brave used to switch them all.
+    expect(externalBrowserForPane('ws1::chat2')).toBeNull()
+    // So does a project-wide pick left over from before: it no longer leaks in.
+    kv.set('browser:ws1', 'brave')
+    expect(externalBrowserForPane('ws1::chat3')).toBeNull()
   })
 })
 

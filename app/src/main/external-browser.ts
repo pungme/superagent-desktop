@@ -119,11 +119,23 @@ export function browserName(id: BrowserId): string {
   return id === 'builtin' ? 'Superagent' : (APPS.find((a) => a.id === id)?.name ?? id)
 }
 
-const kvKey = (workspaceId: string): string => `browser:${workspaceId}`
+/**
+ * The browser is chosen per conversation, keyed by its pane ("project::chat").
+ * It used to be per project, so switching one chat to Brave — or its agent
+ * calling browser_use — switched every other chat in that project too,
+ * including all of the standalone Chats, which share one project. A
+ * conversation that never chose starts on the built-in browser.
+ */
+const kvKey = (scope: string): string => `browser:${scope}`
 
-/** The project's pick — the built-in browser unless it chose one that's still installed. */
-export function browserFor(workspaceId: string): BrowserId {
-  const v = kvGet(kvKey(workspaceId)) as BrowserId | undefined
+/** A conversation's browser scope: its pane id, or the project's for no chat. */
+export function browserScope(workspaceId: string, chatId?: string | null): string {
+  return chatId ? `${workspaceId}::${chatId}` : workspaceId
+}
+
+/** This conversation's pick — the built-in browser unless it chose one still installed. */
+export function browserFor(scope: string): BrowserId {
+  const v = kvGet(kvKey(scope)) as BrowserId | undefined
   return v && v !== 'builtin' && executablePath(v) ? v : 'builtin'
 }
 
@@ -164,21 +176,21 @@ export function yourBrowser(): Exclude<BrowserId, 'builtin'> | null {
  * where the user signs in the first time.
  */
 export async function switchBrowser(
-  workspaceId: string,
+  scope: string,
   id: BrowserId,
   opts: { open?: boolean } = {}
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!installedBrowsers().some((b) => b.id === id)) return { ok: false, error: 'Not installed' }
-  setBrowserFor(workspaceId, id)
-  forgetExternalPages(workspaceId)
-  broadcastToWindows('browsers:changed', { workspaceId, id })
+  setBrowserFor(scope, id)
+  forgetExternalPages(scope)
+  broadcastToWindows('browsers:changed', { scope, id })
   if (id === 'builtin' || !opts.open) return { ok: true }
   try {
     await ensureRunning(id)
     // The project's panes were already showing (and waiting) when the browser
     // came up: fill them now.
     for (const paneId of watchers.keys())
-      if (workspaceIdFromPane(paneId) === workspaceId) void adoptTab(paneId).catch(() => undefined)
+      if (inScope(paneId, scope)) void adoptTab(paneId).catch(() => undefined)
     await showBrowserWindow(id)
     return { ok: true }
   } catch (err) {
@@ -186,8 +198,20 @@ export async function switchBrowser(
   }
 }
 
-export function setBrowserFor(workspaceId: string, id: BrowserId): void {
-  kvSet(kvKey(workspaceId), id)
+export function setBrowserFor(scope: string, id: BrowserId): void {
+  kvSet(kvKey(scope), id)
+}
+
+/** The conversation a pane belongs to: "project::chat", whatever tab id follows. */
+export function scopeOfPane(paneId: string): string {
+  return paneId.split('::').slice(0, 2).join('::')
+}
+
+/** A pane belongs to a scope: its own conversation's, or every pane of a bare project. */
+function inScope(paneId: string, scope: string): boolean {
+  return scope.includes('::')
+    ? scopeOfPane(paneId) === scope
+    : workspaceIdFromPane(paneId) === scope
 }
 
 /**
@@ -199,7 +223,7 @@ export function externalBrowserForPane(paneId: string): BrowserId | null {
   if (paneId.endsWith('::routine')) return null
   const ws = workspaceIdFromPane(paneId)
   if (ws === DESKTOP_WORKSPACE_ID) return null
-  const id = browserFor(ws)
+  const id = browserFor(scopeOfPane(paneId))
   return id === 'builtin' ? null : id
 }
 
@@ -938,9 +962,9 @@ export async function closeExternalTab(id: BrowserId, targetId: string): Promise
 }
 
 /** Pick a different browser for a project: its tabs there are closed. */
-export function forgetExternalPages(workspaceId: string): void {
+export function forgetExternalPages(scope: string): void {
   for (const [paneId, page] of pages) {
-    if (workspaceIdFromPane(paneId) === workspaceId) {
+    if (inScope(paneId, scope)) {
       void page.close()
       pages.delete(paneId)
     }
@@ -992,10 +1016,10 @@ export function registerExternalBrowserIpc(appIcon?: string): void {
   })
   // The pane's "I'm signed in".
   ipcMain.handle('browsers:sign-in-done', () => finishSignIn())
-  ipcMain.handle('browsers:get', (_e, workspaceId: string) => browserFor(String(workspaceId)))
+  ipcMain.handle('browsers:get', (_e, scope: string) => browserFor(String(scope)))
   // Picked on the pill: open it now — the first time, this is where the user signs in.
-  ipcMain.handle('browsers:set', (_e, workspaceId: string, id: BrowserId) =>
-    switchBrowser(String(workspaceId), id, { open: true })
+  ipcMain.handle('browsers:set', (_e, scope: string, id: BrowserId) =>
+    switchBrowser(String(scope), id, { open: true })
   )
   ipcMain.handle('browsers:show', async (_e, paneId: string) => {
     const id = externalBrowserForPane(String(paneId))

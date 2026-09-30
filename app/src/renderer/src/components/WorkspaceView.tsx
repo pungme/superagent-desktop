@@ -3,7 +3,7 @@ import { useStore } from '../state'
 import { EasyChat } from './EasyChat'
 import { BrowserTabs } from './BrowserTabs'
 import { ExternalBrowserPane } from './ExternalBrowserPane'
-import { useProjectBrowser } from '../hooks/useProjectBrowser'
+import { useChatBrowser } from '../hooks/useChatBrowser'
 import { useMountedChats } from '../hooks/useMountedChats'
 import { SimulatorPane } from './SimulatorPane'
 import { BoardPanel } from './BoardPanel'
@@ -84,7 +84,8 @@ export function WorkspaceView({
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   // The agent may browse in the user's real browser for this project; the pane
   // then streams that tab instead of hosting a page itself.
-  const projectBrowser = useProjectBrowser(ws.id)
+  // The browser of the conversation on screen, not the project's.
+  const projectBrowser = useChatBrowser(ws.id, activeChatId)
   const external = ws.kind !== 'browser' && projectBrowser !== 'builtin'
   const filesOpen = useStore((s) => s.filesOpen[deskKey] ?? savedDesk.filesOpen)
   // A text file open in the in-app viewer takes the content pane over the browser.

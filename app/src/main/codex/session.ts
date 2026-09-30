@@ -1,4 +1,4 @@
-import { browserFor, browserName } from '../external-browser'
+import { browserFor, browserScope, browserName } from '../external-browser'
 import { limitFromCodexRateLimits, limitFromEvent } from '../accounts'
 import { app } from 'electron'
 import { basename } from 'path'
@@ -75,7 +75,9 @@ export function codexThreadOptions(opts: AgentStartOptions): CodexThreadOptions 
       buildAppendedPrompt({
         browserProject: opts.browserProject,
         workspaceId: opts.workspaceId,
-        browser: opts.workspaceId ? browserName(browserFor(opts.workspaceId)) : undefined,
+        browser: opts.workspaceId
+          ? browserName(browserFor(browserScope(opts.workspaceId, opts.chatId)))
+          : undefined,
         provider: 'codex'
       }) + (opts.permissionMode === 'plan' ? PLAN_MODE_PROMPT : ''),
     // Superagent's own tools reach Codex the same way they reach Claude Code —

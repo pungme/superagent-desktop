@@ -55,6 +55,7 @@ import {
   switchExternalTab,
   showBrowserWindow,
   switchBrowser,
+  scopeOfPane,
   yourBrowser
 } from './external-browser'
 import { gitBranch } from './files'
@@ -709,10 +710,11 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         const text = (t: string): { content: { type: 'text'; text: string }[] } => ({
           content: [{ type: 'text', text: t }]
         })
-        const ws = workspaceIdFromPane(PANE_ID)
-        const current = browserFor(ws)
+        // This conversation only (its pane), never the whole project.
+        const scope = scopeOfPane(PANE_ID)
+        const current = browserFor(scope)
         if (which === 'built-in') {
-          if (current !== 'builtin') await switchBrowser(ws, 'builtin')
+          if (current !== 'builtin') await switchBrowser(scope, 'builtin')
           return text("Browser tools now drive Superagent's built-in browser pane.")
         }
         const id = current !== 'builtin' ? current : yourBrowser()
@@ -723,7 +725,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
               'use their logins.'
           )
         if (id !== current) {
-          const r = await switchBrowser(ws, id)
+          const r = await switchBrowser(scope, id)
           if (!r.ok) return text(`Couldn't switch to ${browserName(id)}: ${r.error}`)
         }
         return text(

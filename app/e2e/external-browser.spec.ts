@@ -155,19 +155,25 @@ test.afterAll(async () => {
 test('the project offers the installed browsers and starts on the built-in one', async () => {
   const list = await window.evaluate(() => window.cove.browsersList())
   expect(list.map((b) => b.id)).toEqual(expect.arrayContaining(['builtin', 'brave']))
-  expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('builtin')
+  expect(await window.evaluate((id) => window.cove.browsersGet(id), `${wsId}::${chatId}`)).toBe(
+    'builtin'
+  )
 })
 
 test("the agent moves to the user's browser by itself, and back", async () => {
   // The user never names a browser: the agent picks theirs (the Mac's default if
   // it can drive it, else the first installed of Brave, Chrome, Edge).
   expect(await tool('browser_use', { which: 'yours' })).toContain('Brave')
-  expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('brave')
+  expect(await window.evaluate((id) => window.cove.browsersGet(id), `${wsId}::${chatId}`)).toBe(
+    'brave'
+  )
   // Navigate says where it landed, since the user can switch mid-conversation.
   expect(await tool('browser_navigate', { url: siteUrl })).toContain('(in Brave)')
   await expect(window.locator('.external-pane-badge')).toHaveText('Brave', { timeout: 10_000 })
   expect(await tool('browser_use', { which: 'built-in' })).toContain('built-in')
-  expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('builtin')
+  expect(await window.evaluate((id) => window.cove.browsersGet(id), `${wsId}::${chatId}`)).toBe(
+    'builtin'
+  )
 })
 
 test('a chat the Mac is not showing still gets a browser when its agent asks', async () => {
@@ -201,7 +207,10 @@ test('the browser stays live while the agent waits for you', async () => {
 })
 
 test('picking Brave launches it with its own profile', async () => {
-  const res = await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
+  const res = await window.evaluate(
+    (id) => window.cove.browsersSet(id, 'brave'),
+    `${wsId}::${chatId}`
+  )
   expect(res.ok).toBe(true)
   // Shown right away: the pane streams Brave's own tab before the agent has
   // done anything, instead of "Waiting for the agent to open a page".
@@ -209,9 +218,29 @@ test('picking Brave launches it with its own profile', async () => {
   if ((await browserBtn.getAttribute('title')) !== 'Hide the browser') await browserBtn.click()
   await expect(window.locator('.external-pane-view img')).toBeVisible({ timeout: 15_000 })
   await expect(window.locator('.external-pane-url')).not.toContainText('Waiting for the agent')
-  expect(await window.evaluate((id) => window.cove.browsersGet(id), wsId)).toBe('brave')
+  expect(await window.evaluate((id) => window.cove.browsersGet(id), `${wsId}::${chatId}`)).toBe(
+    'brave'
+  )
   // Its profile is Superagent's, under the app's data folder — never the user's own.
   expect(existsSync(join(userDataDir, 'browsers', 'brave'))).toBe(true)
+})
+
+test("one chat's browser is its own: another chat in the project stays where it was", async () => {
+  // This chat is on Brave now. A new chat in the same project starts on the
+  // built-in browser, and its agent moving to the user's browser and back
+  // leaves this chat alone — it used to switch every chat in the project.
+  const other = await window.evaluate((id) => window.cove.chatCreate(id), wsId)
+  const get = (c: string): Promise<string> =>
+    window.evaluate((scope) => window.cove.browsersGet(scope), `${wsId}::${c}`)
+  expect(await get(chatId)).toBe('brave')
+  expect(await get(other)).toBe('builtin')
+  await tool('browser_use', { which: 'built-in' }, other)
+  expect(await get(chatId)).toBe('brave')
+  await tool('browser_use', { which: 'yours' }, other)
+  expect(await get(other)).toBe('brave')
+  await tool('browser_use', { which: 'built-in' }, other)
+  expect(await get(other)).toBe('builtin')
+  expect(await get(chatId)).toBe('brave')
 })
 
 test('bringing sign-ins over copies only the sites you tick', async () => {
@@ -328,6 +357,8 @@ test('asking the user for help waits for Done', async () => {
 
 test('two chats in one project each get their own tab', async () => {
   const other = await window.evaluate((id) => window.cove.chatCreate(id), wsId)
+  // Each chat picks its own browser; put this one in Brave as well.
+  await window.evaluate((scope) => window.cove.browsersSet(scope, 'brave'), `${wsId}::${other}`)
   await tool('browser_navigate', { url: `${siteUrl}?chat=one` })
   await tool('browser_navigate', { url: `${siteUrl}?chat=two` }, other)
   // A mark left in one tab isn't in the other: they're separate tabs.
@@ -403,7 +434,7 @@ test('Brave already open with its profile, outside Superagent: a clear message, 
 })
 
 test('switching back to the built-in browser restores the normal pane', async () => {
-  await window.evaluate((id) => window.cove.browsersSet(id, 'builtin'), wsId)
+  await window.evaluate((id) => window.cove.browsersSet(id, 'builtin'), `${wsId}::${chatId}`)
   await tool('browser_navigate', { url: siteUrl })
   await expect(window.locator('.external-pane')).toHaveCount(0)
   await expect(window.locator('.browser-address').first()).toBeVisible({ timeout: 10_000 })
@@ -483,7 +514,7 @@ test('Google refusing sign-in in the built-in browser pauses the agent until you
 })
 
 test('"Sign in yourself…" opens it without the agent and says what happens next', async () => {
-  await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), wsId)
+  await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), `${wsId}::${chatId}`)
   await tool('browser_navigate', { url: siteUrl })
   const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Browser"))').first()
   await pill.click()

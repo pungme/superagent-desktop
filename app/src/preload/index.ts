@@ -682,9 +682,10 @@ export interface CoveApi {
   /** The browsers a project can pick: the built-in one, plus installed Chromium browsers. */
   browsersList: () => Promise<{ id: BrowserChoice; name: string; icon?: string }[]>
   /** A project's browser pick. */
-  browsersGet: (workspaceId: string) => Promise<BrowserChoice>
+  /** A conversation's browser; `scope` is its pane id ("project::chat"). */
+  browsersGet: (scope: string) => Promise<BrowserChoice>
   /** Pick a project's browser. An external one opens right away (first time: sign in there). */
-  browsersSet: (workspaceId: string, id: BrowserChoice) => Promise<{ ok: boolean; error?: string }>
+  browsersSet: (scope: string, id: BrowserChoice) => Promise<{ ok: boolean; error?: string }>
   /** Bring a pane's external browser window forward. */
   browsersShow: (paneId: string) => Promise<void>
   /** The sites the user's everyday copy of a browser is signed in to. */
@@ -734,7 +735,7 @@ export interface CoveApi {
   onBrowserHandsOff: (
     cb: (s: { paneId: string; on: boolean; refused: boolean }) => void
   ) => () => void
-  onBrowsersChanged: (cb: (c: { workspaceId: string; id: BrowserChoice }) => void) => () => void
+  onBrowsersChanged: (cb: (c: { scope: string; id: BrowserChoice }) => void) => () => void
   /** Claude Code's current model line-up, from the installed CLI; null if it couldn't say. */
   claudeModels: () => Promise<{ id: string; label: string; hint: string; older?: true }[] | null>
   envVersion: () => Promise<Record<AgentProvider, { installed: boolean; version: string | null }>>
@@ -1119,8 +1120,8 @@ const cove: CoveApi = {
   envDetect: () => ipcRenderer.invoke('env:detect'),
   claudeModels: () => ipcRenderer.invoke('claude:models'),
   browsersList: () => ipcRenderer.invoke('browsers:list'),
-  browsersGet: (workspaceId) => ipcRenderer.invoke('browsers:get', workspaceId),
-  browsersSet: (workspaceId, id) => ipcRenderer.invoke('browsers:set', workspaceId, id),
+  browsersGet: (scope) => ipcRenderer.invoke('browsers:get', scope),
+  browsersSet: (scope, id) => ipcRenderer.invoke('browsers:set', scope, id),
   browsersShow: (paneId) => ipcRenderer.invoke('browsers:show', paneId),
   browsersSites: (id) => ipcRenderer.invoke('browsers:sites', id),
   browsersImport: (id, sites) => ipcRenderer.invoke('browsers:import', id, sites),
