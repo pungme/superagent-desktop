@@ -1,0 +1,46 @@
+// Plays the reel live inside the landing page's film overlay (index.html,
+// ?live), instead of as a video: drawn at the screen's own resolution, in
+// the wide staging or, with ?portrait, the upright one.
+//
+// reel.js is deterministic — renderAt(t) draws any moment exactly — so this
+// only keeps the clock, fits the picture to the frame, and tells the page
+// when it has started and when it is over.
+
+const END = window.DURATION || 30
+const portrait = new URLSearchParams(location.search).has('portrait')
+const W = portrait ? 1080 : 1920, H = portrait ? 1920 : 1080
+const tell = (msg) => parent.postMessage({ type: 'superagent-reel', ...msg }, location.origin)
+
+// reel.js lays itself out from measurements of the stage, in stage pixels, so
+// nothing is scaled (and nothing shows) until it has built.
+document.documentElement.style.visibility = 'hidden'
+while (!window.ready) await new Promise((r) => setTimeout(r, 16))
+
+// The whole picture, as large as fits: what a video's object-fit: contain does.
+const frame = document.getElementById(portrait ? 'pstage' : 'stage')
+frame.style.transformOrigin = '0 0'
+// upright it leaves a little above and below; the edges dissolve into it
+if (portrait) frame.style.maskImage = frame.style.webkitMaskImage = 'linear-gradient(to bottom, transparent, #000 3%, #000 97%, transparent)'
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H)
+  frame.style.transform = `translate(${(innerWidth - W * s) / 2}px, ${(innerHeight - H * s) / 2}px) scale(${s})`
+}
+addEventListener('resize', fit)
+fit()
+window.renderAt(0)
+document.documentElement.style.visibility = ''
+tell({ started: true })
+
+// The clock only runs while frames are being drawn, so a hidden tab pauses
+// the film rather than skipping ahead.
+let t = 0, last = performance.now(), done = false
+function tick(now) {
+  if (done) return
+  // the first frame's timestamp can predate `last`; time never runs backwards
+  t = Math.min(END, t + Math.max(0, Math.min(0.1, (now - last) / 1000))); last = now
+  window.renderAt(t)
+  tell({ t })
+  if (t >= END) { done = true; tell({ done: true }); return }
+  requestAnimationFrame(tick)
+}
+requestAnimationFrame(tick)

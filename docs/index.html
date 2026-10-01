@@ -15,7 +15,9 @@
       document.documentElement.classList.add("intro");
       // the page opens on the short logo splash. The 30-second film is switched
       // off for now; ?reel still plays it.
-      if (/[?&]reel\b/.test(location.search)) document.documentElement.classList.add("reel");
+      if (/[?&](reel|live)\b/.test(location.search)) document.documentElement.classList.add("reel");
+      // ?live draws the film in the page instead of playing the video
+      if (/[?&]live\b/.test(location.search)) document.documentElement.classList.add("live");
       if ("scrollRestoration" in history) history.scrollRestoration = "manual";
     }
   </script>
@@ -1968,6 +1970,8 @@
        held upright it reads as one screen rather than a strip on black */
     #reel.paper { background: #d3d2d0; }
     #reel video { display: block; width: 100%; height: 100%; object-fit: contain; }
+    #reel iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; }
+    html.live #reel video { display: none; }
     /* upright phone: its own cut of the film, staged for a tall screen. Phones
        are taller than 9:16, so a little is left over above and below; the
        picture's edges dissolve into bars of the scene's colour. */
@@ -2226,7 +2230,7 @@
     }
     // The film is the first thing shown, so it starts downloading here,
     // before the rest of the page has been read.
-    if (document.documentElement.classList.contains("reel")) {
+    if (document.documentElement.classList.contains("reel") && !document.documentElement.classList.contains("live")) {
       var rv = document.getElementById("reel-video");
       rv.preload = "auto"; rv.src = reelSrc();
     }
@@ -3317,9 +3321,19 @@
         }, 250);
         else loadBar.classList.remove("on");
       }
+      // ---- the film drawn live (?live): intro/live.html in a frame, in place of the video ----
+      var live = root.classList.contains("live"), liveFrame = null, liveT = 0, liveStarted = false;
+      window.addEventListener("message", function (e) {
+        if (!liveFrame || e.source !== liveFrame.contentWindow) return;
+        var d = e.data || {};
+        if (d.type !== "superagent-reel") return;
+        if (d.started) { liveStarted = true; waiting(false); }
+        if (typeof d.t === "number") liveT = d.t;
+        if (d.done) closeReel();
+      });
       function tint() {
-        reel.classList.toggle("paper", onPaper(video.currentTime));
-        if (loadBar.classList.contains("on")) loadFill.style.transform = "scaleX(" + loaded() + ")";
+        reel.classList.toggle("paper", onPaper(live ? liveT : video.currentTime));
+        if (!live && loadBar.classList.contains("on")) loadFill.style.transform = "scaleX(" + loaded() + ")";
         raf = requestAnimationFrame(tint);
       }
       function start(again) {
@@ -3333,8 +3347,23 @@
           else closeReel();
         });
       }
+      function openLive() {
+        playing = true; liveT = 0; liveStarted = false;
+        reel.classList.remove("out", "paper");
+        root.classList.add("reel-open");
+        liveFrame = document.createElement("iframe");
+        liveFrame.title = "Superagent, a 30-second introduction";
+        liveFrame.src = "intro/live.html" + (matchMedia("(max-aspect-ratio: 3/4)").matches ? "?portrait" : "");
+        reel.insertBefore(liveFrame, loadBar);
+        waiting(true);
+        // it has fonts and pictures to fetch before it can start; past this, the page
+        clearTimeout(stall);
+        stall = setTimeout(function () { if (!liveStarted) closeReel(); }, 12000);
+        raf = requestAnimationFrame(tint);
+      }
       function openReel() {
         if (playing) return;
+        if (live) return openLive();
         playing = true;
         if (!video.getAttribute("src")) video.src = reelSrc();
         video.muted = true; // the film is silent
@@ -3355,6 +3384,7 @@
         if (asIntro) root.classList.add("leaving"); // the hero rises as the film clears
         setTimeout(function () {
           video.pause();
+          if (liveFrame) { liveFrame.remove(); liveFrame = null; }
           root.classList.remove("reel-open");
           if (asIntro) {
             asIntro = false;
