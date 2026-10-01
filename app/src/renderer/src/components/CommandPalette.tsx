@@ -17,7 +17,35 @@ interface PaletteItem {
   /** A project, or a chat's project: shown with that project's icon, the
    *  same one the sidebar shows, so you can tell results apart at a glance. */
   workspace?: Workspace
+  /** This lands you in a conversation: put the cursor in its composer, so the
+   *  next thing you do is type, not click. */
+  thenType?: boolean
   run: () => void
+}
+
+/**
+ * Put the cursor in the composer of whichever conversation ends up on screen.
+ * Tried for a few seconds: the chat may still be mounting, or its agent still
+ * starting (the field is disabled until it has). Given up on the moment focus
+ * is anywhere else — you clicked something — so it never pulls the cursor away
+ * from where you put it.
+ */
+function focusComposerSoon(): void {
+  const started = Date.now()
+  const attempt = (): void => {
+    const active = document.activeElement
+    if (active && active !== document.body) return
+    const composer = [
+      ...document.querySelectorAll<HTMLTextAreaElement>('textarea.easy-input')
+    ].find((el) => el.offsetParent !== null && !el.disabled)
+    if (composer) {
+      composer.focus()
+      return
+    }
+    if (Date.now() - started < 4000) window.setTimeout(attempt, 60)
+  }
+  // After the palette has gone: it is what holds focus until it unmounts.
+  requestAnimationFrame(attempt)
 }
 
 interface Group {
@@ -98,6 +126,7 @@ export function CommandPalette({
         id: 'cmd.new-chat',
         label: 'New chat',
         subtitle: currentWorkspace.name,
+        thenType: true,
         run: () => void useStore.getState().newChat(currentWorkspace.id)
       }
     ]
@@ -178,6 +207,7 @@ export function CommandPalette({
         label: c.title || 'New chat',
         subtitle: projectNames.get(c.workspaceId),
         workspace: workspaces.find((w) => w.id === c.workspaceId),
+        thenType: true,
         run: () => {
           useStore.getState().setActive(c.workspaceId)
           useStore.getState().selectChat(c.workspaceId, c.id)
@@ -193,6 +223,7 @@ export function CommandPalette({
           label: w.name,
           subtitle: 'Project',
           workspace: w,
+          thenType: true,
           run: () => useStore.getState().setActive(w.id)
         } as PaletteItem
       }))
@@ -210,6 +241,7 @@ export function CommandPalette({
       label: w.name,
       subtitle: 'Project',
       workspace: w,
+      thenType: true,
       run: () => useStore.getState().setActive(w.id)
     }))
     const chatItems = allChats.map((c) => ({
@@ -217,6 +249,7 @@ export function CommandPalette({
       label: c.title || 'New chat',
       subtitle: projectNames.get(c.workspaceId),
       workspace: workspaces.find((w) => w.id === c.workspaceId),
+      thenType: true,
       run: () => {
         useStore.getState().setActive(c.workspaceId)
         useStore.getState().selectChat(c.workspaceId, c.id)
@@ -255,6 +288,7 @@ export function CommandPalette({
   const run = (item: PaletteItem): void => {
     item.run()
     onClose()
+    if (item.thenType) focusComposerSoon()
   }
 
   return createPortal(

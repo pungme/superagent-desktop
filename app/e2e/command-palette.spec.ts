@@ -85,6 +85,29 @@ test('typing filters to a matching project, and Enter jumps to it', async () => 
   await expect(window.locator('.workspace-toolbar')).toBeVisible()
 })
 
+test('landing on a project from ⌘K leaves the cursor in its composer', async () => {
+  // The seeded project starts with no conversation; ⌘K → New chat makes one,
+  // and you are typing in it without another click.
+  await openPalette()
+  await window.keyboard.type('New chat')
+  await window.keyboard.press('Enter')
+  const composer = window.locator('textarea.easy-input:visible')
+  await expect(composer).toBeFocused({ timeout: 15_000 })
+
+  // Jumping to the project by name does the same, from wherever focus was.
+  await window.click('.sidebar-item:has-text("e2e-project")')
+  await expect(composer).not.toBeFocused()
+  await openPalette()
+  await window.keyboard.type('e2e-proj')
+  await expect(window.locator('.cmdk-item', { hasText: 'e2e-project' }).first()).toBeVisible()
+  await window.keyboard.press('Enter')
+  await expect(window.locator('.cmdk-panel')).toHaveCount(0)
+  await expect(composer).toBeFocused({ timeout: 10_000 })
+  await window.keyboard.type('typed straight away')
+  await expect(composer).toHaveValue('typed straight away')
+  await composer.fill('')
+})
+
 test('arrow keys move the highlighted result', async () => {
   await openPalette()
   const items = window.locator('.cmdk-item')
