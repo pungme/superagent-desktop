@@ -1,4 +1,9 @@
-import { isGoogleSignInRejected, sessionCookieTime, signInRetryUrl } from './google-signin'
+import {
+  isGoogleSignInRejected,
+  sessionCookieTime,
+  signInRetryUrl,
+  setHandsOff
+} from './google-signin'
 import { spawn, ChildProcess, execFile, execFileSync } from 'child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'fs'
 import type { Readable, Writable } from 'stream'
@@ -1010,6 +1015,26 @@ export function registerExternalBrowserIpc(appIcon?: string): void {
     installedBrowsers().map((b) => ({ ...b, icon: browserIcon(b.id) }))
   )
   // Not awaited: it resolves only when the user closes the sign-in window.
+  // The user's own browser, for the built-in pane's "Continue in Brave".
+  ipcMain.handle('browsers:yours', () => {
+    const id = yourBrowser()
+    return id ? { id, name: browserName(id) } : null
+  })
+  /**
+   * Google refused the built-in pane: move this conversation to the user's own
+   * browser and open the sign-in there, without the agent, going on to the
+   * page they were headed for. One click instead of "switch the pill, then
+   * Sign in yourself…".
+   */
+  ipcMain.handle('browsers:continue-in-yours', async (_e, paneId: string, url: string) => {
+    const id = yourBrowser()
+    if (!id) return { ok: false, error: 'Brave, Chrome or Edge is needed to sign in to Google.' }
+    const r = await switchBrowser(scopeOfPane(String(paneId)), id)
+    if (!r.ok) return r
+    setHandsOff(String(paneId), false)
+    void signInYourself(id, signInRetryUrl(String(url))).catch(() => undefined)
+    return { ok: true, name: browserName(id) }
+  })
   ipcMain.handle('browsers:sign-in', (_e, id: BrowserId) => {
     void signInYourself(id).catch(() => undefined)
     return { ok: true }

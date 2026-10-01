@@ -89,17 +89,38 @@ export function sessionCookieTime(profile: string, host = 'google.com'): bigint 
  * off, which the built-in browser can't get past.
  */
 const handsOff = new Set<string>()
+/** …of which, the ones Google turned away outright (the built-in browser). */
+const refusedPanes = new Set<string>()
 export const signInBus = new EventEmitter()
 
 export function isHandsOff(paneId: string): boolean {
   return handsOff.has(paneId)
 }
 
+/**
+ * Google will not sign anyone in inside the built-in browser at all. Checked
+ * against a fresh pane with no agent attached, under its own identity and
+ * Firefox's and Safari's: refused every time. It recognises an embedded
+ * browser, so there is nothing of ours to switch off — the way through is the
+ * user's own browser.
+ */
+export function isSignInRefused(paneId: string): boolean {
+  return refusedPanes.has(paneId)
+}
+
 export function setHandsOff(paneId: string, on: boolean, refused = false): void {
   if (on) handsOff.add(paneId)
   else handsOff.delete(paneId)
+  if (on && refused) refusedPanes.add(paneId)
+  else refusedPanes.delete(paneId)
   signInBus.emit('changed', paneId, on, refused)
 }
+
+export const SIGN_IN_REFUSED_MESSAGE =
+  "Google does not allow signing in inside Superagent's built-in browser (it blocks every " +
+  "app's embedded browser, whatever drives it). Call browser_use('yours') to move this " +
+  "conversation to the user's own browser, then go to the page again: they sign in there, and " +
+  'you carry on. Do not retry in the built-in browser.'
 
 export const HANDS_OFF_MESSAGE =
   'The user is signing in to Google in the browser and has not finished. Google refuses sign-in ' +

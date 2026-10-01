@@ -183,6 +183,12 @@ export function BrowserPane({
   const toggleBrowser = useStore((s) => s.toggleBrowser)
   const hostRef = useRef<HTMLDivElement>(null)
   // Paused for a Google sign-in (main/google-signin.ts): say so over the page.
+  // The user's own browser, for the way out when Google refuses this one.
+  const [yours, setYours] = useState<{ id: string; name: string } | null>(null)
+  const [continueError, setContinueError] = useState<string | null>(null)
+  useEffect(() => {
+    void window.cove.browsersYours?.().then(setYours)
+  }, [])
   const [handsOff, setHandsOff] = useState<{ on: boolean; refused: boolean }>({
     on: false,
     refused: false
@@ -1279,9 +1285,32 @@ export function BrowserPane({
       </div>
       {handsOff.on && (
         <div className="browser-handsoff">
-          {handsOff.refused
-            ? 'Google won’t sign in here, even with the agent paused. Switch the Browser pill under the composer to Brave or Chrome, then use “Sign in yourself…” there.'
-            : 'Google won’t sign in while the agent drives the browser, so the agent is paused. Sign in here; it carries on once you’re through.'}
+          {handsOff.refused ? (
+            <>
+              <span>
+                Google doesn’t allow signing in inside an app’s built-in browser.{' '}
+                {yours
+                  ? `Carry on in ${yours.name} instead: you sign in there once, and this chat uses it from then on.`
+                  : 'Install Brave, Chrome or Edge to sign in to Google from Superagent.'}
+                {continueError ? ` ${continueError}` : ''}
+              </span>
+              {yours && (
+                <button
+                  className="browser-handsoff-btn"
+                  onClick={() => {
+                    setContinueError(null)
+                    void window.cove.browsersContinueInYours(paneId, state.url).then((r) => {
+                      if (!r.ok) setContinueError(r.error ?? 'Could not switch browsers.')
+                    })
+                  }}
+                >
+                  Continue in {yours.name}
+                </button>
+              )}
+            </>
+          ) : (
+            'Google won’t sign in while the agent drives the browser, so the agent is paused. Sign in here; it carries on once you’re through.'
+          )}
         </div>
       )}
       <div

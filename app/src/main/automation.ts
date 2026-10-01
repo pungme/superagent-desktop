@@ -1,4 +1,9 @@
-import { HANDS_OFF_MESSAGE, isHandsOff } from './google-signin'
+import {
+  HANDS_OFF_MESSAGE,
+  SIGN_IN_REFUSED_MESSAGE,
+  isHandsOff,
+  isSignInRefused
+} from './google-signin'
 import { BrowserWindow, WebContents, ipcMain } from 'electron'
 import {
   ensureBackgroundPane,
@@ -150,7 +155,8 @@ function wc(paneId: string, opts: Quiet = {}): WebContents {
   assertNotStopped(paneId)
   // The user is signing in to Google here: the agent waits (the phone's
   // mirror may still look).
-  if (!opts.quiet && isHandsOff(paneId)) throw new Error(HANDS_OFF_MESSAGE)
+  if (!opts.quiet && isHandsOff(paneId))
+    throw new Error(isSignInRefused(paneId) ? SIGN_IN_REFUSED_MESSAGE : HANDS_OFF_MESSAGE)
   let contents = getPaneWebContents(paneId)
   // A chat driven from the phone, or one the Mac isn't showing, has no pane
   // yet: the window's chat view is what normally makes one. Give it the same
@@ -219,7 +225,9 @@ const listening = new WeakSet<ExternalPage>()
 async function untilSignedIn(paneId: string, opts: Quiet = {}): Promise<void> {
   if (opts.quiet) return
   const until = Date.now() + (process.env.COVE_E2E_QUIET === '1' ? 1500 : 120_000)
-  while (isHandsOff(paneId) && Date.now() < until) await new Promise((r) => setTimeout(r, 500))
+  // Refused outright: waiting gets nowhere — the agent is told to switch browsers.
+  while (isHandsOff(paneId) && !isSignInRefused(paneId) && Date.now() < until)
+    await new Promise((r) => setTimeout(r, 500))
 }
 
 /** The page this pane's tools act on: its tab in the project's external browser, or the pane. */
@@ -254,7 +262,8 @@ const WEBDRIVER_MASK =
 
 function ensureDebugger(paneId: string, opts: Quiet = {}): WebContents {
   // Reattaching mid-sign-in would get the user turned away again.
-  if (isHandsOff(paneId)) throw new Error(HANDS_OFF_MESSAGE)
+  if (isHandsOff(paneId))
+    throw new Error(isSignInRefused(paneId) ? SIGN_IN_REFUSED_MESSAGE : HANDS_OFF_MESSAGE)
   const contents = wc(paneId, opts)
   if (!attached.has(paneId)) {
     contents.debugger.attach('1.3')

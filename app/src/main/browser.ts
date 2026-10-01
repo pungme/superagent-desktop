@@ -1,10 +1,4 @@
-import {
-  isGoogleSignIn,
-  isGoogleSignInRejected,
-  isHandsOff,
-  setHandsOff,
-  signInRetryUrl
-} from './google-signin'
+import { isGoogleSignIn, isGoogleSignInRejected, isHandsOff, setHandsOff } from './google-signin'
 import {
   BrowserWindow,
   screen,
@@ -885,13 +879,11 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // means it's the embedded browser itself — say so rather than loop.
   const onGoogleSignIn = (url: string): void => {
     if (isGoogleSignInRejected(url)) {
-      if (isHandsOff(id)) {
-        setHandsOff(id, true, true)
-        return
-      }
-      setHandsOff(id, true)
-      if (wc.debugger.isAttached()) wc.debugger.detach()
-      void wc.loadURL(signInRetryUrl(url)).catch(() => {})
+      // No second try in here: Google refuses the built-in browser itself, not
+      // the agent's hand on it (see isSignInRefused), so pausing the agent and
+      // asking the user to type their email again only earned a second
+      // refusal. Say so at once and offer their own browser.
+      setHandsOff(id, true, true)
     } else if (isHandsOff(id) && !isGoogleSignIn(url)) {
       setHandsOff(id, false)
     }

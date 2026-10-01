@@ -704,6 +704,13 @@ export interface CoveApi {
   onBrowsersUrl: (cb: (u: { paneId: string; url: string }) => void) => () => void
   /** Open the agent's profile without remote control, for the user to sign in (Google refuses otherwise). */
   browsersSignIn: (id: BrowserChoice) => Promise<{ ok: boolean }>
+  /** The user's own browser (their default if we can drive it), or null. */
+  browsersYours: () => Promise<{ id: BrowserChoice; name: string } | null>
+  /** Google refused the built-in pane: carry on, and sign in, in the user's browser. */
+  browsersContinueInYours: (
+    paneId: string,
+    url: string
+  ) => Promise<{ ok: boolean; name?: string; error?: string }>
   /** "I'm signed in": close the sign-in window and give the browser back. */
   browsersSignInDone: () => Promise<boolean>
   /** Settings → Reset Superagent: wipe projects, chats and the rest, then restart. */
@@ -1132,6 +1139,9 @@ const cove: CoveApi = {
   onBrowsersFrame: (cb) => subscribe('browsers:frame', (f) => cb(f as Parameters<typeof cb>[0])),
   onBrowsersUrl: (cb) => subscribe('browsers:url', (u) => cb(u as Parameters<typeof cb>[0])),
   browsersSignIn: (id) => ipcRenderer.invoke('browsers:sign-in', id),
+  browsersYours: () => ipcRenderer.invoke('browsers:yours'),
+  browsersContinueInYours: (paneId, url) =>
+    ipcRenderer.invoke('browsers:continue-in-yours', paneId, url),
   browsersSignInDone: () => ipcRenderer.invoke('browsers:sign-in-done'),
   resetApp: () => ipcRenderer.invoke('app:reset'),
   introAllowed: () => ipcRenderer.sendSync('app:intro-allowed') as boolean,
