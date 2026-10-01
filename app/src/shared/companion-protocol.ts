@@ -228,7 +228,12 @@ export interface WireMachine {
 export type ClientFrame =
   | { t: 'hello'; v: number; device: string; token: string; app: string }
   | { t: 'pair'; device: { id: string; name: string; model: string; pushToken?: string } }
-  | { t: 'subscribe'; chatId: string; afterSeq: number }
+  /**
+   * `afterTs` is the time of the phone's event numbered `afterSeq`. A cleared
+   * conversation starts numbering again at 1, so the number alone cannot tell
+   * "caught up to 40" from "holding 40 events of what was there before".
+   */
+  | { t: 'subscribe'; chatId: string; afterSeq: number; afterTs?: number }
   | { t: 'unsubscribe'; chatId: string }
   | { t: 'req'; id: string; method: RpcMethod; params?: unknown }
   | { t: 'ping' }
@@ -240,6 +245,11 @@ export type ServerFrame =
   | { t: 'bye'; reason: 'unauthorized' | 'revoked' | 'version' | 'pairing-closed' }
   | { t: 'event'; event: WireEvent }
   | { t: 'delta'; chatId: string; text: string }
+  /**
+   * The conversation was emptied on the Mac: drop what you hold for it. Events
+   * after this start again from 1.
+   */
+  | { t: 'reset'; chatId: string }
   | { t: 'status'; workspaceId: string; status: 'idle' | 'working' | 'needs-you' }
   | { t: 'chats'; chats: WireChat[] }
   /**

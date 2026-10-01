@@ -512,6 +512,33 @@ export function listChatEvents(chatId: string, afterSeq: number, limit = 500): C
     .all(chatId, afterSeq, limit) as ChatEventRow[]
 }
 
+/** When the event with this number was written, to tell one log from the next. */
+export function chatEventTs(chatId: string, seq: number): number | undefined {
+  return (
+    db.prepare('SELECT ts FROM chat_events WHERE chatId = ? AND seq = ?').get(chatId, seq) as
+      { ts: number } | undefined
+  )?.ts
+}
+
+/**
+ * Told whenever conversations are emptied, whichever way that happened. The
+ * companion log listens: it holds recent events in memory, and a phone holds
+ * its own copy, and neither may outlive what the database just dropped.
+ */
+const clearedListeners: ((chatIds: string[]) => void)[] = []
+export function onChatsCleared(cb: (chatIds: string[]) => void): void {
+  clearedListeners.push(cb)
+}
+function tellCleared(chatIds: string[]): void {
+  for (const cb of clearedListeners) {
+    try {
+      cb(chatIds)
+    } catch {
+      // a listener's trouble is not a reason to fail the clear
+    }
+  }
+}
+
 export function chatEventCount(chatId: string): number {
   return (
     db.prepare('SELECT COUNT(*) AS n FROM chat_events WHERE chatId = ?').get(chatId) as {
@@ -791,6 +818,7 @@ export function clearChat(chatId: string): void {
       "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE id = ?"
     ).run(now, chatId)
   })()
+  tellCleared([chatId])
 }
 
 /** Same as clearChat, for every chat in a project at once — Settings' storage
@@ -809,6 +837,7 @@ export function clearWorkspaceChats(workspaceId: string): string[] {
       "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE workspaceId = ?"
     ).run(now, workspaceId)
   })()
+  tellCleared(ids)
   return ids
 }
 

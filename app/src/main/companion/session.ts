@@ -4,7 +4,7 @@ import { Sealer, Opener, aadFor, probe, newToken, DeviceKeys } from './crypto'
 import { machineId } from './identity'
 import { addDevice, allDeviceKeys, tokenMatches, touchDevice, setPushToken } from './devices'
 import { pendingPairing, offerPairing, cancelPairing, prettyHostname } from './pairing'
-import { eventsAfter } from './log'
+import { eventsAfter, logDiverged } from './log'
 import { handleRpc, listTree, listChats } from './rpc'
 import { openPanes } from '../browser'
 import { wireBrowser } from './index'
@@ -190,6 +190,12 @@ export class ClientConn {
       case 'subscribe': {
         this.subs.add(frame.chatId)
         let after = frame.afterSeq
+        // The phone holds a log this chat no longer has (it was cleared):
+        // have it drop that, and send the conversation from the start.
+        if (logDiverged(frame.chatId, after, frame.afterTs)) {
+          this.send({ t: 'reset', chatId: frame.chatId })
+          after = 0
+        }
         // Replay everything the phone missed, in order, until we're caught up.
         for (let i = 0; i < 20; i++) {
           const { events, hasMore } = eventsAfter(frame.chatId, after)

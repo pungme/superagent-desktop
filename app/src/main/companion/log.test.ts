@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // The log talks to SQLite through store.ts, which needs Electron at import
 // time. Replace both with an in-memory stand-in so the sequencing, backfill and
 // fan-out logic is what gets tested.
-const { mem, fakeBus } = vi.hoisted(() => {
+const { mem, fakeBus, cleared } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { EventEmitter } = require('events') as typeof import('events')
   return {
@@ -12,7 +12,8 @@ const { mem, fakeBus } = vi.hoisted(() => {
       items: new Map<string, unknown[]>(),
       owned: new Map<string, boolean>()
     },
-    fakeBus: new EventEmitter()
+    fakeBus: new EventEmitter(),
+    cleared: [] as ((ids: string[]) => void)[]
   }
 })
 
@@ -36,6 +37,10 @@ vi.mock('../store', () => ({
       .slice(0, limit)
       .map((e) => ({ chatId, ...e })),
   chatEventCount: (chatId: string) => (mem.events.get(chatId) ?? []).length,
+  lastChatEventSeq: (chatId: string) => (mem.events.get(chatId) ?? []).length,
+  chatEventTs: (chatId: string, seq: number) =>
+    (mem.events.get(chatId) ?? []).find((e) => e.seq === seq)?.ts,
+  onChatsCleared: (cb: (ids: string[]) => void) => cleared.push(cb),
   loadChatItems: (chatId: string) => mem.items.get(chatId) ?? [],
   setChatSession: () => undefined,
   appendChatItems: (chatId: string, items: unknown[]) =>
@@ -47,7 +52,20 @@ vi.mock('../agent', () => ({
   listSessions: () => [...mem.owned.entries()].map(([id, owned]) => ({ id, owned, chatId: 'c1' }))
 }))
 
-import { startCompanionLog, logBus, eventsAfter, record, _resetLogForTests } from './log'
+import {
+  startCompanionLog,
+  logBus,
+  eventsAfter,
+  logDiverged,
+  record,
+  _resetLogForTests
+} from './log'
+
+/** What store.clearChat does: the rows go, then whoever listens is told. */
+function clearChat(chatId: string): void {
+  mem.events.delete(chatId)
+  for (const cb of cleared) cb([chatId])
+}
 
 describe('companion log', () => {
   beforeEach(() => {
@@ -129,5 +147,49 @@ describe('companion log', () => {
       localId: 'L1'
     })
     expect(eventsAfter('c1', 0).events[0].data).toMatchObject({ id: 'L1', from: 'ios' })
+  })
+
+  it('tells phones when a chat is cleared, and serves the new log from 1', () => {
+    const resets: string[] = []
+    logBus.on('reset', ({ chatId }) => resets.push(chatId))
+    for (const text of ['a', 'b', 'c']) record('c1', { kind: 'notice', text })
+    clearChat('c1')
+    expect(resets).toEqual(['c1'])
+    // Nothing of the old conversation is served from memory.
+    expect(eventsAfter('c1', 0).events).toEqual([])
+    record('c1', { kind: 'notice', text: 'fresh' })
+    expect(eventsAfter('c1', 0).events.map((e) => [e.seq, e.data])).toEqual([
+      [1, { kind: 'notice', text: 'fresh' }]
+    ])
+  })
+
+  it('spots a phone still holding the log from before a clear', () => {
+    for (const text of ['a', 'b', 'c']) record('c1', { kind: 'notice', text })
+    const oldTs = mem.events.get('c1')![2].ts
+    // Caught up, or behind: the same log.
+    expect(logDiverged('c1', 0)).toBe(false)
+    expect(logDiverged('c1', 3)).toBe(false)
+    expect(logDiverged('c1', 3, oldTs)).toBe(false)
+    expect(logDiverged('c1', 3, oldTs + 900)).toBe(false)
+
+    clearChat('c1')
+    record('c1', { kind: 'notice', text: 'fresh' })
+    // Ahead of the Mac: it can only be the old conversation.
+    expect(logDiverged('c1', 3)).toBe(true)
+    // The new log has grown past where the phone was; the time gives it away.
+    record('c1', { kind: 'notice', text: 'two' })
+    record('c1', { kind: 'notice', text: 'three' })
+    mem.events.get('c1')![2].ts = oldTs + 60_000
+    expect(logDiverged('c1', 3, oldTs)).toBe(true)
+    expect(logDiverged('c1', 3, oldTs + 60_000)).toBe(false)
+    // An older phone sends no time: nothing to go on, so it is left alone.
+    expect(logDiverged('c1', 3)).toBe(false)
+  })
+
+  it('says the agent stopped only when nobody stopped it', () => {
+    fakeBus.emit('exit', { id: 's1', chatId: 'c1', deliberate: true })
+    expect(eventsAfter('c1', 0).events).toEqual([])
+    fakeBus.emit('exit', { id: 's2', chatId: 'c1', deliberate: false })
+    expect(eventsAfter('c1', 0).events.map((e) => e.data.kind)).toEqual(['notice'])
   })
 })
