@@ -17,7 +17,7 @@
       // off for now; ?reel still plays it.
       if (/[?&](reel|live)\b/.test(location.search)) document.documentElement.classList.add("reel");
       // ?live draws the film in the page instead of playing the video
-      if (/[?&]live\b/.test(location.search)) document.documentElement.classList.add("live");
+      if (/[?&]live\b/.test(location.search)) document.documentElement.classList.add("reel-live");
       if ("scrollRestoration" in history) history.scrollRestoration = "manual";
     }
   </script>
@@ -1971,7 +1971,7 @@
     #reel.paper { background: #d3d2d0; }
     #reel video { display: block; width: 100%; height: 100%; object-fit: contain; }
     #reel iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; }
-    html.live #reel video { display: none; }
+    html.reel-live #reel video { display: none; }
     /* upright phone: its own cut of the film, staged for a tall screen. Phones
        are taller than 9:16, so a little is left over above and below; the
        picture's edges dissolve into bars of the scene's colour. */
@@ -2230,7 +2230,7 @@
     }
     // The film is the first thing shown, so it starts downloading here,
     // before the rest of the page has been read.
-    if (document.documentElement.classList.contains("reel") && !document.documentElement.classList.contains("live")) {
+    if (document.documentElement.classList.contains("reel") && !document.documentElement.classList.contains("reel-live")) {
       var rv = document.getElementById("reel-video");
       rv.preload = "auto"; rv.src = reelSrc();
     }
@@ -3322,7 +3322,7 @@
         else loadBar.classList.remove("on");
       }
       // ---- the film drawn live (?live): intro/live.html in a frame, in place of the video ----
-      var live = root.classList.contains("live"), liveFrame = null, liveT = 0, liveStarted = false;
+      var live = root.classList.contains("reel-live"), liveFrame = null, liveT = 0, liveStarted = false;
       window.addEventListener("message", function (e) {
         if (!liveFrame || e.source !== liveFrame.contentWindow) return;
         var d = e.data || {};

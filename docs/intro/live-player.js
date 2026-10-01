@@ -16,14 +16,27 @@ const tell = (msg) => parent.postMessage({ type: 'superagent-reel', ...msg }, lo
 document.documentElement.style.visibility = 'hidden'
 while (!window.ready) await new Promise((r) => setTimeout(r, 16))
 
-// The whole picture, as large as fits: what a video's object-fit: contain does.
+// The picture is fitted whole, as large as it goes, and then the frame around
+// it is filled: the backdrops (and the vignette, grain and flash over them)
+// are enlarged to cover whatever the screen has left over, above and below or
+// to the sides, and the scenes are let run past their 16:9 or 9:16 edge. So it
+// fills any screen without cropping what the film says.
 const frame = document.getElementById(portrait ? 'pstage' : 'stage')
 frame.style.transformOrigin = '0 0'
-// upright it leaves a little above and below; the edges dissolve into it
-if (portrait) frame.style.maskImage = frame.style.webkitMaskImage = 'linear-gradient(to bottom, transparent, #000 3%, #000 97%, transparent)'
+frame.style.overflow = 'visible'
+const scope = portrait ? '#pstage >' : '#stage >'
+const backdrops = [...document.querySelectorAll(`${scope} .full, ${scope} #grain, ${scope} #introGlow, #warp`)]
+const capfade = document.getElementById('capfade')
+const capfadeH = capfade.getBoundingClientRect().height
 function fit() {
   const s = Math.min(innerWidth / W, innerHeight / H)
   frame.style.transform = `translate(${(innerWidth - W * s) / 2}px, ${(innerHeight - H * s) / 2}px) scale(${s})`
+  const cover = Math.max(innerWidth / (W * s), innerHeight / (H * s)) * 1.02
+  for (const el of backdrops) el.style.scale = cover
+  // the veil behind the captions reaches the bottom of the screen
+  capfade.style.height = capfadeH + (innerHeight / s - H) / 2 + 2 + 'px'
+  const side = (innerWidth / s - W) / 2 + 2
+  capfade.style.left = -side + 'px'; capfade.style.width = W + side * 2 + 'px'
 }
 addEventListener('resize', fit)
 fit()
