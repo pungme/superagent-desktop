@@ -98,11 +98,10 @@ export function isHandsOff(paneId: string): boolean {
 }
 
 /**
- * Google will not sign anyone in inside the built-in browser at all. Checked
- * against a fresh pane with no agent attached, under its own identity and
- * Firefox's and Safari's: refused every time. It recognises an embedded
- * browser, so there is nothing of ours to switch off — the way through is the
- * user's own browser.
+ * Google refused this pane twice — once with the agent on it, once with the
+ * agent off. The pane presents a Firefox on Google's sign-in pages, which is
+ * normally accepted (shared/sign-in-identity.ts), so this is the rare case
+ * that still fails: the way through is then the user's own browser.
  */
 export function isSignInRefused(paneId: string): boolean {
   return refusedPanes.has(paneId)
@@ -117,8 +116,8 @@ export function setHandsOff(paneId: string, on: boolean, refused = false): void 
 }
 
 export const SIGN_IN_REFUSED_MESSAGE =
-  "Google does not allow signing in inside Superagent's built-in browser (it blocks every " +
-  "app's embedded browser, whatever drives it). Call browser_use('yours') to move this " +
+  "Google refused to sign in inside Superagent's built-in browser, even with your browser " +
+  "tools paused. Call browser_use('yours') to move this " +
   "conversation to the user's own browser, then go to the page again: they sign in there, and " +
   'you carry on. Do not retry in the built-in browser.'
 

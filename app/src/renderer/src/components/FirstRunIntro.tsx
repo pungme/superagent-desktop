@@ -5,7 +5,7 @@ import { INTRO_SEEN_KEY } from '../firstRun'
 /**
  * The first launch opens on the opening of the Superagent reel — "Your agent
  * writes the code. Give it a screen." into the mark and "A home for your
- * agent." — with its soundtrack, the motion locked to the music (public/intro).
+ * agent." — played silently (public/intro).
  *
  * It plays over the app while the app checks for Claude Code and Codex, which
  * takes several seconds on a first launch and used to be a blank window, then

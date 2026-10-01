@@ -12,7 +12,18 @@ export default defineConfig({
       }
     }
   },
-  preload: {},
+  preload: {
+    build: {
+      rollupOptions: {
+        // index: the app window's bridge. pane: the browser pane's own, tiny
+        // preload (the Firefox identity on Google's sign-in pages).
+        input: {
+          index: resolve('src/preload/index.ts'),
+          pane: resolve('src/preload/pane.ts')
+        }
+      }
+    }
+  },
   renderer: {
     resolve: {
       alias: {

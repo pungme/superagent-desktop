@@ -1288,7 +1288,7 @@ export function BrowserPane({
           {handsOff.refused ? (
             <>
               <span>
-                Google doesn’t allow signing in inside an app’s built-in browser.{' '}
+                Google still won’t sign in here, even with the agent paused.{' '}
                 {yours
                   ? `Carry on in ${yours.name} instead: you sign in there once, and this chat uses it from then on.`
                   : 'Install Brave, Chrome or Edge to sign in to Google from Superagent.'}

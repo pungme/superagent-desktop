@@ -1,4 +1,11 @@
-import { isGoogleSignIn, isGoogleSignInRejected, isHandsOff, setHandsOff } from './google-signin'
+import {
+  isGoogleSignIn,
+  isGoogleSignInRejected,
+  isHandsOff,
+  setHandsOff,
+  signInRetryUrl
+} from './google-signin'
+import { applySignInIdentity } from './sign-in-identity'
 import {
   BrowserWindow,
   screen,
@@ -188,7 +195,10 @@ function chromeUserAgent(defaultUA: string): string {
  * also blocked the automation tools from attaching their own.
  */
 function applyBrowserIdentity(wc: Electron.WebContents): void {
-  wc.setUserAgent(chromeUserAgent(wc.getUserAgent()))
+  const chromeUA = chromeUserAgent(wc.getUserAgent())
+  wc.setUserAgent(chromeUA)
+  // …and a Firefox on Google's sign-in pages, which refuse a bare Chromium.
+  applySignInIdentity(wc, chromeUA)
 }
 
 export interface BrowserBounds {
@@ -879,11 +889,18 @@ export function createBrowserPane(window: BrowserWindow, id: string, partition: 
   // means it's the embedded browser itself — say so rather than loop.
   const onGoogleSignIn = (url: string): void => {
     if (isGoogleSignInRejected(url)) {
-      // No second try in here: Google refuses the built-in browser itself, not
-      // the agent's hand on it (see isSignInRefused), so pausing the agent and
-      // asking the user to type their email again only earned a second
-      // refusal. Say so at once and offer their own browser.
-      setHandsOff(id, true, true)
+      // Refused again with the agent already off: this pane cannot get past
+      // it (the Firefox identity in sign-in-identity.ts normally does). Say
+      // so and offer the user's own browser rather than loop.
+      if (isHandsOff(id)) {
+        setHandsOff(id, true, true)
+        return
+      }
+      // First refusal: Google also turns away a browser being driven. Take
+      // the agent's hands off and try the sign-in once more.
+      setHandsOff(id, true)
+      if (wc.debugger.isAttached()) wc.debugger.detach()
+      void wc.loadURL(signInRetryUrl(url)).catch(() => {})
     } else if (isHandsOff(id) && !isGoogleSignIn(url)) {
       setHandsOff(id, false)
     }

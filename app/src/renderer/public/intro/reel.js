@@ -196,7 +196,7 @@ const logo = makeLogo()
 const word = h(`<div class="wordmark">${[...'Superagent'].map((c) => `<span class="mask"><span class="c">${c}</span></span>`).join('')}</div>`)
 const kanaStr = 'スーパーエージェント'
 const kana = h(`<div class="kana">${charSpans(kanaStr)}</div>`)
-const tagline = h(`<div class="tagline"><span class="mask"><span class="wi">A</span></span> <span style="position:relative;display:inline-block"><span class="mask"><span class="wi g">home</span></span><span class="uline" style="bottom:-0.02em"></span></span> <span class="mask"><span class="wi">for</span></span> <span class="mask"><span class="wi">your</span></span> <span class="mask"><span class="wi">agent.</span></span></div>`)
+const tagline = h(`<div class="tagline"><span class="mask"><span class="wi">A</span></span> <span class="mask"><span class="wi">beautiful</span></span> <span style="position:relative;display:inline-block"><span class="mask"><span class="wi g">home</span></span><span class="uline" style="bottom:-0.02em"></span></span> <span class="mask"><span class="wi">for</span></span> <span class="mask"><span class="wi">your</span></span> <span class="mask"><span class="wi">agent.</span></span></div>`)
 sLogo.append(ring1, ring2, logo, word, kana, tagline)
 const wordW = word.getBoundingClientRect().width
 const lockW = 300 + 64 + wordW
@@ -242,8 +242,8 @@ kanaCh.forEach((_, i) => cue('tick', T(3, 3.2) + 0.14 + i * 0.045, { vel: 0.3 })
 // tagline
 const tagW = $$('.wi', tagline)
 tagW.forEach((w, i) => {
-  tl.fromTo(w, { yPercent: 110 }, { yPercent: 0, duration: 0.6, ease: 'expo.out' }, T(4, 1 + i * 0.5))
-  cue('pop', T(4, 1 + i * 0.5), { midi: pitch.F[i % 6], vel: 0.5, pan: (i - 2) * 0.2 })
+  tl.fromTo(w, { yPercent: 110 }, { yPercent: 0, duration: 0.6, ease: 'expo.out' }, T(4, 1 + i * 0.4))
+  cue('pop', T(4, 1 + i * 0.4), { midi: pitch.F[i % 6], vel: 0.5, pan: (i - 2) * 0.2 })
 })
 tl.to($('.uline', tagline), { scaleX: 1, duration: 0.45, ease: 'expo.out' }, T(4, 3.5))
 cue('shine', T(4, 3.5), { vel: 0.6 })
@@ -659,7 +659,7 @@ const sEnd = h(`<div class="scene" id="sEnd"></div>`); cam.append(sEnd)
 const logo2 = makeLogo()
 const word2 = h(`<div class="wordmark" style="font-size:150px">${[...'Superagent'].map((c) => `<span class="mask"><span class="c">${c}</span></span>`).join('')}</div>`)
 const kana2 = h(`<div class="kana" style="font-size:28px">${charSpans(kanaStr)}</div>`)
-const tag2 = h(`<div class="tagline" style="font-size:60px">${maskWords('A home for your agent.')}</div>`)
+const tag2 = h(`<div class="tagline" style="font-size:60px">${maskWords('A beautiful home for your agent.')}</div>`)
 const dl = h(`<div class="dl">${appleSvg(30)}<span>Download for Mac</span><div class="shine2"></div></div>`)
 const urlT = 'superagent.computer'
 const url2 = h(`<div class="urltxt">${charSpans(urlT)}<span class="uline" style="height:4px;bottom:-6px"></span></div>`)

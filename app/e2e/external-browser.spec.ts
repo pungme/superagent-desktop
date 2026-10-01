@@ -458,9 +458,38 @@ test('"Sign in yourself…" opens it without the agent and says what happens nex
   // Quitting Superagent closes that window too (checked in afterAll).
 })
 
-test('Google refusing sign-in in the built-in browser offers your own browser, in one click', async () => {
+test("the built-in browser is a Firefox on Google's sign-in pages, and Chrome everywhere else", async () => {
+  // Google refuses a bare Chromium ("This browser or app may not be secure");
+  // a Firefox has no brand list to fail. Faked pages: no real network.
+  await window.evaluate((s) => window.cove.browsersSet(s, 'builtin'), `${wsId}::${chatId}`)
+  await app.evaluate(({ session, net }) => {
+    session.fromPartition('persist:browser').protocol.handle('https', (req) => {
+      const host = new URL(req.url).hostname
+      if (host.endsWith('google.com'))
+        return new Response(`<title>${host}</title><h1>${host}</h1>`, {
+          headers: { 'content-type': 'text/html' }
+        })
+      return net.fetch(req, { bypassCustomProtocolHandlers: true })
+    })
+  })
+  const see = (expression: string): Promise<string> => tool('browser_evaluate', { expression })
+  await tool('browser_navigate', { url: 'https://accounts.google.com/v3/signin/identifier' })
+  expect(await see('navigator.userAgent')).toMatch(/Gecko\/20100101 Firefox\/\d+\.0/)
+  expect(await see('typeof navigator.userAgentData')).toContain('undefined')
+  expect(await see('typeof window.chrome')).toContain('undefined')
+  expect(await see('"vendor=[" + navigator.vendor + "]"')).toContain('vendor=[]')
+  await tool('browser_navigate', { url: 'https://ads.google.com/' })
+  const elsewhere = await see('navigator.userAgent')
+  expect(elsewhere).toMatch(/Chrome\/\d+/)
+  expect(elsewhere).not.toMatch(/Firefox|Electron/)
+  expect(await see('typeof navigator.userAgentData')).toContain('object')
+})
+
+test('Google refusing sign-in in the built-in browser pauses the agent until you are through', async () => {
   // Google's pages, faked inside the pane's browser session: no real network.
   await app.evaluate(({ session, net }) => {
+    // The test before this one faked Google's pages too; replace its handler.
+    session.fromPartition('persist:browser').protocol.unhandle('https')
     session.fromPartition('persist:browser').protocol.handle('https', (req) => {
       const host = new URL(req.url).hostname
       const page = (title: string): Response =>
@@ -473,11 +502,18 @@ test('Google refusing sign-in in the built-in browser offers your own browser, i
       return net.fetch(req, { bypassCustomProtocolHandlers: true })
     })
   })
+  // On the built-in browser, where this applies.
+  await window.evaluate((s) => window.cove.browsersSet(s, 'builtin'), `${wsId}::${chatId}`)
   const REJECTED =
     'https://accounts.google.com/v3/signin/rejected?continue=https%3A%2F%2Fads.google.com%2F'
-  const scope = `${wsId}::${chatId}`
-  // On the built-in browser, where Google refuses.
-  await window.evaluate((s) => window.cove.browsersSet(s, 'builtin'), scope)
+  const paneUrl = (): Promise<string> =>
+    app.evaluate(({ webContents }) =>
+      webContents
+        .getAllWebContents()
+        .map((w) => w.getURL())
+        .filter((u) => u.includes('google.com'))
+        .join(' ')
+    )
   // As Google does it: the sign-in page, then on to the refusal without loading
   // a page (history.pushState).
   await tool('browser_navigate', { url: 'https://accounts.google.com/v3/signin/identifier' })
@@ -486,14 +522,40 @@ test('Google refusing sign-in in the built-in browser offers your own browser, i
       expression: `(history.pushState({}, '', ${JSON.stringify(REJECTED.replace('https://accounts.google.com', ''))}), 'moved')`
     })
   ).toContain('moved')
-  // Straight to the way out — no second try in here: Google refuses the
-  // built-in browser itself, so retrying only earned a second refusal.
   const banner = window.locator('.browser-handsoff:visible')
-  await expect(banner).toContainText('doesn’t allow signing in inside an app’s built-in browser', {
-    timeout: 10_000
+  await expect(banner).toContainText('the agent is paused', { timeout: 10_000 })
+  // It tried the sign-in again, going on to Ads, with the agent's debugger off.
+  await expect.poll(paneUrl).toContain('accounts.google.com/ServiceLogin?continue=')
+  expect(
+    await app.evaluate(({ webContents }) =>
+      webContents
+        .getAllWebContents()
+        .filter((w) => w.getURL().includes('accounts.google.com'))
+        .some((w) => w.debugger.isAttached())
+    )
+  ).toBe(false)
+  // The agent waits rather than grabbing the page mid-sign-in.
+  expect(await tool('browser_evaluate', { expression: 'document.title' })).toMatch(
+    /signing in to Google/
+  )
+  // Signed in: Google sends the user on to Ads, and the agent carries on.
+  await app.evaluate(({ webContents }) => {
+    for (const w of webContents.getAllWebContents())
+      if (w.getURL().includes('accounts.google.com')) void w.loadURL('https://ads.google.com/')
   })
-  await expect(banner.getByRole('button', { name: 'Continue in Brave' })).toBeVisible()
-  // The agent is told to switch browsers itself, at once, rather than wait.
+  await expect(banner).toHaveCount(0, { timeout: 10_000 })
+  expect(await tool('browser_evaluate', { expression: 'document.title' })).toContain('Google Ads')
+
+  // Refused again with the agent off: the built-in browser can't get past it —
+  // say so, and don't loop.
+  await tool('browser_navigate', { url: REJECTED })
+  await expect.poll(paneUrl).toContain('ServiceLogin')
+  await app.evaluate(({ webContents }, url) => {
+    for (const w of webContents.getAllWebContents())
+      if (w.getURL().includes('accounts.google.com')) void w.loadURL(url)
+  }, REJECTED)
+  await expect(banner).toContainText('still won’t sign in here', { timeout: 10_000 })
+  // The agent is told to switch browsers itself rather than wait.
   const told = await tool('browser_evaluate', { expression: 'document.title' }).catch(
     (e: Error) => e.message
   )
@@ -501,7 +563,9 @@ test('Google refusing sign-in in the built-in browser offers your own browser, i
   // One click: this chat moves to Brave, and the banner goes.
   await banner.getByRole('button', { name: 'Continue in Brave' }).click()
   await expect
-    .poll(() => window.evaluate((s) => window.cove.browsersGet(s), scope), { timeout: 10_000 })
+    .poll(() => window.evaluate((s) => window.cove.browsersGet(s), `${wsId}::${chatId}`), {
+      timeout: 10_000
+    })
     .toBe('brave')
   await expect(banner).toHaveCount(0, { timeout: 10_000 })
 })

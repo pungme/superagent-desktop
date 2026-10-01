@@ -6,8 +6,7 @@ import { tmpdir } from 'os'
 /**
  * A first launch opens on the reel's intro (public/intro), over the app while
  * it checks for Claude and Codex, then hands over to whatever is ready. Test
- * runs don't get it unless they ask (COVE_E2E_INTRO) — and this one is muted,
- * since the intro has a soundtrack.
+ * runs don't get it unless they ask (COVE_E2E_INTRO).
  */
 
 async function launch(): Promise<{ app: ElectronApplication; window: Page; dir: string }> {
@@ -15,10 +14,6 @@ async function launch(): Promise<{ app: ElectronApplication; window: Page; dir: 
   const app = await electron.launch({
     args: [join(__dirname, '..', 'out', 'main', 'index.js')],
     env: { ...process.env, COVE_USER_DATA: dir, COVE_E2E_INTRO: '1', NODE_ENV: 'production' }
-  })
-  await app.evaluate(({ app: a, BrowserWindow }) => {
-    a.on('browser-window-created', (_e, w) => w.webContents.setAudioMuted(true))
-    for (const w of BrowserWindow.getAllWindows()) w.webContents.setAudioMuted(true)
   })
   const window = await app.firstWindow()
   await window.waitForLoadState('domcontentloaded')
