@@ -308,6 +308,22 @@ describe('keep', () => {
     expect(readFileSync(join(api, 'wip.txt'), 'utf8')).toBe('unsaved')
   })
 
+  it('treats a repo the agent started in its copy as something it made, not one of the project’s', async () => {
+    const api = repo('api')
+    const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    mkdirSync(join(dir, 'tools'))
+    git(join(dir, 'tools'), 'init', '-q', '-b', 'main')
+    writeFileSync(join(dir, 'tools', 'run.sh'), 'echo hi')
+    expect(describeRepoSet(dir)!.repos).toEqual(['api'])
+    expect(await copyStatus(root, dir)).toEqual({ dirty: true, ahead: 0, repos: [] })
+
+    expect(await mergeCopy(root, dir, 'Keep')).toEqual({ ok: true, committed: true, repos: [] })
+    // Moved out beside the real repos, whole.
+    expect(readFileSync(join(root, 'tools', 'run.sh'), 'utf8')).toBe('echo hi')
+    expect(existsSync(join(root, 'tools', '.git'))).toBe(true)
+    expect(subjects(api)).toEqual(['first'])
+  })
+
   it('has nothing to keep from a chat that changed nothing', async () => {
     repo('api')
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path

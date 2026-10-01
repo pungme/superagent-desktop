@@ -693,9 +693,14 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   }
   // Copies no conversation is in: a chat deleted without its copy, usually.
   // Every other copy IS a chat's, and that chat's row is all there is to show.
-  const orphanSets = sets.filter(
-    (set) => !chats.some((c) => normalizeCwd(c.cwd ?? null) === normalizeCwd(set.path))
-  )
+  // Not until the conversations have loaded, though: before that every copy
+  // looks abandoned, and each chat's flashed up as a stray row at launch.
+  const chatsLoaded = useStore((s) => s.chats[ws.id] !== undefined)
+  const orphanSets = chatsLoaded
+    ? sets.filter(
+        (set) => !chats.some((c) => normalizeCwd(c.cwd ?? null) === normalizeCwd(set.path))
+      )
+    : []
   // The copy the conversation on screen works in, so the repo list can say
   // which branch each repo is on THERE rather than in the folder.
   const activeSet = useStore((s) => {

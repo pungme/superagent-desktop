@@ -8,6 +8,7 @@ import os from 'os'
 import { getHookUrl, reportAgentLifecycle } from '../hooks'
 import { getMcpUrl, workspaceMcpUrl } from '../mcp'
 import { buildAppendedPrompt } from '../prompts'
+import { describeRepoSet } from '../repo-set'
 import { findAgy } from '../claude-cli'
 import { clearTurn } from '../guardrail'
 import { forgetHookCalls, hookSawStep, needsHook } from './approvals'
@@ -137,7 +138,8 @@ export function agyBriefing(opts: AgentStartOptions): string {
       browser: opts.workspaceId
         ? browserName(browserFor(browserScope(opts.workspaceId, opts.chatId)))
         : undefined,
-      provider: 'antigravity'
+      provider: 'antigravity',
+      repoSet: describeRepoSet(opts.cwd)
     }) +
     TOOLS_PROMPT +
     (opts.permissionMode === 'plan' ? PLAN_MODE_PROMPT : '')

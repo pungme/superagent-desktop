@@ -51,12 +51,30 @@ export interface SetMember {
   repo: string
 }
 
+/**
+ * Whether a folder in a copy is the chat's worktree of the project's repo of
+ * the same name. A worktree's `.git` is a FILE pointing back at its repo; a
+ * repo the agent cloned or started here has a `.git` folder and no original
+ * to be kept onto, and is just something the chat made.
+ */
+function isMember(setPath: string, name: string): boolean {
+  try {
+    return (
+      lstatSync(join(setPath, name)).isDirectory() &&
+      lstatSync(join(setPath, name, '.git')).isFile() &&
+      existsSync(join(repoSetRoot(setPath), name, '.git'))
+    )
+  } catch {
+    return false
+  }
+}
+
 /** The worktrees in a copy. A linked repo (one git could not cut) is not one. */
 export function setMembers(setPath: string): SetMember[] {
   const root = repoSetRoot(setPath)
   try {
     return readdirSync(setPath, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && existsSync(join(setPath, e.name, '.git')))
+      .filter((e) => isMember(setPath, e.name))
       .map((e) => ({ name: e.name, path: join(setPath, e.name), repo: join(root, e.name) }))
       .sort((a, b) => a.name.localeCompare(b.name))
   } catch {
@@ -74,9 +92,8 @@ export function looseEntries(setPath: string): string[] {
     return readdirSync(setPath)
       .filter((name) => {
         if (IGNORED.has(name)) return false
-        const st = lstatSync(join(setPath, name))
-        if (st.isSymbolicLink()) return false
-        return !(st.isDirectory() && existsSync(join(setPath, name, '.git')))
+        if (lstatSync(join(setPath, name)).isSymbolicLink()) return false
+        return !isMember(setPath, name)
       })
       .sort()
   } catch {

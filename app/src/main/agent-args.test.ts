@@ -61,6 +61,7 @@ describe('buildAgentArgs', () => {
       const copy = join(root, '.worktrees', 'wt-1')
       mkdirSync(join(copy, 'api'), { recursive: true })
       writeFileSync(join(copy, 'api', '.git'), 'gitdir: elsewhere\n')
+      mkdirSync(join(root, 'api', '.git'), { recursive: true }) // the repo it is a worktree of
       const args = buildAgentArgs({ cwd: copy })
       const settings = JSON.parse(valueAfter(args, '--settings')!)
       expect(settings.autoMemoryDirectory).toContain(
