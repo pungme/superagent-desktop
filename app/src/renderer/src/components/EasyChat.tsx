@@ -1343,6 +1343,9 @@ export function EasyChat({
   // the transcript. Re-checked when a turn ends; a clean chat shows nothing,
   // there's no decision to make.
   const [wtChanges, setWtChanges] = useState(false)
+  // In a folder of repos: the ones this chat changed, so Keep can say where
+  // its work will land rather than "the project", which is several places.
+  const [wtRepos, setWtRepos] = useState<string[]>([])
   const isWorktreeChat = cwd.includes('/.worktrees/')
   useEffect(() => {
     if (!isWorktreeChat) return
@@ -1352,7 +1355,9 @@ export function EasyChat({
       window.cove
         .worktreeStatus(projectPath, cwd)
         .then((st) => {
-          if (alive) setWtChanges(st.dirty || st.ahead > 0)
+          if (!alive) return
+          setWtChanges(st.dirty || st.ahead > 0)
+          setWtRepos(st.repos ?? [])
         })
         .catch(() => {})
     }
@@ -1442,6 +1447,8 @@ export function EasyChat({
       taskId?: string
     }[]
   >([])
+  /** Sub-agents still working after their turn handed control back. */
+  const bgAgents = runningAgents.filter((a) => a.background).length
   // The in-chat /loop runs on main (main/loops.ts), so the phone sees it too
   // and it outlives this view. This only mirrors it for the bar.
   const [loop, setLoop] = useState<ChatLoop | null>(null)
@@ -3297,7 +3304,12 @@ export function EasyChat({
     // and those jobs are its children — so an unseen monitoring session used to
     // die 5 minutes after you switched away to work elsewhere. Its own work
     // keeps it resident; the reaper re-arms once the background pills clear.
-    if (visible || suspended || generating || thinking || bgTasks.length > 0) return
+    //
+    // A sub-agent sent to the background is the same case and was missed: it
+    // runs inside this process with no shell to show for it, so a chat that
+    // ended its turn to wait for one was reaped five minutes later, the agent
+    // died with it, and the report the chat was waiting on never came.
+    if (visible || suspended || generating || thinking || bgTasks.length + bgAgents > 0) return
     const timer = window.setTimeout(() => {
       const id = agentIdRef.current
       if (!id) return
@@ -3313,7 +3325,7 @@ export function EasyChat({
       setBgTasks([])
     }, IDLE_REAP_MS)
     return () => window.clearTimeout(timer)
-  }, [visible, suspended, generating, thinking, bgTasks.length])
+  }, [visible, suspended, generating, thinking, bgTasks.length, bgAgents])
 
   // Actually stop a background job. The app has no direct handle to a job the
   // agent backgrounded (a `&` job has none at all; a run_in_background one is a
@@ -3447,8 +3459,10 @@ export function EasyChat({
   const clearBusy = useStore((s) => s.clearBusy)
   useEffect(() => {
     bgTasksRef.current = bgTasks
-    setBusy(chatId, { generating: generating || thinking, background: bgTasks.length })
-  }, [chatId, generating, thinking, bgTasks.length, setBusy])
+    // Background sub-agents count as background work too: this number is what
+    // keeps a hidden chat mounted, and unmounting it stops its process.
+    setBusy(chatId, { generating: generating || thinking, background: bgTasks.length + bgAgents })
+  }, [chatId, generating, thinking, bgTasks.length, bgAgents, setBusy])
   useEffect(() => () => clearBusy(chatId), [chatId, clearBusy])
 
   // A loop round main wants sent from here, as if typed: this view owns the
@@ -4512,7 +4526,11 @@ export function EasyChat({
                 <>
                   <button
                     className="easy-newchat easy-keep"
-                    data-tip="Adds everything this chat changed to the project as one change, named after the chat, then closes the chat. Your other chats and your checkout aren't touched."
+                    data-tip={
+                      wtRepos.length > 0
+                        ? `Adds everything this chat changed to ${wtRepos.join(', ')} — one change in each, named after the chat — then closes the chat. Your other chats aren't touched.`
+                        : "Adds everything this chat changed to the project as one change, named after the chat, then closes the chat. Your other chats and your checkout aren't touched."
+                    }
                     onClick={() =>
                       window.cove.chatKeepRequest({
                         chatId,
@@ -4526,7 +4544,11 @@ export function EasyChat({
                   </button>
                   <button
                     className="easy-newchat easy-throw"
-                    data-tip="Deletes everything this chat changed — its branch and its working copy. Can't be undone."
+                    data-tip={
+                      wtRepos.length > 0
+                        ? `Deletes everything this chat changed in ${wtRepos.join(', ')} — its branches and its working copy. Can't be undone.`
+                        : "Deletes everything this chat changed — its branch and its working copy. Can't be undone."
+                    }
                     onClick={() => window.cove.chatThrowRequest({ chatId, workspaceId })}
                   >
                     Throw away

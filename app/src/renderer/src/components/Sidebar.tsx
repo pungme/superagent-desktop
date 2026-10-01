@@ -267,7 +267,8 @@ function BranchRow({
   active,
   onOpen,
   onMenu,
-  onRemove
+  onRemove,
+  orphanHint
 }: {
   branch: string
   chat: Chat | undefined
@@ -278,6 +279,8 @@ function BranchRow({
   onMenu: () => void
   /** Delete this conversation. Asks about unkept work first — see removeChat. */
   onRemove?: () => void
+  /** What a row with no conversation is, when it is not a stray git worktree. */
+  orphanHint?: string
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const running = useStore((st) => Boolean(chat && st.busy[chat.id]?.generating))
@@ -307,7 +310,7 @@ function BranchRow({
       title={
         chat
           ? branch
-          : `${branch} — a branch with no conversation (a git worktree made outside Superagent). Click to start one; right-click to merge or delete.`
+          : `${branch} — ${orphanHint ?? 'a branch with no conversation (a git worktree made outside Superagent)'}. Click to start one; right-click to merge or delete.`
       }
     >
       {/* The conversation is what you look for, so it reads first; the branch it
@@ -351,7 +354,9 @@ function BranchRow({
       {onRemove && (
         <button
           className="sidebar-branch-remove"
-          title={chat ? 'Delete this chat' : 'Remove this worktree'}
+          title={
+            chat ? 'Delete this chat' : orphanHint ? 'Remove this copy' : 'Remove this worktree'
+          }
           onClick={(e) => {
             e.stopPropagation()
             onRemove()
@@ -588,12 +593,24 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const [worktrees, setWorktrees] = useState<
     { path: string; branch: string | null; main: boolean; base: string | null }[]
   >([])
+  /**
+   * A folder of repos has no worktrees of its own — it is not a repo — but its
+   * chats each have a copy of every repo in it (one folder, one branch name).
+   * Read from disk for the same reason as above: a copy whose chat is gone is
+   * still work somebody did, and has to stay reachable.
+   */
+  const [sets, setSets] = useState<
+    { path: string; branch: string | null; repos: { name: string; branch: string | null }[] }[]
+  >([])
   useEffect(() => {
     if (ws.kind === 'browser') return
     let alive = true
     const refresh = (): void => {
       window.cove.worktreeList(ws.path).then((list) => {
         if (alive) setWorktrees(list)
+      })
+      window.cove.worktreeSets(ws.path).then((list) => {
+        if (alive) setSets(list)
       })
       // Re-read the chats at the same moment. The two lists are compared against
       // each other to decide which branches have a conversation, so refreshing
@@ -674,10 +691,29 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
     setTreeOpenState(open)
     localStorage.setItem(`tree-open:${ws.id}`, open ? '1' : '0')
   }
-  const hasChatList = chats.length > 1 || worktrees.some((w) => !w.main)
+  // Copies no conversation is in: a chat deleted without its copy, usually.
+  // Every other copy IS a chat's, and that chat's row is all there is to show.
+  const orphanSets = sets.filter(
+    (set) => !chats.some((c) => normalizeCwd(c.cwd ?? null) === normalizeCwd(set.path))
+  )
+  // The copy the conversation on screen works in, so the repo list can say
+  // which branch each repo is on THERE rather than in the folder.
+  const activeSet = useStore((s) => {
+    if (s.activeWorkspaceId !== ws.id) return null
+    const cwd = (s.chats[ws.id] ?? []).find((c) => c.id === s.activeChatId[ws.id])?.cwd
+    return cwd ? normalizeCwd(cwd) : null
+  })
+  const repoBranchHere = (name: string, folderBranch: string | null): string | null =>
+    sets.find((set) => normalizeCwd(set.path) === activeSet)?.repos.find((r) => r.name === name)
+      ?.branch ?? folderBranch
+  // A lone conversation is the project row itself — unless it works in a copy,
+  // which the project row (the folder) is not. Without a row of its own, the
+  // only chat of a folder of repos could be neither seen nor opened.
+  const plainChatList = chats.length > 1 || chats.some((c) => !isFolderRoot(chats, c))
+  const hasChatList = plainChatList || worktrees.some((w) => !w.main) || orphanSets.length > 0
   const hasTree = hasChatList || subrepos.length > 0
   const treeOpen = treeOpenState ?? true
-  const treeCount = (hasChatList ? chats.length : 0) + subrepos.length
+  const treeCount = (hasChatList ? chats.length + orphanSets.length : 0) + subrepos.length
   /**
    * A folder-of-repos' repos are a list of their own, folded apart from the
    * conversations: one caret for both put seventeen repos in among the chats
@@ -966,9 +1002,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                   {r.cloning ? (
                     <span className="repo-tree-branch">cloning…</span>
                   ) : (
-                    r.branch &&
+                    repoBranchHere(r.name, r.branch) &&
                     selectedRepo !== r.path && (
-                      <span className="repo-tree-branch">⎇ {r.branch}</span>
+                      <span className="repo-tree-branch">⎇ {repoBranchHere(r.name, r.branch)}</span>
                     )
                   )}
                   {selectedRepo === r.path && (
@@ -1001,7 +1037,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       {/* Drag to reorder. The order is the app's to keep here — these are plain
           conversations in a folder. A branch row's place comes from git, so
           those are left alone. */}
-      {treeOpen && worktrees.length === 0 && chats.length > 1 && (
+      {treeOpen && worktrees.length === 0 && plainChatList && (
         <SortableContext
           items={chats.map((c) => `chat:${c.id}`)}
           strategy={verticalListSortingStrategy}
@@ -1022,6 +1058,60 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             ))}
           </div>
         </SortableContext>
+      )}
+      {/* A folder of repos: copies left behind with no conversation in them.
+          One row each, however many repos the copy spans — the copy is the
+          unit, exactly as a chat's is. */}
+      {treeOpen && worktrees.length === 0 && orphanSets.length > 0 && (
+        <div className="routine-tree">
+          {orphanSets.map((set) => {
+            const what = set.branch ?? 'this copy'
+            const repoNames = set.repos.map((r) => r.name).join(', ')
+            return (
+              <BranchRow
+                key={set.path}
+                branch={set.branch ?? 'detached'}
+                chat={undefined}
+                workspaceId={ws.id}
+                // Level with the conversations above it: here they are siblings,
+                // not branches hanging off a main row.
+                nested={false}
+                active={false}
+                orphanHint={`a copy of ${repoNames} with no conversation`}
+                onOpen={() => {
+                  if (
+                    !window.confirm(
+                      `"${what}" has no conversation yet.\n\n` +
+                        `It is a copy of ${repoNames} that a conversation left behind. ` +
+                        'Start a conversation on it?'
+                    )
+                  )
+                    return
+                  openBranch(ws.id, set.path)
+                }}
+                onRemove={() => {
+                  if (
+                    !window.confirm(
+                      `Remove "${what}" and its copy of ${repoNames}?\n\nThis cannot be undone.`
+                    )
+                  )
+                    return
+                  void window.cove.worktreeRemove(ws.path, set.path).then(() => {
+                    window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+                  })
+                }}
+                onMenu={() =>
+                  window.cove.worktreeMenu({
+                    projectPath: ws.path,
+                    wtPath: set.path,
+                    branch: set.branch,
+                    base: null
+                  })
+                }
+              />
+            )
+          })}
+        </div>
       )}
       {/* The branch is the row; the conversation happening in it is the label
           on the right. main first, the branches cut from it indented beneath —

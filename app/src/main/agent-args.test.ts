@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { buildAgentArgs } from './claude/session'
 
 /** The value that follows a flag, or undefined when the flag isn't there. */
@@ -47,6 +50,31 @@ describe('buildAgentArgs', () => {
     const i = args.indexOf('--disallowedTools')
     expect(i).toBeGreaterThan(-1)
     expect(args.slice(i + 1).some((a) => a.startsWith('--'))).toBe(false)
+  })
+
+  it('gives an agent in a copy of a folder of repos the memory of the project', () => {
+    // Claude Code files memory under the working directory. The copy is a
+    // folder of its own, so without this each chat starts with none and loses
+    // what it learned when the copy is removed.
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'sa-args-')))
+    try {
+      const copy = join(root, '.worktrees', 'wt-1')
+      mkdirSync(join(copy, 'api'), { recursive: true })
+      writeFileSync(join(copy, 'api', '.git'), 'gitdir: elsewhere\n')
+      const args = buildAgentArgs({ cwd: copy })
+      const settings = JSON.parse(valueAfter(args, '--settings')!)
+      expect(settings.autoMemoryDirectory).toContain(
+        `/projects/${root.replace(/[^a-zA-Z0-9]/g, '-')}/memory`
+      )
+      expect(valueAfter(args, '--append-system-prompt')).toContain('`api`')
+      // Still ahead of the variadic flag that would swallow it.
+      expect(args.indexOf('--settings')).toBeLessThan(args.indexOf('--disallowedTools'))
+      // A project folder, or a worktree of one repo, is left to Claude Code.
+      expect(buildAgentArgs({ cwd: root })).not.toContain('--settings')
+      expect(buildAgentArgs({ cwd: join(copy, 'api') })).not.toContain('--settings')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   it('pins an explicit model, with the next one down behind it', () => {

@@ -59,7 +59,8 @@ import {
   releaseCompositing
 } from '../browser'
 import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
-import { listWorktrees, cutChatBranch, removeWorktree } from '../files'
+import { listWorktrees } from '../files'
+import { copyKind, cutChatBranch, removeCopy } from '../chat-copy'
 import { nativeImage, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { extname, resolve, sep, join } from 'path'
@@ -373,7 +374,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         // so the Mac kept showing a row for a conversation that was gone.
         const dying = getChat(p.data.chatId)
         if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
-          await removeWorktree(dying.cwd.split('/.worktrees/')[0], dying.cwd)
+          await removeCopy(dying.cwd.split('/.worktrees/')[0], dying.cwd)
         }
         deleteChat(p.data.chatId)
         broadcastToWindows('projects:changed', {})
@@ -1093,8 +1094,8 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
     // Already accepted; the phone just never heard the ack. Say yes, do nothing.
     return { ok: true, result: { duplicate: true } }
   }
-  // First message on a git project: cut this chat its own copy, named from what
-  // was asked for. Without it a chat from the phone runs in the project folder,
+  // First message on a git project, or a folder of them: cut this chat its own
+  // copy, named from what was asked for. Without it a chat from the phone runs in the project folder,
   // beside whatever else is working there.
   //
   // Only a chat that was opened as a NEW conversation, though. The chat in the
@@ -1103,7 +1104,7 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   // the phone, writing a message appeared to create a second chat.
   if (!chat.cwd && takePendingBranch(chat.id)) {
     const ws = getWorkspace(chat.workspaceId)
-    if (ws && ws.kind !== 'browser' && gitBranch(ws.path) !== null) {
+    if (ws && ws.kind !== 'browser' && copyKind(ws.path) !== null) {
       const cwd = await cutChatBranch(chat.id, ws.path, p.text)
       if (cwd) broadcastToWindows('projects:changed', {})
       // Deleted while its branch was being cut: nothing left to send to.

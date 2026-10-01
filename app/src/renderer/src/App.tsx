@@ -173,12 +173,13 @@ function App(): React.JSX.Element {
           return
         }
         if (res.reason !== 'conflict' || !ws) {
-          window.alert(keepErrorText(res.reason, res.detail))
+          window.alert(keepErrorText(res.reason, res.detail, res))
           return
         }
         if (
           !window.confirm(
-            `"${branch}" clashes with what is already on ${base ?? 'the branch it came from'}.\n\n` +
+            `"${branch}" clashes with what is already on ${base ?? 'the branch it came from'}` +
+              `${res.repo ? ` in ${res.repo}` : ''}.\n\n` +
               'Nothing has been changed. Shall the agent sort it out on that branch?'
           )
         )
@@ -186,7 +187,8 @@ function App(): React.JSX.Element {
         await s.openBranch(ws.id, wtPath)
         s.sendToClaude(
           ws.id,
-          `Merging this branch into ${base ?? 'its base branch'} failed on a conflict. Please merge ` +
+          `Merging this branch into ${base ?? 'its base branch'} failed on a conflict` +
+            `${res.repo ? ` in ${res.repo}` : ''}. Please merge ` +
             'that branch into this one, resolve every conflict, check the project still builds, and ' +
             'commit. Tell me when it is ready to merge again.'
         )

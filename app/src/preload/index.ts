@@ -338,11 +338,25 @@ export interface CoveApi {
       base: string | null
     }) => void
   ) => () => void
-  /** New git worktree under <project>/.worktrees; null if git refused. */
+  /**
+   * What a new chat here gets a copy of: the project when it is a repo, each
+   * repo in it when it is a folder of them, nothing otherwise.
+   */
+  projectCopyKind: (projectPath: string) => Promise<'repo' | 'repos' | null>
+  /**
+   * The chats' copies in a folder of repos, each with the branch its repos are
+   * on. Empty for a project that is itself a repo — worktreeList names those.
+   */
+  worktreeSets: (
+    projectPath: string
+  ) => Promise<
+    { path: string; branch: string | null; repos: { name: string; branch: string | null }[] }[]
+  >
+  /** New copy under <project>/.worktrees; null if git refused. */
   worktreeCreate: (
     projectPath: string,
     opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
-  ) => Promise<{ path: string; branch: string; base: string } | null>
+  ) => Promise<{ path: string; branch: string; base: string | null } | null>
   /** Rename a chat's auto-named superagent/* branch to follow its title. */
   worktreeRename: (
     wtPath: string,
@@ -352,7 +366,7 @@ export interface CoveApi {
   worktreeStatus: (
     projectPath: string,
     wtPath: string
-  ) => Promise<{ dirty: boolean; ahead: number }>
+  ) => Promise<{ dirty: boolean; ahead: number; repos?: string[] }>
   /** Local branches: name, whether current, and the worktree path it's in (if any). */
   gitBranches: (
     cwd: string
@@ -366,11 +380,15 @@ export interface CoveApi {
     wtPath: string,
     message: string
   ) => Promise<
-    | { ok: true; committed: boolean }
+    | { ok: true; committed: boolean; repos?: string[] }
     | {
         ok: false
         reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'
         detail?: string
+        /** The repo that refused, in a folder of them. */
+        repo?: string
+        /** Repos already kept when a later one failed. */
+        kept?: string[]
       }
   >
   /** Photograph the pane and detach it in one step; returns the JPEG bytes. */
@@ -952,6 +970,8 @@ const cove: CoveApi = {
     ipcRenderer.on('worktree:menu-action', h)
     return () => ipcRenderer.removeListener('worktree:menu-action', h)
   },
+  projectCopyKind: (projectPath) => ipcRenderer.invoke('project:copy-kind', projectPath),
+  worktreeSets: (projectPath) => ipcRenderer.invoke('worktree:sets', projectPath),
   worktreeCreate: (projectPath, opts) => ipcRenderer.invoke('worktree:create', projectPath, opts),
   worktreeRename: (wtPath, newBranch) => ipcRenderer.invoke('worktree:rename', wtPath, newBranch),
   worktreeStatus: (projectPath, wtPath) =>

@@ -71,6 +71,7 @@ import { registerAccountsIpc } from './accounts'
 import { watchScreenshots } from './screenshots'
 import { signInBus } from './google-signin'
 import { registerFilesIpc } from './files'
+import { registerChatCopyIpc, copyStatus } from './chat-copy'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded } from './updater'
@@ -296,6 +297,7 @@ app.whenReady().then(async () => {
   })
   void watchScreenshots()
   registerFilesIpc()
+  registerChatCopyIpc()
   registerSimulatorIpc()
   buildMenu()
   startHookServer()
@@ -321,15 +323,27 @@ app.whenReady().then(async () => {
     win: BrowserWindow,
     p: { chatId: string; workspaceId: string; projectPath: string; wtPath: string }
   ): Promise<void> => {
+    // A chat with a copy of several repos lands in each one it changed, so say
+    // which: "the project" is three repos there, and two of them may be untouched.
+    const repos = (await copyStatus(p.projectPath, p.wtPath).catch(() => null))?.repos ?? []
     const { response } = await dialog.showMessageBox(win, {
       type: 'question',
       buttons: ['Keep', 'Cancel'],
       defaultId: 0,
       message: "Keep this chat's changes?",
-      detail: "They'll be added to the project as one change. The chat closes."
+      detail:
+        repos.length > 1
+          ? `They'll be added to ${listNames(repos)}, as one change in each. The chat closes.`
+          : repos.length === 1
+            ? `They'll be added to ${repos[0]} as one change. The chat closes.`
+            : "They'll be added to the project as one change. The chat closes."
     })
     if (response === 0) win.webContents.send('chat:merge-worktree', p)
   }
+  const listNames = (names: string[]): string =>
+    names.length <= 2
+      ? names.join(' and ')
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
   const askThrowAway = async (
     win: BrowserWindow,
     p: { chatId: string; workspaceId: string }

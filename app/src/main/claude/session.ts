@@ -5,6 +5,7 @@ import os from 'os'
 import { getHookUrl } from '../hooks'
 import { getMcpUrl } from '../mcp'
 import { buildAppendedPrompt } from '../prompts'
+import { describeRepoSet, projectMemoryDir } from '../repo-set'
 import { findClaude } from '../claude-cli'
 import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import { cachedClaudeModels } from './models'
@@ -95,9 +96,14 @@ export function buildAgentArgs(
       browser: opts.workspaceId
         ? browserName(browserFor(browserScope(opts.workspaceId, opts.chatId)))
         : undefined,
-      provider: 'claude'
+      provider: 'claude',
+      repoSet: describeRepoSet(opts.cwd)
     })
   )
+  // An agent in a copy of a folder of repos keeps the PROJECT's memory, not
+  // one filed under the copy and deleted with it. See projectMemoryDir.
+  const memoryDir = projectMemoryDir(opts.cwd)
+  if (memoryDir) args.push('--settings', JSON.stringify({ autoMemoryDirectory: memoryDir }))
   // Hard stops: Cron* and ScheduleWakeup both work by asking whatever runs the
   // CLI to relaunch the process later — real for an interactive terminal, not
   // for a process Superagent spawned itself, so a wakeup would just never

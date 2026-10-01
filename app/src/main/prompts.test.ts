@@ -33,4 +33,20 @@ describe('the browser briefing', () => {
       'do not create worktrees'
     )
   })
+
+  it('tells a chat in a copy of a folder of repos what it is standing in', () => {
+    const p = buildAppendedPrompt({
+      provider: 'claude',
+      workspaceId: 'ws1',
+      repoSet: { root: '/p/shop', repos: ['api', 'web'] }
+    })
+    expect(p).toContain('own copy of the project folder /p/shop')
+    expect(p).toContain('`api`, `web`')
+    // The one thing the copy exists to prevent.
+    expect(p).toContain('do not edit, commit in or switch branches in the originals')
+    // And nobody else hears about it.
+    expect(buildAppendedPrompt({ provider: 'claude', workspaceId: 'ws1' })).not.toContain(
+      'own copy of the project folder'
+    )
+  })
 })

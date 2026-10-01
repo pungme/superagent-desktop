@@ -15,8 +15,7 @@ import {
 } from 'fs'
 import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
 import { homedir } from 'os'
-import { getChat, setChatCwd, takePendingBranch } from './store'
-import { broadcastToWindows } from './util'
+import { isRepoSet, setMembers } from './repo-set'
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic'])
 
@@ -46,6 +45,9 @@ export const stopBackgroundTask = (chatId: string, toolUseId: string): boolean =
 const SKIP_DIRS = new Set([
   'node_modules',
   '.git',
+  // Chats' own copies of the project (see chat-copy.ts). Each is the project
+  // over again, so walking in listed every file once per conversation.
+  '.worktrees',
   'dist',
   'out',
   '.next',
@@ -76,6 +78,11 @@ const MAX_DEPTH = 12
  */
 export function listProjectFiles(root: string, max = 8000): string[] {
   const out: string[] = []
+  // A chat's copy of a folder of repos holds links to whatever in the project
+  // belongs to no repo. They are the project's own folders, one step away and
+  // never an ancestor, so the top level of a copy follows them — otherwise
+  // half the project was missing from the chat's file list.
+  const followLinks = isRepoSet(root)
   let level: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }]
   while (level.length && out.length < max) {
     const next: { dir: string; depth: number }[] = []
@@ -100,7 +107,14 @@ export function listProjectFiles(root: string, max = 8000): string[] {
         } catch {
           continue
         }
-        if (st.isSymbolicLink()) continue
+        if (st.isSymbolicLink()) {
+          if (!followLinks || depth > 0) continue
+          try {
+            st = statSync(full)
+          } catch {
+            continue // dangling
+          }
+        }
         if (st.isDirectory()) {
           out.push(relative(root, full) + '/')
           if (depth + 1 <= MAX_DEPTH) next.push({ dir: full, depth: depth + 1 })
@@ -215,6 +229,13 @@ export function gitBranch(cwd: string): string | null {
   } catch {
     return null
   }
+}
+
+/** The branch a chat's copy of a folder of repos is on: its first repo's. */
+export function repoSetBranch(cwd: string): string | null {
+  if (!isRepoSet(cwd)) return null
+  const first = setMembers(cwd)[0]
+  return first ? gitBranch(first.path) : null
 }
 
 const CLONE_PLACEHOLDER = '.invalid'
@@ -373,6 +394,29 @@ export interface WorktreeRow {
  * sidebar and by the phone, so both see the same list: git is the source of
  * truth, not anything the app recorded.
  */
+const DEPENDENCY_DIRS = ['node_modules', '.venv', 'vendor', 'target']
+
+/**
+ * Where a project keeps its installed dependencies, relative to its root: at
+ * the top, and one folder down. A repo whose app lives in a subfolder
+ * (`app/node_modules`) is common enough that looking only at the top left
+ * every fresh copy of it unable to build.
+ */
+export function dependencyDirs(projectPath: string): string[] {
+  const out = [...DEPENDENCY_DIRS]
+  try {
+    for (const e of readdirSync(projectPath, { withFileTypes: true })) {
+      if (!e.isDirectory() || e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue
+      for (const dep of DEPENDENCY_DIRS) {
+        if (existsSync(join(projectPath, e.name, dep))) out.push(`${e.name}/${dep}`)
+      }
+    }
+  } catch {
+    // unreadable: the top level is still worth trying
+  }
+  return out
+}
+
 /**
  * Cut a worktree for a project: a copy of it on a branch of its own. Named
  * rather than living inside the IPC handler because the rule about when a chat
@@ -382,7 +426,15 @@ export interface WorktreeRow {
  */
 export async function createWorktree(
   projectPath: string,
-  opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
+  opts?: {
+    branch?: string
+    newBranch?: string
+    base?: string
+    autoName?: boolean
+    /** Where to put it, instead of <project>/.worktrees/<slug>. A folder of
+     *  repos keeps each chat's copies together, outside any one repo. */
+    dir?: string
+  }
 ): Promise<{ path: string; branch: string; base: string | null } | null> {
   const run = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
     new Promise((resolve) =>
@@ -394,11 +446,11 @@ export async function createWorktree(
       )
     )
   const slug = `wt-${Date.now().toString(36)}`
-  const dir = join(projectPath, '.worktrees', slug)
+  const dir = opts?.dir ?? join(projectPath, '.worktrees', slug)
   // Keep .worktrees out of git status without touching the project's .gitignore.
   try {
     const exclude = join(projectPath, '.git', 'info', 'exclude')
-    if (existsSync(join(projectPath, '.git')) && existsSync(exclude)) {
+    if (!opts?.dir && existsSync(join(projectPath, '.git')) && existsSync(exclude)) {
       const cur = readFileSync(exclude, 'utf8')
       if (!cur.includes('.worktrees/')) writeFileSync(exclude, cur + '\n.worktrees/\n')
     }
@@ -461,14 +513,15 @@ export async function createWorktree(
   // Tracked paths are skipped (check-ignore says so); failures are logged
   // and ignored — a missing symlink just means "npm install" as before.
   const linked: string[] = []
-  for (const dep of ['node_modules', '.venv', 'vendor', 'target']) {
+  for (const dep of dependencyDirs(projectPath)) {
     try {
       const src = join(projectPath, dep)
       if (!existsSync(src)) continue
       const ignored = await run(['check-ignore', '-q', dep], projectPath)
       if (ignored.code !== 0) continue // tracked (or check failed) — leave it to git
       const dst = join(dir, dep)
-      if (existsSync(dst)) continue
+      // One level down, the folder it sits in has to be in the copy already.
+      if (existsSync(dst) || !existsSync(dirname(dst))) continue
       symlinkSync(src, dst)
       linked.push(dep)
       console.log(`[worktree] linked ${dep} into ${dir}`)
@@ -630,39 +683,6 @@ export function branchSlugFromMessage(text: string, maxWords = 4): string {
 }
 
 /**
- * Cut a chat's branch and file it under the chat. Cutting takes a moment, and a
- * chat deleted in that moment had no branch yet for the delete to remove — so
- * the new one was left behind, a branch row with no conversation that came back
- * a second after the delete. If the chat is gone by the time its branch exists,
- * throw the branch away too.
- */
-export async function cutChatBranch(
-  chatId: string,
-  projectPath: string,
-  hint: string
-): Promise<string | null> {
-  const cwd = await ensureChatBranch(projectPath, hint)
-  if (!cwd) return null
-  if (!getChat(chatId)) {
-    await removeWorktree(projectPath, cwd)
-    // The sidebar may have listed it in between; have it ask git again.
-    broadcastToWindows('projects:changed', {})
-    return null
-  }
-  setChatCwd(chatId, cwd)
-  return cwd
-}
-
-export async function ensureChatBranch(projectPath: string, hint: string): Promise<string | null> {
-  const name = branchSlugFromMessage(hint)
-  const wt = await createWorktree(
-    projectPath,
-    name ? { newBranch: name, autoName: true } : undefined
-  )
-  return wt?.path ?? null
-}
-
-/**
  * Remove a chat's copy of the project, and the branch it was on. Exported
  * because the phone deletes chats too: it used to drop only the database row,
  * so a chat deleted from iOS left its worktree and branch behind and the Mac
@@ -716,6 +736,272 @@ export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
   })
 }
 
+/** One git command, never throwing: the exit code and everything it printed. */
+function git(args: string[], cwd: string): Promise<{ code: number; out: string }> {
+  return new Promise((resolve) =>
+    execFile('git', args, { cwd, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) =>
+      resolve({
+        code: err ? ((err as { code?: number }).code ?? 1) : 0,
+        out: (stdout || '') + (stderr || '')
+      })
+    )
+  )
+}
+
+/** A worktree's gitdir (<project>/.git/worktrees/<slug>), synchronously. */
+const gitDirOf = (wtPath: string): string =>
+  execFileSync('git', ['rev-parse', '--git-dir'], { cwd: wtPath, encoding: 'utf8' }).trim()
+
+/**
+ * Read the base branch a worktree was created from (recorded by
+ * createWorktree in the worktree's gitdir). Null when missing — pre-existing
+ * worktrees from before the marker, or a stripped gitdir.
+ */
+export function readWorktreeBase(wtPath: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile('git', ['rev-parse', '--git-dir'], { cwd: wtPath }, (err, stdout) => {
+      if (err) return resolve(null)
+      try {
+        const marker = join(stdout.trim(), 'superagent-base')
+        resolve(existsSync(marker) ? readFileSync(marker, 'utf8').trim() || null : null)
+      } catch {
+        resolve(null)
+      }
+    })
+  })
+}
+
+/**
+ * Whether the app chose this worktree's branch name, and so may change it when
+ * the chat gets a title. The marker says so; the legacy superagent/ prefix
+ * still counts, so worktrees made before the prefix was dropped keep following
+ * their chat's title.
+ */
+export function isAutoNamed(wtPath: string, branch: string): boolean {
+  if (branch.startsWith('superagent/')) return true
+  try {
+    return existsSync(join(gitDirOf(wtPath), 'superagent-autoname'))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Rename the worktree's branch to follow the chat's title. Only auto-named
+ * superagent/* branches are touched — if the user asked the agent for a branch
+ * of their own, a title change must not yank it out from under them. Renaming
+ * never moves files, so it's safe mid-session. Collisions get -2, -3, …
+ */
+export function renameWorktreeBranch(
+  wtPath: string,
+  newBranch: string
+): Promise<{ ok: boolean; branch: string | null }> {
+  return new Promise((resolve) => {
+    execFile('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: wtPath }, (err, stdout) => {
+      const current = err ? '' : stdout.trim()
+      // Rename only what the app named.
+      if (!current || !isAutoNamed(wtPath, current)) {
+        return resolve({ ok: false, branch: current || null })
+      }
+      if (current === newBranch) return resolve({ ok: true, branch: current })
+      const tryRename = (candidate: string, n: number): void => {
+        if (n > 9) return resolve({ ok: false, branch: current })
+        execFile('git', ['branch', '-m', current, candidate], { cwd: wtPath }, (renameErr) => {
+          if (!renameErr) return resolve({ ok: true, branch: candidate })
+          tryRename(`${newBranch}-${n + 1}`, n + 1)
+        })
+      }
+      tryRename(newBranch, 1)
+    })
+  })
+}
+
+/**
+ * Whether a worktree chat has anything the user hasn't kept: uncommitted
+ * edits (dirty) or commits past its base (ahead). Drives the Keep/Throw-away
+ * buttons and the delete guard.
+ */
+export async function worktreeStatus(
+  projectPath: string,
+  wtPath: string
+): Promise<{ dirty: boolean; ahead: number }> {
+  const st = await git(['status', '--porcelain'], wtPath)
+  const dirty = st.code === 0 && st.out.trim().length > 0
+  const base = (await readWorktreeBase(wtPath)) ?? gitBranch(projectPath) ?? 'HEAD'
+  const ahead = await git(['rev-list', '--count', `${base}..HEAD`], wtPath)
+  return {
+    dirty,
+    ahead: ahead.code === 0 ? Number(ahead.out.trim()) || 0 : 0
+  }
+}
+
+export type MergeResult =
+  | { ok: true; committed: boolean }
+  | {
+      ok: false
+      reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'
+      detail?: string
+    }
+
+/**
+ * Fold a worktree chat's work back into the project and tidy up: commit
+ * whatever the agent left in the worktree, squash it into ONE commit on the
+ * project's current branch, then remove the worktree and delete its branch.
+ * Every failure mode leaves the repo exactly as it was — a half-merged tree is
+ * worse than no button.
+ *
+ * `dryRun` goes as far as knowing whether it WOULD land — the same commit of
+ * loose edits, the same checks, the merge worked out without being written
+ * anywhere — and stops. A chat with a copy of several repos asks every one of
+ * them first, so that it never lands in two and then fails in the third.
+ * `cleanup: false` lands the work but leaves the worktree and its branch for
+ * the caller to remove, for the same reason: nothing is taken away until all
+ * of it is safe.
+ */
+export async function mergeWorktree(
+  projectPath: string,
+  wtPath: string,
+  message: string,
+  opts: { dryRun?: boolean; cleanup?: boolean } = {}
+): Promise<MergeResult> {
+  type R = MergeResult
+  const cleanup = opts.cleanup ?? true
+  const tidy = async (branch: string): Promise<void> => {
+    if (!cleanup) return
+    await git(['worktree', 'remove', '--force', wtPath], projectPath)
+    await git(['branch', '-D', branch], projectPath)
+  }
+
+  // The branch checked out IN the worktree is what we merge.
+  const head = await git(['rev-parse', '--abbrev-ref', 'HEAD'], wtPath)
+  const branch = head.out.trim()
+  if (head.code !== 0 || !branch || branch === 'HEAD') {
+    return { ok: false, reason: 'not-worktree', detail: head.out.trim() } as R
+  }
+
+  // Commit anything the agent left uncommitted in the worktree, so the
+  // squash actually captures it.
+  const wtStatus = await git(['status', '--porcelain'], wtPath)
+  if (wtStatus.out.trim()) {
+    await git(['add', '-A'], wtPath)
+    const c = await git(['commit', '-m', message || 'Worktree changes'], wtPath)
+    if (c.code !== 0) return { ok: false, reason: 'error', detail: c.out.trim() } as R
+  }
+
+  // Land on the branch this chat WAS CUT FROM (recorded at creation), not
+  // whatever the project folder happens to be on today — if the user has
+  // switched branches since, the chat's work still goes home.
+  const recordedBase = await readWorktreeBase(wtPath)
+  const projHead = await git(['symbolic-ref', '--short', 'HEAD'], projectPath)
+  const projBranch = projHead.code === 0 ? projHead.out.trim() : ''
+  const base = recordedBase ?? projBranch
+
+  // Nothing to bring over (branch identical to base) → say so, don't make an
+  // empty commit.
+  const ahead = await git(['rev-list', '--count', `${base}..${branch}`], projectPath)
+  if (ahead.code === 0 && ahead.out.trim() === '0') {
+    return { ok: false, reason: 'nothing' } as R
+  }
+
+  /**
+   * The merge, worked out without touching any working tree. Its tree, or why
+   * there isn't one: a clash, or a result no different from the base — which
+   * is what a branch looks like once its work has already been squashed in.
+   */
+  const mergedTree = async (
+    onto: string
+  ): Promise<
+    { tree: string } | { reason: 'conflict' | 'nothing' | 'unknown'; detail?: string }
+  > => {
+    const mt = await git(['merge-tree', '--write-tree', onto, branch], projectPath)
+    if (mt.code === 1) return { reason: 'conflict', detail: mt.out.trim().slice(0, 300) }
+    // A git too old for --write-tree, or anything else unexpected: no verdict.
+    if (mt.code !== 0) return { reason: 'unknown', detail: mt.out.trim().slice(0, 300) }
+    const tree = mt.out.trim().split('\n')[0]
+    const was = await git(['rev-parse', `${onto}^{tree}`], projectPath)
+    if (was.code === 0 && was.out.trim() === tree) return { reason: 'nothing' }
+    return { tree }
+  }
+
+  // The base is NOT what the project folder has checked out: merge with
+  // plumbing (merge-tree → commit-tree → update-ref), which never touches
+  // any working tree — the user's checkout stays exactly as it is.
+  if (base && projBranch !== base) {
+    const baseSha = await git(['rev-parse', '--verify', `refs/heads/${base}`], projectPath)
+    if (baseSha.code !== 0) {
+      return { ok: false, reason: 'error', detail: `base branch ${base} is gone` } as R
+    }
+    const mt = await mergedTree(base)
+    if (!('tree' in mt)) {
+      return {
+        ok: false,
+        reason: mt.reason === 'unknown' ? 'conflict' : mt.reason,
+        detail: mt.detail
+      } as R
+    }
+    if (opts.dryRun) return { ok: true, committed: false } as R
+    const commit = await git(
+      ['commit-tree', mt.tree, '-p', baseSha.out.trim(), '-m', message || `Merge ${branch}`],
+      projectPath
+    )
+    if (commit.code !== 0) {
+      return { ok: false, reason: 'error', detail: commit.out.trim() } as R
+    }
+    const upd = await git(
+      ['update-ref', `refs/heads/${base}`, commit.out.trim(), baseSha.out.trim()],
+      projectPath
+    )
+    if (upd.code !== 0) return { ok: false, reason: 'error', detail: upd.out.trim() } as R
+    await tidy(branch)
+    return { ok: true, committed: true } as R
+  }
+
+  // Base IS the checked-out branch: merge into the working tree as before —
+  // the user sees the change appear in their folder. Refuse if that tree is
+  // dirty; mixing their in-progress edits with the merge loses work.
+  const baseStatus = await git(['status', '--porcelain'], projectPath)
+  if (baseStatus.out.trim()) {
+    return { ok: false, reason: 'base-dirty' } as R
+  }
+
+  if (opts.dryRun) {
+    // The squash below is the real test, but it writes to the user's checkout.
+    // The same question, asked of the object store instead. No verdict (an old
+    // git) passes: the squash itself still refuses cleanly.
+    const mt = await mergedTree('HEAD')
+    if (!('tree' in mt) && mt.reason !== 'unknown') {
+      return { ok: false, reason: mt.reason, detail: mt.detail } as R
+    }
+    return { ok: true, committed: false } as R
+  }
+
+  // The squash: stages the branch's net change onto the base without a merge
+  // commit. On conflict, undo cleanly (base was verified clean above) and
+  // leave everything — including the worktree — untouched to resolve by hand.
+  const sq = await git(['merge', '--squash', branch], projectPath)
+  if (sq.code !== 0) {
+    await git(['reset', '--hard', 'HEAD'], projectPath)
+    return { ok: false, reason: 'conflict', detail: sq.out.trim().slice(0, 300) } as R
+  }
+  const commit = await git(['commit', '-m', message || `Merge ${branch}`], projectPath)
+  if (commit.code !== 0) {
+    // Tell "empty squash, nothing to commit" apart from a real commit failure
+    // (a failing pre-commit hook, GPG signing) that DID have changes staged —
+    // otherwise a hook rejection reads as the misleading "nothing to merge".
+    // `diff --cached --quiet` exits non-zero when there ARE staged changes.
+    const hadStaged = (await git(['diff', '--cached', '--quiet'], projectPath)).code !== 0
+    await git(['reset', '--hard', 'HEAD'], projectPath)
+    return hadStaged
+      ? ({ ok: false, reason: 'error', detail: commit.out.trim() } as R)
+      : ({ ok: false, reason: 'nothing', detail: commit.out.trim() } as R)
+  }
+
+  // Merged — now tidy up. Best-effort: the merge already succeeded, so even
+  // if cleanup hiccups the work is safe.
+  await tidy(branch)
+  return { ok: true, committed: true } as R
+}
+
 export function registerFilesIpc(): void {
   ipcMain.on('bg:sync', (_e, chatId: string, tasks: Omit<PublishedBackgroundTask, 'chatId'>[]) => {
     backgroundTasks.set(
@@ -748,36 +1034,6 @@ export function registerFilesIpc(): void {
   ipcMain.handle('files:complete', (_e, prefix: string) => completePath(prefix))
   // Finder drops onto the file tree: copy into the project (folders included),
   // renaming on collision rather than overwriting someone's work.
-  // A chat's private git worktree under <project>/.worktrees/<slug>, on its own
-  // branch — parallel chats stop fighting over one working tree.
-  ipcMain.handle(
-    'worktree:create',
-    (
-      _e,
-      projectPath: string,
-      opts?: { branch?: string; newBranch?: string; base?: string; autoName?: boolean }
-    ) => createWorktree(projectPath, opts)
-  )
-  /**
-   * Read the base branch a worktree was created from (recorded by
-   * worktree:create in the worktree's gitdir). Null when missing — pre-existing
-   * worktrees from before the marker, or a stripped gitdir.
-   */
-  /** A worktree's gitdir (<project>/.git/worktrees/<slug>), synchronously. */
-  const gitDirOf = (wtPath: string): string =>
-    execFileSync('git', ['rev-parse', '--git-dir'], { cwd: wtPath, encoding: 'utf8' }).trim()
-  const readWorktreeBase = (wtPath: string): Promise<string | null> =>
-    new Promise((resolve) => {
-      execFile('git', ['rev-parse', '--git-dir'], { cwd: wtPath }, (err, stdout) => {
-        if (err) return resolve(null)
-        try {
-          const marker = join(stdout.trim(), 'superagent-base')
-          resolve(existsSync(marker) ? readFileSync(marker, 'utf8').trim() || null : null)
-        } catch {
-          resolve(null)
-        }
-      })
-    })
   /**
    * Every worktree git knows about, straight from `git worktree list` — the
    * main folder first, then each extra checkout. The app used to know only the
@@ -786,78 +1042,6 @@ export function registerFilesIpc(): void {
    * Git is the source of truth; ask it rather than keeping a second list.
    */
   ipcMain.handle('worktree:list', (_e, projectPath: string) => listWorktrees(projectPath))
-  /**
-   * The first message's branch, for the window. The same call the phone's send
-   * path makes, so the rule about when a chat gets its own copy has one home.
-   */
-  ipcMain.handle(
-    'chat:ensure-branch',
-    async (_e, chatId: string, projectPath: string, hint: string) => {
-      // The window claimed its own copy of the flag before calling; drop main's
-      // too, so the phone cannot come along and cut a second branch for a chat
-      // that already has one.
-      takePendingBranch(chatId)
-      return cutChatBranch(chatId, projectPath, hint)
-    }
-  )
-  /**
-   * Rename the worktree's branch to follow the chat's title. Only auto-named
-   * superagent/* branches are touched — if the user asked the agent for a branch
-   * of their own, a title change must not yank it out from under them. Renaming
-   * never moves files, so it's safe mid-session. Collisions get -2, -3, …
-   */
-  ipcMain.handle('worktree:rename', (_e, wtPath: string, newBranch: string) => {
-    return new Promise((resolve) => {
-      execFile('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: wtPath }, (err, stdout) => {
-        const current = err ? '' : stdout.trim()
-        // Rename only what the app named. The marker says so; the legacy
-        // superagent/ prefix still counts, so worktrees made before the prefix
-        // was dropped keep following their chat's title.
-        const auto =
-          current.startsWith('superagent/') ||
-          (() => {
-            try {
-              return existsSync(join(gitDirOf(wtPath), 'superagent-autoname'))
-            } catch {
-              return false
-            }
-          })()
-        if (!current || !auto) {
-          return resolve({ ok: false, branch: current || null })
-        }
-        if (current === newBranch) return resolve({ ok: true, branch: current })
-        const tryRename = (candidate: string, n: number): void => {
-          if (n > 9) return resolve({ ok: false, branch: current })
-          execFile('git', ['branch', '-m', current, candidate], { cwd: wtPath }, (renameErr) => {
-            if (!renameErr) return resolve({ ok: true, branch: candidate })
-            tryRename(`${newBranch}-${n + 1}`, n + 1)
-          })
-        }
-        tryRename(newBranch, 1)
-      })
-    })
-  })
-  /**
-   * Whether a worktree chat has anything the user hasn't kept: uncommitted
-   * edits (dirty) or commits past its base (ahead). Drives the Keep/Throw-away
-   * buttons and the delete guard.
-   */
-  ipcMain.handle('worktree:status', async (_e, projectPath: string, wtPath: string) => {
-    const run = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
-      new Promise((resolve) =>
-        execFile('git', args, { cwd, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) =>
-          resolve({ code: err ? 1 : 0, out: (stdout || '') + (stderr || '') })
-        )
-      )
-    const st = await run(['status', '--porcelain'], wtPath)
-    const dirty = st.code === 0 && st.out.trim().length > 0
-    const base = (await readWorktreeBase(wtPath)) ?? gitBranch(projectPath) ?? 'HEAD'
-    const ahead = await run(['rev-list', '--count', `${base}..HEAD`], wtPath)
-    return {
-      dirty,
-      ahead: ahead.code === 0 ? Number(ahead.out.trim()) || 0 : 0
-    }
-  })
   // Local branches, with the current one flagged and any already checked out in a
   // worktree marked (git won't check the same branch out twice). Powers the
   // branch picker + the toolbar switcher.
@@ -865,133 +1049,6 @@ export function registerFilesIpc(): void {
   // Switch the checkout to another branch. Fails cleanly if the tree is dirty or
   // the branch is checked out in a worktree — git returns non-zero and we surface it.
   ipcMain.handle('git:checkout', (_e, cwd: string, branch: string) => gitCheckout(cwd, branch))
-  ipcMain.handle('worktree:remove', (_e, projectPath: string, wtPath: string) =>
-    removeWorktree(projectPath, wtPath)
-  )
-
-  // Fold a worktree chat's work back into the project and tidy up: commit
-  // whatever the agent left in the worktree, squash it into ONE commit on the
-  // project's current branch, then remove the worktree and delete its branch.
-  // Every failure mode leaves the repo exactly as it was — a half-merged tree is
-  // worse than no button.
-  ipcMain.handle(
-    'worktree:merge',
-    async (_e, projectPath: string, wtPath: string, message: string) => {
-      const git = (args: string[], cwd: string): Promise<{ code: number; out: string }> =>
-        new Promise((resolve) =>
-          execFile('git', args, { cwd, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) =>
-            resolve({
-              code: err ? ((err as { code?: number }).code ?? 1) : 0,
-              out: (stdout || '') + (stderr || '')
-            })
-          )
-        )
-      type R =
-        | { ok: true; committed: boolean }
-        | {
-            ok: false
-            reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'
-            detail?: string
-          }
-
-      // The branch checked out IN the worktree is what we merge.
-      const head = await git(['rev-parse', '--abbrev-ref', 'HEAD'], wtPath)
-      const branch = head.out.trim()
-      if (head.code !== 0 || !branch || branch === 'HEAD') {
-        return { ok: false, reason: 'not-worktree', detail: head.out.trim() } as R
-      }
-
-      // Commit anything the agent left uncommitted in the worktree, so the
-      // squash actually captures it.
-      const wtStatus = await git(['status', '--porcelain'], wtPath)
-      if (wtStatus.out.trim()) {
-        await git(['add', '-A'], wtPath)
-        const c = await git(['commit', '-m', message || 'Worktree changes'], wtPath)
-        if (c.code !== 0) return { ok: false, reason: 'error', detail: c.out.trim() } as R
-      }
-
-      // Land on the branch this chat WAS CUT FROM (recorded at creation), not
-      // whatever the project folder happens to be on today — if the user has
-      // switched branches since, the chat's work still goes home.
-      const recordedBase = await readWorktreeBase(wtPath)
-      const projHead = await git(['symbolic-ref', '--short', 'HEAD'], projectPath)
-      const projBranch = projHead.code === 0 ? projHead.out.trim() : ''
-      const base = recordedBase ?? projBranch
-
-      // Nothing to bring over (branch identical to base) → say so, don't make an
-      // empty commit.
-      const ahead = await git(['rev-list', '--count', `${base}..${branch}`], projectPath)
-      if (ahead.code === 0 && ahead.out.trim() === '0') {
-        return { ok: false, reason: 'nothing' } as R
-      }
-
-      // The base is NOT what the project folder has checked out: merge with
-      // plumbing (merge-tree → commit-tree → update-ref), which never touches
-      // any working tree — the user's checkout stays exactly as it is.
-      if (base && projBranch !== base) {
-        const baseSha = await git(['rev-parse', '--verify', `refs/heads/${base}`], projectPath)
-        if (baseSha.code !== 0) {
-          return { ok: false, reason: 'error', detail: `base branch ${base} is gone` } as R
-        }
-        const mt = await git(['merge-tree', '--write-tree', base, branch], projectPath)
-        if (mt.code !== 0) {
-          return { ok: false, reason: 'conflict', detail: mt.out.trim().slice(0, 300) } as R
-        }
-        const tree = mt.out.trim().split('\n')[0]
-        const commit = await git(
-          ['commit-tree', tree, '-p', baseSha.out.trim(), '-m', message || `Merge ${branch}`],
-          projectPath
-        )
-        if (commit.code !== 0) {
-          return { ok: false, reason: 'error', detail: commit.out.trim() } as R
-        }
-        const upd = await git(
-          ['update-ref', `refs/heads/${base}`, commit.out.trim(), baseSha.out.trim()],
-          projectPath
-        )
-        if (upd.code !== 0) return { ok: false, reason: 'error', detail: upd.out.trim() } as R
-        await git(['worktree', 'remove', '--force', wtPath], projectPath)
-        await git(['branch', '-D', branch], projectPath)
-        return { ok: true, committed: true } as R
-      }
-
-      // Base IS the checked-out branch: merge into the working tree as before —
-      // the user sees the change appear in their folder. Refuse if that tree is
-      // dirty; mixing their in-progress edits with the merge loses work.
-      const baseStatus = await git(['status', '--porcelain'], projectPath)
-      if (baseStatus.out.trim()) {
-        return { ok: false, reason: 'base-dirty' } as R
-      }
-
-      // The squash: stages the branch's net change onto the base without a merge
-      // commit. On conflict, undo cleanly (base was verified clean above) and
-      // leave everything — including the worktree — untouched to resolve by hand.
-      const sq = await git(['merge', '--squash', branch], projectPath)
-      if (sq.code !== 0) {
-        await git(['reset', '--hard', 'HEAD'], projectPath)
-        return { ok: false, reason: 'conflict', detail: sq.out.trim().slice(0, 300) } as R
-      }
-      const commit = await git(['commit', '-m', message || `Merge ${branch}`], projectPath)
-      if (commit.code !== 0) {
-        // Tell "empty squash, nothing to commit" apart from a real commit failure
-        // (a failing pre-commit hook, GPG signing) that DID have changes staged —
-        // otherwise a hook rejection reads as the misleading "nothing to merge".
-        // `diff --cached --quiet` exits non-zero when there ARE staged changes.
-        const hadStaged = (await git(['diff', '--cached', '--quiet'], projectPath)).code !== 0
-        await git(['reset', '--hard', 'HEAD'], projectPath)
-        return hadStaged
-          ? ({ ok: false, reason: 'error', detail: commit.out.trim() } as R)
-          : ({ ok: false, reason: 'nothing', detail: commit.out.trim() } as R)
-      }
-
-      // Merged — now tidy up. Best-effort: the merge already succeeded, so even
-      // if cleanup hiccups the work is safe.
-      await git(['worktree', 'remove', '--force', wtPath], projectPath)
-      await git(['branch', '-D', branch], projectPath)
-      return { ok: true, committed: true } as R
-    }
-  )
-
   ipcMain.handle('files:import', (_e, destDir: string, sources: string[]) => {
     const imported: string[] = []
     for (const src of sources) {
@@ -1031,7 +1088,9 @@ export function registerFilesIpc(): void {
   })
 
   ipcMain.handle('files:openExternal', (_e, path: string) => shell.openPath(path))
-  ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd))
+  // What a chip beside a chat shows. A chat's copy of a folder of repos is not
+  // a repo itself, but its repos share one branch, and that is the one meant.
+  ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd) ?? repoSetBranch(cwd))
   ipcMain.handle('git:aheadBehind', (_e, cwd: string) => gitAheadBehind(cwd))
   ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))
   // Read a text file for the in-app viewer/editor. Returns null if it's missing,

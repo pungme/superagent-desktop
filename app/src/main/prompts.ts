@@ -174,6 +174,27 @@ const WORKTREE_PROMPT =
   'truly need a scratch checkout for a moment, remove it before you finish (`git worktree ' +
   'remove`), and say so if you leave one behind.'
 
+// A chat in a folder of repos works in a copy of that folder (repo-set.ts). The
+// agent has to be told: nothing about the directory says its repos are
+// worktrees, that the real ones are two levels up, or which half of what it
+// sees is shared — and an agent that goes looking finds the originals and
+// edits those, which is the one thing the copy exists to prevent.
+function repoSetPrompt(set: { root: string; repos: string[] }): string {
+  const names = set.repos.map((r) => `\`${r}\``).join(', ')
+  return (
+    `Your working directory is this conversation's own copy of the project folder ${set.root}. ` +
+    `Each repository in it (${names}) is a git worktree of the one with the same name in the ` +
+    'project folder, all on one branch made for this conversation, so several conversations ' +
+    'can work on the project at once without touching each other. Work only inside the ' +
+    'working directory: do not edit, commit in or switch branches in the originals. Each ' +
+    'repository is committed separately. Anything else in the working directory is a link to ' +
+    'the shared original, so a change there is immediate and seen by every conversation. ' +
+    'When the work is done the user keeps it or throws it away from Superagent, which merges ' +
+    "each repository's branch back into the branch it was made from — do not merge or push " +
+    'the branches yourself unless asked.'
+  )
+}
+
 // The desktop chat is not a project's agent: it is the computer's own, and the
 // computer is the thing it is being asked about.
 const DESKTOP_PROMPT =
@@ -211,6 +232,8 @@ export interface PromptContext {
   /** The browser this project's tools drive at spawn, by name ('Superagent' = built-in). */
   browser?: string
   provider: AgentProvider
+  /** The copy of a folder of repos this chat works in, when it has one. */
+  repoSet?: { root: string; repos: string[] } | null
 }
 
 /**
@@ -230,6 +253,7 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
     FILE_OPEN_PROMPT,
     SIMULATOR_PROMPT,
     ctx.browserProject || ctx.workspaceId === DESKTOP_WORKSPACE_ID ? '' : WORKTREE_PROMPT,
+    ctx.repoSet ? repoSetPrompt(ctx.repoSet) : '',
     ctx.browserProject ? BROWSER_SYSTEM_PROMPT : '',
     ctx.browser && ctx.workspaceId !== DESKTOP_WORKSPACE_ID ? realBrowserPrompt(ctx.browser) : '',
     // The desktop chat has no project, no board and no repository — it has a

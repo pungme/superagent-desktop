@@ -235,11 +235,15 @@ vi.mock('../files', () => ({
   // The first message cuts a branch on a real project. Here there is no repo to
   // cut one in, and the chat keeps running in the folder it was given — but who
   // it was tried for is the thing worth watching.
-  ensureChatBranch: async (_path: string, hint: string) => {
+  listWorktrees: async () => []
+}))
+vi.mock('../chat-copy', () => ({
+  copyKind: () => 'repo',
+  cutChatBranch: async (_chatId: string, _path: string, hint: string) => {
     h.branchCuts.push(hint)
     return null
   },
-  listWorktrees: async () => []
+  removeCopy: async () => true
 }))
 
 // Identity: a fixed Ed25519 key, no disk.

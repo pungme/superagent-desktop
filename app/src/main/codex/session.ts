@@ -7,6 +7,7 @@ import { CodexClient, type CodexServerRequest, type CodexThreadOptions } from '.
 import { CodexTranslator, unwrapShellCommand } from './translate'
 import { codexExec } from './exec'
 import { buildAppendedPrompt } from '../prompts'
+import { describeRepoSet } from '../repo-set'
 import { workspaceMcpUrl } from '../mcp'
 import { requestApproval, reportAgentLifecycle } from '../hooks'
 import type { AgentBackend, AgentStartOptions, SessionContext, SessionHost } from '../agent-backend'
@@ -78,7 +79,8 @@ export function codexThreadOptions(opts: AgentStartOptions): CodexThreadOptions 
         browser: opts.workspaceId
           ? browserName(browserFor(browserScope(opts.workspaceId, opts.chatId)))
           : undefined,
-        provider: 'codex'
+        provider: 'codex',
+        repoSet: describeRepoSet(opts.cwd)
       }) + (opts.permissionMode === 'plan' ? PLAN_MODE_PROMPT : ''),
     // Superagent's own tools reach Codex the same way they reach Claude Code —
     // as an MCP server — but per thread rather than via a config file, so a

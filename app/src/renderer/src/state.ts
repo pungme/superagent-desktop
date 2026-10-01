@@ -238,17 +238,30 @@ export function normalizeCwd(p: string | null | undefined): string {
   return p.replace(/^\/private(?=\/(var|tmp|etc)\/)/, '').replace(/\/+$/, '')
 }
 
-export function keepErrorText(reason: string, detail?: string): string {
+export function keepErrorText(
+  reason: string,
+  detail?: string,
+  /** In a folder of repos: the one that refused, and any already kept. */
+  where: { repo?: string; kept?: string[] } = {}
+): string {
+  // "The project" is several repos there, and the answer is always in one of
+  // them — so name it, or the user is left to go and look in each.
+  const place = where.repo ?? 'the project'
   const map: Record<string, string> = {
-    'base-dirty':
-      "The project has changes that aren't saved yet. Save or discard them in the project first, then keep.",
-    conflict:
-      'These changes clash with something already in the project. Ask the agent in this chat to resolve it, then keep again. Nothing was changed.',
+    'base-dirty': where.repo
+      ? `${where.repo} has changes that aren't saved yet. Save or discard them there first, then keep.`
+      : "The project has changes that aren't saved yet. Save or discard them in the project first, then keep.",
+    conflict: `These changes clash with something already in ${place}. Ask the agent in this chat to resolve it, then keep again. Nothing was changed.`,
     nothing: "Nothing to keep — this chat didn't change anything.",
     'not-worktree': "This chat doesn't have its own copy of the project.",
-    error: detail || 'git failed.'
+    error: where.repo ? `${where.repo}: ${detail || 'git failed.'}` : detail || 'git failed.'
   }
-  return map[reason] ?? "Couldn't keep the changes."
+  const text = map[reason] ?? "Couldn't keep the changes."
+  // Every repo is checked before any is written to, so this is rare: a commit
+  // hook, or a repo changing in between. What landed stays landed.
+  return where.kept?.length
+    ? `${text}\n\nAlready kept: ${where.kept.join(', ')}. Keep again once this is sorted and the rest will follow.`
+    : text
 }
 
 /**
@@ -439,11 +452,13 @@ interface CoveState {
     workspaceId: string,
     chatId: string
   ) => Promise<
-    | { ok: true; committed: boolean }
+    | { ok: true; committed: boolean; repos?: string[] }
     | {
         ok: false
         reason: 'not-worktree' | 'base-dirty' | 'nothing' | 'conflict' | 'error'
         detail?: string
+        repo?: string
+        kept?: string[]
       }
   >
   renameChat: (workspaceId: string, chatId: string, title: string) => Promise<void>
@@ -1120,7 +1135,9 @@ export const useStore = create<CoveState>((set, get) => ({
       .tree.flatMap((g) => g.workspaces)
       .find((w) => w.id === workspaceId)
     const id = await window.cove.chatCreate(workspaceId)
-    if (ws && ws.kind !== 'browser' && (await window.cove.gitBranch(ws.path)) !== null) {
+    // A repo, or a folder of them: either way there is something to cut a copy
+    // of, and main decides which (chat-copy.ts).
+    if (ws && ws.kind !== 'browser' && (await window.cove.projectCopyKind(ws.path)) !== null) {
       try {
         localStorage.setItem(`pendingBranch:${id}`, '1')
       } catch {
@@ -1173,7 +1190,7 @@ export const useStore = create<CoveState>((set, get) => ({
       .find((w) => w.id === workspaceId)
     if (!ws || ws.kind === 'browser')
       return { ok: false as const, reason: 'not-a-project' as const }
-    if ((await window.cove.gitBranch(ws.path)) === null) {
+    if ((await window.cove.projectCopyKind(ws.path)) === null) {
       return { ok: false as const, reason: 'not-a-repo' as const }
     }
     const wt = await window.cove.worktreeCreate(ws.path, { newBranch: name })
@@ -1624,11 +1641,11 @@ export async function keepChatChanges(workspaceId: string, chatId: string): Prom
   const res = await s.keepWorktreeChat(workspaceId, chatId)
   if (res.ok) return
   if (res.reason !== 'conflict') {
-    window.alert(keepErrorText(res.reason, res.detail))
+    window.alert(keepErrorText(res.reason, res.detail, res))
     return
   }
   const ask = window.confirm(
-    'These changes clash with something already in the project.\n\n' +
+    `These changes clash with something already in ${res.repo ?? 'the project'}.\n\n` +
       'Nothing has been changed. Shall the agent in this chat sort it out for you?'
   )
   if (!ask) return
@@ -1636,9 +1653,9 @@ export async function keepChatChanges(workspaceId: string, chatId: string): Prom
   s.selectChat(workspaceId, chatId)
   s.sendToClaude(
     workspaceId,
-    "Keeping this chat's changes failed: they conflict with what is already on the branch " +
-      'this chat was created from. Please merge that base branch into this one, resolve every ' +
-      'conflict, check the project still builds, and commit the result. Tell me when it is ready ' +
-      'to keep again.'
+    `Keeping this chat's changes failed${res.repo ? ` in ${res.repo}` : ''}: they conflict with ` +
+      'what is already on the branch this chat was created from. Please merge that base branch ' +
+      `into this one${res.repo ? ' in that repository' : ''}, resolve every conflict, check the ` +
+      'project still builds, and commit the result. Tell me when it is ready to keep again.'
   )
 }
