@@ -130,6 +130,15 @@ const CHOICES_PROMPT =
   'message, act on that question, and say which one you took it for.'
 
 // Files the user should see belong INSIDE Superagent, not a separate OS window.
+// A picture in the reply is what "show me" and "send me the screenshots" ask for.
+const INLINE_IMAGE_PROMPT =
+  'You can put pictures straight into your reply: write a Markdown image whose target is the ' +
+  "file's path on this Mac — `![what it shows](/absolute/path/to/shot.png)` — and Superagent " +
+  'shows it in the chat as a thumbnail the user can click to enlarge (PNG, JPEG, GIF, WebP; ' +
+  'a path relative to the project folder works too). When the user asks to see, be sent or be ' +
+  'shown screenshots, photos or images, answer with the pictures themselves this way, each ' +
+  'with a short caption, rather than a list of file names or a file opened in the viewer.'
+
 const FILE_OPEN_PROMPT =
   'When the user asks you to open or show them a file (a PDF, an image, a document, ' +
   'a markdown/text/code file), use the open_file tool — it displays the file inside ' +
@@ -158,11 +167,10 @@ const SIMULATOR_PROMPT =
   '2. Build, install and launch onto the device the pane is showing — sim_list_devices ' +
   'marks it. If you run simctl directly, pass that UDID rather than the word `booted`, ' +
   'which picks an arbitrary device when several are running.\n' +
-  '3. A foldable (iPhone Duo) cannot be folded or unfolded from here: no simctl command, ' +
-  'tool or display setting does it (turning a screen off with `simctl io … screenConfig` ' +
-  'only blacks it out). When the task needs the other posture, ask the user to fold or ' +
-  "unfold it with the hinge slider in Xcode's Device Hub, then carry on — the pane and " +
-  'sim_screen follow whichever screen is in use.'
+  "3. A foldable (iPhone Duo) folds and unfolds with sim_fold ('open', 'folded', 'half' or " +
+  'degrees) — there is no simctl command for it, and turning a screen off with `simctl io … ' +
+  'screenConfig` only blacks it out. Do it yourself when the task needs the other posture; ' +
+  'the pane and sim_screen follow whichever screen is in use, so look again afterwards.'
 
 // Every git worktree of a project is a row in the user's sidebar, so one an
 // agent makes for itself (a /tmp checkout to try something) shows up there as
@@ -251,6 +259,7 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
     SCHEDULING_PROMPT,
     CHOICES_PROMPT,
     FILE_OPEN_PROMPT,
+    INLINE_IMAGE_PROMPT,
     SIMULATOR_PROMPT,
     ctx.browserProject || ctx.workspaceId === DESKTOP_WORKSPACE_ID ? '' : WORKTREE_PROMPT,
     ctx.repoSet ? repoSetPrompt(ctx.repoSet) : '',

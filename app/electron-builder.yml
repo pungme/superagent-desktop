@@ -24,6 +24,10 @@ extraResources:
   # outside the asar to be spawnable.
   - from: native/simfb
     to: simfb
+  # The fold helper for foldable simulators, as SOURCE: it is a simulator
+  # binary, compiled on first use against the user's own Xcode (simulator.ts).
+  - from: native/simfold.c
+    to: simfold.c
   # baguette, the simulator input helper (tap/swipe/key). Pinned upstream build
   # fetched by scripts/fetch-baguette.mjs; Apache-2.0, so its license ships too.
   - from: native/baguette

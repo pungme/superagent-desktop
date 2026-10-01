@@ -11682,7 +11682,8 @@ button {
 }
 .md-img-thumb {
   display: inline-block;
-  margin: 4px 0;
+  /* Several in a row (a set of screenshots) sit side by side with air between. */
+  margin: 4px 8px 4px 0;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -12449,4 +12450,22 @@ button {
 .sidebar-chat-remove:hover {
   color: var(--text-primary);
   background: var(--hover);
+}
+
+/* An image in a reply that is still being read from disk, or could not be. */
+.md-img-loading {
+  display: inline-block;
+  width: 120px;
+  height: 80px;
+  border-radius: 8px;
+  background: var(--hover);
+  vertical-align: top;
+}
+.md-img-missing {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--text-tertiary);
+  font-size: 12px;
 }

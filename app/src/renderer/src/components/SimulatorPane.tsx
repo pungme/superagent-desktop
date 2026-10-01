@@ -703,6 +703,39 @@ export function SimulatorPane({
       clearInterval(t)
     }
   }, [udid, hasFrame, frame?.width, frame?.height])
+  /**
+   * A foldable has two screens; the smaller lit means it is folded. Asked when
+   * a device first shows and whenever the picture changes size (a fold swaps
+   * the screen being shown), so the button always says what it would do.
+   */
+  const [screens, setScreens] = useState<{ width: number; height: number; lit: boolean }[]>([])
+  const [folding, setFolding] = useState(false)
+  useEffect(() => {
+    if (!udid || !hasFrame) return
+    let alive = true
+    void window.cove.simScreens?.(udid).then((s) => {
+      if (alive) setScreens(s ?? [])
+    })
+    return () => {
+      alive = false
+    }
+  }, [udid, hasFrame, frame?.width, frame?.height])
+  const foldable = screens.length > 1
+  const area = (s: { width: number; height: number }): number => s.width * s.height
+  const outer = foldable ? [...screens].sort((a, b) => area(a) - area(b))[0] : null
+  const folded = Boolean(outer?.lit)
+  const toggleFold = async (): Promise<void> => {
+    if (!udid) return
+    setFolding(true)
+    const res = await window.cove.simFold(udid, folded ? 180 : 0)
+    setFolding(false)
+    if (!res.ok) {
+      setBusy(res.error ?? 'Could not fold the device.')
+      setTimeout(() => setBusy(null), 6000)
+      return
+    }
+    setScreens(await window.cove.simScreens(udid))
+  }
   const landscape = orientation !== 'portrait'
   /**
    * How big to draw a turned picture.
@@ -828,6 +861,42 @@ export function SimulatorPane({
             <path d="M5.9 1.1 4.9 2.4l1.4.7" />
           </svg>
         </button>
+        {/* A foldable (iPhone Duo): fold and unfold it from here. Apple's only
+            control for this is a slider in Device Hub; this sends the same
+            hinge event. The picture follows by itself. */}
+        {foldable && (
+          <button
+            className="sim-btn sim-fold"
+            title={folded ? 'Unfold the device' : 'Fold the device'}
+            aria-label={folded ? 'Unfold the device' : 'Fold the device'}
+            disabled={!udid || folding}
+            onClick={() => void toggleFold()}
+          >
+            <svg
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              {folded ? (
+                <>
+                  <rect x="5.2" y="2.4" width="5.6" height="11.2" rx="1.3" />
+                  <path d="M2.2 8h1.6M12.2 8h1.6M3 6.8 1.8 8 3 9.2M13 6.8 14.2 8 13 9.2" />
+                </>
+              ) : (
+                <>
+                  <rect x="2" y="2.8" width="12" height="10.4" rx="1.4" />
+                  <path d="M8 2.8v10.4" strokeDasharray="1.6 1.6" />
+                </>
+              )}
+            </svg>
+          </button>
+        )}
         {typing && <span className="sim-typing">typing…</span>}
         {/* The escape hatch: Apple's own window, only when asked for. Until
             then it is kept out of sight, because a build opens it uninvited. */}

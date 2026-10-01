@@ -493,6 +493,13 @@ export interface CoveApi {
   simOpenApp: (udid: string) => Promise<boolean>
   /** Which way the device is actually turned (worked out from its screen). */
   simOrientation: (udid: string) => Promise<'portrait' | 'left' | 'right' | null>
+  /** A booted device's screens and which is lit (two for a foldable). */
+  simScreens: (udid: string) => Promise<{ width: number; height: number; lit: boolean }[]>
+  /** Fold or unfold a foldable simulator: 0 folded, 90 half-open, 180 open. */
+  simFold: (
+    udid: string,
+    angle: number
+  ) => Promise<{ ok: boolean; error?: string; lit?: string | null }>
   simAttach: (
     udid: string,
     rect: { x: number; y: number; width: number; height: number }
@@ -785,7 +792,10 @@ export interface CoveApi {
   filesOpenExternal: (path: string) => Promise<string>
   fileRead: (path: string) => Promise<string | null>
   /** A downscaled JPEG of an image file, for showing it inside the chat. */
-  fileThumbnail: (path: string) => Promise<{ mediaType: string; data: string } | null>
+  fileThumbnail: (
+    path: string,
+    opts?: { base?: string; width?: number }
+  ) => Promise<{ mediaType: string; data: string } | null>
   fileWrite: (path: string, content: string) => Promise<boolean>
   gitBranch: (cwd: string) => Promise<string | null>
   /** Ahead/behind vs upstream from local refs (no fetch); null if no upstream. */
@@ -1029,6 +1039,8 @@ const cove: CoveApi = {
   simAttachRelease: () => ipcRenderer.invoke('sim:attach-release'),
   simOpenApp: (udid) => ipcRenderer.invoke('sim:open-app', udid),
   simOrientation: (udid) => ipcRenderer.invoke('sim:orientation', udid),
+  simScreens: (udid) => ipcRenderer.invoke('sim:screens', udid),
+  simFold: (udid, angle) => ipcRenderer.invoke('sim:fold', udid, angle),
   simAttach: (udid, rect) => ipcRenderer.invoke('sim:attach', udid, rect),
   simAttachMove: (rect) => ipcRenderer.invoke('sim:attach-move', rect),
   simAttachHide: () => ipcRenderer.invoke('sim:attach-hide'),
@@ -1200,7 +1212,7 @@ const cove: CoveApi = {
   filesThumb: (path) => ipcRenderer.invoke('files:thumb', path),
   filesOpenExternal: (path) => ipcRenderer.invoke('files:openExternal', path),
   fileRead: (path) => ipcRenderer.invoke('files:read', path),
-  fileThumbnail: (path) => ipcRenderer.invoke('files:thumbnail', path),
+  fileThumbnail: (path, opts) => ipcRenderer.invoke('files:thumbnail', path, opts),
   fileWrite: (path, content) => ipcRenderer.invoke('files:write', path, content),
   gitBranch: (cwd) => ipcRenderer.invoke('git:branch', cwd),
   gitAheadBehind: (cwd) => ipcRenderer.invoke('git:aheadBehind', cwd),

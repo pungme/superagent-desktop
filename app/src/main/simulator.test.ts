@@ -8,7 +8,8 @@ import {
   simulatorScreenPoint,
   usesPersistentSimSession,
   orientationFrom,
-  parseScreens
+  parseScreens,
+  postureAngle
 } from './simulator'
 
 /**
@@ -130,5 +131,21 @@ describe('a device with more than one screen (iPhone Duo)', () => {
     const turnedCcw = Array.from({ length: h * w }, (_, i) => (i % h === 0 ? 255 : 0))
     expect(orientationFrom(raw, turnedCw)).toBe('left')
     expect(orientationFrom(raw, turnedCcw)).toBe('right')
+  })
+})
+
+describe('folding a foldable', () => {
+  it('reads a posture as a hinge angle', () => {
+    expect(postureAngle('open')).toBe(180)
+    expect(postureAngle('Unfolded')).toBe(180)
+    expect(postureAngle('folded')).toBe(0)
+    expect(postureAngle('half')).toBe(90)
+    expect(postureAngle(135)).toBe(135)
+    expect(postureAngle('45')).toBe(45)
+    // Out of range, or not a posture at all.
+    expect(postureAngle(181)).toBeNull()
+    expect(postureAngle(-1)).toBeNull()
+    expect(postureAngle('sideways')).toBeNull()
+    expect(postureAngle('')).toBeNull()
   })
 })
