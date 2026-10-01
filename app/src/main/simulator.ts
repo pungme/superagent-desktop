@@ -5,7 +5,7 @@ import type { Readable } from 'stream'
 import { promisify } from 'util'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { readFileSync, unlinkSync, existsSync } from 'fs'
+import { readFileSync, unlinkSync, existsSync, mkdirSync, statSync } from 'fs'
 import { createHash } from 'crypto'
 import { EventEmitter } from 'events'
 
@@ -684,6 +684,140 @@ function simfbPath(): string | null {
   return null
 }
 
+// --- Folding a foldable (iPhone Duo) -------------------------------------------
+//
+// native/simfold.c sends the hinge event Device Hub's slider sends, from inside
+// the simulator (see that file). It is a simulator binary, so it is shipped as
+// source and compiled once against the user's own Xcode — a prebuilt one inside
+// a notarized Mac app is a risk, and anyone with a simulator has the compiler.
+
+function simfoldSource(): string | null {
+  const candidates = app.isPackaged
+    ? [join(process.resourcesPath, 'simfold.c')]
+    : [join(__dirname, '../../native/simfold.c'), join(process.cwd(), 'native/simfold.c')]
+  for (const p of candidates) if (existsSync(p)) return p
+  return null
+}
+
+let simfoldBuilt: Promise<string> | null = null
+function ensureSimfold(): Promise<string> {
+  if (simfoldBuilt) return simfoldBuilt
+  simfoldBuilt = (async () => {
+    const src = simfoldSource()
+    if (!src) throw new Error('The fold helper is missing from this build.')
+    const dir = join(app.getPath('userData'), 'tools')
+    mkdirSync(dir, { recursive: true })
+    // Rebuilt when the source changes (an app update).
+    const out = join(dir, `simfold-${Math.round(statSync(src).mtimeMs)}`)
+    if (existsSync(out)) return out
+    await run(
+      'xcrun',
+      [
+        '--sdk',
+        'iphonesimulator',
+        'clang',
+        '-O2',
+        '-arch',
+        'arm64',
+        '-arch',
+        'x86_64',
+        '-mios-simulator-version-min=15.0',
+        '-framework',
+        'CoreFoundation',
+        '-o',
+        out,
+        src
+      ],
+      { timeout: 120_000 }
+    )
+    return out
+  })()
+  // A failed build is not remembered: Xcode may be installed a minute later.
+  simfoldBuilt.catch(() => (simfoldBuilt = null))
+  return simfoldBuilt
+}
+
+/** The screens a booted device has, and which is lit. One entry for an ordinary phone. */
+export async function simulatorScreens(
+  udid: string
+): Promise<{ width: number; height: number; lit: boolean }[]> {
+  const bin = simfbPath()
+  if (!bin) return []
+  try {
+    const { stdout } = await run(bin, ['--probe', '--udid', udid], { timeout: 10_000 })
+    return JSON.parse(stdout) as { width: number; height: number; lit: boolean }[]
+  } catch {
+    return []
+  }
+}
+
+/** 'open' | 'folded' | 'half' | a number of degrees → the hinge angle, or null. */
+export function postureAngle(posture: string | number): number | null {
+  if (typeof posture === 'number') return posture >= 0 && posture <= 180 ? posture : null
+  const p = posture.trim().toLowerCase()
+  if (p === 'open' || p === 'unfolded' || p === 'unfold' || p === 'flat') return 180
+  if (p === 'folded' || p === 'fold' || p === 'closed' || p === 'close') return 0
+  if (p === 'half' || p === 'half-open' || p === 'tabletop' || p === 'tent') return 90
+  const n = Number(p)
+  return p !== '' && Number.isFinite(n) && n >= 0 && n <= 180 ? n : null
+}
+
+/**
+ * Fold or unfold a foldable simulator: 0 folded, 90 half-open, 180 open. The
+ * pane follows by itself (simfb notices the lit screen change).
+ */
+export async function foldSimulator(
+  udid: string,
+  angle: number
+): Promise<
+  { ok: true; angle: number; screens: number; lit: string | null } | { ok: false; error: string }
+> {
+  if (!(angle >= 0 && angle <= 180)) return { ok: false, error: 'The angle must be 0 to 180.' }
+  const before = await simulatorScreens(udid)
+  if (before.length < 2)
+    return { ok: false, error: 'This simulator has one screen: there is nothing to fold.' }
+  let bin: string
+  try {
+    bin = await ensureSimfold()
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        'Could not build the fold helper (it needs Xcode with the iOS Simulator SDK): ' +
+        String((e as { stderr?: string }).stderr || (e as Error).message)
+          .trim()
+          .slice(0, 300)
+    }
+  }
+  try {
+    await run('xcrun', ['simctl', 'spawn', udid, bin, String(angle)], { timeout: 30_000 })
+  } catch (e) {
+    return {
+      ok: false,
+      error: String((e as { stderr?: string }).stderr || (e as Error).message)
+        .trim()
+        .slice(0, 300)
+    }
+  }
+  // The screens swap a moment after the hinge moves.
+  let after = before
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, 300))
+    after = await simulatorScreens(udid)
+    const was = before.findIndex((s) => s.lit)
+    const now = after.findIndex((s) => s.lit)
+    if (now >= 0 && (now !== was || i >= 4)) break
+  }
+  const lit = after.find((s) => s.lit)
+  displayArgCache.delete(udid)
+  return {
+    ok: true,
+    angle,
+    screens: after.length,
+    lit: lit ? `${lit.width}×${lit.height}` : null
+  }
+}
+
 /**
  * `--display <uuid>` for simctl's screenshot on a device with more than one
  * screen (iPhone Duo): the lit one. simctl's default is the first screen,
@@ -1204,6 +1338,10 @@ export function registerSimulatorIpc(): void {
   })
   /** The user explicitly asked for Apple's Simulator — stand aside and show it. */
   ipcMain.handle('sim:orientation', (_e, udid: string) => detectOrientation(udid))
+  ipcMain.handle('sim:screens', (_e, udid: string) => simulatorScreens(String(udid)))
+  ipcMain.handle('sim:fold', (_e, udid: string, angle: number) =>
+    foldSimulator(String(udid), Number(angle))
+  )
   ipcMain.handle('sim:open-app', async (_e, udid: string) => {
     // Stop the mirror's keep-hidden logic from putting it away again.
     simulatorWindowAllowed = true

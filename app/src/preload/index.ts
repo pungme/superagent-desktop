@@ -475,6 +475,13 @@ export interface CoveApi {
   simOpenApp: (udid: string) => Promise<boolean>
   /** Which way the device is actually turned (worked out from its screen). */
   simOrientation: (udid: string) => Promise<'portrait' | 'left' | 'right' | null>
+  /** A booted device's screens and which is lit (two for a foldable). */
+  simScreens: (udid: string) => Promise<{ width: number; height: number; lit: boolean }[]>
+  /** Fold or unfold a foldable simulator: 0 folded, 90 half-open, 180 open. */
+  simFold: (
+    udid: string,
+    angle: number
+  ) => Promise<{ ok: boolean; error?: string; lit?: string | null }>
   simAttach: (
     udid: string,
     rect: { x: number; y: number; width: number; height: number }
@@ -1012,6 +1019,8 @@ const cove: CoveApi = {
   simAttachRelease: () => ipcRenderer.invoke('sim:attach-release'),
   simOpenApp: (udid) => ipcRenderer.invoke('sim:open-app', udid),
   simOrientation: (udid) => ipcRenderer.invoke('sim:orientation', udid),
+  simScreens: (udid) => ipcRenderer.invoke('sim:screens', udid),
+  simFold: (udid, angle) => ipcRenderer.invoke('sim:fold', udid, angle),
   simAttach: (udid, rect) => ipcRenderer.invoke('sim:attach', udid, rect),
   simAttachMove: (rect) => ipcRenderer.invoke('sim:attach-move', rect),
   simAttachHide: () => ipcRenderer.invoke('sim:attach-hide'),

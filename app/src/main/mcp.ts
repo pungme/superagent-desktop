@@ -12,7 +12,9 @@ import {
   simulatorScreenPoint,
   noteSimulatorOpen,
   chatHoldingSimulator,
-  litDisplayArgs
+  litDisplayArgs,
+  foldSimulator,
+  postureAngle
 } from './simulator'
 import { withoutStealingFocus } from './browser'
 import { recordFileHandover } from './companion/log'
@@ -629,6 +631,32 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
           { type: 'text', text: res.ok ? `Pressed ${button}.` : `Press failed: ${res.error}` }
         ]
       }
+    }
+  )
+
+  server.registerTool(
+    'sim_fold',
+    {
+      description:
+        "Fold or unfold a foldable simulator (iPhone Duo). posture: 'open' (unfolded, the large inner screen), 'folded' (closed, the outer screen), 'half' (half-open, 90°), or a number of degrees from 0 (folded) to 180 (open). The pane and sim_screen follow whichever screen is in use, so take a sim_screen afterwards: the size and layout change. On a device with one screen it says there is nothing to fold.",
+      inputSchema: { posture: z.union([z.enum(['open', 'folded', 'half']), z.number()]) }
+    },
+    async ({ posture }) => {
+      const text = (t: string): { content: { type: 'text'; text: string }[] } => ({
+        content: [{ type: 'text', text: t }]
+      })
+      const tgt = await inputTarget()
+      if ('error' in tgt) return text(tgt.error)
+      const angle = postureAngle(posture)
+      if (angle === null) return text("posture must be 'open', 'folded', 'half' or 0–180 degrees.")
+      const res = await foldSimulator(tgt.udid, angle)
+      if (!res.ok) return text(`Could not fold: ${res.error}`)
+      screenSize.delete(simTarget(CHAT_ID))
+      return text(
+        `Hinge set to ${angle}°${angle === 0 ? ' (folded)' : angle === 180 ? ' (open)' : ''}. ` +
+          (res.lit ? `The screen in use is now ${res.lit} px. ` : '') +
+          'Take a sim_screen before tapping: the layout changed.'
+      )
     }
   )
 

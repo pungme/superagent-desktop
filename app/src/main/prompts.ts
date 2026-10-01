@@ -167,11 +167,10 @@ const SIMULATOR_PROMPT =
   '2. Build, install and launch onto the device the pane is showing — sim_list_devices ' +
   'marks it. If you run simctl directly, pass that UDID rather than the word `booted`, ' +
   'which picks an arbitrary device when several are running.\n' +
-  '3. A foldable (iPhone Duo) cannot be folded or unfolded from here: no simctl command, ' +
-  'tool or display setting does it (turning a screen off with `simctl io … screenConfig` ' +
-  'only blacks it out). When the task needs the other posture, ask the user to fold or ' +
-  "unfold it with the hinge slider in Xcode's Device Hub, then carry on — the pane and " +
-  'sim_screen follow whichever screen is in use.'
+  "3. A foldable (iPhone Duo) folds and unfolds with sim_fold ('open', 'folded', 'half' or " +
+  'degrees) — there is no simctl command for it, and turning a screen off with `simctl io … ' +
+  'screenConfig` only blacks it out. Do it yourself when the task needs the other posture; ' +
+  'the pane and sim_screen follow whichever screen is in use, so look again afterwards.'
 
 // Every git worktree of a project is a row in the user's sidebar, so one an
 // agent makes for itself (a /tmp checkout to try something) shows up there as
