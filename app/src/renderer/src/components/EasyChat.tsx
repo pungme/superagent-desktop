@@ -20,6 +20,7 @@ import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
+import { replyingTo } from '../../../shared/reply-quote'
 import { splitLoopNote } from '../lib/loop-note'
 import { humanInterval, isLoopCommand } from '../../../shared/loop'
 import { SignInsDialog } from './SignInsDialog'
@@ -1067,9 +1068,14 @@ const MessageRow = memo(function MessageRow({
   onEdit,
   onAnswer,
   onLightbox,
-  cwd
+  cwd,
+  answersTo
 }: {
   msg: ChatMessage
+  /** Whether a reply opens by quoting one of the user's messages, and which.
+   *  One function for the life of the chat: a new message from the user must
+   *  not re-render every row above it. */
+  answersTo?: (text: string) => { quote: string; rest: string } | null
   /** The chat's folder: where a relative image path in a reply is looked for. */
   cwd?: string
   /** This is the last user message and no turn is running — offer Edit. */
@@ -1088,9 +1094,15 @@ const MessageRow = memo(function MessageRow({
   const isAssistant = msg.role === 'assistant'
   // The regex+JSON scan runs once per text change (i.e. once per frame for the
   // streaming row, once ever for settled rows) instead of for all rows.
+  // A reply that opens by quoting one of the user's messages is an answer to
+  // that message: the quote becomes the chip a messaging app would show.
+  const answering = useMemo(
+    () => (isAssistant && answersTo ? answersTo(msg.text) : null),
+    [isAssistant, msg.text, answersTo]
+  )
   const segments = useMemo(
-    () => (isAssistant ? splitAssistant(msg.text) : null),
-    [isAssistant, msg.text]
+    () => (isAssistant ? splitAssistant(answering ? answering.rest : msg.text) : null),
+    [isAssistant, msg.text, answering]
   )
   // The /loop skill appends a mechanical reminder ("run sleep as your last
   // action…") to every round's prompt, in the same plain-text bubble as
@@ -1111,6 +1123,12 @@ const MessageRow = memo(function MessageRow({
       } ${hasMeta ? 'easy-msg-has-meta' : ''}`}
       onWheel={(e) => onWheelMsg(e, msg)}
     >
+      {answering && (
+        <div className="easy-reply-quote easy-reply-quote-agent">
+          <span className="easy-reply-quote-who">You</span>
+          <span className="easy-reply-quote-text">{answering.quote.slice(0, 160)}</span>
+        </div>
+      )}
       {msg.replyTo && (
         <div className="easy-reply-quote">
           <span className="easy-reply-quote-who">
@@ -4219,6 +4237,12 @@ export function EasyChat({
     return () => ro.disconnect()
   }, [visible, vrows.length > 0])
 
+  // Kept beside the rows rather than passed as a value: see MessageRow.
+  const userTextsRef = useRef<string[]>([])
+  userTextsRef.current = items.flatMap((it) =>
+    it.kind === 'msg' && it.msg.role === 'user' && !it.msg.system ? [it.msg.text] : []
+  )
+  const answersTo = useCallback((text: string) => replyingTo(text, userTextsRef.current), [])
   const renderRow = (row: Row): React.JSX.Element => {
     if (row.kind === 'msg') {
       const isLastUser = row.msg.role === 'user' && row.msg.id === lastUserId
@@ -4233,6 +4257,7 @@ export function EasyChat({
           onAnswer={onRowAnswer}
           onLightbox={onRowLightbox}
           cwd={cwd}
+          answersTo={answersTo}
         />
       )
     }
@@ -4805,7 +4830,7 @@ export function EasyChat({
           <p className="easy-guard-why">
             {myGuardrailAsk.kind === 'permission'
               ? 'This chat is in Ask mode, so the agent checks with you before it acts. You can also answer this from your phone.'
-              : `This turn read a web page, and a page can hide instructions meant to steer the agent. Superagent paused before it ${myGuardrailAsk.toolName === 'Bash' ? 'runs a command' : 'changes a file'} so you can check it’s what you intended.`}
+              : 'This turn read web or email content that could contain instructions meant to steer the agent. Superagent paused before this action so you can check it’s what you intended.'}
           </p>
           <pre className="easy-guard-preview">{myGuardrailAsk.preview}</pre>
           <div className="easy-guard-actions">
