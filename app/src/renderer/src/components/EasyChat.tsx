@@ -679,7 +679,8 @@ function shortModel(id: string): string {
 /** One line on what each agent is, for the picker under the composer. */
 const PROVIDER_HINT: Record<AgentProvider, string> = {
   claude: "Anthropic's agent, on your Claude subscription",
-  codex: "OpenAI's agent, on your ChatGPT plan"
+  codex: "OpenAI's agent, on your ChatGPT plan",
+  antigravity: "Google's agent, on your Google AI plan"
 }
 
 // Agent modes (permission-mode). Plan = read-only planning, no changes made.
@@ -4625,7 +4626,7 @@ export function EasyChat({
           )}
           {items.length === 0 && (ready || suspended) && (
             <div className="easy-empty">
-              <p>Tell Claude what you&rsquo;d like to build or change.</p>
+              <p>Tell {agentName} what you&rsquo;d like to build or change.</p>
             </div>
           )}
           {items.length === 0 && !ready && !suspended && !agentFailed && (
@@ -4713,7 +4714,7 @@ export function EasyChat({
           <p className="easy-handoff-what">
             {limitNotice.alternatives.length
               ? 'Carry on with another account? The conversation continues where it is.'
-              : `Every ${limitNotice.provider === 'codex' ? 'Codex' : 'Claude'} account you've added is out. Add one under Settings → Agents, or wait for the reset.`}
+              : `Every ${PROVIDER_LABEL[limitNotice.provider]} account you've added is out. Add one under Settings → Agents, or wait for the reset.`}
           </p>
           <div className="easy-guard-actions">
             <button className="easy-guard-deny" onClick={() => setLimitNotice(null)}>
@@ -4775,7 +4776,7 @@ export function EasyChat({
             </span>
             <strong>
               {myGuardrailAsk.kind === 'permission'
-                ? `Claude wants to use ${myGuardrailAsk.toolName}`
+                ? `${agentName} wants to use ${myGuardrailAsk.toolName}`
                 : 'Approve this action?'}
             </strong>
           </div>

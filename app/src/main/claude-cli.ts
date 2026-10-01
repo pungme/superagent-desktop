@@ -2,7 +2,7 @@ import { execSync, exec } from 'child_process'
 import type { AgentProvider } from '../shared/agent-provider'
 
 /**
- * Resolves an agent's binary (`claude`, `codex`) via a login shell — so the
+ * Resolves an agent's binary (`claude`, `codex`, `agy`) via a login shell — so the
  * user's real PATH (nvm/homebrew/~/.local/bin) is loaded — cached process-wide
  * so the slow login-shell spawn happens at most once per binary.
  */
@@ -83,7 +83,13 @@ export function findCodex(): string {
   return findBinary('codex')
 }
 
+/** Absolute path to `agy`, Antigravity's CLI. */
+export function findAgy(): string {
+  return findBinary('agy')
+}
+
 /** The binary that drives a given provider. */
 export function findAgentBinary(provider: AgentProvider): string {
+  if (provider === 'antigravity') return findAgy()
   return provider === 'codex' ? findCodex() : findClaude()
 }

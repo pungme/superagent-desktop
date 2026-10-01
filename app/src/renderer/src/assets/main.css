@@ -9809,8 +9809,8 @@ button {
 }
 
 .onboarding-card {
-  /* Two agents side by side; one column each on a narrow window. */
-  width: 760px;
+  /* Three agents side by side; one column each on a narrow window. */
+  width: 1060px;
   max-width: 90%;
   padding: 40px 36px;
   text-align: center;
@@ -9889,17 +9889,17 @@ button {
   margin-bottom: 24px;
 }
 
-/* One card per agent. You need either, not both, so they sit as equals rather
-   than as a primary choice with an alternative underneath it. */
+/* One card per agent. You need any one, not all, so they sit as equals rather
+   than as a primary choice with alternatives underneath it. */
 .onboarding-agents {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   text-align: left;
   margin-bottom: 24px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 980px) {
   .onboarding-agents {
     grid-template-columns: 1fr;
   }

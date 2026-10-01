@@ -23,6 +23,15 @@ import {
   trustTurn,
   toolPreview
 } from './guardrail'
+import {
+  agyDecision,
+  agyToolCall,
+  agyVerdict,
+  noteHookCall,
+  toAgyMode,
+  PLAN_DENY_REASON,
+  USER_DENY_REASON
+} from './antigravity/approvals'
 
 /**
  * Receives Claude Code hook events and turns them into workspace status.
@@ -205,11 +214,66 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
   const preview = toolPreview(toolName, body.tool_input)
   const approved = await requestApproval(workspaceId, sessionId, toolName, preview)
   if (approved) return ''
-  return DENY_JSON(
-    'Blocked by Superagent: this turn read untrusted web content, and the user did not ' +
-      'approve this action. Do not retry it. Tell the user plainly what you were about to do ' +
-      'and let them decide.'
-  )
+  return DENY_JSON(GATE_DENY_REASON)
+}
+
+const GATE_DENY_REASON =
+  'Blocked by Superagent: this turn read untrusted web content, and the user did not ' +
+  'approve this action. Do not retry it. Tell the user plainly what you were about to do ' +
+  'and let them decide.'
+
+/**
+ * The verdict for one Antigravity tool call.
+ *
+ * Antigravity's `PreToolUse` hook is one question — may this run? — where Claude
+ * Code asks two (the injection gate, then the permission prompt). So both are
+ * answered here, in that order: the gate first, because a planted command is
+ * worth stopping in every mode, then what the chat's permission mode says about
+ * the call (antigravity/approvals.ts). The call is judged under the names the
+ * rest of the app knows it by, which is what lets the gate and the prompt treat
+ * an Antigravity `run_command` exactly like a Claude `Bash`.
+ */
+async function decideAntigravityTool(
+  workspaceId: string,
+  mode: string | null,
+  chatId: string | null,
+  body: Record<string, unknown>
+): Promise<string> {
+  const call = agyToolCall(body)
+  // Fail-open, like the gate: a payload we cannot read must not wedge the agent.
+  if (!call) return agyDecision('allow')
+  const preview = toolPreview(call.name, call.input)
+  // What the approval is filed under. The window draws a prompt inside the chat
+  // whose id it carries, so the chat's id it is — the hook was written with it —
+  // and Antigravity's own conversation id only when there is no chat.
+  const key = chatId || call.sessionId
+  // On the record before anything is decided: the session checks that a gated
+  // tool was put to this hook, and stops a process that ran one without asking.
+  noteHookCall(key, call.stepIdx)
+
+  if (key) {
+    const cls = classifyTool(call.name)
+    if (cls === 'taint') markTainted(key)
+    else if (cls === 'gate' && gateDecision(key, call.name) === 'ask') {
+      const approved = await requestApproval(workspaceId, key, call.name, preview)
+      // A person just looked at this exact call; the mode has nothing to add.
+      return approved ? agyDecision('allow') : agyDecision('deny', GATE_DENY_REASON)
+    }
+  }
+
+  const verdict = agyVerdict(toAgyMode(mode), call.raw, call.args, call.artifactDir)
+  if (verdict === 'allow') return agyDecision('allow')
+  if (verdict === 'deny') return agyDecision('deny', PLAN_DENY_REASON)
+
+  // The turn is blocked on a person now — the beat Claude's Notification hook
+  // reports, so the badge and the phone say so here too.
+  reportAgentLifecycle('Notification', workspaceId, {
+    session_id: call.sessionId,
+    message: preview.split('\n')[0].slice(0, 120)
+  })
+  const approved = await requestApproval(workspaceId, key, call.name, preview, 'permission')
+  reportAgentLifecycle('UserPromptSubmit', workspaceId, { session_id: call.sessionId })
+  return approved ? agyDecision('allow') : agyDecision('deny', USER_DENY_REASON)
 }
 
 /**
@@ -232,7 +296,7 @@ function agentNameFor(sessionId: string | undefined): string {
  *
  * Claude Code reaches this through the hook server above — the shell hook it
  * installs POSTs here. Codex has no hooks and does not need any: its session
- * calls this directly off the protocol. So the two backends stay separate while
+ * calls this directly off the protocol, and so does Antigravity's. So the two backends stay separate while
  * the product behaviour they drive stays one implementation, and a Codex chat
  * gets the same badge and the same "is done" ping as a Claude one.
  */
@@ -346,6 +410,19 @@ export function startHookServer(): Promise<string> {
     }
     if (event === 'PermissionRequest') {
       const verdict = await decidePermission(workspaceId, body)
+      res.writeHead(200, { 'content-type': 'application/json' }).end(verdict)
+      return
+    }
+    // Antigravity's tool hook (antigravity/sidecar.ts). Its answer is the whole
+    // decision, so unlike the two above it always says something.
+    if (event === 'AgyPreToolUse') {
+      const query = new URL(req.url, 'http://127.0.0.1').searchParams
+      const verdict = await decideAntigravityTool(
+        workspaceId,
+        query.get('mode'),
+        query.get('chat'),
+        body
+      )
       res.writeHead(200, { 'content-type': 'application/json' }).end(verdict)
       return
     }

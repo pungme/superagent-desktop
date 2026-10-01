@@ -135,7 +135,7 @@ const chatSend = z.object({
 })
 const chatSetAgent = z.object({
   chatId: z.string().min(1),
-  provider: z.enum(['claude', 'codex'])
+  provider: z.enum(['claude', 'codex', 'antigravity'])
 })
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatPin = z.object({ chatId: z.string().min(1), pinned: z.boolean() })

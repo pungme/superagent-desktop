@@ -9,7 +9,8 @@ import type { AgentProvider } from '../shared/agent-provider'
  * outlives the conversation, a simulator it can drive, and a scheduler that only
  * works from inside the app. They are appended to the system prompt of whichever
  * backend is running — `--append-system-prompt` for Claude Code,
- * `developerInstructions` for Codex — so both agents get the same briefing.
+ * `developerInstructions` for Codex, a block ahead of the first message for
+ * Antigravity — so every agent gets the same briefing.
  */
 
 const BROWSER_SYSTEM_PROMPT =
@@ -212,6 +213,13 @@ const CODEX_TODO_PROMPT =
   "plan to the user live in its Tasks panel, so it is the user's view of your progress, not " +
   'just your own scratchpad.'
 
+// Antigravity has neither: no task tools Superagent can read, and no plan on the
+// wire. The Tasks panel stays empty for it, so it is asked for the next best
+// thing — say the plan in the chat, where the user can see it.
+const ANTIGRAVITY_TODO_PROMPT =
+  'When you take on a multi-step task, say the steps up front in a short list and say which ' +
+  'one you are on as you go, so the user can follow your progress in the chat.'
+
 export interface PromptContext {
   /** Browser-first workspace: steer the agent to drive the visible browser. */
   browserProject?: boolean
@@ -227,11 +235,16 @@ export interface PromptContext {
  * `provider` only changes the two blocks that name a mechanism rather than a
  * feature: the choices convention (which exists because a headless run has no
  * question tool) and the task list (Claude tracks with TaskCreate/TaskUpdate;
- * Codex keeps a plan of its own, which Superagent reads straight off the wire).
+ * Codex keeps a plan of its own, which Superagent reads straight off the wire;
+ * Antigravity has neither, and says its plan in the chat).
  */
 export function buildAppendedPrompt(ctx: PromptContext): string {
   return [
-    ctx.provider === 'codex' ? CODEX_TODO_PROMPT : TODO_PROMPT,
+    ctx.provider === 'codex'
+      ? CODEX_TODO_PROMPT
+      : ctx.provider === 'antigravity'
+        ? ANTIGRAVITY_TODO_PROMPT
+        : TODO_PROMPT,
     BOARD_PROMPT,
     SCHEDULING_PROMPT,
     CHOICES_PROMPT,

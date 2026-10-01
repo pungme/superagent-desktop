@@ -6,7 +6,8 @@ import type { AgentProvider } from '../shared/agent-provider'
  * Nothing in this file knows about a flag, a wire format or a process. Each
  * backend lives entirely in its own directory — `claude/` drives a long-lived
  * `claude` process reading stream-json on stdin, `codex/` drives a `codex
- * app-server` over JSON-RPC — and neither imports the other. `agent.ts` above
+ * app-server` over JSON-RPC, `antigravity/` drives an `agy` process reading its
+ * own stream-json — and none imports another. `agent.ts` above
  * them owns only what is genuinely shared: the session registry, which window
  * owns a session, the recap for a session that lost its memory, and the event
  * bus the renderer, the phone and the transcript all read.

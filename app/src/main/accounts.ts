@@ -12,7 +12,7 @@ import {
 } from 'fs'
 import os from 'os'
 import { join } from 'path'
-import { findClaude, findCodex } from './claude-cli'
+import { findAgy, findClaude, findCodex } from './claude-cli'
 import { broadcastToWindows } from './util'
 import type { AgentProvider } from '../shared/agent-provider'
 
@@ -91,11 +91,13 @@ export interface LimitNotice {
 
 export const LOGIN_ID: Record<AgentProvider, string> = {
   claude: 'claude:login',
-  codex: 'codex:login'
+  codex: 'codex:login',
+  antigravity: 'antigravity:login'
 }
 const LOGIN_NAME: Record<AgentProvider, string> = {
   claude: 'Your Claude login',
-  codex: 'Your Codex login'
+  codex: 'Your Codex login',
+  antigravity: 'Your Antigravity login'
 }
 /** With no reset time reported, assume the usual five-hour window. */
 export const DEFAULT_LIMIT_MS = 5 * 3_600_000
@@ -110,7 +112,8 @@ interface LoginState {
 const logins: Partial<Record<AgentProvider, LoginState>> = {}
 const SIGN_IN_HINT: Record<AgentProvider, string> = {
   claude: 'Not signed in — run `claude auth login` in Terminal',
-  codex: 'Not signed in — run `codex login` in Terminal'
+  codex: 'Not signed in — run `codex login` in Terminal',
+  antigravity: 'Not signed in — run `agy` in Terminal'
 }
 
 function filePath(): string {
@@ -624,21 +627,62 @@ function probeCodexLogin(): Promise<LoginState | null> {
   })
 }
 
+/**
+ * Antigravity has no "who am I" command, but `agy models` only answers for a
+ * signed-in account: a list on stdout, or "Please sign in" and a non-zero exit.
+ */
+function probeAntigravityLogin(): Promise<LoginState | null> {
+  return new Promise((resolve) => {
+    let out = ''
+    let err = ''
+    let proc: ReturnType<typeof spawn>
+    try {
+      proc = spawn(findAgy(), ['models'], { cwd: os.homedir(), shell: false })
+    } catch {
+      return resolve(null)
+    }
+    const timer = setTimeout(() => {
+      proc.kill()
+      resolve(null)
+    }, 15_000)
+    proc.stdout?.on('data', (c: Buffer) => (out += c.toString('utf8')))
+    proc.stderr?.on('data', (c: Buffer) => (err += c.toString('utf8')))
+    proc.on('error', () => {
+      clearTimeout(timer)
+      resolve(null)
+    })
+    proc.on('exit', (code) => {
+      clearTimeout(timer)
+      if (/sign in|not logged in|authenticat/i.test(err)) return resolve({ detail: '', signedIn: false })
+      if (code === 0 && out.trim()) return resolve({ detail: 'Google account', signedIn: true })
+      resolve(null)
+    })
+  })
+}
+
 let probed: Promise<void> | null = null
-/** Ask both CLIs who they are signed in as — once, or again with `force`. */
+/** Ask each CLI who it is signed in as — once, or again with `force`. */
 export function probeLogins(force = false): Promise<void> {
   if (!probed || force)
-    probed = Promise.all([probeClaudeLogin(), probeCodexLogin()]).then(([c, x]) => {
-      if (c) logins.claude = c
-      if (x) logins.codex = x
-    })
+    probed = Promise.all([probeClaudeLogin(), probeCodexLogin(), probeAntigravityLogin()]).then(
+      ([c, x, g]) => {
+        if (c) logins.claude = c
+        if (x) logins.codex = x
+        if (g) logins.antigravity = g
+      }
+    )
   return probed
 }
 
 export function registerAccountsIpc(): void {
   ipcMain.handle('accounts:list', async (_e, recheck?: boolean) => {
     await probeLogins(recheck === true)
-    return { claude: listAccounts('claude'), codex: listAccounts('codex'), mode: limitMode() }
+    return {
+      claude: listAccounts('claude'),
+      codex: listAccounts('codex'),
+      antigravity: listAccounts('antigravity'),
+      mode: limitMode()
+    }
   })
   ipcMain.handle('accounts:add-claude', (_e, name: string, token: string) =>
     addClaudeToken(name, token)

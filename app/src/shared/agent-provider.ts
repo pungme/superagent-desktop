@@ -2,38 +2,44 @@
  * Which coding agent is behind a chat.
  *
  * Superagent ships no AI of its own — it drives a CLI the user already pays for.
- * Claude Code was the first; Codex is the second. A provider is picked per chat
- * (with a global default) because a conversation's transcript belongs to one
- * backend's session: the id in `chats.claudeSessionId` is a Claude session id or
- * a Codex thread id depending on this field, and neither can resume the other's.
+ * Claude Code was the first; Codex is the second; Antigravity (Google's `agy`)
+ * is the third. A provider is picked per chat (with a global default) because a
+ * conversation's transcript belongs to one backend's session: the id in
+ * `chats.claudeSessionId` is a Claude session id, a Codex thread id or an
+ * Antigravity conversation id depending on this field, and none can resume
+ * another's.
  */
 
-export type AgentProvider = 'claude' | 'codex'
+export type AgentProvider = 'claude' | 'codex' | 'antigravity'
 
-export const AGENT_PROVIDERS: AgentProvider[] = ['claude', 'codex']
+export const AGENT_PROVIDERS: AgentProvider[] = ['claude', 'codex', 'antigravity']
 
 export const DEFAULT_PROVIDER: AgentProvider = 'claude'
 
 /** What to call each one in the UI, and to the agent itself in a recap. */
 export const PROVIDER_LABEL: Record<AgentProvider, string> = {
   claude: 'Claude',
-  codex: 'Codex'
+  codex: 'Codex',
+  antigravity: 'Antigravity'
 }
 
 /** The full product name, for onboarding and settings. */
 export const PROVIDER_PRODUCT: Record<AgentProvider, string> = {
   claude: 'Claude Code',
-  codex: 'Codex'
+  codex: 'Codex',
+  antigravity: 'Antigravity'
 }
 
 /** The binary each provider is driven through. */
 export const PROVIDER_BINARY: Record<AgentProvider, string> = {
   claude: 'claude',
-  codex: 'codex'
+  codex: 'codex',
+  antigravity: 'agy'
 }
 
 /**
- * The model names Claude Code answers to. Anything else belongs to Codex.
+ * The model names Claude Code answers to, and the ones Antigravity does.
+ * Anything that is neither belongs to Codex.
  *
  * A model is only meaningful to the agent that offers it: `opus` means nothing
  * to Codex, and `gpt-5-codex` means nothing to Claude Code. Passing one to the
@@ -42,14 +48,22 @@ export const PROVIDER_BINARY: Record<AgentProvider, string> = {
  */
 // Full ids too (claude-fable-5-1[1m]): the CLI's own picker hands some out.
 const CLAUDE_MODELS = /^(default|opus|sonnet|haiku|fable|mythos|claude-[\w.-]+)(\[[^\]]+\])?$/i
+// `agy models` slugs: gemini-3.8-flash-high, gpt-oss-120b-medium — and Anthropic
+// models it resells under versioned ids (claude-sonnet-4-6), which is why a
+// `claude-…` id is not proof of Claude Code. Its bare aliases (`opus`) are.
+const ANTIGRAVITY_MODELS = /^(gemini-|gpt-oss-|claude-(opus|sonnet|haiku)-\d)[\w.-]*$/i
 
 export function modelBelongsTo(model: string | undefined, provider: AgentProvider): boolean {
   if (!model) return true
-  return CLAUDE_MODELS.test(model.trim()) === (provider === 'claude')
+  const id = model.trim()
+  if (provider === 'antigravity') return ANTIGRAVITY_MODELS.test(id)
+  if (provider === 'claude') return CLAUDE_MODELS.test(id)
+  return !CLAUDE_MODELS.test(id) && !ANTIGRAVITY_MODELS.test(id)
 }
 
-/** Both backends expose these product-level modes. Codex translates each one
- * into its sandbox and approval-policy pair when the session starts. */
+/** Every backend exposes these product-level modes. Codex translates each one
+ * into its sandbox and approval-policy pair when the session starts; Antigravity
+ * into its `--mode` flag plus a tool-approval hook. */
 const PRODUCT_MODES = new Set(['bypassPermissions', 'acceptEdits', 'plan', 'ask'])
 
 export function modeBelongsTo(mode: string | undefined, _provider: AgentProvider): boolean {
@@ -59,5 +73,5 @@ export function modeBelongsTo(mode: string | undefined, _provider: AgentProvider
 
 /** Narrow an unknown (IPC payload, localStorage string, sqlite column) to a provider. */
 export function toProvider(value: unknown): AgentProvider {
-  return value === 'codex' ? 'codex' : 'claude'
+  return value === 'codex' || value === 'antigravity' ? value : 'claude'
 }

@@ -7,6 +7,7 @@ import { writeWorkspaceMcpConfig, workspaceMcpUrl } from './mcp'
 import { getDb, kvGet } from './store'
 import { runClaudeRoutine } from './claude/routine'
 import { runCodexRoutine } from './codex/routine'
+import { runAntigravityRoutine } from './antigravity/routine'
 import { broadcastToWindows, SHARED_BROWSER_PARTITION, routinePaneId } from './util'
 import { DEFAULT_PROVIDER, toProvider, type AgentProvider } from '../shared/agent-provider'
 import type { RoutineOutcome } from './agent-backend'
@@ -219,7 +220,13 @@ export async function runRoutine(routine: Routine): Promise<void> {
     // Routines are unattended: no streaming, no approvals, no steering. Each
     // backend runs the turn its own way and reports the same outcome — the
     // scheduler, the pane and the transcript below are the same either way.
-    const run = routineProvider() === 'codex' ? runCodexRoutine : runClaudeRoutine
+    const provider = routineProvider()
+    const run =
+      provider === 'codex'
+        ? runCodexRoutine
+        : provider === 'antigravity'
+          ? runAntigravityRoutine
+          : runClaudeRoutine
     result = await run({
       prompt: routine.prompt,
       systemPrompt: ROUTINE_SYSTEM_PROMPT,

@@ -198,7 +198,7 @@ export interface WireChat {
    * so it sent settings the other agent refuses to start with. Absent from
    * older Macs, which is why the Mac also drops a setting that does not belong.
    */
-  provider?: 'claude' | 'codex'
+  provider?: 'claude' | 'codex' | 'antigravity'
   /** The /loop running in this conversation, if any. Absent from older Macs. */
   loop?: WireLoop | null
 }
