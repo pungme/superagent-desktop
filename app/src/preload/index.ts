@@ -650,6 +650,11 @@ export interface CoveApi {
   chatGetModel: (chatId: string) => Promise<string | null>
   chatSave: (chatId: string, data: string) => void
   chatClear: (chatId: string) => void
+  /** A chat's unsent text: kept by the app, shared with the phone. */
+  draftGet: (chatId: string) => Promise<string>
+  draftSet: (chatId: string, text: string) => void
+  /** Someone else (the phone, another window) changed a chat's unsent text. */
+  onDraftChanged: (cb: (p: { chatId: string; text: string }) => void) => () => void
 
   historyRecord: (url: string, title: string) => void
   historySearch: (query: string) => Promise<{ url: string; title: string }[]>
@@ -1104,6 +1109,10 @@ const cove: CoveApi = {
   chatGetModel: (chatId) => ipcRenderer.invoke('chat:get-model', chatId),
   chatSave: (chatId, data) => ipcRenderer.send('chat:save', chatId, data),
   chatClear: (chatId) => ipcRenderer.send('chat:clear', chatId),
+  draftGet: (chatId) => ipcRenderer.invoke('draft:get', chatId),
+  draftSet: (chatId, text) => ipcRenderer.send('draft:set', chatId, text),
+  onDraftChanged: (cb) =>
+    subscribe('draft:changed', (p) => cb(p as { chatId: string; text: string })),
 
   historyRecord: (url, title) => ipcRenderer.send('history:record', url, title, Date.now()),
   getPathForFile: (file) => webUtils.getPathForFile(file),

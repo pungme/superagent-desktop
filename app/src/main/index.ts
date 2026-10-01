@@ -68,6 +68,7 @@ import { registerExternalBrowserIpc, closeExternalBrowsers, finishSignIn } from 
 import { registerSignInsIpc } from './sign-ins'
 import { registerResetIpc } from './reset'
 import { registerAccountsIpc } from './accounts'
+import { registerDrafts } from './drafts'
 import { watchScreenshots } from './screenshots'
 import { signInBus } from './google-signin'
 import { registerFilesIpc } from './files'
@@ -288,6 +289,7 @@ app.whenReady().then(async () => {
   registerSignInsIpc()
   registerResetIpc()
   registerAccountsIpc()
+  registerDrafts()
   // The first-run intro plays with sound. Test runs launch the app fresh with a
   // settings folder of their own (COVE_USER_DATA), so it would play out of the
   // speakers on every one; they get it only when they ask (COVE_E2E_INTRO).

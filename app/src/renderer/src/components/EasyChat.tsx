@@ -2142,6 +2142,74 @@ export function EasyChat({
     })
   }
 
+  // What is typed and not sent is kept by the app, not by this component: it
+  // is there again after a restart, and the phone shows the same words.
+  //
+  // `draftSyncedRef` is the text the app holds as far as this composer knows
+  // (null until it has been read). While what is typed differs from it, there
+  // is a write on its way and a draft arriving from elsewhere is ignored:
+  // whoever is typing wins. Mentions are stored as their full paths, the way
+  // the message would be sent, so the phone sees a real path.
+  const draftSyncedRef = useRef<string | null>(null)
+  const draftTimerRef = useRef<number | null>(null)
+  const inputNowRef = useRef(input)
+  inputNowRef.current = input
+  const draftText = (text: string): string => (text.trim() ? expandMentions(text, mentionMap) : '')
+  const writeDraft = (): void => {
+    if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = null
+    const text = draftText(inputNowRef.current)
+    if (draftSyncedRef.current === null || text === draftSyncedRef.current) return
+    draftSyncedRef.current = text
+    window.cove.draftSet(chatId, text)
+  }
+  const writeDraftRef = useRef(writeDraft)
+  writeDraftRef.current = writeDraft
+  const showDraft = (text: string): void => {
+    draftSyncedRef.current = text
+    setInput(compactMentions(text, text.length, mentionMap).text)
+    autoResize()
+  }
+  const showDraftRef = useRef(showDraft)
+  showDraftRef.current = showDraft
+  useEffect(() => {
+    let gone = false
+    void window.cove.draftGet(chatId).then((text) => {
+      if (gone) return
+      // Already typing before it loaded: those words stand, and are written.
+      if (inputNowRef.current.trim()) {
+        draftSyncedRef.current = text
+        writeDraftRef.current()
+      } else showDraftRef.current(text)
+    })
+    const off = window.cove.onDraftChanged((d) => {
+      if (d.chatId !== chatId || draftSyncedRef.current === null) return
+      const mine = inputNowRef.current
+      const typing =
+        (mine.trim() ? expandMentions(mine, mentionMap) : '') !== draftSyncedRef.current
+      if (!typing) showDraftRef.current(d.text)
+    })
+    // Quitting or closing the window inside the pause below must not lose
+    // the last few words.
+    const flush = (): void => writeDraftRef.current()
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      gone = true
+      off()
+      window.removeEventListener('beforeunload', flush)
+      flush()
+    }
+  }, [chatId, mentionMap])
+  useEffect(() => {
+    if (draftSyncedRef.current === null) return
+    if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = null
+    // Emptied — sent, or deleted: say so at once, so a message that has gone
+    // cannot come back as a draft if the app closes in the next moment.
+    if (!input.trim()) writeDraftRef.current()
+    else draftTimerRef.current = window.setTimeout(() => writeDraftRef.current(), 400)
+  }, [input])
+
   // Insert a file reference (clicked in the file tree) into the composer — don't send.
   useEffect(() => {
     const onInsert = (e: Event): void => {

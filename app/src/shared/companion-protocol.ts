@@ -250,6 +250,12 @@ export type ServerFrame =
    * after this start again from 1.
    */
   | { t: 'reset'; chatId: string }
+  /**
+   * What is typed and unsent in a chat's composer, on the Mac or another
+   * device. Sent when the phone subscribes ('' for an empty composer) and
+   * whenever it changes while the phone is watching.
+   */
+  | { t: 'draft'; chatId: string; text: string }
   | { t: 'status'; workspaceId: string; status: 'idle' | 'working' | 'needs-you' }
   | { t: 'chats'; chats: WireChat[] }
   /**
@@ -336,6 +342,7 @@ export type RpcMethod =
   | 'chat.create'
   | 'chat.setAgent'
   | 'chat.rename'
+  | 'chat.draft'
   | 'chat.pin'
   | 'chat.reorderPinned'
   | 'chat.delete'

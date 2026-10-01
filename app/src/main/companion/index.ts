@@ -2,6 +2,7 @@ import { ipcMain, powerMonitor, powerSaveBlocker } from 'electron'
 import { RelayClient } from './relay-client'
 import { ClientConn } from './session'
 import { logBus, record, eventsAfter } from './log'
+import { draftBus } from '../drafts'
 import { keepAwakeSetting, shouldStayAwake } from './keep-awake'
 import { browserBus, type BrowserPaneState } from '../browser'
 import { simBus, deviceLabel } from '../simulator'
@@ -107,6 +108,12 @@ export function startCompanion(): void {
   // Every phone, watching or not: each keeps a copy of chats it has opened.
   logBus.on('reset', ({ chatId }: { chatId: string }) => {
     for (const c of conns.values()) if (c.authenticated) c.send({ t: 'reset', chatId })
+  })
+  // A draft goes to phones with that chat open; the rest get it on opening it.
+  draftBus.on('changed', (d: { chatId: string; text: string; origin: unknown }) => {
+    for (const c of conns.values())
+      if (c !== d.origin && c.authenticated && c.subs.has(d.chatId))
+        c.send({ t: 'draft', chatId: d.chatId, text: d.text })
   })
   logBus.on('delta', ({ chatId, text }: { chatId: string; text: string }) => {
     for (const c of conns.values())

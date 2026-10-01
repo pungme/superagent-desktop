@@ -173,6 +173,15 @@ export function initStore(): void {
       createdAt INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_queued_sends_chat ON queued_sends(chatId, createdAt);
+
+    -- What is typed in a chat's composer and not yet sent. Kept here, not in
+    -- the window, so it is still there after a restart and the phone can pick
+    -- up the same sentence.
+    CREATE TABLE IF NOT EXISTS drafts (
+      chatId TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      updatedAt INTEGER NOT NULL
+    );
   `)
 
   // Migration: pictures on a list item, for databases that predate them.
@@ -510,6 +519,30 @@ export function listChatEvents(chatId: string, afterSeq: number, limit = 500): C
       'SELECT chatId, seq, ts, kind, data FROM chat_events WHERE chatId = ? AND seq > ? ORDER BY seq LIMIT ?'
     )
     .all(chatId, afterSeq, limit) as ChatEventRow[]
+}
+
+/** A chat's unsent text, or '' when its composer is empty. */
+export function chatDraft(chatId: string): string {
+  return (
+    (
+      db.prepare('SELECT text FROM drafts WHERE chatId = ?').get(chatId) as
+        { text: string } | undefined
+    )?.text ?? ''
+  )
+}
+
+/** Keep (or, when empty, drop) a chat's unsent text. False for a chat that is gone. */
+export function setChatDraft(chatId: string, text: string): boolean {
+  if (!text) {
+    db.prepare('DELETE FROM drafts WHERE chatId = ?').run(chatId)
+    return true
+  }
+  if (!db.prepare('SELECT 1 FROM chats WHERE id = ?').get(chatId)) return false
+  db.prepare(
+    `INSERT INTO drafts (chatId, text, updatedAt) VALUES (?, ?, ?)
+     ON CONFLICT(chatId) DO UPDATE SET text = excluded.text, updatedAt = excluded.updatedAt`
+  ).run(chatId, text, Date.now())
+  return true
 }
 
 /** When the event with this number was written, to tell one log from the next. */

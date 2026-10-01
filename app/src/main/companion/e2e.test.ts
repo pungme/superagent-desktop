@@ -22,6 +22,7 @@ const h = vi.hoisted(() => {
     agentBus: new EventEmitter(),
     hookBus: new EventEmitter(),
     cleared: [] as ((ids: string[]) => void)[],
+    drafts: new Map<string, string>(),
     kv: new Map<string, string>(),
     devices: new Map<
       string,
@@ -149,6 +150,12 @@ vi.mock('../store', () => ({
   chatEventTs: (chatId: string, seq: number) =>
     (h.events.get(chatId) ?? []).find((e) => e.seq === seq)?.ts,
   onChatsCleared: (cb: (ids: string[]) => void) => h.cleared.push(cb),
+  chatDraft: (chatId: string) => h.drafts.get(chatId) ?? '',
+  setChatDraft: (chatId: string, text: string) => {
+    if (text) h.drafts.set(chatId, text)
+    else h.drafts.delete(chatId)
+    return true
+  },
   loadChatItems: (chatId: string) => h.items.get(chatId) ?? [],
   appendChatItems: (chatId: string, items: unknown[]) =>
     h.items.set(chatId, [...(h.items.get(chatId) ?? []), ...items])
@@ -543,6 +550,42 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
       event: { seq: 1, data: { kind: 'user', id: 'L-clear', text: 'after the clear' } }
     })
     late.ws.close()
+  })
+
+  it('an unsent draft travels both ways, and not back to whoever typed it', async () => {
+    const { saveDraft, draftOf } = await import('../drafts')
+    saveDraft('c1', 'started on the Mac', null)
+
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    // Opening the chat brings what is in the Mac's composer.
+    phone.send({ t: 'subscribe', chatId: 'c1', afterSeq: 0 })
+    expect(await phone.until((f) => f.t === 'draft')).toMatchObject({
+      chatId: 'c1',
+      text: 'started on the Mac'
+    })
+
+    // Typing on the Mac while the phone watches.
+    saveDraft('c1', 'started on the Mac, and more', null)
+    expect(await phone.until((f) => f.t === 'draft')).toMatchObject({
+      text: 'started on the Mac, and more'
+    })
+
+    // Typing on the phone: the Mac keeps it, and the phone is not told its own words.
+    phone.send({
+      t: 'req', id: 'd1', method: 'chat.draft',
+      params: { chatId: 'c1', text: 'finished on the phone' }
+    })
+    const next = await phone.until((f) => f.t === 'draft' || f.t === 'res')
+    expect(next).toMatchObject({ t: 'res', id: 'd1', ok: true })
+    expect(draftOf('c1')).toBe('finished on the phone')
+
+    // Sent from the Mac: the composer there empties, and the phone hears it.
+    saveDraft('c1', '', null)
+    expect(await phone.until((f) => f.t === 'draft')).toMatchObject({ chatId: 'c1', text: '' })
+    phone.ws.close()
   })
 
   it('a retried send (same localId) acks without appending or re-running', async () => {
