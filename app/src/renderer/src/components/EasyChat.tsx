@@ -1065,9 +1065,12 @@ const MessageRow = memo(function MessageRow({
   onReply,
   onEdit,
   onAnswer,
-  onLightbox
+  onLightbox,
+  cwd
 }: {
   msg: ChatMessage
+  /** The chat's folder: where a relative image path in a reply is looked for. */
+  cwd?: string
   /** This is the last user message and no turn is running — offer Edit. */
   showEdit: boolean
   /** iMessage-style clustering: only the last message before a real pause
@@ -1129,7 +1132,13 @@ const MessageRow = memo(function MessageRow({
       {segments ? (
         segments.map((seg, si) =>
           'md' in seg ? (
-            <Markdown key={si} text={seg.md} streaming={msg.streaming} onImage={onLightbox} />
+            <Markdown
+              key={si}
+              text={seg.md}
+              streaming={msg.streaming}
+              onImage={onLightbox}
+              baseDir={cwd}
+            />
           ) : (
             <Choices
               key={si}
@@ -4140,6 +4149,7 @@ export function EasyChat({
           onEdit={onRowEdit}
           onAnswer={onRowAnswer}
           onLightbox={onRowLightbox}
+          cwd={cwd}
         />
       )
     }

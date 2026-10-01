@@ -716,6 +716,32 @@ export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
   })
 }
 
+/**
+ * Where an image the agent named in a reply lives on disk: an absolute path, a
+ * file:// URL, one under ~, or one relative to the chat's folder. Null for
+ * anything that is not a local file (a web address is the window's to load).
+ */
+export function localImagePath(given: string, base?: string): string | null {
+  let p = given.trim()
+  if (!p || /^(https?|data|blob):/i.test(p)) return null
+  if (/^file:\/\//i.test(p)) {
+    try {
+      p = decodeURIComponent(new URL(p).pathname)
+    } catch {
+      return null
+    }
+  } else {
+    try {
+      p = decodeURIComponent(p)
+    } catch {
+      // a literal % in a file name: use it as written
+    }
+  }
+  if (p === '~' || p.startsWith('~/')) p = join(homedir(), p.slice(1))
+  if (p.startsWith('/')) return p
+  return base ? resolve(base, p) : null
+}
+
 export function registerFilesIpc(): void {
   ipcMain.on('bg:sync', (_e, chatId: string, tasks: Omit<PublishedBackgroundTask, 'chatId'>[]) => {
     backgroundTasks.set(
@@ -1047,17 +1073,26 @@ export function registerFilesIpc(): void {
    */
   ipcMain.handle(
     'files:thumbnail',
-    (_e, path: string): { mediaType: string; data: string } | null => {
+    (
+      _e,
+      given: string,
+      opts?: { base?: string; width?: number }
+    ): { mediaType: string; data: string } | null => {
       try {
-        if (!IMAGE_EXTS.has(extname(path).toLowerCase())) return null
+        const path = localImagePath(given, opts?.base)
+        if (!path || !IMAGE_EXTS.has(extname(path).toLowerCase())) return null
         // A picture the agent made is small; anything huge is not worth
         // decoding on the main process to show at 900px.
         if (statSync(path).size > 40_000_000) return null
         const img = nativeImage.createFromPath(path)
         if (img.isEmpty()) return null
+        const max = Math.min(Math.max(opts?.width ?? 900, 200), 2400)
         const { width } = img.getSize()
-        const shown = width > 900 ? img.resize({ width: 900 }) : img
-        return { mediaType: 'image/jpeg', data: shown.toJPEG(72).toString('base64') }
+        const shown = width > max ? img.resize({ width: max }) : img
+        return {
+          mediaType: 'image/jpeg',
+          data: shown.toJPEG(max > 900 ? 82 : 72).toString('base64')
+        }
       } catch {
         return null
       }

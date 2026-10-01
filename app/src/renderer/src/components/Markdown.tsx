@@ -1,5 +1,5 @@
-import { useState, useMemo, memo } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { useEffect, useState, useMemo, memo } from 'react'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 // Core + a curated language set keeps the bundle small vs. the full 190-language build.
 import hljs from 'highlight.js/lib/core'
@@ -92,12 +92,71 @@ function CodeBlock({
   )
 }
 
+const isWebImage = (src: string): boolean => /^(https?|data|blob):/i.test(src)
+
+/**
+ * An image in a reply. A web address loads as it is; a file on this Mac — what
+ * an agent means by "here are the screenshots" — is read by main and shown the
+ * same way. The window cannot point an <img> at a path on disk itself.
+ */
+function MdImage({
+  src,
+  alt,
+  baseDir,
+  onImage
+}: {
+  src: string
+  alt: string
+  baseDir?: string
+  onImage?: (src: string) => void
+}): React.JSX.Element | null {
+  const web = isWebImage(src)
+  const [local, setLocal] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (web) return
+    let alive = true
+    void window.cove
+      .fileThumbnail(src, { base: baseDir, width: 1600 })
+      .then((r) => {
+        if (alive) setLocal(r ? `data:${r.mediaType};base64,${r.data}` : null)
+      })
+      .catch(() => {
+        if (alive) setLocal(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [src, baseDir, web])
+  const shown = web ? src : local
+  if (shown === undefined) return <span className="md-img-loading" aria-hidden="true" />
+  // Not a picture we could read: say which, rather than a broken-image icon.
+  if (shown === null)
+    return (
+      <span className="md-img-missing" title={src}>
+        🖼 {alt || src.split('/').pop()}
+      </span>
+    )
+  if (!onImage) return <img className="md-img" src={shown} alt={alt} />
+  return (
+    <button
+      className="md-img-thumb"
+      onClick={() => onImage(shown)}
+      title={alt ? `${alt} — click to enlarge` : 'Click to enlarge'}
+    >
+      <img src={shown} alt={alt} />
+    </button>
+  )
+}
+
 /** Renders assistant text as GitHub-flavored markdown, with copyable code blocks. */
 export const Markdown = memo(function Markdown({
   text,
   streaming,
-  onImage
+  onImage,
+  baseDir
 }: {
+  /** The chat's folder: where a relative image path in a reply is looked for. */
+  baseDir?: string
   text: string
   /** The bubble is still receiving tokens — defer expensive syntax highlight. */
   streaming?: boolean
@@ -109,6 +168,9 @@ export const Markdown = memo(function Markdown({
     <div className="md">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        // The default drops file:// and bare paths from image sources; those are
+        // exactly the ones MdImage reads from disk. Links keep the safe default.
+        urlTransform={(url, key) => (key === 'src' ? url : defaultUrlTransform(url))}
         components={{
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
@@ -127,16 +189,7 @@ export const Markdown = memo(function Markdown({
           // opens it full size.
           img({ src, alt }) {
             if (typeof src !== 'string' || !src) return null
-            if (!onImage) return <img className="md-img" src={src} alt={alt ?? ''} />
-            return (
-              <button
-                className="md-img-thumb"
-                onClick={() => onImage(src)}
-                title={alt ? `${alt} — click to enlarge` : 'Click to enlarge'}
-              >
-                <img src={src} alt={alt ?? ''} />
-              </button>
-            )
+            return <MdImage src={src} alt={alt ?? ''} baseDir={baseDir} onImage={onImage} />
           },
           a({ children, href }) {
             return (

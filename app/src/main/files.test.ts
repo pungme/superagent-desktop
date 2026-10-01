@@ -19,3 +19,21 @@ describe('resolveInside', () => {
     expect(resolveInside('/p/app', '../app2/x')).toBeNull()
   })
 })
+
+describe('an image named in a reply', () => {
+  it('finds it on disk from a path, a file URL, ~ or the chat folder', async () => {
+    const { localImagePath } = await import('./files')
+    const { homedir } = await import('os')
+    expect(localImagePath('/tmp/a b/shot.png')).toBe('/tmp/a b/shot.png')
+    expect(localImagePath('file:///tmp/a%20b/shot.png')).toBe('/tmp/a b/shot.png')
+    expect(localImagePath('/tmp/a%20b/shot.png')).toBe('/tmp/a b/shot.png')
+    expect(localImagePath('~/Desktop/x.png')).toBe(`${homedir()}/Desktop/x.png`)
+    expect(localImagePath('test-results/1.png', '/Users/me/proj')).toBe(
+      '/Users/me/proj/test-results/1.png'
+    )
+    // Relative with nowhere to look from, and anything on the web: not ours.
+    expect(localImagePath('shots/1.png')).toBeNull()
+    expect(localImagePath('https://example.com/x.png')).toBeNull()
+    expect(localImagePath('data:image/png;base64,AAAA')).toBeNull()
+  })
+})

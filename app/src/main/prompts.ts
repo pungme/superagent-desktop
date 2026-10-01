@@ -130,6 +130,15 @@ const CHOICES_PROMPT =
   'message, act on that question, and say which one you took it for.'
 
 // Files the user should see belong INSIDE Superagent, not a separate OS window.
+// A picture in the reply is what "show me" and "send me the screenshots" ask for.
+const INLINE_IMAGE_PROMPT =
+  'You can put pictures straight into your reply: write a Markdown image whose target is the ' +
+  "file's path on this Mac — `![what it shows](/absolute/path/to/shot.png)` — and Superagent " +
+  'shows it in the chat as a thumbnail the user can click to enlarge (PNG, JPEG, GIF, WebP; ' +
+  'a path relative to the project folder works too). When the user asks to see, be sent or be ' +
+  'shown screenshots, photos or images, answer with the pictures themselves this way, each ' +
+  'with a short caption, rather than a list of file names or a file opened in the viewer.'
+
 const FILE_OPEN_PROMPT =
   'When the user asks you to open or show them a file (a PDF, an image, a document, ' +
   'a markdown/text/code file), use the open_file tool — it displays the file inside ' +
@@ -228,6 +237,7 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
     SCHEDULING_PROMPT,
     CHOICES_PROMPT,
     FILE_OPEN_PROMPT,
+    INLINE_IMAGE_PROMPT,
     SIMULATOR_PROMPT,
     ctx.browserProject || ctx.workspaceId === DESKTOP_WORKSPACE_ID ? '' : WORKTREE_PROMPT,
     ctx.browserProject ? BROWSER_SYSTEM_PROMPT : '',
