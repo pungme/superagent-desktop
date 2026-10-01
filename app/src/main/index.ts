@@ -407,61 +407,70 @@ app.whenReady().then(async () => {
     return true
   })
 
-  ipcMain.on('chat:menu', (e, chatId: string, workspaceId: string, cwd?: string | null) => {
-    const win = BrowserWindow.fromWebContents(e.sender)
-    if (!win) return
-    const template: Electron.MenuItemConstructorOptions[] = []
-    const pinned = Boolean(getChat(chatId)?.pinned)
-    template.push({
-      label: pinned ? 'Unpin chat' : 'Pin chat',
-      click: () => {
-        setChatPinned(chatId, !pinned)
-        win.webContents.send('projects:changed', {})
-        pushChats()
+  ipcMain.on(
+    'chat:menu',
+    (e, chatId: string, workspaceId: string, cwd?: string | null, unread?: boolean) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      const template: Electron.MenuItemConstructorOptions[] = []
+      // Come back to it later: the dot goes back on until it is opened again.
+      // Which way it reads is the window's to say — the marks live there.
+      template.push({
+        label: unread ? 'Mark as read' : 'Mark as unread',
+        click: () => win.webContents.send('chat:mark', { chatId, unread: !unread })
+      })
+      const pinned = Boolean(getChat(chatId)?.pinned)
+      template.push({
+        label: pinned ? 'Unpin chat' : 'Pin chat',
+        click: () => {
+          setChatPinned(chatId, !pinned)
+          win.webContents.send('projects:changed', {})
+          pushChats()
+        }
+      })
+      template.push({ type: 'separator' })
+      // A worktree chat's changes can be kept (squashed into the project) or
+      // thrown away when you're done.
+      if (cwd && cwd.includes('/.worktrees/')) {
+        const projectPath = cwd.split('/.worktrees/')[0]
+        template.push(
+          {
+            label: 'Keep changes…',
+            click: () => void askKeep(win, { chatId, workspaceId, projectPath, wtPath: cwd })
+          },
+          {
+            label: 'Throw away…',
+            click: () => void askThrowAway(win, { chatId, workspaceId })
+          },
+          { type: 'separator' }
+        )
       }
-    })
-    template.push({ type: 'separator' })
-    // A worktree chat's changes can be kept (squashed into the project) or
-    // thrown away when you're done.
-    if (cwd && cwd.includes('/.worktrees/')) {
-      const projectPath = cwd.split('/.worktrees/')[0]
       template.push(
         {
-          label: 'Keep changes…',
-          click: () => void askKeep(win, { chatId, workspaceId, projectPath, wtPath: cwd })
-        },
-        {
-          label: 'Throw away…',
-          click: () => void askThrowAway(win, { chatId, workspaceId })
-        },
-        { type: 'separator' }
-      )
-    }
-    template.push(
-      {
-        label: 'Clear chat…',
-        click: async () => {
-          const { response } = await dialog.showMessageBox(win, {
-            type: 'warning',
-            buttons: ['Clear', 'Cancel'],
-            defaultId: 1,
-            message: 'Clear this chat?',
-            detail: 'The transcript and its session context are wiped. The chat itself stays.'
-          })
-          if (response === 0) {
-            forgetChat(chatId)
-            win.webContents.send('chat:cleared', { chatId, workspaceId })
+          label: 'Clear chat…',
+          click: async () => {
+            const { response } = await dialog.showMessageBox(win, {
+              type: 'warning',
+              buttons: ['Clear', 'Cancel'],
+              defaultId: 1,
+              message: 'Clear this chat?',
+              detail: 'The transcript and its session context are wiped. The chat itself stays.'
+            })
+            if (response === 0) {
+              forgetChat(chatId)
+              win.webContents.send('chat:cleared', { chatId, workspaceId })
+            }
           }
+        },
+        { type: 'separator' },
+        {
+          label: 'Delete chat',
+          click: () => win.webContents.send('chat:delete', { chatId, workspaceId })
         }
-      },
-      { type: 'separator' },
-      {
-        label: 'Delete chat',
-        click: () => win.webContents.send('chat:delete', { chatId, workspaceId })
-      }
-    )
-    Menu.buildFromTemplate(template).popup({ window: win })
-  })
+      )
+      Menu.buildFromTemplate(template).popup({ window: win })
+    }
+  )
 
   // Right-click a branch row. These actions have to live here rather than only
   // inside a chat: a worktree whose chat was deleted still exists on disk, and

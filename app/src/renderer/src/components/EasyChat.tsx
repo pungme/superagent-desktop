@@ -3433,7 +3433,8 @@ export function EasyChat({
   useEffect(() => {
     if (!visible) return
     const clear = (): void => {
-      if (document.hasFocus()) markRead(chatId)
+      // Not one you marked unread on purpose: that waits until you open it again.
+      if (document.hasFocus() && !useStore.getState().heldUnread[chatId]) markRead(chatId)
     }
     clear()
     window.addEventListener('focus', clear)

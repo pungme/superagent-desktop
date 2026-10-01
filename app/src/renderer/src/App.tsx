@@ -307,6 +307,15 @@ function App(): React.JSX.Element {
     }
   }, [])
 
+  // The chat menu's "Mark as unread" / "Mark as read".
+  useEffect(() => {
+    return window.cove.onChatMark(({ chatId, unread }) => {
+      const s = useStore.getState()
+      if (unread) s.flagUnread(chatId)
+      else s.markRead(chatId)
+    })
+  }, [])
+
   // Chat row context-menu actions, confirmed in main where the native menu lives.
   useEffect(() => {
     const offClear = window.cove.onChatCleared(({ chatId, workspaceId }) => {

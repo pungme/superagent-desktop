@@ -184,6 +184,22 @@ export function noteChatsSeen(chats: { id: string; updatedAt?: number }[]): void
   if (changed) writeSeen(seen)
 }
 
+/**
+ * Mark a conversation unread by hand, so it stays that way across a restart:
+ * wind its "last seen" back to the beginning, and anything in it counts as new.
+ * Opening it again reads it (markRead → seenNow), like any other.
+ */
+function unseen(chatId: string): void {
+  const seen = readSeen()
+  seen[chatId] = 0
+  writeSeen(seen)
+}
+
+/** Unread by either mark: the in-memory flag, or moved since you last saw it. */
+export function chatIsUnread(chat: { id: string; updatedAt?: number }): boolean {
+  return Boolean(useStore.getState().unread[chat.id]) || movedSinceSeen(chat)
+}
+
 /** Has this conversation moved since you last had it open? */
 export function movedSinceSeen(chat: { id: string; updatedAt?: number }): boolean {
   const at = readSeen()[chat.id]
@@ -449,6 +465,14 @@ interface CoveState {
    */
   unread: Record<string, boolean>
   markUnread: (chatId: string) => void
+  /** "Mark as unread" from the menu: kept across a restart, until it is opened. */
+  flagUnread: (chatId: string) => void
+  /**
+   * Chats marked unread by hand in this run. The chat on screen reads itself
+   * whenever the window comes back into focus; a mark you set on purpose must
+   * outlast that, until you open the chat again or mark it read.
+   */
+  heldUnread: Record<string, boolean>
   markRead: (chatId: string) => void
   setBusy: (chatId: string, state: { generating: boolean; background: number }) => void
   clearBusy: (chatId: string) => void
@@ -1318,15 +1342,28 @@ export const useStore = create<CoveState>((set, get) => ({
 
   markUnread: (chatId) =>
     set((s) => (s.unread[chatId] ? s : { unread: { ...s.unread, [chatId]: true } })),
+  heldUnread: {},
+  flagUnread: (chatId) => {
+    unseen(chatId)
+    set((s) => ({
+      unread: { ...s.unread, [chatId]: true },
+      heldUnread: { ...s.heldUnread, [chatId]: true }
+    }))
+  },
   markRead: (chatId) => {
     // Reading it is reading it up to now. Written down, so quitting the app is
     // not the same as reading everything in it.
+    // A mark set by hand before a restart lives only in the saved "seen"
+    // times (0 = never): clearing it has to redraw the sidebar as well.
+    const wasUnseen = readSeen()[chatId] === 0
     seenNow(chatId)
     set((s) => {
-      if (!s.unread[chatId]) return s
+      if (!s.unread[chatId] && !s.heldUnread[chatId] && !wasUnseen) return s
       const next = { ...s.unread }
       delete next[chatId]
-      return { unread: next }
+      const held = { ...s.heldUnread }
+      delete held[chatId]
+      return { unread: next, heldUnread: held }
     })
   },
   setBusy: (chatId, state) =>

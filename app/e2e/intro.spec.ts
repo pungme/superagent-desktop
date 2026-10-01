@@ -26,7 +26,7 @@ test('a first launch plays the intro, then hands over to the app, once', async (
     await expect(window.locator('.first-run-intro iframe')).toBeVisible({ timeout: 10_000 })
     const intro = window.frameLocator('.first-run-intro iframe')
     await expect(intro.locator('#stage')).toBeVisible()
-    await expect(window.locator('.first-run-intro')).toHaveCount(0, { timeout: 35_000 })
+    await expect(window.locator('.first-run-intro')).toHaveCount(0, { timeout: 40_000 })
     await expect(window.locator('.sidebar, .onboarding')).toBeVisible()
     expect(await window.evaluate(() => localStorage.getItem('cove.firstRunIntroSeen'))).toBe('1')
     // Not again on the next launch.

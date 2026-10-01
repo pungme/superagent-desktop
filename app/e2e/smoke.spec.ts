@@ -353,3 +353,38 @@ test('a chat in the sidebar closes from its hover ×, asking first if it was use
   expect(asked).toBe(2)
   window.off('dialog', onDialog)
 })
+
+test('a chat can be marked unread, and stays so until it is opened', async () => {
+  const toggle = window.locator('.sidebar-chats-toggle')
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+  const newChat = window.locator('.sidebar-chats-head button[aria-label="New chat"]')
+  await newChat.click()
+  await newChat.click()
+  const rows = window.locator('.sidebar-chats .sidebar-chat-row')
+  await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
+  // The one that is NOT on screen (the second New chat is the open one).
+  const target = rows.nth(1)
+  const id = (await target.getAttribute('data-chat-id'))!
+  const row = window.locator(`.sidebar-chat-row[data-chat-id="${id}"]`)
+  await expect(row.locator('.sidebar-chat-dot.unread')).toHaveCount(0)
+  // What the chat menu's "Mark as unread" sends.
+  const mark = (unread: boolean): Promise<void> =>
+    app.evaluate(
+      ({ BrowserWindow }, p) => BrowserWindow.getAllWindows()[0].webContents.send('chat:mark', p),
+      { chatId: id, unread }
+    )
+  await mark(true)
+  await expect(row.locator('.sidebar-chat-dot.unread')).toHaveCount(1)
+  // Still unread after a restart of the window.
+  await window.reload()
+  await window.waitForSelector('.sidebar-chats .sidebar-chat-row', { timeout: 20_000 })
+  await expect(row.locator('.sidebar-chat-dot.unread')).toHaveCount(1)
+  // "Mark as read" clears it again…
+  await mark(false)
+  await expect(row.locator('.sidebar-chat-dot.unread')).toHaveCount(0)
+  // …and so does opening it.
+  await mark(true)
+  await expect(row.locator('.sidebar-chat-dot.unread')).toHaveCount(1)
+  await row.click()
+  await expect(row.locator('.sidebar-chat-dot.unread')).toHaveCount(0)
+})

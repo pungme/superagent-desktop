@@ -64,6 +64,9 @@ const CODEX = 'M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.
 const APPLE = 'M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z'
 const claudeSvg = (s, st = '') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}"><path fill="#D97757" d="${CLAUDE}"/></svg>`
 const codexSvg = (s, col = 'currentColor', st = '') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}"><path fill="${col}" fill-rule="evenodd" clip-rule="evenodd" d="${CODEX}"/></svg>`
+const GEMINI = 'M12 0C12 6.63 17.37 12 24 12 17.37 12 12 17.37 12 24 12 17.37 6.63 12 0 12 6.63 12 12 6.63 12 0Z'
+let gemN = 0
+const geminiSvg = (s, st = '') => { const id = `gem${gemN++}`; return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}"><defs><linearGradient id="${id}" x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285F4"/><stop offset=".55" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient></defs><path fill="url(#${id})" d="${GEMINI}"/></svg>` }
 const appleSvg = (s, col = '#fff') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path fill="${col}" d="${APPLE}"/></svg>`
 const pointer = `<svg class="ptr" viewBox="0 0 24 24"><path d="M4 2.5v17.2l4.6-4.3 3 6.6 3-1.4-3-6.4h6.3z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>`
 const agentEl = (label = 'Claude') => h(`<div class="agent">${pointer}<div class="tag">${claudeSvg(13, 'filter:brightness(0) invert(1)')}${label}</div></div>`)
@@ -108,7 +111,7 @@ gsap.set([line1, line2], { yPercent: -50 })
 // measure
 const c1 = $$('.c', line1)
 const w1 = c1.map((c) => c.getBoundingClientRect().width)
-const tc = c1.map((_, i) => T(1, 1.5) + i * 0.04)
+const tc = c1.map((_, i) => T(1, 1.5) + i * BEAT / 12)
 const l2w = line2.getBoundingClientRect().width
 gsap.set(line2, { x: -l2w / 2 })
 const words2 = $$('.w', line2)
@@ -242,8 +245,8 @@ kanaCh.forEach((_, i) => cue('tick', T(3, 3.2) + 0.14 + i * 0.045, { vel: 0.3 })
 // tagline
 const tagW = $$('.wi', tagline)
 tagW.forEach((w, i) => {
-  tl.fromTo(w, { yPercent: 110 }, { yPercent: 0, duration: 0.6, ease: 'expo.out' }, T(4, 1 + i * 0.4))
-  cue('pop', T(4, 1 + i * 0.4), { midi: pitch.F[i % 6], vel: 0.5, pan: (i - 2) * 0.2 })
+  tl.fromTo(w, { yPercent: 110 }, { yPercent: 0, duration: 0.6, ease: 'expo.out' }, T(4, i * 0.5))
+  cue('pop', T(4, i * 0.5), { midi: pitch.F[i % 6], vel: 0.5, pan: (i - 2) * 0.2 })
 })
 tl.to($('.uline', tagline), { scaleX: 1, duration: 0.45, ease: 'expo.out' }, T(4, 3.5))
 cue('shine', T(4, 3.5), { vel: 0.6 })
@@ -539,12 +542,13 @@ const brNodes = bx.map((x, i) => { const n = h(`<div class="bnode" style="left:$
 const cardsData = [['Tighten the hero copy', 'chat/tighten-hero', 'claude', 'spin'], ['Fix the flaky auth test', 'chat/fix-auth-test', 'codex', 'dot'], ['Migrate to pnpm', 'chat/migrate-pnpm', 'claude', 'check']]
 const brCards = cardsData.map(([title, br, prov, st], i) => {
   const c = h(`<div class="bcard2" style="left:${bx[i] + 190}px;top:${by[i] - 58}px">
-    <div class="pl"><span class="pc">${claudeSvg(24)}</span><span class="px" style="position:absolute;display:flex">${codexSvg(24, '#23241f')}</span></div>
+    <div class="pl"><span class="pc">${claudeSvg(24)}</span><span class="px" style="position:absolute;display:flex">${codexSvg(24, '#23241f')}</span><span class="pg" style="position:absolute;display:flex">${geminiSvg(24)}</span></div>
     <div><h5>${title}</h5><div class="br mono">${I('branch', 'font-size:13px')}${br}</div></div>
     <div class="st">${st === 'spin' ? '<div class="spinner" style="width:20px;height:20px;border-width:2.5px"></div>' : st === 'dot' ? '<div style="width:12px;height:12px;border-radius:50%;background:#5b8ff0;margin:4px"></div>' : `<div style="width:24px;height:24px;border-radius:50%;background:#93b087;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">${I('check')}</div>`}</div>
   </div>`)
   gsap.set($('.px', c), { opacity: prov === 'codex' ? 1 : 0, scale: prov === 'codex' ? 1 : 0 })
   gsap.set($('.pc', c), { opacity: prov === 'codex' ? 0 : 1, scale: prov === 'codex' ? 0 : 1 })
+  gsap.set($('.pg', c), { opacity: 0, scale: 0 })
   brGroup.append(c); return c
 })
 // commit dots riding the branches
@@ -573,40 +577,44 @@ $$('.brl', svg).forEach((p, i) => {
 })
 tl.fromTo(brGroup, { x: 60 }, { x: -40, duration: BAR * 2, ease: 'none' }, t11)
 // agents: the toggle
-const toggle = h(`<div class="toggle"><div class="knob"></div>
-  <div class="seg" style="left:0"><span class="lg">${claudeSvg(62)}</span><span class="t1">Claude Code</span></div>
-  <div class="seg" style="left:430px"><span class="lg lx">${codexSvg(62, 'currentColor')}</span><span class="t2">Codex</span></div></div>`)
+const toggle = h(`<div class="toggle" style="width:1300px;margin-left:-650px"><div class="knob"></div>
+  <div class="seg" style="left:10px"><span class="lg">${claudeSvg(62)}</span><span class="t1">Claude Code</span></div>
+  <div class="seg" style="left:435px"><span class="lg lx">${codexSvg(62, 'currentColor')}</span><span class="t2">Codex</span></div>
+  <div class="seg" style="left:860px"><span class="lg">${geminiSvg(62)}</span><span class="t3">Gemini</span></div></div>`)
 sBr.append(toggle)
-const knob = $('.knob', toggle), seg1 = $$('.seg', toggle)[0], seg2 = $$('.seg', toggle)[1]
+const knob = $('.knob', toggle), segs = $$('.seg', toggle), seg1 = segs[0]
+const knobX = [0, 425, 850]
 const t12 = T(12)
 tl.to(brGroup, { scale: 0.82, opacity: 0.28, filter: 'blur(5px)', duration: 0.6, ease: 'expo.out' }, t12 - 0.05)
 tl.fromTo(toggle, { scale: 0.3, opacity: 0, rotationX: 60 }, { scale: 1, opacity: 1, rotationX: 0, duration: 0.8, ease: 'back.out(1.6)' }, t12 - 0.05)
-tl.set(seg1, { color: '#fff' }, 0); tl.set(seg2, { color: '#23241f' }, 0)
+tl.set(seg1, { color: '#fff' }, 0); tl.set(segs.slice(1), { color: '#23241f' }, 0)
 tl.fromTo($('.lg', seg1), { rotation: -180, scale: 0 }, { rotation: 0, scale: 1, duration: 0.8, ease: 'back.out(2.5)' }, t12)
 cue('pop', t12, { midi: 81, vel: 0.6 })
-const flipTo = (t, right) => {
+const cardLogo = { claude: '.pc', codex: '.px', gemini: '.pg' }
+const flipTo = (t, to, from, cards) => {
   // squash-and-stretch knob travel
-  tl.to(knob, { x: right ? 410 : 0, duration: 0.42, ease: 'expo.inOut' }, t - 0.2)
+  tl.to(knob, { x: knobX[to], duration: 0.42, ease: 'expo.inOut' }, t - 0.2)
   tl.to(knob, { scaleX: 1.35, scaleY: 0.84, duration: 0.2, ease: 'power2.in' }, t - 0.2)
   tl.to(knob, { scaleX: 1, scaleY: 1, duration: 0.6, ease: 'elastic.out(1.2,0.35)' }, t)
-  tl.to(right ? seg2 : seg1, { color: '#ffffff', duration: 0.15, ease: 'none' }, t - 0.05)
-  tl.to(right ? seg1 : seg2, { color: '#23241f', duration: 0.15, ease: 'none' }, t - 0.05)
-  tl.fromTo($('.lg', right ? seg2 : seg1), { scale: 0.6, rotation: right ? 90 : -90 }, { scale: 1, rotation: 0, duration: 0.6, ease: 'back.out(3)' }, t)
-  cue('click', t - 0.02, { vel: 0.8 }); cue('pop', t, { midi: right ? 76 : 81, vel: 0.55 })
+  tl.to(segs[to], { color: '#ffffff', duration: 0.15, ease: 'none' }, t - 0.05)
+  tl.to(segs[from], { color: '#23241f', duration: 0.15, ease: 'none' }, t - 0.05)
+  tl.fromTo($('.lg', segs[to]), { scale: 0.6, rotation: to > from ? 90 : -90 }, { scale: 1, rotation: 0, duration: 0.6, ease: 'back.out(3)' }, t)
+  cue('click', t - 0.02, { vel: 0.8 }); cue('pop', t, { midi: to ? 76 : 81, vel: 0.55 })
   // background cards swap agents in sync
   brCards.forEach((c, i) => {
-    const toCodex = right ? i !== 2 : i === 1
-    tl.to($('.px', c), { opacity: toCodex ? 1 : 0, scale: toCodex ? 1 : 0, rotation: toCodex ? 0 : 90, duration: 0.4, ease: 'back.out(3)' }, t + i * 0.04)
-    tl.to($('.pc', c), { opacity: toCodex ? 0 : 1, scale: toCodex ? 0 : 1, rotation: toCodex ? -90 : 0, duration: 0.4, ease: 'back.out(3)' }, t + i * 0.04)
+    for (const [prov, sel] of Object.entries(cardLogo)) {
+      const on = cards[i] === prov
+      tl.to($(sel, c), { opacity: on ? 1 : 0, scale: on ? 1 : 0, rotation: on ? 0 : 90, duration: 0.4, ease: 'back.out(3)' }, t + i * 0.04)
+    }
   })
 }
-flipTo(T(12, 2), true)
-flipTo(T(12, 3), false)
-flipTo(T(12, 3.75), true)
+flipTo(T(12, 2), 1, 0, ['codex', 'codex', 'claude'])
+flipTo(T(12, 3), 2, 1, ['gemini', 'codex', 'gemini'])
+flipTo(T(12, 3.75), 1, 2, ['claude', 'gemini', 'codex'])
 // the knob swallows the screen → dark montage
 tl.to(toggle, { opacity: 1, duration: 0.01 }, T(12, 4))
 tl.to(knob, { scale: 26, duration: 0.5, ease: 'expo.in' }, T(13) - 0.5)
-tl.to([seg1, seg2], { opacity: 0, duration: 0.2, ease: 'none' }, T(13) - 0.45)
+tl.to(segs, { opacity: 0, duration: 0.2, ease: 'none' }, T(13) - 0.45)
 cue('whoosh', T(13) - 0.03, { len: 0.8, vel: 0.9 })
 
 // ---------------------------------------------------------------- SCENE 7: montage
@@ -663,7 +671,7 @@ const tag2 = h(`<div class="tagline" style="font-size:60px">${maskWords('A beaut
 const dl = h(`<div class="dl">${appleSvg(30)}<span>Download for Mac</span><div class="shine2"></div></div>`)
 const urlT = 'superagent.computer'
 const url2 = h(`<div class="urltxt">${charSpans(urlT)}<span class="uline" style="height:4px;bottom:-6px"></span></div>`)
-const small = h(`<div class="smallrow"><span>Free</span><span class="sep"></span><span>Open source</span><span class="sep"></span><span style="display:flex;gap:8px;align-items:center">Works with ${claudeSvg(24)} Claude Code &amp; ${codexSvg(24, '#23241f')} Codex</span></div>`)
+const small = h(`<div class="smallrow"><span>Free</span><span class="sep"></span><span>Open source</span><span class="sep"></span><span style="display:flex;gap:8px;align-items:center">Works with ${claudeSvg(24)} Claude Code, ${codexSvg(24, '#23241f')} Codex &amp; ${geminiSvg(24)} Gemini</span></div>`)
 const ring3 = h(`<div class="ring"></div>`), ring4 = h(`<div class="ring"></div>`)
 sEnd.append(ring3, ring4, logo2, word2, kana2, tag2, dl, url2, small)
 const w2W = word2.getBoundingClientRect().width
@@ -727,7 +735,7 @@ caption('II. THE BROWSER', 'ブラウザ', 'A real browser', 'it drives.', T(7, 
 caption('III. DUAL VIEW', '', 'One page,', 'seen twice.', T(9, 1.5), T(10) - 0.05)
 caption('IV. ON YOUR PHONE', 'ポケット', "Your Mac's agent,", 'in your pocket.', T(10, 1.5), T(11) - 0.1)
 caption('V. BRANCHES', '', 'Each chat,', 'its own branch.', T(11, 1.5), T(12) - 0.05)
-caption('VI. ANY AGENT', '', 'Claude Code or Codex.', 'Per chat.', T(12, 1.25), T(13) - 0.15)
+caption('VI. ANY AGENT', '', 'Claude Code, Codex or Gemini.', 'Per chat.', T(12, 1.25), T(13) - 0.15)
 
 // paper back on for the branch / end scenes, dark for montage
 tl.set('#paper', { visibility: 'visible' }, 0)

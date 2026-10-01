@@ -241,7 +241,9 @@ export interface CoveApi {
   filesMenu: (absPath: string) => void
   /** Copy text via Electron's clipboard — works even when the document isn't focused. */
   clipboardWrite: (text: string) => void
-  chatMenu: (chatId: string, workspaceId: string, cwd?: string | null) => void
+  chatMenu: (chatId: string, workspaceId: string, cwd?: string | null, unread?: boolean) => void
+  /** The chat menu's "Mark as unread" / "Mark as read". */
+  onChatMark: (cb: (p: { chatId: string; unread: boolean }) => void) => () => void
   /** A worktree chat asked to be merged back and finished. */
   onChatMergeWorktree: (
     cb: (p: { chatId: string; workspaceId: string; projectPath: string; wtPath: string }) => void
@@ -908,7 +910,9 @@ const cove: CoveApi = {
   browserShootTwin: () => ipcRenderer.invoke('browser:shoot-twin'),
   filesMenu: (absPath) => ipcRenderer.send('files:menu', absPath),
   clipboardWrite: (text) => ipcRenderer.send('clipboard:write', text),
-  chatMenu: (chatId, workspaceId, cwd) => ipcRenderer.send('chat:menu', chatId, workspaceId, cwd),
+  chatMenu: (chatId, workspaceId, cwd, unread) =>
+    ipcRenderer.send('chat:menu', chatId, workspaceId, cwd, unread),
+  onChatMark: (cb) => subscribe('chat:mark', (p) => cb(p as { chatId: string; unread: boolean })),
   onChatMergeWorktree: (cb) =>
     subscribe('chat:merge-worktree', (p) =>
       cb(p as { chatId: string; workspaceId: string; projectPath: string; wtPath: string })

@@ -1,13 +1,13 @@
 // Plays the reel live, as Superagent's first-run intro: the opening, the
-// mark, then the tour of what the app does.
+// mark, the tour of what the app does, then what it promises.
 //
 // reel.js is deterministic — renderAt(t) draws any moment exactly — so this
 // only keeps the clock: every cut, pop and camera bump lands where it was
 // written to, however the frames happen to fall. It plays silently, and ends
-// where the tour does — the cut to black at 22.5 s, before the reel's montage
-// and its download card, which belong to the ad — and tells the app.
+// as the last promise ("Just your Mac.") leaves, at 25.3 s — before the reel's
+// icon strobe and download card, which belong to the ad — and tells the app.
 
-const END = 22.5 // T(13): the tour's last zoom goes to black
+const END = 25.3 // just short of T(14, 3), where the strobe starts
 const stage = document.getElementById('stage')
 const skip = document.getElementById('skip')
 let done = false

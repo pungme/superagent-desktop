@@ -6,7 +6,8 @@ import { INTRO_SEEN_KEY } from '../firstRun'
  * The first launch opens on the Superagent reel — "Your agent lives in a
  * terminal. Give it a home." into the mark and "A beautiful home for your
  * agent.", then the tour of what the app does: the sidebar, the browser, dual
- * view, the phone, branches, either agent — played silently (public/intro).
+ * view, the phone, branches, any agent — and what it promises: open source,
+ * no API key, no telemetry, just your Mac. Played silently (public/intro).
  *
  * It plays over the app while the app checks for Claude Code and Codex, which
  * takes several seconds on a first launch and used to be a blank window, then
@@ -36,7 +37,7 @@ export function FirstRunIntro({ onDone }: { onDone: () => void }): React.JSX.Ele
     addEventListener('message', onMessage)
     // Never strand anyone behind it: if the page fails to load or stalls,
     // the app comes through anyway.
-    const guard = setTimeout(end, 30_000)
+    const guard = setTimeout(end, 35_000)
     return () => {
       removeEventListener('message', onMessage)
       clearTimeout(guard)

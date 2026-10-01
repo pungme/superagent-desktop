@@ -17,7 +17,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useStore, normalizeCwd, movedSinceSeen, WorkspaceStatus } from '../state'
+import { useStore, normalizeCwd, movedSinceSeen, chatIsUnread, WorkspaceStatus } from '../state'
 import type { Workspace, Routine, Chat } from '../../../preload'
 import { chatPending, isFolderRoot } from '../lib/folder-root'
 import { when } from '../lib/relative-time'
@@ -447,7 +447,7 @@ function ChatRow({
       onClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault()
-        window.cove.chatMenu(chat.id, workspaceId, chat.cwd)
+        window.cove.chatMenu(chat.id, workspaceId, chat.cwd, chatIsUnread(chat))
       }}
       onDoubleClick={() => {
         setDraft(label)
@@ -1125,7 +1125,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                     onMenu: () => {
                       if (wt.main) return
                       if (chat) {
-                        window.cove.chatMenu(chat.id, ws.id, chat.cwd)
+                        window.cove.chatMenu(chat.id, ws.id, chat.cwd, chatIsUnread(chat))
                         return
                       }
                       window.cove.worktreeMenu({
@@ -1157,7 +1157,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                       selectChat(ws.id, c.id)
                     },
                     onRemove: () => void removeChatFn(ws.id, c.id),
-                    onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd)
+                    onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd, chatIsUnread(c))
                   })
                 )}
               {pending.map((c) =>
@@ -1167,7 +1167,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                     selectChat(ws.id, c.id)
                   },
                   onRemove: () => void removeChatFn(ws.id, c.id),
-                  onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd)
+                  onMenu: () => window.cove.chatMenu(c.id, ws.id, c.cwd, chatIsUnread(c))
                 })
               )}
             </div>
@@ -1528,7 +1528,7 @@ function ChatsSection(): React.JSX.Element {
               }}
               onContextMenu={(e) => {
                 e.preventDefault()
-                window.cove.chatMenu(c.id, c.workspaceId, c.cwd)
+                window.cove.chatMenu(c.id, c.workspaceId, c.cwd, chatIsUnread(c))
               }}
               title={c.title ?? 'New chat'}
             >
@@ -1700,7 +1700,7 @@ function PinnedRow({
       onClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault()
-        window.cove.chatMenu(chat.id, chat.workspaceId, chat.cwd)
+        window.cove.chatMenu(chat.id, chat.workspaceId, chat.cwd, chatIsUnread(chat))
       }}
       onDoubleClick={() => {
         // While the label IS the project name (no title of its own yet),
@@ -1904,7 +1904,7 @@ function ActivityList(): React.JSX.Element {
         }}
         onContextMenu={(e) => {
           e.preventDefault()
-          window.cove.chatMenu(c.id, c.workspaceId, c.cwd)
+          window.cove.chatMenu(c.id, c.workspaceId, c.cwd, chatIsUnread(c))
         }}
       >
         {busy[c.id]?.generating ? (
