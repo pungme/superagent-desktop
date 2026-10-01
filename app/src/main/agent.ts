@@ -393,7 +393,9 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
       sessions.delete(id)
       if (session?.killed) return
       markDead(id, code, reason)
-      agentBus.emit('exit', { ...meta, code })
+      // stopAgent has already taken the session out of the map, so `killed`
+      // above never sees it: say here that this exit was asked for.
+      agentBus.emit('exit', { ...meta, code, deliberate: stoppedOnPurpose.delete(id) })
       const o = session?.owner ?? owner
       if (o && !o.isDestroyed()) o.send(`agent:exit:${id}`, code)
     },
@@ -552,10 +554,14 @@ export async function hardInterruptAgent(id: string): Promise<boolean> {
   return ended
 }
 
+/** Sessions stopAgent ended, until their process reports its exit. */
+const stoppedOnPurpose = new Set<string>()
+
 export function stopAgent(id: string): void {
   const session = sessions.get(id)
   if (session) {
     session.killed = true // don't trigger the resume→fresh fallback on a deliberate stop
+    stoppedOnPurpose.add(id)
     sessions.delete(id)
     session.backend.kill()
   }

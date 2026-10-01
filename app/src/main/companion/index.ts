@@ -104,6 +104,10 @@ export function startCompanion(): void {
     if (event.data.kind === 'session' || event.data.kind === 'turn_end') schedulePushChats()
     if (event.data.kind === 'turn_end') void nameIfNeeded(event.chatId)
   })
+  // Every phone, watching or not: each keeps a copy of chats it has opened.
+  logBus.on('reset', ({ chatId }: { chatId: string }) => {
+    for (const c of conns.values()) if (c.authenticated) c.send({ t: 'reset', chatId })
+  })
   logBus.on('delta', ({ chatId, text }: { chatId: string; text: string }) => {
     for (const c of conns.values())
       if (c.authenticated && c.subs.has(chatId)) c.send({ t: 'delta', chatId, text })

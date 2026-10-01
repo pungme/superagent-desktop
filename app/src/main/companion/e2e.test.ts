@@ -21,6 +21,7 @@ const h = vi.hoisted(() => {
   return {
     agentBus: new EventEmitter(),
     hookBus: new EventEmitter(),
+    cleared: [] as ((ids: string[]) => void)[],
     kv: new Map<string, string>(),
     devices: new Map<
       string,
@@ -144,6 +145,10 @@ vi.mock('../store', () => ({
       .slice(0, limit)
       .map((e) => ({ chatId, ...e })),
   chatEventCount: (chatId: string) => (h.events.get(chatId) ?? []).length,
+  lastChatEventSeq: (chatId: string) => (h.events.get(chatId) ?? []).length,
+  chatEventTs: (chatId: string, seq: number) =>
+    (h.events.get(chatId) ?? []).find((e) => e.seq === seq)?.ts,
+  onChatsCleared: (cb: (ids: string[]) => void) => h.cleared.push(cb),
   loadChatItems: (chatId: string) => h.items.get(chatId) ?? [],
   appendChatItems: (chatId: string, items: unknown[]) =>
     h.items.set(chatId, [...(h.items.get(chatId) ?? []), ...items])
@@ -235,7 +240,7 @@ vi.mock('../files', () => ({
   // The first message cuts a branch on a real project. Here there is no repo to
   // cut one in, and the chat keeps running in the folder it was given — but who
   // it was tried for is the thing worth watching.
-  ensureChatBranch: async (_path: string, hint: string) => {
+  cutChatBranch: async (_chatId: string, _path: string, hint: string) => {
     h.branchCuts.push(hint)
     return null
   },
@@ -266,10 +271,15 @@ vi.mock('./identity', async () => {
 // only has the desktop. Resolved through a URL rather than a literal
 // specifier so the typechecker doesn't try to follow it either; the suite
 // skips itself below when it isn't there.
-const relayUrl = new URL('../../../../../relay/src/node.js', import.meta.url)
 // Asking for it IS the check: the path is source, so it resolves through
-// vite (node.js → node.ts) rather than existing on disk under that name.
-const relay = await import(relayUrl.href).catch(() => null)
+// vite (node.js → node.ts) rather than existing on disk under that name. It is
+// checked out as `relay` or under its repo name, `superagent-relay`.
+let relay: { startRelay: (port: number) => RelayServer } | null = null
+for (const dir of ['relay', 'superagent-relay']) {
+  const relayUrl = new URL(`../../../../../${dir}/src/node.js`, import.meta.url)
+  relay = await import(relayUrl.href).catch(() => null)
+  if (relay) break
+}
 const hasRelay = relay !== null
 const startRelay: (port: number) => RelayServer =
   relay?.startRelay ?? ((): RelayServer => ({ address: () => ({ port: 0 }), close: () => {} }))
@@ -495,6 +505,44 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
       event: { seq: 5, data: { kind: 'approval_end' } }
     })
     again.ws.close()
+  })
+
+  it('a cleared chat: the phone is told to drop its copy and gets the new one from 1', async () => {
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    const before = (h.events.get('c1') ?? []).length
+    expect(before).toBeGreaterThan(1)
+
+    // What store.clearChat does. The phone is connected but not watching the
+    // chat, and still hears about it: it keeps a copy of chats it has opened.
+    h.events.delete('c1')
+    h.items.delete('c1')
+    for (const cb of h.cleared) cb(['c1'])
+    expect(await phone.until((f) => f.t === 'reset')).toMatchObject({ t: 'reset', chatId: 'c1' })
+    phone.ws.close()
+
+    // A phone that was away for the clear comes back holding the old log,
+    // further along than the Mac now is.
+    const late = new FakePhone(secret)
+    await late.connect()
+    late.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await late.until((f) => f.t === 'welcome')
+    late.send({ t: 'subscribe', chatId: 'c1', afterSeq: before })
+    expect(await late.next()).toMatchObject({ t: 'reset', chatId: 'c1' })
+
+    // And what it sends next comes back to it, numbered from 1.
+    late.send({
+      t: 'req', id: 'rc', method: 'chat.send',
+      params: { chatId: 'c1', text: 'after the clear', localId: 'L-clear' }
+    })
+    const echo = await late.until((f) => f.t === 'event')
+    expect(echo).toMatchObject({
+      t: 'event',
+      event: { seq: 1, data: { kind: 'user', id: 'L-clear', text: 'after the clear' } }
+    })
+    late.ws.close()
   })
 
   it('a retried send (same localId) acks without appending or re-running', async () => {

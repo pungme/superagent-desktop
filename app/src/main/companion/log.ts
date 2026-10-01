@@ -18,8 +18,11 @@ import {
   appendChatEvent,
   appendChatItems,
   chatEventCount,
+  chatEventTs,
+  lastChatEventSeq,
   listChatEvents,
   loadChatItems,
+  onChatsCleared,
   setChatSession
 } from '../store'
 import type { WireEvent, WireEventData } from '../../shared/companion-protocol'
@@ -30,6 +33,7 @@ import type { WireEvent, WireEventData } from '../../shared/companion-protocol'
  *
  *  logBus 'event'  { event: WireEvent }            sequenced, persisted
  *  logBus 'delta'  { chatId, text }                ephemeral streaming text
+ *  logBus 'reset'  { chatId }                      the chat was emptied
  *
  * Sessions without a window also get their turns written into the renderer's
  * saved transcript (chats.data), so the desktop shows what happened on the
@@ -168,6 +172,27 @@ export function forgetChat(chatId: string): void {
   backfilled.delete(chatId)
 }
 
+/**
+ * Whether a phone that says it has this chat up to `afterSeq` is holding a log
+ * that is no longer this one. Clearing a conversation starts its numbering
+ * again at 1, and a phone that kept the old events would then read every new
+ * one as something it already has and drop it: messages sent from it vanished
+ * the moment the Mac echoed them, and nothing the agent said arrived.
+ *
+ * Ahead of us is the sure sign. Once the new log has grown past where the
+ * phone was, only the time of its last event tells them apart, which newer
+ * phones send along.
+ */
+export function logDiverged(chatId: string, afterSeq: number, afterTs?: number): boolean {
+  if (afterSeq <= 0) return false
+  ensureBackfilled(chatId)
+  if (afterSeq > lastChatEventSeq(chatId)) return true
+  if (typeof afterTs !== 'number') return false
+  const ts = chatEventTs(chatId, afterSeq)
+  // A live event is stamped a moment after its row is, so not to the millisecond.
+  return ts === undefined || Math.abs(ts - afterTs) > 2000
+}
+
 /** Test hook: forget every cached chat so a fresh store reads as fresh. */
 export function _resetLogForTests(): void {
   ring.clear()
@@ -200,6 +225,16 @@ function setGenerating(chatId: string, workspaceId: string | undefined, on: bool
 export function startCompanionLog(): void {
   if (started) return
   started = true
+
+  // However a conversation was emptied — its menu, the project's, Settings'
+  // storage list — what is held for it here goes too, and every phone is told
+  // to drop its copy.
+  onChatsCleared((chatIds) => {
+    for (const chatId of chatIds) {
+      forgetChat(chatId)
+      logBus.emit('reset', { chatId })
+    }
+  })
 
   agentBus.on('started', ({ id }: { id: string }) => {
     projectors.set(id, new TranscriptProjector())
@@ -335,7 +370,17 @@ export function startCompanionLog(): void {
 
   agentBus.on(
     'exit',
-    ({ id, chatId, workspaceId }: { id: string; chatId?: string; workspaceId?: string }) => {
+    ({
+      id,
+      chatId,
+      workspaceId,
+      deliberate
+    }: {
+      id: string
+      chatId?: string
+      workspaceId?: string
+      deliberate?: boolean
+    }) => {
       projectors.delete(id)
       if (chatId) setGenerating(chatId, workspaceId, false)
       // And SAY so. The Mac window puts a banner up when an agent dies; the
@@ -344,9 +389,10 @@ export function startCompanionLog(): void {
       // CLI for that chat, a missing sign-in — sat there with no reply and
       // nothing to explain it, which reads as the app being broken.
       //
-      // Deliberate stops never reach here (a killed session returns before the
-      // event), so this only fires when something actually went wrong.
-      if (chatId) {
+      // Not for a session stopped on purpose: an idle one is put away five
+      // minutes after its last reply, and saying "the agent stopped" under
+      // every finished answer read as a failure that had not happened.
+      if (chatId && !deliberate) {
         record(chatId, {
           kind: 'notice',
           text: 'The agent stopped. Send again to start it, or check it on the Mac.'
