@@ -27,6 +27,7 @@ import {
   installedBrowsers,
   ensureRunning,
   externalPage,
+  adoptTab,
   externalTabs,
   switchExternalTab,
   openExternalTab,
@@ -189,6 +190,31 @@ describe.skipIf(!haveBrave)('driving a real Brave', () => {
       closeExternalBrowsers()
       await new Promise((r) => setTimeout(r, 1500))
       rmSync(dataDir, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  it('a pane shown before the agent has done anything takes the tab at the front', async () => {
+    try {
+      const conn = await ensureRunning('brave')
+      kv.set('browser:ws1::fresh', 'brave')
+      // What the user is looking at in Brave…
+      const front = await conn.send<{ targetId: string }>('Target.createTarget', {
+        url: 'data:text/html,<title>Front</title><h1>what is on screen</h1>'
+      })
+      // …and tabs opened behind it afterwards, so the newest is not the one showing.
+      for (const n of [1, 2])
+        await conn.send('Target.createTarget', {
+          url: `data:text/html,<title>Behind ${n}</title>`,
+          background: true
+        })
+      await new Promise((r) => setTimeout(r, 500))
+      const page = await adoptTab('ws1::fresh')
+      expect(page?.targetId).toBe(front.targetId)
+      expect(await page!.executeJavaScript('document.title')).toBe('Front')
+      // Asking again gives nothing new: the pane has its tab.
+      expect(await adoptTab('ws1::fresh')).toBeNull()
+    } finally {
+      await stopBrowser('brave')
     }
   }, 60_000)
 

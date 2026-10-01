@@ -906,7 +906,7 @@ export async function externalTabs(paneId: string, id: BrowserId): Promise<Exter
  * Only when the browser is already running — showing a project never launches
  * it on its own; picking it, or the agent's first step, does.
  */
-async function adoptTab(paneId: string): Promise<ExternalPage | null> {
+export async function adoptTab(paneId: string): Promise<ExternalPage | null> {
   const id = externalBrowserForPane(paneId)
   if (!id) return null
   const conn = running.get(id)
@@ -920,12 +920,50 @@ async function adoptTab(paneId: string): Promise<ExternalPage | null> {
     (t) =>
       t.type === 'page' && !/^(devtools|chrome-extension):/.test(t.url) && !taken.has(t.targetId)
   )
-  // The newest, by the order this browser opened them (see watchTabs).
+  // The tab at the front of the browser's window: what you would see if you
+  // looked at it, which is what "show me the browser" means. Failing that the
+  // newest, by the order this browser opened them (see watchTabs).
   const order = [...conn.tabs.keys()]
-  const newest =
-    [...open].sort((a, b) => order.indexOf(b.targetId) - order.indexOf(a.targetId))[0] ?? null
+  const newestFirst = [...open].sort(
+    (a, b) => order.indexOf(b.targetId) - order.indexOf(a.targetId)
+  )
+  const pick = (await frontTab(conn, newestFirst)) ?? newestFirst[0] ?? null
   if (existingExternalPage(paneId)) return null
-  return newest ? attach(paneId, id, conn, newest.targetId) : externalPage(paneId, id)
+  return pick ? attach(paneId, id, conn, pick.targetId) : externalPage(paneId, id)
+}
+
+/**
+ * Which of these tabs is the one showing in its window. The browser does not
+ * say; each page does (a tab behind another reports itself hidden), so they
+ * are asked in turn, newest first. Only a handful: past that the newest will do.
+ */
+async function frontTab<T extends { targetId: string }>(
+  conn: BrowserConnection,
+  tabs: T[]
+): Promise<T | null> {
+  for (const tab of tabs.slice(0, 8)) {
+    const shown = await Promise.race([
+      (async () => {
+        const { sessionId } = await conn.send<{ sessionId: string }>('Target.attachToTarget', {
+          targetId: tab.targetId,
+          flatten: true
+        })
+        try {
+          const res = await conn.send<{ result?: { value?: unknown } }>(
+            'Runtime.evaluate',
+            { expression: 'document.visibilityState', returnByValue: true },
+            sessionId
+          )
+          return res.result?.value === 'visible'
+        } finally {
+          void conn.send('Target.detachFromTarget', { sessionId }).catch(() => {})
+        }
+      })().catch(() => false),
+      new Promise<boolean>((r) => setTimeout(() => r(false), 1500))
+    ])
+    if (shown) return tab
+  }
+  return null
 }
 
 /** Move a pane's tools to another tab. The tab they leave stays open. */
