@@ -164,6 +164,16 @@ const SIMULATOR_PROMPT =
   "unfold it with the hinge slider in Xcode's Device Hub, then carry on — the pane and " +
   'sim_screen follow whichever screen is in use.'
 
+// Every git worktree of a project is a row in the user's sidebar, so one an
+// agent makes for itself (a /tmp checkout to try something) shows up there as
+// a branch nobody asked for.
+const WORKTREE_PROMPT =
+  "Superagent lists every git worktree of this project as a branch in the user's sidebar. " +
+  'This conversation already has its own place to work, so do not create worktrees or extra ' +
+  'checkouts (`git worktree add`, cloning the repo elsewhere) to work in parallel. If you ' +
+  'truly need a scratch checkout for a moment, remove it before you finish (`git worktree ' +
+  'remove`), and say so if you leave one behind.'
+
 // The desktop chat is not a project's agent: it is the computer's own, and the
 // computer is the thing it is being asked about.
 const DESKTOP_PROMPT =
@@ -219,6 +229,7 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
     CHOICES_PROMPT,
     FILE_OPEN_PROMPT,
     SIMULATOR_PROMPT,
+    ctx.browserProject || ctx.workspaceId === DESKTOP_WORKSPACE_ID ? '' : WORKTREE_PROMPT,
     ctx.browserProject ? BROWSER_SYSTEM_PROMPT : '',
     ctx.browser && ctx.workspaceId !== DESKTOP_WORKSPACE_ID ? realBrowserPrompt(ctx.browser) : '',
     // The desktop chat has no project, no board and no repository — it has a

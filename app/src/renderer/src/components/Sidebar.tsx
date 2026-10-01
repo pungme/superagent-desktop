@@ -154,10 +154,15 @@ function PhoneIcon({ size = 14 }: { size?: number }): React.JSX.Element {
   )
 }
 
-/** A sidebar row that opens a session: a pin, a chat, a project, a branch. */
-const SESSION_ROW = '.activity-row, .sidebar-chat-row, .sidebar-item, .chat-tree-row'
+/**
+ * A sidebar row that opens a session: a pin, a chat, a project, a branch. Only
+ * a branch that HAS a conversation: stepping onto one without would make one.
+ */
+const SESSION_ROW =
+  '.activity-row, .sidebar-chat-row, .sidebar-item, .chat-tree-row, .sidebar-branch[data-chat-id]'
 /** …and the one that is open now. */
-const SESSION_ROW_OPEN = '.activity-row.on, .sidebar-item.active, .chat-tree-row.selected'
+const SESSION_ROW_OPEN =
+  '.activity-row.on, .sidebar-item.active, .chat-tree-row.selected, .sidebar-branch.on'
 
 // A properly-sized disclosure chevron (points down; rotate -90° when collapsed).
 function Chevron({ size = 13 }: { size?: number }): React.JSX.Element {
@@ -299,7 +304,11 @@ function BranchRow({
         setDraft(label)
         setEditing(true)
       }}
-      title={branch}
+      title={
+        chat
+          ? branch
+          : `${branch} — a branch with no conversation (a git worktree made outside Superagent). Click to start one; right-click to merge or delete.`
+      }
     >
       {/* The conversation is what you look for, so it reads first; the branch it
           runs in sits down the right. A row with no chat yet has nothing to put
@@ -1078,9 +1087,22 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                       if (chat) {
                         setActive(ws.id)
                         selectChat(ws.id, chat.id)
-                      } else {
-                        openBranch(ws.id, cwd)
+                        return
                       }
+                      // A branch with no conversation — usually one an agent
+                      // made for itself. Opening it used to create a session
+                      // without a word, so a click to see what the row was left
+                      // a "New chat" behind: a session nobody started. Ask.
+                      const what = wt.branch ?? 'this branch'
+                      if (
+                        !window.confirm(
+                          `"${what}" has no conversation yet.\n\n` +
+                            'It is a git worktree made outside Superagent ' +
+                            `(${wt.path}). Start a conversation on it?`
+                        )
+                      )
+                        return
+                      openBranch(ws.id, cwd)
                     },
                     // A chatless worktree — a branch you have not opened yet, or a
                     // stray one an agent left behind (a detached /tmp PR checkout,

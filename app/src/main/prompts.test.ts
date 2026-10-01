@@ -25,4 +25,12 @@ describe('the browser briefing', () => {
     })
     expect(p).not.toContain('browser_use')
   })
+
+  it('tells a code project not to leave worktrees behind, and no one else', () => {
+    const project = buildAppendedPrompt({ provider: 'claude', workspaceId: 'ws1' })
+    expect(project).toContain('do not create worktrees')
+    expect(buildAppendedPrompt({ provider: 'claude', browserProject: true })).not.toContain(
+      'do not create worktrees'
+    )
+  })
 })
