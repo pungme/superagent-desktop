@@ -198,7 +198,7 @@ export interface WireChat {
    * so it sent settings the other agent refuses to start with. Absent from
    * older Macs, which is why the Mac also drops a setting that does not belong.
    */
-  provider?: 'claude' | 'codex'
+  provider?: 'claude' | 'codex' | 'antigravity'
   /** The /loop running in this conversation, if any. Absent from older Macs. */
   loop?: WireLoop | null
 }
@@ -250,6 +250,12 @@ export type ServerFrame =
    * after this start again from 1.
    */
   | { t: 'reset'; chatId: string }
+  /**
+   * What is typed and unsent in a chat's composer, on the Mac or another
+   * device. Sent when the phone subscribes ('' for an empty composer) and
+   * whenever it changes while the phone is watching.
+   */
+  | { t: 'draft'; chatId: string; text: string }
   | { t: 'status'; workspaceId: string; status: 'idle' | 'working' | 'needs-you' }
   | { t: 'chats'; chats: WireChat[] }
   /**
@@ -336,6 +342,7 @@ export type RpcMethod =
   | 'chat.create'
   | 'chat.setAgent'
   | 'chat.rename'
+  | 'chat.draft'
   | 'chat.pin'
   | 'chat.reorderPinned'
   | 'chat.delete'

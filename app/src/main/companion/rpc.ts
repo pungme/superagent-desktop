@@ -136,7 +136,7 @@ const chatSend = z.object({
 })
 const chatSetAgent = z.object({
   chatId: z.string().min(1),
-  provider: z.enum(['claude', 'codex'])
+  provider: z.enum(['claude', 'codex', 'antigravity'])
 })
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatPin = z.object({ chatId: z.string().min(1), pinned: z.boolean() })
@@ -752,6 +752,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
       case 'screenshot.take':
         return fail('unavailable', 'use browser.screenshot')
       case 'device.presence':
+      case 'chat.draft':
         return { ok: true } // handled per connection in session.ts
       default:
         return fail('bad-params', `unknown method ${String(method)}`)

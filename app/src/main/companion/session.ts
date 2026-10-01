@@ -5,6 +5,7 @@ import { machineId } from './identity'
 import { addDevice, allDeviceKeys, tokenMatches, touchDevice, setPushToken } from './devices'
 import { pendingPairing, offerPairing, cancelPairing, prettyHostname } from './pairing'
 import { eventsAfter, logDiverged } from './log'
+import { draftOf, saveDraft } from '../drafts'
 import { handleRpc, listTree, listChats } from './rpc'
 import { openPanes } from '../browser'
 import { wireBrowser } from './index'
@@ -203,6 +204,9 @@ export class ClientConn {
           if (!events.length || !hasMore) break
           after = events[events.length - 1].seq
         }
+        // Always, even when empty: a phone still holding words that were
+        // since sent from the Mac has to hear that the composer is clear.
+        this.send({ t: 'draft', chatId: frame.chatId, text: draftOf(frame.chatId) })
         return
       }
       case 'unsubscribe':
@@ -218,6 +222,23 @@ export class ClientConn {
           this.presenceActive = p?.active === true
           if (this.deviceId && typeof p?.pushToken === 'string')
             setPushToken(this.deviceId, p.pushToken, p.pushEnv ?? 'production')
+          this.send({ t: 'res', id: frame.id, ok: true })
+          return
+        }
+        // Handled here, not in the RPC table: it needs to know which phone
+        // wrote, so that phone is not sent its own words back.
+        if (frame.method === 'chat.draft') {
+          const p = frame.params as { chatId?: unknown; text?: unknown } | undefined
+          if (typeof p?.chatId !== 'string' || typeof p.text !== 'string') {
+            this.send({
+              t: 'res',
+              id: frame.id,
+              ok: false,
+              error: { code: 'bad-params', message: 'chatId and text' }
+            })
+            return
+          }
+          saveDraft(p.chatId, p.text, this)
           this.send({ t: 'res', id: frame.id, ok: true })
           return
         }

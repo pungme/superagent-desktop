@@ -4,7 +4,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 /** One subscription an agent can run on (main/accounts.ts). */
 export interface Account {
   id: string
-  provider: 'claude' | 'codex'
+  provider: 'claude' | 'codex' | 'antigravity'
   name: string
   kind: 'login' | 'token' | 'home'
   limitedUntil: number | null
@@ -15,7 +15,7 @@ export interface Account {
 /** An account ran dry mid-chat; what the window may do about it. */
 export interface LimitNotice {
   chatId: string
-  provider: 'claude' | 'codex'
+  provider: 'claude' | 'codex' | 'antigravity'
   account: { id: string; name: string }
   until: number | null
   alternatives: { id: string; name: string }[]
@@ -668,6 +668,11 @@ export interface CoveApi {
   chatGetModel: (chatId: string) => Promise<string | null>
   chatSave: (chatId: string, data: string) => void
   chatClear: (chatId: string) => void
+  /** A chat's unsent text: kept by the app, shared with the phone. */
+  draftGet: (chatId: string) => Promise<string>
+  draftSet: (chatId: string, text: string) => void
+  /** Someone else (the phone, another window) changed a chat's unsent text. */
+  onDraftChanged: (cb: (p: { chatId: string; text: string }) => void) => () => void
 
   historyRecord: (url: string, title: string) => void
   historySearch: (query: string) => Promise<{ url: string; title: string }[]>
@@ -702,6 +707,7 @@ export interface CoveApi {
   envDetect: () => Promise<{
     claude: { installed: boolean; version: string | null; loggedIn: boolean }
     codex: { installed: boolean; version: string | null; loggedIn: boolean }
+    antigravity: { installed: boolean; version: string | null; loggedIn: boolean }
     claudeInstalled: boolean
     claudeVersion: string | null
     loggedIn: boolean
@@ -745,9 +751,12 @@ export interface CoveApi {
   /** Whether the first-run intro may play (not in a test run). */
   introAllowed: () => boolean
   /** Settings → Accounts: more than one subscription per agent (see main/accounts.ts). */
-  accountsList: (
-    recheck?: boolean
-  ) => Promise<{ claude: Account[]; codex: Account[]; mode: 'ask' | 'auto' }>
+  accountsList: (recheck?: boolean) => Promise<{
+    claude: Account[]
+    codex: Account[]
+    antigravity: Account[]
+    mode: 'ask' | 'auto'
+  }>
   onAccountsChanged: (cb: () => void) => () => void
   accountsAddClaude: (name: string, token: string) => Promise<Account>
   accountsAddCodex: (name: string) => Promise<Account>
@@ -1124,6 +1133,10 @@ const cove: CoveApi = {
   chatGetModel: (chatId) => ipcRenderer.invoke('chat:get-model', chatId),
   chatSave: (chatId, data) => ipcRenderer.send('chat:save', chatId, data),
   chatClear: (chatId) => ipcRenderer.send('chat:clear', chatId),
+  draftGet: (chatId) => ipcRenderer.invoke('draft:get', chatId),
+  draftSet: (chatId, text) => ipcRenderer.send('draft:set', chatId, text),
+  onDraftChanged: (cb) =>
+    subscribe('draft:changed', (p) => cb(p as { chatId: string; text: string })),
 
   historyRecord: (url, title) => ipcRenderer.send('history:record', url, title, Date.now()),
   getPathForFile: (file) => webUtils.getPathForFile(file),

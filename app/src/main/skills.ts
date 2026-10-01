@@ -11,7 +11,8 @@ import { toProvider, type AgentProvider } from '../shared/agent-provider'
  *
  * Each agent keeps them somewhere different — Claude Code in ~/.claude/{skills,
  * commands} and the project's .claude, Codex in ~/.codex/prompts and the
- * project's .codex — so discovery is per provider and the "/" menu shows what
+ * project's .codex, Antigravity in ~/.gemini/antigravity-cli/skills and the
+ * project's .agents — so discovery is per provider and the "/" menu shows what
  * the agent actually running this chat can run. (A live Codex session also
  * reports its own list over the protocol; this is what fills the menu before
  * one has started.)
@@ -99,19 +100,35 @@ export function discoverSkills(projectPath?: string, provider: AgentProvider = '
           ...readCommandsDir(join(home, '.codex', 'prompts'), 'global'),
           ...readSkillsDir(join(home, '.codex', 'skills'), 'global')
         ]
-      : [
-          ...readSkillsDir(join(home, '.claude', 'skills'), 'global'),
-          ...readCommandsDir(join(home, '.claude', 'commands'), 'global')
-        ]
+      : provider === 'antigravity'
+        ? [
+            // Antigravity keeps a folder per skill with a SKILL.md, like Claude
+            // Code. The CLI reads its own folder; the shared one is where the
+            // desktop app and the IDE keep theirs.
+            ...readSkillsDir(join(home, '.gemini', 'config', 'skills'), 'global'),
+            ...readSkillsDir(join(home, '.gemini', 'antigravity-cli', 'skills'), 'global')
+          ]
+        : [
+            ...readSkillsDir(join(home, '.claude', 'skills'), 'global'),
+            ...readCommandsDir(join(home, '.claude', 'commands'), 'global')
+          ]
   if (projectPath) {
-    const dir = provider === 'codex' ? '.codex' : '.claude'
-    skills.push(
-      ...readSkillsDir(join(projectPath, dir, 'skills'), 'project'),
-      ...readCommandsDir(
-        join(projectPath, dir, provider === 'codex' ? 'prompts' : 'commands'),
-        'project'
+    if (provider === 'antigravity') {
+      skills.push(
+        ...readSkillsDir(join(projectPath, '.agents', 'skills'), 'project'),
+        // Workflows are its flat one-file slash commands.
+        ...readCommandsDir(join(projectPath, '.agents', 'workflows'), 'project')
       )
-    )
+    } else {
+      const dir = provider === 'codex' ? '.codex' : '.claude'
+      skills.push(
+        ...readSkillsDir(join(projectPath, dir, 'skills'), 'project'),
+        ...readCommandsDir(
+          join(projectPath, dir, provider === 'codex' ? 'prompts' : 'commands'),
+          'project'
+        )
+      )
+    }
   }
   // De-dupe by name (project overrides global), sort alphabetically.
   const byName = new Map<string, Skill>()
@@ -149,9 +166,9 @@ phone screen. Improve the responsive layout so it looks good on mobile, then ver
  * Install Superagent's starter skills into the agent's own global directory.
  *
  * The bodies are agent-agnostic — they describe using the cove-browser tools,
- * which both agents get — so only the destination and the file layout differ:
- * Claude Code wants a folder per skill with a SKILL.md, Codex wants one flat
- * prompt file per command.
+ * which every agent gets — so only the destination and the file layout differ:
+ * Claude Code and Antigravity want a folder per skill with a SKILL.md, Codex
+ * wants one flat prompt file per command.
  */
 export function installStarterSkills(provider: AgentProvider = 'claude'): void {
   const home = homedir()
@@ -159,7 +176,9 @@ export function installStarterSkills(provider: AgentProvider = 'claude'): void {
     const file =
       provider === 'codex'
         ? join(home, '.codex', 'prompts', `${name}.md`)
-        : join(home, '.claude', 'skills', name, 'SKILL.md')
+        : provider === 'antigravity'
+          ? join(home, '.gemini', 'antigravity-cli', 'skills', name, 'SKILL.md')
+          : join(home, '.claude', 'skills', name, 'SKILL.md')
     if (!existsSync(file)) {
       mkdirSync(dirname(file), { recursive: true })
       writeFileSync(file, content)

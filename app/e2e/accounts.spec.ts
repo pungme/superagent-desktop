@@ -55,6 +55,14 @@ test("each agent lists the CLI's own login first", async () => {
   await expect(claude.locator('.settings-account').first()).toContainText('Your Claude login')
   const codex = window.locator('.settings-accounts-provider', { hasText: 'Codex' })
   await expect(codex.locator('.settings-account').first()).toContainText('Your Codex login')
+  // Antigravity keeps one sign-in per machine: its login is listed, and there
+  // is no second account to add.
+  const antigravity = window.locator('.settings-accounts-provider', { hasText: 'Antigravity' })
+  await expect(antigravity.locator('.settings-account').first()).toContainText(
+    'Your Antigravity login'
+  )
+  await expect(antigravity.locator('button', { hasText: 'Add account' })).toHaveCount(0)
+  await expect(codex.locator('button', { hasText: 'Add account' })).toHaveCount(1)
   // The login row says who it is once the CLI has answered.
   await expect(claude.locator('.settings-account').first()).not.toContainText('Checking…', {
     timeout: 30_000

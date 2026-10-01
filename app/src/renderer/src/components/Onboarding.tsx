@@ -14,6 +14,7 @@ type ProviderStatus = { installed: boolean; version: string | null; loggedIn: bo
 type EnvStatus = {
   claude: ProviderStatus
   codex: ProviderStatus
+  antigravity: ProviderStatus
   claudeInstalled: boolean
   claudeVersion: string | null
   loggedIn: boolean
@@ -46,6 +47,14 @@ const COPY: Record<
     manual: 'npm install -g @openai/codex',
     signIn: 'Sign in once with a ChatGPT Plus/Pro plan or an API key.',
     terminal: 'codex login'
+  },
+  antigravity: {
+    blurb: "Google's coding agent, on your own Google AI plan.",
+    link: 'https://antigravity.google/product/antigravity-cli',
+    linkText: "What's Antigravity? →",
+    manual: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
+    signIn: 'Sign in once with your Google account.',
+    terminal: 'agy'
   }
 }
 
@@ -105,8 +114,8 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
       setChecking(false)
       const usable = AGENT_PROVIDERS.filter((p) => status[p].installed && status[p].loggedIn)
       if (usable.length > 0) {
-        // Only choose for them when there is nothing to choose: with both agents
-        // ready, the default stands and the picker under the composer is theirs.
+        // Only choose for them when there is nothing to choose: with more than one
+        // agent ready, the default stands and the picker under the composer is theirs.
         if (usable.length === 1) setProvider(usable[0])
         onDone()
       }
@@ -164,7 +173,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
 
         <p className="onboarding-intro">
           Superagent ships no AI of its own — it runs on an agent you already pay for. Set up{' '}
-          <b>either one</b> and you&rsquo;re ready; you can switch between them, per chat, at any
+          <b>any one</b> and you&rsquo;re ready; you can switch between them, per chat, at any
           time.
         </p>
 

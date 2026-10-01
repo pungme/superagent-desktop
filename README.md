@@ -16,7 +16,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1c1d1a" alt="MIT licensed"></a>
 </p>
 
-<p align="center">Works with <b>Claude Code</b> and <b>Codex</b> · switch per chat · Antigravity coming soon</p>
+<p align="center">Works with <b>Claude Code</b>, <b>Codex</b> and <b>Antigravity</b> · switch per chat</p>
 
 <p align="center">
   <a href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><b>⬇ Download for Mac</b></a> ·
@@ -39,9 +39,13 @@ the desk, the iPhone app follows the conversation and lets you answer the
 agent's questions from anywhere.
 
 Everything runs locally on your Mac, on the agent subscription you already have
-— Claude Code or Codex, switchable per chat. No middleman server, no API key, no
+— Claude Code, Codex or Antigravity, switchable per chat. No middleman server, no API key, no
 AI of its own — and the whole app is open source, so you can read exactly how it
 touches your browser.
+
+For Antigravity, install the `agy` CLI and run `agy` in Terminal to sign in with
+Google, then select Antigravity in the chat’s agent picker. Its model picker
+reads the models available to your account.
 
 ![Superagent — a Monet at the Met open in the browser pane as a desktop page and an iPhone side by side, with the agent that opened it explaining the painting in the chat beside them](docs/hero.png)
 

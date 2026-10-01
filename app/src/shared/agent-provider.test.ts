@@ -22,15 +22,31 @@ describe('a setting belongs to one agent', () => {
     }
   })
 
+  it('keeps Antigravity models for Antigravity', () => {
+    for (const m of ['gemini-3.8-flash-high', 'gemini-3.1-pro-low', 'gpt-oss-120b-medium']) {
+      expect(modelBelongsTo(m, 'antigravity')).toBe(true)
+      expect(modelBelongsTo(m, 'claude')).toBe(false)
+      expect(modelBelongsTo(m, 'codex')).toBe(false)
+    }
+    // Antigravity resells Anthropic models under versioned ids; Claude Code's
+    // own aliases and Codex's models still mean nothing to it.
+    expect(modelBelongsTo('claude-sonnet-4-6', 'antigravity')).toBe(true)
+    for (const m of ['opus', 'default', 'gpt-5-codex']) {
+      expect(modelBelongsTo(m, 'antigravity')).toBe(false)
+    }
+  })
+
   it('lets an unset model through to either', () => {
+    expect(modelBelongsTo(undefined, 'antigravity')).toBe(true)
     expect(modelBelongsTo(undefined, 'codex')).toBe(true)
     expect(modelBelongsTo(undefined, 'claude')).toBe(true)
   })
 
-  it('keeps product permission modes for both backends', () => {
+  it('keeps product permission modes for every backend', () => {
     for (const m of ['bypassPermissions', 'acceptEdits', 'plan', 'ask']) {
       expect(modeBelongsTo(m, 'claude')).toBe(true)
       expect(modeBelongsTo(m, 'codex')).toBe(true)
+      expect(modeBelongsTo(m, 'antigravity')).toBe(true)
     }
     expect(modeBelongsTo(undefined, 'codex')).toBe(true)
   })

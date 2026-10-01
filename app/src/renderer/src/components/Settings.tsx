@@ -23,6 +23,11 @@ const AGENT_COPY: Record<AgentProvider, { signIn: string; terminal: string; inst
     signIn: 'Sign in with a ChatGPT Plus/Pro plan or an API key.',
     terminal: 'codex login',
     install: 'npm install -g @openai/codex'
+  },
+  antigravity: {
+    signIn: 'Sign in with your Google account.',
+    terminal: 'agy',
+    install: 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
   }
 }
 
@@ -125,13 +130,15 @@ const SECTIONS: { id: SectionId; label: string; icon: string }[] = [
 /**
  * More than one subscription per agent. The CLI's own login is always there;
  * extra Claude accounts are tokens from `claude setup-token`, extra Codex
- * accounts sign in through the browser into their own home. When the account
+ * accounts sign in through the browser into their own home. (Antigravity has
+ * the one login only.) When the account
  * a chat is on runs dry, the chat asks to switch — or just does, in auto.
  */
 function AccountsPanel(): React.JSX.Element {
   const [list, setList] = useState<{
     claude: Account[]
     codex: Account[]
+    antigravity: Account[]
     mode: 'ask' | 'auto'
   } | null>(null)
   const [adding, setAdding] = useState<AgentProvider | null>(null)
@@ -155,7 +162,9 @@ function AccountsPanel(): React.JSX.Element {
     a.kind === 'login'
       ? a.provider === 'claude'
         ? 'Sign in again with `claude auth login` in Terminal.'
-        : 'Sign in again with `codex login` in Terminal.'
+        : a.provider === 'antigravity'
+          ? 'Sign in again by running `agy` in Terminal.'
+          : 'Sign in again with `codex login` in Terminal.'
       : a.kind === 'token'
         ? 'Make a new token with `claude setup-token` and add it again.'
         : 'Remove it and add it again to sign in afresh.'
@@ -212,7 +221,9 @@ function AccountsPanel(): React.JSX.Element {
         <div key={p} className="settings-accounts-provider">
           <div className="settings-accounts-head">
             <strong>{PROVIDER_LABEL[p]}</strong>
-            {adding !== p && (
+            {/* Antigravity keeps its sign-in in the keychain, one per machine:
+                there is no second home or token to add an account with. */}
+            {adding !== p && p !== 'antigravity' && (
               <button className="settings-agent-btn ghost" onClick={() => startAdd(p)}>
                 Add account…
               </button>

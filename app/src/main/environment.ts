@@ -9,7 +9,7 @@ import { AGENT_PROVIDERS, type AgentProvider } from '../shared/agent-provider'
  *
  * Superagent supports more than one agent, and needs only one of them to work.
  * So this reports on each independently and onboarding decides: a machine that
- * already has either Claude Code or Codex installed and signed in needs no
+ * already has Claude Code, Codex or Antigravity installed and signed in needs no
  * setup at all, and never sees the flow.
  */
 
@@ -22,6 +22,7 @@ export interface ProviderStatus {
 export interface EnvStatus {
   claude: ProviderStatus
   codex: ProviderStatus
+  antigravity: ProviderStatus
   /**
    * The pre-Codex shape, kept so every existing caller (Settings' version line,
    * the e2e specs) keeps working unchanged. `loggedIn` now means "at least one
@@ -63,6 +64,15 @@ const PROBES: Record<
     loginCommand: 'codex login status',
     loginOnStderr: true,
     loginCheck: (out) => /logged in/i.test(out) && !/not logged in/i.test(out)
+  },
+  antigravity: {
+    version: 'agy --version',
+    // No "am I signed in" command, but the model list only comes back for an
+    // account that is: a signed-out agy prints "Please sign in" and exits
+    // non-zero, which the shell helper reports as a failure. No inference call.
+    loginCommand: 'agy models',
+    // Slug, then name: padded with spaces on a terminal, a tab through a pipe.
+    loginCheck: (out) => /^[a-z0-9][\w.-]*(?:\t+|\s{2,})\S/im.test(out)
   }
 }
 
@@ -124,8 +134,9 @@ export function detectVersion(): Record<
 /**
  * The full picture, sign-in included.
  *
- * The two probes run concurrently: Codex answers instantly, Claude's costs a
- * real (tiny) inference call, and there is no reason to pay for them in series
+ * The probes run concurrently: Codex answers instantly, Antigravity makes one
+ * network call, Claude's costs a real (tiny) inference call, and there is no
+ * reason to pay for them in series
  * while someone waits on a first-run screen.
  */
 export async function detectEnvironment(): Promise<EnvStatus> {
@@ -167,10 +178,13 @@ export async function detectEnvironment(): Promise<EnvStatus> {
  * Claude Code goes in via Anthropic's native installer — a standalone binary into
  * ~/.local/bin, so it needs no Node or npm, which is the whole point for a
  * non-developer's first run. Codex has no such installer, so it goes in via npm.
+ * Antigravity ships a native installer of its own, which puts `agy` in
+ * ~/.local/bin the same way.
  */
 const INSTALL_COMMAND: Record<AgentProvider, string> = {
   claude: 'curl -fsSL https://claude.ai/install.sh | bash',
-  codex: 'npm install -g @openai/codex'
+  codex: 'npm install -g @openai/codex',
+  antigravity: 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
 }
 
 export function installProvider(
@@ -205,7 +219,9 @@ export function installProvider(
  */
 const LOGIN_COMMAND: Record<AgentProvider, string> = {
   claude: 'claude',
-  codex: 'codex login'
+  codex: 'codex login',
+  // Launched bare, agy walks through its Google sign-in before anything else.
+  antigravity: 'agy'
 }
 
 export function openProviderLogin(provider: AgentProvider): void {

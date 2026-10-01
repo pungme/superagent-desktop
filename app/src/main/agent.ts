@@ -22,6 +22,7 @@ import {
 } from './accounts'
 import { fallbackModelFor, modelFallbackFrom } from '../shared/model-fallback'
 import { startCodexSession, suggestTitleWithCodex } from './codex/session'
+import { startAntigravitySession, suggestTitleWithAntigravity } from './antigravity/session'
 import type {
   AgentBackend,
   AgentImage,
@@ -42,9 +43,10 @@ export type { AgentBackend, AgentImage, AgentStartOptions } from './agent-backen
  * message, and the bus the renderer, the phone and the transcript all read.
  *
  * It owns nothing about a CLI. Claude Code lives in `claude/session.ts`, Codex
- * in `codex/`, behind the `AgentBackend` seam in `agent-backend.ts`; they do not
- * import each other, and the only line where they meet is the `if` at the end of
- * startAgent. A change to one backend cannot regress the other.
+ * in `codex/` and Antigravity in `antigravity/`, behind the `AgentBackend` seam
+ * in `agent-backend.ts`; they do not import each other, and the only line where
+ * they meet is the `if` at the end of startAgent. A change to one backend cannot
+ * regress another.
  */
 
 interface AgentSession {
@@ -409,9 +411,10 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
   }
 
   const ctx: SessionContext = { mcpConfigPath: mcpConfig, env: accountEnv(account.id) }
-  // The one place the two backends meet. Below this line nothing is shared:
-  // each starter owns its own process, its own wire format and its own retry.
+  // The one place the backends meet. Below this line nothing is shared: each
+  // starter owns its own process, its own wire format and its own retry.
   if (provider === 'codex') startCodexSession(opts, ctx, host)
+  else if (provider === 'antigravity') startAntigravitySession(opts, ctx, host)
   else startClaudeSession(opts, ctx, host)
   return id
 }
@@ -582,6 +585,7 @@ export function suggestTitle(
   excerpt: string,
   provider: AgentProvider = DEFAULT_PROVIDER
 ): Promise<string | null> {
+  if (provider === 'antigravity') return suggestTitleWithAntigravity(cwd, excerpt)
   return provider === 'codex'
     ? suggestTitleWithCodex(cwd, excerpt)
     : suggestTitleWithClaude(cwd, excerpt)

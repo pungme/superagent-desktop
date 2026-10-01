@@ -50,7 +50,9 @@ export function SkillsPanel({
       workspaceId,
       provider === 'codex'
         ? 'Turn what you just did into a reusable prompt: create a .codex/prompts/<short-name>.md in this project with clear instructions so I can run it again later with /<short-name>. Then tell me its name.'
-        : 'Turn what you just did into a reusable Claude Code skill: create a .claude/skills/<short-name>/SKILL.md in this project with proper frontmatter (name, description) and clear instructions so I can run it again later. Then tell me the skill name.'
+        : provider === 'antigravity'
+          ? 'Turn what you just did into a reusable Antigravity skill: create a .agents/skills/<short-name>/SKILL.md in this project with proper frontmatter (name, description) and clear instructions so I can run it again later. Then tell me the skill name.'
+          : 'Turn what you just did into a reusable Claude Code skill: create a .claude/skills/<short-name>/SKILL.md in this project with proper frontmatter (name, description) and clear instructions so I can run it again later. Then tell me the skill name.'
     )
     onClose()
   }
