@@ -390,6 +390,12 @@ test('the agent sees every tab in its Brave window and can move between them', a
   expect(await tool('browser_evaluate', { expression: 'location.search' })).toContain('chat=one')
   // The pane's live view follows the agent to the tab it is on.
   await expect(window.locator('.external-pane-url')).toContainText('chat=one', { timeout: 10_000 })
+  // That tab is behind the newer one in Brave's window, where a browser draws
+  // nothing: the pane had the address and no picture. While the pane watches
+  // it, the tab is kept drawing.
+  await expect
+    .poll(() => tool('browser_evaluate', { expression: 'document.visibilityState' }))
+    .toContain('visible')
 
   const fresh = Number(/^(\d+): .*tab=new/m.exec(await tool('browser_tabs', {}))![1])
   expect(await tool('browser_close_tab', { index: fresh })).toContain('Closed tab')

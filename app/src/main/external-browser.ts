@@ -982,14 +982,24 @@ export function forgetExternalPages(scope: string): void {
  * The pane shows the external tab live: Chrome's screencast sends a JPEG each
  * time the page changes (nothing while it's still), and each frame must be
  * acknowledged before the next comes. Only while a pane is actually showing it.
+ *
+ * A browser draws only the tab at the front of its window. The pane's tab is
+ * often not that one — the agent opened another, or you clicked a different
+ * tab — and then the screencast started, the address arrived, and no picture
+ * ever did. Focus emulation (what DevTools' "Emulate a focused page" and
+ * every automation tool use) has the tab treated as shown for as long as the
+ * pane watches it, without bringing Brave's window forward.
  */
 const watchers = new Map<string, { to: WebContents; stop: () => void }>()
 
 async function startScreencast(paneId: string, page: ExternalPage, to: WebContents): Promise<void> {
   watchers.get(paneId)?.stop()
+  let gotFrame = false
+  let stopped = false
   const off = page.session.on((method, params) => {
     if (to.isDestroyed()) return
     if (method === 'Page.screencastFrame') {
+      gotFrame = true
       to.send('browsers:frame', { paneId, data: params.data })
       page.session.send('Page.screencastFrameAck', { sessionId: params.sessionId }).catch(() => {})
     } else if (method === 'Page.frameNavigated') {
@@ -998,13 +1008,35 @@ async function startScreencast(paneId: string, page: ExternalPage, to: WebConten
     }
   })
   const stop = (): void => {
+    stopped = true
     off()
     page.session.send('Page.stopScreencast').catch(() => {})
+    page.session.send('Emulation.setFocusEmulationEnabled', { enabled: false }).catch(() => {})
   }
   watchers.set(paneId, { to, stop })
+  await page.session.send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {})
   await page.session
     .send('Page.startScreencast', { format: 'jpeg', quality: 72, maxWidth: 1600, maxHeight: 1600 })
     .catch(() => {})
+  // Still nothing a moment later (a minimised window, a browser that ignores
+  // the above): one still picture is better than an empty pane with an
+  // address over it. Given up on rather than waited for, since a tab that is
+  // not being drawn may never answer.
+  setTimeout(() => {
+    if (gotFrame || stopped || page.session.closed) return
+    void Promise.race([
+      page.session.send<{ data?: string }>('Page.captureScreenshot', {
+        format: 'jpeg',
+        quality: 72
+      }),
+      new Promise<null>((r) => setTimeout(() => r(null), 4000))
+    ])
+      .then((shot) => {
+        if (shot?.data && !gotFrame && !stopped && !to.isDestroyed())
+          to.send('browsers:frame', { paneId, data: shot.data })
+      })
+      .catch(() => {})
+  }, 1200)
   const url = await page.getURL().catch(() => '')
   if (url && !to.isDestroyed()) to.send('browsers:url', { paneId, url })
 }
