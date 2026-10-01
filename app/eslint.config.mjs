@@ -7,7 +7,18 @@ import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
 export default defineConfig(
   // public/ort is vendored onnxruntime, copied in by scripts/copy-ort.mjs.
-  { ignores: ['**/node_modules', '**/dist', '**/out', 'src/renderer/public/ort', 'scripts/_*.mjs'] },
+  {
+    ignores: [
+      '**/node_modules',
+      '**/dist',
+      '**/out',
+      'src/renderer/public/ort',
+      // The first-run intro: the reel's own code and GSAP's minified builds,
+      // shipped as they are rather than written for this project's rules.
+      'src/renderer/public/intro',
+      'scripts/_*.mjs'
+    ]
+  },
   tseslint.configs.recommended,
   eslintPluginReact.configs.flat.recommended,
   eslintPluginReact.configs.flat['jsx-runtime'],
