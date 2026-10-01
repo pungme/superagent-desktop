@@ -301,3 +301,55 @@ test('the model menu keeps older versions behind a fold', async () => {
   await expect(fold).toHaveCount(0)
   await window.keyboard.press('Escape')
 })
+
+test('a chat in the sidebar closes from its hover ×, asking first if it was used', async () => {
+  // Its own two chats, so nothing the other tests look at is touched. Chats
+  // may be folded by an earlier test: open it.
+  const toggle = window.locator('.sidebar-chats-toggle')
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+  const newChat = window.locator('.sidebar-chats-head button[aria-label="New chat"]')
+  await newChat.click()
+  await newChat.click()
+  const rows = window.locator('.sidebar-chats .sidebar-chat-row')
+  await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
+  const showAll = window.locator('.sidebar-chats-more', { hasText: 'Show all' })
+  if (await showAll.count()) await showAll.click()
+  const before = await rows.count()
+  // Give one a title, the way a conversation that has been used has.
+  const id = await rows.first().getAttribute('data-chat-id')
+  await window.evaluate((cid) => window.cove.chatUpdate(cid!, { title: 'Keep me maybe' }), id)
+  await window.reload()
+  await window.waitForSelector('.sidebar-chats .sidebar-chat-row', { timeout: 20_000 })
+  if (await showAll.count()) await showAll.click()
+  const used = window.locator('.sidebar-chat-row', { hasText: 'Keep me maybe' })
+  const unused = window.locator('.sidebar-chat-row', { hasText: 'New chat' }).first()
+
+  // Hover: the × takes the time's place.
+  await expect(unused.locator('.sidebar-chat-remove')).toBeHidden()
+  await unused.hover()
+  await expect(unused.locator('.sidebar-chat-remove')).toBeVisible()
+  await expect(unused.locator('.sidebar-chat-when')).toBeHidden()
+
+  // An unused New chat goes without a question.
+  let asked = 0
+  const onDialog = (d: import('@playwright/test').Dialog): void => {
+    asked++
+    void (asked === 1 ? d.dismiss() : d.accept())
+  }
+  window.on('dialog', onDialog)
+  await unused.locator('.sidebar-chat-remove').click()
+  await expect(rows).toHaveCount(before - 1)
+  expect(asked).toBe(0)
+
+  // A used one asks; "no" keeps it, "yes" deletes it.
+  await used.hover()
+  await used.locator('.sidebar-chat-remove').click()
+  await window.waitForTimeout(400)
+  expect(asked).toBe(1)
+  await expect(used).toHaveCount(1)
+  await used.hover()
+  await used.locator('.sidebar-chat-remove').click()
+  await expect(used).toHaveCount(0)
+  expect(asked).toBe(2)
+  window.off('dialog', onDialog)
+})

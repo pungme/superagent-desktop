@@ -99,16 +99,16 @@ await Promise.all([...document.images].map((i) => i.decode().catch(() => {})))
 
 // ---------------------------------------------------------------- SCENE 1: intro
 const sIntro = h(`<div class="scene" id="sIntro"></div>`); cam.append(sIntro)
-const text1 = 'Your agent writes the code.'
-const line1 = h(`<div class="type-line">${charSpans(text1)}</div>`)
-const line2 = h(`<div class="type-line" style="font-size:132px;font-weight:680">${['Give', 'it', 'a', 'screen.'].map((w) => `<span class="w">${charSpans(w)}</span>`).join('<span class="c">&nbsp;</span>')}</div>`)
+const text1 = 'Your agent lives in a terminal.'
+const line1 = h(`<div class="type-line" style="font-size:94px">${charSpans(text1)}</div>`)
+const line2 = h(`<div class="type-line" style="font-size:132px;font-weight:680">${['Give', 'it', 'a', 'home.'].map((w) => `<span class="w">${charSpans(w)}</span>`).join('<span class="c">&nbsp;</span>')}</div>`)
 const cursorSq = h(`<div id="cursorSq"></div>`)
 sIntro.append(line1, line2, cursorSq)
 gsap.set([line1, line2], { yPercent: -50 })
 // measure
 const c1 = $$('.c', line1)
 const w1 = c1.map((c) => c.getBoundingClientRect().width)
-const tc = c1.map((_, i) => T(1, 1.5) + i * 0.047)
+const tc = c1.map((_, i) => T(1, 1.5) + i * 0.04)
 const l2w = line2.getBoundingClientRect().width
 gsap.set(line2, { x: -l2w / 2 })
 const words2 = $$('.w', line2)

@@ -12423,3 +12423,30 @@ button {
 .browser-handsoff-btn:hover {
   filter: brightness(1.08);
 }
+
+/* Chats: hover a row and its time gives way to an ×, in the same spot. */
+.sidebar-chat-remove {
+  display: none;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: -2px -2px -2px 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sidebar-chat-row:hover .sidebar-chat-remove {
+  display: block;
+}
+.sidebar-chat-row:hover .sidebar-chat-when {
+  display: none;
+}
+.sidebar-chat-remove:hover {
+  color: var(--text-primary);
+  background: var(--hover);
+}

@@ -1,11 +1,13 @@
-// Plays the opening of the reel live, as Superagent's first-run intro.
+// Plays the reel live, as Superagent's first-run intro: the opening, the
+// mark, then the tour of what the app does.
 //
 // reel.js is deterministic — renderAt(t) draws any moment exactly — so this
 // only keeps the clock: every cut, pop and camera bump lands where it was
 // written to, however the frames happen to fall. It plays silently, and ends
-// on the reel's zoom into the mark (the flash at 7.5 s) and tells the app.
+// where the tour does — the cut to black at 22.5 s, before the reel's montage
+// and its download card, which belong to the ad — and tells the app.
 
-const END = 7.5 // T(5): the flash as the camera flies into the mark
+const END = 22.5 // T(13): the tour's last zoom goes to black
 const stage = document.getElementById('stage')
 const skip = document.getElementById('skip')
 let done = false

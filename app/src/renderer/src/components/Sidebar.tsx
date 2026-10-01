@@ -1444,6 +1444,7 @@ function ChatsSection(): React.JSX.Element {
   const overlay = useStore((s) => s.overlay)
   const selectChat = useStore((s) => s.selectChat)
   const renameChat = useStore((s) => s.renameChat)
+  const removeChat = useStore((s) => s.removeChat)
   const busy = useStore((s) => s.busy)
   const unread = useStore((s) => s.unread)
   const [all, setAll] = useState(false)
@@ -1557,6 +1558,29 @@ function ChatsSection(): React.JSX.Element {
                   )}
                   <span className="sidebar-item-name">{c.title ?? 'New chat'}</span>
                   <span className="sidebar-chat-when">{when(c.updatedAt)}</span>
+                  {/* Takes the time's place on hover, so the row does not shift. */}
+                  <button
+                    className="sidebar-chat-remove"
+                    title="Delete this chat"
+                    aria-label={`Delete ${c.title ?? 'New chat'}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      // A conversation is gone for good; an unused New chat is
+                      // nothing to lose, so it goes without the question.
+                      const used = Boolean(c.title || c.claudeSessionId)
+                      if (
+                        used &&
+                        !window.confirm(
+                          `Delete "${c.title ?? 'New chat'}"?\n\nThe conversation cannot be brought back.`
+                        )
+                      )
+                        return
+                      if (home) void removeChat(home, c.id)
+                    }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                  >
+                    ×
+                  </button>
                 </>
               )}
             </div>
