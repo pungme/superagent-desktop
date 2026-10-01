@@ -232,8 +232,13 @@ export type ClientFrame =
    * `afterTs` is the time of the phone's event numbered `afterSeq`. A cleared
    * conversation starts numbering again at 1, so the number alone cannot tell
    * "caught up to 40" from "holding 40 events of what was there before".
+   *
+   * `tail`, from a phone holding nothing of this chat (afterSeq 0): send only
+   * the last that many events. A long conversation is thousands of events, and
+   * a phone opening it for the first time was sent every one before it could
+   * show the end.
    */
-  | { t: 'subscribe'; chatId: string; afterSeq: number; afterTs?: number }
+  | { t: 'subscribe'; chatId: string; afterSeq: number; afterTs?: number; tail?: number }
   | { t: 'unsubscribe'; chatId: string }
   | { t: 'req'; id: string; method: RpcMethod; params?: unknown }
   | { t: 'ping' }
@@ -355,6 +360,8 @@ export type RpcMethod =
   | 'board.move'
   | 'routines.setEnabled'
   | 'browser.open'
+  | 'browser.choices'
+  | 'browser.set'
   | 'browser.screenshot'
   | 'browser.nav'
   | 'sim.screenshot'
@@ -516,4 +523,15 @@ export interface WireSearchHit {
   ts: number
   role: 'user' | 'assistant'
   snippet: string
+}
+
+/**
+ * Which browser a conversation's agent drives, and what it could drive: the
+ * built-in pane, or one of the Mac's own browsers (Brave, Chrome, Edge) with
+ * the sign-ins kept there. `browsers` is empty for a conversation that has no
+ * choice (the Computer's own chat always uses the built-in one).
+ */
+export interface WireBrowserChoices {
+  current: string
+  browsers: { id: string; name: string }[]
 }

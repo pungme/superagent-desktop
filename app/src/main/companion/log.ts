@@ -193,6 +193,15 @@ export function logDiverged(chatId: string, afterSeq: number, afterTs?: number):
   return ts === undefined || Math.abs(ts - afterTs) > 2000
 }
 
+/**
+ * Where to start a phone that holds nothing of this chat and asked for only
+ * its last `tail` events: the sequence number to send after.
+ */
+export function tailStart(chatId: string, tail: number): number {
+  ensureBackfilled(chatId)
+  return Math.max(0, lastChatEventSeq(chatId) - Math.max(1, Math.floor(tail)))
+}
+
 /** Test hook: forget every cached chat so a fresh store reads as fresh. */
 export function _resetLogForTests(): void {
   ring.clear()

@@ -52,6 +52,7 @@ import {
   mkdirSync
 } from 'fs'
 import * as auto from '../automation'
+import { browserFor, installedBrowsers, switchBrowser } from '../external-browser'
 import {
   getPaneWebContents,
   ensureBackgroundPane,
@@ -98,6 +99,7 @@ import type {
   ChatSendParams,
   ApprovalAnswerParams,
   WireBrowserShot,
+  WireBrowserChoices,
   WireFileContent,
   WireFileChunk,
   WireDir
@@ -137,6 +139,10 @@ const chatSend = z.object({
 const chatSetAgent = z.object({
   chatId: z.string().min(1),
   provider: z.enum(['claude', 'codex', 'antigravity'])
+})
+const browserSet = z.object({
+  chatId: z.string().min(1),
+  id: z.enum(['builtin', 'brave', 'chrome', 'edge'])
 })
 const chatRename = z.object({ chatId: z.string().min(1), title: z.string().min(1).max(120) })
 const chatPin = z.object({ chatId: z.string().min(1), pinned: z.boolean() })
@@ -490,6 +496,35 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         } finally {
           releaseCompositing(pane)
         }
+      }
+      case 'browser.choices': {
+        const p = chatId.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const chat = getChat(p.data.chatId)
+        if (!chat) return fail('not-found', 'no such chat')
+        const scope = `${chat.workspaceId}::${chat.id}`
+        // The Computer's own chat drives the desktop's browser, whatever is
+        // picked: offer nothing rather than a choice that does nothing.
+        const fixed = chat.workspaceId === DESKTOP_WORKSPACE_ID
+        const result: WireBrowserChoices = {
+          current: fixed ? 'builtin' : browserFor(scope),
+          browsers: fixed ? [] : installedBrowsers()
+        }
+        return { ok: true, result }
+      }
+      case 'browser.set': {
+        const p = browserSet.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const chat = getChat(p.data.chatId)
+        if (!chat) return fail('not-found', 'no such chat')
+        if (chat.workspaceId === DESKTOP_WORKSPACE_ID)
+          return fail('unavailable', 'this conversation always uses the built-in browser')
+        // Not opened now: nobody may be at the Mac, and a browser window
+        // appearing there for a choice made on a phone helps no one. It starts
+        // on the agent's first step in it.
+        const r = await switchBrowser(`${chat.workspaceId}::${chat.id}`, p.data.id)
+        if (!r.ok) return fail('unavailable', r.error)
+        return { ok: true }
       }
       case 'browser.screenshot': {
         const p = browserShot.safeParse(params)

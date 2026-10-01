@@ -4,7 +4,7 @@ import { Sealer, Opener, aadFor, probe, newToken, DeviceKeys } from './crypto'
 import { machineId } from './identity'
 import { addDevice, allDeviceKeys, tokenMatches, touchDevice, setPushToken } from './devices'
 import { pendingPairing, offerPairing, cancelPairing, prettyHostname } from './pairing'
-import { eventsAfter, logDiverged } from './log'
+import { eventsAfter, logDiverged, tailStart } from './log'
 import { draftOf, saveDraft } from '../drafts'
 import { handleRpc, listTree, listChats } from './rpc'
 import { openPanes } from '../browser'
@@ -197,6 +197,8 @@ export class ClientConn {
           this.send({ t: 'reset', chatId: frame.chatId })
           after = 0
         }
+        if (after === 0 && typeof frame.tail === 'number' && frame.tail > 0)
+          after = tailStart(frame.chatId, frame.tail)
         // Replay everything the phone missed, in order, until we're caught up.
         for (let i = 0; i < 20; i++) {
           const { events, hasMore } = eventsAfter(frame.chatId, after)

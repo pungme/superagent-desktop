@@ -57,6 +57,7 @@ import {
   logBus,
   eventsAfter,
   logDiverged,
+  tailStart,
   record,
   _resetLogForTests
 } from './log'
@@ -184,6 +185,15 @@ describe('companion log', () => {
     expect(logDiverged('c1', 3, oldTs + 60_000)).toBe(false)
     // An older phone sends no time: nothing to go on, so it is left alone.
     expect(logDiverged('c1', 3)).toBe(false)
+  })
+
+  it('starts a phone that holds nothing at the tail it asked for', () => {
+    for (let i = 1; i <= 10; i++) record('c1', { kind: 'notice', text: String(i) })
+    expect(tailStart('c1', 4)).toBe(6)
+    expect(eventsAfter('c1', tailStart('c1', 4)).events.map((e) => e.seq)).toEqual([7, 8, 9, 10])
+    // Shorter than the tail: all of it.
+    expect(tailStart('c1', 400)).toBe(0)
+    expect(tailStart('never-seen', 400)).toBe(0)
   })
 
   it('says the agent stopped only when nobody stopped it', () => {

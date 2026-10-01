@@ -592,6 +592,45 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     phone.ws.close()
   })
 
+  it('the phone can see and pick which browser a conversation uses', async () => {
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    const ask = async (id: string, method: string, params: unknown): Promise<ServerFrame> => {
+      phone.send({ t: 'req', id, method, params } as never)
+      return phone.until((f) => f.t === 'res' && (f as { id?: string }).id === id)
+    }
+    const first = (await ask('b1', 'browser.choices', { chatId: 'c1' })) as {
+      result: { current: string; browsers: { id: string; name: string }[] }
+    }
+    expect(first.result.current).toBe('builtin')
+    expect(first.result.browsers[0]).toEqual({ id: 'builtin', name: 'Superagent' })
+
+    // One the Mac does not have is refused, and nothing changes.
+    const missing = first.result.browsers.some((b) => b.id === 'edge') ? null : 'edge'
+    if (missing) {
+      expect(await ask('b2', 'browser.set', { chatId: 'c1', id: missing })).toMatchObject({
+        ok: false
+      })
+    }
+    const other = first.result.browsers.find((b) => b.id !== 'builtin')
+    if (other) {
+      expect(await ask('b3', 'browser.set', { chatId: 'c1', id: other.id })).toMatchObject({
+        ok: true
+      })
+      const now = (await ask('b4', 'browser.choices', { chatId: 'c1' })) as {
+        result: { current: string }
+      }
+      expect(now.result.current).toBe(other.id)
+      // Picking it did not start it: that waits for the agent's first step.
+      expect(h.kv.get(`browser:w1::c1`)).toBe(other.id)
+      await ask('b5', 'browser.set', { chatId: 'c1', id: 'builtin' })
+    }
+    expect(await ask('b6', 'browser.choices', { chatId: 'nope' })).toMatchObject({ ok: false })
+    phone.ws.close()
+  })
+
   it('a retried send (same localId) acks without appending or re-running', async () => {
     const phone = new FakePhone(secret)
     await phone.connect()
