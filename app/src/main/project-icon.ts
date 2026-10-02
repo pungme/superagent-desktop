@@ -223,6 +223,120 @@ function findXcodeAppIcon(root: string): string | null {
   return null
 }
 
+/** A PNG as the sidebar wants it: as it is when small, shrunk when not. */
+function pngToDataUri(png: Buffer): string | null {
+  if (png.length === 0 || png.length > MAX_ICON_BYTES) return null
+  if (png.length > 100_000) {
+    const img = nativeImage.createFromBuffer(png)
+    if (!img.isEmpty()) {
+      const small = img.resize({ width: 128, height: 128, quality: 'best' }).toPNG()
+      return `data:image/png;base64,${small.toString('base64')}`
+    }
+  }
+  return `data:image/png;base64,${png.toString('base64')}`
+}
+
+/** The pictures in an .icns worth drawing at sidebar size, best first: 128pt,
+ *  then the nearest sizes up, then down. (ic12 is 32pt@2x, ic11 16pt@2x.) */
+const ICNS_ORDER = ['ic07', 'ic13', 'ic08', 'ic12', 'ic14', 'ic09', 'ic10', 'ic11']
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+
+/**
+ * A Mac app's icon file, read without help: an .icns is a list of pictures,
+ * each tagged with a four-letter size, and every size an app made this decade
+ * ships is a PNG. The oldest formats in there (raw ARGB, for 16 and 32 points)
+ * are passed over.
+ */
+export function icnsToDataUri(buf: Buffer): string | null {
+  if (buf.length < 16 || buf.toString('latin1', 0, 4) !== 'icns') return null
+  const pngs = new Map<string, Buffer>()
+  for (let at = 8; at + 8 <= buf.length;) {
+    const type = buf.toString('latin1', at, at + 4)
+    const size = buf.readUInt32BE(at + 4)
+    if (size < 8 || at + size > buf.length) break
+    const data = buf.subarray(at + 8, at + size)
+    if (data.subarray(0, 4).equals(PNG_MAGIC)) pngs.set(type, data)
+    at += size
+  }
+  for (const type of ICNS_ORDER) {
+    const png = pngs.get(type)
+    const uri = png ? pngToDataUri(png) : null
+    if (uri) return uri
+  }
+  return null
+}
+
+/**
+ * Where an app keeps its icon when it is not in an Xcode asset catalog: a
+ * Swift package's Resources, Electron's build folder, Tauri's icons, a
+ * branding folder. `build` is skipped when walking for icon sets, because
+ * build output is huge; here it is one named folder, looked at and not into.
+ */
+const ICON_DIRS = [
+  '',
+  'Resources',
+  'resources',
+  'build',
+  'assets',
+  'icons',
+  'branding',
+  'src-tauri/icons',
+  'public',
+  'static',
+  'images'
+]
+
+/** Not the app's icon: the small ones an app keeps for its menu bar and tray. */
+const NOT_THE_APP = /tray|menu|status|template|badge|toolbar|favicon/i
+/** icon.png, app-icon.png, supercut-icon-1024.png, icon_512x512@2x.png. */
+const ICON_PNG = /(^|[-_. ])(app[-_ ]?)?icon([-_.@ ]?\d+(x\d+)?(@\dx)?)*\.png$/i
+
+function filesIn(dir: string): string[] {
+  try {
+    return readdirSync(dir).sort()
+  } catch {
+    return []
+  }
+}
+
+/** An .icns in one of the usual places: AppIcon.icns or icon.icns first. */
+function findIcns(root: string): string | null {
+  for (const rel of ICON_DIRS) {
+    const dir = join(root, rel)
+    const names = filesIn(dir).filter(
+      (n) => n.toLowerCase().endsWith('.icns') && !NOT_THE_APP.test(n)
+    )
+    names.sort(
+      (a, b) =>
+        Number(!/^(app)?icon\.icns$/i.test(a)) - Number(!/^(app)?icon\.icns$/i.test(b)) ||
+        a.localeCompare(b)
+    )
+    for (const name of names) {
+      try {
+        const uri = icnsToDataUri(readFileSync(join(dir, name)))
+        if (uri) return uri
+      } catch {
+        // unreadable: try the next
+      }
+    }
+  }
+  return null
+}
+
+/** A PNG named as an app icon, in one of the usual places: plain names first. */
+function findIconPng(root: string): string | null {
+  for (const rel of ICON_DIRS) {
+    const dir = join(root, rel)
+    const names = filesIn(dir).filter((n) => ICON_PNG.test(n) && !NOT_THE_APP.test(n))
+    names.sort((a, b) => a.length - b.length || a.localeCompare(b))
+    for (const name of names) {
+      const uri = fileToDataUri(join(dir, name))
+      if (uri) return uri
+    }
+  }
+  return null
+}
+
 /** The root's favicon, else one in any repo directly inside it — a project
  *  that groups several repos keeps its web app's favicon a level down. */
 function findFaviconShallow(root: string): string | null {
@@ -296,12 +410,19 @@ function findGlyphKind(root: string): ProjectGlyphKind | null {
  * generic symbol every time it's available. App icon wins over favicon when a
  * project happens to have both (a Capacitor/React Native app's own web
  * build, say) — it's the more deliberately-made asset of the two.
+ *
+ * An app icon is not always in an Xcode asset catalog: a Swift package, an
+ * Electron or a Tauri app keeps an .icns, which is as deliberate as an icon
+ * set and ranks with it. A PNG that is merely named like an icon is a guess,
+ * so it comes after a favicon, which is not.
  */
 export function detectProjectIcon(root: string): DetectedIcon | null {
-  const appIcon = findXcodeAppIcon(root)
+  const appIcon = findXcodeAppIcon(root) ?? findIcns(root)
   if (appIcon) return { source: 'app-icon', dataUri: appIcon }
   const favicon = findFaviconShallow(root)
   if (favicon) return { source: 'favicon', dataUri: favicon }
+  const png = findIconPng(root)
+  if (png) return { source: 'app-icon', dataUri: png }
   const kind = findGlyphKind(root)
   if (kind) return { source: 'kind', kind }
   return null
