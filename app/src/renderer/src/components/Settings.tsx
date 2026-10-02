@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Account } from '../../../preload'
 import { useStore, ACCENTS, ICON_COLOURS, type Accent } from '../state'
 import { PhoneSettings } from './PhoneSettings'
+import { REPLAY_INTRO_EVENT } from '../firstRun'
 import {
   AGENT_PROVIDERS,
   PROVIDER_LABEL,
@@ -974,6 +975,25 @@ export function Settings({
                     </span>
                   </div>
                   <Toggle checked={betaUpdates} onChange={toggleBeta} />
+                </div>
+                <div className="settings-about-beta">
+                  <div className="settings-about-beta-text">
+                    <strong>Intro</strong>
+                    <span>
+                      The short film that plays the first time Superagent opens: what the app does,
+                      in half a minute.
+                    </span>
+                  </div>
+                  <button
+                    className="settings-update-check"
+                    onClick={() => {
+                      // Out of Settings first: the intro plays over the app.
+                      onClose()
+                      window.dispatchEvent(new CustomEvent(REPLAY_INTRO_EVENT))
+                    }}
+                  >
+                    Show the intro again
+                  </button>
                 </div>
               </div>
             </section>

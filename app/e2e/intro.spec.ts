@@ -56,6 +56,16 @@ test('someone already using the app sees it once too', async () => {
     await window.reload()
     await window.waitForTimeout(800)
     await expect(window.locator('.first-run-intro')).toHaveCount(0)
+
+    // And it can be asked for again, from Settings → About.
+    await window.click('.sidebar-settings[title="Settings"]')
+    await window.click('.settings-nav-item:has-text("About")')
+    await window.getByRole('button', { name: 'Show the intro again' }).click()
+    await expect(window.locator('.first-run-intro iframe')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('main h1', { hasText: 'Settings' })).toHaveCount(0)
+    await window.frameLocator('.first-run-intro iframe').locator('#skip').click({ timeout: 10_000 })
+    await expect(window.locator('.first-run-intro')).toHaveCount(0, { timeout: 3_000 })
+    await expect(window.locator('.sidebar')).toBeVisible()
   } finally {
     await app.close()
     rmSync(dir, { recursive: true, force: true })

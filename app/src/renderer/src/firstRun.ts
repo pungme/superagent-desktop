@@ -1,6 +1,9 @@
 /** Set once the first-run intro has played (components/FirstRunIntro). */
 export const INTRO_SEEN_KEY = 'cove.firstRunIntroSeen'
 
+/** Settings → About → "Show the intro again": the app plays it now. */
+export const REPLAY_INTRO_EVENT = 'cove:replay-intro'
+
 /**
  * Whether this launch should play it: never played on this Mac, and motion is
  * welcome. Nothing to do with being new to the app — someone already set up

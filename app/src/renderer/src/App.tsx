@@ -6,7 +6,7 @@ import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
 import { FirstRunIntro } from './components/FirstRunIntro'
-import { shouldPlayFirstRunIntro } from './firstRun'
+import { REPLAY_INTRO_EVENT, shouldPlayFirstRunIntro } from './firstRun'
 import { ComputerPanel } from './components/ComputerPanel'
 import { ChatsView } from './components/ChatsView'
 import { Onboarding } from './components/Onboarding'
@@ -98,6 +98,12 @@ function App(): React.JSX.Element {
   // been here longest never saw it.)
   const [firstRunIntro, setFirstRunIntro] = useState(() => shouldPlayFirstRunIntro())
   if (firstRunIntro) sessionStorage.setItem('cove.introPlayed', '1') // not the short splash too
+  // Asked for again from Settings: played whatever has been seen before.
+  useEffect(() => {
+    const replay = (): void => setFirstRunIntro(true)
+    window.addEventListener(REPLAY_INTRO_EVENT, replay)
+    return () => window.removeEventListener(REPLAY_INTRO_EVENT, replay)
+  }, [])
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('cove.sidebarCollapsed') === '1'
