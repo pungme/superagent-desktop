@@ -99,7 +99,7 @@ test('existing users get a dismissible offer that opens Connections directly', a
   await page.reload()
   await expect(page.locator('.connections-offer')).toBeVisible()
   await page.getByRole('button', { name: 'Open Settings → Connections' }).click()
-  await expect(page.getByRole('heading', { name: 'Connected apps' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Connections', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Connect', exact: true })).toBeVisible()
 })
 

@@ -121,15 +121,99 @@ interface SettingsProps {
 type SectionId =
   'general' | 'connections' | 'agents' | 'phone' | 'notifications' | 'advanced' | 'about'
 
-const SECTIONS: { id: SectionId; label: string; icon: string }[] = [
-  { id: 'general', label: 'General', icon: '⚙︎' },
-  { id: 'connections', label: 'Connections', icon: '✉' },
-  { id: 'agents', label: 'Agents', icon: '◇' },
-  { id: 'phone', label: 'Phone', icon: '📱' },
-  { id: 'notifications', label: 'Notifications', icon: '🔔' },
-  { id: 'advanced', label: 'Advanced', icon: '🧪' },
-  { id: 'about', label: 'About', icon: 'ⓘ' }
+/** Each section: its name in the list, and the line under its heading. */
+const SECTIONS: { id: SectionId; label: string; blurb: string }[] = [
+  { id: 'general', label: 'General', blurb: 'How Superagent looks, and what its agents may do.' },
+  { id: 'connections', label: 'Connections', blurb: 'The apps your agents can reach.' },
+  {
+    id: 'agents',
+    label: 'Agents',
+    blurb: 'The coding agents on this Mac, and the accounts they run on.'
+  },
+  { id: 'phone', label: 'Phone', blurb: 'Follow this Mac from your iPhone.' },
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    blurb: 'When Superagent taps you on the shoulder.'
+  },
+  { id: 'advanced', label: 'Advanced', blurb: 'Storage, developer tools, and starting over.' },
+  { id: 'about', label: 'About', blurb: 'This version, and updates.' }
 ]
+
+/**
+ * The section list's icons: one family, drawn as lines in the text colour. They
+ * were a mix of emoji and symbol characters, which came out in three sizes and
+ * two styles, and the emoji ignored the theme.
+ */
+const NAV_ICONS: Record<SectionId, React.JSX.Element> = {
+  general: (
+    <>
+      <path d="M3 5h6M13 5h4M3 10h2M9 10h8M3 15h8M15 15h2" />
+      <circle cx="11" cy="5" r="2" />
+      <circle cx="7" cy="10" r="2" />
+      <circle cx="13" cy="15" r="2" />
+    </>
+  ),
+  connections: (
+    <>
+      <path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l2.5-2.5a3.5 3.5 0 0 0-5-5L10 5" />
+      <path d="M11.5 8.5a3.5 3.5 0 0 0-5 0L4 11a3.5 3.5 0 0 0 5 5l1-1" />
+    </>
+  ),
+  agents: (
+    <>
+      <path d="M10 2.5l1.7 4.3 4.3 1.7-4.3 1.7L10 14.5l-1.7-4.3L4 8.5l4.3-1.7z" />
+      <path d="M15.5 13.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
+    </>
+  ),
+  phone: (
+    <>
+      <rect x="6" y="2.5" width="8" height="15" rx="2" />
+      <path d="M9 15h2" />
+    </>
+  ),
+  notifications: (
+    <>
+      <path d="M5 14V9a5 5 0 0 1 10 0v5l1.5 1.5h-13z" />
+      <path d="M8.5 17.5a1.6 1.6 0 0 0 3 0" />
+    </>
+  ),
+  advanced: (
+    <>
+      <path d="M12.5 3.5a4 4 0 0 0-4.6 5.3L3 13.7 6.3 17l4.9-4.9a4 4 0 0 0 5.3-4.6l-2.6 2.6-2.4-.6-.6-2.4z" />
+    </>
+  ),
+  about: (
+    <>
+      <circle cx="10" cy="10" r="7.5" />
+      <path d="M10 9v5M10 6.2v.1" />
+    </>
+  )
+}
+
+function NavIcon({ id }: { id: SectionId }): React.JSX.Element {
+  return (
+    <svg
+      className="settings-nav-icon"
+      viewBox="0 0 20 20"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {NAV_ICONS[id]}
+    </svg>
+  )
+}
+
+/** The small label above a group of settings. */
+function GroupLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return <div className="settings-group-label">{children}</div>
+}
 
 /** When a usage window starts over: "6 PM" today, else "Mon 10 PM". */
 function resetLabel(at: number, now: number): string {
@@ -271,12 +355,11 @@ function AccountsPanel(): React.JSX.Element {
   }
   return (
     <div className="settings-accounts">
-      <Row
-        title="Accounts"
-        desc="Add a second subscription and a chat can carry on when the first hits its limit. Each chat stays on one account at a time."
-      >
-        <span />
-      </Row>
+      <GroupLabel>Accounts</GroupLabel>
+      <p className="settings-group-note">
+        Add a second subscription and a chat can carry on when the first hits its limit. Each chat
+        stays on one account at a time.
+      </p>
       {AGENT_PROVIDERS.map((p) => (
         <div key={p} className="settings-accounts-provider">
           <div className="settings-accounts-head">
@@ -406,14 +489,17 @@ function AccountsPanel(): React.JSX.Element {
 function Row({
   title,
   desc,
+  stacked,
   children
 }: {
   title: string
   desc: string
+  /** The control goes under the words, at full width: for one too big to sit beside them. */
+  stacked?: boolean
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <div className="settings-row">
+    <div className={`settings-row${stacked ? ' stacked' : ''}`}>
       <div className="settings-label">
         <strong>{title}</strong>
         <span>{desc}</span>
@@ -669,17 +755,22 @@ export function Settings({
                 if (s.id === 'agents' && !env && !envChecking) checkAgents()
               }}
             >
-              <span className="settings-nav-icon" aria-hidden>
-                {s.icon}
-              </span>
+              <NavIcon id={s.id} />
               {s.label}
             </button>
           ))}
         </nav>
 
         <div className="settings-content">
+          {/* One heading for whichever section is showing: the list on the left
+              says where you are, this says what it is for. */}
+          <header className="settings-section-head">
+            <h2>{SECTIONS.find((s) => s.id === section)?.label}</h2>
+            <p>{SECTIONS.find((s) => s.id === section)?.blurb}</p>
+          </header>
           {section === 'general' && (
             <section className="settings-section">
+              <GroupLabel>Look</GroupLabel>
               <Row title="Appearance" desc="Light, dark, or match your system.">
                 <div className="mode-switch">
                   {(['light', 'dark', 'system'] as const).map((t) => (
@@ -742,6 +833,7 @@ export function Settings({
                   ))}
                 </div>
               </Row>
+              <GroupLabel>Agents</GroupLabel>
               <Row
                 title="Agent permissions"
                 desc={
@@ -770,14 +862,13 @@ export function Settings({
 
           {section === 'connections' && (
             <section className="settings-section">
-              <h2>Connected apps</h2>
-              <p>Choose which apps your agents can access.</p>
               <MailConnection />
             </section>
           )}
 
           {section === 'agents' && (
             <section className="settings-section">
+              <GroupLabel>On this Mac</GroupLabel>
               <div className="settings-agents">
                 {AGENT_PROVIDERS.map((p) => (
                   <AgentCard
@@ -789,6 +880,7 @@ export function Settings({
                   />
                 ))}
               </div>
+              <GroupLabel>New chats</GroupLabel>
               <Row
                 title="Default for new chats"
                 desc="Every chat keeps its own agent — this is just where new ones start. Change a single chat from the Agent pill under its composer."
@@ -844,6 +936,7 @@ export function Settings({
           {section === 'advanced' && (
             <section className="settings-section">
               <Row
+                stacked
                 title="Storage"
                 desc="What Superagent keeps on this Mac. Browsing data is sites the agent visited storing their own caches and logins, the way any browser profile grows."
               >
@@ -925,9 +1018,11 @@ export function Settings({
                   )}
                 </div>
               </Row>
+              <GroupLabel>Developer</GroupLabel>
               <Row title="Developer mode" desc="Show DevTools and verbose details.">
                 <Toggle checked={devMode} onChange={toggleDev} />
               </Row>
+              <GroupLabel>Start over</GroupLabel>
               <Row
                 title="Reset Superagent"
                 desc="Start fresh: removes every project, chat, board and routine. Your files, paired phones and browser logins stay."
@@ -942,11 +1037,10 @@ export function Settings({
           {section === 'about' && (
             <section className="settings-section">
               <div className="settings-about">
-                <div className="settings-about-app">Superagent</div>
-                <div className="settings-about-ver">
-                  Version {appVersion ?? '—'}
-                  <span className="settings-about-sep">·</span>
-                  {version || 'no agent found'}
+                <div className="settings-about-id">
+                  <div className="settings-about-app">Superagent</div>
+                  <div className="settings-about-ver">Version {appVersion ?? '—'}</div>
+                  <div className="settings-about-agents">{version || 'No agent found'}</div>
                 </div>
                 <div className="settings-about-update">
                   <button
@@ -966,36 +1060,28 @@ export function Settings({
                     updateMsg && <span className="settings-update-msg">{updateMsg}</span>
                   )}
                 </div>
-                <div className="settings-about-beta">
-                  <div className="settings-about-beta-text">
-                    <strong>Beta updates</strong>
-                    <span>
-                      Get pre-release builds early to try new things and help catch problems. They
-                      can be rough; turn this off to stay on stable releases only.
-                    </span>
-                  </div>
-                  <Toggle checked={betaUpdates} onChange={toggleBeta} />
-                </div>
-                <div className="settings-about-beta">
-                  <div className="settings-about-beta-text">
-                    <strong>Intro</strong>
-                    <span>
-                      The short film that plays the first time Superagent opens: what the app does,
-                      in half a minute.
-                    </span>
-                  </div>
-                  <button
-                    className="settings-update-check"
-                    onClick={() => {
-                      // Out of Settings first: the intro plays over the app.
-                      onClose()
-                      window.dispatchEvent(new CustomEvent(REPLAY_INTRO_EVENT))
-                    }}
-                  >
-                    Show the intro again
-                  </button>
-                </div>
               </div>
+              <Row
+                title="Beta updates"
+                desc="Get pre-release builds early to try new things and help catch problems. They can be rough; turn this off to stay on stable releases only."
+              >
+                <Toggle checked={betaUpdates} onChange={toggleBeta} />
+              </Row>
+              <Row
+                title="Intro"
+                desc="The short film that plays the first time Superagent opens: what the app does, in half a minute."
+              >
+                <button
+                  className="settings-update-check"
+                  onClick={() => {
+                    // Out of Settings first: the intro plays over the app.
+                    onClose()
+                    window.dispatchEvent(new CustomEvent(REPLAY_INTRO_EVENT))
+                  }}
+                >
+                  Show the intro again
+                </button>
+              </Row>
             </section>
           )}
         </div>

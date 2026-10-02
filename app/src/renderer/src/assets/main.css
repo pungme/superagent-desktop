@@ -9445,12 +9445,13 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--border);
 }
 .settings-page-head h1 {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 650;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 .settings-done {
@@ -9460,9 +9461,9 @@ button {
      was white-on-white. --accent-fg is the colour that belongs on it. */
   color: var(--accent-fg, #fff);
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  padding: 6px 16px;
+  padding: 5px 14px;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -9475,50 +9476,106 @@ button {
   display: flex;
 }
 .settings-nav {
-  width: 196px;
+  width: 204px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
-  padding: 12px 10px;
+  background: var(--bg-panel);
+  padding: 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow-y: auto;
 }
 .settings-nav-item {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   border: none;
   background: none;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font: inherit;
   font-size: 13px;
   text-align: left;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
   cursor: pointer;
 }
 .settings-nav-item:hover {
   background: var(--hover);
+  color: var(--text-primary);
 }
+/* The section you are in: the row lifts off the list, as the selected row of
+   the sidebar does, rather than turning the accent colour. */
 .settings-nav-item.on {
-  background: color-mix(in srgb, var(--accent, #3b82f6) 14%, transparent);
-  color: var(--accent, #3b82f6);
-  font-weight: 550;
+  background: var(--bg-content);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 1px 2px var(--shadow, rgba(0, 0, 0, 0.08));
 }
 .settings-nav-icon {
-  width: 18px;
-  text-align: center;
-  opacity: 0.85;
+  flex: none;
+  opacity: 0.8;
+}
+.settings-nav-item.on .settings-nav-icon {
+  opacity: 1;
 }
 .settings-content {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 8px 28px 28px;
+  padding: 28px 32px 48px;
 }
+/* One column, the same width in every section, centred in whatever room the
+   window gives it: settings stretched edge to edge put a title at one end of a
+   row and its switch a foot away at the other. */
+.settings-section-head,
 .settings-section {
-  max-width: 680px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+.settings-section-head {
+  margin-bottom: 22px;
+}
+.settings-section-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.settings-section-head p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.settings-group-label {
+  margin: 24px 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.settings-section > .settings-group-label:first-child,
+.settings-accounts > .settings-group-label:first-child {
+  margin-top: 0;
+}
+/* Links in Settings are the app's, not the browser's blue. */
+.settings-content a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 2px;
+}
+.settings-content a:hover {
+  text-decoration-color: currentColor;
+}
+.settings-group-note {
+  margin: -2px 2px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
 }
 
 /* --- Settings › Agents ------------------------------------------------- */
@@ -9527,15 +9584,14 @@ button {
 .settings-agents {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px 0 6px;
+  gap: 8px;
 }
 
 .settings-agent {
-  padding: 14px 16px;
+  padding: 13px 16px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: var(--hover);
+  background: var(--bg-panel);
 }
 
 .settings-agent.connected {
@@ -9647,81 +9703,114 @@ button {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding-top: 14px;
+  padding: 14px 2px 0;
 }
+/* Mail's card, in Settings: the same card as everything else here. (It is
+   also the centrepiece of an onboarding step, where it keeps its own shape.) */
+.settings-section .mail-connection {
+  margin-top: 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--bg-panel);
+}
+/* About: which version this is, in a card of its own above the rows. */
 .settings-about {
-  padding: 20px 0;
-}
-.settings-about-app {
-  font-size: 20px;
-  font-weight: 650;
-}
-.settings-about-ver {
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-.settings-about-sep {
-  margin: 0 8px;
-  opacity: 0.6;
-}
-.settings-about-update {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.settings-about-beta {
-  margin-top: 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  text-align: left;
-  max-width: 460px;
+  flex-wrap: wrap;
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
 }
-.settings-about-beta-text {
+.settings-about-app {
+  font-size: 15px;
+  font-weight: 650;
+}
+.settings-about-ver {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.settings-about-agents {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.settings-about-update {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-}
-.settings-about-beta-text strong {
-  font-size: 13px;
-}
-.settings-about-beta-text span {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.4;
+  align-items: flex-end;
+  gap: 6px;
 }
 
 .settings-body {
   padding: 8px 16px;
 }
 
+/* A row is a line in a card. Rows that follow one another join into one card —
+   the first rounds the top, the last rounds the bottom — and anything else
+   between two rows (a label, a block of its own) ends one card and starts the
+   next. So a section groups itself by where its labels are, and a row that only
+   sometimes exists does not leave a card with a missing corner. */
 .settings-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.settings-row:last-child {
+  gap: 20px;
+  padding: 13px 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-bottom: none;
+}
+.settings-row:not(.settings-row + .settings-row) {
+  border-radius: 12px 12px 0 0;
+}
+.settings-row:not(:has(+ .settings-row)) {
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 12px 12px;
+}
+.settings-row:not(.settings-row + .settings-row):not(:has(+ .settings-row)) {
+  border-radius: 12px;
+}
+.settings-row.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .settings-label {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
-
+.settings-label strong {
+  font-size: 13px;
+  font-weight: 600;
+}
 .settings-label span {
   font-size: 12px;
+  line-height: 1.45;
   color: var(--text-secondary);
+}
+/* The switches in Settings sit on a card, not on the toolbar they were drawn
+   for: a quiet track, and the chosen one lifted off it. */
+.settings-page .mode-switch {
+  flex: none;
+  background: var(--hover);
+  border-radius: 8px;
+}
+.settings-page .mode-switch-btn.active {
+  background: var(--bg-content);
+  color: var(--text-primary);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 1px 2px var(--shadow, rgba(0, 0, 0, 0.08));
 }
 
 .settings-footer {
@@ -9738,11 +9827,14 @@ button {
 .settings-update-check {
   flex: none;
   border: 1px solid var(--border-strong);
-  background: none;
-  color: var(--text-secondary);
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 999px;
+  background: var(--bg-content);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 .settings-update-check:hover {
   background: var(--hover);
@@ -9753,6 +9845,7 @@ button {
 }
 
 .settings-update-msg {
+  font-size: 11.5px;
   color: var(--text-secondary);
 }
 
@@ -11180,8 +11273,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 4px 0 16px;
-  border-bottom: 1px solid var(--border);
+  padding: 0 2px 16px;
 }
 .phone-intro span,
 .phone-muted {
@@ -11211,7 +11303,7 @@ button {
 }
 
 .phone-subhead {
-  margin: 22px 0 4px;
+  margin: 24px 2px 8px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -12124,32 +12216,38 @@ button {
 }
 
 /* Settings → Agents → Accounts: one list per agent, with an inline add form. */
+.settings-accounts {
+  margin-top: 24px;
+}
 .settings-accounts-provider {
-  padding: 8px 0 4px;
-  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
 }
 .settings-accounts-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  min-height: 26px;
+  font-size: 13px;
   color: var(--text-primary);
 }
 .settings-accounts-list {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 10px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 .settings-account {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  background: var(--bg-elevated);
+  padding: 9px 0 2px;
+  border-top: 1px solid var(--border);
   font-size: 12px;
 }
 .settings-account-name {
@@ -12231,7 +12329,7 @@ button {
   white-space: normal;
 }
 .settings-accounts-foot {
-  padding: 8px 0 0;
+  padding: 2px 0 18px;
 }
 /* How much of each allowance is used: one meter per window, under the account. */
 .settings-account-usage {
@@ -12395,7 +12493,9 @@ button {
   z-index: 10000;
   background: #0c0d10;
   opacity: 1;
-  transition: opacity 650ms cubic-bezier(0.22, 1, 0.36, 1), transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    opacity 650ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .first-run-intro.leaving {
   opacity: 0;
@@ -12432,11 +12532,18 @@ button {
   background: linear-gradient(180deg, #fbfbfc 0%, #e6e6ea 100%);
 }
 @keyframes onboarding-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .onboarding-waiting-mark { animation: none; }
+  .onboarding-waiting-mark {
+    animation: none;
+  }
 }
 
 /* The sidebar takes the keyboard for ↑/↓ between sessions; no focus ring. */
