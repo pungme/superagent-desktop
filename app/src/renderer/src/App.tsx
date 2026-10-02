@@ -273,15 +273,22 @@ function App(): React.JSX.Element {
   // punch through the page).
   const contentCovered = sectionOpen || settingsOpen
   useEffect(() => {
-    // One value, so opening either inherently closes the other.
-    const openComputer = (): void => setOverlay('computer')
-    const openChats = (): void => setOverlay('chats')
+    // One value, so opening either inherently closes the other. Settings is
+    // its own state and covers them both, so going to one leaves it too:
+    // clicking a chat in the sidebar's Chats list with Settings open used to
+    // open the chat behind Settings, and nothing appeared to happen.
+    const show = (o: 'computer' | 'chats'): void => {
+      setOverlay(o)
+      setSettingsOpen(false)
+    }
+    const openComputer = (): void => show('computer')
+    const openChats = (): void => show('chats')
     // A conversation that belongs to no project: straight into Chats with a
     // fresh one open, rather than open Chats, then find its + New chat.
     const newChatInChats = async (): Promise<void> => {
       const home = await window.cove.desktopChatHome?.()
       if (!home) return
-      setOverlay('chats')
+      show('chats')
       await useStore.getState().newChat(home.workspaceId)
     }
     const onNewChat = (): void => void newChatInChats()
@@ -289,7 +296,7 @@ function App(): React.JSX.Element {
     // These live on the desktop now. Show it, then let it raise the window —
     // after a tick, so a freshly mounted desktop is listening by then.
     const openOnDesktop = (app: 'dashboard' | 'skills' | 'routines') => (): void => {
-      setOverlay('computer')
+      show('computer')
       setTimeout(
         () => window.dispatchEvent(new CustomEvent('cove:open-desktop-app', { detail: { app } })),
         60

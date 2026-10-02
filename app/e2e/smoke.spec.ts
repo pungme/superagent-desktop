@@ -253,6 +253,26 @@ test('Chats lives in the sidebar, above Projects, and opens a chat straight away
   await expect(window.locator('.computer-host:visible')).toHaveCount(0)
 })
 
+test('clicking a chat in the sidebar leaves Settings', async () => {
+  // Settings covers everything; a chat picked behind it used to open behind
+  // it, so the click looked as though it had done nothing.
+  const rows = window.locator('.sidebar-chats .sidebar-chat-row')
+  const heading = window.locator('main h1', { hasText: 'Settings' })
+  await window.click('.sidebar-settings[title="Settings"]')
+  await expect(heading).toBeVisible()
+  // The one already open, and then another: neither changes the selection
+  // enough to be noticed by anything that only watches for a change.
+  await rows.first().click()
+  await expect(heading).toHaveCount(0)
+  await expect(window.locator('.chats-host .chat-mount:visible')).toHaveCount(1)
+  await window.click('.sidebar-settings[title="Settings"]')
+  await expect(heading).toBeVisible()
+  await rows.nth(1).click()
+  await expect(heading).toHaveCount(0)
+  await expect(rows.nth(1)).toHaveClass(/active/)
+  await rows.first().click()
+})
+
 test('Chats lines up with Projects, and folds away with a click on its header', async () => {
   // The labels start at the same place — they used to sit 10px apart.
   const left = (sel: string): Promise<number> =>
