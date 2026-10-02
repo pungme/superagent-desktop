@@ -9,6 +9,39 @@ const $ = (s, r = document) => r.querySelector(s)
 const $$ = (s, r = document) => [...r.querySelectorAll(s)]
 const h = (html) => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild }
 const cam = $('#cam')
+
+// ---------------------------------------------------------------- portrait
+// ?portrait re-stages the reel for a phone held upright, 1080×1920. The scenes
+// keep their 1920×1080 coordinates; what changes is the frame around them: the
+// backdrops turn a quarter to fill it, a second camera (pcam, at the end)
+// frames each scene for the narrow screen, and the few things that cannot be
+// framed — the lockups, the toggle, the captions — are stacked instead.
+const PORTRAIT = new URLSearchParams(location.search).has('portrait')
+const stageEl = $('#stage')
+if (PORTRAIT) {
+  const p = h(`<div id="pstage"></div>`)
+  stageEl.before(p)
+  for (const sel of ['#bgDark', '#dotsDark', '#introGlow', '#wipeA', '#wipeB', '#paper', '#blobs', '#dots']) p.append($(sel))
+  p.append(stageEl)
+  for (const sel of ['#capfade', '#caps', '#flash', '#vig', '#grain']) p.append($(sel))
+  document.head.append(h(`<style>
+    html, body { width: 1080px; height: 1920px; }
+    #pstage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; background: var(--dark); }
+    #pstage > .full, #pstage > #grain, #pstage > #introGlow, #pstage > #warp { translate: -420px 420px; rotate: 90deg; }
+    #pstage > #warp { visibility: hidden; }
+    #stage { overflow: visible; background: none; transform-origin: 0 0; }
+    #capfade { top: 1260px; width: 1080px; height: 660px; }
+    .cap { left: 540px; top: 1500px; }
+    .cap .eb { font-size: 21px; margin-bottom: 22px; }
+    .cap { font-size: 76px; }
+    .cap .hd { font-size: 1em; line-height: 1.12; }
+    .cap .hd .g { display: block; }
+    .tagline, .slam { text-align: center; }
+    .tagline { line-height: 1.2; font-size: 94px; }
+    .slam { line-height: 0.98; font-size: 210px; }
+    .toggle { width: 450px; height: 470px; margin: -235px 0 0 -225px; }
+  </style>`))
+}
 const CUES = []
 const cue = (type, t, o = {}) => CUES.push({ type, t, ...o })
 const procs = []
@@ -97,27 +130,44 @@ function nimbusMobile() {
 }
 
 // ================================================================= BUILD
+// Everything below is laid out from measured text, so the fonts have to be in
+// first. fonts.ready alone is not enough: nothing has asked for them yet, so it
+// resolves at once and the measuring is done in the fallback face.
+await Promise.all([...document.fonts].map((f) => f.load().catch(() => {})))
 await document.fonts.ready
 await Promise.all([...document.images].map((i) => i.decode().catch(() => {})))
 
 // ---------------------------------------------------------------- SCENE 1: intro
 const sIntro = h(`<div class="scene" id="sIntro"></div>`); cam.append(sIntro)
-const text1 = 'Your agent lives in a terminal.'
-const line1 = h(`<div class="type-line" style="font-size:94px">${charSpans(text1)}</div>`)
-const line2 = h(`<div class="type-line" style="font-size:132px;font-weight:680">${['Give', 'it', 'a', 'home.'].map((w) => `<span class="w">${charSpans(w)}</span>`).join('<span class="c">&nbsp;</span>')}</div>`)
+const text1 = 'Hello.'
+const words2List = ['Welcome', 'home.']
+// upright, the line breaks after "lives" and is set larger
+// a long line is set smaller, and upright it breaks in two at the space nearest its middle
+const longLine = text1.length > 20
+const breakAt = longLine ? text1.indexOf(' ', Math.floor(text1.length / 2)) + 1 : 0
+const rowsDef = PORTRAIT && breakAt ? [[0, breakAt, -72], [breakAt, text1.length, 72]] : [[0, text1.length, 0]]
+const typeRows = rowsDef.map(([a, b]) => h(`<div class="type-line" style="font-size:${PORTRAIT ? (longLine ? 116 : 190) : longLine ? 94 : 132}px">${charSpans(text1.slice(a, b))}</div>`))
+const line1 = typeRows[0]
+// upright, two words stand one over the other, set large
+const stack2 = PORTRAIT && words2List.length === 2
+const line2 = h(`<div class="type-line" style="font-weight:680;${stack2 ? 'font-size:196px;text-align:center;line-height:1.04' : 'font-size:132px'}">${words2List.map((w) => `<span class="w">${charSpans(w)}</span>`).join(stack2 ? '<br>' : '<span class="c">&nbsp;</span>')}</div>`)
 const cursorSq = h(`<div id="cursorSq"></div>`)
-sIntro.append(line1, line2, cursorSq)
-gsap.set([line1, line2], { yPercent: -50 })
+sIntro.append(...typeRows, line2, cursorSq)
+gsap.set([...typeRows, line2], { yPercent: -50 })
 // measure
-const c1 = $$('.c', line1)
+const c1 = typeRows.flatMap((r) => $$('.c', r))
 const w1 = c1.map((c) => c.getBoundingClientRect().width)
-const tc = c1.map((_, i) => T(1, 1.5) + i * BEAT / 12)
+if (rowsDef.length > 1) w1[breakAt - 1] = 0 // the space the line breaks on
+// a long line rattles out; a short one is typed a key at a time
+const tc = c1.map((_, i) => T(1, 1.5) + i * BEAT / (longLine ? 12 : 4))
 const l2w = line2.getBoundingClientRect().width
 gsap.set(line2, { x: -l2w / 2 })
 const words2 = $$('.w', line2)
 const wRight = words2.map((w) => w.getBoundingClientRect().right)
+const wMid = words2.map((w) => { const r = w.getBoundingClientRect(); return stack2 ? r.top + r.height / 2 : 540 })
 const c2rects = $$('.c', line2).map((c) => c.getBoundingClientRect())
-const tw2 = [T(2, 1), T(2, 1.5), T(2, 2), T(2, 2.5)]
+const nW = words2List.length
+const tw2 = nW <= 2 ? [T(2, 1), T(2, 2)].slice(0, nW) : [T(2, 1), T(2, 1.5), T(2, 2), T(2, 2.5)].slice(0, nW)
 gsap.set(c1, { opacity: 0 })
 c1.forEach((c, i) => {
   tl.fromTo(c, { opacity: 0, y: 26, scale: 0.7 }, { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: 'back.out(3)' }, tc[i])
@@ -134,7 +184,7 @@ const c2 = $$('.c', line2)
 const suckT = T(2, 3.75)
 c2.forEach((c, i) => {
   const r = c2rects[i]
-  const cx = r.left + r.width / 2, cy = 540
+  const cx = r.left + r.width / 2, cy = stack2 ? r.top + r.height / 2 : 540
   const d = Math.abs(cx - 960)
   tl.to(c, { x: 960 - cx, y: 540 - cy - 10, scale: 0.05, rotation: (hash(i) - 0.5) * 120, opacity: 0, duration: 0.3, ease: 'power3.in' }, suckT + (1 - d / 900) * 0.1 + hash(i + 9) * 0.04)
 })
@@ -146,28 +196,36 @@ const beatTimes = []; for (let b = 0; b < 8; b++) beatTimes.push(b * BEAT)
 const roll16 = []; for (let i = 0; i < 6; i++) roll16.push(T(2, 3) + i * BEAT / 4)
 procs.push((t) => {
   if (t >= T(3)) return
-  // line 1 centring: smooth width
-  let W = 0, Wd = 0
-  for (let i = 0; i < w1.length; i++) { if (t >= tc[i]) { W += w1[i] * (1 - Math.exp(-(t - tc[i]) / 0.07)); Wd += w1[i] * (1 - Math.exp(-(t - tc[i]) / 0.012)) } }
+  // line 1 centring: smooth width, a row at a time; the cursor sits on the row being typed
   const gap = 26, cw = 52
-  const left1 = 960 - (W + gap + cw) / 2
-  line1.style.transform = `translate(${left1 - 960}px, -50%)`
-  let x, y = 540 - 26 - 4, s = 1, sx = 1, sy = 1, rot = 0
+  let typedX = 0, typedY = 540 - 26 - 4
+  rowsDef.forEach(([a, b, dy], r) => {
+    let W = 0, Wd = 0
+    for (let i = a; i < b; i++) { if (t >= tc[i]) { W += w1[i] * (1 - Math.exp(-(t - tc[i]) / 0.07)); Wd += w1[i] * (1 - Math.exp(-(t - tc[i]) / 0.012)) } }
+    const last = r === rowsDef.length - 1
+    // a row gives up the cursor's room as the next one starts
+    const share = last ? 1 : 1 - eo3(ramp(t, tc[b], tc[b] + 0.14))
+    const left = 960 - (W + (gap + cw) * share) / 2
+    typeRows[r].style.transform = `translate(${left - 960}px, calc(-50% + ${dy}px))`
+    if (last || t < tc[b]) { if (r === 0 || t >= tc[a]) { typedX = left + Wd + gap; typedY = 540 + dy - 26 - 4 } }
+  })
+  let x, y = typedY, s = 1, sx = 1, sy = 1, rot = 0
   if (t < T(2) - 0.1) {
-    x = left1 + Wd + gap
+    x = typedX
     s = t < 0.25 ? gsap.parseEase('back.out(3)')(clamp(t / 0.25)) : 1
     s += sPulse(t, beatTimes, 0.14)
   } else if (t < T(2, 3.75)) {
-    let k = 0; for (let i = 0; i < 4; i++) if (t >= tw2[i]) k = i
+    let k = 0; for (let i = 0; i < nW; i++) if (t >= tw2[i]) k = i
     const tx = wRight[k] + 22
-    x = t < tw2[0] ? lerp(left1 + Wd + gap, tx, eo3(ramp(t, T(2) - 0.1, T(2)))) : tx
-    y = 540 - 26 - 8
+    const kk = t < tw2[0] ? eo3(ramp(t, T(2) - 0.1, T(2))) : 1
+    x = lerp(typedX, tx, kk)
+    y = lerp(typedY, wMid[k] - 26 - 8, kk)
     s = 1.12 + sPulse(t, tw2, 0.3, 0.07) + sPulse(t, roll16, 0.12, 0.05) + ramp(t, T(2, 3), T(2, 3.75)) * 0.25
     if (t > T(2, 3)) { const a = ramp(t, T(2, 3), T(2, 3.75)) * 5; x += (hash(Math.floor(t * 60)) - 0.5) * a; y += (hash(Math.floor(t * 60) + 3) - 0.5) * a }
   } else {
-    const x0 = wRight[3] + 22
+    const x0 = wRight[nW - 1] + 22
     const k = eio3(ramp(t, T(2, 3.75), T(2, 4.5)))
-    x = lerp(x0, 960 - 26, k); y = lerp(540 - 34, 540 - 26, k)
+    x = lerp(x0, 960 - 26, k); y = lerp(wMid[nW - 1] - 34, 540 - 26, k)
     s = lerp(1.37, 1.6, k) + sPulse(t, roll16, 0.12, 0.05)
     const a = ramp(t, T(2, 4.5), T(3))
     if (a > 0) {
@@ -199,15 +257,23 @@ const logo = makeLogo()
 const word = h(`<div class="wordmark">${[...'Superagent'].map((c) => `<span class="mask"><span class="c">${c}</span></span>`).join('')}</div>`)
 const kanaStr = 'スーパーエージェント'
 const kana = h(`<div class="kana">${charSpans(kanaStr)}</div>`)
-const tagline = h(`<div class="tagline"><span class="mask"><span class="wi">A</span></span> <span class="mask"><span class="wi">beautiful</span></span> <span style="position:relative;display:inline-block"><span class="mask"><span class="wi g">home</span></span><span class="uline" style="bottom:-0.02em"></span></span> <span class="mask"><span class="wi">for</span></span> <span class="mask"><span class="wi">your</span></span> <span class="mask"><span class="wi">agent.</span></span></div>`)
+const tagline = h(`<div class="tagline"><span class="mask"><span class="wi">A</span></span> <span class="mask"><span class="wi">beautiful</span></span> <span style="position:relative;display:inline-block"><span class="mask"><span class="wi g">home</span></span><span class="uline" style="bottom:-0.02em"></span></span>${PORTRAIT ? '<br>' : ' '}<span class="mask"><span class="wi">for</span></span> <span class="mask"><span class="wi">your</span></span> <span class="mask"><span class="wi">agent.</span></span></div>`)
 sLogo.append(ring1, ring2, logo, word, kana, tagline)
 const wordW = word.getBoundingClientRect().width
 const lockW = 300 + 64 + wordW
 const lockL = 960 - lockW / 2
-const LX = lockL + 150, LY = 440
-gsap.set(word, { x: lockL + 364, y: LY - 96 })
-gsap.set(kana, { x: lockL + 372, y: LY + 88 })
-gsap.set(tagline, { x: 960, xPercent: -50, y: 690 })
+// upright, the lockup stacks: mark, name, kana, tagline on two lines
+const LX = PORTRAIT ? 960 : lockL + 150, LY = PORTRAIT ? 300 : 440
+const kanaW = kana.getBoundingClientRect().width
+if (PORTRAIT) {
+  gsap.set(word, { x: 960 - wordW / 2, y: 490 })
+  gsap.set(kana, { x: 960 - kanaW / 2 + 10, y: 690 })
+  gsap.set(tagline, { x: 960, xPercent: -50, y: 800 })
+} else {
+  gsap.set(word, { x: lockL + 364, y: LY - 96 })
+  gsap.set(kana, { x: lockL + 372, y: LY + 88 })
+  gsap.set(tagline, { x: 960, xPercent: -50, y: 690 })
+}
 gsap.set([logo, ring1, ring2], { xPercent: -50, yPercent: -50, x: 960, y: 540 })
 show(sLogo, T(3)); hide(sLogo, T(5))
 const t3 = T(3)
@@ -577,13 +643,15 @@ $$('.brl', svg).forEach((p, i) => {
 })
 tl.fromTo(brGroup, { x: 60 }, { x: -40, duration: BAR * 2, ease: 'none' }, t11)
 // agents: the toggle
-const toggle = h(`<div class="toggle" style="width:1300px;margin-left:-650px"><div class="knob"></div>
-  <div class="seg" style="left:10px"><span class="lg">${claudeSvg(62)}</span><span class="t1">Claude Code</span></div>
-  <div class="seg" style="left:435px"><span class="lg lx">${codexSvg(62, 'currentColor')}</span><span class="t2">Codex</span></div>
-  <div class="seg" style="left:860px"><span class="lg">${geminiSvg(62)}</span><span class="t3">Gemini</span></div></div>`)
+const segAt = (i) => (PORTRAIT ? `left:10px;top:${i * 150}px` : `left:${[10, 435, 860][i]}px`)
+const toggle = h(`<div class="toggle" style="${PORTRAIT ? '' : 'width:1300px;margin-left:-650px'}"><div class="knob"></div>
+  <div class="seg" style="${segAt(0)}"><span class="lg">${claudeSvg(62)}</span><span class="t1">Claude Code</span></div>
+  <div class="seg" style="${segAt(1)}"><span class="lg lx">${codexSvg(62, 'currentColor')}</span><span class="t2">Codex</span></div>
+  <div class="seg" style="${segAt(2)}"><span class="lg">${geminiSvg(62)}</span><span class="t3">Gemini</span></div></div>`)
 sBr.append(toggle)
 const knob = $('.knob', toggle), segs = $$('.seg', toggle), seg1 = segs[0]
-const knobX = [0, 425, 850]
+const knobAt = (i) => (PORTRAIT ? { y: i * 150 } : { x: [0, 425, 850][i] })
+const squash = PORTRAIT ? { scaleX: 0.84, scaleY: 1.35 } : { scaleX: 1.35, scaleY: 0.84 }
 const t12 = T(12)
 tl.to(brGroup, { scale: 0.82, opacity: 0.28, filter: 'blur(5px)', duration: 0.6, ease: 'expo.out' }, t12 - 0.05)
 tl.fromTo(toggle, { scale: 0.3, opacity: 0, rotationX: 60 }, { scale: 1, opacity: 1, rotationX: 0, duration: 0.8, ease: 'back.out(1.6)' }, t12 - 0.05)
@@ -593,8 +661,8 @@ cue('pop', t12, { midi: 81, vel: 0.6 })
 const cardLogo = { claude: '.pc', codex: '.px', gemini: '.pg' }
 const flipTo = (t, to, from, cards) => {
   // squash-and-stretch knob travel
-  tl.to(knob, { x: knobX[to], duration: 0.42, ease: 'expo.inOut' }, t - 0.2)
-  tl.to(knob, { scaleX: 1.35, scaleY: 0.84, duration: 0.2, ease: 'power2.in' }, t - 0.2)
+  tl.to(knob, { ...knobAt(to), duration: 0.42, ease: 'expo.inOut' }, t - 0.2)
+  tl.to(knob, { ...squash, duration: 0.2, ease: 'power2.in' }, t - 0.2)
   tl.to(knob, { scaleX: 1, scaleY: 1, duration: 0.6, ease: 'elastic.out(1.2,0.35)' }, t)
   tl.to(segs[to], { color: '#ffffff', duration: 0.15, ease: 'none' }, t - 0.05)
   tl.to(segs[from], { color: '#23241f', duration: 0.15, ease: 'none' }, t - 0.05)
@@ -618,15 +686,17 @@ tl.to(segs, { opacity: 0, duration: 0.2, ease: 'none' }, T(13) - 0.45)
 cue('whoosh', T(13) - 0.03, { len: 0.8, vel: 0.9 })
 
 // ---------------------------------------------------------------- SCENE 7: montage
-const sMon = h(`<div class="scene" id="sMon" style="background:#0c0d10"></div>`); cam.append(sMon)
+const sMon = h(`<div class="scene" id="sMon" style="background:${PORTRAIT ? 'none' : '#0c0d10'}"></div>`); cam.append(sMon)
 const warp = h(`<canvas id="warp" width="1920" height="1080"></canvas>`)
 const bigk = h(`<div class="bigkana">コードは、二番目。コードは、二番目。</div>`)
 sMon.append(warp, bigk)
+// upright, the stars are a backdrop like the others: behind the scenes, filling the frame
+if (PORTRAIT) { stageEl.before(warp); show(warp, T(13)); hide(warp, T(14, 4.5)) }
 const shotsDef = ['shot-build.jpg', 'shot-hero.jpg', 'shot-browser-view.jpg', 'shot-phone.jpg', 'shot-chat.jpg', 'shot-2-sidebar-and-phone.jpg', 'shot-3-cmdk.jpg', 'shot-5-iphone.jpg', 'shot-4b-agent-mobile-fixed.jpg', 'shot-build.jpg', 'shot-hero.jpg', 'shot-browser-view.jpg']
 const shotLayer = h(`<div class="full" style="transform-style:preserve-3d"></div>`); sMon.append(shotLayer)
 const shotEls = shotsDef.map((f, i) => { const tall = /phone|iphone/.test(f); const s = h(`<div class="shot" style="width:${tall ? 300 : 620}px"><img src="assets/${f}"></div>`); shotLayer.append(s); return s })
 await Promise.all($$('img', sMon).map((i) => i.decode().catch(() => {})))
-const slams = ['Open source.', 'No API key.', 'No telemetry.', 'Just your Mac.'].map((s) => { const e = h(`<div class="slam">${s}</div>`); sMon.append(e); return e })
+const slams = ['Open source.', 'No API key.', 'No telemetry.', 'Just your Mac.'].map((s) => { const e = h(`<div class="slam">${PORTRAIT ? s.replace(/ (?=\S+$)/, '<br>') : s}</div>`); sMon.append(e); return e })
 const strobeIcons = [claudeSvg(170), codexSvg(170, '#23241f'), I('globe', 'font-size:170px;stroke-width:1.6'), I('phone', 'font-size:170px;stroke-width:1.6'), I('branch', 'font-size:170px;stroke-width:1.6'), I('term', 'font-size:170px;stroke-width:1.8')]
 const strobes = strobeIcons.map((s) => { const e = h(`<div class="strobe">${s}</div>`); sMon.append(e); return e })
 show(sMon, T(13)); hide(sMon, T(14, 4.5))
@@ -646,11 +716,16 @@ const R = mulberry(7)
 const shotT = [T(13, 1), T(13, 1.5), T(13, 2), T(13, 2.5), T(13, 3), T(13, 3.5), T(13, 4), T(13, 4.5), T(14, 1), T(14, 1.5), T(14, 2), T(14, 2.5)]
 shotEls.forEach((s, i) => {
   const ang = i * 2.4 + R() * 0.6
-  const x = Math.cos(ang) * (780 + R() * 140), y = Math.sin(ang) * (390 + R() * 60)
+  const ra = 780 + R() * 140, rb = 390 + R() * 60 // the tunnel is wide, or tall when upright
+  // upright they pass above and below the words, never across them
+  const x = Math.cos(ang) * (PORTRAIT ? rb * 0.9 : ra), y = PORTRAIT ? (Math.sin(ang) < 0 ? -1 : 1) * (540 + Math.abs(Math.sin(ang)) * (ra - 540)) : Math.sin(ang) * rb
   gsap.set(s, { xPercent: -50, yPercent: -50, opacity: 0 })
   const dur = 1.1, t0 = shotT[i] - dur * 0.45
   tl.fromTo(s, { x: x * 0.35, y: y * 0.35, z: -2600, rotationY: -x / 30, rotationX: y / 30, rotationZ: (R() - 0.5) * 24 }, { x: x * 1.1, y: y * 1.1, z: 700, rotationY: -x / 18, rotationX: y / 18, duration: dur, ease: 'power1.in', immediateRender: false }, t0)
-  tl.fromTo(s, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: 'none', immediateRender: false }, t0)
+  // a shot shows once it is through the stars' plane (z = 0), flying past the camera. Chromium's depth
+  // sorting hid it behind the star canvas until then; Safari's does not, and upright the stars sit behind
+  // the scenes anyway, so it is switched on at that moment rather than left to the canvas.
+  tl.fromTo(s, { opacity: 0 }, { opacity: 1, duration: 0.02, ease: 'none', immediateRender: false }, t0 + dur * 0.888)
   tl.to(s, { opacity: 0, duration: 0.1, ease: 'none' }, t0 + dur - 0.1)
 })
 // icon strobe on the roll
@@ -667,7 +742,7 @@ const sEnd = h(`<div class="scene" id="sEnd"></div>`); cam.append(sEnd)
 const logo2 = makeLogo()
 const word2 = h(`<div class="wordmark" style="font-size:150px">${[...'Superagent'].map((c) => `<span class="mask"><span class="c">${c}</span></span>`).join('')}</div>`)
 const kana2 = h(`<div class="kana" style="font-size:28px">${charSpans(kanaStr)}</div>`)
-const tag2 = h(`<div class="tagline" style="font-size:60px">${maskWords('A beautiful home for your agent.')}</div>`)
+const tag2 = h(`<div class="tagline" style="font-size:${PORTRAIT ? 78 : 60}px">${PORTRAIT ? maskWords('A beautiful home') + '<br>' + maskWords('for your agent.') : maskWords('A beautiful home for your agent.')}</div>`)
 const dl = h(`<div class="dl">${appleSvg(30)}<span>Download for Mac</span><div class="shine2"></div></div>`)
 const urlT = 'superagent.computer'
 const url2 = h(`<div class="urltxt">${charSpans(urlT)}<span class="uline" style="height:4px;bottom:-6px"></span></div>`)
@@ -677,22 +752,32 @@ sEnd.append(ring3, ring4, logo2, word2, kana2, tag2, dl, url2, small)
 const w2W = word2.getBoundingClientRect().width
 gsap.set(logo2, { scale: 0.8 })
 const lock2W = 240 + 52 + w2W, lock2L = 960 - lock2W / 2
-const L2X = lock2L + 120, L2Y = 380
+const L2X = PORTRAIT ? 960 : lock2L + 120, L2Y = PORTRAIT ? 250 : 380
 gsap.set([logo2, ring3, ring4], { xPercent: -50, yPercent: -50 })
 gsap.set([ring3, ring4], { x: 960, y: L2Y })
-gsap.set(word2, { x: lock2L + 292, y: L2Y - 88 })
-gsap.set(kana2, { x: lock2L + 298, y: L2Y + 72 })
-gsap.set(tag2, { x: 960, xPercent: -50, y: 548 })
 const dlW = dl.getBoundingClientRect().width, urlW = url2.getBoundingClientRect().width
 const rowW = dlW + 40 + urlW, rowL = 960 - rowW / 2
-gsap.set(dl, { x: rowL, y: 690 })
-gsap.set(url2, { x: rowL + dlW + 40, y: 712 })
-gsap.set(small, { x: 960, xPercent: -50, y: 842 })
+// upright, the card stacks like the lockup, with the button over the address
+const DLY = PORTRAIT ? 940 : 690, SMY = PORTRAIT ? 1170 : 842
+if (PORTRAIT) {
+  gsap.set(word2, { x: 960 - w2W / 2, y: 410 })
+  gsap.set(kana2, { x: 960 - kana2.getBoundingClientRect().width / 2 + 8, y: 590 })
+  gsap.set(tag2, { x: 960, xPercent: -50, y: 680 })
+  gsap.set(dl, { x: 960 - dlW / 2, y: DLY })
+  gsap.set(url2, { x: 960 - urlW / 2, y: 1060 })
+} else {
+  gsap.set(word2, { x: lock2L + 292, y: L2Y - 88 })
+  gsap.set(kana2, { x: lock2L + 298, y: L2Y + 72 })
+  gsap.set(tag2, { x: 960, xPercent: -50, y: 548 })
+  gsap.set(dl, { x: rowL, y: DLY })
+  gsap.set(url2, { x: rowL + dlW + 40, y: 712 })
+}
+gsap.set(small, { x: 960, xPercent: -50, y: SMY })
 show(sEnd, T(14, 4.5))
 const t15 = T(15)
 // hard cut to paper in the silence; the mark falls in and lands on the drop
 tl.set('#flash', { opacity: 0 }, T(14, 4.5))
-tl.fromTo(logo2, { x: 960, y: -300, scaleX: 0.62, scaleY: 1.05 }, { y: L2Y, duration: T(15) - T(14, 4.5), ease: 'power3.in' }, T(14, 4.5))
+tl.fromTo(logo2, { x: 960, y: PORTRAIT ? -760 : -300, scaleX: 0.62, scaleY: 1.05 }, { y: L2Y, duration: T(15) - T(14, 4.5), ease: 'power3.in' }, T(14, 4.5))
 tl.to(logo2, { scaleX: 0.98, scaleY: 0.6, duration: 0.07, ease: 'power2.out' }, t15)
 tl.to(logo2, { scaleX: 0.8, scaleY: 0.8, duration: 0.8, ease: 'elastic.out(1.3,0.35)' }, t15 + 0.07)
 gsap.set([ring3, ring4], { opacity: 0 })
@@ -703,7 +788,7 @@ tl.fromTo($$('.c', word2), { yPercent: 118, rotation: 14 }, { yPercent: 0, rotat
 $$('.c', word2).forEach((_, i) => cue('tick', T(15, 2.1) + i * 0.03, { vel: 0.35 }))
 scramble($$('.c', kana2), kanaStr, T(15, 2.8), 0.02, 0.04)
 tl.fromTo($$('.wi', tag2), { yPercent: 110 }, { yPercent: 0, duration: 0.6, ease: 'expo.out', stagger: 0.07 }, T(15, 3))
-tl.fromTo(dl, { scale: 0.4, opacity: 0, y: 720 }, { scale: 1, opacity: 1, y: 690, duration: 0.7, ease: 'back.out(2)' }, T(15, 4))
+tl.fromTo(dl, { scale: 0.4, opacity: 0, y: DLY + 30 }, { scale: 1, opacity: 1, y: DLY, duration: 0.7, ease: 'back.out(2)' }, T(15, 4))
 cue('pop', T(15, 4), { midi: 84, vel: 0.6 })
 const urlC = $$('.c', url2)
 gsap.set(urlC, { opacity: 0 })
@@ -716,14 +801,14 @@ tl.to(dl, { scale: 1, duration: 0.6, ease: 'elastic.out(1.2,0.4)' }, T(16) + 0.0
 tl.to($('.inner', logo2), { scale: 1.18, duration: 0.08, ease: 'power2.out' }, T(16))
 tl.to($('.inner', logo2), { scale: 1, duration: 0.7, ease: 'elastic.out(1.3,0.35)' }, T(16) + 0.08)
 cue('shine', T(16) + 0.05)
-tl.fromTo(small, { y: 862, opacity: 0 }, { y: 842, opacity: 1, duration: 0.6, ease: 'expo.out' }, T(16, 1.5))
+tl.fromTo(small, { y: SMY + 20, opacity: 0 }, { y: SMY, opacity: 1, duration: 0.6, ease: 'expo.out' }, T(16, 1.5))
 // slow push to the end
 tl.fromTo(sEnd, { scale: 1 }, { scale: 1.035, duration: 30 - T(15), ease: 'sine.out' }, t15)
 
 // ---------------------------------------------------------------- captions
 const capsEl = $('#caps')
 function caption(eb, jp, a, b, tin, tout) {
-  const c = h(`<div class="cap"><div class="eb"><span class="mask"><span class="wi">${eb}${jp ? `<span class="jp">${jp}</span>` : ''}</span></span></div><div class="hd">${maskWords(a)} <span class="g">${maskWords(b)}</span></div></div>`)
+  const c = h(`<div class="cap"${PORTRAIT && a.length > 24 ? ' style="font-size:64px"' : ''}><div class="eb"><span class="mask"><span class="wi">${eb}${jp ? `<span class="jp">${jp}</span>` : ''}</span></span></div><div class="hd">${maskWords(a)} <span class="g">${maskWords(b)}</span></div></div>`)
   capsEl.append(c)
   const ws = $$('.wi', c)
   gsap.set(ws, { yPercent: 115 })
@@ -741,6 +826,7 @@ caption('VI. ANY AGENT', '', 'Claude Code, Codex or Gemini.', 'Per chat.', T(12,
 tl.set('#paper', { visibility: 'visible' }, 0)
 tl.to('#capfade', { opacity: 1, duration: 0.5, ease: 'power2.out' }, T(5, 2.5))
 tl.set('#capfade', { opacity: 0 }, T(13))
+if (PORTRAIT) tl.to('#capfade', { opacity: 0, duration: 0.2, ease: 'none' }, T(13) - 0.5) // the knob comes through it
 tl.to('#blobs', { opacity: 0.7, duration: 0.5 }, T(9))
 tl.set('#bgDark', { visibility: 'visible' }, T(13)); tl.set(['#paper', '#blobs', '#dots'], { visibility: 'hidden' }, T(13))
 tl.set('#bgDark', { visibility: 'hidden' }, T(14, 4.5)); tl.set(['#paper', '#blobs', '#dots'], { visibility: 'visible' }, T(14, 4.5))
@@ -829,6 +915,36 @@ procs.push((t) => {
   const tile = tiles[f % tiles.length]
   gc.save(); gc.translate(-(hash(f) * 256), -(hash(f + 1) * 256)); gc.fillStyle = gc.createPattern(tile, 'repeat'); gc.fillRect(0, 0, 1920 + 256, 1080 + 256); gc.restore()
 })
+
+// ---------------------------------------------------------------- portrait camera
+// What the upright frame looks at: [time, x, y, zoom, where on screen that
+// point sits (y)], in the scenes' own 1920×1080 pixels. It eases from one key
+// to the next; a key marked 'cut' is jumped to.
+if (PORTRAIT) {
+  const K = [
+    [0, 960, 540, 1.08, 960],
+    [T(2) - 0.14, 960, 540, 1.08, 960], [T(2) + 0.05, 975, 540, stack2 ? 1.0 : 0.84, 960],
+    [T(3), 960, 540, 1.0, 960, 'cut'], [T(3, 1.8), 960, 540, 1.0, 960], [T(3, 3), 960, 585, 1.02, 960],
+    [T(4, 3.6), 960, 585, 1.02, 960], [T(4, 4.4), 960, 540, 1.0, 960],
+    [T(5), 1000, 480, 0.86, 880, 'cut'], [8.3, 1000, 480, 0.86, 880], [8.7, 590, 450, 1.55, 860], [9.0, 636, 560, 1.4, 860], [9.45, 624, 620, 1.3, 860],
+    [9.85, 1240, 560, 1.35, 860], [10.7, 1235, 560, 1.35, 860], [11.0, 1342, 560, 1.35, 860], [11.4, 960, 478, 1.06, 860],
+    [14.55, 960, 478, 1.06, 860], [T(9) - 0.01, 935, 500, 0.7, 860],
+    [T(9), 675, 470, 0.98, 860, 'cut'], [15.85, 678, 470, 0.98, 860], [16.35, 1495, 470, 1.5, 860], [16.5, 1495, 470, 1.5, 860],
+    [16.8, 1045, 478, 1.5, 860], [17.2, 960, 480, 1.45, 860], [T(11) - 0.03, 960, 480, 1.45, 860],
+    [T(11) - 0.02, 560, 520, 1.08, 860, 'cut'], [19.05, 620, 520, 1.08, 860], [19.7, 1000, 520, 1.08, 860], [20.3, 1380, 520, 1.08, 860], [T(12) - 0.2, 1390, 520, 1.08, 860],
+    [T(12) + 0.3, 960, 480, 1.6, 860], [T(13) - 0.01, 960, 480, 1.6, 860],
+    [T(13), 960, 540, 1.0, 960, 'cut'], [T(14, 4.5) - 0.01, 960, 540, 1.0, 960],
+    [T(14, 4.5), 960, 660, 1.0, 960, 'cut'], [30, 960, 660, 1.0, 960]
+  ]
+  procs.push((t) => {
+    let i = 0
+    while (i < K.length - 1 && t >= K[i + 1][0]) i++
+    const a = K[i], b = K[i + 1]
+    let v = a
+    if (b && b[5] !== 'cut') { const k = eio3(ramp(t, a[0], b[0])); v = [0, lerp(a[1], b[1], k), lerp(a[2], b[2], k), lerp(a[3], b[3], k), lerp(a[4], b[4], k)] }
+    stageEl.style.transform = `translate(${540 - v[1] * v[3]}px, ${v[4] - v[2] * v[3]}px) scale(${v[3]})`
+  })
+}
 
 // ================================================================= public API
 window.renderAt = (t) => { tl.seek(t, true); for (const p of procs) p(t) }
