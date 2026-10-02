@@ -18,8 +18,10 @@ import {
   LimitGate,
   markAuth,
   markModelLimited,
+  recordUsage,
   reportLimit
 } from './accounts'
+import { usageFromClaudeEvent } from './usage'
 import { fallbackModelFor, modelFallbackFrom } from '../shared/model-fallback'
 import { startCodexSession, suggestTitleWithCodex } from './codex/session'
 import { startAntigravitySession, suggestTitleWithAntigravity } from './antigravity/session'
@@ -344,6 +346,9 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
       }
       const refused = authFailureFromEvent(event)
       if (refused) markAuth(account.id, refused)
+      // Every Claude turn says how much of this account's allowance is used.
+      const usage = usageFromClaudeEvent(event)
+      if (usage) recordUsage(account.id, usage)
       // The model ran out, not the account: the CLI carries on with the next
       // one down. Say so (the phone hears it from the bus).
       const fellBack = modelFallbackFrom(event)
@@ -407,6 +412,9 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
     limit(limit) {
       // Held until the turn's result says whether it ended the turn (LimitGate).
       limits.hold(limit)
+    },
+    usage(usage) {
+      recordUsage(account.id, usage)
     }
   }
 

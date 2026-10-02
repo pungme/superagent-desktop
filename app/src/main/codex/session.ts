@@ -1,5 +1,6 @@
 import { browserFor, browserScope, browserName } from '../external-browser'
 import { limitFromCodexRateLimits, limitFromEvent } from '../accounts'
+import { usageFromCodex } from '../usage'
 import { app } from 'electron'
 import { basename } from 'path'
 import os from 'os'
@@ -258,6 +259,8 @@ export function startCodexSession(
     if (method === 'account/rateLimits/updated') {
       const limit = limitFromCodexRateLimits(params)
       if (limit) host.limit(limit)
+      const usage = usageFromCodex(params.rateLimits)
+      if (usage) host.usage?.(usage)
     }
     for (const event of translator.handle(method, params)) {
       const limit = limitFromEvent(event)

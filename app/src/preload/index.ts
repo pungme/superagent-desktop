@@ -11,6 +11,11 @@ export interface Account {
   limitedUntil: number | null
   detail: string
   needsAuth: string | null
+  /** How much of its allowance is used, as last read (main/usage.ts). */
+  usage: {
+    windows: { label: string; percent: number; resetsAt: number | null }[]
+    at: number
+  } | null
 }
 
 /** An account ran dry mid-chat; what the window may do about it. */
@@ -775,6 +780,8 @@ export interface CoveApi {
     mode: 'ask' | 'auto'
   }>
   onAccountsChanged: (cb: () => void) => () => void
+  /** Read every account's allowance now (at most once a minute unless forced). */
+  accountsRefreshUsage: (force?: boolean) => Promise<void>
   accountsAddClaude: (name: string, token: string) => Promise<Account>
   accountsAddCodex: (name: string) => Promise<Account>
   accountsRemove: (id: string) => Promise<void>
@@ -1218,6 +1225,7 @@ const cove: CoveApi = {
   introAllowed: () => ipcRenderer.sendSync('app:intro-allowed') as boolean,
   accountsList: (recheck) => ipcRenderer.invoke('accounts:list', recheck),
   onAccountsChanged: (cb) => subscribe('accounts:changed', () => cb()),
+  accountsRefreshUsage: (force) => ipcRenderer.invoke('accounts:refresh-usage', force),
   accountsAddClaude: (name, token) => ipcRenderer.invoke('accounts:add-claude', name, token),
   accountsAddCodex: (name) => ipcRenderer.invoke('accounts:add-codex', name),
   accountsRemove: (id) => ipcRenderer.invoke('accounts:remove', id),

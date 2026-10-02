@@ -90,6 +90,8 @@ export interface SessionHost {
    * when (null otherwise). The host decides whether the chat moves accounts.
    */
   limit(limit: import('./accounts').Limit): void
+  /** How much of the account's allowance is used, when the CLI says (usage.ts). */
+  usage?(usage: import('./usage').Usage): void
 }
 
 /** Everything a backend is given beyond the user's own options. */

@@ -48,6 +48,7 @@ import {
   modelLimitedUntil,
   pinChatAccount,
   removeAccount,
+  recordUsage,
   reportLimit,
   setLimitMode
 } from './accounts'
@@ -302,5 +303,23 @@ describe('one model out, not the account', () => {
     expect(modelLimitedUntil('fable')).toBeGreaterThan(Date.now())
     expect(modelLimitedUntil('opus')).toBeNull()
     expect(modelLimitedUntil(null)).toBeNull()
+  })
+})
+
+describe('usage', () => {
+  it('is remembered per account, kept across a restart, and only announced when it moves', () => {
+    addClaudeToken('Work', TOKEN)
+    const work = listAccounts('claude')[1]
+    expect(work.usage).toBeNull()
+    const usage = { windows: [{ label: '5-hour', percent: 40, resetsAt: null }], at: 1 }
+    h.broadcasts.length = 0
+    recordUsage(work.id, usage)
+    expect(h.broadcasts.map((b) => b.ch)).toEqual(['accounts:changed'])
+    // The same numbers read again a minute later: nothing for the window to redraw.
+    recordUsage(work.id, { ...usage, at: 2 })
+    expect(h.broadcasts).toHaveLength(1)
+    _resetAccountsForTests()
+    expect(listAccounts('claude')[1].usage).toEqual({ ...usage, at: 2 })
+    expect(listAccounts('claude')[0].usage).toBeNull()
   })
 })

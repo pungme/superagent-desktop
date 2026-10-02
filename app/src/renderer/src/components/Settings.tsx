@@ -130,6 +130,58 @@ const SECTIONS: { id: SectionId; label: string; icon: string }[] = [
   { id: 'about', label: 'About', icon: 'ⓘ' }
 ]
 
+/** When a usage window starts over: "6 PM" today, else "Mon 10 PM". */
+function resetLabel(at: number, now: number): string {
+  // To the nearest minute: a window reported as ending at 15:59:59.9 ends at 4.
+  const d = new Date(Math.round(at / 60_000) * 60_000)
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return at - now < 20 * 3_600_000
+    ? time
+    : `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`
+}
+
+/** "just now", "12 min ago", "3 h ago": how old the numbers are. */
+function ago(at: number, now: number): string {
+  const min = Math.round((now - at) / 60_000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min} min ago`
+  const h = Math.round(min / 60)
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`
+}
+
+/**
+ * How much of an account's allowance is used, one meter per window — the same
+ * numbers `/usage` shows, read from the CLI (main/usage.ts). A window that has
+ * started over since it was read is shown empty rather than as it was.
+ */
+function AccountUsage({ usage }: { usage: NonNullable<Account['usage']> }): React.JSX.Element {
+  // The moment the numbers were drawn: new numbers draw them again.
+  const [now] = useState(() => Date.now())
+  return (
+    <span className="settings-account-usage" title={`Updated ${ago(usage.at, now)}`}>
+      {usage.windows.map((w) => {
+        const over = w.resetsAt !== null && w.resetsAt <= now
+        const pct = over ? 0 : w.percent
+        return (
+          <span
+            key={w.label}
+            className={`settings-usage-window ${pct >= 90 ? 'high' : pct >= 75 ? 'warn' : ''}`}
+          >
+            <span className="settings-usage-label">{w.label}</span>
+            <span className="settings-usage-bar">
+              <i style={{ width: `${pct}%` }} />
+            </span>
+            <span className="settings-usage-pct">{pct}%</span>
+            {w.resetsAt && !over && (
+              <span className="settings-usage-reset">resets {resetLabel(w.resetsAt, now)}</span>
+            )}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 /** A labeled row: title + description on the left, a control on the right. */
 /**
  * More than one subscription per agent. The CLI's own login is always there;
@@ -160,6 +212,9 @@ function AccountsPanel(): React.JSX.Element {
   }
   useEffect(() => {
     void window.cove.accountsList().then(setList)
+    // How much of each allowance is used: asked for on opening, and kept
+    // current by every chat that runs (accounts:changed).
+    void window.cove.accountsRefreshUsage().then(() => window.cove.accountsList().then(setList))
     return window.cove.onAccountsChanged?.(() => void window.cove.accountsList().then(setList))
   }, [])
   const fixHint = (a: Account): string =>
@@ -246,6 +301,7 @@ function AccountsPanel(): React.JSX.Element {
                       {a.needsAuth ? `${a.needsAuth} — ${fixHint(a)}` : a.detail}
                     </span>
                   )}
+                  {!a.needsAuth && a.usage && <AccountUsage key={a.usage.at} usage={a.usage} />}
                 </span>
                 <span className="settings-account-state">
                   {a.needsAuth

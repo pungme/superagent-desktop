@@ -21,6 +21,23 @@ test.beforeAll(async () => {
   userDataDir = mkdtempSync(join(tmpdir(), 'cove-accounts-data-'))
   projectDir = mkdtempSync(join(tmpdir(), 'cove-accounts-proj-'))
   writeFileSync(join(projectDir, 'README.md'), '# accounts e2e project\n')
+  // What the login last said about its allowance, as a chat would have left it.
+  const soon = Date.now() + 2 * 3_600_000
+  writeFileSync(
+    join(userDataDir, 'accounts.json'),
+    JSON.stringify({
+      accounts: [],
+      usage: {
+        'claude:login': {
+          windows: [
+            { label: '5-hour', percent: 48, resetsAt: soon },
+            { label: 'Weekly', percent: 92, resetsAt: soon + 3 * 86_400_000 }
+          ],
+          at: Date.now()
+        }
+      }
+    })
+  )
   app = await electron.launch({
     args: [join(__dirname, '..', 'out', 'main', 'index.js')],
     env: {
@@ -67,6 +84,25 @@ test("each agent lists the CLI's own login first", async () => {
   await expect(claude.locator('.settings-account').first()).not.toContainText('Checking…', {
     timeout: 30_000
   })
+})
+
+test('each account says how much of its allowance is used', async () => {
+  const login = window
+    .locator('.settings-accounts-provider', { hasText: 'Claude' })
+    .locator('.settings-account')
+    .first()
+  const windows = login.locator('.settings-usage-window')
+  await expect(windows).toHaveCount(2)
+  await expect(windows.nth(0)).toContainText('5-hour')
+  await expect(windows.nth(0)).toContainText('48%')
+  await expect(windows.nth(0)).toContainText('resets')
+  // Nearly out reads as nearly out.
+  await expect(windows.nth(1)).toContainText('92%')
+  await expect(windows.nth(1)).toHaveClass(/high/)
+  // An account nothing has been read for yet shows no meter at all.
+  const codex = window.locator('.settings-accounts-provider', { hasText: 'Codex' })
+  await expect(codex.locator('.settings-usage-window')).toHaveCount(0)
+  await login.screenshot({ path: 'test-results/accounts-usage.png' })
 })
 
 test('a Claude token is added, kept encrypted, and removed again', async () => {

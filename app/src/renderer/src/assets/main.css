@@ -12233,6 +12233,46 @@ button {
 .settings-accounts-foot {
   padding: 8px 0 0;
 }
+/* How much of each allowance is used: one meter per window, under the account. */
+.settings-account-usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: 4px;
+}
+.settings-usage-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.settings-usage-label {
+  color: var(--text-secondary);
+}
+.settings-usage-bar {
+  width: 64px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.settings-usage-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--text-tertiary);
+}
+.settings-usage-window.warn .settings-usage-bar i {
+  background: var(--warning, #c98a1b);
+}
+.settings-usage-window.high .settings-usage-bar i {
+  background: var(--danger, #d64545);
+}
+.settings-usage-window.high .settings-usage-pct {
+  color: var(--danger, #d64545);
+}
 
 /* The model menu: its hints ("Most capable for your hardest and longest-running
    tasks") wrapped to three lines at the shared 190px, and read as a column of

@@ -1,5 +1,5 @@
 import { app, ipcMain, safeStorage } from 'electron'
-import { spawn } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { randomUUID } from 'crypto'
 import {
   existsSync,
@@ -13,8 +13,12 @@ import {
 import os from 'os'
 import { join } from 'path'
 import { findAgy, findClaude, findCodex } from './claude-cli'
+import { CodexClient } from './codex/client'
 import { broadcastToWindows } from './util'
+import { usageFromClaudeApi, usageFromCodex, type Usage } from './usage'
 import type { AgentProvider } from '../shared/agent-provider'
+
+export type { Usage, UsageWindow } from './usage'
 
 /**
  * More than one subscription per agent, so a chat can carry on when one hits
@@ -51,6 +55,8 @@ export interface Account {
    * CLI): the one-line reason, until a session starts on it again.
    */
   needsAuth: string | null
+  /** How much of its allowance is used, as last read — null until it has been. */
+  usage: Usage | null
 }
 
 /** Extra accounts, as written to disk. Tokens are stored encrypted. */
@@ -75,6 +81,8 @@ interface AccountsFile {
   chats: Record<string, string>
   /** Accounts whose credentials the CLI last refused, with its reason. */
   auth: Record<string, string>
+  /** What each account last said about its allowance (see usage.ts). */
+  usage: Record<string, Usage>
 }
 
 /** What the window is told when an account runs dry. */
@@ -129,10 +137,11 @@ function load(): AccountsFile {
       mode: raw.mode === 'auto' ? 'auto' : 'ask',
       limits: raw.limits && typeof raw.limits === 'object' ? raw.limits : {},
       chats: raw.chats && typeof raw.chats === 'object' ? raw.chats : {},
-      auth: raw.auth && typeof raw.auth === 'object' ? raw.auth : {}
+      auth: raw.auth && typeof raw.auth === 'object' ? raw.auth : {},
+      usage: raw.usage && typeof raw.usage === 'object' ? raw.usage : {}
     }
   } catch {
-    file = { accounts: [], mode: 'ask', limits: {}, chats: {}, auth: {} }
+    file = { accounts: [], mode: 'ask', limits: {}, chats: {}, auth: {}, usage: {} }
   }
   return file
 }
@@ -186,7 +195,8 @@ export function listAccounts(provider: AgentProvider): Account[] {
     limitedUntil: limitedUntil(LOGIN_ID[provider]),
     detail: state ? (state.signedIn ? state.detail : '') : 'Checking…',
     needsAuth:
-      state && !state.signedIn ? SIGN_IN_HINT[provider] : (f.auth[LOGIN_ID[provider]] ?? null)
+      state && !state.signedIn ? SIGN_IN_HINT[provider] : (f.auth[LOGIN_ID[provider]] ?? null),
+    usage: f.usage[LOGIN_ID[provider]] ?? null
   }
   return [
     login,
@@ -201,7 +211,8 @@ export function listAccounts(provider: AgentProvider): Account[] {
         detail:
           (a.kind === 'token' ? 'Token' : 'Signed in') +
           (a.addedAt ? ` · added ${new Date(a.addedAt).toLocaleDateString()}` : ''),
-        needsAuth: f.auth[a.id] ?? null
+        needsAuth: f.auth[a.id] ?? null,
+        usage: f.usage[a.id] ?? null
       }))
   ]
 }
@@ -653,7 +664,8 @@ function probeAntigravityLogin(): Promise<LoginState | null> {
     })
     proc.on('exit', (code) => {
       clearTimeout(timer)
-      if (/sign in|not logged in|authenticat/i.test(err)) return resolve({ detail: '', signedIn: false })
+      if (/sign in|not logged in|authenticat/i.test(err))
+        return resolve({ detail: '', signedIn: false })
       if (code === 0 && out.trim()) return resolve({ detail: 'Google account', signedIn: true })
       resolve(null)
     })
@@ -674,6 +686,120 @@ export function probeLogins(force = false): Promise<void> {
   return probed
 }
 
+// --- how much of each allowance is used ----------------------------------------
+
+/**
+ * Remember what an account last said about its allowance. Called from every
+ * Claude turn and every Codex rate-limit update, so it only tells the windows
+ * when a number they would show has moved.
+ */
+export function recordUsage(accountId: string, usage: Usage): void {
+  const f = load()
+  const before = f.usage[accountId]
+  f.usage[accountId] = usage
+  save()
+  const shown = (u: Usage | undefined): string =>
+    JSON.stringify(u?.windows.map((w) => [w.label, w.percent, w.resetsAt]) ?? null)
+  if (shown(before) !== shown(usage)) broadcastToWindows('accounts:changed')
+}
+
+const run = (cmd: string, args: string[]): Promise<string> =>
+  new Promise((resolve) =>
+    execFile(cmd, args, { timeout: 5000 }, (err, stdout) => resolve(err ? '' : stdout.trim()))
+  )
+
+/**
+ * The access token of Claude's own login, as Claude Code keeps it in the
+ * keychain. Only while it is still good: it is never refreshed from here —
+ * refreshing hands out a new refresh token, and the one Claude Code holds
+ * would stop working, which signs it out.
+ */
+async function claudeLoginToken(): Promise<string | null> {
+  if (!liveUsage()) return null
+  const raw = await run('/usr/bin/security', [
+    'find-generic-password',
+    '-s',
+    'Claude Code-credentials',
+    '-w'
+  ])
+  try {
+    const o = (JSON.parse(raw) as { claudeAiOauth?: { accessToken?: string; expiresAt?: number } })
+      .claudeAiOauth
+    if (!o?.accessToken) return null
+    if (o.expiresAt && o.expiresAt < Date.now() + 60_000) return null
+    return o.accessToken
+  } catch {
+    return null
+  }
+}
+
+/** Ask Anthropic what `/usage` would say for this token; null if it will not. */
+async function claudeUsage(token: string): Promise<Usage | null> {
+  try {
+    const res = await fetch('https://api.anthropic.com/api/oauth/usage', {
+      headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' },
+      signal: AbortSignal.timeout(10_000)
+    })
+    // A setup-token may not be allowed to ask: its numbers come from its turns.
+    if (!res.ok) return null
+    return usageFromClaudeApi(await res.json())
+  } catch {
+    return null
+  }
+}
+
+/** Ask a Codex account's own server, briefly, for its rate limits. */
+async function codexUsage(env: Record<string, string>): Promise<Usage | null> {
+  const client = new CodexClient({ ...process.env, ...env })
+  const timer = setTimeout(() => client.stop(), 15_000)
+  try {
+    await client.start(app.getVersion())
+    const res = await client.request('account/rateLimits/read', {})
+    return usageFromCodex(res.rateLimits)
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+    client.stop()
+  }
+}
+
+let usageRead: { at: number; done: Promise<void> } | null = null
+
+/** A test instance never reads the real keychain or starts the real Codex,
+ *  unless it asks to (COVE_E2E_USAGE=1, to see the real numbers). */
+const liveUsage = (): boolean => !process.env.COVE_USER_DATA || process.env.COVE_E2E_USAGE === '1'
+
+/**
+ * Read every account's allowance now, where it can be asked: Claude's login,
+ * any Claude token Anthropic will answer for, and every Codex account. At most
+ * once a minute; Settings asks on opening.
+ */
+export function refreshUsage(force = false): Promise<void> {
+  if (usageRead && !force && Date.now() - usageRead.at < 60_000) return usageRead.done
+  const jobs: Promise<void>[] = []
+  const put = (id: string, u: Usage | null): void => {
+    if (u) recordUsage(id, u)
+  }
+  jobs.push(
+    claudeLoginToken().then(async (t) => put(LOGIN_ID.claude, t ? await claudeUsage(t) : null))
+  )
+  for (const a of load().accounts) {
+    if (a.provider === 'claude' && a.kind === 'token' && a.token) {
+      const token = decrypt(a.token)
+      jobs.push(claudeUsage(token).then((u) => put(a.id, u)))
+    }
+  }
+  if (logins.codex?.signedIn !== false && liveUsage()) {
+    jobs.push(codexUsage({}).then((u) => put(LOGIN_ID.codex, u)))
+    for (const a of load().accounts.filter((x) => x.provider === 'codex' && x.home))
+      jobs.push(codexUsage(accountEnv(a.id)).then((u) => put(a.id, u)))
+  }
+  const done = Promise.all(jobs).then(() => undefined)
+  usageRead = { at: Date.now(), done }
+  return done
+}
+
 export function registerAccountsIpc(): void {
   ipcMain.handle('accounts:list', async (_e, recheck?: boolean) => {
     await probeLogins(recheck === true)
@@ -684,6 +810,8 @@ export function registerAccountsIpc(): void {
       mode: limitMode()
     }
   })
+  // Settings opening: read the allowances, then the list says what they are.
+  ipcMain.handle('accounts:refresh-usage', (_e, force?: boolean) => refreshUsage(force === true))
   ipcMain.handle('accounts:add-claude', (_e, name: string, token: string) =>
     addClaudeToken(name, token)
   )
