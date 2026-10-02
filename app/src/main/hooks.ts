@@ -234,7 +234,7 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
 }
 
 const GATE_DENY_REASON =
-  'Blocked by Superagent: this turn read untrusted web content, and the user did not ' +
+  'Blocked by Superagent: this turn read untrusted web or email content, and the user did not ' +
   'approve this action. Do not retry it. Tell the user plainly what you were about to do ' +
   'and let them decide.'
 
@@ -526,7 +526,7 @@ export function mergeCoveHooks(settings: HookSettings, scriptPath: string): Hook
   // otherwise pass over every repo it only links to (copy-on-write.ts).
   addEntry('PreToolUse', {
     matcher:
-      'Bash|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|mcp__cove-browser__browser_read_page',
+      'Bash|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|mcp__cove-browser__browser_read_page|mcp__cove-browser__mail_(accounts|search|read|draft)',
     hooks: [{ type: 'command', command: `sh ${quoted} PreToolUse`, timeout: 600 }]
   })
   // Real tool approvals, for chats running in the "Ask" mode: Claude Code asks
@@ -584,6 +584,7 @@ export function hooksInstalled(): boolean {
     return (
       JSON.stringify(stop ?? '').includes('cove-hook.sh') &&
       JSON.stringify(pre ?? '').includes('cove-hook.sh') &&
+      JSON.stringify(pre ?? '').includes('mail_(accounts|search|read|draft)') &&
       JSON.stringify(pre ?? '').includes('|Grep|Glob|') &&
       JSON.stringify(perm ?? '').includes('cove-hook.sh')
     )

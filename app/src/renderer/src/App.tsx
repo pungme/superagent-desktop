@@ -85,6 +85,12 @@ function App(): React.JSX.Element {
   const startRoutinesListener = useStore((s) => s.startRoutinesListener)
   const startGuardrailListener = useStore((s) => s.startGuardrailListener)
   const allWorkspaces = tree.flatMap((g) => g.workspaces)
+  const [settingsInitialSection, setSettingsInitialSection] = useState<'general' | 'connections'>(
+    'general'
+  )
+  const [connectionsOffered, setConnectionsOffered] = useState(
+    () => localStorage.getItem('cove.connectionsOffered') === '1'
+  )
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
   // A brand-new install opens on the reel's intro, over whatever loads beneath.
   const [firstRunIntro, setFirstRunIntro] = useState(
@@ -433,6 +439,8 @@ function App(): React.JSX.Element {
         <IntroSplash />
         <Onboarding
           onDone={() => {
+            localStorage.setItem('cove.connectionsOffered', '1')
+            setConnectionsOffered(true)
             localStorage.setItem('cove.onboarded', '1')
             setOnboarded(true)
           }}
@@ -450,6 +458,32 @@ function App(): React.JSX.Element {
       {/* The Computer's own menubar is its top chrome and takes the drag
           region with it, so the 8px title strip would read as a gap above it. */}
       <main className={`content ${computerOpen ? 'computer' : ''}`}>
+        {!connectionsOffered && (
+          <div className="connections-offer">
+            <span>
+              <strong>Connect Apple Mail</strong> · Let your agent help with messages and drafts.
+            </span>
+            <button
+              onClick={() => {
+                setSettingsInitialSection('connections')
+                setSettingsOpen(true)
+                localStorage.setItem('cove.connectionsOffered', '1')
+                setConnectionsOffered(true)
+              }}
+            >
+              Open Settings → Connections
+            </button>
+            <button
+              aria-label="Skip Apple Mail connection"
+              onClick={() => {
+                localStorage.setItem('cove.connectionsOffered', '1')
+                setConnectionsOffered(true)
+              }}
+            >
+              Not now
+            </button>
+          </div>
+        )}
         {/* When the sidebar is hidden this strip grows to clear the traffic
             lights, which would otherwise sit on top of the content. */}
         <div className="content-titlebar">
@@ -509,7 +543,15 @@ function App(): React.JSX.Element {
             <ChatsView visible={chatsOpen && !settingsOpen} />
           </div>
         )}
-        {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+          <Settings
+            initialSection={settingsInitialSection}
+            onClose={() => {
+              setSettingsOpen(false)
+              setSettingsInitialSection('general')
+            }}
+          />
+        )}
       </main>
       <PreviewToast />
       <UpdateBanner />

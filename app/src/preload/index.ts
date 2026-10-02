@@ -1,3 +1,4 @@
+import type { MailConnectionStatus } from '../shared/mail'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
@@ -716,6 +717,10 @@ export interface CoveApi {
   onMenu: (cb: (action: string) => void) => () => void
 
   /** Is each agent installed and signed in? `loggedIn` means at least one is ready. */
+  mailStatus: () => Promise<MailConnectionStatus>
+  mailConnect: () => Promise<MailConnectionStatus>
+  mailDisconnect: () => Promise<MailConnectionStatus>
+  mailPermissions: () => Promise<void>
   envDetect: () => Promise<{
     claude: { installed: boolean; version: string | null; loggedIn: boolean }
     codex: { installed: boolean; version: string | null; loggedIn: boolean }
@@ -1188,6 +1193,10 @@ const cove: CoveApi = {
     return () => listeners.forEach(([action, l]) => ipcRenderer.removeListener(action, l))
   },
 
+  mailStatus: () => ipcRenderer.invoke('mail:status'),
+  mailConnect: () => ipcRenderer.invoke('mail:connect'),
+  mailDisconnect: () => ipcRenderer.invoke('mail:disconnect'),
+  mailPermissions: () => ipcRenderer.invoke('mail:permissions'),
   envDetect: () => ipcRenderer.invoke('env:detect'),
   claudeModels: () => ipcRenderer.invoke('claude:models'),
   browsersList: () => ipcRenderer.invoke('browsers:list'),

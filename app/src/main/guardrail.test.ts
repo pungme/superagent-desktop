@@ -78,3 +78,10 @@ describe('toolPreview', () => {
     expect(toolPreview('Bash', undefined)).toBe('(shell command)')
   })
 })
+
+it('treats mail metadata and bodies as untrusted and gates drafting after a read', () => {
+  for (const name of ['accounts', 'search', 'read'])
+    expect(classifyTool(`mcp__cove-browser__mail_${name}`)).toBe('taint')
+  markTainted(S)
+  expect(gateDecision(S, 'mcp__cove-browser__mail_draft')).toBe('ask')
+})

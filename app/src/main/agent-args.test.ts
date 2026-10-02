@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+vi.mock('./mail', () => ({ mailConnected: () => false }))
+
 import { buildAgentArgs } from './claude/session'
 
 /** The value that follows a flag, or undefined when the flag isn't there. */

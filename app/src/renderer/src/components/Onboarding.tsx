@@ -1,3 +1,4 @@
+import { ConnectionsStep } from './MailConnection'
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
 import {
@@ -59,24 +60,35 @@ const COPY: Record<
 }
 
 function isReady(env: EnvStatus | null): boolean {
-  return !!env && AGENT_PROVIDERS.some((p) => env[p].installed && env[p].loggedIn)
+  return !!env && AGENT_PROVIDERS.some((p) => env[p]?.installed && env[p]?.loggedIn)
 }
 
 export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | null {
+  const [step, setStep] = useState<'agents' | 'connections'>('agents')
+  const [checkError, setCheckError] = useState('')
   const [env, setEnv] = useState<EnvStatus | null>(null)
   const [checking, setChecking] = useState(true)
   /** Which agent is installing right now, if any. */
   const [installing, setInstalling] = useState<AgentProvider | null>(null)
   // The latest line of installer output, shown as a live status.
   const [installLine, setInstallLine] = useState('')
-  const [installError, setInstallError] = useState<string | null>(null)
+  const [installError, setInstallError] = useState<{
+    provider: AgentProvider
+    message: string
+  } | null>(null)
   const setProvider = useStore((s) => s.setProvider)
 
   const check = async (): Promise<void> => {
     setChecking(true)
-    const status = await window.cove.envDetect()
-    setEnv(status)
-    setChecking(false)
+    setInstallError(null)
+    setCheckError('')
+    try {
+      setEnv(await window.cove.envDetect())
+    } catch {
+      setCheckError('Could not check your agents. Try again or skip setup for now.')
+    } finally {
+      setChecking(false)
+    }
   }
 
   // One-click install, then re-check so the step flips to ✓.
@@ -93,36 +105,44 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
         setInstallLine('Installed. Checking…')
         await check()
       } else {
-        setInstallError(res.error || 'Install failed.')
+        setInstallError({ provider, message: res.error || 'Install failed.' })
       }
     } catch (e) {
-      setInstallError(e instanceof Error ? e.message : 'Install failed.')
+      setInstallError({ provider, message: e instanceof Error ? e.message : 'Install failed.' })
     } finally {
       setInstalling(null)
     }
   }
 
-  /**
-   * A machine that already has an agent installed and signed in needs no setup,
-   * so it never sees this screen — the first run just opens the app, with that
-   * agent selected. Someone who installed Claude Code (or Codex) before opening
-   * Superagent should not be asked to confirm what is plainly already true.
-   */
+  // Show ready agents briefly before the optional app connections step.
   useEffect(() => {
-    window.cove.envDetect().then((status) => {
-      setEnv(status)
-      setChecking(false)
-      const usable = AGENT_PROVIDERS.filter((p) => status[p].installed && status[p].loggedIn)
-      if (usable.length > 0) {
-        // Only choose for them when there is nothing to choose: with more than one
-        // agent ready, the default stands and the picker under the composer is theirs.
-        if (usable.length === 1) setProvider(usable[0])
-        onDone()
-      }
-    })
-    // Runs once on mount; `checking` already starts true.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    let active = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    window.cove
+      .envDetect()
+      .then((status) => {
+        if (!active) return
+        setEnv(status)
+        setChecking(false)
+        const usable = AGENT_PROVIDERS.filter((p) => status[p]?.installed && status[p]?.loggedIn)
+        if (usable.length > 0) {
+          if (usable.length === 1) setProvider(usable[0])
+          timer = setTimeout(() => setStep('connections'), 1400)
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setChecking(false)
+          setCheckError('Could not check your agents. Try again or skip setup for now.')
+        }
+      })
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [setProvider])
+
+  if (step === 'connections') return <ConnectionsStep onDone={onDone} />
 
   const ready = isReady(env)
 
@@ -135,7 +155,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
         <div className="onboarding-waiting-mark" aria-hidden="true">
           <span />
         </div>
-        <p>Getting things ready…</p>
+        <p>Checking your agent connections…</p>
       </div>
     )
 
@@ -169,12 +189,11 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
           </svg>
         </div>
         <h1>Welcome to Superagent</h1>
-        <p className="onboarding-sub">A home for your coding agent.</p>
+        <p className="onboarding-sub">Step 1 of 2 · Check your agents</p>
 
         <p className="onboarding-intro">
           Superagent ships no AI of its own — it runs on an agent you already pay for. Set up{' '}
-          <b>any one</b> and you&rsquo;re ready; you can switch between them, per chat, at any
-          time.
+          <b>any one</b> and you&rsquo;re ready; you can switch between them, per chat, at any time.
         </p>
 
         <div className="onboarding-agents">
@@ -220,9 +239,9 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
                         >
                           Install
                         </button>
-                        {installError && installing === null && (
+                        {installError?.provider === provider && installing === null && (
                           <span className="onboarding-install-error">
-                            {installError}
+                            {installError.message}
                             <br />
                             Or run it yourself: <code>{copy.manual}</code>
                           </span>
@@ -268,6 +287,11 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
           })}
         </div>
 
+        {checkError && (
+          <p role="alert" className="onboarding-install-error">
+            {checkError}
+          </p>
+        )}
         <div className="onboarding-actions">
           <button className="onboarding-recheck" onClick={check} disabled={checking}>
             {checking ? 'Checking…' : 'Re-check'}
@@ -277,15 +301,15 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
             onClick={() => {
               const usable = AGENT_PROVIDERS.filter((p) => env?.[p].installed && env?.[p].loggedIn)
               if (usable.length === 1) setProvider(usable[0])
-              onDone()
+              setStep('connections')
             }}
             disabled={!ready}
           >
-            {ready ? "Let's go" : 'Continue anyway'}
+            Continue
           </button>
         </div>
         {!ready && !checking && (
-          <button className="onboarding-skip" onClick={onDone}>
+          <button className="onboarding-skip" onClick={() => setStep('connections')}>
             Skip setup for now
           </button>
         )}

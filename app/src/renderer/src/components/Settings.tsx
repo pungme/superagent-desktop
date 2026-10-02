@@ -1,3 +1,4 @@
+import { MailConnection } from './MailConnection'
 import { useEffect, useRef, useState } from 'react'
 import type { Account } from '../../../preload'
 import { useStore, ACCENTS, ICON_COLOURS, type Accent } from '../state'
@@ -112,13 +113,16 @@ function AgentCard({
 }
 
 interface SettingsProps {
+  initialSection?: 'general' | 'connections'
   onClose: () => void
 }
 
-type SectionId = 'general' | 'agents' | 'phone' | 'notifications' | 'advanced' | 'about'
+type SectionId =
+  'general' | 'connections' | 'agents' | 'phone' | 'notifications' | 'advanced' | 'about'
 
 const SECTIONS: { id: SectionId; label: string; icon: string }[] = [
   { id: 'general', label: 'General', icon: '⚙︎' },
+  { id: 'connections', label: 'Connections', icon: '✉' },
   { id: 'agents', label: 'Agents', icon: '◇' },
   { id: 'phone', label: 'Phone', icon: '📱' },
   { id: 'notifications', label: 'Notifications', icon: '🔔' },
@@ -384,7 +388,10 @@ function fmtBytes(b: number): string {
   return `${b} B`
 }
 
-export function Settings({ onClose }: SettingsProps): React.JSX.Element {
+export function Settings({
+  onClose,
+  initialSection = 'general'
+}: SettingsProps): React.JSX.Element {
   const theme = useStore((s) => s.theme)
   const accent = useStore((s) => s.accent)
   const [iconColour, setIconColour] = useState<Accent>(
@@ -432,7 +439,7 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
   const setTheme = useStore((s) => s.setTheme)
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
-  const [section, setSection] = useState<SectionId>('general')
+  const [section, setSection] = useState<SectionId>(initialSection)
   /** Measured on entering Advanced, not on every render — du walks gigabytes. */
   const [storage, setStorage] = useState<{ key: string; label: string; bytes: number }[] | null>(
     null
@@ -701,6 +708,14 @@ export function Settings({ onClose }: SettingsProps): React.JSX.Element {
                   </button>
                 </div>
               </Row>
+            </section>
+          )}
+
+          {section === 'connections' && (
+            <section className="settings-section">
+              <h2>Connected apps</h2>
+              <p>Choose which apps your agents can access.</p>
+              <MailConnection />
             </section>
           )}
 

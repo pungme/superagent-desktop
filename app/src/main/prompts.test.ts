@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('./store', () => ({ DESKTOP_WORKSPACE_ID: '__desktop__' }))
 
+vi.mock('./mail', () => ({ mailConnected: vi.fn(() => false) }))
+
 import { buildAppendedPrompt } from './prompts'
 
 describe('the browser briefing', () => {
@@ -61,5 +63,20 @@ describe('the browser briefing', () => {
     expect(buildAppendedPrompt({ provider: 'claude', workspaceId: 'ws1' })).not.toContain(
       'own copy of the project folder'
     )
+  })
+})
+
+import { mailConnected } from './mail'
+describe('Mail briefing', () => {
+  it('informs every provider of the connection without including mailbox contents', () => {
+    vi.mocked(mailConnected).mockReturnValue(true)
+    for (const provider of ['claude', 'codex', 'antigravity'] as const) {
+      const prompt = buildAppendedPrompt({ provider })
+      expect(prompt).toContain('Apple Mail is connected')
+      expect(prompt).toContain('mail_draft')
+      expect(prompt).toContain('untrusted data')
+    }
+    vi.mocked(mailConnected).mockReturnValue(false)
+    expect(buildAppendedPrompt({ provider: 'codex' })).toContain('Apple Mail is not connected')
   })
 })

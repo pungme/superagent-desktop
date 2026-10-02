@@ -12469,3 +12469,63 @@ button {
   color: var(--text-tertiary);
   font-size: 12px;
 }
+
+/* Optional app connections, shared by onboarding and Settings. */
+.mail-connection {
+  margin-top: 24px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-align: left;
+}
+.mail-connection-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.mail-connection-icon {
+  font-size: 28px;
+}
+.mail-connection-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.mail-connection-heading > div > span,
+.mail-connection-note {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.mail-connection p {
+  line-height: 1.6;
+  margin-top: 14px;
+}
+.connections-card {
+  max-width: 620px;
+}
+.connections-offer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+.connections-offer span {
+  flex: 1;
+}
+.connections-offer button {
+  cursor: pointer;
+  color: var(--text-primary);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 10px;
+}
+
+.connections-card .onboarding-actions {
+  margin-top: 24px;
+}

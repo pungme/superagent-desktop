@@ -45,8 +45,9 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    - NSCameraUsageDescription: SuperAgent does not use the camera.
-    - NSMicrophoneUsageDescription: SuperAgent records your voice only while you hold the dictation key, and transcribes it on this Mac.
+    NSAppleEventsUsageDescription: SuperAgent accesses Apple Mail only when you connect it, so your agent can search and read messages and save unsent drafts.
+    NSCameraUsageDescription: SuperAgent does not use the camera.
+    NSMicrophoneUsageDescription: SuperAgent records your voice only while you hold the dictation key, and transcribes it on this Mac.
   notarize: true
   # BOTH targets, deliberately: the DMG is what people download; the ZIP is what
   # electron-updater's MacUpdater actually installs from — with no zip in

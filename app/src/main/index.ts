@@ -1,3 +1,4 @@
+import { registerMailIpc } from './mail'
 import { QUIET } from './quiet'
 import {
   app,
@@ -282,6 +283,7 @@ app.whenReady().then(async () => {
   registerSkillsIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
+  registerMailIpc()
   registerClaudeModelsIpc()
   registerExternalBrowserIpc(icon)
   // A message from the user, on the Mac or the phone, means they're back from

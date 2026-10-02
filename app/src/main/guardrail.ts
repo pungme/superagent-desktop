@@ -17,10 +17,15 @@
  * bug here can never block normal work — the worst case is "the gate didn't fire".
  */
 
-// MCP tools whose result is untrusted web text. Reading one taints the turn.
+// MCP tools whose result is untrusted web or email text. Reading one taints the turn.
 // (Screenshots can carry injected text too, but read_page is the primary text
 // ingestion path; widen this set if that changes.)
-const WEB_READ_TOOLS = new Set(['mcp__cove-browser__browser_read_page'])
+const UNTRUSTED_READ_TOOLS = new Set([
+  'mcp__cove-browser__browser_read_page',
+  'mcp__cove-browser__mail_accounts',
+  'mcp__cove-browser__mail_search',
+  'mcp__cove-browser__mail_read'
+])
 
 // Machine-acting tools that are gated once the turn is tainted. Deliberately the
 // tools that touch the filesystem or run commands; read-only tools stay ungated.
@@ -30,7 +35,8 @@ export type ToolClass = 'taint' | 'gate' | 'allow'
 
 /** Pure classification of a tool by name. */
 export function classifyTool(toolName: string): ToolClass {
-  if (WEB_READ_TOOLS.has(toolName)) return 'taint'
+  if (UNTRUSTED_READ_TOOLS.has(toolName)) return 'taint'
+  if (toolName === 'mcp__cove-browser__mail_draft') return 'gate'
   if (GATED_TOOL.test(toolName)) return 'gate'
   return 'allow'
 }
@@ -82,6 +88,11 @@ export function toolPreview(toolName: string, input: unknown): string {
   if (toolName === 'Write') return `Write ${s(o.file_path) || '(file)'}`
   if (toolName === 'Edit' || toolName === 'MultiEdit') return `Edit ${s(o.file_path) || '(file)'}`
   if (toolName === 'NotebookEdit') return `Edit ${s(o.notebook_path) || '(notebook)'}`
+  if (toolName === 'mcp__cove-browser__mail_draft')
+    return `Save unsent draft to ${Array.isArray(o.to) ? o.to.join(', ') : '(recipients)'}: ${s(o.subject)}`.slice(
+      0,
+      400
+    )
   // Ask mode can prompt for any tool; show the most telling argument.
   const pick =
     o.command ?? o.url ?? o.query ?? o.pattern ?? o.prompt ?? o.description ?? o.file_path
