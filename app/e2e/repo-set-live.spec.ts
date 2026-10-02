@@ -2,6 +2,7 @@ import { test, expect, _electron as electron, ElectronApplication, Page } from '
 import { join } from 'path'
 import {
   existsSync,
+  lstatSync,
   mkdtempSync,
   mkdirSync,
   readdirSync,
@@ -13,13 +14,16 @@ import { execFileSync } from 'child_process'
 import { tmpdir } from 'os'
 
 /**
- * A real agent in a folder of repos: its first message cuts the copy, it works
- * there and not in the folder, it still has the project's CLAUDE.md, and Keep
- * lands what it did in the real repo.
+ * A real agent in a folder of repos: its first message makes the copy, it works
+ * there and not in the folder, it still has the project's CLAUDE.md, the repo
+ * it changes becomes its own worktree at the moment it changes it — and the
+ * repo it does not change is never touched — and Keep lands what it did in the
+ * real repo.
  *
  * repo-set.spec.ts covers the copy itself without an agent. This is the part
- * only an agent can show — that the process is started IN the copy, and that
- * what it is told about where it stands is enough to keep it there.
+ * only an agent can show — that the process is started IN the copy, that the
+ * edit it makes is caught and redone in a worktree, and that what it is told
+ * about where it stands is enough to keep it there.
  *
  * A real Claude turn, so it spends a few tokens — opt-in:
  *
@@ -92,16 +96,25 @@ test('the agent works in its copy, knows the project, and Keep lands its work', 
   // Started in the copy, on the branch cut for it.
   await expect(reply).toContainText('.worktrees')
 
-  const copies = readdirSync(join(projectDir, '.worktrees'))
+  // Beside each copy is the note of which branch its worktrees go on.
+  const copies = readdirSync(join(projectDir, '.worktrees')).filter((n) => !n.endsWith('.json'))
   expect(copies).toHaveLength(1)
   const copy = join(projectDir, '.worktrees', copies[0])
   expect(existsSync(join(copy, 'api', 'hello.txt'))).toBe(true)
   // The whole point: not in the folder everyone else is working in.
   expect(existsSync(join(projectDir, 'api', 'hello.txt'))).toBe(false)
   expect(git(join(projectDir, 'api'), 'status', '--porcelain')).toBe('')
-  expect(git(join(copy, 'web'), 'symbolic-ref', '--short', 'HEAD')).toBe(
-    git(join(copy, 'api'), 'symbolic-ref', '--short', 'HEAD')
-  )
+  // The repo it changed is its own worktree now, on a branch of its own…
+  expect(lstatSync(join(copy, 'api')).isSymbolicLink()).toBe(false)
+  const branch = git(join(copy, 'api'), 'symbolic-ref', '--short', 'HEAD')
+  expect(branch).not.toBe('main')
+  await expect(reply).toContainText(branch)
+  // …and the one it did not change has had nothing done to it at all.
+  expect(lstatSync(join(copy, 'web')).isSymbolicLink()).toBe(true)
+  expect(
+    git(join(projectDir, 'web'), 'for-each-ref', '--format=%(refname:short)', 'refs/heads/')
+  ).toBe('main')
+  expect(git(join(projectDir, 'web'), 'worktree', 'list').split('\n')).toHaveLength(1)
   // One conversation, one row.
   await expect(window.locator('[data-chat-id]')).toHaveCount(1)
 

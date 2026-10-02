@@ -23,6 +23,9 @@ describe('mergeCoveHooks', () => {
     expect(pre).toHaveLength(1)
     // Gates the machine-acting tools and the web-read tool that taints the turn.
     expect(pre[0].matcher).toContain('Bash')
+    // Search too, for a chat whose repos are links it would pass over.
+    for (const tool of ['Grep', 'Glob', 'Edit'])
+      expect(new RegExp(`^(?:${pre[0].matcher})$`).test(tool)).toBe(true)
     expect(pre[0].matcher).toContain('mcp__cove-browser__browser_read_page')
     // Running twice must not duplicate it.
     const twice = mergeCoveHooks(out, SCRIPT)

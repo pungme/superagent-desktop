@@ -1,6 +1,15 @@
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
-import { existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync, symlinkSync } from 'fs'
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync
+} from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import {
   branchSlugFromMessage,
@@ -9,6 +18,7 @@ import {
   gitSubrepos,
   isAutoNamed,
   mergeWorktree,
+  readWorktreeBase,
   removeWorktree,
   renameWorktreeBranch,
   worktreeStatus,
@@ -18,9 +28,13 @@ import {
 import {
   entriesToLink,
   isRepoSet,
+  linkedRepos,
   looseEntries,
+  readSetMeta,
   repoSetRoot,
   setMembers,
+  setMetaPath,
+  writeSetMeta,
   type SetMember
 } from './repo-set'
 import { getChat, setChatCwd, takePendingBranch } from './store'
@@ -32,22 +46,19 @@ import { broadcastToWindows } from './util'
  *
  * One repo, one worktree — that half is in files.ts and is unchanged. This is
  * the rule above it, which also covers a project that is a folder of repos (see
- * repo-set.ts for the layout): there the copy is a worktree of EVERY repo, and
- * each thing a chat can do to its copy is done to all of them. Every caller —
- * the window, the phone — comes through here, so neither has to know which
- * kind of project it is looking at.
+ * repo-set.ts for the layout): there the copy links to every repo and holds a
+ * worktree of each one the chat has CHANGED, cut when the change is about to
+ * happen (cutRepo). Each thing a chat can do to its copy is done to all of its
+ * worktrees. Every caller — the window, the phone — comes through here, so
+ * neither has to know which kind of project it is looking at.
  */
 
 /**
  * More repos than this and a new chat works in the folder itself, as it always
- * did. Cutting a worktree costs a checkout, and a chat cuts one per repo: fine
- * for a product split across a handful of repos, not for someone's whole
- * ~/code added as one project.
+ * did: someone's whole ~/code added as one project is not a product split
+ * across repos, and its chats are not working on "the project".
  */
 export const MAX_SET_REPOS = 30
-
-/** How many `git worktree add` run at once. Each is a checkout; disks queue. */
-const CUT_CONCURRENCY = 4
 
 export type CopyKind = 'repo' | 'repos'
 
@@ -87,10 +98,13 @@ const branchExists = async (repo: string, name: string): Promise<boolean> =>
  */
 export async function freeBranchName(
   repos: { repo: string; own?: string }[],
-  name: string
+  name: string,
+  /** Names spoken for without being branches yet: see reservedBranches. */
+  reserved?: Set<string>
 ): Promise<string> {
   for (let n = 1; n <= 20; n++) {
     const candidate = n === 1 ? name : `${name}-${n}`
+    if (reserved?.has(candidate)) continue
     const taken = await Promise.all(
       repos.map(async (r) => r.own !== candidate && (await branchExists(r.repo, candidate)))
     )
@@ -99,24 +113,33 @@ export async function freeBranchName(
   return `${name}-${Date.now().toString(36)}`
 }
 
-/** Run `fn` over `items`, a few at a time, keeping the order of the results. */
-async function pooled<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array(items.length)
-  let next = 0
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      const i = next++
-      out[i] = await fn(items[i])
+/**
+ * The branch names the project's other copies have put by. A copy that has cut
+ * no repo yet holds its name only on paper, and a second chat opening with the
+ * same words must not be handed the same one.
+ */
+function reservedBranches(root: string, except?: string): Set<string> {
+  const out = new Set<string>()
+  try {
+    for (const name of readdirSync(join(root, '.worktrees'))) {
+      const path = join(root, '.worktrees', name)
+      if (path === except || name.endsWith('.json')) continue
+      const meta = readSetMeta(path)
+      if (meta) out.add(meta.branch)
     }
+  } catch {
+    // no copies yet
   }
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker))
   return out
 }
 
 /**
- * Give a chat the folder of repos over again: a worktree of each, all on one
- * branch name, and a link to everything else. Null when not one repo could be
- * cut — the folder itself is then the place to work, as it was before.
+ * Give a chat the folder of repos over again — as links. Nothing is cut here:
+ * the copy is a folder that points at everything in the project, and remembers
+ * the branch its worktrees will be on. A repo is cut when the chat is about to
+ * change it (cutRepo), so a chat that reads nineteen repos and changes one
+ * leaves one worktree and one branch behind, and one that changes nothing
+ * leaves none. Null when the folder has no repo a chat could be given.
  */
 export async function createWorktreeSet(
   root: string,
@@ -124,39 +147,18 @@ export async function createWorktreeSet(
 ): Promise<{ path: string; branch: string; base: string | null } | null> {
   const all = cuttableRepos(root)
   if (all.length === 0 || all.length > MAX_SET_REPOS) return null
-  // A repo with no commits has nothing to branch from. A recent git will cut
-  // it an orphan branch anyway, which then has no base to be kept onto — so
-  // it is linked in below with everything else instead.
-  const born = await Promise.all(
-    all.map(
-      async (r) => (await git(['rev-parse', '--verify', '--quiet', 'HEAD'], r.path)).code === 0
-    )
-  )
-  const repos = all.filter((_, i) => born[i])
-  if (repos.length === 0) return null
   const slug = `wt-${Date.now().toString(36)}`
   const dir = join(root, '.worktrees', slug)
+  // Free in every repo now, so the one name can serve whichever is cut later.
   const branch = await freeBranchName(
-    repos.map((r) => ({ repo: r.path })),
-    opts?.newBranch ?? slug
+    all.map((r) => ({ repo: r.path })),
+    opts?.newBranch ?? slug,
+    reservedBranches(root)
   )
   mkdirSync(dir, { recursive: true })
-  const made = await pooled(repos, CUT_CONCURRENCY, (r) =>
-    createWorktree(r.path, {
-      newBranch: branch,
-      autoName: opts?.autoName ?? !opts?.newBranch,
-      dir: join(dir, r.name)
-    })
-  )
-  if (!made.some(Boolean)) {
-    removeSetDir(dir)
-    return null
-  }
-  // Everything else comes along as a link: the folders and files that belong
-  // to no repo, and any repo git would not cut (one with no commits yet). A
-  // link is the original, so nothing there is isolated — but nothing there
-  // could be merged back either, and a copy missing half the project is a
-  // worse answer than one that shares it.
+  writeSetMeta(dir, { branch, autoName: opts?.autoName ?? !opts?.newBranch })
+  // A link is the original, so nothing is isolated yet — and nothing needs to
+  // be: reading is all a chat has done to a repo it has no worktree of.
   for (const name of entriesToLink(root, dir)) {
     try {
       symlinkSync(join(root, name), join(dir, name))
@@ -165,6 +167,116 @@ export async function createWorktreeSet(
     }
   }
   return { path: dir, branch, base: null }
+}
+
+/** The branch a copy's worktrees are on: what its repos are on already, or
+ *  what it was told to use, or — a copy from before it was told — its own name. */
+export function setBranch(setPath: string): { branch: string; autoName: boolean } {
+  const meta = readSetMeta(setPath)
+  const first = setMembers(setPath)[0]
+  const live = first ? gitBranch(first.path) : null
+  return {
+    branch: live ?? meta?.branch ?? basename(setPath),
+    autoName: meta?.autoName ?? (first ? isAutoNamed(first.path, live ?? '') : true)
+  }
+}
+
+export type CutResult =
+  | { ok: true; path: string; branch: string; fresh: boolean }
+  | { ok: false; reason: 'not-a-copy' | 'not-a-repo' | 'error'; detail?: string }
+
+/** One cut at a time per copy: two tools reaching for the same repo in the same
+ *  breath must not both take the link away. */
+const cutting = new Map<string, Promise<unknown>>()
+
+/**
+ * Give a chat its own worktree of ONE repo in its copy, in place of the link:
+ * the same path, now on the chat's branch. Called when a change to that repo is
+ * about to happen — by the hook that sees a file edit coming, and by the tool
+ * an agent calls before a command that writes. Asking again is free.
+ */
+export function cutRepo(setPath: string, name: string): Promise<CutResult> {
+  const next = (cutting.get(setPath) ?? Promise.resolve()).then(() => cutRepoNow(setPath, name))
+  const settled = next.catch(() => undefined)
+  cutting.set(setPath, settled)
+  void settled.then(() => {
+    if (cutting.get(setPath) === settled) cutting.delete(setPath)
+  })
+  return next
+}
+
+async function cutRepoNow(setPath: string, name: string): Promise<CutResult> {
+  if (!isRepoSet(setPath) || !existsSync(setPath)) return { ok: false, reason: 'not-a-copy' }
+  const at = join(setPath, name)
+  const done = setMembers(setPath).find((m) => m.name === name)
+  if (done) return { ok: true, path: done.path, branch: gitBranch(done.path) ?? '', fresh: false }
+  if (!linkedRepos(setPath).includes(name)) return { ok: false, reason: 'not-a-repo' }
+  const repo = join(repoSetRoot(setPath), name)
+  if ((await git(['rev-parse', '--verify', '--quiet', 'HEAD'], repo)).code !== 0) {
+    return {
+      ok: false,
+      reason: 'error',
+      detail: 'it has no commits yet, so there is nothing to branch from.'
+    }
+  }
+  const want = setBranch(setPath)
+  // Free when the copy was made; someone may have taken the name in this repo since.
+  const branch = await freeBranchName([{ repo }], want.branch)
+  unlinkSync(at)
+  const made = await createWorktree(repo, { newBranch: branch, autoName: want.autoName, dir: at })
+  if (!made) {
+    // Put the link back: a copy missing a repo is worse than one that shares it.
+    try {
+      if (!existsSync(at)) symlinkSync(repo, at)
+    } catch {
+      // nothing more to try
+    }
+    return { ok: false, reason: 'error', detail: 'git could not make a worktree of it.' }
+  }
+  // The repo's project now has a branch row, and this chat a repo chip.
+  broadcastToWindows('projects:changed', {})
+  return { ok: true, path: made.path, branch: made.branch, fresh: true }
+}
+
+/**
+ * Put back as links the repos a copy has a worktree of but never changed: no
+ * commit of its own, nothing unsaved. A copy made before repos were cut on
+ * demand has a worktree of every repo in the project; this is what takes the
+ * eighteen it did not need away again. A repo with anything in it is left.
+ */
+export async function shrinkCopy(setPath: string): Promise<{ linked: string[]; kept: string[] }> {
+  const linked: string[] = []
+  const kept: string[] = []
+  if (!isRepoSet(setPath)) return { linked, kept }
+  const members = setMembers(setPath)
+  if (members.length === 0) return { linked, kept }
+  // Before the first one goes: a copy with no worktree left has only this to
+  // say which branch the next one belongs on.
+  if (!readSetMeta(setPath)) writeSetMeta(setPath, setBranch(setPath))
+  for (const m of members) {
+    const status = await git(['status', '--porcelain'], m.path)
+    const base = (await readWorktreeBase(m.path)) ?? gitBranch(m.repo)
+    const ahead = base ? await git(['rev-list', '--count', `${base}..HEAD`], m.path) : null
+    // Untouched only when git says so outright; anything unclear is kept.
+    const untouched =
+      status.code === 0 &&
+      status.out.trim() === '' &&
+      ahead !== null &&
+      ahead.code === 0 &&
+      ahead.out.trim() === '0'
+    if (!untouched || !(await removeWorktree(m.repo, m.path)) || existsSync(m.path)) {
+      kept.push(m.name)
+      continue
+    }
+    try {
+      symlinkSync(m.repo, m.path)
+      linked.push(m.name)
+    } catch (err) {
+      console.log(`[worktree] could not link ${m.name} back into ${setPath}:`, err)
+    }
+  }
+  if (linked.length) broadcastToWindows('projects:changed', {})
+  return { linked, kept }
 }
 
 /**
@@ -178,6 +290,7 @@ function removeSetDir(setPath: string): void {
     if (!lstatSync(setPath).isDirectory()) return
     // Links are unlinked, not followed: what they point at is the project's.
     rmSync(setPath, { recursive: true, force: true })
+    rmSync(setMetaPath(setPath), { force: true })
     // The last copy gone: leave the project folder as it was found.
     const holder = dirname(setPath)
     if (readdirSync(holder).filter((n) => n !== '.DS_Store').length === 0) {
@@ -313,8 +426,8 @@ function moveLooseHome(setPath: string): void {
  *
  * For several repos, every one is asked first and nothing is written until all
  * of them can land — a clash in the third must not leave the first two merged
- * and the chat half-kept. A repo the chat never touched has nothing to land and
- * is simply removed with the rest.
+ * and the chat half-kept. A repo the chat never touched has no worktree, or one
+ * with nothing to land, and is simply removed with the rest.
  */
 export async function mergeCopy(
   projectPath: string,
@@ -322,8 +435,9 @@ export async function mergeCopy(
   message: string
 ): Promise<CopyMergeResult> {
   if (!isRepoSet(wtPath)) return mergeWorktree(projectPath, wtPath, message)
+  // No worktree is a chat that changed no repo. What it wrote beside them, if
+  // anything, is still its work and still goes home below.
   const members = setMembers(wtPath)
-  if (members.length === 0) return { ok: false, reason: 'not-worktree' }
 
   const refusal = (
     m: SetMember,
@@ -367,19 +481,38 @@ export async function renameCopy(
   newBranch: string
 ): Promise<{ ok: boolean; branch: string | null }> {
   if (!isRepoSet(wtPath)) return renameWorktreeBranch(wtPath, newBranch)
+  const members = setMembers(wtPath)
   const targets: (SetMember & { own: string })[] = []
-  for (const m of setMembers(wtPath)) {
+  for (const m of members) {
     const head = await git(['symbolic-ref', '--short', 'HEAD'], m.path)
     const own = head.code === 0 ? head.out.trim() : ''
     if (own && isAutoNamed(m.path, own)) targets.push({ ...m, own })
   }
-  if (targets.length === 0) return { ok: false, branch: null }
+  const meta = readSetMeta(wtPath)
+  if (targets.length === 0) {
+    // No repo cut yet: the name is only a note of what the first one will be
+    // called, so it follows the title like a branch would. Free in every repo
+    // it might be cut in, as it was when the copy was made.
+    if (members.length > 0 || !meta?.autoName) return { ok: false, branch: null }
+    const branch = await freeBranchName(
+      linkedRepos(wtPath).map((name) => ({
+        repo: join(repoSetRoot(wtPath), name),
+        own: meta.branch
+      })),
+      newBranch,
+      reservedBranches(repoSetRoot(wtPath), wtPath)
+    )
+    writeSetMeta(wtPath, { ...meta, branch })
+    return { ok: true, branch }
+  }
   const branch = await freeBranchName(targets, newBranch)
   let ok = true
   for (const t of targets) {
     if (t.own === branch) continue
     if ((await git(['branch', '-m', t.own, branch], t.path)).code !== 0) ok = false
   }
+  // The repos cut after this are cut on the same name.
+  if (ok && meta) writeSetMeta(wtPath, { ...meta, branch })
   return { ok, branch: ok ? branch : targets[0].own }
 }
 
@@ -431,6 +564,8 @@ export function registerChatCopyIpc(): void {
         : createWorktree(projectPath, opts)
   )
   ipcMain.handle('worktree:sets', (_e, projectPath: string) => listWorktreeSets(projectPath))
+  // The chat is about to change this repo: its link becomes its own worktree.
+  ipcMain.handle('worktree:cut-repo', (_e, setPath: string, name: string) => cutRepo(setPath, name))
   /**
    * The first message's branch, for the window. The same call the phone's send
    * path makes, so the rule about when a chat gets its own copy has one home.

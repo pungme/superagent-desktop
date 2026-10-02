@@ -61,6 +61,8 @@ import {
   yourBrowser
 } from './external-browser'
 import { gitBranch } from './files'
+import { cutRepo } from './chat-copy'
+import { isRepoSet, linkedRepos, setMembers } from './repo-set'
 import { pushOpenFile } from './companion'
 import { requestApproval } from './hooks'
 import { toolPreview } from './guardrail'
@@ -1062,6 +1064,54 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   const stamp = (ws: string): { chatId: string | null; branch: string | null } => {
     const dir = getWorkspacePath(ws)
     return { chatId: CHAT_ID, branch: dir ? gitBranch(dir) : null }
+  }
+
+  // A chat in a folder of repos has a worktree only of the repos it has
+  // changed (repo-set.ts). A file edit cuts one by itself, through the tool
+  // hook; a shell command gives no warning, so the agent asks first.
+  const copyDir = CHAT_ID ? (getChat(CHAT_ID)?.cwd ?? null) : null
+  if (copyDir && isRepoSet(copyDir)) {
+    server.registerTool(
+      'work_on_repo',
+      {
+        description:
+          "Give this conversation its own git worktree of one of the project's repositories, at the same path it already has in the working directory, on this conversation's branch. Call it before a shell command that changes a repository you have no worktree of yet — git commit, checkout or stash, installing packages, generating or moving files. Editing a file does this by itself, and reading never needs it: do not call it for a repository you are only looking at. Calling it again for the same repository changes nothing.",
+        inputSchema: {
+          repo: z.string().describe("The repository's folder name in the working directory")
+        }
+      },
+      async ({ repo }) => {
+        const name = repo.trim().replace(/^\.?\/+|\/+$/g, '')
+        const cut = await cutRepo(copyDir, name)
+        if (cut.ok) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: cut.fresh
+                  ? `${cut.path} is now this conversation's own worktree of ${name}, on the branch ${cut.branch}, cut from the last commit. Unsaved changes in the shared checkout are not in it; read a file again before editing it.`
+                  : `This conversation already has its own worktree of ${name} at ${cut.path}, on the branch ${cut.branch}.`
+              }
+            ]
+          }
+        }
+        const have = setMembers(copyDir).map((m) => m.name)
+        const links = linkedRepos(copyDir)
+        return {
+          content: [
+            {
+              type: 'text',
+              text:
+                cut.reason === 'not-a-repo'
+                  ? `There is no repository called "${name}" here. ` +
+                    (links.length ? `Linked, not yet yours: ${links.join(', ')}. ` : '') +
+                    (have.length ? `Already yours: ${have.join(', ')}.` : '')
+                  : `Could not make a worktree of ${name}: ${cut.detail ?? 'this is not a copy of a project.'} It stays a link to the shared checkout.`
+            }
+          ]
+        }
+      }
+    )
   }
 
   server.registerTool(

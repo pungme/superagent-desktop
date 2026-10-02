@@ -38,12 +38,25 @@ describe('the browser briefing', () => {
     const p = buildAppendedPrompt({
       provider: 'claude',
       workspaceId: 'ws1',
-      repoSet: { root: '/p/shop', repos: ['api', 'web'] }
+      repoSet: { root: '/p/shop', repos: ['api'], linked: ['web', 'docs'] }
     })
     expect(p).toContain('own copy of the project folder /p/shop')
-    expect(p).toContain('`api`, `web`')
+    // Which repos are its own already, and which are still the shared ones.
+    expect(p).toContain('its own git worktree of `api`')
+    expect(p).toContain('The other repositories (`web`, `docs`) are links')
+    // A shell command gives no warning; search passes over links.
+    expect(p).toContain('call work_on_repo')
+    expect(p).toContain('rg --follow')
     // The one thing the copy exists to prevent.
-    expect(p).toContain('do not edit, commit in or switch branches in the originals')
+    expect(p).toContain('do not edit, commit in or switch branches in the')
+    // A copy that has changed nothing yet has no worktree to speak of.
+    const fresh = buildAppendedPrompt({
+      provider: 'claude',
+      workspaceId: 'ws1',
+      repoSet: { root: '/p/shop', repos: [], linked: ['api', 'web'] }
+    })
+    expect(fresh).toContain('Its repositories (`api`, `web`) are links')
+    expect(fresh).not.toContain('already has its own git worktree')
     // And nobody else hears about it.
     expect(buildAppendedPrompt({ provider: 'claude', workspaceId: 'ws1' })).not.toContain(
       'own copy of the project folder'

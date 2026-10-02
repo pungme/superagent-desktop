@@ -33,14 +33,26 @@ import {
   copyStatus,
   createWorktreeSet,
   cutChatBranch,
+  cutRepo,
   ensureChatBranch,
   listWorktreeSets,
   mergeCopy,
   removeCopy,
   renameCopy,
+  setBranch,
+  shrinkCopy,
   MAX_SET_REPOS
 } from './chat-copy'
-import { describeRepoSet, isRepoSet, projectMemoryDir } from './repo-set'
+import {
+  describeRepoSet,
+  isRepoSet,
+  linkedRepos,
+  projectMemoryDir,
+  repoAt,
+  repoSetOf,
+  setMetaPath
+} from './repo-set'
+import { copyBeforeWrite, writesFiles } from './copy-on-write'
 
 // Real git, in a throwaway folder. Everything here is about what ends up on
 // disk and in each repo's history, which a mock of git could only agree with.
@@ -75,6 +87,13 @@ function repo(
   git(dir, 'commit', '-q', '-m', 'first')
   return dir
 }
+
+/** The chat is about to change these repos: give it a worktree of each. */
+async function change(dir: string, ...names: string[]): Promise<void> {
+  for (const name of names) expect(await cutRepo(dir, name)).toMatchObject({ ok: true })
+}
+
+const isLink = (path: string): boolean => lstatSync(path).isSymbolicLink()
 
 const subjects = (dir: string, ref = 'main'): string[] =>
   git(dir, 'log', '--format=%s', ref).split('\n')
@@ -113,9 +132,9 @@ describe('copyKind', () => {
 })
 
 describe('a copy of a folder of repos', () => {
-  it('is the folder over again: a worktree of each repo on one branch, and links to the rest', async () => {
-    repo('api')
-    repo('web')
+  it('starts as links to everything, with no worktree and no branch anywhere', async () => {
+    const api = repo('api')
+    const web = repo('web')
     mkdirSync(join(root, 'designs'))
     writeFileSync(join(root, 'designs', 'logo.txt'), 'logo')
     writeFileSync(join(root, 'notes.md'), 'notes')
@@ -128,33 +147,74 @@ describe('a copy of a folder of repos', () => {
     expect(set!.branch).toBe('add-login')
     expect(isRepoSet(dir)).toBe(true)
 
-    for (const name of ['api', 'web']) {
-      expect(git(join(dir, name), 'symbolic-ref', '--short', 'HEAD')).toBe('add-login')
-      expect(readFileSync(join(dir, name, 'README.md'), 'utf8')).toBe(`# ${name}\n`)
-      // The original is exactly where it was.
-      expect(git(join(root, name), 'symbolic-ref', '--short', 'HEAD')).toBe('main')
-      expect(git(join(root, name), 'status', '--porcelain')).toBe('')
-    }
-    // What belongs to no repo is shared, not copied.
-    expect(lstatSync(join(dir, 'designs')).isSymbolicLink()).toBe(true)
+    for (const name of ['api', 'web', 'designs', 'notes.md'])
+      expect(isLink(join(dir, name))).toBe(true)
+    // Reading a repo reads the project's.
+    expect(readFileSync(join(dir, 'api', 'README.md'), 'utf8')).toBe('# api\n')
     expect(readFileSync(join(dir, 'designs', 'logo.txt'), 'utf8')).toBe('logo')
-    expect(lstatSync(join(dir, 'notes.md')).isSymbolicLink()).toBe(true)
     // Claude Code reads the project's CLAUDE.md from two levels up; a link
     // here would have it read twice.
     expect(existsSync(join(dir, 'CLAUDE.md'))).toBe(false)
     expect(readdirSync(dir).sort()).toEqual(['api', 'designs', 'notes.md', 'web'])
+    // Nothing was done to either repo: this is the whole point.
+    for (const r of [api, web]) {
+      expect(branches(r)).toEqual(['main'])
+      expect(git(r, 'worktree', 'list').split('\n')).toHaveLength(1)
+    }
 
-    expect(describeRepoSet(dir)).toEqual({ root, repos: ['api', 'web'] })
+    expect(describeRepoSet(dir)).toEqual({ root, repos: [], linked: ['api', 'web'] })
+    expect(linkedRepos(dir)).toEqual(['api', 'web'])
+    expect(setBranch(dir)).toEqual({ branch: 'add-login', autoName: true })
+    // A copy with no worktree holds no work, so it is not listed as some.
+    expect(listWorktreeSets(root)).toEqual([])
+    expect(await copyStatus(root, dir)).toEqual({ dirty: false, ahead: 0, repos: [] })
+  })
+
+  it('cuts a worktree of the one repo a chat is about to change, in place of its link', async () => {
+    const api = repo('api')
+    const web = repo('web')
+    const dir = (await createWorktreeSet(root, { newBranch: 'add-login', autoName: true }))!.path
+
+    const cut = await cutRepo(dir, 'api')
+    expect(cut).toEqual({ ok: true, path: join(dir, 'api'), branch: 'add-login', fresh: true })
+    expect(isLink(join(dir, 'api'))).toBe(false)
+    expect(git(join(dir, 'api'), 'symbolic-ref', '--short', 'HEAD')).toBe('add-login')
+    expect(readFileSync(join(dir, 'api', 'README.md'), 'utf8')).toBe('# api\n')
+    // The original is exactly where it was.
+    expect(git(api, 'symbolic-ref', '--short', 'HEAD')).toBe('main')
+    expect(git(api, 'status', '--porcelain')).toBe('')
+    expect(branches(api)).toEqual(['add-login', 'main'])
+    // And the repo it did not change has had nothing done to it.
+    expect(isLink(join(dir, 'web'))).toBe(true)
+    expect(branches(web)).toEqual(['main'])
+    expect(git(web, 'worktree', 'list').split('\n')).toHaveLength(1)
+
+    expect(describeRepoSet(dir)).toEqual({ root, repos: ['api'], linked: ['web'] })
     expect(listWorktreeSets(root)).toEqual([
-      {
-        path: dir,
-        branch: 'add-login',
-        repos: [
-          { name: 'api', branch: 'add-login' },
-          { name: 'web', branch: 'add-login' }
-        ]
-      }
+      { path: dir, branch: 'add-login', repos: [{ name: 'api', branch: 'add-login' }] }
     ])
+
+    // Asking again is free, and a second repo joins on the same branch.
+    expect(await cutRepo(dir, 'api')).toMatchObject({ ok: true, fresh: false })
+    expect(await cutRepo(dir, 'web')).toMatchObject({ ok: true, branch: 'add-login', fresh: true })
+    expect(branches(web)).toEqual(['add-login', 'main'])
+    expect(await cutRepo(dir, 'nope')).toEqual({ ok: false, reason: 'not-a-repo' })
+  })
+
+  it('cuts one worktree when two tools reach for the same repo at once', async () => {
+    const api = repo('api')
+    const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    const [a, b] = await Promise.all([cutRepo(dir, 'api'), cutRepo(dir, 'api')])
+    expect([a, b].map((r) => r.ok)).toEqual([true, true])
+    expect([a, b].filter((r) => r.ok && r.fresh)).toHaveLength(1)
+    expect(git(api, 'worktree', 'list').split('\n')).toHaveLength(2)
+  })
+
+  it('steps round a branch name the repo has gained since the copy was made', async () => {
+    const api = repo('api')
+    const dir = (await createWorktreeSet(root, { newBranch: 'fix', autoName: true }))!.path
+    git(api, 'branch', 'fix')
+    expect(await cutRepo(dir, 'api')).toMatchObject({ ok: true, branch: 'fix-2' })
   })
 
   it('takes a name no repo has yet, so two chats that open alike both get a copy', async () => {
@@ -166,22 +226,26 @@ describe('a copy of a folder of repos', () => {
     const b = await createWorktreeSet(root, { newBranch: 'fix-login', autoName: true })
     expect(b!.branch).toBe('fix-login-3')
     expect(b!.path).not.toBe(a!.path)
+    await change(a!.path, 'web')
+    await change(b!.path, 'web')
     expect(git(join(b!.path, 'web'), 'symbolic-ref', '--short', 'HEAD')).toBe('fix-login-3')
   })
 
-  it('links a repo git cannot cut, rather than leaving it out', async () => {
+  it('leaves a repo git cannot cut as a link, and says why', async () => {
     repo('api')
     mkdirSync(join(root, 'fresh'))
     git(join(root, 'fresh'), 'init', '-q', '-b', 'main') // no commits: nothing to branch from
     const set = await createWorktreeSet(root, { newBranch: 'x', autoName: true })
-    expect(lstatSync(join(set!.path, 'fresh')).isSymbolicLink()).toBe(true)
-    expect(describeRepoSet(set!.path)!.repos).toEqual(['api'])
+    expect(await cutRepo(set!.path, 'fresh')).toMatchObject({ ok: false, reason: 'error' })
+    expect(isLink(join(set!.path, 'fresh'))).toBe(true)
+    expect(describeRepoSet(set!.path)!.repos).toEqual([])
   })
 
   it('links installed dependencies in, one folder down as well', async () => {
     const web = repo('web', { 'app/package.json': '{}', '.gitignore': 'node_modules\n' })
     mkdirSync(join(web, 'app', 'node_modules', 'left-pad'), { recursive: true })
     const set = await createWorktreeSet(root, { newBranch: 'x', autoName: true })
+    await change(set!.path, 'web')
     const linked = join(set!.path, 'web', 'app', 'node_modules')
     expect(lstatSync(linked).isSymbolicLink()).toBe(true)
     expect(existsSync(join(linked, 'left-pad'))).toBe(true)
@@ -194,10 +258,15 @@ describe('a copy of a folder of repos', () => {
     const cwd = await cutChatBranch('c1', root, 'Please add a login page')
     expect(cwd && isRepoSet(cwd)).toBe(true)
     expect(chats.get('c1')!.cwd).toBe(cwd)
+    // The first message names the branch; nothing is on it until a repo changes.
+    expect(branches(join(root, 'api'))).toEqual(['main'])
+    await change(cwd!, 'api')
     expect(git(join(cwd!, 'api'), 'symbolic-ref', '--short', 'HEAD')).toBe('add-login-page')
 
     expect(await cutChatBranch('gone', root, 'another thing')).toBeNull()
-    expect(listWorktreeSets(root).map((s) => s.path)).toEqual([cwd])
+    expect(readdirSync(join(root, '.worktrees')).sort()).toEqual(
+      [cwd!, setMetaPath(cwd!)].map((p) => p.split('/').pop()).sort()
+    )
     expect(branches(join(root, 'api'))).toEqual(['add-login-page', 'main'])
   })
 })
@@ -209,6 +278,8 @@ describe('status', () => {
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
     expect(await copyStatus(root, dir)).toEqual({ dirty: false, ahead: 0, repos: [] })
 
+    await change(dir, 'web')
+    expect(await copyStatus(root, dir)).toEqual({ dirty: false, ahead: 0, repos: [] })
     writeFileSync(join(dir, 'web', 'new.txt'), 'hi')
     expect(await copyStatus(root, dir)).toEqual({ dirty: true, ahead: 0, repos: ['web'] })
 
@@ -227,6 +298,7 @@ describe('keep', () => {
     const web = repo('web')
     const docs = repo('docs')
     const dir = (await createWorktreeSet(root, { newBranch: 'add-login', autoName: true }))!.path
+    await change(dir, 'api', 'web')
 
     writeFileSync(join(dir, 'api', 'login.ts'), 'api')
     git(join(dir, 'api'), 'add', '-A')
@@ -256,6 +328,7 @@ describe('keep', () => {
     const api = repo('api')
     const web = repo('web', { 'page.txt': 'one\n' })
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    await change(dir, 'api', 'web')
     writeFileSync(join(dir, 'api', 'a.txt'), 'fine')
     writeFileSync(join(dir, 'web', 'page.txt'), 'from the chat\n')
     // Meanwhile the project moved on, on the same line.
@@ -278,6 +351,7 @@ describe('keep', () => {
     const api = repo('api')
     const web = repo('web')
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    await change(dir, 'api')
     writeFileSync(join(dir, 'api', 'a.txt'), 'change')
 
     writeFileSync(join(web, 'scratch.txt'), 'mine') // untouched by the chat: not its business
@@ -286,6 +360,7 @@ describe('keep', () => {
     expect(readFileSync(join(web, 'scratch.txt'), 'utf8')).toBe('mine')
 
     const dir2 = (await createWorktreeSet(root, { newBranch: 'y', autoName: true }))!.path
+    await change(dir2, 'web')
     writeFileSync(join(dir2, 'web', 'b.txt'), 'change')
     expect(await mergeCopy(root, dir2, 'Keep')).toMatchObject({
       ok: false,
@@ -298,6 +373,7 @@ describe('keep', () => {
   it('lands on the branch each copy was cut from, even when the project has moved off it', async () => {
     const api = repo('api')
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    await change(dir, 'api')
     writeFileSync(join(dir, 'api', 'a.txt'), 'change')
     git(api, 'checkout', '-q', '-b', 'elsewhere')
     writeFileSync(join(api, 'wip.txt'), 'unsaved') // not on main, so not in the way
@@ -314,7 +390,7 @@ describe('keep', () => {
     mkdirSync(join(dir, 'tools'))
     git(join(dir, 'tools'), 'init', '-q', '-b', 'main')
     writeFileSync(join(dir, 'tools', 'run.sh'), 'echo hi')
-    expect(describeRepoSet(dir)!.repos).toEqual(['api'])
+    expect(describeRepoSet(dir)).toEqual({ root, repos: [], linked: ['api'] })
     expect(await copyStatus(root, dir)).toEqual({ dirty: true, ahead: 0, repos: [] })
 
     expect(await mergeCopy(root, dir, 'Keep')).toEqual({ ok: true, committed: true, repos: [] })
@@ -328,6 +404,10 @@ describe('keep', () => {
     repo('api')
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
     expect(await mergeCopy(root, dir, 'Keep')).toEqual({ ok: false, reason: 'nothing' })
+    expect(existsSync(dir)).toBe(true)
+    // Nor from one that took a worktree and then left it as it found it.
+    await change(dir, 'api')
+    expect(await mergeCopy(root, dir, 'Keep')).toEqual({ ok: false, reason: 'nothing' })
     expect(listWorktreeSets(root)).toHaveLength(1)
   })
 })
@@ -339,6 +419,7 @@ describe('throw away', () => {
     mkdirSync(join(root, 'designs'))
     writeFileSync(join(root, 'designs', 'logo.txt'), 'logo')
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    await change(dir, 'api')
     writeFileSync(join(dir, 'api', 'a.txt'), 'doomed')
     writeFileSync(join(dir, 'plan.md'), 'doomed too')
 
@@ -352,12 +433,16 @@ describe('throw away', () => {
     }
     expect(readFileSync(join(root, 'designs', 'logo.txt'), 'utf8')).toBe('logo')
     expect(existsSync(join(root, 'plan.md'))).toBe(false)
+    // The repo it only linked to is the project's, and is still there.
+    expect(readFileSync(join(web, 'README.md'), 'utf8')).toBe('# web\n')
   })
 
   it('leaves the other chats’ copies where they are', async () => {
     repo('api')
     const a = (await createWorktreeSet(root, { newBranch: 'a', autoName: true }))!.path
     const b = (await createWorktreeSet(root, { newBranch: 'b', autoName: true }))!.path
+    await change(a, 'api')
+    await change(b, 'api')
     await removeCopy(root, a)
     expect(listWorktreeSets(root).map((s) => s.path)).toEqual([b])
     expect(branches(join(root, 'api'))).toEqual(['b', 'main'])
@@ -369,6 +454,7 @@ describe('rename', () => {
     const api = repo('api')
     const web = repo('web')
     const dir = (await createWorktreeSet(root, { newBranch: 'can-you-help', autoName: true }))!.path
+    await change(dir, 'api', 'web')
     expect(await renameCopy(dir, 'add-login')).toEqual({ ok: true, branch: 'add-login' })
     expect(branches(api)).toEqual(['add-login', 'main'])
     expect(branches(web)).toEqual(['add-login', 'main'])
@@ -377,11 +463,33 @@ describe('rename', () => {
     expect(branches(api)).toEqual(['add-login', 'main'])
   })
 
+  it('renames a copy with no worktree yet, so the first one is cut on the new name', async () => {
+    const api = repo('api')
+    const web = repo('web')
+    git(web, 'branch', 'add-login')
+    const dir = (await createWorktreeSet(root, { newBranch: 'can-you-help', autoName: true }))!.path
+    expect(await renameCopy(dir, 'add-login')).toEqual({ ok: true, branch: 'add-login-2' })
+    expect(branches(api)).toEqual(['main'])
+    await change(dir, 'api')
+    expect(branches(api)).toEqual(['add-login-2', 'main'])
+  })
+
+  it('cuts a later repo on the name the earlier ones were renamed to', async () => {
+    const web = repo('web')
+    repo('api')
+    const dir = (await createWorktreeSet(root, { newBranch: 'can-you-help', autoName: true }))!.path
+    await change(dir, 'api')
+    expect(await renameCopy(dir, 'add-login')).toEqual({ ok: true, branch: 'add-login' })
+    await change(dir, 'web')
+    expect(branches(web)).toEqual(['add-login', 'main'])
+  })
+
   it('steps round a name one repo already has, in all of them', async () => {
     const api = repo('api')
     const web = repo('web')
     git(web, 'branch', 'add-login')
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    await change(dir, 'api', 'web')
     expect(await renameCopy(dir, 'add-login')).toEqual({ ok: true, branch: 'add-login-2' })
     expect(branches(api)).toEqual(['add-login-2', 'main'])
     expect(branches(web)).toEqual(['add-login', 'add-login-2', 'main'])
@@ -390,6 +498,8 @@ describe('rename', () => {
   it('never renames a branch the user named', async () => {
     const api = repo('api')
     const dir = (await createWorktreeSet(root, { newBranch: 'release-2' }))!.path
+    expect((await renameCopy(dir, 'something-else')).ok).toBe(false)
+    await change(dir, 'api')
     expect((await renameCopy(dir, 'something-else')).ok).toBe(false)
     expect(branches(api)).toEqual(['main', 'release-2'])
   })
@@ -418,6 +528,7 @@ describe('projectMemoryDir', () => {
   it('points an agent in a copy at the memory of the project, not of the copy', async () => {
     repo('api')
     const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    await change(dir, 'api')
     process.env.CLAUDE_CONFIG_DIR = '/cfg'
     try {
       expect(projectMemoryDir(dir)).toBe(
@@ -429,6 +540,234 @@ describe('projectMemoryDir', () => {
       expect(projectMemoryDir(undefined)).toBeNull()
     } finally {
       delete process.env.CLAUDE_CONFIG_DIR
+    }
+  })
+})
+
+describe('shrinking a copy', () => {
+  it('puts back as links the repos a chat has a worktree of and never changed', async () => {
+    const api = repo('api')
+    const web = repo('web')
+    const docs = repo('docs')
+    const dir = (await createWorktreeSet(root, { newBranch: 'add-login', autoName: true }))!.path
+    await change(dir, 'api', 'web', 'docs')
+    // A copy from before the branch was written down.
+    rmSync(setMetaPath(dir))
+    writeFileSync(join(dir, 'api', 'login.ts'), 'unsaved')
+    writeFileSync(join(dir, 'web', 'login.tsx'), 'web')
+    git(join(dir, 'web'), 'add', '-A')
+    git(join(dir, 'web'), 'commit', '-q', '-m', 'wip')
+    // The project moving on is not the chat changing anything.
+    writeFileSync(join(docs, 'more.md'), 'more')
+    git(docs, 'add', '-A')
+    git(docs, 'commit', '-q', '-m', 'elsewhere')
+
+    expect(await shrinkCopy(dir)).toEqual({ linked: ['docs'], kept: ['api', 'web'] })
+    expect(isLink(join(dir, 'docs'))).toBe(true)
+    expect(branches(docs)).toEqual(['main'])
+    expect(git(docs, 'worktree', 'list').split('\n')).toHaveLength(1)
+    expect(readFileSync(join(dir, 'api', 'login.ts'), 'utf8')).toBe('unsaved')
+    expect(branches(api)).toEqual(['add-login', 'main'])
+    expect(branches(web)).toEqual(['add-login', 'main'])
+    expect(describeRepoSet(dir)).toEqual({ root, repos: ['api', 'web'], linked: ['docs'] })
+
+    // Shrunk to nothing, it still knows its branch, and cuts on it again.
+    const bare = (await createWorktreeSet(root, { newBranch: 'other', autoName: true }))!.path
+    await change(bare, 'docs')
+    rmSync(setMetaPath(bare))
+    expect(await shrinkCopy(bare)).toEqual({ linked: ['docs'], kept: [] })
+    expect(setBranch(bare)).toEqual({ branch: 'other', autoName: true })
+    await change(bare, 'docs')
+    expect(git(join(bare, 'docs'), 'symbolic-ref', '--short', 'HEAD')).toBe('other')
+  })
+})
+
+describe('which repo a path is in', () => {
+  it('knows a link from a worktree, through the copy or through the project', async () => {
+    repo('api')
+    repo('web')
+    writeFileSync(join(root, 'notes.md'), 'notes')
+    const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    await change(dir, 'web')
+
+    expect(repoAt(dir, join(dir, 'api', 'src', 'a.ts'))).toEqual({
+      name: 'api',
+      state: 'linked',
+      viaOriginal: false,
+      inCopy: join(dir, 'api', 'src', 'a.ts')
+    })
+    expect(repoAt(dir, 'src/a.ts', join(dir, 'api'))).toMatchObject({
+      name: 'api',
+      state: 'linked'
+    })
+    expect(repoAt(dir, join(root, 'api', 'a.ts'))).toEqual({
+      name: 'api',
+      state: 'linked',
+      viaOriginal: true,
+      inCopy: join(dir, 'api', 'a.ts')
+    })
+    expect(repoAt(dir, join(dir, 'web', 'a.ts'))).toMatchObject({
+      state: 'copied',
+      viaOriginal: false
+    })
+    expect(repoAt(dir, join(root, 'web', 'a.ts'))).toMatchObject({
+      state: 'copied',
+      viaOriginal: true
+    })
+    // Not in a repo at all: a loose file, the copy itself, somewhere else.
+    expect(repoAt(dir, join(dir, 'notes.md'))).toBeNull()
+    expect(repoAt(dir, join(dir, 'plan.md'))).toBeNull()
+    expect(repoAt(dir, dir)).toBeNull()
+    expect(repoAt(dir, '/tmp/elsewhere.txt')).toBeNull()
+    expect(repoAt(dir, join(root, '.worktrees', 'other', 'api', 'a.ts'))).toBeNull()
+
+    expect(repoSetOf(dir)).toBe(dir)
+    expect(repoSetOf(join(dir, 'web', 'src'))).toBe(dir)
+    expect(repoSetOf(join(root, 'api'))).toBeNull()
+    expect(repoSetOf(undefined)).toBeNull()
+  })
+})
+
+describe('a change about to happen', () => {
+  it('cuts the repo a file edit is aimed at, once, and holds the edit back to be repeated', async () => {
+    const api = repo('api')
+    const web = repo('web')
+    const dir = (await createWorktreeSet(root, { newBranch: 'add-login', autoName: true }))!.path
+    const file = join(dir, 'api', 'README.md')
+
+    // Reading and loose files are nobody's business.
+    expect(await copyBeforeWrite('Read', { file_path: file }, dir)).toBeNull()
+    expect(await copyBeforeWrite('Write', { file_path: join(dir, 'plan.md') }, dir)).toBeNull()
+    expect(branches(api)).toEqual(['main'])
+
+    const held = await copyBeforeWrite('Edit', { file_path: file }, dir)
+    expect(held).toContain('Not an error')
+    expect(held).toContain(join(dir, 'api'))
+    expect(held).toContain('`add-login`')
+    expect(isLink(join(dir, 'api'))).toBe(false)
+    expect(branches(api)).toEqual(['add-login', 'main'])
+    // The same edit again goes through, into the worktree.
+    expect(await copyBeforeWrite('Edit', { file_path: file }, dir)).toBeNull()
+    // The other repo was never touched.
+    expect(isLink(join(dir, 'web'))).toBe(true)
+    expect(branches(web)).toEqual(['main'])
+  })
+
+  it("catches an edit aimed at the project's own checkout, before and after the cut", async () => {
+    const api = repo('api')
+    const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    const original = join(api, 'README.md')
+    expect(await copyBeforeWrite('Write', { file_path: original }, dir)).toContain(
+      join(dir, 'api', 'README.md')
+    )
+    expect(branches(api)).toEqual(['main', 'x'])
+    const again = await copyBeforeWrite('Write', { file_path: original }, dir)
+    expect(again).toContain('shared checkout')
+    expect(again).toContain(join(dir, 'api', 'README.md'))
+  })
+
+  it('cuts the repo a shell command that writes is run in or names — and no other', async () => {
+    const api = repo('api')
+    const web = repo('web')
+    const docs = repo('docs')
+    const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+
+    expect(
+      await copyBeforeWrite('Bash', { command: 'git status && ls -la' }, dir, join(dir, 'api'))
+    ).toBeNull()
+    expect(
+      await copyBeforeWrite('Bash', { command: 'cat api/README.md | head -3' }, dir, dir)
+    ).toBeNull()
+    expect(await copyBeforeWrite('Bash', { command: 'mkdir -p /tmp/out' }, dir, dir)).toBeNull()
+    expect(branches(api)).toEqual(['main'])
+
+    const inside = await copyBeforeWrite(
+      'Bash',
+      { command: 'git commit -am wip' },
+      dir,
+      join(dir, 'api')
+    )
+    expect(inside).toContain('Run the command again')
+    expect(branches(api)).toEqual(['main', 'x'])
+    expect(
+      await copyBeforeWrite('Bash', { command: 'git commit -am wip' }, dir, join(dir, 'api'))
+    ).toBeNull()
+
+    // A shell that stepped through the link reports the project's folder.
+    expect(
+      await copyBeforeWrite('Bash', { command: 'npm install' }, dir, join(web, 'app'))
+    ).toContain('`web`')
+    expect(branches(web)).toEqual(['main', 'x'])
+
+    expect(
+      await copyBeforeWrite('Bash', { command: 'cd docs && echo hi > notes.txt' }, dir, dir)
+    ).toContain('`docs`')
+    expect(branches(docs)).toEqual(['main', 'x'])
+  })
+
+  it('stops a search from the top passing over the repos that are only links', async () => {
+    repo('api')
+    repo('web')
+    const dir = (await createWorktreeSet(root, { newBranch: 'x', autoName: true }))!.path
+    const held = await copyBeforeWrite('Grep', { pattern: 'login' }, dir, dir)
+    expect(held).toContain('`api`')
+    expect(held).toContain('rg --follow')
+    expect(
+      await copyBeforeWrite('Glob', { pattern: '**/*.ts', path: dir }, dir, dir)
+    ).not.toBeNull()
+    // Pointed at a repo, search follows the link and is left alone.
+    expect(await copyBeforeWrite('Grep', { pattern: 'login', path: 'api' }, dir, dir)).toBeNull()
+    expect(
+      await copyBeforeWrite('Grep', { pattern: 'login', path: join(dir, 'web') }, dir, dir)
+    ).toBeNull()
+    // With every repo its own worktree there is nothing to miss.
+    await change(dir, 'api', 'web')
+    expect(await copyBeforeWrite('Grep', { pattern: 'login' }, dir, dir)).toBeNull()
+  })
+
+  it('has nothing to say outside a copy of a folder of repos', async () => {
+    const api = repo('api')
+    const wt = await ensureChatBranch(api, 'fix the login')
+    expect(await copyBeforeWrite('Edit', { file_path: join(wt!, 'README.md') }, wt!)).toBeNull()
+    expect(await copyBeforeWrite('Grep', { pattern: 'x' }, wt!, wt!)).toBeNull()
+    expect(
+      await copyBeforeWrite('Edit', { file_path: join(api, 'README.md') }, undefined)
+    ).toBeNull()
+  })
+})
+
+describe('writesFiles', () => {
+  it('tells a command that changes files from one that only looks', () => {
+    for (const c of [
+      'git commit -m "x"',
+      'git -C api checkout -b feature',
+      'git stash',
+      'cd api && npm install',
+      'pnpm add zod',
+      'rm -rf dist',
+      'ls && mv a b',
+      "sed -i '' 's/a/b/' file.ts",
+      'echo hi > out.txt',
+      'node gen.js >> log.txt',
+      'pod install'
+    ]) {
+      expect(writesFiles(c), c).toBe(true)
+    }
+    for (const c of [
+      'git status',
+      'git log --oneline -5',
+      'git diff main...HEAD',
+      'git branch --list',
+      'ls -la',
+      'rg -n "foo" src | head -20',
+      'npm test 2>&1 | tail -5',
+      'npm run typecheck',
+      'cat a.txt 2>/dev/null',
+      'echo "a => b"',
+      'test 3 -gt 2 && echo yes',
+      'grep -rn "x" . > /dev/null'
+    ]) {
+      expect(writesFiles(c), c).toBe(false)
     }
   })
 })

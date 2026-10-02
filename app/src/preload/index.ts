@@ -352,6 +352,18 @@ export interface CoveApi {
   ) => Promise<
     { path: string; branch: string | null; repos: { name: string; branch: string | null }[] }[]
   >
+  /**
+   * Give a chat's copy of a folder of repos its own worktree of one repo, in
+   * place of the link it starts with. What the agent's tools do when a change
+   * to that repo is about to happen.
+   */
+  worktreeCutRepo: (
+    setPath: string,
+    name: string
+  ) => Promise<
+    | { ok: true; path: string; branch: string; fresh: boolean }
+    | { ok: false; reason: 'not-a-copy' | 'not-a-repo' | 'error'; detail?: string }
+  >
   /** New copy under <project>/.worktrees; null if git refused. */
   worktreeCreate: (
     projectPath: string,
@@ -991,6 +1003,7 @@ const cove: CoveApi = {
   },
   projectCopyKind: (projectPath) => ipcRenderer.invoke('project:copy-kind', projectPath),
   worktreeSets: (projectPath) => ipcRenderer.invoke('worktree:sets', projectPath),
+  worktreeCutRepo: (setPath, name) => ipcRenderer.invoke('worktree:cut-repo', setPath, name),
   worktreeCreate: (projectPath, opts) => ipcRenderer.invoke('worktree:create', projectPath, opts),
   worktreeRename: (wtPath, newBranch) => ipcRenderer.invoke('worktree:rename', wtPath, newBranch),
   worktreeStatus: (projectPath, wtPath) =>

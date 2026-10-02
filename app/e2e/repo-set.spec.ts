@@ -1,17 +1,30 @@
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
 import { join } from 'path'
-import { existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'fs'
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  mkdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync
+} from 'fs'
 import { execFileSync } from 'child_process'
 import { tmpdir } from 'os'
 
 /**
  * A project that is a folder of repos (like wepush): a new chat gets a copy of
- * every repo, on one branch, and is still ONE row in the sidebar.
+ * the folder that links to every repo, a worktree of each repo it goes on to
+ * change — all on one branch — and is still ONE row in the sidebar.
  *
  * Its chats used to share the single checkout of each repo, because the folder
- * is not a repo and there was nothing to cut a worktree of. The copy is several
- * worktrees now, and the easy way to get this wrong is on screen: a row per
- * worktree is seven rows per conversation here. So the fixture is shaped like
+ * is not a repo and there was nothing to cut a worktree of. Then every chat got
+ * a worktree of every repo, which in wepush was eighteen checkouts and a new
+ * branch in every repo for a chat that changed none. The copy is as many
+ * worktrees as the chat has changed repos, and the easy way to get this wrong
+ * is on screen: a row per worktree is seven rows per conversation here, and a
+ * branch in a repo the chat never touched is a row in that repo's own project.
+ * So the fixture is shaped like
  * the real thing — many repos, several conversations already in the folder,
  * things that belong to no repo — and the rows are counted.
  *
@@ -83,6 +96,15 @@ const startChat = async (
   return { id, cwd: cwd! }
 }
 
+/** The chat is about to change these repos, as its tools would report. */
+const change = async (cwd: string, ...repos: string[]): Promise<void> => {
+  for (const r of repos) {
+    const cut = await window.evaluate(([c, n]) => window.cove.worktreeCutRepo(c, n), [cwd, r])
+    expect(cut).toMatchObject({ ok: true })
+  }
+  await settle()
+}
+
 const chatRows = (): ReturnType<Page['locator']> => window.locator('[data-chat-id]')
 const orphanRows = (): ReturnType<Page['locator']> =>
   window.locator('.sidebar-branch:not([data-chat-id])')
@@ -148,19 +170,38 @@ test.afterAll(async () => {
 
 let chat: { id: string; cwd: string }
 
-test('a new chat gets every repo on one branch, and is still one row', async () => {
+test('a new chat cuts nothing until it changes a repo, then only that repo', async () => {
   chat = await startChat('Please add a login page')
 
   expect(chat.cwd.startsWith(join(projectDir, '.worktrees') + '/')).toBe(true)
+  // Every repo is there to read, and not one has been touched.
   for (const r of REPOS) {
-    expect(git(join(chat.cwd, r), 'symbolic-ref', '--short', 'HEAD')).toBe('add-login-page')
-    // The folder's own checkout is where it was.
-    expect(git(join(projectDir, r), 'symbolic-ref', '--short', 'HEAD')).toBe('main')
+    expect(lstatSync(join(chat.cwd, r)).isSymbolicLink()).toBe(true)
+    expect(existsSync(join(chat.cwd, r, 'README.md'))).toBe(true)
+    expect(branches(r)).toEqual(['main'])
+    expect(git(join(projectDir, r), 'worktree', 'list').split('\n')).toHaveLength(1)
   }
   // What belongs to no repo is there too.
   expect(existsSync(join(chat.cwd, 'designs', 'logo.txt'))).toBe(true)
+  // A row with no branch on it — and not one that says its copy has gone.
+  const row = window.locator(`[data-chat-id="${chat.id}"]`)
+  await expect(row).toHaveCount(1)
+  await expect(row.locator('.chat-tree-wt')).toHaveCount(0)
+  await expect(chatRows()).toHaveCount(4)
+  await expect(orphanRows()).toHaveCount(0)
 
-  // One row, saying which branch — not seven.
+  // It is about to change two of the seven.
+  await change(chat.cwd, 'backend', 'ios')
+  for (const r of REPOS) {
+    const own = r === 'backend' || r === 'ios'
+    expect(lstatSync(join(chat.cwd, r)).isSymbolicLink()).toBe(!own)
+    expect(branches(r)).toEqual(own ? ['add-login-page', 'main'] : ['main'])
+    // The folder's own checkout is where it was.
+    expect(git(join(projectDir, r), 'symbolic-ref', '--short', 'HEAD')).toBe('main')
+  }
+  expect(git(join(chat.cwd, 'ios'), 'symbolic-ref', '--short', 'HEAD')).toBe('add-login-page')
+
+  // One row, saying which branch — not two, and not seven.
   await expect(window.locator(`[data-chat-id="${chat.id}"]`)).toContainText('add-login-page')
   await expect(chatRows()).toHaveCount(4)
   await expect(orphanRows()).toHaveCount(0)
@@ -181,7 +222,9 @@ test('the repo list says which branch the open chat has each repo on', async () 
   await window.click(`[data-chat-id="${chat.id}"]`)
   await toggle().click()
   await expect(repoRows()).toHaveCount(7)
-  await expect(repoRows().filter({ hasText: 'add-login-page' })).toHaveCount(7)
+  // The two it changed are on its branch; the rest are where the folder is.
+  await expect(repoRows().filter({ hasText: 'add-login-page' })).toHaveCount(2)
+  await expect(repoRows().filter({ hasText: 'main' })).toHaveCount(5)
   await window.waitForTimeout(300) // the caret's turn
   await window.locator('.sidebar').screenshot({ path: 'test-results/repo-set-chat.png' })
 
@@ -227,6 +270,7 @@ test('keep lands one change in each repo the chat touched, and the chat closes',
 
 test('a clash in one repo keeps nothing in any, and says which repo', async () => {
   const c = await startChat('Rework the readme')
+  await change(c.cwd, 'api', 'docs')
   writeFileSync(join(c.cwd, 'api', 'README.md'), '# api, reworked\n')
   writeFileSync(join(c.cwd, 'docs', 'guide.md'), '# guide\n')
   // The project moves on underneath, on the same line.
@@ -258,6 +302,9 @@ test('a copy left with no conversation is one row, and can be removed', async ()
   )
   expect(set?.branch).toBe('left-behind')
   await settle()
+  // A copy that changed nothing holds no work, and is not listed as some.
+  await expect(orphanRows()).toHaveCount(0)
+  await change(set!.path, 'docs')
   await expect(orphanRows()).toHaveCount(1)
   await expect(orphanRows()).toContainText('left-behind')
   await expect(chatRows()).toHaveCount(3)
@@ -281,6 +328,7 @@ test('the only chat of the project still has a row when it works in a copy', asy
   await expect(chatRows()).toHaveCount(0)
   const only = await startChat('Tidy the docs', true)
   await expect(window.locator(`[data-chat-id="${only.id}"]`)).toHaveCount(1)
+  await change(only.cwd, 'docs')
   await expect(window.locator(`[data-chat-id="${only.id}"]`)).toContainText('tidy-docs')
   await window.locator('.sidebar').screenshot({ path: 'test-results/repo-set-only.png' })
 })

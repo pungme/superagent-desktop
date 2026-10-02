@@ -7,12 +7,14 @@ import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { broadcastToWindows, readJsonBody } from './util'
 import {
+  getChat,
   getWorkspaceName,
   getChatTitleBySession,
   getChatIdBySession,
   getChatProvider,
   recordEvent
 } from './store'
+import { copyBeforeWrite } from './copy-on-write'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL } from '../shared/agent-provider'
 import { paneLog, allowUserFocus } from './browser'
 import {
@@ -107,6 +109,8 @@ export function requestApproval(
   kind: ApprovalKind = 'guardrail'
 ): Promise<boolean> {
   return new Promise((resolve) => {
+    // Render under the chat id; keep the provider session id for per-turn trust.
+    const displaySessionId = getChatIdBySession(sessionId) ?? sessionId
     const requestId = `gate-${++gateSeq}`
     // A person asked to act (answer a prompt, solve a check) gets the long wait.
     const timeoutMs = kind === 'guardrail' ? GATE_TIMEOUT_MS : PERMISSION_TIMEOUT_MS
@@ -120,7 +124,7 @@ export function requestApproval(
     broadcastToWindows('guardrail:ask', {
       requestId,
       workspaceId,
-      sessionId,
+      sessionId: displaySessionId,
       toolName,
       preview,
       kind
@@ -128,7 +132,7 @@ export function requestApproval(
     hookBus.emit('approval', {
       requestId,
       workspaceId,
-      sessionId,
+      sessionId: displaySessionId,
       toolName,
       preview,
       kind,
@@ -202,6 +206,18 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
   const toolName = typeof body.tool_name === 'string' ? body.tool_name : ''
   if (!sessionId || !toolName) return ''
 
+  // A chat in a folder of repos has a worktree only of the repos it has
+  // changed. This is the moment one is about to be: cut it first, and have the
+  // agent do the same thing again in its own copy (copy-on-write.ts).
+  const chatId = getChatIdBySession(sessionId)
+  const held = await copyBeforeWrite(
+    toolName,
+    body.tool_input,
+    (chatId ? getChat(chatId)?.cwd : undefined) ?? undefined,
+    typeof body.cwd === 'string' ? body.cwd : undefined
+  ).catch(() => null)
+  if (held) return DENY_JSON(held)
+
   const cls = classifyTool(toolName)
   if (cls === 'taint') {
     markTainted(sessionId)
@@ -250,6 +266,14 @@ async function decideAntigravityTool(
   // On the record before anything is decided: the session checks that a gated
   // tool was put to this hook, and stops a process that ran one without asking.
   noteHookCall(key, call.stepIdx)
+
+  // The same cut-before-write as Claude's hook, see decidePreTool.
+  const held = await copyBeforeWrite(
+    call.name,
+    call.input,
+    (chatId ? getChat(chatId)?.cwd : undefined) ?? undefined
+  ).catch(() => null)
+  if (held) return agyDecision('deny', held)
 
   if (key) {
     const cls = classifyTool(call.name)
@@ -498,8 +522,11 @@ export function mergeCoveHooks(settings: HookSettings, scriptPath: string): Hook
   // turn) and the machine-acting tools (to gate them); the same script routes on
   // the 'PreToolUse' arg and forwards the app's verdict. Generous timeout so a
   // held human approval isn't cut off (the app self-denies well before this).
+  // Grep and Glob are here for a chat in a folder of repos, whose search would
+  // otherwise pass over every repo it only links to (copy-on-write.ts).
   addEntry('PreToolUse', {
-    matcher: 'Bash|Write|Edit|MultiEdit|NotebookEdit|mcp__cove-browser__browser_read_page',
+    matcher:
+      'Bash|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|mcp__cove-browser__browser_read_page',
     hooks: [{ type: 'command', command: `sh ${quoted} PreToolUse`, timeout: 600 }]
   })
   // Real tool approvals, for chats running in the "Ask" mode: Claude Code asks
@@ -557,6 +584,7 @@ export function hooksInstalled(): boolean {
     return (
       JSON.stringify(stop ?? '').includes('cove-hook.sh') &&
       JSON.stringify(pre ?? '').includes('cove-hook.sh') &&
+      JSON.stringify(pre ?? '').includes('|Grep|Glob|') &&
       JSON.stringify(perm ?? '').includes('cove-hook.sh')
     )
   } catch {
@@ -566,6 +594,13 @@ export function hooksInstalled(): boolean {
 
 /** Additively merge Superagent's hooks into ~/.claude/settings.json. Reversible via uninstallHooks. */
 export function installHooks(): { ok: boolean; error?: string } {
+  // A test instance keeps everything in a throwaway folder (COVE_USER_DATA) —
+  // except this, which is the user's own ~/.claude/settings.json. Installing
+  // from one pointed every hook on the machine at a script in a folder the
+  // test deleted a minute later, and the real app, finding "its" hooks there,
+  // never put them back. The hooks the real app installed serve a test too:
+  // the script goes wherever COVE_HOOK_URL says.
+  if (process.env.COVE_USER_DATA) return { ok: true }
   try {
     const scriptPath = hookScriptPath()
     writeFileSync(scriptPath, HOOK_SCRIPT, { mode: 0o755 })

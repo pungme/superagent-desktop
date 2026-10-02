@@ -231,7 +231,11 @@ export function gitBranch(cwd: string): string | null {
   }
 }
 
-/** The branch a chat's copy of a folder of repos is on: its first repo's. */
+/**
+ * The branch a chat's copy of a folder of repos is on: its first repo's. Null
+ * for a copy that has changed no repo — it has a name put by for the first one
+ * it does change, but no branch anywhere, and saying so would point at nothing.
+ */
 export function repoSetBranch(cwd: string): string | null {
   if (!isRepoSet(cwd)) return null
   const first = setMembers(cwd)[0]
@@ -1116,7 +1120,14 @@ export function registerFilesIpc(): void {
   ipcMain.handle('files:openExternal', (_e, path: string) => shell.openPath(path))
   // What a chip beside a chat shows. A chat's copy of a folder of repos is not
   // a repo itself, but its repos share one branch, and that is the one meant.
-  ipcMain.handle('git:branch', (_e, cwd: string) => gitBranch(cwd) ?? repoSetBranch(cwd))
+  // '' for a chat's copy of a folder of repos that has changed none of them:
+  // the copy is there, and on no branch. null stays "there is nothing here",
+  // which the sidebar reads as a copy that has gone.
+  ipcMain.handle(
+    'git:branch',
+    (_e, cwd: string) =>
+      gitBranch(cwd) ?? repoSetBranch(cwd) ?? (isRepoSet(cwd) && existsSync(cwd) ? '' : null)
+  )
   ipcMain.handle('git:aheadBehind', (_e, cwd: string) => gitAheadBehind(cwd))
   ipcMain.handle('git:subrepos', (_e, root: string) => gitSubrepos(root))
   // Read a text file for the in-app viewer/editor. Returns null if it's missing,

@@ -505,11 +505,13 @@ function ChatRow({
             >
               not started
             </span>
-          ) : chat.cwd && !wtBranch ? (
+          ) : chat.cwd && wtBranch === null ? (
             /* Its copy is gone — removed by hand, or the branch merged and
                reaped while the chat outlived it. Say so: rendering nothing made
                a dead chat look exactly like a live one on the folder itself,
-               and a project full of them read as a list of identical rows. */
+               and a project full of them read as a list of identical rows.
+               ('' is not that: a copy of a folder of repos that has changed
+               none of them is on no branch yet, and gets no chip.) */
             <span className="chat-tree-wt gone" title={`Its copy is gone: ${chat.cwd}`}>
               copy gone
             </span>
