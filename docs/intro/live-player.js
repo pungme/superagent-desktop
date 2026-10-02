@@ -21,8 +21,12 @@ while (!window.ready) await new Promise((r) => setTimeout(r, 16))
 // are enlarged to cover whatever the screen has left over, above and below or
 // to the sides, and the scenes are let run past their 16:9 or 9:16 edge. So it
 // fills any screen without cropping what the film says.
+//
+// It is sized with zoom, not a transform. A transform leaves every layer its
+// full 1920×1080 behind the scenes, and a phone's 3× screen multiplies that by
+// nine: dozens of such layers ran an iPhone out of memory and Safari closed the
+// page. Zoomed, a layer is only as large as it is shown.
 const frame = document.getElementById(portrait ? 'pstage' : 'stage')
-frame.style.transformOrigin = '0 0'
 frame.style.overflow = 'visible'
 const scope = portrait ? '#pstage >' : '#stage >'
 const backdrops = [...document.querySelectorAll(`${scope} .full, ${scope} #grain, ${scope} #introGlow, #warp`)]
@@ -30,7 +34,10 @@ const capfade = document.getElementById('capfade')
 const capfadeH = capfade.getBoundingClientRect().height
 function fit() {
   const s = Math.min(innerWidth / W, innerHeight / H)
-  frame.style.transform = `translate(${(innerWidth - W * s) / 2}px, ${(innerHeight - H * s) / 2}px) scale(${s})`
+  frame.style.zoom = s
+  // lengths on the frame are zoomed too, so its offset is given in its own pixels
+  frame.style.left = (innerWidth - W * s) / 2 / s + 'px'
+  frame.style.top = (innerHeight - H * s) / 2 / s + 'px'
   const cover = Math.max(innerWidth / (W * s), innerHeight / (H * s)) * 1.02
   for (const el of backdrops) el.style.scale = cover
   // the veil behind the captions reaches the bottom of the screen
