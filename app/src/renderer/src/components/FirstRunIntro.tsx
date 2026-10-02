@@ -3,16 +3,18 @@ import { useOverlayLock } from '../state'
 import { INTRO_SEEN_KEY } from '../firstRun'
 
 /**
- * The first launch opens on the Superagent reel — "Your agent lives in a
- * terminal. Give it a home." into the mark and "A beautiful home for your
- * agent.", then the tour of what the app does: the sidebar, the browser, dual
+ * The first launch opens on the Superagent reel — "Hello. Welcome home."
+ * into the mark and "A beautiful home for your agent.", then the tour of what
+ * the app does: the sidebar, the browser, dual
  * view, the phone, branches, any agent — and what it promises: open source,
  * no API key, no telemetry, just your Mac. Played silently (public/intro).
  *
  * It plays over the app while the app checks for Claude Code and Codex, which
  * takes several seconds on a first launch and used to be a blank window, then
  * dissolves into whatever is ready: the welcome card, or the app itself.
- * Once per install; Skip (or Esc/Enter/Space) ends it; reduced motion skips it.
+ * Once per install — for someone already using the app too, the first time
+ * they open a version that has it. Skip (or Esc/Enter/Space) ends it; reduced
+ * motion skips it.
  */
 
 export function FirstRunIntro({ onDone }: { onDone: () => void }): React.JSX.Element | null {

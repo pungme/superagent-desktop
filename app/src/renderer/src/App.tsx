@@ -92,10 +92,11 @@ function App(): React.JSX.Element {
     () => localStorage.getItem('cove.connectionsOffered') === '1'
   )
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
-  // A brand-new install opens on the reel's intro, over whatever loads beneath.
-  const [firstRunIntro, setFirstRunIntro] = useState(
-    () => localStorage.getItem('cove.onboarded') !== '1' && shouldPlayFirstRunIntro()
-  )
+  // Anyone who has not seen the reel's intro opens on it once, over whatever
+  // loads beneath: a brand-new install, and someone who was using the app
+  // before it had one. (It used to be new installs only, so the people who had
+  // been here longest never saw it.)
+  const [firstRunIntro, setFirstRunIntro] = useState(() => shouldPlayFirstRunIntro())
   if (firstRunIntro) sessionStorage.setItem('cove.introPlayed', '1') // not the short splash too
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(

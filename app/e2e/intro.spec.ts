@@ -39,6 +39,29 @@ test('a first launch plays the intro, then hands over to the app, once', async (
   }
 })
 
+test('someone already using the app sees it once too', async () => {
+  const { app, window, dir } = await launch()
+  try {
+    // Set up long ago, on a version with no intro: onboarded, never seen it.
+    await window.evaluate(() => {
+      localStorage.setItem('cove.onboarded', '1')
+      localStorage.removeItem('cove.firstRunIntroSeen')
+      sessionStorage.clear()
+    })
+    await window.reload()
+    const intro = window.frameLocator('.first-run-intro iframe')
+    await intro.locator('#skip').click({ timeout: 10_000 })
+    await expect(window.locator('.first-run-intro')).toHaveCount(0, { timeout: 3_000 })
+    await expect(window.locator('.sidebar')).toBeVisible()
+    await window.reload()
+    await window.waitForTimeout(800)
+    await expect(window.locator('.first-run-intro')).toHaveCount(0)
+  } finally {
+    await app.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('Skip ends it at once', async () => {
   const { app, window, dir } = await launch()
   try {
