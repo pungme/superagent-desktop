@@ -378,6 +378,8 @@ export type RpcMethod =
   | 'worktrees.list'
   | 'git.checkout'
   | 'chat.search'
+  | 'accounts.list'
+  | 'accounts.pick'
   | 'workspace.add'
   | 'workspace.createBrowser'
   | 'workspace.remove'
@@ -531,6 +533,33 @@ export interface WireSearchHit {
  * the sign-ins kept there. `browsers` is empty for a conversation that has no
  * choice (the Computer's own chat always uses the built-in one).
  */
+/**
+ * The subscriptions each agent can run on, with how much of each allowance is
+ * used (Settings → Agents on the Mac). `current` is the account the chat named
+ * in the request is on, when one was named.
+ */
+export interface WireAccount {
+  id: string
+  provider: 'claude' | 'codex' | 'antigravity'
+  name: string
+  kind: 'login' | 'token' | 'home'
+  detail: string
+  /** Epoch ms the account is out until, if it is. */
+  limitedUntil: number | null
+  needsAuth: string | null
+  usage: {
+    windows: { label: string; percent: number; resetsAt: number | null }[]
+    at: number
+  } | null
+}
+
+export interface WireAccounts {
+  claude: WireAccount[]
+  codex: WireAccount[]
+  antigravity: WireAccount[]
+  current: string | null
+}
+
 export interface WireBrowserChoices {
   current: string
   browsers: { id: string; name: string }[]

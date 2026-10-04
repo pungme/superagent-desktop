@@ -788,7 +788,13 @@ export interface CoveApi {
   accountsSetMode: (mode: 'ask' | 'auto') => Promise<void>
   /** Move a chat onto an account; takes effect when its agent next starts. */
   accountsSwitch: (chatId: string, id: string) => Promise<void>
+  /** The same, chosen by hand from the chat's Account pill. */
+  accountsPick: (chatId: string, id: string) => Promise<void>
+  /** Which account a chat runs on: its own pick, else the first with allowance. */
+  accountsForChat: (provider: Account['provider'], chatId: string) => Promise<Account>
   onAccountsLimit: (cb: (n: LimitNotice) => void) => () => void
+  /** The phone moved a chat to another account. */
+  onAccountsPicked: (cb: (p: { chatId: string; accountId: string }) => void) => () => void
   /** One model's allowance is used up: move this chat to the next one down. */
   /** A screenshot macOS just saved, to offer above the composer. */
   onScreenshot: (
@@ -1231,7 +1237,11 @@ const cove: CoveApi = {
   accountsRemove: (id) => ipcRenderer.invoke('accounts:remove', id),
   accountsSetMode: (mode) => ipcRenderer.invoke('accounts:set-mode', mode),
   accountsSwitch: (chatId, id) => ipcRenderer.invoke('accounts:switch', chatId, id),
+  accountsPick: (chatId, id) => ipcRenderer.invoke('accounts:pick', chatId, id),
+  accountsForChat: (provider, chatId) => ipcRenderer.invoke('accounts:for-chat', provider, chatId),
   onAccountsLimit: (cb) => subscribe('accounts:limit', (n) => cb(n as LimitNotice)),
+  onAccountsPicked: (cb) =>
+    subscribe('accounts:picked', (p) => cb(p as { chatId: string; accountId: string })),
   onScreenshot: (cb) => subscribe('screenshots:new', (s) => cb(s as Parameters<typeof cb>[0])),
   onModelLimit: (cb) => subscribe('accounts:model-limit', (n) => cb(n as Parameters<typeof cb>[0])),
   onBrowserHandsOff: (cb) =>

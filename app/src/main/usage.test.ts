@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { usageFromClaudeApi, usageFromClaudeEvent, usageFromCodex } from './usage'
+import {
+  usageFromClaudeApi,
+  usageFromClaudeEvent,
+  usageFromClaudeHeaders,
+  usageFromCodex
+} from './usage'
 
 const NOW = 1_790_950_000_000
 
@@ -89,5 +94,27 @@ describe('usageFromCodex', () => {
       usageFromCodex({ primary: { usedPercent: 140, windowDurationMins: 2880 } }, NOW)?.windows
     ).toEqual([{ label: '2-day', percent: 100, resetsAt: null }])
     expect(usageFromCodex({ primary: null, secondary: null }, NOW)).toBeNull()
+  })
+})
+
+describe('usageFromClaudeHeaders', () => {
+  it('reads the windows off the headers every message comes back with', () => {
+    // As api.anthropic.com answers a subscription token (October 2026).
+    const headers: Record<string, string> = {
+      'anthropic-ratelimit-unified-status': 'allowed_warning',
+      'anthropic-ratelimit-unified-5h-utilization': '0.15',
+      'anthropic-ratelimit-unified-5h-reset': '1791033600',
+      'anthropic-ratelimit-unified-7d-utilization': '0.99',
+      'anthropic-ratelimit-unified-7d-reset': '1791230400'
+    }
+    expect(usageFromClaudeHeaders((n) => headers[n], NOW)).toEqual({
+      windows: [
+        { label: '5-hour', percent: 15, resetsAt: 1791033600_000 },
+        { label: 'Weekly', percent: 99, resetsAt: 1791230400_000 }
+      ],
+      at: NOW
+    })
+    // An answer with no such headers (an API key, an error page) says nothing.
+    expect(usageFromClaudeHeaders(() => null, NOW)).toBeNull()
   })
 })

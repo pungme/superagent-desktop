@@ -1,4 +1,5 @@
 import type { DiffHunk, WireEventData, TaskInfo } from '../shared/companion-protocol'
+import { withoutAgentNudge } from '../shared/agent-nudge'
 
 /**
  * Turns Claude Code's stream-json into the companion's event vocabulary.
@@ -123,7 +124,8 @@ export class TranscriptProjector {
     content.forEach((block, i) => {
       const key = `${msgId}:${i}:${block.type}`
       if (block.type === 'text') {
-        const text = typeof block.text === 'string' ? block.text : ''
+        // The phone shows what the window shows: no CLI nudge (agent-nudge.ts).
+        const text = withoutAgentNudge(typeof block.text === 'string' ? block.text : '')
         if (!text.trim() || this.emitted.has(key)) return
         this.emitted.add(key)
         out.push(

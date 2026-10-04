@@ -23,6 +23,7 @@ import { chatPending, isFolderRoot } from '../lib/folder-root'
 import { when } from '../lib/relative-time'
 import { KindIcon, ProjectIcon } from './ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
+import { UsageFooter } from './UsageFooter'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -2272,6 +2273,24 @@ export function Sidebar(): React.JSX.Element {
                     <path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2" />
                   </svg>
                 </button>
+                {/* Up here with the other ways to add something; it was a row
+                    of its own at the foot of the sidebar. */}
+                <button className="group-add" title="New group" onClick={() => addGroup()}>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  >
+                    <rect x="2" y="5.2" width="9.6" height="8.6" rx="1.6" />
+                    <path d="M4.6 3h7.8a1.6 1.6 0 0 1 1.6 1.6v6.6" />
+                    <path d="M6.8 7.4v4.2M4.7 9.5h4.2" />
+                  </svg>
+                </button>
                 <button
                   className="group-add"
                   title="Add a project"
@@ -2306,9 +2325,7 @@ export function Sidebar(): React.JSX.Element {
         </div>
       </DndContext>
       <div className="sidebar-footer">
-        <button className="sidebar-add-group" onClick={() => addGroup()}>
-          + New group
-        </button>
+        <UsageFooter />
         <button
           className="sidebar-settings"
           title="Settings"

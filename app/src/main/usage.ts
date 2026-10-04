@@ -14,6 +14,9 @@
  *    `account/rateLimits/updated` while a chat runs: a primary and secondary
  *    window, each with its length in minutes and a percent used.
  *
+ *  - A Claude account added by token cannot be asked that way, so it is sent
+ *    one message of one token and its answer's rate-limit headers are read.
+ *
  * Nothing here reaches the network or a CLI; accounts.ts does that.
  */
 
@@ -106,6 +109,33 @@ export function usageFromClaudeApi(body: unknown, now = Date.now()): Usage | nul
         percent: clampPercent(w.utilization),
         resetsAt: resetTime(w.resets_at)
       })
+  }
+  return windows.length ? { windows, at: now } : null
+}
+
+/**
+ * The rate-limit headers Anthropic sends back with any message: the same
+ * windows a `rate_limit_event` carries, as `anthropic-ratelimit-unified-5h-*`
+ * and `-7d-*`. This is how a setup-token account is read without a chat
+ * having run on it — `/api/oauth/usage` will not answer for such a token.
+ */
+export function usageFromClaudeHeaders(
+  header: (name: string) => string | null | undefined,
+  now = Date.now()
+): Usage | null {
+  const windows: UsageWindow[] = []
+  for (const [key, label] of [
+    ['5h', '5-hour'],
+    ['7d', 'Weekly']
+  ] as const) {
+    const used = Number(header(`anthropic-ratelimit-unified-${key}-utilization`))
+    if (!header(`anthropic-ratelimit-unified-${key}-utilization`) || !Number.isFinite(used))
+      continue
+    windows.push({
+      label,
+      percent: clampPercent(used * 100),
+      resetsAt: resetTime(Number(header(`anthropic-ratelimit-unified-${key}-reset`)))
+    })
   }
   return windows.length ? { windows, at: now } : null
 }

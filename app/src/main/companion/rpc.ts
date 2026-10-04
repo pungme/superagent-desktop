@@ -40,6 +40,7 @@ import {
   takeQueuedSends
 } from '../store'
 import { modelBelongsTo, modeBelongsTo, toProvider } from '../../shared/agent-provider'
+import { accountForChat, listAccounts, pinChatAccount, refreshUsage } from '../accounts'
 import { createHash } from 'crypto'
 import { homedir, tmpdir } from 'os'
 import {
@@ -99,6 +100,7 @@ import type {
   ChatSendParams,
   ApprovalAnswerParams,
   WireBrowserShot,
+  WireAccounts,
   WireBrowserChoices,
   WireFileContent,
   WireFileChunk,
@@ -140,6 +142,8 @@ const chatSetAgent = z.object({
   chatId: z.string().min(1),
   provider: z.enum(['claude', 'codex', 'antigravity'])
 })
+const accountsList = z.object({ chatId: z.string().min(1).optional() })
+const accountsPick = z.object({ chatId: z.string().min(1), accountId: z.string().min(1) })
 const browserSet = z.object({
   chatId: z.string().min(1),
   id: z.enum(['builtin', 'brave', 'chrome', 'edge'])
@@ -496,6 +500,35 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         } finally {
           releaseCompositing(pane)
         }
+      }
+      case 'accounts.list': {
+        const p = accountsList.safeParse(params ?? {})
+        if (!p.success) return fail('bad-params', p.error.message)
+        // Fresh numbers when they can be had quickly; what is known otherwise.
+        await Promise.race([refreshUsage(), new Promise((r) => setTimeout(r, 6000))])
+        const chat = p.data.chatId ? getChat(p.data.chatId) : null
+        const result: WireAccounts = {
+          claude: listAccounts('claude'),
+          codex: listAccounts('codex'),
+          antigravity: listAccounts('antigravity'),
+          current: chat ? accountForChat(getChatProvider(chat.id), chat.id).id : null
+        }
+        return { ok: true, result }
+      }
+      case 'accounts.pick': {
+        const p = accountsPick.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        const chat = getChat(p.data.chatId)
+        if (!chat) return fail('not-found', 'no such chat')
+        const provider = getChatProvider(chat.id)
+        if (!listAccounts(provider).some((a) => a.id === p.data.accountId))
+          return fail('not-found', "that account is not one this chat's agent can use")
+        pinChatAccount(chat.id, p.data.accountId)
+        // A window with the chat open restarts its agent on it when idle, as
+        // it does for a pick made at the Mac; otherwise the next start uses it.
+        broadcastToWindows('accounts:picked', { chatId: chat.id, accountId: p.data.accountId })
+        broadcastToWindows('accounts:changed')
+        return { ok: true, result: { ok: true } }
       }
       case 'browser.choices': {
         const p = chatId.safeParse(params)

@@ -193,6 +193,51 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
         ).chats[chatId]
     )
     .toBe(workId)
+
+  // The chat says which account it is on, under the composer…
+  const pill = window.locator('.easy-control-btn:visible', { hasText: 'Account' })
+  await expect(pill).toContainText('Work')
+  // …and can be moved back by hand, with each account's usage beside its name.
+  await pill.click()
+  const login = window.locator('.easy-control-item:visible', { hasText: 'Your Claude login' })
+  await expect(login).toContainText('5-hour 48% · Weekly 92%')
+  await window
+    .locator('.easy-controls:visible')
+    .screenshot({ path: 'test-results/account-pill.png' })
+  await login.click()
+  await expect(pill).toContainText('Your Claude login')
+  // How full that account is, in the colour that says "nearly out".
+  await expect(pill.locator('.easy-account-used')).toHaveText('92%')
+  await expect(pill.locator('.easy-account-used')).toHaveClass(/high/)
+  await expect
+    .poll(
+      () =>
+        (
+          JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')) as {
+            chats: Record<string, string>
+          }
+        ).chats[chatId]
+    )
+    .toBe('claude:login')
+
+  // The foot of the sidebar says the same, and moves the chat too.
+  const footer = window.locator('.usage-footer-btn')
+  await expect(footer).toContainText('92%')
+  await footer.hover()
+  const work = window.locator('.usage-popover-row', { hasText: 'Work' })
+  await expect(work).toBeEnabled()
+  await work.click()
+  await expect(pill).toContainText('Work')
+  await expect
+    .poll(
+      () =>
+        (
+          JSON.parse(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')) as {
+            chats: Record<string, string>
+          }
+        ).chats[chatId]
+    )
+    .toBe(workId)
 })
 
 test('one model running out moves the chat to the next one down, and says so', async () => {

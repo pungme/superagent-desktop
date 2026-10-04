@@ -15,7 +15,7 @@ import { join } from 'path'
 import { findAgy, findClaude, findCodex } from './claude-cli'
 import { CodexClient } from './codex/client'
 import { broadcastToWindows } from './util'
-import { usageFromClaudeApi, usageFromCodex, type Usage } from './usage'
+import { usageFromClaudeApi, usageFromClaudeHeaders, usageFromCodex, type Usage } from './usage'
 import type { AgentProvider } from '../shared/agent-provider'
 
 export type { Usage, UsageWindow } from './usage'
@@ -673,16 +673,29 @@ function probeAntigravityLogin(): Promise<LoginState | null> {
 }
 
 let probed: Promise<void> | null = null
-/** Ask each CLI who it is signed in as — once, or again with `force`. */
+/**
+ * Ask each CLI who it is signed in as — once, or again with `force`.
+ *
+ * Each answer is kept, and the windows told, as it lands. The three are not
+ * equally quick: `claude auth status` answers in a tenth of a second and
+ * `agy models` can take six, and waiting for all of them kept every account
+ * off the screen until the slowest agent had spoken.
+ */
 export function probeLogins(force = false): Promise<void> {
-  if (!probed || force)
-    probed = Promise.all([probeClaudeLogin(), probeCodexLogin(), probeAntigravityLogin()]).then(
-      ([c, x, g]) => {
-        if (c) logins.claude = c
-        if (x) logins.codex = x
-        if (g) logins.antigravity = g
+  if (!probed || force) {
+    const land =
+      (provider: AgentProvider) =>
+      (state: LoginState | null): void => {
+        if (!state) return
+        logins[provider] = state
+        broadcastToWindows('accounts:changed')
       }
-    )
+    probed = Promise.all([
+      probeClaudeLogin().then(land('claude')),
+      probeCodexLogin().then(land('codex')),
+      probeAntigravityLogin().then(land('antigravity'))
+    ]).then(() => undefined)
+  }
   return probed
 }
 
@@ -748,6 +761,43 @@ async function claudeUsage(token: string): Promise<Usage | null> {
   }
 }
 
+/** How old a token account's numbers may be before it is asked again. */
+const PROBE_EVERY_MS = 10 * 60_000
+
+/**
+ * A token from `claude setup-token` may run the model and nothing else, so it
+ * cannot be asked for its usage — but every answer says it in its headers. One
+ * message, one token out, on the smallest model: a few dozen tokens of the
+ * account's allowance, which is why it is only done when the numbers are
+ * missing or old. An account that is out answers 429 with the same headers.
+ */
+async function claudeUsageByMessage(token: string): Promise<Usage | null> {
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages?beta=true', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1,
+        // What a subscription token is for; without it the request is refused.
+        system: [
+          { type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." }
+        ],
+        messages: [{ role: 'user', content: 'hi' }]
+      }),
+      signal: AbortSignal.timeout(15_000)
+    })
+    return usageFromClaudeHeaders((name) => res.headers.get(name))
+  } catch {
+    return null
+  }
+}
+
 /** Ask a Codex account's own server, briefly, for its rate limits. */
 async function codexUsage(env: Record<string, string>): Promise<Usage | null> {
   const client = new CodexClient({ ...process.env, ...env })
@@ -785,9 +835,15 @@ export function refreshUsage(force = false): Promise<void> {
     claudeLoginToken().then(async (t) => put(LOGIN_ID.claude, t ? await claudeUsage(t) : null))
   )
   for (const a of load().accounts) {
-    if (a.provider === 'claude' && a.kind === 'token' && a.token) {
+    if (a.provider === 'claude' && a.kind === 'token' && a.token && liveUsage()) {
       const token = decrypt(a.token)
-      jobs.push(claudeUsage(token).then((u) => put(a.id, u)))
+      const known = load().usage[a.id]
+      const fresh = known && Date.now() - known.at < PROBE_EVERY_MS
+      jobs.push(
+        claudeUsage(token).then(async (u) =>
+          put(a.id, u ?? (fresh ? null : await claudeUsageByMessage(token)))
+        )
+      )
     }
   }
   if (logins.codex?.signedIn !== false && liveUsage()) {
@@ -802,7 +858,11 @@ export function refreshUsage(force = false): Promise<void> {
 
 export function registerAccountsIpc(): void {
   ipcMain.handle('accounts:list', async (_e, recheck?: boolean) => {
-    await probeLogins(recheck === true)
+    // Asked to re-check, the answer waits for the checks. Otherwise the list
+    // goes back at once — a login not heard from yet says "Checking…" — and
+    // each check announces itself when it lands (see probeLogins).
+    const probing = probeLogins(recheck === true)
+    if (recheck === true) await probing
     return {
       claude: listAccounts('claude'),
       codex: listAccounts('codex'),
@@ -818,10 +878,20 @@ export function registerAccountsIpc(): void {
   ipcMain.handle('accounts:add-codex', (_e, name: string) => addCodexAccount(name))
   ipcMain.handle('accounts:remove', (_e, id: string) => removeAccount(id))
   ipcMain.handle('accounts:set-mode', (_e, mode: LimitMode) => setLimitMode(mode))
-  ipcMain.handle('accounts:switch', (_e, chatId: string, id: string) => pinChatAccount(chatId, id))
+  ipcMain.handle('accounts:switch', (_e, chatId: string, id: string) => {
+    pinChatAccount(chatId, id)
+    // The chat's Account pill says which one it is on.
+    broadcastToWindows('accounts:changed')
+  })
   ipcMain.handle('accounts:for-chat', (_e, provider: AgentProvider, chatId: string) =>
     accountForChat(provider, chatId)
   )
+  // Picked by hand from the chat's Account pill: the chat goes to it, and a
+  // pick is announced like any other change so every pill redraws.
+  ipcMain.handle('accounts:pick', (_e, chatId: string, id: string) => {
+    pinChatAccount(chatId, id)
+    broadcastToWindows('accounts:changed')
+  })
 }
 
 /** Tests: forget the cached file so the next call re-reads it. */

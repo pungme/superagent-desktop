@@ -51,10 +51,12 @@ const PROBES: Record<
 > = {
   claude: {
     version: 'claude --version',
-    // A logged-out claude prints an auth prompt / exits non-zero for a trivial
-    // print. A clean short response is the only reliable "yes".
-    loginCommand: 'claude -p "reply with the single word: ok" --max-turns 1',
-    loginCheck: (out) => /\bok\b/i.test(out)
+    // `claude auth status` says so outright, as JSON, without a model call.
+    // It used to be a one-word reply asked of the model, which also failed for
+    // a signed-in account that had used up its allowance — and Settings then
+    // said "Not signed in" beside the usage meters of the account it was on.
+    loginCommand: 'claude auth status',
+    loginCheck: (out) => /"loggedIn"\s*:\s*true/.test(out)
   },
   codex: {
     version: 'codex --version',
@@ -134,9 +136,8 @@ export function detectVersion(): Record<
 /**
  * The full picture, sign-in included.
  *
- * The probes run concurrently: Codex answers instantly, Antigravity makes one
- * network call, Claude's costs a real (tiny) inference call, and there is no
- * reason to pay for them in series
+ * The probes run concurrently: Claude and Codex answer instantly, Antigravity
+ * makes one network call, and there is no reason to pay for them in series
  * while someone waits on a first-run screen.
  */
 export async function detectEnvironment(): Promise<EnvStatus> {

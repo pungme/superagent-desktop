@@ -1,5 +1,5 @@
 import { MailConnection } from './MailConnection'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Account } from '../../../preload'
 import { useStore, ACCENTS, ICON_COLOURS, type Accent } from '../state'
 import { PhoneSettings } from './PhoneSettings'
@@ -33,109 +33,23 @@ const AGENT_COPY: Record<AgentProvider, { signIn: string; terminal: string; inst
   }
 }
 
-/**
- * One agent's connection state: installed, signed in, and what to do about it.
- *
- * Superagent needs only one of them, so this reports each independently rather
- * than as a single "is it set up" answer.
- */
-function AgentCard({
-  provider,
-  status,
-  checking,
-  onRecheck
-}: {
-  provider: AgentProvider
-  status: ProviderStatus | undefined
-  checking: boolean
-  onRecheck: () => void
-}): React.JSX.Element {
-  const copy = AGENT_COPY[provider]
-  const connected = !!status?.installed && !!status?.loggedIn
-  const state = checking
-    ? 'checking'
-    : connected
-      ? 'connected'
-      : status?.installed
-        ? 'signed-out'
-        : 'missing'
-  return (
-    <div className={`settings-agent ${state}`}>
-      <div className="settings-agent-head">
-        <span className={`settings-agent-dot ${state}`} aria-hidden />
-        <strong>{PROVIDER_PRODUCT[provider]}</strong>
-        <span className="settings-agent-state">
-          {checking
-            ? 'Checking…'
-            : connected
-              ? 'Connected'
-              : status?.installed
-                ? 'Not signed in'
-                : 'Not installed'}
-        </span>
-      </div>
-      <div className="settings-agent-detail">
-        {status?.installed ? (
-          <>
-            Version {status.version}
-            {!status.loggedIn && (
-              <>
-                {' · '}
-                {copy.signIn}
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            Not found on your PATH. Install it with <code>{copy.install}</code>
-          </>
-        )}
-      </div>
-      {status?.installed && !status.loggedIn && (
-        <div className="settings-agent-actions">
-          <button
-            className="settings-agent-btn"
-            onClick={() => {
-              window.cove.openAgentLogin(provider)
-            }}
-          >
-            Sign in
-          </button>
-          <button className="settings-agent-btn ghost" onClick={onRecheck} disabled={checking}>
-            Re-check
-          </button>
-          <span className="settings-agent-hint">
-            Opens Terminal running <code>{copy.terminal}</code>.
-          </span>
-        </div>
-      )}
-    </div>
-  )
-}
-
 interface SettingsProps {
   initialSection?: 'general' | 'connections'
   onClose: () => void
 }
 
-type SectionId =
-  'general' | 'connections' | 'agents' | 'phone' | 'notifications' | 'advanced' | 'about'
+type SectionId = 'general' | 'agents' | 'connections' | 'phone' | 'advanced' | 'about'
 
 /** Each section: its name in the list, and the line under its heading. */
 const SECTIONS: { id: SectionId; label: string; blurb: string }[] = [
-  { id: 'general', label: 'General', blurb: 'How Superagent looks, and what its agents may do.' },
-  { id: 'connections', label: 'Connections', blurb: 'The apps your agents can reach.' },
+  { id: 'general', label: 'General', blurb: 'How Superagent looks, and when it notifies you.' },
   {
     id: 'agents',
     label: 'Agents',
-    blurb: 'The coding agents on this Mac, and the accounts they run on.'
+    blurb: 'The coding agents on this Mac, the accounts they run on, and how new chats start.'
   },
+  { id: 'connections', label: 'Connections', blurb: 'The apps your agents can reach.' },
   { id: 'phone', label: 'Phone', blurb: 'Follow this Mac from your iPhone.' },
-  {
-    id: 'notifications',
-    label: 'Notifications',
-    blurb: 'When Superagent taps you on the shoulder.'
-  },
   { id: 'advanced', label: 'Advanced', blurb: 'Storage, developer tools, and starting over.' },
   { id: 'about', label: 'About', blurb: 'This version, and updates.' }
 ]
@@ -170,12 +84,6 @@ const NAV_ICONS: Record<SectionId, React.JSX.Element> = {
     <>
       <rect x="6" y="2.5" width="8" height="15" rx="2" />
       <path d="M9 15h2" />
-    </>
-  ),
-  notifications: (
-    <>
-      <path d="M5 14V9a5 5 0 0 1 10 0v5l1.5 1.5h-13z" />
-      <path d="M8.5 17.5a1.6 1.6 0 0 0 3 0" />
     </>
   ),
   advanced: (
@@ -275,13 +183,27 @@ function AccountUsage({ usage }: { usage: NonNullable<Account['usage']> }): Reac
  * the one login only.) When the account
  * a chat is on runs dry, the chat asks to switch — or just does, in auto.
  */
-function AccountsPanel(): React.JSX.Element {
-  const [list, setList] = useState<{
+function AgentsPanel({
+  env,
+  envChecking,
+  onRecheck
+}: {
+  env: Record<AgentProvider, ProviderStatus> | null
+  envChecking: boolean
+  onRecheck: () => void
+}): React.JSX.Element {
+  const [list, setListState] = useState<{
     claude: Account[]
     codex: Account[]
     antigravity: Account[]
     mode: 'ask' | 'auto'
   } | null>(null)
+  // When the list was read: what "today" means for the reset times beside it.
+  const [readAt, setReadAt] = useState(0)
+  const setList = useCallback((l: NonNullable<typeof list>): void => {
+    setListState(l)
+    setReadAt(Date.now())
+  }, [])
   const [adding, setAdding] = useState<AgentProvider | null>(null)
   const [name, setName] = useState('')
   const [token, setToken] = useState('')
@@ -301,7 +223,7 @@ function AccountsPanel(): React.JSX.Element {
     // current by every chat that runs (accounts:changed).
     void window.cove.accountsRefreshUsage().then(() => window.cove.accountsList().then(setList))
     return window.cove.onAccountsChanged?.(() => void window.cove.accountsList().then(setList))
-  }, [])
+  }, [setList])
   const fixHint = (a: Account): string =>
     a.kind === 'login'
       ? a.provider === 'claude'
@@ -312,10 +234,11 @@ function AccountsPanel(): React.JSX.Element {
       : a.kind === 'token'
         ? 'Make a new token with `claude setup-token` and add it again.'
         : 'Remove it and add it again to sign in afresh.'
-  const timeLeft = (until: number | null): string => {
-    if (!until) return ''
-    return `out until ${new Date(until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-  }
+  // With the day when it is not today: a weekly limit said "out until 10:00
+  // PM" beside a 5-hour window at 6%, and read as a contradiction. It was
+  // Monday's 10 PM.
+  const timeLeft = (until: number | null): string =>
+    until ? `out until ${resetLabel(until, readAt)}` : ''
   const startAdd = (p: AgentProvider): void => {
     setAdding(p)
     setName('')
@@ -349,125 +272,196 @@ function AccountsPanel(): React.JSX.Element {
     await window.cove.accountsRemove(id)
     await refresh()
   }
+  /** Both questions at once: is each agent installed and signed in, and as whom. */
+  const recheckAll = (): void => {
+    onRecheck()
+    void refresh(true)
+  }
   const setMode = async (mode: 'ask' | 'auto'): Promise<void> => {
     await window.cove.accountsSetMode(mode)
     await refresh()
   }
   return (
     <div className="settings-accounts">
-      <GroupLabel>Accounts</GroupLabel>
-      <p className="settings-group-note">
-        Add a second subscription and a chat can carry on when the first hits its limit. Each chat
-        stays on one account at a time.
-      </p>
-      {AGENT_PROVIDERS.map((p) => (
-        <div key={p} className="settings-accounts-provider">
-          <div className="settings-accounts-head">
-            <strong>{PROVIDER_LABEL[p]}</strong>
+      {/* One card per agent: whether it is installed and signed in, and under
+          that the accounts it can run on with how much of each is used. These
+          were two lists — the agents, then further down the same agents again
+          with their accounts — and a third of the page said things twice. */}
+      {AGENT_PROVIDERS.map((p) => {
+        const status = env?.[p]
+        const pending = envChecking && !env
+        const connected = !!status?.installed && !!status?.loggedIn
+        const state = pending
+          ? 'checking'
+          : connected
+            ? 'connected'
+            : status?.installed
+              ? 'signed-out'
+              : 'missing'
+        const copy = AGENT_COPY[p]
+        return (
+          <div key={p} className={`settings-agent settings-accounts-provider ${state}`}>
+            <div className="settings-agent-head">
+              <span className={`settings-agent-dot ${state}`} aria-hidden />
+              <strong>{PROVIDER_PRODUCT[p]}</strong>
+              <span className="settings-agent-version">
+                {status?.installed ? `Version ${status.version}` : ''}
+              </span>
+              <span className="settings-agent-state">
+                {pending
+                  ? 'Checking…'
+                  : connected
+                    ? 'Connected'
+                    : status?.installed
+                      ? 'Not signed in'
+                      : 'Not installed'}
+              </span>
+            </div>
+            {!pending && !status?.installed && (
+              <div className="settings-agent-detail">
+                Not found on your PATH. Install it with <code>{copy.install}</code>
+              </div>
+            )}
+            {status?.installed && !status.loggedIn && (
+              <>
+                <div className="settings-agent-detail">{copy.signIn}</div>
+                <div className="settings-agent-actions">
+                  <button
+                    className="settings-agent-btn"
+                    onClick={() => {
+                      window.cove.openAgentLogin(p)
+                    }}
+                  >
+                    Sign in
+                  </button>
+                  <button
+                    className="settings-agent-btn ghost"
+                    onClick={recheckAll}
+                    disabled={envChecking || checking}
+                  >
+                    Re-check
+                  </button>
+                  <span className="settings-agent-hint">
+                    Opens Terminal running <code>{copy.terminal}</code>.
+                  </span>
+                </div>
+              </>
+            )}
+            {/* Its accounts: there at once, while the agent itself is still
+                being asked whether it is installed — that answer takes seconds,
+                and the list does not depend on it. Gone only when there turns
+                out to be no agent to run them. */}
+            {(pending || status?.installed) && (
+              <ul className="settings-accounts-list">
+                {(list?.[p] ?? []).map((a) => (
+                  <li
+                    key={a.id}
+                    className={`settings-account ${a.limitedUntil ? 'limited' : ''} ${a.needsAuth ? 'needs-auth' : ''}`}
+                  >
+                    <span className="settings-account-who">
+                      <span className="settings-account-name">{a.name}</span>
+                      {(a.detail || a.needsAuth) && (
+                        <span className="settings-account-detail">
+                          {a.needsAuth ? `${a.needsAuth} — ${fixHint(a)}` : a.detail}
+                        </span>
+                      )}
+                      {!a.needsAuth && a.usage && <AccountUsage key={a.usage.at} usage={a.usage} />}
+                    </span>
+                    <span className="settings-account-state">
+                      {a.needsAuth
+                        ? 'needs sign-in'
+                        : a.limitedUntil
+                          ? timeLeft(a.limitedUntil)
+                          : a.kind === 'login'
+                            ? ''
+                            : 'ready'}
+                    </span>
+                    {a.kind !== 'login' && (
+                      <button
+                        className="settings-account-remove"
+                        title="Remove this account"
+                        onClick={() => void remove(a.id)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
             {/* Antigravity keeps its sign-in in the keychain, one per machine:
                 there is no second home or token to add an account with. */}
-            {adding !== p && p !== 'antigravity' && (
-              <button className="settings-agent-btn ghost" onClick={() => startAdd(p)}>
+            {(pending || status?.installed) && adding !== p && p !== 'antigravity' && (
+              <button className="settings-account-add" onClick={() => startAdd(p)}>
                 Add account…
               </button>
             )}
-          </div>
-          <ul className="settings-accounts-list">
-            {(list?.[p] ?? []).map((a) => (
-              <li
-                key={a.id}
-                className={`settings-account ${a.limitedUntil ? 'limited' : ''} ${a.needsAuth ? 'needs-auth' : ''}`}
-              >
-                <span className="settings-account-who">
-                  <span className="settings-account-name">{a.name}</span>
-                  {(a.detail || a.needsAuth) && (
-                    <span className="settings-account-detail">
-                      {a.needsAuth ? `${a.needsAuth} — ${fixHint(a)}` : a.detail}
-                    </span>
-                  )}
-                  {!a.needsAuth && a.usage && <AccountUsage key={a.usage.at} usage={a.usage} />}
-                </span>
-                <span className="settings-account-state">
-                  {a.needsAuth
-                    ? 'needs sign-in'
-                    : a.limitedUntil
-                      ? timeLeft(a.limitedUntil)
-                      : a.kind === 'login'
-                        ? 'signed in'
-                        : 'ready'}
-                </span>
-                {a.kind !== 'login' && (
-                  <button
-                    className="settings-account-remove"
-                    title="Remove this account"
-                    onClick={() => void remove(a.id)}
-                  >
-                    Remove
-                  </button>
+            {adding === p && (
+              <div className="settings-accounts-add">
+                {p === 'claude' ? (
+                  <p className="settings-agent-hint">
+                    In Terminal, run <code>claude setup-token</code>, sign in with the other
+                    account, and paste the token it prints here.
+                  </p>
+                ) : (
+                  <p className="settings-agent-hint">
+                    Codex opens your browser to sign in; use the other account there.
+                  </p>
                 )}
-              </li>
-            ))}
-          </ul>
-          {adding === p && (
-            <div className="settings-accounts-add">
-              {p === 'claude' ? (
-                <p className="settings-agent-hint">
-                  In Terminal, run <code>claude setup-token</code>, sign in with the other account,
-                  and paste the token it prints here.
-                </p>
-              ) : (
-                <p className="settings-agent-hint">
-                  Codex opens your browser to sign in; use the other account there.
-                </p>
-              )}
-              <input
-                className="settings-accounts-input"
-                placeholder="Name, e.g. Work"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
-              />
-              {p === 'claude' && (
                 <input
                   className="settings-accounts-input"
-                  placeholder="sk-ant-oat01-…"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  spellCheck={false}
+                  placeholder="Name, e.g. Work"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoFocus
                 />
-              )}
-              {error && <p className="settings-accounts-error">{error}</p>}
-              <div className="settings-accounts-actions">
-                <button
-                  className="settings-agent-btn ghost"
-                  onClick={() => setAdding(null)}
-                  disabled={!!busy}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="settings-agent-btn"
-                  onClick={() => void add()}
-                  disabled={!!busy || (p === 'claude' && !token.trim())}
-                >
-                  {busy ?? (p === 'claude' ? 'Add' : 'Sign in…')}
-                </button>
+                {p === 'claude' && (
+                  <input
+                    className="settings-accounts-input"
+                    placeholder="sk-ant-oat01-…"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    spellCheck={false}
+                  />
+                )}
+                {error && <p className="settings-accounts-error">{error}</p>}
+                <div className="settings-accounts-actions">
+                  <button
+                    className="settings-agent-btn ghost"
+                    onClick={() => setAdding(null)}
+                    disabled={!!busy}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="settings-agent-btn"
+                    onClick={() => void add()}
+                    disabled={!!busy || (p === 'claude' && !token.trim())}
+                  >
+                    {busy ?? (p === 'claude' ? 'Add' : 'Sign in…')}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ))}
-      <div className="settings-accounts-foot">
+            )}
+          </div>
+        )
+      })}
+      <div className="settings-agents-foot">
         <button
           className="settings-agent-btn ghost"
-          onClick={() => void refresh(true)}
-          disabled={checking}
+          onClick={recheckAll}
+          disabled={envChecking || checking}
         >
-          {checking ? 'Checking…' : 'Re-check sign-ins'}
+          {envChecking || checking ? 'Checking…' : 'Re-check'}
         </button>
+        <span className="settings-agent-hint">
+          Superagent ships no AI of its own — it runs on whichever of these you already pay for. One
+          is enough. A second account lets a chat carry on when the first hits its limit.
+        </span>
       </div>
+      <GroupLabel>When an account hits its limit</GroupLabel>
       <Row
-        title="When an account hits its limit"
+        title="Switch accounts"
         desc="Ask shows a card in the chat with the accounts that still have allowance. Automatic switches on its own and says so."
       >
         <div className="mode-switch">
@@ -833,9 +827,50 @@ export function Settings({
                   ))}
                 </div>
               </Row>
-              <GroupLabel>Agents</GroupLabel>
+              <GroupLabel>Notifications</GroupLabel>
               <Row
-                title="Agent permissions"
+                title="When the agent finishes"
+                desc="A banner when a turn completes while you're in another app."
+              >
+                <Toggle checked={notifyDone} onChange={toggleNotifyDone} />
+              </Row>
+              <Row
+                title="When the agent needs you"
+                desc="A banner when the agent is waiting on your input."
+              >
+                <Toggle checked={notifyNeedsYou} onChange={toggleNotifyNeedsYou} />
+              </Row>
+            </section>
+          )}
+
+          {section === 'connections' && (
+            <section className="settings-section">
+              <MailConnection />
+            </section>
+          )}
+
+          {section === 'agents' && (
+            <section className="settings-section">
+              <AgentsPanel env={env} envChecking={envChecking} onRecheck={checkAgents} />
+              <GroupLabel>New chats</GroupLabel>
+              <Row
+                title="Agent"
+                desc="Where a new chat starts. Every chat keeps its own agent; change one from the Agent pill under its composer."
+              >
+                <div className="mode-switch">
+                  {AGENT_PROVIDERS.map((p) => (
+                    <button
+                      key={p}
+                      className={`mode-switch-btn ${provider === p ? 'active' : ''}`}
+                      onClick={() => setProvider(p)}
+                    >
+                      {PROVIDER_LABEL[p]}
+                    </button>
+                  ))}
+                </div>
+              </Row>
+              <Row
+                title="Permissions"
                 desc={
                   permissionMode === 'bypassPermissions'
                     ? 'Full access — runs commands and edits files without asking, like your terminal.'
@@ -856,77 +891,6 @@ export function Settings({
                     Edits
                   </button>
                 </div>
-              </Row>
-            </section>
-          )}
-
-          {section === 'connections' && (
-            <section className="settings-section">
-              <MailConnection />
-            </section>
-          )}
-
-          {section === 'agents' && (
-            <section className="settings-section">
-              <GroupLabel>On this Mac</GroupLabel>
-              <div className="settings-agents">
-                {AGENT_PROVIDERS.map((p) => (
-                  <AgentCard
-                    key={p}
-                    provider={p}
-                    status={env?.[p]}
-                    checking={envChecking && !env}
-                    onRecheck={checkAgents}
-                  />
-                ))}
-              </div>
-              <GroupLabel>New chats</GroupLabel>
-              <Row
-                title="Default for new chats"
-                desc="Every chat keeps its own agent — this is just where new ones start. Change a single chat from the Agent pill under its composer."
-              >
-                <div className="mode-switch">
-                  {AGENT_PROVIDERS.map((p) => (
-                    <button
-                      key={p}
-                      className={`mode-switch-btn ${provider === p ? 'active' : ''}`}
-                      onClick={() => setProvider(p)}
-                    >
-                      {PROVIDER_LABEL[p]}
-                    </button>
-                  ))}
-                </div>
-              </Row>
-              <AccountsPanel />
-              <div className="settings-agents-foot">
-                <button
-                  className="settings-agent-btn ghost"
-                  onClick={checkAgents}
-                  disabled={envChecking}
-                >
-                  {envChecking ? 'Checking…' : 'Re-check both'}
-                </button>
-                <span className="settings-agent-hint">
-                  Superagent ships no AI of its own — it runs on whichever of these you already pay
-                  for. One is enough.
-                </span>
-              </div>
-            </section>
-          )}
-
-          {section === 'notifications' && (
-            <section className="settings-section">
-              <Row
-                title="Notify when the agent finishes"
-                desc="A banner when a turn completes while you're in another app."
-              >
-                <Toggle checked={notifyDone} onChange={toggleNotifyDone} />
-              </Row>
-              <Row
-                title="Notify when the agent needs you"
-                desc="A banner when the agent is waiting on your input."
-              >
-                <Toggle checked={notifyNeedsYou} onChange={toggleNotifyNeedsYou} />
               </Row>
             </section>
           )}

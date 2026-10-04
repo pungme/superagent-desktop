@@ -1415,8 +1415,148 @@ button {
   gap: 6px;
 }
 
-.sidebar-footer .sidebar-add-group {
+/* Usage at the foot of the sidebar: the account on screen, every one on hover. */
+.usage-footer {
+  position: relative;
   flex: 1;
+  min-width: 0;
+}
+.usage-footer-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11.5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.usage-footer-btn:hover,
+.usage-footer-btn.open {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.usage-footer-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-footer-bar {
+  flex: 1;
+  min-width: 24px;
+  max-width: 64px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.usage-footer-bar i {
+  display: block;
+  height: 100%;
+  background: var(--text-tertiary);
+  border-radius: 2px;
+}
+.usage-footer-bar.warn i {
+  background: var(--warning, #c98a1b);
+}
+.usage-footer-bar.high i {
+  background: var(--danger, #d64545);
+}
+.usage-footer-pct {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+.usage-footer-pct.warn {
+  color: var(--warning, #c98a1b);
+}
+.usage-footer-pct.high {
+  color: var(--danger, #d64545);
+}
+.usage-popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  width: 290px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  box-shadow: 0 12px 32px var(--shadow, rgba(0, 0, 0, 0.18));
+  z-index: 50;
+}
+.usage-popover-group + .usage-popover-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.usage-popover-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.usage-popover-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.usage-popover-row:not(:disabled):hover {
+  background: var(--hover);
+  cursor: pointer;
+}
+.usage-popover-row:disabled {
+  opacity: 1;
+}
+.usage-popover-tick {
+  margin-right: 5px;
+  color: var(--text-secondary);
+}
+.usage-popover-row.on .usage-popover-name {
+  font-weight: 600;
+}
+.usage-popover-windows {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.usage-popover-window b {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.usage-popover-window.warn b {
+  color: var(--warning, #c98a1b);
+}
+.usage-popover-window.high b {
+  color: var(--danger, #d64545);
+}
+.usage-popover-note {
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 .sidebar-settings {
@@ -3767,6 +3907,9 @@ button {
   flex: 1;
   resize: none;
   max-height: 160px;
+  /* One line and its padding, whatever a measurement said. */
+  min-height: 38px;
+  box-sizing: border-box;
   border: none;
   border-radius: 12px;
   background: var(--hover);
@@ -6327,6 +6470,18 @@ button {
 
 .easy-control-val {
   font-weight: 500;
+}
+/* How full the account this chat is on is: quiet until it is nearly out. */
+.easy-account-used {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.easy-account-used.warn {
+  color: var(--warning, #c98a1b);
+}
+.easy-account-used.high {
+  color: var(--danger, #d64545);
 }
 
 .easy-control-caret {
@@ -9594,9 +9749,9 @@ button {
   background: var(--bg-panel);
 }
 
-.settings-agent.connected {
-  border-color: rgba(110, 231, 183, 0.4);
-}
+/* A connected agent is the ordinary case, so its card is an ordinary card: the
+   dot says it. (It used to turn the border and the word pale green, which on a
+   light background was the hardest thing on the page to read.) */
 
 .settings-agent-head {
   display: flex;
@@ -9613,7 +9768,7 @@ button {
   background: var(--text-tertiary);
 }
 .settings-agent-dot.connected {
-  background: #6ee7b7;
+  background: #34c77b;
 }
 .settings-agent-dot.signed-out {
   background: #fbbf24;
@@ -9642,8 +9797,13 @@ button {
   font-size: 12px;
   color: var(--text-secondary);
 }
-.settings-agent.connected .settings-agent-state {
-  color: #6ee7b7;
+.settings-agent-version {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.settings-agent.signed-out .settings-agent-state {
+  color: var(--warning, #c98a1b);
 }
 
 .settings-agent-detail {
@@ -9702,8 +9862,11 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
-  padding: 14px 2px 0;
+  padding: 4px 2px 0;
+}
+.settings-agents-foot .settings-agent-btn {
+  flex: none;
+  white-space: nowrap;
 }
 /* Mail's card, in Settings: the same card as everything else here. (It is
    also the centrepiece of an onboarding step, where it keeps its own shape.) */
@@ -12217,7 +12380,21 @@ button {
 
 /* Settings → Agents → Accounts: one list per agent, with an inline add form. */
 .settings-accounts {
-  margin-top: 24px;
+  margin-top: 0;
+}
+/* Under an agent's accounts: quiet, because most people add one once. */
+.settings-account-add {
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.settings-account-add:hover {
+  color: var(--text-primary);
 }
 .settings-accounts-provider {
   padding: 12px 16px;

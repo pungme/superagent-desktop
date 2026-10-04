@@ -13,9 +13,10 @@ import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { useChatBrowser } from '../hooks/useChatBrowser'
-import type { BrowserChoice, LimitNotice } from '../../../preload'
+import type { Account, BrowserChoice, LimitNotice } from '../../../preload'
 import { fallbackNotice, modelFallbackFrom, prettyModel } from '../../../shared/model-fallback'
 import { ProviderLogo } from './ProviderLogo'
+import { withoutAgentNudge } from '../../../shared/agent-nudge'
 import { TasksPanel } from './TasksPanel'
 import { Markdown } from './Markdown'
 import { Choices } from './Choices'
@@ -101,6 +102,21 @@ type Item =
   | { kind: 'thinking'; id: string; text: string }
 
 /** The tool_use id a card was drawn from, when it came from one. */
+/**
+ * Fit the message box to what is in it, up to its CSS max-height.
+ *
+ * Measured only when it is laid out. A box measured while its chat was hidden
+ * reads a scrollHeight of 0, and was set to 0px: it then showed as a sliver
+ * that cut the placeholder in half, and stayed that way until something was
+ * typed. Hidden, it is left alone; the CSS min-height covers the rest.
+ */
+function fitInput(el: HTMLTextAreaElement): void {
+  if (!el.isConnected || el.offsetParent === null) return
+  el.style.height = 'auto'
+  const h = el.scrollHeight
+  el.style.height = h > 0 ? Math.min(h, 160) + 'px' : ''
+}
+
 function cardId(item: Item): string | null {
   if (item.kind === 'tool') return item.tool.id
   if (item.kind === 'diff') return item.diff.id
@@ -947,7 +963,7 @@ function toRows(items: Item[]): Row[] {
       it.msg.role === 'assistant' &&
       !it.msg.streaming &&
       !it.msg.system &&
-      !it.msg.text.trim() &&
+      !withoutAgentNudge(it.msg.text).trim() &&
       !(it.msg.images && it.msg.images.length)
     ) {
       continue
@@ -1101,7 +1117,8 @@ const MessageRow = memo(function MessageRow({
     [isAssistant, msg.text, answersTo]
   )
   const segments = useMemo(
-    () => (isAssistant ? splitAssistant(answering ? answering.rest : msg.text) : null),
+    () =>
+      isAssistant ? splitAssistant(withoutAgentNudge(answering ? answering.rest : msg.text)) : null,
     [isAssistant, msg.text, answering]
   )
   // The /loop skill appends a mechanical reminder ("run sleep as your last
@@ -2161,12 +2178,15 @@ export function EasyChat({
     if (autoResizeRAF.current !== null) return
     autoResizeRAF.current = requestAnimationFrame(() => {
       autoResizeRAF.current = null
-      const el = inputRef.current
-      if (!el) return
-      el.style.height = 'auto'
-      el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+      if (inputRef.current) fitInput(inputRef.current)
     })
   }
+  // A chat that is not on screen (another chat's tab, a hidden pane) measures
+  // nothing, so its box is fitted again the moment it is shown.
+  useEffect(() => {
+    if (visible) autoResize()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible])
 
   // What is typed and not sent is kept by the app, not by this component: it
   // is there again after a restart, and the phone shows the same words.
@@ -2245,10 +2265,7 @@ export function EasyChat({
       const el = inputRef.current
       if (el) {
         el.focus()
-        requestAnimationFrame(() => {
-          el.style.height = 'auto'
-          el.style.height = Math.min(el.scrollHeight, 160) + 'px'
-        })
+        requestAnimationFrame(() => fitInput(el))
       }
     }
     window.addEventListener('cove:insert-reference', onInsert)
@@ -4364,6 +4381,38 @@ export function EasyChat({
 
   // Apply a new model or mode: persist it, then respawn the agent (resuming this
   // conversation) so the flag takes effect now. Stops any in-flight turn first.
+  /**
+   * Which subscription this chat runs on, and the others it could: shown on the
+   * Account pill once there is more than one, so "which account is this
+   * spending" is answered where the chat is rather than in Settings.
+   */
+  const [accounts, setAccounts] = useState<{ all: Account[]; current: Account | null }>({
+    all: [],
+    current: null
+  })
+  useEffect(() => {
+    let alive = true
+    const load = (): void => {
+      void Promise.all([
+        window.cove.accountsList(),
+        window.cove.accountsForChat(provider, chatId)
+      ]).then(([list, current]) => {
+        if (alive) setAccounts({ all: list[provider] ?? [], current })
+      })
+    }
+    load()
+    const off = window.cove.onAccountsChanged?.(load)
+    return () => {
+      alive = false
+      off?.()
+    }
+  }, [provider, chatId])
+  /** The fullest window of an account's allowance, for the pill: 0–100, or null. */
+  const fullest = (a: Account | null): number | null => {
+    const now = Date.now()
+    const live = (a?.usage?.windows ?? []).filter((w) => !w.resetsAt || w.resetsAt > now)
+    return live.length ? Math.max(...live.map((w) => w.percent)) : null
+  }
   const applyRespawnRef = useRef<() => void>(() => {})
   const applyRespawn = (): void => {
     setControlMenu(null)
@@ -4378,6 +4427,37 @@ export function EasyChat({
    * resumes the same session, now with that account's login) and send the
    * message that ran into the limit again, once the new process is up.
    */
+  /**
+   * Chosen from the Account pill. The chat is pinned to it at once; the agent
+   * is only restarted when it is idle — a turn in flight finishes on the
+   * account it started on, and the next one starts on the new one.
+   */
+  const pickAccount = (accountId: string): void => {
+    setControlMenu(null)
+    if (accountId === accounts.current?.id) return
+    void window.cove.accountsPick(chatId, accountId).then(() => {
+      if (!generating) applyRespawnRef.current()
+    })
+  }
+  // The sidebar's usage footer moves a chat by asking the chat itself, so the
+  // agent restarts the same way it does from the Account pill.
+  const pickAccountRef = useRef(pickAccount)
+  pickAccountRef.current = pickAccount
+  useEffect(() => {
+    const on = (e: Event): void => {
+      const d = (e as CustomEvent<{ chatId: string; accountId: string }>).detail
+      if (d?.chatId === chatId) pickAccountRef.current(d.accountId)
+    }
+    window.addEventListener('cove:pick-account', on)
+    // The phone picks one too, through main.
+    const off = window.cove.onAccountsPicked?.((p) => {
+      if (p.chatId === chatId) pickAccountRef.current(p.accountId)
+    })
+    return () => {
+      window.removeEventListener('cove:pick-account', on)
+      off?.()
+    }
+  }, [chatId])
   const switchAccount = (accountId: string): void => {
     setLimitNotice(null)
     limitPendingRef.current = false
@@ -5309,6 +5389,73 @@ export function EasyChat({
             </div>
           )}
         </div>
+        {accounts.all.length > 1 && accounts.current && (
+          <div className="easy-control">
+            <button
+              className={`easy-control-btn ${controlMenu === 'account' ? 'open' : ''}`}
+              onClick={() => {
+                // The numbers are asked for again as the menu opens.
+                if (controlMenu !== 'account') void window.cove.accountsRefreshUsage()
+                setControlMenu((m) => (m === 'account' ? null : 'account'))
+              }}
+              title="Which account this chat runs on"
+            >
+              <span className="easy-control-key">Account</span>
+              <span className="easy-control-val">{accounts.current.name}</span>
+              {fullest(accounts.current) !== null && (
+                <span
+                  className={`easy-account-used ${
+                    fullest(accounts.current)! >= 90
+                      ? 'high'
+                      : fullest(accounts.current)! >= 75
+                        ? 'warn'
+                        : ''
+                  }`}
+                >
+                  {fullest(accounts.current)}%
+                </span>
+              )}
+              <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+                <path
+                  d="M2 3.5L5 6.5L8 3.5"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            {controlMenu === 'account' && (
+              <div className="easy-control-menu easy-control-menu-wide">
+                {accounts.all.map((a) => (
+                  <button
+                    key={a.id}
+                    className={`easy-control-item ${a.id === accounts.current?.id ? 'on' : ''}`}
+                    onClick={() => pickAccount(a.id)}
+                    disabled={!!a.needsAuth}
+                  >
+                    <span className="easy-control-item-text">
+                      <span className="easy-control-item-label">{a.name}</span>
+                      <span className="easy-control-item-hint">
+                        {a.needsAuth
+                          ? 'Needs sign-in — see Settings → Agents'
+                          : a.usage
+                            ? a.usage.windows
+                                .map(
+                                  (w) =>
+                                    `${w.label} ${w.resetsAt && w.resetsAt <= Date.now() ? 0 : w.percent}%`
+                                )
+                                .join(' · ')
+                            : a.detail || 'Usage not read yet'}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="easy-control">
           <button
             className={`easy-control-btn ${controlMenu === 'model' ? 'open' : ''}`}
