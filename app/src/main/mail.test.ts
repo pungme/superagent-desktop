@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({ kv: new Map<string, string>(), exec: vi.fn() }))
 vi.mock('./store', () => ({
@@ -7,7 +10,7 @@ vi.mock('./store', () => ({
 vi.mock('child_process', () => ({ execFile: h.exec }))
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() }, shell: { openExternal: vi.fn() } }))
 import { callMail, connectMail, disconnectMail, mailConnected, mailStatus } from './mail'
-import { MAIL_SCRIPT } from './mail-script'
+import { COMPOSE_SCRIPT, MAIL_SCRIPT } from './mail-script'
 
 beforeEach(() => {
   vi.stubGlobal('process', { ...process, platform: 'darwin' })
@@ -60,15 +63,54 @@ describe('Apple Mail access', () => {
       callMail('read', { accountId: 'x', mailboxPath: ['Inbox'], messageId: 1, maxChars: 999999 })
     ).rejects.toThrow()
   })
-  it('validates drafts and never provides a send operation', async () => {
+  it('validates drafts and sends, and attaches only real files', async () => {
     await connectMail()
-    await callMail('draft', { to: ['a@example.com'], subject: 'Hi', body: 'hello' })
-    expect(JSON.parse(h.exec.mock.calls.at(-1)![1][4])).toMatchObject({
-      op: 'draft',
-      body: 'hello'
+    await callMail('draft', {
+      to: ['a@example.com', 'b@example.com'],
+      cc: ['c@example.com'],
+      subject: 'Hi',
+      body: 'hello',
+      html: '<p><b>hello</b></p>'
     })
+    // Written through the AppleScript, its input as plain argv strings:
+    // op, subject, body, html, then newline-separated to, cc, bcc, files.
+    const args = h.exec.mock.calls.at(-1)![1] as string[]
+    expect(args[0]).toBe('-e')
+    expect(args[1]).toBe(COMPOSE_SCRIPT)
+    expect(args.slice(2)).toEqual([
+      'draft',
+      'Hi',
+      'hello',
+      '<p><b>hello</b></p>',
+      'a@example.com\nb@example.com',
+      'c@example.com',
+      '',
+      ''
+    ])
     await expect(callMail('draft', { to: ['bad'], subject: '', body: '' })).rejects.toThrow()
-    expect(MAIL_SCRIPT).not.toMatch(/\bmail\.send\s*\(/)
+    // Sending is its own operation, whose approval is asked in mail-tools.
+    const file = join(mkdtempSync(join(tmpdir(), 'mail-att-')), 'signature.html')
+    writeFileSync(file, '<p>hi</p>')
+    await callMail('send', { to: ['a@example.com'], subject: 'Hi', body: 'b', attachments: [file] })
+    const sent = h.exec.mock.calls.at(-1)![1] as string[]
+    expect(sent[2]).toBe('send')
+    expect(sent[9]).toBe(file)
+    await expect(
+      callMail('send', {
+        to: ['a@example.com'],
+        subject: 'Hi',
+        body: 'b',
+        attachments: ['/no/such/file']
+      })
+    ).rejects.toThrow('No such file')
+    await expect(
+      callMail('send', {
+        to: ['a@example.com'],
+        subject: 'Hi',
+        body: 'b',
+        attachments: ['relative.txt']
+      })
+    ).rejects.toThrow('absolute path')
   })
   it('does not reconnect when a pending permission probe finishes after disconnect', async () => {
     let finish!: (error: null, stdout: string, stderr: string) => void

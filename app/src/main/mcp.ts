@@ -112,7 +112,10 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   const PANE_ID = paneId
   const CHAT_ID = chatId
   const server = new McpServer({ name: 'cove-browser', version: '0.1.0' })
-  registerMailTools(server)
+  registerMailTools(server, {
+    workspaceId: workspaceIdFromPane(paneId),
+    sessionId: chatId ?? paneId
+  })
   /**
    * The desktop chat is not a project — it is the computer's own agent, and the
    * things it drives are the desktop's, not a workspace's.

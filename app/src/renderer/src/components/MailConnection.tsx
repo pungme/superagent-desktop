@@ -59,12 +59,13 @@ export function MailConnection(): React.JSX.Element {
         </button>
       </div>
       <p>
-        Let your agent search and read messages from the accounts in Mail, and save unsent drafts
-        for you to review.
+        Let your agent search and read messages from the accounts in Mail, write drafts, and send
+        email with attachments.
       </p>
       <p className="mail-connection-note">
         Messages are read only when the agent calls a Mail tool. Requested content is shared with
-        the agent you use. Superagent does not send mail.
+        the agent you use. Nothing is sent without you: each email is shown to you, with its
+        recipients and attachments, and goes only when you approve it.
       </p>
       {status && !status.supported && <p>Apple Mail requires macOS.</p>}
       {status?.connected && (

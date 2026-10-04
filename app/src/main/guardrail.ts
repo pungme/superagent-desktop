@@ -36,6 +36,8 @@ export type ToolClass = 'taint' | 'gate' | 'allow'
 /** Pure classification of a tool by name. */
 export function classifyTool(toolName: string): ToolClass {
   if (UNTRUSTED_READ_TOOLS.has(toolName)) return 'taint'
+  // mail_send is not gated here: it asks the user itself, every time, so the
+  // gate would only ask a second time.
   if (toolName === 'mcp__cove-browser__mail_draft') return 'gate'
   if (GATED_TOOL.test(toolName)) return 'gate'
   return 'allow'
@@ -88,6 +90,22 @@ export function toolPreview(toolName: string, input: unknown): string {
   if (toolName === 'Write') return `Write ${s(o.file_path) || '(file)'}`
   if (toolName === 'Edit' || toolName === 'MultiEdit') return `Edit ${s(o.file_path) || '(file)'}`
   if (toolName === 'NotebookEdit') return `Edit ${s(o.notebook_path) || '(notebook)'}`
+  if (toolName === 'mcp__cove-browser__mail_send') {
+    const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : [])
+    const files = list(o.attachments).map((p) => p.split('/').pop())
+    return [
+      `Send email to ${list(o.to).join(', ') || '(recipients)'}`,
+      list(o.cc).length ? `Cc ${list(o.cc).join(', ')}` : '',
+      list(o.bcc).length ? `Bcc ${list(o.bcc).join(', ')}` : '',
+      `Subject: ${s(o.subject)}`,
+      files.length ? `Attached: ${files.join(', ')}` : '',
+      '',
+      s(o.body).slice(0, 600)
+    ]
+      .filter((l, i, a) => l || (i > 0 && a[i - 1]))
+      .join('\n')
+      .slice(0, 1200)
+  }
   if (toolName === 'mcp__cove-browser__mail_draft')
     return `Save unsent draft to ${Array.isArray(o.to) ? o.to.join(', ') : '(recipients)'}: ${s(o.subject)}`.slice(
       0,

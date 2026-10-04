@@ -1,8 +1,11 @@
 import { execFile } from 'child_process'
+import { statSync } from 'fs'
+import { homedir } from 'os'
+import { isAbsolute, join } from 'path'
 import { ipcMain, shell } from 'electron'
 import { z } from 'zod'
 import { kvGet, kvSet } from './store'
-import { MAIL_SCRIPT } from './mail-script'
+import { COMPOSE_SCRIPT, MAIL_SCRIPT } from './mail-script'
 import type { MailConnectionStatus } from '../shared/mail'
 
 const KEY = 'connections.appleMail'
@@ -22,10 +25,50 @@ export const mailSchemas = {
     offset: z.number().int().min(0).max(10000).default(0)
   }),
   read: z.object({ ...locator, maxChars: z.number().int().min(1).max(30000).default(12000) }),
-  draft: z.object({
+  draft: z.object(compose()),
+  send: z.object(compose())
+}
+
+/** A message to save or send: recipients, subject, body, and files to attach. */
+function compose(): {
+  to: z.ZodArray<z.ZodEmail>
+  cc: z.ZodDefault<z.ZodArray<z.ZodEmail>>
+  bcc: z.ZodDefault<z.ZodArray<z.ZodEmail>>
+  subject: z.ZodString
+  body: z.ZodString
+  html: z.ZodDefault<z.ZodString>
+  attachments: z.ZodDefault<z.ZodArray<z.ZodString>>
+} {
+  return {
     to: z.array(z.email().max(320)).min(1).max(50),
+    cc: z.array(z.email().max(320)).max(50).default([]),
+    bcc: z.array(z.email().max(320)).max(50).default([]),
     subject: z.string().max(1000),
-    body: z.string().max(50000)
+    /** Plain text: the whole message, or the fallback beside the HTML. */
+    body: z.string().max(50000),
+    /** Formatted body (a designed signature, a newsletter). Images by https URL. */
+    html: z.string().max(200000).default(''),
+    /** Absolute paths of files on this Mac. */
+    attachments: z.array(z.string().min(1).max(2000)).max(20).default([])
+  }
+}
+
+/** Attachments must be real files, named by absolute path; ~ is the home folder. */
+export function resolveAttachments(paths: string[]): string[] {
+  return paths.map((p) => {
+    const abs = p.startsWith('~/') ? join(homedir(), p.slice(2)) : p
+    if (!isAbsolute(abs)) throw new Error(`Attach files by absolute path: ${p}`)
+    if (/[\n\r]/.test(abs))
+      throw new Error(`A file name with a line break cannot be attached: ${abs}`)
+    let st: ReturnType<typeof statSync>
+    try {
+      st = statSync(abs)
+    } catch {
+      throw new Error(`No such file to attach: ${abs}`)
+    }
+    if (!st.isFile()) throw new Error(`Not a file, so it cannot be attached: ${abs}`)
+    if (st.size > 25 * 1024 * 1024) throw new Error(`Too large to attach (over 25 MB): ${abs}`)
+    return abs
   })
 }
 
@@ -37,12 +80,31 @@ export function mailStatus(): MailConnectionStatus {
   return { supported: process.platform === 'darwin', connected: mailConnected() }
 }
 
-function runMail(input: { op: string }): Promise<unknown> {
+/** The osascript arguments for one request: JXA for reading, AppleScript to write. */
+function scriptArgs(input: { op: string } & Record<string, unknown>): string[] {
+  if (input.op !== 'draft' && input.op !== 'send')
+    return ['-l', 'JavaScript', '-e', MAIL_SCRIPT, JSON.stringify(input)]
+  const list = (v: unknown): string => (Array.isArray(v) ? v.map(String).join('\n') : '')
+  return [
+    '-e',
+    COMPOSE_SCRIPT,
+    input.op,
+    String(input.subject ?? ''),
+    String(input.body ?? ''),
+    String(input.html ?? ''),
+    list(input.to),
+    list(input.cc),
+    list(input.bcc),
+    list(input.attachments)
+  ]
+}
+
+function runMail(input: { op: string } & Record<string, unknown>): Promise<unknown> {
   const startedGeneration = generation
   return new Promise((resolve, reject) => {
     execFile(
       '/usr/bin/osascript',
-      ['-l', 'JavaScript', '-e', MAIL_SCRIPT, JSON.stringify(input)],
+      scriptArgs(input),
       { timeout: input.op === 'connect' ? 120_000 : 30_000, maxBuffer: 2 * 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
@@ -58,7 +120,9 @@ function runMail(input: { op: string }): Promise<unknown> {
                     ? 'Mail did not respond. Check for a macOS permission prompt or open Mail, then try Connect again.'
                     : input.op === 'draft'
                       ? 'Mail took too long to respond. A draft may already have been saved; check Drafts before retrying.'
-                      : 'Mail took too long to respond. Check Mail and try again.'
+                      : input.op === 'send'
+                        ? 'Mail took too long to respond. The message may already have been sent; check Sent before retrying.'
+                        : 'Mail took too long to respond. Check Mail and try again.'
                   : 'Mail could not complete the request. Check the account and mailbox in Mail, then try again.'
             )
           )
@@ -105,6 +169,10 @@ export async function callMail(op: keyof typeof mailSchemas, input: unknown): Pr
     const search = data as z.infer<typeof mailSchemas.search>
     if (!!search.accountId !== !!search.mailboxPath)
       throw new Error('Provide both accountId and mailboxPath, or neither to search all inboxes.')
+  }
+  if (op === 'draft' || op === 'send') {
+    const msg = data as z.infer<typeof mailSchemas.send>
+    msg.attachments = resolveAttachments(msg.attachments)
   }
   const current = generation
   const result = await runMail({ ...data, op })

@@ -78,13 +78,58 @@ function run(argv) {
     result.truncated = body.length > req.maxChars;
     return JSON.stringify(result);
   }
-  if (req.op === 'draft') {
-    var d = mail.OutgoingMessage({ subject: req.subject, content: req.body, visible: false });
-    mail.outgoingMessages.push(d);
-    for (var i = 0; i < req.to.length; i++) d.toRecipients.push(mail.ToRecipient({ address: req.to[i] }));
-    mail.save(d);
-    return JSON.stringify({ draftId: d.id(), saved: true, sent: false });
-  }
   throw new Error('Unknown Mail operation.');
 }
+`
+
+/**
+ * Fixed AppleScript that writes a message, for drafts and sends. AppleScript
+ * rather than JXA because only AppleScript's Mail dictionary attaches a file
+ * and sets an HTML body: the JXA forms fail with "Can't get object". Input
+ * arrives as argv strings, never as source: op, subject, plain body, HTML
+ * body, and newline-separated to, cc, bcc and attachment paths. The HTML is
+ * set before the attachments, which setting it would otherwise replace.
+ */
+export const COMPOSE_SCRIPT = String.raw`
+on splitLines(t)
+	if t is "" then return {}
+	set AppleScript's text item delimiters to linefeed
+	set out to text items of t
+	set AppleScript's text item delimiters to ""
+	return out
+end splitLines
+on run argv
+	set op to item 1 of argv
+	set subj to item 2 of argv
+	set plainBody to item 3 of argv
+	set htmlBody to item 4 of argv
+	set toList to my splitLines(item 5 of argv)
+	set ccList to my splitLines(item 6 of argv)
+	set bccList to my splitLines(item 7 of argv)
+	set filePaths to my splitLines(item 8 of argv)
+	tell application "Mail"
+		set m to make new outgoing message with properties {subject:subj, content:plainBody, visible:false}
+		repeat with a in toList
+			make new to recipient at end of to recipients of m with properties {address:(a as text)}
+		end repeat
+		repeat with a in ccList
+			make new cc recipient at end of cc recipients of m with properties {address:(a as text)}
+		end repeat
+		repeat with a in bccList
+			make new bcc recipient at end of bcc recipients of m with properties {address:(a as text)}
+		end repeat
+		if htmlBody is not "" then set html content of m to htmlBody
+		repeat with f in filePaths
+			tell content of m to make new attachment with properties {file name:((POSIX file (f as text)) as alias)} at after last paragraph
+		end repeat
+		-- Attachments are added asynchronously.
+		if (count of filePaths) > 0 then delay 2
+		if op is "send" then
+			if not (send m) then error "Mail did not send the message."
+			return "{\"sent\":true,\"attachments\":" & (count of filePaths) & "}"
+		end if
+		save m
+		return "{\"saved\":true,\"sent\":false,\"attachments\":" & (count of filePaths) & "}"
+	end tell
+end run
 `
