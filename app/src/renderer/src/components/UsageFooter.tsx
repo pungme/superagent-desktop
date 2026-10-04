@@ -11,10 +11,20 @@ type Lists = Record<AgentProvider, Account[]>
 
 /** The fullest window still running, 0–100, or null when nothing has been read. */
 function fullest(a: Account | undefined): number | null {
+  return fullestWindow(a)?.percent ?? null
+}
+
+/** Which window that is, so the foot can say whether it is the 5-hour or the week. */
+function fullestWindow(a: Account | undefined): { label: string; percent: number } | null {
   const now = Date.now()
   const live = (a?.usage?.windows ?? []).filter((w) => !w.resetsAt || w.resetsAt > now)
-  return live.length ? Math.max(...live.map((w) => w.percent)) : null
+  if (!live.length) return null
+  return live.reduce((m, w) => (w.percent > m.percent ? w : m))
 }
+
+/** "5h" or "Week": short enough for the foot of the sidebar. */
+const shortWindow = (label: string): string =>
+  label === '5-hour' ? '5h' : label === 'Weekly' ? 'Week' : label
 
 const level = (pct: number | null): string =>
   pct === null ? '' : pct >= 90 ? 'high' : pct >= 75 ? 'warn' : ''
@@ -66,6 +76,7 @@ export function UsageFooter(): React.JSX.Element | null {
 
   if (!current) return null
   const pct = fullest(current)
+  const which = fullestWindow(current)
   const show = (): void => {
     if (closeTimer.current) window.clearTimeout(closeTimer.current)
     if (!open) void window.cove.accountsRefreshUsage()
@@ -96,6 +107,7 @@ export function UsageFooter(): React.JSX.Element | null {
           <i style={{ width: `${pct ?? 0}%` }} />
         </span>
         <span className={`usage-footer-pct ${level(pct)}`}>{pct === null ? '—' : `${pct}%`}</span>
+        {which && <span className="usage-footer-which">{shortWindow(which.label)}</span>}
       </button>
       {open && lists && (
         <div className="usage-popover" role="menu">

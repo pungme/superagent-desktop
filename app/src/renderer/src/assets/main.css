@@ -1471,6 +1471,11 @@ button {
   font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
 }
+/* Which window the number is: the 5-hour one or the week. */
+.usage-footer-which {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
 .usage-footer-pct.warn {
   color: var(--warning, #c98a1b);
 }
