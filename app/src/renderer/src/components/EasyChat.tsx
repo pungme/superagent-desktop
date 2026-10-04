@@ -9,7 +9,7 @@ import {
   memo
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useStore, useOverlayLock, TodoItem, PermissionMode } from '../state'
+import { useStore, useOverlayLock, TodoItem, PermissionMode, type Shot } from '../state'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { useChatBrowser } from '../hooks/useChatBrowser'
@@ -64,8 +64,6 @@ interface ChatMessage {
 }
 
 /** A screenshot suggestion lasts this long, and holds at most this many. */
-const SHOT_TTL_MS = 5 * 60_000
-const SHOTS_MAX = 6
 
 interface PendingImage {
   mediaType: string
@@ -110,6 +108,8 @@ type Item =
  * that cut the placeholder in half, and stayed that way until something was
  * typed. Hidden, it is left alone; the CSS min-height covers the rest.
  */
+const NO_SHOTS: Shot[] = []
+
 function fitInput(el: HTMLTextAreaElement): void {
   if (!el.isConnected || el.offsetParent === null) return
   el.style.height = 'auto'
@@ -1421,11 +1421,14 @@ export function EasyChat({
   const [narrowComposer, setNarrowComposer] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   /**
-   * Screenshots taken since you last looked, offered above the composer. Only
-   * the chat on screen collects them; several stack into one suggestion, and
-   * they go stale after a few minutes rather than hanging about.
+   * Screenshots taken since you last looked, offered above the composer of the
+   * chat on screen. The list is the window's (see state.ts shots), so a shot
+   * taken in one chat is still offered in the one you switch to; several stack
+   * into one suggestion, and they go stale after a few minutes.
    */
-  const [shots, setShots] = useState<(PendingImage & { name: string; at: number })[]>([])
+  const allShots = useStore((s) => s.shots)
+  const dropShots = useStore((s) => s.dropShots)
+
   // Non-image files dropped on the chat — shown as chips, sent as paths.
   const [pendingFiles, setPendingFiles] = useState<{ path: string; name: string }[]>([])
   // "Send when it's done": messages the user chose (by holding Send) to hold
@@ -1816,6 +1819,8 @@ export function EasyChat({
   // from the incoming chat's own session.
   const registerAgent = useStore((s) => s.registerAgent)
   const isActive = useStore((s) => s.activeWorkspaceId === workspaceId)
+  // Offered in the chat on screen only.
+  const shots = isActive && visible ? allShots : NO_SHOTS
   // Model + agent-mode pickers under the composer. Changing either respawns the
   // agent (resuming the conversation) so the new --model / --permission-mode take
   // effect immediately without losing context.
@@ -2020,34 +2025,12 @@ export function EasyChat({
     reader.readAsDataURL(file)
   }
 
-  useEffect(() => {
-    if (!isActive || !visible) return
-    return window.cove.onScreenshot?.((s) => {
-      setShots((prev) =>
-        prev.some((p) => p.name === s.name)
-          ? prev
-          : [
-              ...prev.filter((p) => Date.now() - p.at < SHOT_TTL_MS),
-              { ...s, url: `data:${s.mediaType};base64,${s.data}` }
-            ].slice(-SHOTS_MAX)
-      )
-    })
-  }, [isActive, visible])
-  // Stale ones go on their own.
-  useEffect(() => {
-    if (!shots.length) return
-    const t = setTimeout(
-      () => setShots((prev) => prev.filter((p) => Date.now() - p.at < SHOT_TTL_MS)),
-      SHOT_TTL_MS
-    )
-    return () => clearTimeout(t)
-  }, [shots])
   const attachShots = (which: typeof shots): void => {
     setPendingImages((prev) => [
       ...prev,
       ...which.map((s) => ({ mediaType: s.mediaType, data: s.data, url: s.url }))
     ])
-    setShots((prev) => prev.filter((p) => !which.includes(p)))
+    dropShots(which.map((s) => s.name))
     inputRef.current?.focus()
   }
 
@@ -4982,7 +4965,7 @@ export function EasyChat({
                       className="easy-shot-remove"
                       title="Not this one"
                       aria-label="Not this one"
-                      onClick={() => setShots((prev) => prev.filter((p) => p !== s))}
+                      onClick={() => dropShots([s.name])}
                     >
                       ×
                     </button>
@@ -4999,7 +4982,7 @@ export function EasyChat({
                 className="easy-shots-dismiss"
                 title="Dismiss"
                 aria-label="Dismiss"
-                onClick={() => setShots([])}
+                onClick={() => dropShots(shots.map((p) => p.name))}
               >
                 ×
               </button>

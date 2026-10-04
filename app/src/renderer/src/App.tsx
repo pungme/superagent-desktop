@@ -12,7 +12,7 @@ import { ChatsView } from './components/ChatsView'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { CommandPalette } from './components/CommandPalette'
-import { useStore, keepChatChanges, keepErrorText } from './state'
+import { useStore, keepChatChanges, keepErrorText, SHOT_TTL_MS } from './state'
 
 const SIDEBAR_MIN = 200
 const SIDEBAR_MAX = 460
@@ -98,6 +98,22 @@ function App(): React.JSX.Element {
   // been here longest never saw it.)
   const [firstRunIntro, setFirstRunIntro] = useState(() => shouldPlayFirstRunIntro())
   if (firstRunIntro) sessionStorage.setItem('cove.introPlayed', '1') // not the short splash too
+  // Screenshots macOS saves, collected once for the whole window: whichever
+  // chat is on screen offers them (state.ts shots). Stale ones are swept here.
+  useEffect(() => {
+    const off = window.cove.onScreenshot?.((s) =>
+      useStore.getState().addShot({ ...s, url: `data:${s.mediaType};base64,${s.data}` })
+    )
+    const sweep = window.setInterval(() => {
+      const { shots, dropShots } = useStore.getState()
+      const stale = shots.filter((p) => Date.now() - p.at >= SHOT_TTL_MS).map((p) => p.name)
+      if (stale.length) dropShots(stale)
+    }, 30_000)
+    return () => {
+      off?.()
+      window.clearInterval(sweep)
+    }
+  }, [])
   // Asked for again from Settings: played whatever has been seen before.
   useEffect(() => {
     const replay = (): void => setFirstRunIntro(true)

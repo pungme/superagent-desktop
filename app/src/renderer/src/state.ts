@@ -344,6 +344,15 @@ interface CoveState {
   // Count of open HTML overlays (slide-overs, modals). While > 0 the native
   // browser view is hidden so it can't cover them.
   overlayCount: number
+  /**
+   * Screenshots just taken, offered above the composer of whichever chat is
+   * on screen — one list for the whole window, not one per chat. Kept per chat,
+   * a shot taken while the wrong chat was open stayed with that chat, and the
+   * one you then switched to never offered it.
+   */
+  shots: Shot[]
+  addShot: (s: Shot) => void
+  dropShots: (names: string[]) => void
   enterOverlay: () => void
   exitOverlay: () => void
 
@@ -622,6 +631,18 @@ export function applyAccent(a: Accent): void {
   else document.documentElement.setAttribute('data-accent', a)
 }
 
+/** A screenshot on offer: the composer's image shape, its file name and when it came. */
+export interface Shot {
+  mediaType: string
+  data: string
+  url: string
+  name: string
+  at: number
+}
+/** Gone after this long unattached: a screenshot from earlier is not "just taken". */
+export const SHOT_TTL_MS = 5 * 60_000
+const SHOTS_MAX = 6
+
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
@@ -709,6 +730,16 @@ export const useStore = create<CoveState>((set, get) => ({
     }
   },
   overlayCount: 0,
+  shots: [],
+  addShot: (s) =>
+    set((st) =>
+      st.shots.some((p) => p.name === s.name)
+        ? st
+        : {
+            shots: [...st.shots.filter((p) => Date.now() - p.at < SHOT_TTL_MS), s].slice(-SHOTS_MAX)
+          }
+    ),
+  dropShots: (names) => set((st) => ({ shots: st.shots.filter((p) => !names.includes(p.name)) })),
   enterOverlay: () => set((s) => ({ overlayCount: s.overlayCount + 1 })),
   exitOverlay: () => set((s) => ({ overlayCount: Math.max(0, s.overlayCount - 1) })),
   hooksEnabled: false,

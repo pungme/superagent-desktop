@@ -93,3 +93,37 @@ test('one can be dropped, and × dismisses the rest', async () => {
   // Nothing was attached by that.
   await expect(window.locator('.easy-attachment img')).toHaveCount(2)
 })
+
+test('a shot taken in one chat is offered in the chat you switch to', async () => {
+  // A second project, and its chat open, as if the wrong one were on screen.
+  const other = mkdtempSync(join(tmpdir(), 'cove-shots-other-'))
+  writeFileSync(join(other, 'README.md'), '# other\n')
+  const otherId = await window.evaluate(async (path) => {
+    const tree = await window.cove.storeTree()
+    const group = tree.find((g) => g.workspaces.some((w) => w.name === 'e2e-project'))!
+    const name = path.split('/').pop()!
+    const { workspaceId } = await window.cove.createWorkspace(group.id, name, path)
+    await window.cove.chatCreate(workspaceId)
+    return workspaceId
+  }, other)
+  await window.reload()
+  await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  await window.click(`.sidebar-item:has-text("${other.split('/').pop()}")`)
+  await window.waitForSelector('textarea.easy-input:visible', { timeout: 20_000 })
+  shoot('Screenshot 2026-09-29 at 20.20.00.png')
+  await expect(window.locator('.easy-shots:visible')).toContainText('Screenshot just taken', {
+    timeout: 10_000
+  })
+  // Now the right one.
+  await window.click('.sidebar-item:has-text("e2e-project")')
+  await expect(window.locator('.easy-shots:visible')).toContainText('Screenshot just taken', {
+    timeout: 10_000
+  })
+  await window.getByRole('button', { name: 'Attach', exact: true }).click()
+  // Taken once, attached once: no longer offered in the other chat either.
+  await window.click(`.sidebar-item:has-text("${other.split('/').pop()}")`)
+  await window.waitForTimeout(500)
+  await expect(window.locator('.easy-shots:visible')).toHaveCount(0)
+  expect(otherId).toBeTruthy()
+  rmSync(other, { recursive: true, force: true })
+})
