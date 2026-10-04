@@ -12421,11 +12421,33 @@ button {
 }
 .settings-account {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 0 2px;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 0 4px;
   border-top: 1px solid var(--border);
   font-size: 12px;
+}
+.settings-account-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* What is wrong with it, if anything: a small pill beside its name. */
+.settings-account-badge {
+  flex: none;
+  white-space: nowrap;
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--warning, #c98a1b);
+  background: color-mix(in srgb, var(--warning, #c98a1b) 14%, transparent);
+}
+.settings-account.needs-auth .settings-account-badge {
+  color: var(--danger, #d64545);
+  background: color-mix(in srgb, var(--danger, #d64545) 14%, transparent);
+}
+.settings-account-top .settings-account-remove {
+  margin-left: auto;
 }
 .settings-account-name {
   flex: 1 1 auto;
@@ -12508,26 +12530,32 @@ button {
 .settings-accounts-foot {
   padding: 2px 0 18px;
 }
-/* How much of each allowance is used: one meter per window, under the account. */
+/* How much of each allowance is used: one row per window, in a grid whose
+   columns line up across every account in the card. */
 .settings-account-usage {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 14px;
-  margin-top: 4px;
-}
-.settings-usage-window {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 56px minmax(80px, 180px) 40px auto;
+  column-gap: 10px;
+  row-gap: 3px;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  margin-top: 6px;
+  font-size: 11.5px;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
+}
+.settings-usage-window {
+  display: contents;
 }
 .settings-usage-label {
   color: var(--text-secondary);
 }
+.settings-usage-pct {
+  text-align: right;
+}
+.settings-usage-reset {
+  white-space: nowrap;
+}
 .settings-usage-bar {
-  width: 64px;
   height: 4px;
   border-radius: 2px;
   background: var(--border);

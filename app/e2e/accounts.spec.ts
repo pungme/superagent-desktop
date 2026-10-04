@@ -116,7 +116,9 @@ test('a Claude token is added, kept encrypted, and removed again', async () => {
   await claude.getByRole('button', { name: 'Add', exact: true }).click()
   const row = claude.locator('.settings-account', { hasText: 'Work' })
   await expect(row).toBeVisible()
-  await expect(row.locator('.settings-account-state')).toHaveText('ready')
+  // A healthy account carries no badge; one is only there to say what is wrong.
+  await expect(row.locator('.settings-account-badge')).toHaveCount(0)
+  await expect(row.getByRole('button', { name: 'Remove' })).toBeVisible()
   expect(readFileSync(join(userDataDir, 'accounts.json'), 'utf8')).not.toContain(TOKEN)
   await row.getByRole('button', { name: 'Remove' }).click()
   await expect(row).toHaveCount(0)

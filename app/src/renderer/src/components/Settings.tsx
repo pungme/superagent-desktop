@@ -151,7 +151,7 @@ function AccountUsage({ usage }: { usage: NonNullable<Account['usage']> }): Reac
   // The moment the numbers were drawn: new numbers draw them again.
   const [now] = useState(() => Date.now())
   return (
-    <span className="settings-account-usage" title={`Updated ${ago(usage.at, now)}`}>
+    <div className="settings-account-usage" title={`Updated ${ago(usage.at, now)}`}>
       {usage.windows.map((w) => {
         const over = w.resetsAt !== null && w.resetsAt <= now
         const pct = over ? 0 : w.percent
@@ -165,13 +165,13 @@ function AccountUsage({ usage }: { usage: NonNullable<Account['usage']> }): Reac
               <i style={{ width: `${pct}%` }} />
             </span>
             <span className="settings-usage-pct">{pct}%</span>
-            {w.resetsAt && !over && (
-              <span className="settings-usage-reset">resets {resetLabel(w.resetsAt, now)}</span>
-            )}
+            <span className="settings-usage-reset">
+              {w.resetsAt && !over ? `resets ${resetLabel(w.resetsAt, now)}` : ''}
+            </span>
           </span>
         )
       })}
-    </span>
+    </div>
   )
 }
 
@@ -358,33 +358,33 @@ function AgentsPanel({
                     key={a.id}
                     className={`settings-account ${a.limitedUntil ? 'limited' : ''} ${a.needsAuth ? 'needs-auth' : ''}`}
                   >
-                    <span className="settings-account-who">
+                    {/* One line for who it is and what state it is in, the
+                        meters under it in a grid of their own: with the state
+                        in a column beside the meters, a long "out until" took
+                        their width and each account wrapped differently. */}
+                    <div className="settings-account-top">
                       <span className="settings-account-name">{a.name}</span>
-                      {(a.detail || a.needsAuth) && (
-                        <span className="settings-account-detail">
-                          {a.needsAuth ? `${a.needsAuth} — ${fixHint(a)}` : a.detail}
+                      {(a.needsAuth || a.limitedUntil) && (
+                        <span className="settings-account-badge">
+                          {a.needsAuth ? 'Needs sign-in' : timeLeft(a.limitedUntil)}
                         </span>
                       )}
-                      {!a.needsAuth && a.usage && <AccountUsage key={a.usage.at} usage={a.usage} />}
-                    </span>
-                    <span className="settings-account-state">
-                      {a.needsAuth
-                        ? 'needs sign-in'
-                        : a.limitedUntil
-                          ? timeLeft(a.limitedUntil)
-                          : a.kind === 'login'
-                            ? ''
-                            : 'ready'}
-                    </span>
-                    {a.kind !== 'login' && (
-                      <button
-                        className="settings-account-remove"
-                        title="Remove this account"
-                        onClick={() => void remove(a.id)}
-                      >
-                        Remove
-                      </button>
+                      {a.kind !== 'login' && (
+                        <button
+                          className="settings-account-remove"
+                          title="Remove this account"
+                          onClick={() => void remove(a.id)}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    {(a.detail || a.needsAuth) && (
+                      <span className="settings-account-detail">
+                        {a.needsAuth ? `${a.needsAuth} — ${fixHint(a)}` : a.detail}
+                      </span>
                     )}
+                    {!a.needsAuth && a.usage && <AccountUsage key={a.usage.at} usage={a.usage} />}
                   </li>
                 ))}
               </ul>
