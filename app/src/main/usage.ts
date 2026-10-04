@@ -174,3 +174,39 @@ export function usageFromCodex(rateLimits: unknown, now = Date.now()): Usage | n
   }
   return windows.length ? { windows, at: now } : null
 }
+
+/**
+ * Antigravity's `agy -p /usage --output-format json`: groups of models that
+ * share a limit (Gemini; Claude and GPT), each with buckets that say how much
+ * is left and when it refreshes. Answered from Google's quota service with no
+ * model call, so it costs nothing to ask.
+ */
+export function usageFromAntigravity(out: unknown, now = Date.now()): Usage | null {
+  const groups = (out as { command?: { data?: { groups?: unknown } } } | null)?.command?.data
+    ?.groups
+  if (!Array.isArray(groups)) return null
+  const windows: UsageWindow[] = []
+  for (const g of groups as { name?: string; buckets?: unknown }[]) {
+    if (!Array.isArray(g.buckets)) continue
+    for (const b of g.buckets as {
+      window?: string
+      remaining_fraction?: number
+      reset_time?: string
+    }[]) {
+      if (typeof b.remaining_fraction !== 'number') continue
+      const who = /gemini/i.test(g.name ?? '')
+        ? 'Gemini'
+        : /claude|gpt/i.test(g.name ?? '')
+          ? 'Claude/GPT'
+          : (g.name ?? 'Models')
+      const span =
+        b.window === 'weekly' ? 'weekly' : b.window === 'daily' ? 'daily' : (b.window ?? '')
+      windows.push({
+        label: span ? `${who} ${span}` : who,
+        percent: clampPercent((1 - b.remaining_fraction) * 100),
+        resetsAt: resetTime(b.reset_time)
+      })
+    }
+  }
+  return windows.length ? { windows, at: now } : null
+}

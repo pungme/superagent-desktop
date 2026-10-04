@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   usageFromClaudeApi,
   usageFromClaudeEvent,
+  usageFromAntigravity,
   usageFromClaudeHeaders,
   usageFromCodex
 } from './usage'
@@ -116,5 +117,52 @@ describe('usageFromClaudeHeaders', () => {
     })
     // An answer with no such headers (an API key, an error page) says nothing.
     expect(usageFromClaudeHeaders(() => null, NOW)).toBeNull()
+  })
+})
+
+describe('usageFromAntigravity', () => {
+  it("reads each model group's weekly limit from agy /usage", () => {
+    // As `agy -p /usage --output-format json` answers (agy 1.2.16).
+    const out = {
+      status: 'SUCCESS',
+      command: {
+        name: 'usage',
+        data: {
+          groups: [
+            {
+              name: 'Gemini Models',
+              buckets: [
+                {
+                  id: 'gemini-weekly',
+                  window: 'weekly',
+                  remaining_fraction: 0,
+                  reset_time: '2026-10-08T12:30:12Z'
+                }
+              ]
+            },
+            {
+              name: 'Claude and GPT models',
+              buckets: [
+                {
+                  id: '3p-weekly',
+                  window: 'weekly',
+                  remaining_fraction: 0.75,
+                  reset_time: '2026-10-11T20:58:02Z'
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+    expect(usageFromAntigravity(out, NOW)).toEqual({
+      windows: [
+        { label: 'Gemini weekly', percent: 100, resetsAt: Date.parse('2026-10-08T12:30:12Z') },
+        { label: 'Claude/GPT weekly', percent: 25, resetsAt: Date.parse('2026-10-11T20:58:02Z') }
+      ],
+      at: NOW
+    })
+    expect(usageFromAntigravity({ status: 'SUCCESS', response: 'hi' }, NOW)).toBeNull()
+    expect(usageFromAntigravity(null, NOW)).toBeNull()
   })
 })

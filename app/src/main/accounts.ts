@@ -15,7 +15,13 @@ import { join } from 'path'
 import { findAgy, findClaude, findCodex } from './claude-cli'
 import { CodexClient } from './codex/client'
 import { broadcastToWindows } from './util'
-import { usageFromClaudeApi, usageFromClaudeHeaders, usageFromCodex, type Usage } from './usage'
+import {
+  usageFromAntigravity,
+  usageFromClaudeApi,
+  usageFromClaudeHeaders,
+  usageFromCodex,
+  type Usage
+} from './usage'
 import type { AgentProvider } from '../shared/agent-provider'
 
 export type { Usage, UsageWindow } from './usage'
@@ -798,6 +804,39 @@ async function claudeUsageByMessage(token: string): Promise<Usage | null> {
   }
 }
 
+/** Antigravity's own /usage, as JSON. No model call, so free to ask. */
+function antigravityUsage(): Promise<Usage | null> {
+  return new Promise((resolve) => {
+    let out = ''
+    let proc: ReturnType<typeof spawn>
+    try {
+      proc = spawn(findAgy(), ['-p', '/usage', '--output-format', 'json'], {
+        cwd: os.homedir(),
+        shell: false
+      })
+    } catch {
+      return resolve(null)
+    }
+    const timer = setTimeout(() => {
+      proc.kill()
+      resolve(null)
+    }, 20_000)
+    proc.stdout?.on('data', (c: Buffer) => (out += c.toString('utf8')))
+    proc.on('error', () => {
+      clearTimeout(timer)
+      resolve(null)
+    })
+    proc.on('exit', () => {
+      clearTimeout(timer)
+      try {
+        resolve(usageFromAntigravity(JSON.parse(out)))
+      } catch {
+        resolve(null)
+      }
+    })
+  })
+}
+
 /** Ask a Codex account's own server, briefly, for its rate limits. */
 async function codexUsage(env: Record<string, string>): Promise<Usage | null> {
   const client = new CodexClient({ ...process.env, ...env })
@@ -846,6 +885,8 @@ export function refreshUsage(force = false): Promise<void> {
       )
     }
   }
+  if (logins.antigravity?.signedIn !== false && liveUsage())
+    jobs.push(antigravityUsage().then((u) => put(LOGIN_ID.antigravity, u)))
   if (logins.codex?.signedIn !== false && liveUsage()) {
     jobs.push(codexUsage({}).then((u) => put(LOGIN_ID.codex, u)))
     for (const a of load().accounts.filter((x) => x.provider === 'codex' && x.home))

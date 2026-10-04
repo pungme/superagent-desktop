@@ -12539,7 +12539,7 @@ button {
    columns line up across every account in the card. */
 .settings-account-usage {
   display: grid;
-  grid-template-columns: 56px minmax(80px, 180px) 40px auto;
+  grid-template-columns: minmax(56px, max-content) minmax(80px, 180px) 40px auto;
   column-gap: 10px;
   row-gap: 3px;
   align-items: center;

@@ -24,7 +24,7 @@ function fullestWindow(a: Account | undefined): { label: string; percent: number
 
 /** "5h" or "Week": short enough for the foot of the sidebar. */
 const shortWindow = (label: string): string =>
-  label === '5-hour' ? '5h' : label === 'Weekly' ? 'Week' : label
+  label === '5-hour' ? '5h' : label === 'Weekly' ? 'Week' : label.replace(/ weekly$/, ' week')
 
 const level = (pct: number | null): string =>
   pct === null ? '' : pct >= 90 ? 'high' : pct >= 75 ? 'warn' : ''
