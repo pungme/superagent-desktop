@@ -418,7 +418,11 @@ app.whenReady().then(async () => {
   ipcMain.handle('app:set-icon', (_e, png: Uint8Array | null) => {
     if (!app.dock) return false
     if (!png || png.length === 0) {
-      app.dock.setIcon(nativeImage.createFromPath(join(process.resourcesPath, 'icon.png')))
+      // No image puts the bundle's own icon back, drawn by the system the way
+      // it draws every other app's. (Electron accepts null here; its types do
+      // not say so.) Handing over icon.png instead showed it edge to edge, a
+      // size larger than its neighbours in the Dock.
+      app.dock.setIcon(null as unknown as Electron.NativeImage)
       return true
     }
     const img = nativeImage.createFromBuffer(Buffer.from(png))

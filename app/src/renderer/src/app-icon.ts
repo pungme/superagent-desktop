@@ -18,6 +18,12 @@
 
 /** Everything is a fraction of the canvas, so the size is a single decision. */
 const SIZE = 1024
+/**
+ * The icon's own shape is 824 of the canvas's 1024, centred — Apple's icon grid.
+ * The Dock draws a replacement icon exactly as handed over, so one painted to
+ * the canvas's edges came out a size larger than every icon beside it.
+ */
+const BOX = 824 / 1024
 const OUTER_RADIUS = 0.225
 const INNER_SIZE = 0.303
 const INNER_RADIUS = 0.083
@@ -45,15 +51,20 @@ function roundedRect(
  * `background` is either a CSS colour or an image to cover the icon with.
  * Returns PNG bytes, or null if the canvas is unavailable.
  */
-export async function renderAppIcon(background: string | HTMLImageElement): Promise<Uint8Array | null> {
+export async function renderAppIcon(
+  background: string | HTMLImageElement
+): Promise<Uint8Array | null> {
   const canvas = document.createElement('canvas')
   canvas.width = SIZE
   canvas.height = SIZE
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
 
+  const box = SIZE * BOX
+  const edge = (SIZE - box) / 2
+
   // The outer shape clips everything, so a photo cannot spill past the corners.
-  roundedRect(ctx, 0, 0, SIZE, SIZE, SIZE * OUTER_RADIUS)
+  roundedRect(ctx, edge, edge, box, box, box * OUTER_RADIUS)
   ctx.clip()
 
   if (typeof background === 'string') {
@@ -62,7 +73,7 @@ export async function renderAppIcon(background: string | HTMLImageElement): Prom
   } else {
     // Cover, not stretch: a portrait photo squashed into a square icon looks
     // like a mistake, and cropping is what every avatar does.
-    const scale = Math.max(SIZE / background.width, SIZE / background.height)
+    const scale = Math.max(box / background.width, box / background.height)
     const w = background.width * scale
     const h = background.height * scale
     ctx.drawImage(background, (SIZE - w) / 2, (SIZE - h) / 2, w, h)
@@ -70,10 +81,10 @@ export async function renderAppIcon(background: string | HTMLImageElement): Prom
 
   // The white square sits on top of either, which is what keeps a custom icon
   // recognisably this app rather than just a cropped photo.
-  const inner = SIZE * INNER_SIZE
+  const inner = box * INNER_SIZE
   const at = (SIZE - inner) / 2
   ctx.fillStyle = INNER_FILL
-  roundedRect(ctx, at, at, inner, inner, SIZE * INNER_RADIUS)
+  roundedRect(ctx, at, at, inner, inner, box * INNER_RADIUS)
   ctx.fill()
 
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))

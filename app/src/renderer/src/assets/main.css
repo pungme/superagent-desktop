@@ -772,24 +772,61 @@ button {
   gap: 6px;
   min-width: 0;
 }
-/* The spinner or unread dot belongs to the name, not to the pair of lines. */
-.chat-tree-title > .chat-tree-spinner,
-.chat-tree-title > .chat-tree-bg,
-.chat-tree-title > .sidebar-unread,
-.sidebar-branch-title > .chat-tree-spinner,
-.sidebar-branch-title > .sidebar-unread {
-  align-self: flex-start;
-  margin-top: 4px;
+/* The spinner or unread dot closes the name's line instead of opening it. In
+   front, it pushed that one row's name and branch to the right, so a list with
+   a few unread chats had two left edges; a slot kept free for it on every row
+   indented the whole list. */
+.routine-tree-row.chat-tree-row {
+  /* A little more air than a routine row gets: with a second line on most of
+     them, rows packed at 3px ran together into one block of text. */
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.chat-tree-line > .chat-tree-spinner,
+.chat-tree-line > .chat-tree-bg,
+.chat-tree-line > .sidebar-unread {
+  flex: none;
+  margin: 0;
+}
+.chat-tree-line > .sidebar-branch-label {
+  flex: 1;
+  min-width: 0;
+}
+/* The × floats over the end of the row instead of holding a place there. Kept
+   in the row's flow it reserved its width on every row, shown or not, and both
+   lines stopped well short of the edge. The name makes room only while the
+   pointer is on the row. */
+.chat-tree-row > .chat-tree-remove,
+.sidebar-branch > .sidebar-branch-remove {
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  margin: 0;
+}
+.chat-tree-row:hover .chat-tree-line,
+.sidebar-branch:hover .chat-tree-line {
+  padding-right: 16px;
+}
+/* One entry, then a breath, then the next: with two lines to a row, rows set
+   edge to edge read as one column of text. */
+.chat-tree-row + .chat-tree-row,
+.sidebar-branch + .sidebar-branch {
+  margin-top: 3px;
+}
+/* The second line of a chat that is on no branch. */
+.chat-tree-sub {
+  margin-top: 1px;
+  min-height: 1.3em;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* The elbow meets the name, not the middle of a two-line row. */
 .routine-tree-row.chat-tree-row::before {
   top: 12px;
-}
-/* A little more air than a routine row gets: with a second line on most of
-   them, rows packed at 3px ran together into one block of text. */
-.routine-tree-row.chat-tree-row {
-  padding-top: 4px;
-  padding-bottom: 4px;
 }
 .chat-tree-label {
   flex: 1;
@@ -1202,6 +1239,10 @@ button {
   font-size: 9px;
   opacity: 0.7;
 }
+.wt-when {
+  flex: none;
+  white-space: nowrap;
+}
 .wt-name {
   min-width: 0;
   overflow: hidden;
@@ -1534,7 +1575,7 @@ button {
   position: absolute;
   left: 0;
   bottom: calc(100% + 6px);
-  width: 290px;
+  width: 330px;
   max-height: 60vh;
   overflow-y: auto;
   padding: 6px;
@@ -1589,12 +1630,42 @@ button {
 .usage-popover-row.on .usage-popover-name {
   font-weight: 600;
 }
+/* The account this chat runs on: a filled row, not only a tick and a heavier
+   name, which in a list of near-identical rows were easy to look past. */
+.usage-popover-row.on,
+.usage-popover-row.on:not(:disabled):hover {
+  background: var(--active);
+}
+.usage-popover-row.on .usage-popover-tick {
+  color: var(--text-primary);
+}
+/* How full, as a bar: the figure says how much, the bar is what you can compare
+   down the list without reading. */
+.usage-popover-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.usage-popover-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--text-tertiary);
+}
+.usage-popover-window.warn .usage-popover-bar i {
+  background: var(--warning, #c98a1b);
+}
+.usage-popover-window.high .usage-popover-bar i {
+  background: var(--danger, #d64545);
+}
 /* One line per window, in columns: its name, how full, when it starts over. */
 .usage-popover-windows {
   display: grid;
-  grid-template-columns: max-content 34px 1fr;
+  grid-template-columns: max-content minmax(36px, 1fr) 32px max-content;
+  align-items: center;
   column-gap: 8px;
-  row-gap: 1px;
+  row-gap: 2px;
   font-size: 11px;
   color: var(--text-tertiary);
 }

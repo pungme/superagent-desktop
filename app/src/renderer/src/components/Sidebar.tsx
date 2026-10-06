@@ -253,6 +253,12 @@ function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
   )
 }
 
+/** "just now" / "25m ago" / "yesterday" / "3d ago" — `when`, as a line of its own. */
+function lastUsed(at?: number): string {
+  const w = when(at)
+  return !w ? '' : w === 'now' ? 'just now' : w === 'yesterday' ? w : `${w} ago`
+}
+
 /** One conversation under a project. Double-click the title to rename it. */
 /**
  * One place to work: the branch on the left, the conversation happening in it
@@ -343,16 +349,23 @@ function BranchRow({
       ) : (
         chat && (
           <span className="sidebar-branch-title">
-            {running && <span className="chat-tree-spinner" title="Working…" />}
-            {unread && !running && <span className="sidebar-unread" />}
             {/* The conversation's name, and the branch it runs in beneath it —
                 each with the whole width of the row, so neither is cut short
-                to make room for the other. */}
+                to make room for the other. The spinner or unread dot closes
+                the name's line: in front of it, that one row's name started
+                further right than every other. */}
             <span className="sidebar-branch-text">
-              <span className="sidebar-branch-label">{label}</span>
+              <span className="chat-tree-line">
+                <span className="sidebar-branch-label">{label}</span>
+                {running && <span className="chat-tree-spinner" title="Working…" />}
+                {unread && !running && <span className="sidebar-unread" />}
+              </span>
               <span className="sidebar-branch-chat">
                 <span className="wt-glyph">⎇</span>
                 <span className="wt-name">{branch}</span>
+                {lastUsed(chat.updatedAt) && (
+                  <span className="wt-when">· {lastUsed(chat.updatedAt)}</span>
+                )}
               </span>
             </span>
           </span>
@@ -382,7 +395,8 @@ function ChatRow({
   active,
   onOpen,
   folderBranch,
-  sortable = false
+  sortable = false,
+  twoLine = false
 }: {
   chat: Chat
   workspaceId: string
@@ -395,6 +409,10 @@ function ChatRow({
   /** Draggable within its project. Only where the order is the app's to keep:
    *  a branch row's place comes from git, not from you. */
   sortable?: boolean
+  /** Every row gets a second line, branch or not. For a folder of repos, where
+   *  some chats are on a branch and some have changed nothing yet: with the
+   *  second line only on some, the list was rows of two different heights. */
+  twoLine?: boolean
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const removeChat = useStore((s) => s.removeChat)
@@ -488,15 +506,6 @@ function ChatRow({
         />
       ) : (
         <span className="chat-tree-title">
-          {running ? (
-            <span className="chat-tree-spinner" title="Working…" />
-          ) : bgRunning ? (
-            <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
-          ) : (
-            unread && (
-              <span className="sidebar-unread" title="Claude finished — you haven't read this" />
-            )
-          )}
           {/* The name on its own line with the branch beneath it. Side by side
               they shared one narrow row and both ended in an ellipsis: neither
               the conversation nor where it was working could be read. */}
@@ -506,7 +515,34 @@ function ChatRow({
               {Boolean(chat.pinned) && (
                 <span className="chat-tree-pinned" title="Pinned">
                   <PinGlyph />
+                  {running ? (
+                    <span className="chat-tree-spinner" title="Working…" />
+                  ) : bgRunning ? (
+                    <span
+                      className="chat-tree-bg"
+                      title="Background work running (e.g. a monitor)"
+                    />
+                  ) : (
+                    unread && (
+                      <span
+                        className="sidebar-unread"
+                        title="Claude finished — you haven't read this"
+                      />
+                    )
+                  )}
                 </span>
+              )}
+              {running ? (
+                <span className="chat-tree-spinner" title="Working…" />
+              ) : bgRunning ? (
+                <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
+              ) : (
+                unread && (
+                  <span
+                    className="sidebar-unread"
+                    title="Claude finished — you haven't read this"
+                  />
+                )
               )}
             </span>
             {!chat.cwd && chatPending(chat) ? (
@@ -528,6 +564,12 @@ function ChatRow({
               <span className="chat-tree-wt gone" title={`Its copy is gone: ${chat.cwd}`}>
                 copy gone
               </span>
+            ) : !(chat.cwd ? wtBranch : folderBranch) ? (
+              /* On no branch, so there is none to name. When it was last used
+                 instead: something anyone can read ("no changes yet" meant
+                 nothing to someone who does not think in branches), and it
+                 keeps the row as tall as its neighbours. */
+              twoLine && <span className="chat-tree-sub">{lastUsed(chat.updatedAt)}</span>
             ) : (
               (chat.cwd ? wtBranch : folderBranch) && (
                 <span
@@ -538,6 +580,11 @@ function ChatRow({
                   <span className="wt-name">
                     {(chat.cwd ? wtBranch : folderBranch)!.replace(/^superagent\//, '')}
                   </span>
+                  {/* Where, then when. The time is short and keeps its place;
+                      it is the branch name that gives way. */}
+                  {lastUsed(chat.updatedAt) && (
+                    <span className="wt-when">· {lastUsed(chat.updatedAt)}</span>
+                  )}
                 </span>
               )
             )}
@@ -1073,6 +1120,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
                 chat={c}
                 workspaceId={ws.id}
                 sortable
+                twoLine={subrepos.length > 0}
                 active={active && c.id === activeChatId}
                 onOpen={() => {
                   setActive(ws.id)

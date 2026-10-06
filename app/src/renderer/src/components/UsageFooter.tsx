@@ -153,6 +153,9 @@ export function UsageFooter(): React.JSX.Element | null {
                               return (
                                 <span key={w.label} className={`usage-popover-window ${level(v)}`}>
                                   <span>{w.label}</span>
+                                  <span className="usage-popover-bar">
+                                    <i style={{ width: `${v}%` }} />
+                                  </span>
                                   <b>{v}%</b>
                                   <span className="usage-popover-reset">
                                     {w.resetsAt && !over

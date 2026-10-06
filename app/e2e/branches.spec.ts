@@ -74,9 +74,10 @@ const gitBranches = (): string[] =>
 
 /** Every branch name the sidebar is showing, from either kind of row. */
 const shownBranches = async (): Promise<string[]> => {
-  // A row with a chat carries its branch down the right (.sidebar-branch-chat);
-  // a row with no chat yet puts the branch where the name would go.
-  const right = await window.locator('.sidebar-branch-chat').allInnerTexts()
+  // A row with a chat carries its branch under the name, after when it was
+  // last used (.sidebar-branch-chat .wt-name); a row with no chat yet puts the
+  // branch where the name would go.
+  const right = await window.locator('.sidebar-branch-chat .wt-name').allInnerTexts()
   const left = await window.locator('.sidebar-branch-name').allInnerTexts()
   return [...right, ...left].map((t) => t.replace(/^⎇\s*/, '').trim()).filter(Boolean)
 }
