@@ -1616,6 +1616,10 @@ export function EasyChat({
   // A thumbnail was clicked — show it full-size in a dismissible overlay. The lock
   // hides the native browser view while it's open (a WebContentsView isn't part of
   // the DOM, so it would otherwise draw straight over the HTML lightbox).
+  // The agent is coming back up after Stop. The text box stays usable through
+  // it: disabled, it dropped the cursor of someone already typing their next
+  // message, and did not give it back.
+  const [restarting, setRestarting] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
   useOverlayLock(lightbox !== null)
   // Esc closes the picture, and only the picture: caught before the composer
@@ -3273,6 +3277,7 @@ export function EasyChat({
           // Ready as soon as the process is up — in stream-json input mode claude
           // waits for the first user message before it emits anything.
           setReady(true)
+          setRestarting(false)
           // Anything sent while there was no process goes out now (the first of
           // them carries the recap if this session came up without its memory).
           for (const q of pendingSendsRef.current.splice(0))
@@ -3321,6 +3326,7 @@ export function EasyChat({
             setThinking(false)
             setRunningAgents([])
             setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
+            setRestarting(false)
           }
           // Resuming failed and a fresh session took its place. Main arms the
           // recap (it is the one path both this window and the phone send on);
@@ -3876,6 +3882,7 @@ export function EasyChat({
       await window.cove.agentHardInterrupt?.(id)
       agentIdRef.current = null
       setReady(false)
+      setRestarting(true)
       setItems((prev) => [
         ...prev,
         {
@@ -5087,14 +5094,14 @@ export function EasyChat({
             className={`easy-input${pillRuns.some((r) => r.pill) ? ' has-pills' : ''}`}
             value={input}
             placeholder={
-              ready || suspended
+              ready || suspended || restarting
                 ? narrowComposer
                   ? `Message ${agentName}…`
                   : `Message ${agentName}…  (/ commands · @ files · paste an image)`
                 : 'Starting…'
             }
             rows={1}
-            disabled={!ready && !suspended}
+            disabled={!ready && !suspended && !restarting}
             onChange={(e) => {
               const el = e.target
               const c = compactMentions(el.value, el.selectionStart, mentionMap)
@@ -5277,7 +5284,14 @@ export function EasyChat({
           </button>
         </div>
         {generating && (
-          <button className="easy-stop" onClick={stop} title="Stop generating">
+          <button
+            className="easy-stop"
+            // Keep the cursor in the composer: a click would move focus here,
+            // and the button is gone a moment later.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={stop}
+            title="Stop generating"
+          >
             <span className="easy-stop-square" />
           </button>
         )}
