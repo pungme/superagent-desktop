@@ -29,6 +29,7 @@ import { SignInsDialog } from './SignInsDialog'
 import type { ChatLoop } from '../../../preload'
 import { visibleTimeIds } from '../lib/message-time-groups'
 import { fmtTokens } from '../lib/format-tokens'
+import { newTokens, processedTokens } from '../lib/token-usage'
 import { useAnimatedNumber } from '../lib/animated-number'
 import { useDictation } from '../lib/dictation'
 import { redirectTarget } from '../lib/background'
@@ -60,8 +61,11 @@ interface ChatMessage {
   replyTo?: { role: 'user' | 'assistant'; text: string } // WhatsApp-style quoted message
   system?: boolean // app-generated notice (e.g. a failed/empty turn), not from Claude
   at?: number // when it arrived, for the hover timestamp (absent on older saved chats)
-  /** Tokens the turn that produced this reply used in total (input+cache+output). */
+  /** Everything the turn that produced this reply processed (input+cache+output). */
   tokens?: number
+  /** What that turn added: output, plus input not read back from cache. This is
+   *  the figure shown; absent on replies saved before it was recorded. */
+  tokensNew?: number
 }
 
 /** A screenshot suggestion lasts this long, and holds at most this many. */
@@ -1222,9 +1226,13 @@ const MessageRow = memo(function MessageRow({
           {isAssistant && !msg.streaming && !!msg.tokens && (
             <span
               className="easy-msg-tokens"
-              title={`${msg.tokens.toLocaleString()} tokens this turn (input + cache + output)`}
+              title={
+                msg.tokensNew !== undefined
+                  ? `${msg.tokensNew.toLocaleString()} new tokens this turn · ${msg.tokens.toLocaleString()} processed, counting the conversation re-read from cache`
+                  : `${msg.tokens.toLocaleString()} tokens processed this turn (input + cache + output)`
+              }
             >
-              {fmtTokens(msg.tokens)}
+              {fmtTokens(msg.tokensNew ?? msg.tokens)}
             </span>
           )}
           {at !== null && (
@@ -1581,14 +1589,7 @@ export function EasyChat({
   // Context consumed by the last turn (input + cache tokens) — a quiet running
   // gauge of how full the conversation is.
   const [ctxTokens, setCtxTokens] = useState<number | null>(null)
-  // Read inside flushStream (a stable useCallback with no deps), which can't
-  // see state directly without becoming unstable itself — a plain mirror ref
-  // instead of adding ctxTokens to its dependency chain.
-  const ctxTokensRef = useRef<number | null>(null)
-  useEffect(() => {
-    ctxTokensRef.current = ctxTokens
-  }, [ctxTokens])
-  // Ticks up live while a turn runs (input+cache+output-so-far) so the
+  // Ticks up live while a turn runs (new tokens so far, see lib/token-usage) so the
   // "Working" indicator reads like a real progress readout, not a blank spinner.
   // Cleared once the turn's `result` lands and its total is folded into the
   // matching reply's own `tokens` field.
@@ -1727,16 +1728,16 @@ export function EasyChat({
     if (textDirty) {
       // The API only reports real usage once, when a message completes — there
       // is no per-token count to read meanwhile. Estimate the in-progress
-      // message's own cost from how much it's written so far (~4 chars/token)
-      // plus its likely context size (this chat's last known reading —  its
-      // own real size isn't known until IT completes either), on top of this
-      // turn's already-settled messages. Rough, but it climbs with the reply
+      // message's own cost from how much it's written so far (~4 chars/token),
+      // on top of this turn's already-settled messages. (Not its context size:
+      // that is the conversation re-read from cache, which the figure leaves
+      // out.) Rough, but it climbs with the reply
       // instead of sitting frozen for however long the message takes, and
       // gets corrected to the exact number the moment real usage lands.
       let committed = 0
       for (const v of turnUsageRef.current.values()) committed += v
       const estimate = Math.round(streamTextRef.current.length / 4)
-      setLiveTokens(committed + (ctxTokensRef.current ?? 0) + estimate)
+      setLiveTokens(committed + estimate)
     }
     const sid = streamingIdRef.current
     const tid = thinkingIdRef.current
@@ -2628,8 +2629,8 @@ export function EasyChat({
             (mu.cache_read_input_tokens ?? 0) +
             (mu.cache_creation_input_tokens ?? 0)
           if (live > 0) setCtxTokens(live)
-          // Same reading, plus output-so-far — what THIS request has spent.
-          const spent = live + (mu.output_tokens ?? 0)
+          // What THIS request added — the conversation it re-read is not new.
+          const spent = newTokens(mu)
           if (spent > 0) {
             const msgId = msg?.id as string | undefined
             if (msgId) {
@@ -3043,12 +3044,9 @@ export function EasyChat({
       if (type === 'result') {
         const u = (event as { usage?: Record<string, number> }).usage
         if (u) {
-          const processed =
-            (u.input_tokens ?? 0) +
-            (u.cache_read_input_tokens ?? 0) +
-            (u.cache_creation_input_tokens ?? 0)
           // Everything this turn processed — the dashboard's chart, not the meter.
-          const total = processed + (u.output_tokens ?? 0)
+          const total = processedTokens(u)
+          const added = newTokens(u)
           if (total > 0) window.cove.eventsRecord?.('tokens', workspaceId, total)
           // Stamp the turn's own reply with what it cost — the per-turn badge — and
           // let the running total (computed from every stamped reply) pick it up.
@@ -3065,7 +3063,8 @@ export function EasyChat({
               if (idx < 0) return prev
               const next = [...prev]
               const it = next[idx]
-              if (it.kind === 'msg') next[idx] = { ...it, msg: { ...it.msg, tokens: total } }
+              if (it.kind === 'msg')
+                next[idx] = { ...it, msg: { ...it.msg, tokens: total, tokensNew: added } }
               return next
             })
           }
@@ -4627,16 +4626,25 @@ export function EasyChat({
       ? 1_000_000
       : 200_000)
   const ctxPercent = Math.min(100, Math.round(((ctxTokens ?? 0) / ctxWindow) * 100))
-  // Every stamped reply's tokens, summed — this chat's running total across its
-  // whole lifetime (it's saved on the message, so it survives reloads), plus
-  // whatever the in-flight turn has spent so far, so the number keeps climbing
-  // live instead of jumping only when a turn lands.
-  const sessionTokens = useMemo(
-    () =>
-      items.reduce((sum, it) => sum + (it.kind === 'msg' ? (it.msg.tokens ?? 0) : 0), 0) +
-      (liveTokens ?? 0),
-    [items, liveTokens]
-  )
+  // Every stamped reply's new tokens, summed — this chat's running total across
+  // its whole lifetime (it's saved on the message, so it survives reloads), plus
+  // whatever the in-flight turn has added so far, so the number keeps climbing
+  // live instead of jumping only when a turn lands. The amount processed (cache
+  // reads included) rides along for the tooltip, and stands in for replies saved
+  // before the new-token figure was recorded.
+  const sessionUsage = useMemo(() => {
+    let added = liveTokens ?? 0
+    let processed = 0
+    let legacy = false
+    for (const it of items) {
+      if (it.kind !== 'msg' || !it.msg.tokens) continue
+      processed += it.msg.tokens
+      if (it.msg.tokensNew === undefined) legacy = true
+      else added += it.msg.tokensNew
+    }
+    return { added, processed, legacy }
+  }, [items, liveTokens])
+  const sessionTokens = sessionUsage.added || sessionUsage.processed
   const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
 
   return (
@@ -5643,8 +5651,23 @@ export function EasyChat({
               </span>
             )}
             {sessionTokens > 0 && (
-              <span className="easy-session-tokens" title="Tokens used across this whole chat">
-                {fmtTokens(sessionTokens)} tokens
+              <span
+                className="easy-session-tokens"
+                title={
+                  (sessionUsage.added
+                    ? `${sessionUsage.added.toLocaleString()} new tokens in this chat: what the agent wrote, plus what was added to the conversation. `
+                    : '') +
+                  (sessionUsage.processed
+                    ? `${sessionUsage.processed.toLocaleString()} processed in total — every request re-reads the conversation so far from cache, at a fraction of the price.`
+                    : '') +
+                  (sessionUsage.legacy && sessionUsage.added
+                    ? ' Earlier turns were recorded as a total only, so they count towards the second figure and not the first.'
+                    : '')
+                }
+              >
+                {sessionUsage.added
+                  ? `${fmtTokens(sessionUsage.added)} tokens`
+                  : `${fmtTokens(sessionUsage.processed)} processed`}
               </span>
             )}
           </span>

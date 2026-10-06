@@ -77,6 +77,7 @@ import { registerChatCopyIpc, copyStatus } from './chat-copy'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded } from './updater'
+import { startMemoryWatch } from './memory-watch'
 
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
@@ -277,6 +278,7 @@ app.whenReady().then(async () => {
     broadcastToWindows('browser:hands-off', { paneId, on, refused })
   )
   registerAgentIpc()
+  startMemoryWatch()
   registerLoops()
   // Must attach before any session starts: it is what the phone reads from.
   startCompanionLog()
@@ -765,7 +767,14 @@ ipcMain.handle('app:storage-usage', async () => {
     {
       key: 'logs',
       label: 'Logs',
-      paths: ['updater.log', 'pane-debug.log', 'pane-debug.log.old'].map((p) => join(userData, p))
+      paths: [
+        'updater.log',
+        'pane-debug.log',
+        'pane-debug.log.old',
+        'memory.log',
+        'memory.log.old',
+        'diagnostics'
+      ].map((p) => join(userData, p))
     }
   ]
   const duK = (path: string): Promise<number> =>

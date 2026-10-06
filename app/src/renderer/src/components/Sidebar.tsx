@@ -345,14 +345,19 @@ function BranchRow({
           <span className="sidebar-branch-title">
             {running && <span className="chat-tree-spinner" title="Working…" />}
             {unread && !running && <span className="sidebar-unread" />}
-            {label}
+            {/* The conversation's name, and the branch it runs in beneath it —
+                each with the whole width of the row, so neither is cut short
+                to make room for the other. */}
+            <span className="sidebar-branch-text">
+              <span className="sidebar-branch-label">{label}</span>
+              <span className="sidebar-branch-chat">
+                <span className="wt-glyph">⎇</span>
+                <span className="wt-name">{branch}</span>
+              </span>
+            </span>
           </span>
         )
       )}
-      {/* No tooltip: the chip itself widens on hover, like the project row's.
-          A tooltip is a second thing appearing somewhere else to tell you what
-          the first thing already says. */}
-      {chat && <span className="sidebar-branch-chat">⎇ {branch}</span>}
       {onRemove && (
         <button
           className="sidebar-branch-remove"
@@ -492,41 +497,51 @@ function ChatRow({
               <span className="sidebar-unread" title="Claude finished — you haven't read this" />
             )
           )}
-          <span className="chat-tree-label">{label}</span>
-          {Boolean(chat.pinned) && (
-            <span className="chat-tree-pinned" title="Pinned">
-              <PinGlyph />
+          {/* The name on its own line with the branch beneath it. Side by side
+              they shared one narrow row and both ended in an ellipsis: neither
+              the conversation nor where it was working could be read. */}
+          <span className="chat-tree-text">
+            <span className="chat-tree-line">
+              <span className="chat-tree-label">{label}</span>
+              {Boolean(chat.pinned) && (
+                <span className="chat-tree-pinned" title="Pinned">
+                  <PinGlyph />
+                </span>
+              )}
             </span>
-          )}
-          {!chat.cwd && chatPending(chat) ? (
-            /* Waiting for its first message. It is NOT on main — saying so would
-               be a lie about where the agent is about to write. */
-            <span
-              className="chat-tree-wt pending"
-              title="Its branch is cut when you send the first message"
-            >
-              not started
-            </span>
-          ) : chat.cwd && wtBranch === null ? (
-            /* Its copy is gone — removed by hand, or the branch merged and
-               reaped while the chat outlived it. Say so: rendering nothing made
-               a dead chat look exactly like a live one on the folder itself,
-               and a project full of them read as a list of identical rows.
-               ('' is not that: a copy of a folder of repos that has changed
-               none of them is on no branch yet, and gets no chip.) */
-            <span className="chat-tree-wt gone" title={`Its copy is gone: ${chat.cwd}`}>
-              copy gone
-            </span>
-          ) : (
-            (chat.cwd ? wtBranch : folderBranch) && (
+            {!chat.cwd && chatPending(chat) ? (
+              /* Waiting for its first message. It is NOT on main — saying so would
+                 be a lie about where the agent is about to write. */
               <span
-                className="chat-tree-wt"
-                title={chat.cwd ? `Its own copy: ${chat.cwd}` : 'Your folder'}
+                className="chat-tree-wt pending"
+                title="Its branch is cut when you send the first message"
               >
-                ⎇ {(chat.cwd ? wtBranch : folderBranch)!.replace(/^superagent\//, '')}
+                not started
               </span>
-            )
-          )}
+            ) : chat.cwd && wtBranch === null ? (
+              /* Its copy is gone — removed by hand, or the branch merged and
+                 reaped while the chat outlived it. Say so: rendering nothing made
+                 a dead chat look exactly like a live one on the folder itself,
+                 and a project full of them read as a list of identical rows.
+                 ('' is not that: a copy of a folder of repos that has changed
+                 none of them is on no branch yet, and gets no chip.) */
+              <span className="chat-tree-wt gone" title={`Its copy is gone: ${chat.cwd}`}>
+                copy gone
+              </span>
+            ) : (
+              (chat.cwd ? wtBranch : folderBranch) && (
+                <span
+                  className="chat-tree-wt"
+                  title={chat.cwd ? `Its own copy: ${chat.cwd}` : 'Your folder'}
+                >
+                  <span className="wt-glyph">⎇</span>
+                  <span className="wt-name">
+                    {(chat.cwd ? wtBranch : folderBranch)!.replace(/^superagent\//, '')}
+                  </span>
+                </span>
+              )
+            )}
+          </span>
         </span>
       )}
       <button

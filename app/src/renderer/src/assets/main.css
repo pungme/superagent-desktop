@@ -757,8 +757,40 @@ button {
   gap: 6px;
   overflow: hidden;
 }
-/* The title text gives way first; the worktree chip stays pinned so its name is
-   readable without dragging the sidebar wider. */
+/* The name over the branch it is working in. Two short lines rather than one
+   shared row: side by side, both were cut to a few letters and an ellipsis. */
+.chat-tree-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.chat-tree-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* The spinner or unread dot belongs to the name, not to the pair of lines. */
+.chat-tree-title > .chat-tree-spinner,
+.chat-tree-title > .chat-tree-bg,
+.chat-tree-title > .sidebar-unread,
+.sidebar-branch-title > .chat-tree-spinner,
+.sidebar-branch-title > .sidebar-unread {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+/* The elbow meets the name, not the middle of a two-line row. */
+.routine-tree-row.chat-tree-row::before {
+  top: 12px;
+}
+/* A little more air than a routine row gets: with a second line on most of
+   them, rows packed at 3px ran together into one block of text. */
+.routine-tree-row.chat-tree-row {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
 .chat-tree-label {
   flex: 1;
   min-width: 0;
@@ -1112,6 +1144,16 @@ button {
   align-items: center;
   gap: 6px;
   overflow: hidden;
+}
+.sidebar-branch-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.sidebar-branch-label {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1137,32 +1179,34 @@ button {
   color: var(--text-primary);
 }
 
+/* The branch the conversation runs in, on its own line under the name. Quiet:
+   the same face as the name, a size down and a tone lighter, so the pair reads
+   as one entry rather than as two competing labels. */
 .sidebar-branch-chat {
-  /* Shrinks, but not to nothing: a branch clipped to "m…" identifies nothing,
-     which is the whole reason it is on the row. The title gives way first — it
-     is the longer of the two and the one you are already reading. */
-  flex: 0 1 auto;
-  min-width: 64px;
-  margin-left: auto;
-  padding-left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 1px;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+.sidebar-branch:has(.sidebar-branch-chat) {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+/* The glyph keeps its own slot, so every branch name starts on the same edge. */
+.wt-glyph {
+  flex: none;
+  font-size: 9px;
+  opacity: 0.7;
+}
+.wt-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-tertiary);
-  font-size: 11px;
-  transition: max-width 0.16s ease;
-}
-/* Hovering the row shows the whole branch name: the same pill widens in place
-   and the conversation title gives way, exactly as the project row's chip does.
-   No clone, no tooltip, nothing floating. */
-.sidebar-branch:hover .sidebar-branch-chat {
-  /* Widen, but never past the × — a branch name long enough to fill the row
-     pushed the delete button out of reach, and hovering the row is exactly when
-     you are reaching for it. It still shrinks (0 1) rather than claiming space
-     it cannot have, so a very long name ellipsizes at the widest it fits. */
-  flex: 0 1 auto;
-  max-width: calc(100% - 108px);
-  color: var(--text-secondary);
 }
 /* Branches cut from the folder sit under it, the way they do in the sketch. */
 .sidebar-branch.nested {
@@ -7890,14 +7934,14 @@ button {
 }
 
 .chat-tree-wt {
-  flex-shrink: 0;
-  max-width: 55%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 1px;
+  font-size: 10.5px;
+  font-weight: 400;
   color: var(--text-tertiary);
-  font-family: 'SF Mono', ui-monospace, monospace;
 }
 
 .tabs-head {
