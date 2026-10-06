@@ -1,4 +1,5 @@
-import { ipcMain, WebContents } from 'electron'
+import { BrowserWindow, ipcMain, WebContents } from 'electron'
+import { cancelAgentSignIn, signInAgent } from './agent-signin'
 import { spawn } from 'child_process'
 import { loginShellExec, loginShellExecAsync } from './claude-cli'
 import { AGENT_PROVIDERS, type AgentProvider } from '../shared/agent-provider'
@@ -218,22 +219,6 @@ export function installProvider(
  * a TUI/browser handshake we can't do silently, but this makes it a single click
  * instead of "open your terminal and type this".
  */
-const LOGIN_COMMAND: Record<AgentProvider, string> = {
-  claude: 'claude',
-  codex: 'codex login',
-  // Launched bare, agy walks through its Google sign-in before anything else.
-  antigravity: 'agy'
-}
-
-export function openProviderLogin(provider: AgentProvider): void {
-  spawn('osascript', [
-    '-e',
-    'tell application "Terminal" to activate',
-    '-e',
-    `tell application "Terminal" to do script "${LOGIN_COMMAND[provider]}"`
-  ])
-}
-
 export function registerEnvironmentIpc(): void {
   ipcMain.handle('env:detect', () => detectEnvironment())
   // Async + cached — the sync variant blocked main for the shell + CLI startup,
@@ -249,5 +234,13 @@ export function registerEnvironmentIpc(): void {
       if (!wc.isDestroyed()) wc.send('env:install-progress', line)
     })
   )
-  ipcMain.on('env:open-login', (_e, provider: AgentProvider) => openProviderLogin(provider))
+  // Sign in, in a window of ours (agent-signin.ts). The old channel is kept
+  // for callers that only fire it; it no longer opens Terminal.
+  ipcMain.on('env:open-login', (e, provider: AgentProvider) => {
+    void signInAgent(provider, BrowserWindow.fromWebContents(e.sender))
+  })
+  ipcMain.handle('env:sign-in', (e, provider: AgentProvider) =>
+    signInAgent(provider, BrowserWindow.fromWebContents(e.sender))
+  )
+  ipcMain.on('env:cancel-sign-in', () => cancelAgentSignIn())
 }

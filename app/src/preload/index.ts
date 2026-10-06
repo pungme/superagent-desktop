@@ -821,6 +821,11 @@ export interface CoveApi {
   ) => Promise<{ ok: boolean; error?: string }>
   /** Open Terminal on the CLI's one-time interactive sign-in. */
   openAgentLogin: (provider: AgentProvider) => void
+  /** Sign an agent in, in a window of Superagent's own. Resolves when it is over. */
+  signInAgent: (
+    provider: AgentProvider
+  ) => Promise<{ ok: true } | { ok: false; cancelled?: boolean; error: string }>
+  cancelAgentSignIn: () => void
   /** Give the app's own renderer keyboard focus (a hidden page view otherwise keeps it). */
   browserFocusShell: () => void
   filesList: (root: string) => Promise<string[]>
@@ -1259,6 +1264,8 @@ const cove: CoveApi = {
       .finally(() => ipcRenderer.removeListener('env:install-progress', listener))
   },
   openAgentLogin: (provider) => ipcRenderer.send('env:open-login', provider),
+  signInAgent: (provider) => ipcRenderer.invoke('env:sign-in', provider),
+  cancelAgentSignIn: () => ipcRenderer.send('env:cancel-sign-in'),
   browserFocusShell: () => ipcRenderer.send('browser:focus-shell'),
   filesList: (root) => ipcRenderer.invoke('files:list', root),
   filesComplete: (prefix) => ipcRenderer.invoke('files:complete', prefix),

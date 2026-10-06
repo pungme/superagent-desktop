@@ -1,6 +1,7 @@
 import { ConnectionsStep } from './MailConnection'
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
+import { ProviderLogo } from './ProviderLogo'
 import {
   AGENT_PROVIDERS,
   PROVIDER_PRODUCT,
@@ -21,43 +22,24 @@ type EnvStatus = {
   loggedIn: boolean
 }
 
-/** What each agent needs said about it on a first run. */
-const COPY: Record<
-  AgentProvider,
-  {
-    blurb: string
-    link: string
-    linkText: string
-    manual: string
-    signIn: string
-    terminal: string
-  }
-> = {
+/** What each agent runs on, and how to install it by hand if the button fails. */
+const COPY: Record<AgentProvider, { plan: string; manual: string }> = {
   claude: {
-    blurb: "Anthropic's coding agent, on your own Claude subscription.",
-    link: 'https://claude.com/claude-code',
-    linkText: "What's Claude Code? →",
-    manual: 'curl -fsSL https://claude.ai/install.sh | bash',
-    signIn: 'Sign in once with a Claude Pro/Max plan or API credits.',
-    terminal: 'claude'
+    plan: 'Anthropic · a Claude Pro or Max plan',
+    manual: 'curl -fsSL https://claude.ai/install.sh | bash'
   },
   codex: {
-    blurb: "OpenAI's coding agent, on your own ChatGPT plan.",
-    link: 'https://developers.openai.com/codex/cli',
-    linkText: "What's Codex? →",
-    manual: 'npm install -g @openai/codex',
-    signIn: 'Sign in once with a ChatGPT Plus/Pro plan or an API key.',
-    terminal: 'codex login'
+    plan: 'OpenAI · a ChatGPT Plus or Pro plan',
+    manual: 'npm install -g @openai/codex'
   },
   antigravity: {
-    blurb: "Google's coding agent, on your own Google AI plan.",
-    link: 'https://antigravity.google/product/antigravity-cli',
-    linkText: "What's Antigravity? →",
-    manual: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
-    signIn: 'Sign in once with your Google account.',
-    terminal: 'agy'
+    plan: 'Google · a Google AI plan',
+    manual: 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
   }
 }
+
+/** What a row is in the middle of, in the words shown under its name. */
+type Busy = { provider: AgentProvider; what: 'install' | 'signin'; line: string }
 
 function isReady(env: EnvStatus | null): boolean {
   return !!env && AGENT_PROVIDERS.some((p) => env[p]?.installed && env[p]?.loggedIn)
@@ -68,56 +50,70 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
   const [checkError, setCheckError] = useState('')
   const [env, setEnv] = useState<EnvStatus | null>(null)
   const [checking, setChecking] = useState(true)
-  /** Which agent is installing right now, if any. */
-  const [installing, setInstalling] = useState<AgentProvider | null>(null)
-  // The latest line of installer output, shown as a live status.
-  const [installLine, setInstallLine] = useState('')
-  const [installError, setInstallError] = useState<{
-    provider: AgentProvider
-    message: string
-  } | null>(null)
+  const [busy, setBusy] = useState<Busy | null>(null)
+  const [failed, setFailed] = useState<{ provider: AgentProvider; message: string } | null>(null)
   const setProvider = useStore((s) => s.setProvider)
 
-  const check = async (): Promise<void> => {
+  const check = async (): Promise<EnvStatus | null> => {
     setChecking(true)
-    setInstallError(null)
     setCheckError('')
     try {
-      setEnv(await window.cove.envDetect())
+      const status = await window.cove.envDetect()
+      setEnv(status)
+      return status
     } catch {
-      setCheckError('Could not check your agents. Try again or skip setup for now.')
+      setCheckError('Could not check your agents. Try again, or skip setup for now.')
+      return null
     } finally {
       setChecking(false)
     }
   }
 
-  // One-click install, then re-check so the step flips to ✓.
-  const install = async (provider: AgentProvider): Promise<void> => {
-    setInstalling(provider)
-    setInstallError(null)
-    setInstallLine(`Downloading ${PROVIDER_PRODUCT[provider]}…`)
+  // The one button on a row: install it if it is missing, then sign in, all
+  // here. Signing in opens a Superagent window on the agent's own sign-in
+  // page; nothing is handed to Terminal or the browser.
+  const connect = async (provider: AgentProvider): Promise<void> => {
+    setFailed(null)
     try {
-      const res = await window.cove.installAgent(provider, (line) => {
-        const last = line.trim().split('\n').filter(Boolean).pop()
-        if (last) setInstallLine(last.slice(0, 120))
-      })
-      if (res.ok) {
-        setInstallLine('Installed. Checking…')
-        await check()
-      } else {
-        setInstallError({ provider, message: res.error || 'Install failed.' })
+      let status = env?.[provider]
+      if (!status?.installed) {
+        setBusy({ provider, what: 'install', line: 'Downloading…' })
+        const res = await window.cove.installAgent(provider, (line) => {
+          const last = line.trim().split('\n').filter(Boolean).pop()
+          if (last) setBusy({ provider, what: 'install', line: last.slice(0, 80) })
+        })
+        if (!res.ok) {
+          setFailed({ provider, message: res.error || 'The install did not finish.' })
+          return
+        }
+        status = (await check())?.[provider]
+        if (!status?.installed) {
+          setFailed({ provider, message: 'Installed, but Superagent cannot find it yet.' })
+          return
+        }
+      }
+      if (!status.loggedIn) {
+        setBusy({ provider, what: 'signin', line: 'Waiting for you to sign in…' })
+        const res = await window.cove.signInAgent(provider)
+        if (!res.ok) {
+          if (!res.cancelled) setFailed({ provider, message: res.error })
+          return
+        }
+        // Signed in: say so now, and let the slower check confirm it.
+        setEnv((e) => (e ? { ...e, [provider]: { ...e[provider], loggedIn: true } } : e))
+        void check()
       }
     } catch (e) {
-      setInstallError({ provider, message: e instanceof Error ? e.message : 'Install failed.' })
+      setFailed({ provider, message: e instanceof Error ? e.message : 'Something went wrong.' })
     } finally {
-      setInstalling(null)
+      setBusy(null)
     }
   }
 
-  // Show ready agents briefly before the optional app connections step.
+  // Someone who already has an agent connected has nothing to do here: on to
+  // the optional connections, without flashing this step up for a second first.
   useEffect(() => {
     let active = true
-    let timer: ReturnType<typeof setTimeout> | undefined
     window.cove
       .envDetect()
       .then((status) => {
@@ -125,20 +121,17 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
         setEnv(status)
         setChecking(false)
         const usable = AGENT_PROVIDERS.filter((p) => status[p]?.installed && status[p]?.loggedIn)
-        if (usable.length > 0) {
-          if (usable.length === 1) setProvider(usable[0])
-          timer = setTimeout(() => setStep('connections'), 1400)
-        }
+        if (usable.length === 1) setProvider(usable[0])
+        if (usable.length > 0) setStep('connections')
       })
       .catch(() => {
         if (active) {
           setChecking(false)
-          setCheckError('Could not check your agents. Try again or skip setup for now.')
+          setCheckError('Could not check your agents. Try again, or skip setup for now.')
         }
       })
     return () => {
       active = false
-      clearTimeout(timer)
     }
   }, [setProvider])
 
@@ -176,7 +169,17 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
                 <stop offset="1" stopColor="#e6e6ea" />
               </linearGradient>
             </defs>
-            <rect width="96" height="96" rx="21.5" fill="url(#sa-tile)" />
+            {/* The hairline keeps the dark tile's edge on a dark background. */}
+            <rect
+              x="0.75"
+              y="0.75"
+              width="94.5"
+              height="94.5"
+              rx="21"
+              fill="url(#sa-tile)"
+              stroke="rgba(255,255,255,0.14)"
+              strokeWidth="1.5"
+            />
             <rect
               className="onboarding-logo-dot"
               x="34"
@@ -189,99 +192,75 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
           </svg>
         </div>
         <h1>Welcome to Superagent</h1>
-        <p className="onboarding-sub">Step 1 of 2 · Check your agents</p>
-
         <p className="onboarding-intro">
-          Superagent ships no AI of its own — it runs on an agent you already pay for. Set up{' '}
-          <b>any one</b> and you&rsquo;re ready; you can switch between them, per chat, at any time.
+          Superagent runs on an AI agent you already have a plan for. Connect one to start; you can
+          add the others later.
         </p>
 
         <div className="onboarding-agents">
           {AGENT_PROVIDERS.map((provider) => {
             const status = env?.[provider]
-            const copy = COPY[provider]
-            const busy = installing === provider
+            const connected = !!status?.installed && !!status?.loggedIn
+            const mine = busy?.provider === provider ? busy : null
+            const error = failed?.provider === provider ? failed.message : null
             return (
-              <div
-                key={provider}
-                className={`onboarding-agent ${status?.installed && status?.loggedIn ? 'ok' : ''}`}
-              >
-                <div className="onboarding-agent-head">
-                  <strong>{PROVIDER_PRODUCT[provider]}</strong>
-                  {status?.installed && status?.loggedIn && (
-                    <span className="onboarding-agent-badge">Ready</span>
+              <div key={provider} className={`onboarding-agent ${connected ? 'ok' : ''}`}>
+                <span className="onboarding-agent-logo">
+                  <ProviderLogo provider={provider} size={20} />
+                </span>
+                <span className="onboarding-agent-text">
+                  <span className="onboarding-agent-name">{PROVIDER_PRODUCT[provider]}</span>
+                  {mine ? (
+                    <span className="onboarding-agent-plan busy">
+                      <span className="onboarding-spinner" />
+                      {mine.what === 'install' ? `Installing… ${mine.line}` : mine.line}
+                    </span>
+                  ) : (
+                    <span className="onboarding-agent-plan">{COPY[provider].plan}</span>
                   )}
-                </div>
-                <p className="onboarding-agent-blurb">
-                  {copy.blurb}{' '}
-                  <a href={copy.link} target="_blank" rel="noopener noreferrer">
-                    {copy.linkText}
-                  </a>
-                </p>
-
-                <div className={`onboarding-step ${status?.installed ? 'ok' : 'todo'}`}>
-                  <span className="step-icon">{status?.installed ? '✓' : '!'}</span>
-                  <div className="step-body">
-                    <strong>Installed</strong>
-                    {status?.installed ? (
-                      <span>Version {status.version}</span>
-                    ) : busy ? (
-                      <span className="onboarding-install-progress">
-                        <span className="onboarding-spinner" /> {installLine || 'Installing…'}
-                      </span>
-                    ) : (
-                      <span>
-                        Not found.
-                        <button
-                          className="onboarding-install-btn"
-                          onClick={() => install(provider)}
-                          disabled={!!installing}
-                        >
-                          Install
-                        </button>
-                        {installError?.provider === provider && installing === null && (
-                          <span className="onboarding-install-error">
-                            {installError.message}
-                            <br />
-                            Or run it yourself: <code>{copy.manual}</code>
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div
-                  className={`onboarding-step ${
-                    status?.loggedIn ? 'ok' : !status?.installed ? 'wait' : 'todo'
-                  }`}
-                >
-                  <span className="step-icon">
-                    {status?.loggedIn ? '✓' : status?.installed ? '!' : '·'}
+                </span>
+                {connected ? (
+                  <span className="onboarding-agent-ready">
+                    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                      <path
+                        d="M3.5 8.4l3 3 6-6.6"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Connected
                   </span>
-                  <div className="step-body">
-                    <strong>Signed in</strong>
-                    {status?.loggedIn ? (
-                      <span>You&rsquo;re signed in and ready.</span>
-                    ) : status?.installed ? (
-                      <span>
-                        {copy.signIn}
-                        <button
-                          className="onboarding-install-btn"
-                          onClick={() => window.cove.openAgentLogin(provider)}
-                        >
-                          Sign in
-                        </button>
-                        <span className="onboarding-hint">
-                          Opens Terminal running <code>{copy.terminal}</code> — follow the prompts,
-                          then Re-check.
-                        </span>
-                      </span>
-                    ) : (
-                      <span>Install it first.</span>
+                ) : mine?.what === 'signin' ? (
+                  <button
+                    className="onboarding-agent-btn quiet"
+                    onClick={() => window.cove.cancelAgentSignIn()}
+                  >
+                    Cancel
+                  </button>
+                ) : (
+                  <button
+                    className="onboarding-agent-btn"
+                    onClick={() => void connect(provider)}
+                    disabled={!!busy}
+                  >
+                    {status?.installed ? 'Sign in' : 'Install'}
+                  </button>
+                )}
+                {error && (
+                  <span role="alert" className="onboarding-agent-error">
+                    {error}
+                    {!status?.installed && (
+                      <>
+                        {' '}
+                        To install it yourself, run <code>{COPY[provider].manual}</code> and press
+                        Check again.
+                      </>
                     )}
-                  </div>
-                </div>
+                  </span>
+                )}
               </div>
             )
           })}
@@ -293,9 +272,6 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
           </p>
         )}
         <div className="onboarding-actions">
-          <button className="onboarding-recheck" onClick={check} disabled={checking}>
-            {checking ? 'Checking…' : 'Re-check'}
-          </button>
           <button
             className="onboarding-continue"
             onClick={() => {
@@ -308,11 +284,26 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
             Continue
           </button>
         </div>
-        {!ready && !checking && (
-          <button className="onboarding-skip" onClick={() => setStep('connections')}>
-            Skip setup for now
+        <p className="onboarding-foot">
+          <button
+            className="onboarding-skip"
+            onClick={() => {
+              setFailed(null)
+              void check()
+            }}
+            disabled={checking}
+          >
+            {checking ? 'Checking…' : 'Check again'}
           </button>
-        )}
+          {!ready && (
+            <>
+              {' · '}
+              <button className="onboarding-skip" onClick={() => setStep('connections')}>
+                Skip for now
+              </button>
+            </>
+          )}
+        </p>
       </div>
     </div>
   )

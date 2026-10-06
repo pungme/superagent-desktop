@@ -15,6 +15,7 @@ import {
   recordEvent
 } from './store'
 import { copyBeforeWrite } from './copy-on-write'
+import { simulatorBeforeShell } from './sim-guard'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL } from '../shared/agent-provider'
 import { paneLog, allowUserFocus } from './browser'
 import {
@@ -217,6 +218,9 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
     typeof body.cwd === 'string' ? body.cwd : undefined
   ).catch(() => null)
   if (held) return DENY_JSON(held)
+  // Its shell stays off another conversation's simulator (sim-guard.ts).
+  const sim = simulatorBeforeShell(toolName, body.tool_input, chatId)
+  if (sim) return DENY_JSON(sim)
 
   const cls = classifyTool(toolName)
   if (cls === 'taint') {
@@ -274,6 +278,8 @@ async function decideAntigravityTool(
     (chatId ? getChat(chatId)?.cwd : undefined) ?? undefined
   ).catch(() => null)
   if (held) return agyDecision('deny', held)
+  const sim = simulatorBeforeShell(call.name, call.input, chatId)
+  if (sim) return agyDecision('deny', sim)
 
   if (key) {
     const cls = classifyTool(call.name)

@@ -5782,12 +5782,12 @@ button {
 
 .routine-run:hover {
   background: var(--hover);
-  color: #6ee7b7;
+  color: var(--success, #2f9e5b);
 }
 
 .routine-delete:hover {
   background: var(--hover);
-  color: #f97583;
+  color: var(--danger, #d64545);
 }
 
 .routine-prompt-text {
@@ -10095,6 +10095,9 @@ button {
 }
 
 .switch input:checked + .switch-slider::before {
+  /* The knob takes the colour that reads on the accent; a white knob on dark
+     mode's near-white accent could not be seen. */
+  background: var(--accent-fg);
   transform: translateX(16px);
 }
 
@@ -10110,8 +10113,7 @@ button {
 }
 
 .onboarding-card {
-  /* Three agents side by side; one column each on a narrow window. */
-  width: 1060px;
+  width: 560px;
   max-width: 90%;
   padding: 40px 36px;
   text-align: center;
@@ -10182,133 +10184,109 @@ button {
   border-bottom-color: var(--text-primary);
 }
 
-.onboarding-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  text-align: left;
-  margin-bottom: 24px;
-}
-
-/* One card per agent. You need any one, not all, so they sit as equals rather
-   than as a primary choice with alternatives underneath it. */
+/* One row per agent, joined into a single card: which one, what plan it runs
+   on, and one control at the right that does whatever is left to do. */
 .onboarding-agents {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  text-align: left;
-  margin-bottom: 24px;
-}
-
-@media (max-width: 980px) {
-  .onboarding-agents {
-    grid-template-columns: 1fr;
-  }
-}
-
-.onboarding-agent {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  width: 460px;
+  max-width: 100%;
+  margin: 0 auto 22px;
+  border: 1px solid var(--border);
   border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--bg-content);
+  background: var(--bg-panel);
+  text-align: left;
+  overflow: hidden;
 }
-
-.onboarding-agent.ok {
-  border-color: rgba(110, 231, 183, 0.45);
-}
-
-.onboarding-agent-head {
-  display: flex;
+.onboarding-agent {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 15px;
+  column-gap: 12px;
+  padding: 14px 16px;
 }
-
-.onboarding-agent-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(110, 231, 183, 0.18);
-  color: #6ee7b7;
+.onboarding-agent + .onboarding-agent {
+  border-top: 1px solid var(--border);
 }
-
-.onboarding-agent-blurb {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.onboarding-agent-blurb a {
-  color: var(--accent);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.onboarding-agent-blurb a:hover {
-  text-decoration: underline;
-}
-
-.onboarding-step {
-  display: flex;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 12px;
+.onboarding-agent-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
   background: var(--hover);
-  border: 1px solid var(--border);
-}
-
-.step-icon {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  background: var(--active);
-  color: var(--text-secondary);
 }
-
-.onboarding-step.ok .step-icon {
-  background: rgba(110, 231, 183, 0.2);
-  color: #6ee7b7;
-}
-
-.onboarding-step.todo .step-icon {
-  background: rgba(251, 191, 36, 0.2);
-  color: #fbbf24;
-}
-
-.step-body {
+.onboarding-agent-text {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  font-size: 13px;
+  gap: 2px;
 }
-
-.step-body span {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.step-body code {
-  display: inline-block;
-  margin-top: 4px;
-  font-family: 'SF Mono', ui-monospace, monospace;
-  font-size: 11px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 4px 7px;
-  border-radius: 5px;
+.onboarding-agent-name {
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-primary);
+}
+.onboarding-agent-plan {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.onboarding-agent-plan.busy {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-primary);
+}
+.onboarding-agent-error {
+  grid-column: 2 / -1;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--danger, #d64545);
+  white-space: normal;
+}
+.onboarding-agent-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--accent-fg);
+  white-space: nowrap;
+}
+.onboarding-agent-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.onboarding-agent-btn:disabled {
+  opacity: 0.4;
+}
+.onboarding-agent-btn.quiet {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.onboarding-agent-btn.quiet:hover:not(:disabled) {
+  background: var(--active);
+  filter: none;
+}
+.onboarding-agent-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--success, #2f9e5b);
+}
+.onboarding-agent-ready svg {
+  flex: none;
+}
+.onboarding-foot {
+  margin-top: 18px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
 }
 
 .onboarding-actions {
@@ -10345,7 +10323,7 @@ button {
 }
 
 .onboarding-skip {
-  margin-top: 14px;
+  padding: 0;
   border: none;
   background: none;
   color: var(--text-tertiary);
@@ -10428,39 +10406,7 @@ button {
   line-height: 1;
 }
 
-/* Onboarding: one-click install / sign-in button + progress. */
-.onboarding-install-btn {
-  /* Its own line at its natural width. Inline-block put it beside a short label
-     like "Not found." and the 8px top margin then dropped it onto the next row,
-     overlapping it — which is what a two-column card layout makes short. */
-  display: block;
-  width: fit-content;
-  margin-top: 8px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: none;
-  background: var(--accent, #4f46e5);
-  color: var(--accent-fg, #fff);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.onboarding-install-btn:hover {
-  filter: brightness(1.08);
-}
-.onboarding-hint {
-  display: block;
-  margin-top: 6px;
-  font-size: 11.5px;
-  color: var(--text-tertiary);
-}
-.onboarding-install-progress {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-variant-numeric: tabular-nums;
-}
+/* Onboarding: the spinner beside an install or a sign-in in progress. */
 .onboarding-spinner {
   width: 13px;
   height: 13px;
@@ -12698,7 +12644,8 @@ button {
   border-radius: 6px;
   padding: 4px 10px;
   background: var(--accent);
-  color: #fff;
+  /* What sits on the accent: white on it was white on white in dark mode. */
+  color: var(--accent-fg);
   font-size: 12px;
   cursor: pointer;
 }
@@ -12816,7 +12763,8 @@ button {
   padding: 6px 12px;
   font-size: 12.5px;
   font-weight: 500;
-  color: #fff;
+  /* What sits on the accent: white on it was white on white in dark mode. */
+  color: var(--accent-fg);
   background: var(--accent);
   cursor: pointer;
   white-space: nowrap;
@@ -12928,4 +12876,9 @@ button {
 
 .connections-card .onboarding-actions {
   margin-top: 24px;
+}
+
+/* Step two keeps its Skip under the button; step one has it in the foot line. */
+.connections-card .onboarding-skip {
+  margin-top: 14px;
 }

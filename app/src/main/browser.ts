@@ -194,7 +194,7 @@ function chromeUserAgent(defaultUA: string): string {
  * navigator.webdriver true and is a bot tell in itself, and a permanent one
  * also blocked the automation tools from attaching their own.
  */
-function applyBrowserIdentity(wc: Electron.WebContents): void {
+export function applyBrowserIdentity(wc: Electron.WebContents): void {
   const chromeUA = chromeUserAgent(wc.getUserAgent())
   wc.setUserAgent(chromeUA)
   // …and a Firefox on Google's sign-in pages, which refuse a bare Chromium.

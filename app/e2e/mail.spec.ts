@@ -66,8 +66,8 @@ test.afterAll(async () => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-test('checks ready agents then offers optional Mail; handles denial and retry', async () => {
-  await expect(page.getByText('Step 1 of 2 · Check your agents')).toBeVisible()
+test('with an agent ready, goes straight to optional Mail; handles denial and retry', async () => {
+  // Nothing to set up, so the agents step is not flashed up on the way.
   await expect(page.getByRole('heading', { name: 'Connect your apps' })).toBeVisible({
     timeout: 15000
   })
@@ -135,8 +135,8 @@ test('install errors belong to one agent and clear when rechecking', async () =>
   await expect(agents.first()).toContainText('Test installer failed')
   await expect(agents.nth(1)).not.toContainText('Test installer failed')
   await expect(agents.nth(2)).not.toContainText('Test installer failed')
-  await page.getByRole('button', { name: 'Re-check', exact: true }).click()
+  await page.getByRole('button', { name: 'Check again', exact: true }).click()
   await expect(page.getByText('Test installer failed')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Skip setup for now' }).click()
+  await page.getByRole('button', { name: 'Skip for now' }).click()
   await expect(page.getByRole('heading', { name: 'Connect your apps' })).toBeVisible()
 })
