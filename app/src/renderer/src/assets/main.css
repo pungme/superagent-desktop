@@ -1541,11 +1541,23 @@ button {
 .usage-popover-row.on .usage-popover-name {
   font-weight: 600;
 }
+/* One line per window, in columns: its name, how full, when it starts over. */
 .usage-popover-windows {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: max-content 34px 1fr;
+  column-gap: 8px;
+  row-gap: 1px;
   font-size: 11px;
   color: var(--text-tertiary);
+}
+.usage-popover-window {
+  display: contents;
+}
+.usage-popover-window b {
+  text-align: right;
+}
+.usage-popover-reset {
+  white-space: nowrap;
 }
 .usage-popover-window b {
   font-weight: 600;

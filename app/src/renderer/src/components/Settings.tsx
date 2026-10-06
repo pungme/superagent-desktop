@@ -1,3 +1,4 @@
+import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Account } from '../../../preload'
@@ -121,16 +122,6 @@ function NavIcon({ id }: { id: SectionId }): React.JSX.Element {
 /** The small label above a group of settings. */
 function GroupLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return <div className="settings-group-label">{children}</div>
-}
-
-/** When a usage window starts over: "6 PM" today, else "Mon 10 PM". */
-function resetLabel(at: number, now: number): string {
-  // To the nearest minute: a window reported as ending at 15:59:59.9 ends at 4.
-  const d = new Date(Math.round(at / 60_000) * 60_000)
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-  return at - now < 20 * 3_600_000
-    ? time
-    : `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`
 }
 
 /** "just now", "12 min ago", "3 h ago": how old the numbers are. */

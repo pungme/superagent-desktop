@@ -3,6 +3,7 @@ import type { Account } from '../../../preload'
 import { useStore } from '../state'
 import { AGENT_PROVIDERS, PROVIDER_LABEL, type AgentProvider } from '../../../shared/agent-provider'
 import { ProviderLogo } from './ProviderLogo'
+import { resetLabel } from '../../../shared/usage-reset'
 
 /** Asked of a chat's own view: move it to this account (EasyChat restarts its agent). */
 export const PICK_ACCOUNT_EVENT = 'cove:pick-account'
@@ -146,10 +147,18 @@ export function UsageFooter(): React.JSX.Element | null {
                         ? 'needs sign-in'
                         : a.usage
                           ? a.usage.windows.map((w) => {
-                              const v = w.resetsAt && w.resetsAt <= Date.now() ? 0 : w.percent
+                              const now = Date.now()
+                              const over = !!w.resetsAt && w.resetsAt <= now
+                              const v = over ? 0 : w.percent
                               return (
                                 <span key={w.label} className={`usage-popover-window ${level(v)}`}>
-                                  {w.label} <b>{v}%</b>
+                                  <span>{w.label}</span>
+                                  <b>{v}%</b>
+                                  <span className="usage-popover-reset">
+                                    {w.resetsAt && !over
+                                      ? `resets ${resetLabel(w.resetsAt, now)}`
+                                      : ''}
+                                  </span>
                                 </span>
                               )
                             })
