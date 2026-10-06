@@ -561,9 +561,107 @@ export function isMirroring(udid: string): boolean {
 const simByChat = new Map<string, string>()
 export const simBus = new EventEmitter()
 
+/** The order conversations took their device in: the earlier one keeps it. */
+const simClaim = new Map<string, number>()
+let claimSeq = 0
+/** Conversations told, on purpose, to drive a device another one has. */
+const simShared = new Set<string>()
+
+/** This conversation was asked to share whatever device it is on. */
+export function allowSharedSimulator(chatId: string | null | undefined): void {
+  if (chatId) simShared.add(chatId)
+}
+
+/**
+ * Another conversation that had this device before this one did. A pane can
+ * put a second conversation on a device that is already taken (it shows
+ * whatever is booted); the one that was there first is the one that keeps it.
+ */
+export function chatAheadOnSimulator(
+  udid: string,
+  chatId: string | null | undefined
+): string | null {
+  if (chatId && simShared.has(chatId)) return null
+  const mine = chatId ? (simClaim.get(chatId) ?? Infinity) : Infinity
+  for (const [other, id] of simByChat) {
+    if (id === udid && other !== chatId && (simClaim.get(other) ?? 0) < mine) return other
+  }
+  return null
+}
+
+export interface SimDevice {
+  name: string
+  udid: string
+  state: string
+  /** e.g. com.apple.CoreSimulator.SimRuntime.iOS-26-0 */
+  runtime: string
+  deviceTypeIdentifier?: string
+}
+
+export type SimChoice =
+  | { use: SimDevice; insteadOf?: SimDevice }
+  | { create: { name: string; deviceType: string; runtime: string }; insteadOf: SimDevice }
+  /** Several are booted and free, and nothing says which this one wants. */
+  | { ambiguous: SimDevice[] }
+  | null
+
+/**
+ * The device a conversation should drive, so that two conversations never
+ * install over each other: its own if it has one, else a booted device nobody
+ * has, else a second device of the same model as the one that is taken — an
+ * existing one, or one to be created. Null when nothing is booted and there is
+ * nothing to go by, which is for the agent to decide.
+ */
+export function chooseSimulator(
+  chatId: string | null | undefined,
+  devices: SimDevice[],
+  opts: { like?: string } = {}
+): SimChoice {
+  const taken = new Set<string>()
+  for (const [other, id] of simByChat) if (other !== chatId) taken.add(id)
+  const mine = chatId ? simByChat.get(chatId) : undefined
+  const own = mine ? devices.find((d) => d.udid === mine) : undefined
+  if (own && !opts.like && !chatAheadOnSimulator(own.udid, chatId)) return { use: own }
+
+  const asked = opts.like ? devices.find((d) => d.udid === opts.like) : undefined
+  if (asked && !taken.has(asked.udid)) return { use: asked }
+  if (!asked) {
+    const free = devices.filter((d) => d.state === 'Booted' && !taken.has(d.udid))
+    const booted = devices.filter((d) => d.state === 'Booted')
+    const shown = free.find((d) => d.udid === currentUdid)
+    if (shown) return { use: shown }
+    const models = new Set(booted.map((d) => d.deviceTypeIdentifier ?? d.udid))
+    if (models.size === 1 && free.length) return { use: free[0] }
+    // More than one model is running and nothing says which this conversation
+    // wants: an iPad is not a stand-in for an iPhone. The agent says which.
+    if (models.size > 1 && !own) return { ambiguous: free }
+  }
+  // The one running is someone else's: a second one of the same model.
+  const ref = asked ?? own ?? devices.find((d) => d.state === 'Booted' && taken.has(d.udid))
+  if (!ref) return null
+  const twin = devices.find(
+    (d) =>
+      d.udid !== ref.udid &&
+      !taken.has(d.udid) &&
+      d.runtime === ref.runtime &&
+      !!d.deviceTypeIdentifier &&
+      d.deviceTypeIdentifier === ref.deviceTypeIdentifier
+  )
+  if (twin) return { use: twin, insteadOf: ref }
+  if (!ref.deviceTypeIdentifier) return null
+  const base = ref.name.replace(/ \(\d+\)$/, '')
+  let n = 2
+  while (devices.some((d) => d.name === `${base} (${n})`)) n++
+  return {
+    create: { name: `${base} (${n})`, deviceType: ref.deviceTypeIdentifier, runtime: ref.runtime },
+    insteadOf: ref
+  }
+}
+
 export function noteSimulatorOpen(chatId: string | null | undefined, udid: string): void {
   if (!chatId) return
   if (simByChat.get(chatId) === udid) return
+  simClaim.set(chatId, ++claimSeq)
   simByChat.set(chatId, udid)
   simBus.emit('changed', { chatId, udid, open: true })
 }
@@ -572,6 +670,8 @@ export function noteSimulatorClosed(udid: string): void {
   for (const [chatId, id] of simByChat) {
     if (id !== udid) continue
     simByChat.delete(chatId)
+    simClaim.delete(chatId)
+    simShared.delete(chatId)
     simBus.emit('changed', { chatId, udid, open: false })
   }
 }
@@ -584,6 +684,8 @@ export function noteSimulatorClosedForChat(chatId: string): void {
   const udid = simByChat.get(chatId)
   if (!udid) return
   simByChat.delete(chatId)
+  simClaim.delete(chatId)
+  simShared.delete(chatId)
   simBus.emit('changed', { chatId, udid, open: false })
 }
 

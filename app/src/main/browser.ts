@@ -1126,6 +1126,9 @@ export function getPaneWebContents(id: string): Electron.WebContents | undefined
   return panes.get(id)?.view.webContents
 }
 
+/** How long an overlay waits for the page's photograph before the view goes anyway. */
+const FREEZE_DETACH_MS = 80
+
 export function registerBrowserIpc(): void {
   ipcMain.handle('browser:create', (e, id: string, partition: string) => {
     const window = BrowserWindow.fromWebContents(e.sender)
@@ -1216,8 +1219,27 @@ export function registerBrowserIpc(): void {
     if (!pane || pane.window.isDestroyed() || !pane.visible) return null
     let buf: Buffer | null = null
     const t0 = Date.now()
+    // The photograph is asked for first and the view detached a moment later
+    // whether or not it has come back. Waiting for it kept the view on screen,
+    // above the ⌘K palette or dialog that had just opened, for as long as the
+    // page took to paint a frame — up to a second on a heavy or idle page.
+    const capture = pane.view.webContents.capturePage().catch(() => null)
+    await Promise.race([capture, new Promise((r) => setTimeout(r, FREEZE_DETACH_MS))])
+    const detachedAt = Date.now() - t0
     try {
-      const img = await pane.view.webContents.capturePage()
+      pane.window.contentView.removeChildView(pane.view)
+      if (twin?.forPane === id) destroyTwin(pane.window)
+      pane.visible = false
+    } catch {
+      // Window torn down mid-freeze; nothing left to detach from.
+    }
+    try {
+      // The frame was requested while the view was attached, so it still
+      // arrives; give up on it rather than leave the pane without an answer.
+      const img = await Promise.race([
+        capture,
+        new Promise<null>((r) => setTimeout(() => r(null), 1500))
+      ])
       // A JPEG Buffer, not a full-resolution PNG data URL: toDataURL() encodes
       // PNG synchronously on the main thread and hands back multiple MB of
       // base64, enough to stall the UI for a second or more on a big pane.
@@ -1226,29 +1248,15 @@ export function registerBrowserIpc(): void {
       // on a Retina display throws away three quarters of the pixels and then
       // shows the result back at full pane size — the page visibly pixelating
       // whenever you left the app.
-      if (!img.isEmpty()) buf = img.toJPEG(88)
+      if (img && !img.isEmpty()) buf = img.toJPEG(88)
     } catch {
-      // No still. The detach below matters more than the picture.
+      // No still. Getting out of the way mattered more than the picture.
     }
-    /**
-     * Detach whatever happened to the photograph.
-     *
-     * This used to return early when the capture came back empty, leaving the
-     * view attached — and an attached view paints above all HTML, so a pane
-     * that failed to photograph became a rectangle sitting on top of the app
-     * with nothing to explain it. A lone image is exactly the kind of page
-     * that captures empty, which is how a file window ended up floating over
-     * the browser. Getting out of the way is the job here; the still is the
-     * bonus.
-     */
-    try {
-      pane.window.contentView.removeChildView(pane.view)
-      if (twin?.forPane === id) destroyTwin(pane.window)
-      pane.visible = false
-    } catch {
-      // Window torn down mid-freeze; nothing left to detach from.
-    }
-    paneLog('freeze', id, `${buf ? `still ${buf.length}b` : 'no still'} in ${Date.now() - t0}ms`)
+    paneLog(
+      'freeze',
+      id,
+      `detached in ${detachedAt}ms, ${buf ? `still ${buf.length}b` : 'no still'} in ${Date.now() - t0}ms`
+    )
     return buf
   })
 

@@ -137,11 +137,8 @@ export function DesktopChat({
                       title="Delete this conversation"
                       onClick={(e) => {
                         e.stopPropagation()
-                        // A conversation is work; deleting one should take a
-                        // decision, not a stray click on a small ✕.
-                        if (window.confirm(`Delete "${c.title ?? 'New chat'}"?`)) {
-                          void removeChat(workspaceId, c.id)
-                        }
+                        // removeChat asks first when the conversation was used.
+                        void removeChat(workspaceId, c.id)
                       }}
                     >
                       ✕

@@ -183,9 +183,12 @@ const SIMULATOR_PROMPT =
   'on screen, usually showing a different device from the one in the pane, and the user ' +
   "ends up watching the wrong thing. Only do it if they explicitly ask for Apple's " +
   'Simulator app by name.\n' +
-  '2. Build, install and launch onto the device the pane is showing — sim_list_devices ' +
-  'marks it. If you run simctl directly, pass that UDID rather than the word `booted`, ' +
-  'which picks an arbitrary device when several are running.\n' +
+  '2. Each conversation has its own simulator, so that two of them never install over each ' +
+  'other. Call sim_list_devices before you build: it marks the device that is YOURS (giving ' +
+  'this conversation one if it has none) and the ones other conversations are using. Build, ' +
+  'install and launch onto YOURS by its UDID — in `xcodebuild -destination "id=<UDID>"` and ' +
+  'in any simctl you run yourself — never by device name, never the word `booted`, and never ' +
+  'a device marked as in use by another conversation.\n' +
   "3. A foldable (iPhone Duo) folds and unfolds with sim_fold ('open', 'folded', 'half' or " +
   'degrees) — there is no simctl command for it, and turning a screen off with `simctl io … ' +
   'screenConfig` only blacks it out. Do it yourself when the task needs the other posture; ' +

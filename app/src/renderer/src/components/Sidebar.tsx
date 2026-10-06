@@ -1664,16 +1664,7 @@ function ChatsSection(): React.JSX.Element {
                     aria-label={`Delete ${c.title ?? 'New chat'}`}
                     onClick={(e) => {
                       e.stopPropagation()
-                      // A conversation is gone for good; an unused New chat is
-                      // nothing to lose, so it goes without the question.
-                      const used = Boolean(c.title || c.claudeSessionId)
-                      if (
-                        used &&
-                        !window.confirm(
-                          `Delete "${c.title ?? 'New chat'}"?\n\nThe conversation cannot be brought back.`
-                        )
-                      )
-                        return
+                      // removeChat asks first when the conversation was used.
                       if (home) void removeChat(home, c.id)
                     }}
                     onDoubleClick={(e) => e.stopPropagation()}

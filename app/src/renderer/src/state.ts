@@ -1310,11 +1310,13 @@ export const useStore = create<CoveState>((set, get) => ({
   removeChat: async (workspaceId, chatId, force = false) => {
     const dying0 = get().chats[workspaceId]?.find((c) => c.id === chatId)
     // A worktree chat with unkept work must not vanish on a stray click: ask
-    // Keep / Throw away / Cancel first. Clean chats delete silently, as ever.
+    // Keep / Throw away / Cancel first.
+    let asked = false
     if (!force && dying0?.cwd && dying0.cwd.includes('/.worktrees/')) {
       const projectPath = dying0.cwd.split('/.worktrees/')[0]
       const st = await window.cove.worktreeStatus(projectPath, dying0.cwd).catch(() => null)
       if (st && (st.dirty || st.ahead > 0)) {
+        asked = true
         const choice = await window.cove.chatConfirmUnkept()
         if (choice === 'cancel') return
         if (choice === 'keep') {
@@ -1324,6 +1326,19 @@ export const useStore = create<CoveState>((set, get) => ({
         // 'throw' falls through to the normal delete
       }
     }
+    // A conversation is gone for good, from wherever it was closed: the Chats
+    // list asked, a project's chats went on one click of a small ×. An unused
+    // New chat is nothing to lose, so it goes without the question.
+    if (
+      !force &&
+      !asked &&
+      dying0 &&
+      (dying0.title || dying0.claudeSessionId) &&
+      !window.confirm(
+        `Delete "${dying0.title ?? 'New chat'}"?\n\nThe conversation cannot be brought back.`
+      )
+    )
+      return
     // Free the chat's native browser view (workspace::chat) — a full Chromium
     // renderer that otherwise leaked for the life of the app, since only whole
     // workspaces were ever torn down (and even then by the bare id).

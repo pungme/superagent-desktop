@@ -13,6 +13,11 @@ import {
   simulatorScreenPoint,
   noteSimulatorOpen,
   chatHoldingSimulator,
+  chatAheadOnSimulator,
+  chooseSimulator,
+  allowSharedSimulator,
+  simulatorsByChat,
+  type SimDevice,
   litDisplayArgs,
   foldSimulator,
   postureAngle
@@ -238,19 +243,95 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       )
     })
 
+  /**
+   * The simulator this conversation drives, getting it one of its own when it
+   * has none or when the one it is on belongs to a conversation that was there
+   * first. Two conversations on one device install over each other, and the
+   * first sign was your app replaced by someone else's build.
+   * `like` asks for that particular device, or its twin when it is taken.
+   */
+  const ownSim = async (
+    like?: string
+  ): Promise<{ udid: string; note?: string } | { error: string }> => {
+    const mine = simulatorsByChat().get(CHAT_ID ?? '')
+    if (mine && !like && !chatAheadOnSimulator(mine, CHAT_ID)) return { udid: mine }
+    // Outside a conversation there is no one to tell apart: what the pane shows.
+    if (!CHAT_ID) {
+      const t = simTarget(null)
+      if (t !== 'booted') return { udid: t }
+    }
+    const data = JSON.parse(await simctl(['list', 'devices', 'available', '--json'])) as {
+      devices: Record<string, Omit<SimDevice, 'runtime'>[]>
+    }
+    const devices: SimDevice[] = Object.entries(data.devices).flatMap(([runtime, list]) =>
+      list.map((d) => ({ ...d, runtime }))
+    )
+    const choice = chooseSimulator(CHAT_ID, devices, { like })
+    if (!choice)
+      return {
+        error: devices.some((d) => d.state === 'Booted')
+          ? 'The booted simulator is in use by another conversation and a second one of its model could not be worked out. Boot a different device with sim_boot (sim_list_devices shows them).'
+          : 'No simulator is booted. Boot one with sim_boot first.'
+      }
+    if ('ambiguous' in choice)
+      return {
+        error: `Several simulators are booted and this conversation has not chosen one. Call sim_boot with the UDID of the model you want (sim_list_devices shows them). A free one becomes this conversation's own; one that another conversation is using gets you a second device of that model. Free now: ${
+          choice.ambiguous.map((d) => `${d.name} (${d.udid})`).join(', ') || 'none'
+        }.`
+      }
+    let udid: string
+    let name: string
+    if ('create' in choice) {
+      udid = (
+        await simctl([
+          'create',
+          choice.create.name,
+          choice.create.deviceType,
+          choice.create.runtime
+        ])
+      ).trim()
+      name = choice.create.name
+    } else {
+      udid = choice.use.udid
+      name = choice.use.name
+    }
+    if (!('use' in choice) || choice.use.state !== 'Booted')
+      await simctl(['boot', udid]).catch((e) => {
+        if (!String(e).includes('current state: Booted')) throw e
+      })
+    const other = choice.insteadOf
+    const holder = other ? chatHoldingSimulator(other.udid, CHAT_ID) : null
+    broadcastToWindows('app:open-simulator', {
+      workspaceId: workspaceIdFromPane(PANE_ID),
+      chatId: CHAT_ID,
+      udid
+    })
+    noteSimulatorOpen(CHAT_ID, udid)
+    if (isMirroring(udid)) keepSimulatorHidden(udid)
+    return {
+      udid,
+      note: other
+        ? `"${other.name}" (${other.udid}) is in use by "${(holder && getChat(holder)?.title) || 'another conversation'}", so this conversation has its own: "${name}" — ${udid}${'create' in choice ? ', newly created, so nothing is installed on it yet' : ''}. Build, install and launch onto THIS UDID, also in xcodebuild -destination and any simctl you run yourself; never "booted".`
+        : undefined
+    }
+  }
+
   server.registerTool(
     'sim_list_devices',
     {
       description:
-        'List iOS Simulator devices (name, UDID, state). Use before booting or targeting a device. The device the user is WATCHING in the pane is marked — build, install and launch onto that one unless told otherwise.',
+        'List iOS Simulator devices (name, UDID, state). Use before building, booting or targeting a device. The device that is YOURS is marked, and so are the ones other conversations are using — build, install and launch onto YOURS, by UDID.',
       inputSchema: {}
     },
     async () => {
+      // Listing is what an agent does before it builds, so this is where the
+      // conversation gets a device of its own, before a UDID is chosen.
+      const own = await ownSim().catch(() => null)
       const out = await simctl(['list', 'devices', 'available', '--json'])
       const data = JSON.parse(out) as {
         devices: Record<string, { name: string; udid: string; state: string }[]>
       }
-      const lines: string[] = []
+      const lines: string[] = own && 'note' in own && own.note ? [own.note, ''] : []
       for (const [runtime, devs] of Object.entries(data.devices)) {
         for (const d of devs) {
           // Who has this device matters now that each conversation can hold its
@@ -275,7 +356,7 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       } else {
         lines.push(
           '',
-          'This conversation has not chosen a simulator. sim_boot with a UDID binds it to this conversation, so another conversation can use a different one at the same time.'
+          'This conversation has not chosen a simulator. Any sim_* tool gives it one of its own: a booted device nobody else is using, or, when the booted one is in use by another conversation, a second device of the same model. sim_boot with a UDID picks a particular one.'
         )
       }
       return { content: [{ type: 'text', text: lines.join('\n') || 'No simulators available.' }] }
@@ -286,10 +367,19 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'sim_boot',
     {
       description:
-        "Boot an iOS Simulator by UDID (from sim_list_devices) and show it in Superagent's own simulator pane, where the user is watching. Do NOT open Apple's Simulator app for this — the pane is the point.",
-      inputSchema: { udid: z.string() }
+        "Boot an iOS Simulator by UDID (from sim_list_devices) and show it in Superagent's own simulator pane, where the user is watching. Do NOT open Apple's Simulator app for this — the pane is the point. A device another conversation is using is not handed over: this conversation gets a second device of the same model instead, and the reply says which. Pass share: true only when the user wants both conversations on the very same device.",
+      inputSchema: { udid: z.string(), share: z.boolean().optional() }
     },
-    async ({ udid }) => {
+    async ({ udid: asked, share }) => {
+      let udid = asked
+      let swapped = ''
+      if (share) allowSharedSimulator(CHAT_ID)
+      else if (chatHoldingSimulator(asked, CHAT_ID)) {
+        const own = await ownSim(asked)
+        if ('error' in own) return { isError: true, content: [{ type: 'text', text: own.error }] }
+        udid = own.udid
+        swapped = own.note ?? ''
+      }
       await simctl(['boot', udid]).catch((e) => {
         if (!String(e).includes('current state: Booted')) throw e
       })
@@ -316,9 +406,11 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         content: [
           {
             type: 'text',
-            text: otherName
-              ? `Booted ${udid}. Note: "${otherName}" is also using this simulator — installing or launching here will replace what it is running. Boot a different device (sim_list_devices) if that is not what you want.`
-              : `Booted ${udid}. This conversation now drives that device; other conversations can use their own.`
+            text: swapped
+              ? swapped
+              : otherName
+                ? `Booted ${udid}. "${otherName}" is using this simulator too, as asked: installing or launching here replaces what it is running.`
+                : `Booted ${udid}. This conversation now drives that device; other conversations can use their own.`
           }
         ]
       }
@@ -334,6 +426,8 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     },
     async () => {
       const file = `${tmpdir()}/sim-${Date.now()}.png`
+      const own = await ownSim()
+      if ('error' in own) return { isError: true, content: [{ type: 'text', text: own.error }] }
       await simctl([
         'io',
         simTarget(CHAT_ID),
@@ -372,8 +466,17 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     },
     async ({ url }) => {
       await inputTarget() // reveal the pane; opening a URL is something to watch
+      const own = await ownSim()
+      if ('error' in own) return { isError: true, content: [{ type: 'text', text: own.error }] }
       await simctl(['openurl', simTarget(CHAT_ID), url])
-      return { content: [{ type: 'text', text: `Opened ${url} in the simulator.` }] }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${own.note ? own.note + '\n' : ''}Opened ${url} in the simulator.`
+          }
+        ]
+      }
     }
   )
 
@@ -385,6 +488,8 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       inputSchema: { appPath: z.string(), bundleId: z.string() }
     },
     async ({ appPath, bundleId }) => {
+      const own = await ownSim()
+      if ('error' in own) return { isError: true, content: [{ type: 'text', text: own.error }] }
       await simctl(['install', simTarget(CHAT_ID), appPath])
       const out = await simctl(['launch', simTarget(CHAT_ID), bundleId])
       broadcastToWindows('app:open-simulator', {
@@ -394,7 +499,14 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       })
       noteSimulatorOpen(CHAT_ID, simTarget(CHAT_ID))
       if (isMirroring(simTarget(CHAT_ID))) keepSimulatorHidden(simTarget(CHAT_ID))
-      return { content: [{ type: 'text', text: out.trim() || `Launched ${bundleId}.` }] }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: [own.note, out.trim() || `Launched ${bundleId}.`].filter(Boolean).join('\n')
+          }
+        ]
+      }
     }
   )
 
@@ -430,31 +542,16 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     noteSimulatorOpen(CHAT_ID, udid)
   }
 
-  const inputTarget = async (): Promise<{ udid: string } | { error: string }> => {
-    const t = simTarget(CHAT_ID)
-    if (t && t !== 'booted') {
-      revealSim(t)
-      return { udid: t }
-    }
-    const out = await simctl(['list', 'devices', 'booted', '--json'])
-    const data = JSON.parse(out) as { devices: Record<string, { udid: string; state: string }[]> }
-    const booted = Object.values(data.devices)
-      .flat()
-      .filter((d) => d.state === 'Booted')
-    if (booted.length === 1) {
-      revealSim(booted[0].udid)
-      return { udid: booted[0].udid }
-    }
-    if (booted.length === 0)
-      return { error: 'No simulator is booted. Boot one with sim_boot first.' }
-    return {
-      error:
-        'Several simulators are booted and this conversation has not chosen one. Call sim_boot with the UDID you want (sim_list_devices shows them) — that binds this conversation to that device, and other conversations keep theirs.'
-    }
+  const inputTarget = async (): Promise<{ udid: string; note?: string } | { error: string }> => {
+    const own = await ownSim()
+    if ('udid' in own) revealSim(own.udid)
+    return own
   }
 
   const grabScreen = async (): Promise<{ buf: Buffer; w: number; h: number }> => {
     const file = `${tmpdir()}/sim-${Date.now()}.png`
+    const own = await ownSim()
+    if ('error' in own) throw new Error(own.error)
     await simctl([
       'io',
       simTarget(CHAT_ID),
@@ -504,13 +601,14 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       // Reveal the pane if it is not already up (inputTarget carries the reveal
       // when exactly one device is booted); reading the screen is reason enough
       // to show the user what the agent is looking at.
-      await inputTarget()
+      const tgt = await inputTarget()
+      if ('error' in tgt) return { isError: true, content: [{ type: 'text', text: tgt.error }] }
       const { buf, w, h } = await grabScreen()
       return {
         content: [
           {
             type: 'text',
-            text: `iOS Simulator screen — ${w}x${h} pixels. Tap/swipe in these coordinates.`
+            text: `${tgt.note ? tgt.note + '\n' : ''}iOS Simulator screen — ${w}x${h} pixels. Tap/swipe in these coordinates.`
           },
           { type: 'image', data: buf.toString('base64'), mimeType: 'image/png' }
         ]

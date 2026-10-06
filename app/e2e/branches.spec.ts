@@ -531,7 +531,7 @@ test('the × on a row deletes the chat, and it stays deleted', async () => {
   const rows = branchRows()
   await expect.poll(() => rows.count(), { timeout: 15_000 }).toBeGreaterThan(0)
 
-  window.on('dialog', (d) => void d.accept())
+  // Deleting a used chat asks first; an earlier test already accepts dialogs.
   const target = rows.filter({ hasText: 'remove' }).first()
   await target.hover()
   await target.locator('.sidebar-branch-remove').click()
