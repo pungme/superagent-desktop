@@ -1618,6 +1618,19 @@ export function EasyChat({
   // the DOM, so it would otherwise draw straight over the HTML lightbox).
   const [lightbox, setLightbox] = useState<string | null>(null)
   useOverlayLock(lightbox !== null)
+  // Esc closes the picture, and only the picture: caught before the composer
+  // sees it, where Esc would also stop the agent mid-reply.
+  useEffect(() => {
+    if (lightbox === null) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      setLightbox(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [lightbox])
   // A pending permission/guardrail ask belonging to THIS chat — rendered
   // inline, prominently, right above the composer (see the return below).
   const guardrailAsks = useStore((s) => s.guardrailAsks)
