@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
   DragEndEvent,
@@ -2064,6 +2065,8 @@ export function Sidebar(): React.JSX.Element {
     localStorage.setItem('cove.sidebarMode', mode)
   }, [mode])
 
+  const [namingGroup, setNamingGroup] = useState(false)
+
   const newTab = async (): Promise<void> => {
     // Opening a tab shouldn't require choosing a project type first — that's
     // the whole point of the section.
@@ -2275,7 +2278,11 @@ export function Sidebar(): React.JSX.Element {
                 </button>
                 {/* Up here with the other ways to add something; it was a row
                     of its own at the foot of the sidebar. */}
-                <button className="group-add" title="New group" onClick={() => addGroup()}>
+                <button
+                  className="group-add"
+                  title="New group"
+                  onClick={() => setNamingGroup(true)}
+                >
                   <svg
                     width="14"
                     height="14"
@@ -2312,18 +2319,31 @@ export function Sidebar(): React.JSX.Element {
                 </button>
               </span>
             </div>
-            {(tabsGroup?.workspaces ?? []).map((ws, i) => (
-              <WorkspaceRow key={ws.id} ws={ws} index={i} />
-            ))}
-            <FlatProjects group={flatGroup} />
           </div>
+          {/* Groups first, like folders above loose files: under the tabs
+              and ungrouped projects a new one was off the bottom of the list. */}
           {tree
             .filter((g) => g.name !== TABS_GROUP && g.name !== FLAT_GROUP)
             .map((group) => (
               <GroupSection key={group.id} group={group} />
             ))}
+          <div className="sidebar-loose">
+            {(tabsGroup?.workspaces ?? []).map((ws, i) => (
+              <WorkspaceRow key={ws.id} ws={ws} index={i} />
+            ))}
+            <FlatProjects group={flatGroup} />
+          </div>
         </div>
       </DndContext>
+      {namingGroup && (
+        <NewGroupDialog
+          onClose={() => setNamingGroup(false)}
+          onCreate={(name) => {
+            setNamingGroup(false)
+            void addGroup(name)
+          }}
+        />
+      )}
       <div className="sidebar-footer">
         <UsageFooter />
         <button
@@ -2342,5 +2362,58 @@ export function Sidebar(): React.JSX.Element {
         </button>
       </div>
     </aside>
+  )
+}
+
+/** Asks what to call a new group, before it is made. */
+function NewGroupDialog({
+  onClose,
+  onCreate
+}: {
+  onClose: () => void
+  onCreate: (name: string) => void
+}): React.JSX.Element {
+  const [name, setName] = useState('')
+  const ok = name.trim().length > 0
+  return createPortal(
+    <div
+      className="dialog-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <form
+        className="new-project new-group"
+        role="dialog"
+        aria-label="New group"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (ok) onCreate(name.trim())
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose()
+        }}
+      >
+        <h2 className="new-project-title">New group</h2>
+        <p className="new-project-sub">Name it, then drag projects into it.</p>
+        <input
+          className="signins-filter"
+          placeholder="Group name"
+          value={name}
+          maxLength={60}
+          autoFocus
+          onChange={(e) => setName(e.target.value)}
+        />
+        <div className="signins-actions">
+          <button type="button" className="signins-cancel" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="signins-primary" disabled={!ok}>
+            Create
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body
   )
 }

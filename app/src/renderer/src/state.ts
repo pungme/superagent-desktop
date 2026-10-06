@@ -549,7 +549,7 @@ interface CoveState {
   accent: Accent
   setAccent: (a: Accent) => void
 
-  addGroup: () => Promise<void>
+  addGroup: (name?: string) => Promise<void>
   renameGroup: (id: string, name: string) => Promise<void>
   deleteGroup: (id: string) => Promise<void>
   moveGroup: (groupId: string, toIndex: number) => Promise<void>
@@ -1500,8 +1500,8 @@ export const useStore = create<CoveState>((set, get) => ({
     })
   },
 
-  addGroup: async () => {
-    const tree = await window.cove.createGroup('New group')
+  addGroup: async (name) => {
+    const tree = await window.cove.createGroup(name?.trim() || 'New group')
     set({ tree })
   },
   renameGroup: async (id, name) => {

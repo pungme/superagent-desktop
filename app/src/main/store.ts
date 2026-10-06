@@ -1906,7 +1906,19 @@ export function registerStoreIpc(): void {
   })
 
   ipcMain.handle('store:createGroup', (_e, name: string) => {
-    createGroup(name)
+    const id = createGroup(name)
+    // A group the user makes goes first: at the end it landed under every
+    // other group, out of sight in a long sidebar.
+    if (name !== TABS_GROUP && name !== FLAT_GROUP) {
+      const rest = db.prepare('SELECT id FROM groups WHERE id != ? ORDER BY position').all(id) as {
+        id: string
+      }[]
+      db.transaction(() => {
+        ;[id, ...rest.map((g) => g.id)].forEach((gid, i) =>
+          db.prepare('UPDATE groups SET position = ? WHERE id = ?').run(i, gid)
+        )
+      })()
+    }
     return getTree()
   })
 

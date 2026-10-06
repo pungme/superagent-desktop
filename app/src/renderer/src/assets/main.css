@@ -432,6 +432,10 @@ button {
 .sidebar-group + .sidebar-group {
   margin-top: 8px;
 }
+/* Tabs and ungrouped projects, under the groups. */
+.sidebar-group + .sidebar-loose {
+  margin-top: 8px;
+}
 
 /* Pinned chats, promoted above every group — the whole point of pinning one
    is not having to remember which project it lives in. */
@@ -5397,6 +5401,10 @@ button {
   padding: 24px;
   box-shadow: 0 20px 60px var(--shadow);
   animation: dialog-pop 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.new-project.new-group {
+  width: 380px;
 }
 
 .new-project-title {
