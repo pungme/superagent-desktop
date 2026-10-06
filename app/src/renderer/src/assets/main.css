@@ -11994,7 +11994,10 @@ button {
 }
 .md-img-thumb img {
   display: block;
-  max-width: min(280px, 100%);
+  /* A length, not a percentage: the frame is as wide as its picture, and a
+     percentage of the frame cannot be known while sizing the frame, so a wide
+     picture left the frame at its full width with the picture small inside. */
+  max-width: 280px;
   max-height: 180px;
   width: auto;
   height: auto;
