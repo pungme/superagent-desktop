@@ -202,7 +202,15 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   // …and can be moved back by hand, with each account's usage beside its name.
   await pill.click()
   const login = window.locator('.easy-control-item:visible', { hasText: 'Your Claude login' })
-  await expect(login).toContainText('5-hour 48% · Weekly 92%')
+  // Each limit on its own line, with when it starts over.
+  await expect(login.locator('.easy-account-window')).toHaveCount(2)
+  await expect(login.locator('.easy-account-window').first()).toContainText('5-hour')
+  await expect(login.locator('.easy-account-window').first()).toContainText('48%')
+  await expect(login.locator('.easy-account-window').nth(1)).toContainText('92%')
+  await expect(login.locator('.easy-account-window').nth(1)).toContainText('resets ')
+  await window
+    .locator('.easy-control-menu:visible')
+    .screenshot({ path: 'test-results/account-menu.png' })
   await window
     .locator('.easy-controls:visible')
     .screenshot({ path: 'test-results/account-pill.png' })

@@ -1,3 +1,4 @@
+import { resetLabel } from '../../../shared/usage-reset'
 import {
   Fragment,
   useEffect,
@@ -5447,16 +5448,31 @@ export function EasyChat({
                   >
                     <span className="easy-control-item-text">
                       <span className="easy-control-item-label">{a.name}</span>
-                      <span className="easy-control-item-hint">
+                      <span
+                        className={`easy-control-item-hint ${
+                          !a.needsAuth && a.usage ? 'easy-account-windows' : ''
+                        }`}
+                      >
                         {a.needsAuth
                           ? 'Needs sign-in — see Settings → Agents'
                           : a.usage
-                            ? a.usage.windows
-                                .map(
-                                  (w) =>
-                                    `${w.label} ${w.resetsAt && w.resetsAt <= Date.now() ? 0 : w.percent}%`
+                            ? // One line per limit, with when it starts over, in
+                              // the same columns as the sidebar's usage list.
+                              a.usage.windows.map((w) => {
+                                const now = Date.now()
+                                const over = !!w.resetsAt && w.resetsAt <= now
+                                return (
+                                  <span key={w.label} className="easy-account-window">
+                                    <span>{w.label}</span>
+                                    <b>{over ? 0 : w.percent}%</b>
+                                    <span>
+                                      {w.resetsAt && !over
+                                        ? `resets ${resetLabel(w.resetsAt, now)}`
+                                        : ''}
+                                    </span>
+                                  </span>
                                 )
-                                .join(' · ')
+                              })
                             : a.detail || 'Usage not read yet'}
                       </span>
                     </span>

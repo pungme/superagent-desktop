@@ -6657,6 +6657,26 @@ button {
   font-size: 10px;
   color: var(--text-tertiary);
 }
+/* An account's limits in the Account menu: name, percent, when it resets. */
+.easy-account-windows {
+  display: grid;
+  grid-template-columns: max-content 30px max-content;
+  column-gap: 8px;
+  row-gap: 1px;
+  margin-top: 1px;
+}
+.easy-account-window {
+  display: contents;
+}
+.easy-account-window b {
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.easy-account-window span {
+  white-space: nowrap;
+}
 
 /* The fold at the bottom of the model menu: a row that opens the older versions. */
 .easy-control-more {
