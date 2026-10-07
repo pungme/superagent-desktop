@@ -1272,6 +1272,26 @@ export function isSubAgentCall(name: string, input: Record<string, unknown>): bo
 const KNOWN = new Set<string>(KNOWN_TOOLS)
 const warnedTools = new Set<string>()
 
+/** An account's limits in a few words: "5h 18% · Week 5%", or why there are none. */
+function usageLine(a: Account | null | undefined): string | null {
+  if (!a) return null
+  if (a.needsAuth) return 'Needs sign-in'
+  if (!a.usage?.windows.length) return null
+  const now = Date.now()
+  return a.usage.windows
+    .slice(0, 2)
+    .map((w) => {
+      const label =
+        w.label === '5-hour'
+          ? '5h'
+          : w.label === 'Weekly'
+            ? 'Week'
+            : w.label.replace(/ weekly$/, '')
+      return `${label} ${w.resetsAt && w.resetsAt <= now ? 0 : w.percent}%`
+    })
+    .join(' · ')
+}
+
 export function EasyChat({
   cwd,
   workspaceId,
@@ -4393,6 +4413,8 @@ export function EasyChat({
     all: [],
     current: null
   })
+  /** One line of usage per agent, for the agent menu: what switching would land on. */
+  const [agentUsage, setAgentUsage] = useState<Partial<Record<AgentProvider, string>>>({})
   useEffect(() => {
     let alive = true
     const load = (): void => {
@@ -4400,7 +4422,15 @@ export function EasyChat({
         window.cove.accountsList(),
         window.cove.accountsForChat(provider, chatId)
       ]).then(([list, current]) => {
-        if (alive) setAccounts({ all: list[provider] ?? [], current })
+        if (!alive) return
+        setAccounts({ all: list[provider] ?? [], current })
+        const lines: Partial<Record<AgentProvider, string>> = {}
+        for (const p of AGENT_PROVIDERS) {
+          // The account a chat on that agent would start on: its first.
+          const line = usageLine(p === provider ? (current ?? list[p]?.[0]) : list[p]?.[0])
+          if (line) lines[p] = line
+        }
+        setAgentUsage(lines)
       })
     }
     load()
@@ -5371,7 +5401,11 @@ export function EasyChat({
         <div className="easy-control">
           <button
             className={`easy-control-btn ${controlMenu === 'agent' ? 'open' : ''}`}
-            onClick={() => setControlMenu((m) => (m === 'agent' ? null : 'agent'))}
+            onClick={() => {
+              // The numbers are asked for again as the menu opens.
+              if (controlMenu !== 'agent') void window.cove.accountsRefreshUsage()
+              setControlMenu((m) => (m === 'agent' ? null : 'agent'))
+            }}
             title="Which agent runs this chat"
           >
             {/* No "Agent" key here, unlike Model and Mode: the logo and the
@@ -5401,7 +5435,11 @@ export function EasyChat({
                   <ProviderLogo provider={p} size={17} />
                   <span className="easy-control-item-text">
                     <span className="easy-control-item-label">{PROVIDER_PRODUCT[p]}</span>
-                    <span className="easy-control-item-hint">{PROVIDER_HINT[p]}</span>
+                    {/* How much is left on it, when known: the thing you are
+                        choosing between agents on. The description otherwise. */}
+                    <span className="easy-control-item-hint">
+                      {agentUsage[p] ?? PROVIDER_HINT[p]}
+                    </span>
                   </span>
                 </button>
               ))}

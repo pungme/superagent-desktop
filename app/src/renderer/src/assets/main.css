@@ -13031,3 +13031,30 @@ button {
     transition: none;
   }
 }
+
+/* A narrow chat column: the pills drop their "Model" / "Mode" / "Account"
+   words and keep the values (the tooltip still names each), so six of them sit
+   in two tidy rows instead of four ragged ones, and the Memory readout takes a
+   line of its own under them rather than trailing the last pill. */
+.easy-controls {
+  container: easy-controls / inline-size;
+}
+@container easy-controls (max-width: 560px) {
+  .easy-control-key {
+    display: none;
+  }
+  .easy-control-btn {
+    padding: 5px 8px;
+    gap: 5px;
+  }
+  .easy-control-val {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .easy-stats {
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}

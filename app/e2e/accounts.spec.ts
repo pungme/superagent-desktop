@@ -219,6 +219,16 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   // How full that account is, in the colour that says "nearly out".
   await expect(pill.locator('.easy-account-used')).toHaveText('92%')
   await expect(pill.locator('.easy-account-used')).toHaveClass(/high/)
+  // The agent menu says the same in a few words, per agent; one with nothing
+  // read yet keeps its description.
+  const agentPill = window.locator('.easy-controls:visible .easy-control-btn').first()
+  await agentPill.click()
+  const agentMenu = window.locator('.easy-control-menu:visible')
+  await expect(agentMenu.locator('.easy-control-item').nth(0)).toContainText('5h 48% · Week 92%')
+  await expect(agentMenu.locator('.easy-control-item').nth(2)).toContainText('Google AI plan')
+  await agentMenu.screenshot({ path: 'test-results/agent-menu.png' })
+  await agentPill.click()
+  await expect(agentMenu).toHaveCount(0)
   await expect
     .poll(
       () =>
