@@ -561,3 +561,35 @@ test('a branch is named from the words that matter, not the whole sentence', asy
   // Not "can-u-fix-the-broken-login-please".
   expect(created).toBe('fix-broken-login')
 })
+
+test('an unread branch row carries one mark, at the end of its name', async () => {
+  const rows = window.locator('.sidebar-branch[data-chat-id]')
+  await expect.poll(() => rows.count()).toBeGreaterThan(0)
+  const id = (await rows.last().getAttribute('data-chat-id'))!
+  const r = window.locator(`.sidebar-branch[data-chat-id="${id}"]`)
+  const marks = r.locator('.sidebar-unread, .chat-tree-spinner')
+  const mark = (unread: boolean): Promise<void> =>
+    app.evaluate(
+      ({ BrowserWindow }, p) => BrowserWindow.getAllWindows()[0].webContents.send('chat:mark', p),
+      { chatId: id, unread }
+    )
+  await mark(false)
+  await expect(marks).toHaveCount(0)
+  const before = await r.locator('.sidebar-branch-label').boundingBox()
+  const height = (await r.boundingBox())!.height
+  await mark(true)
+  await expect(marks).toHaveCount(1)
+  const [label, dot, row] = await Promise.all([
+    r.locator('.sidebar-branch-label').boundingBox(),
+    marks.boundingBox(),
+    r.boundingBox()
+  ])
+  // The name stays where it was; the mark follows it, inside the row.
+  expect(label!.x).toBe(before!.x)
+  expect(label!.x + label!.width).toBeLessThanOrEqual(dot!.x + 0.5)
+  expect(dot!.x + dot!.width).toBeLessThanOrEqual(row!.x + row!.width)
+  expect(row!.height).toBe(height)
+  // And the branch still reads under it.
+  await expect(r.locator('.sidebar-branch-chat .wt-name')).toHaveCount(1)
+  await mark(false)
+})

@@ -515,21 +515,6 @@ function ChatRow({
               {Boolean(chat.pinned) && (
                 <span className="chat-tree-pinned" title="Pinned">
                   <PinGlyph />
-                  {running ? (
-                    <span className="chat-tree-spinner" title="Working…" />
-                  ) : bgRunning ? (
-                    <span
-                      className="chat-tree-bg"
-                      title="Background work running (e.g. a monitor)"
-                    />
-                  ) : (
-                    unread && (
-                      <span
-                        className="sidebar-unread"
-                        title="Claude finished — you haven't read this"
-                      />
-                    )
-                  )}
                 </span>
               )}
               {running ? (
