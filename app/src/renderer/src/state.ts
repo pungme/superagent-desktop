@@ -482,7 +482,15 @@ interface CoveState {
    * this, but quitting is app-wide — installing an update kills every agent — so
    * the banner needs to be able to ask before it throws work away.
    */
-  busy: Record<string, { generating: boolean; background: number }>
+  busy: Record<
+    string,
+    {
+      generating: boolean
+      background: number
+      /** What the background work is, in the words its pills use. */
+      what?: string[]
+    }
+  >
   /**
    * Conversations that finished a turn while you were looking elsewhere.
    * Keyed by chat id; cleared the moment you actually read it.
@@ -498,7 +506,10 @@ interface CoveState {
    */
   heldUnread: Record<string, boolean>
   markRead: (chatId: string) => void
-  setBusy: (chatId: string, state: { generating: boolean; background: number }) => void
+  setBusy: (
+    chatId: string,
+    state: { generating: boolean; background: number; what?: string[] }
+  ) => void
   clearBusy: (chatId: string) => void
 
   /**
@@ -1434,7 +1445,12 @@ export const useStore = create<CoveState>((set, get) => ({
       const prev = s.busy[chatId]
       // Reported from an effect on every turn tick; bail when nothing moved so
       // subscribers don't re-render on identical state.
-      if (prev && prev.generating === state.generating && prev.background === state.background) {
+      if (
+        prev &&
+        prev.generating === state.generating &&
+        prev.background === state.background &&
+        (prev.what ?? []).join('\n') === (state.what ?? []).join('\n')
+      ) {
         return s
       }
       return { busy: { ...s.busy, [chatId]: state } }
@@ -1705,3 +1721,8 @@ export async function keepChatChanges(workspaceId: string, chatId: string): Prom
       'project still builds, and commit the result. Tell me when it is ready to keep again.'
   )
 }
+
+// End-to-end tests reach state that only a running agent would otherwise set
+// (a chat with background work, say). Off unless a test asks for it.
+if (typeof localStorage !== 'undefined' && localStorage.getItem('cove.e2e') === '1')
+  (window as unknown as { __store?: typeof useStore }).__store = useStore

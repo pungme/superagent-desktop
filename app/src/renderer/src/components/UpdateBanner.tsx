@@ -27,6 +27,9 @@ export function UpdateBanner(): React.JSX.Element | null {
   const [notesLoading, setNotesLoading] = useState(false)
   const closeTimer = useRef<number | null>(null)
   const busy = useStore((s) => s.busy)
+  const chats = useStore((s) => s.chats)
+  const tree = useStore((s) => s.tree)
+  const projectNames = new Map(tree.flatMap((g) => g.workspaces).map((w) => [w.id, w.name]))
   // The notes popover extends down over the desk, where the native browser/PDF
   // view paints above ALL HTML — without the overlay lock its lower half was
   // cut off by the page (checklist #1: every overlay near the pane takes the
@@ -137,8 +140,32 @@ export function UpdateBanner(): React.JSX.Element | null {
   }
 
   if (confirming) {
+    // What exactly would be stopped, chat by chat, so the choice is an
+    // informed one: "1 background task" could be a dev server nobody minds
+    // losing or an hour-long job.
+    const running = Object.entries(busy)
+      .filter(([, b]) => b.generating || b.background > 0)
+      .map(([chatId, b]) => {
+        const chat = Object.values(chats)
+          .flat()
+          .find((c) => c.id === chatId)
+        const project = chat ? projectNames.get(chat.workspaceId) : undefined
+        return {
+          chatId,
+          title: [project, chat?.title ?? 'New chat'].filter(Boolean).join(' · '),
+          items: [
+            ...(b.generating ? ['The agent is replying'] : []),
+            ...(b.what ?? []),
+            // Counted but not named (an older view): still say it is there.
+            ...Array.from(
+              { length: Math.max(0, b.background - (b.what?.length ?? 0)) },
+              () => 'A background task'
+            )
+          ]
+        }
+      })
     return (
-      <div className="update-banner update-banner-warn" role="alertdialog">
+      <div className="update-banner update-banner-warn update-banner-listed" role="alertdialog">
         <span className="update-banner-dot update-banner-dot-warn" />
         <span className="update-banner-text">
           {parts.join(' and ')}. Restarting stops{' '}
@@ -159,6 +186,18 @@ export function UpdateBanner(): React.JSX.Element | null {
         >
           Keep working
         </button>
+        <ul className="update-banner-running">
+          {running.map((r) => (
+            <li key={r.chatId}>
+              <span className="update-banner-running-chat">{r.title}</span>
+              {r.items.map((it, i) => (
+                <span key={i} className="update-banner-running-item">
+                  {it}
+                </span>
+              ))}
+            </li>
+          ))}
+        </ul>
       </div>
     )
   }

@@ -1528,6 +1528,11 @@ export function EasyChat({
   >([])
   /** Sub-agents still working after their turn handed control back. */
   const bgAgents = runningAgents.filter((a) => a.background).length
+  /** Changes when the set of background work does, not on every output line. */
+  const bgWhat = [
+    ...bgTasks.map((t) => t.toolUseId),
+    ...runningAgents.filter((a) => a.background).map((a) => a.toolUseId)
+  ].join(',')
   // The in-chat /loop runs on main (main/loops.ts), so the phone sees it too
   // and it outlives this view. This only mirrors it for the bar.
   const [loop, setLoop] = useState<ChatLoop | null>(null)
@@ -3598,8 +3603,17 @@ export function EasyChat({
     bgTasksRef.current = bgTasks
     // Background sub-agents count as background work too: this number is what
     // keeps a hidden chat mounted, and unmounting it stops its process.
-    setBusy(chatId, { generating: generating || thinking, background: bgTasks.length + bgAgents })
-  }, [chatId, generating, thinking, bgTasks.length, bgAgents, setBusy])
+    setBusy(chatId, {
+      generating: generating || thinking,
+      background: bgTasks.length + bgAgents,
+      // Named, so a warning that restarting stops them can say what they are.
+      what: [
+        ...bgTasks.map((t) => t.description || t.command.split('\n')[0].slice(0, 80)),
+        ...runningAgents.filter((a) => a.background).map((a) => a.label)
+      ]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, generating, thinking, bgWhat, bgAgents, setBusy])
   useEffect(() => () => clearBusy(chatId), [chatId, clearBusy])
 
   // A loop round main wants sent from here, as if typed: this view owns the
@@ -4683,6 +4697,7 @@ export function EasyChat({
     <div
       ref={chatRef}
       className={`easy-chat ${dragOver ? 'drag-over' : ''} ${narrowComposer ? 'narrow' : ''}`}
+      data-chat-view={chatId}
       onDragOver={(e) => {
         // Allow the drop (default would block it); the window effect shows the hint.
         if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes(CARD_MIME))
