@@ -1489,6 +1489,8 @@ export function EasyChat({
   // is still going is a sentence that scrolls away.
   /** Which pill's menu is open — 'model', 'mode', 'server', or `bg-<id>`. */
   const [controlMenu, setControlMenu] = useState<string | null>(null)
+  // In a narrow column the settings fold into one line; this opens them as a list.
+  const [controlsOpen, setControlsOpen] = useState(false)
   const [olderOpen, setOlderOpen] = useState(false)
   // Fold the older models back away each time the menu opens.
   useEffect(() => {
@@ -5397,7 +5399,34 @@ export function EasyChat({
           </div>
         )}
       </div>
-      <div className="easy-controls">
+      <div className={`easy-controls ${controlsOpen ? 'unfolded' : ''}`}>
+        {/* Only drawn when the column is narrow (see .easy-controls-summary):
+            one quiet line saying what the chat is set to, in place of a heap of
+            pills. Pressing it lays the same settings out as a list. */}
+        <button
+          className="easy-controls-summary"
+          aria-expanded={controlsOpen}
+          title={controlsOpen ? 'Hide the settings' : "This chat's agent, model, mode and browser"}
+          onClick={() => {
+            setControlMenu(null)
+            setControlsOpen((o) => !o)
+          }}
+        >
+          <ProviderLogo provider={provider} size={12} />
+          <span className="easy-controls-summary-text">
+            {[PROVIDER_PRODUCT[provider], modelLabel, modeLabel].filter(Boolean).join(' · ')}
+          </span>
+          <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+            <path
+              d="M2 3.5L5 6.5L8 3.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
         <div className="easy-control">
           <button
             className={`easy-control-btn ${controlMenu === 'agent' ? 'open' : ''}`}

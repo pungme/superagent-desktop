@@ -13032,29 +13032,97 @@ button {
   }
 }
 
-/* A narrow chat column: the pills drop their "Model" / "Mode" / "Account"
-   words and keep the values (the tooltip still names each), so six of them sit
-   in two tidy rows instead of four ragged ones, and the Memory readout takes a
-   line of its own under them rather than trailing the last pill. */
+/* A narrow chat column, like any page on a narrow screen: the row of pills
+   folds into one line that says what the chat is set to, and opens into a
+   plain list of the same settings. Wide, nothing changes. */
 .easy-controls {
   container: easy-controls / inline-size;
 }
+.easy-controls-summary {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 3px 4px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+}
+.easy-controls-summary:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+.easy-controls-summary-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.easy-controls.unfolded .easy-controls-summary .easy-control-caret {
+  transform: rotate(180deg);
+}
 @container easy-controls (max-width: 560px) {
-  .easy-control-key {
+  .easy-controls-summary {
+    display: inline-flex;
+    flex: 0 1 auto;
+  }
+  /* Folded: only the line and the Memory readout beside it. */
+  .easy-controls:not(.unfolded) > .easy-control {
     display: none;
   }
-  .easy-control-btn {
-    padding: 5px 8px;
-    gap: 5px;
+  .easy-stats {
+    margin-left: auto;
   }
-  .easy-control-val {
-    max-width: 130px;
+  /* Open: one setting to a row, its name on the left and its value on the
+     right, with hairlines between them rather than a box around each. */
+  .easy-controls.unfolded > .easy-controls-summary {
+    flex-basis: 100%;
+  }
+  .easy-controls.unfolded > .easy-control {
+    flex: 0 0 100%;
+    order: 2;
+    border-top: 1px solid var(--border);
+  }
+  .easy-controls.unfolded > .easy-stats {
+    order: 1;
+  }
+  .easy-controls.unfolded .easy-control-btn {
+    width: 100%;
+    border: none;
+    border-radius: 0;
+    padding: 8px 4px;
+    font-size: 12px;
+    background: none;
+  }
+  .easy-controls.unfolded .easy-control-btn:hover,
+  .easy-controls.unfolded .easy-control-btn.open {
+    background: var(--hover);
+  }
+  .easy-controls.unfolded .easy-control-key {
+    font-size: 12px;
+    flex: 1;
+    text-align: left;
+  }
+  .easy-controls.unfolded .easy-control-val {
+    text-align: right;
+    max-width: 60%;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .easy-stats {
-    flex-basis: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
+  /* The agent row has a logo and no label of its own. */
+  .easy-controls.unfolded
+    .easy-control-btn
+    > :first-child:not(.easy-control-key)
+    + .easy-control-val {
+    flex: 1;
+    max-width: none;
+    text-align: left;
+  }
+  .easy-controls.unfolded .easy-control-menu {
+    left: 0;
+    right: 0;
   }
 }
