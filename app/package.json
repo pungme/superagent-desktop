@@ -1,6 +1,6 @@
 {
   "name": "superagent",
-  "version": "1.9.3-beta.14",
+  "version": "1.9.3-beta.15",
   "description": "The desktop home for Claude Code — a persistent chat, a real browser your agent drives on your own logins, and routines on a schedule. Local, on your own Claude subscription, open source.",
   "main": "./out/main/index.js",
   "scripts": {
@@ -20,7 +20,7 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "npm run build:native && electron-vite build && electron-builder --mac",
+    "build:mac": "npm run build:native && npm run copy-ort && electron-vite build && electron-builder --mac",
     "release": "node scripts/release.mjs",
     "build:linux": "electron-vite build && electron-builder --linux",
     "build:native": "sh native/build.sh && node scripts/fetch-baguette.mjs",

@@ -183,6 +183,18 @@ async function rewriteLatestYml(version) {
 
 loadEnv()
 step('Checking credentials, gh and the working tree')
+/** Dictation loads these from beside the page; without them it cannot start. */
+function assertSpeechEngine() {
+  const dir = join(APP, 'out', 'renderer', 'ort')
+  const need = ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm']
+  const missing = need.filter((f) => !existsSync(join(dir, f)))
+  if (missing.length)
+    die(
+      `The build has no speech engine (out/renderer/ort is missing ${missing.join(', ')}).`,
+      'run `npm run copy-ort` before building'
+    )
+}
+
 checkCredentials()
 checkGh()
 checkGitClean()
@@ -191,7 +203,13 @@ console.log(`  releasing ${version}`)
 
 step('Building (notarization is a round-trip to Apple — several minutes)')
 runLoud('npm', ['run', 'build:native'])
+// The speech engine's files, which `npm run build` copies in its prebuild and
+// this script, calling electron-vite itself, did not. They are not committed,
+// so a clean checkout built without them — every CI release — and dictation
+// failed in the shipped app with "no available backend found".
+runLoud('npm', ['run', 'copy-ort'])
 runLoud('npx', ['electron-vite', 'build'])
+assertSpeechEngine()
 runLoud('npx', ['electron-builder', '--mac', '--publish', 'never'])
 
 step('Verifying the app was really notarized')
