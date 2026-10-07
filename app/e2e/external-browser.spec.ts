@@ -18,6 +18,14 @@ test.skip(!existsSync(BRAVE), 'Brave is not installed')
 
 let app: ElectronApplication
 let window: Page
+
+/** With the browser pane open the chat is narrow, and its settings are folded
+ *  into one line; open them so a pill can be reached. */
+async function unfoldControls(): Promise<void> {
+  const summary = window.locator('.easy-controls:visible .easy-controls-summary').first()
+  if ((await summary.isVisible()) && (await summary.getAttribute('aria-expanded')) !== 'true')
+    await summary.click()
+}
 let userDataDir: string
 let projectDir: string
 let mcpUrl: string
@@ -244,6 +252,7 @@ test("one chat's browser is its own: another chat in the project stays where it 
 })
 
 test('bringing sign-ins over copies only the sites you tick', async () => {
+  await unfoldControls()
   const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Browser"))').first()
   await expect(pill.locator('.easy-control-val')).toHaveText('Brave')
   await pill.click()
@@ -449,6 +458,7 @@ test('switching back to the built-in browser restores the normal pane', async ()
 test('"Sign in yourself…" opens it without the agent and says what happens next', async () => {
   await window.evaluate((id) => window.cove.browsersSet(id, 'brave'), `${wsId}::${chatId}`)
   await tool('browser_navigate', { url: siteUrl })
+  await unfoldControls()
   const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Browser"))').first()
   await pill.click()
   await window.locator('.easy-control-item:has-text("Sign in yourself")').click()
