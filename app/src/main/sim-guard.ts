@@ -35,7 +35,13 @@ export function simShellVerdict(command: string, who: SimHolders): string | null
     ? `This conversation's simulator is ${who.mine}; use that UDID.`
     : 'Call sim_list_devices first: it gives this conversation a simulator of its own and marks it YOURS. Then use that UDID.'
 
-  for (const udid of command.match(UDID) ?? []) {
+  // Looking at another conversation's simulator changes nothing for it.
+  const onlyLooks =
+    !xcodebuild &&
+    [...command.matchAll(/\bsimctl\s+([a-z_]+)\b([^\n;|&]*)/g)].every(
+      (m) => READS.test(m[1]) || (m[1] === 'io' && /\b(screenshot|enumerate)\b/.test(m[2]))
+    )
+  for (const udid of onlyLooks ? [] : (command.match(UDID) ?? [])) {
     if (who.mine && udid.toUpperCase() === who.mine.toUpperCase()) continue
     const other = who.takenBy(udid.toUpperCase()) ?? who.takenBy(udid)
     if (other)

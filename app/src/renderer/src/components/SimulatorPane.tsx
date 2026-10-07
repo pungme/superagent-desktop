@@ -682,6 +682,11 @@ export function SimulatorPane({
     const saved = udid ? localStorage.getItem(`cove.simOrientation:${udid}`) : null
     setOrientation(saved === 'left' || saved === 'right' ? saved : 'portrait')
   }, [udid])
+  // The device on screen now, for work that finishes after it may have changed.
+  const udidRef = useRef(udid)
+  useEffect(() => {
+    udidRef.current = udid
+  }, [udid])
   // Follow the device rather than trust the last button press: the agent, an
   // app, or unfolding a Duo turns it without the pane knowing. Checked when a
   // device (or a switched screen) first shows, then now and then.
@@ -780,13 +785,38 @@ export function SimulatorPane({
   })()
   const turn = (next: 'portrait' | 'left' | 'right'): void => {
     if (!udid) return
-    setOrientation(next)
-    localStorage.setItem(`cove.simOrientation:${udid}`, next)
-    void window.cove.simInput(udid, {
-      type: 'orientation',
-      value:
-        next === 'portrait' ? 'portrait' : next === 'left' ? 'landscape-left' : 'landscape-right'
-    })
+    // Turned at once for the feel of it, except on an unfolded foldable, which
+    // is known not to turn: there the picture waits for the device's answer
+    // rather than flipping onto its side and back.
+    if (!(foldable && !folded)) {
+      setOrientation(next)
+      localStorage.setItem(`cove.simOrientation:${udid}`, next)
+    }
+    const asked = udid
+    void window.cove
+      .simInput(udid, {
+        type: 'orientation',
+        value:
+          next === 'portrait' ? 'portrait' : next === 'left' ? 'landscape-left' : 'landscape-right'
+      })
+      .then(async () => {
+        // Not every device turns when asked: an unfolded iPhone Duo stays as it
+        // is, and the app on screen may not allow it. The picture was turned on
+        // the strength of the request, so ask the device which way it really
+        // is, soon, instead of drawing it on its side until the next routine
+        // check eight seconds later.
+        for (const wait of [700, 1500]) {
+          await new Promise((r) => setTimeout(r, wait))
+          if (udidRef.current !== asked) return
+          const real = await window.cove.simOrientation?.(asked)
+          if (!real || udidRef.current !== asked) continue
+          setOrientation(real)
+          localStorage.setItem(`cove.simOrientation:${asked}`, real)
+          if (real === next || (real !== 'portrait' && next !== 'portrait')) return
+        }
+        setBusy(`${device?.name ?? 'This simulator'} did not turn. It stays this way round here.`)
+        setTimeout(() => setBusy(null), 5000)
+      })
   }
 
   const hardware = (button: string, title: string, glyph: string): React.JSX.Element => (

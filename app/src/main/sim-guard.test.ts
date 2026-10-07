@@ -35,6 +35,20 @@ describe("a conversation's shell and the simulators", () => {
     ).toContain('in use by')
   })
 
+  /** A screenshot or a listing of someone else's device disturbs nothing. */
+  it("lets a command that only looks at another conversation's simulator through", () => {
+    expect(simShellVerdict(`xcrun simctl io ${THEIRS} screenshot /tmp/a.png`, who)).toBeNull()
+    expect(simShellVerdict(`xcrun simctl io ${THEIRS} enumerate`, who)).toBeNull()
+    expect(simShellVerdict(`xcrun simctl listapps ${THEIRS}`, who)).toBeNull()
+    // But not when the same line also changes it.
+    expect(
+      simShellVerdict(
+        `xcrun simctl io ${THEIRS} screenshot /tmp/a.png && xcrun simctl terminate ${THEIRS} com.x`,
+        who
+      )
+    ).toContain('in use by')
+  })
+
   it('lets a command aimed at its own simulator through', () => {
     expect(simShellVerdict(`xcrun simctl install ${MINE} build/App.app`, who)).toBeNull()
     expect(
