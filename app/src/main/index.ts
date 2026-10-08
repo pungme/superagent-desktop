@@ -1,4 +1,5 @@
 import { registerMailIpc } from './mail'
+import { registerLidAwakeIpc, releaseLidAwake } from './lid-awake'
 import { QUIET } from './quiet'
 import {
   app,
@@ -285,6 +286,7 @@ app.whenReady().then(async () => {
   registerSkillsIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
+  registerLidAwakeIpc()
   registerMailIpc()
   registerClaudeModelsIpc()
   registerExternalBrowserIpc(icon)
@@ -847,6 +849,8 @@ process.on('uncaughtException', (err) => {
 })
 
 app.on('before-quit', () => {
+  // Sleep is the Mac's again once Superagent is gone (lid-awake.ts).
+  releaseLidAwake()
   stopCompanion()
   killAllAgents()
   killAllOneShots()

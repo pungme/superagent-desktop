@@ -11842,6 +11842,81 @@ button {
   background: linear-gradient(135deg, #8e8e93, #48484a);
   color: #8e8e93;
 }
+/* Any colour: the rainbow until one is picked, then that colour. The real
+   control is the system picker, laid invisibly over the swatch. */
+.colour-well {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: conic-gradient(
+    #e0568c,
+    #d8873a,
+    #e8d44d,
+    #3fa163,
+    #12a594,
+    #3d82e8,
+    #7c6cf0,
+    #e0568c
+  );
+  color: #8e8e93;
+}
+.colour-well.active {
+  overflow: visible;
+}
+.colour-well input[type='color'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Placing your own picture in the icon. */
+.icon-editor-actions button {
+  white-space: nowrap;
+}
+.new-project.icon-editor {
+  width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.icon-editor-canvas {
+  margin: 14px 0 6px;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+  border-radius: 20px;
+  /* A quiet checker of the two backgrounds a Dock can have, so the icon's own
+     edge is easy to judge against either. */
+  background: linear-gradient(135deg, rgba(127, 127, 127, 0.16), rgba(127, 127, 127, 0.05));
+}
+.icon-editor-canvas:active {
+  cursor: grabbing;
+}
+.icon-editor-zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 260px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.icon-editor-zoom input {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.icon-editor-actions {
+  align-self: stretch;
+}
+.icon-editor-gap {
+  flex: 1;
+}
 
 /* Storage breakdown: one stacked bar, then the same colours as dots per row. */
 .storage-usage {
@@ -12772,7 +12847,7 @@ button {
   object-fit: cover;
   border-radius: 5px;
   border: 1px solid var(--border);
-  cursor: pointer;
+  cursor: zoom-in;
 }
 .easy-shot-remove {
   position: absolute;
@@ -13229,4 +13304,11 @@ button {
     left: 0;
     right: 0;
   }
+}
+
+/* Why a setting could not be changed, under its row. */
+.settings-row-error {
+  margin: 6px 2px 0;
+  font-size: 12px;
+  color: var(--danger, #d64545);
 }

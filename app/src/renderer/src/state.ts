@@ -618,8 +618,8 @@ export const ICON_COLOURS: Record<Accent, string> = {
  */
 export async function applySavedIcon(): Promise<void> {
   const custom = localStorage.getItem('cove.iconPhoto')
-  const colour = localStorage.getItem('cove.iconColour') as Accent | null
-  const { renderAppIcon } = await import('./app-icon')
+  const colour = localStorage.getItem('cove.iconColour')
+  const { renderAppIcon, clampPlace } = await import('./app-icon')
   if (custom) {
     const img = new Image()
     img.src = custom
@@ -627,19 +627,66 @@ export async function applySavedIcon(): Promise<void> {
       img.onload = r
       img.onerror = r
     })
-    const png = await renderAppIcon(img)
+    const png = await renderAppIcon(img, savedIconPlace(clampPlace))
     if (png) void window.cove.setAppIcon?.(png)
     return
   }
-  if (colour && colour !== 'default') {
-    const png = await renderAppIcon(ICON_COLOURS[colour])
+  const fill = iconFill(colour)
+  if (fill) {
+    const png = await renderAppIcon(fill)
     if (png) void window.cove.setAppIcon?.(png)
   }
 }
 
+/** A saved icon colour as a fill: one of the named ones, or any #rrggbb. Null for the original. */
+export function iconFill(saved: string | null): string | null {
+  if (!saved || saved === 'default') return null
+  if (/^#[0-9a-f]{6}$/i.test(saved)) return saved
+  return ICON_COLOURS[saved as Accent] ?? null
+}
+
+function savedIconPlace<T>(clamp: (p: never) => T): T {
+  try {
+    return clamp(JSON.parse(localStorage.getItem('cove.iconPlace') ?? 'null') as never)
+  } catch {
+    return clamp(null as never)
+  }
+}
+
+/** Black or white, whichever reads on this colour. */
+export function readableOn(hex: string): '#ffffff' | '#17181d' {
+  const n = parseInt(hex.slice(1), 16)
+  const lin = (v: number): number => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const l = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255)
+  // The contrast of white on it against the contrast of near-black on it.
+  return 1.05 / (l + 0.05) >= (l + 0.05) / 0.06 ? '#ffffff' : '#17181d'
+}
+
+/**
+ * The accent: one of the named ones, or a colour of your own
+ * (cove.accentCustom), which is set straight onto the root since no
+ * stylesheet rule can know it ahead of time.
+ */
 export function applyAccent(a: Accent): void {
-  if (a === 'default') document.documentElement.removeAttribute('data-accent')
-  else document.documentElement.setAttribute('data-accent', a)
+  const root = document.documentElement
+  const custom = localStorage.getItem('cove.accentCustom')
+  for (const v of ['--accent', '--accent-soft', '--accent-fg']) root.style.removeProperty(v)
+  if (custom && /^#[0-9a-f]{6}$/i.test(custom)) {
+    const n = parseInt(custom.slice(1), 16)
+    root.setAttribute('data-accent', 'custom')
+    root.style.setProperty('--accent', custom)
+    root.style.setProperty(
+      '--accent-soft',
+      `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.16)`
+    )
+    root.style.setProperty('--accent-fg', readableOn(custom))
+    return
+  }
+  if (a === 'default') root.removeAttribute('data-accent')
+  else root.setAttribute('data-accent', a)
 }
 
 /** A screenshot on offer: the composer's image shape, its file name and when it came. */
@@ -1094,6 +1141,8 @@ export const useStore = create<CoveState>((set, get) => ({
   },
 
   setAccent: (a) => {
+    // Choosing a named accent lets go of a colour of your own.
+    localStorage.removeItem('cove.accentCustom')
     localStorage.setItem('cove.accent', a)
     set({ accent: a })
     applyAccent(a)

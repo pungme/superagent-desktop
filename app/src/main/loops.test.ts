@@ -48,10 +48,11 @@ import {
   pauseLoop,
   registerLoops,
   requestLoopWait,
+  agentStopLoop,
   setUnattendedSend,
   _resetLoopsForTests
 } from './loops'
-import { LOOP_CAP, parseLoopCmd, SELF_PACE_NOTE } from '../shared/loop'
+import { LOOP_CAP, LOOP_STOP_NOTE, parseLoopCmd, SELF_PACE_NOTE } from '../shared/loop'
 
 registerLoops()
 
@@ -133,7 +134,7 @@ describe('loops', () => {
   it('fires an interval loop on its clock and skips a tick while a turn is running', async () => {
     loopCommand('c1', '/loop 5m check prices')
     await vi.advanceTimersByTimeAsync(0)
-    expect(h.rounds.map((r) => r.text)).toEqual(['check prices'])
+    expect(h.rounds.map((r) => r.text)).toEqual(['check prices' + LOOP_STOP_NOTE])
     await vi.advanceTimersByTimeAsync(300_000)
     expect(h.rounds).toHaveLength(2)
     h.generating.add('c1')
@@ -149,7 +150,7 @@ describe('loops', () => {
     h.session = { id: 's1' }
     loopCommand('c1', '/loop 5m ping')
     await vi.advanceTimersByTimeAsync(1000)
-    expect(h.sendToAgent).toHaveBeenCalledWith('s1', 'ping', [], {
+    expect(h.sendToAgent).toHaveBeenCalledWith('s1', 'ping' + LOOP_STOP_NOTE, [], {
       from: 'desktop',
       notifyOwner: true
     })
@@ -161,7 +162,7 @@ describe('loops', () => {
     setUnattendedSend(unattended)
     loopCommand('c1', '/loop 5m ping')
     await vi.advanceTimersByTimeAsync(1000)
-    expect(unattended).toHaveBeenCalledWith('c1', 'ping')
+    expect(unattended).toHaveBeenCalledWith('c1', 'ping' + LOOP_STOP_NOTE)
     expect(loopFor('c1')?.count).toBe(1)
   })
 
@@ -257,6 +258,21 @@ describe('loops', () => {
   it('pause and resume with no loop say so', () => {
     expect(loopCommand('c9', '/loop pause')).toMatch(/No loop/)
     expect(loopCommand('c9', '/loop resume')).toMatch(/No loop/)
+  })
+
+  /** An agent that is done used to be woken, round after round, to say so again. */
+  it('lets the agent end its own loop, and says why in the chat', async () => {
+    loopCommand('c1', '/loop 5m watch the deploy')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(loopFor('c1')).not.toBeNull()
+    expect(agentStopLoop('c1', 'The deploy   finished and is healthy.')).toBe(true)
+    expect(loopFor('c1')).toBeNull()
+    // No further round, however long we wait.
+    const sent = h.rounds.length
+    await vi.advanceTimersByTimeAsync(20 * 60_000)
+    expect(h.rounds.length).toBe(sent)
+    // Nothing to stop the second time.
+    expect(agentStopLoop('c1', 'again')).toBe(false)
   })
 
   it("tells the agent when there's no loop to wait for", async () => {

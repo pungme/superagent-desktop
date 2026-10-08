@@ -75,7 +75,7 @@ import { toolPreview } from './guardrail'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 import { isAbsolute, resolve } from 'path'
 import { homedir } from 'os'
-import { requestLoopWait } from './loops'
+import { agentStopLoop, requestLoopWait } from './loops'
 
 let port = 0
 let secret = ''
@@ -232,6 +232,32 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         }[requestLoopWait(CHAT_ID, clamped)]
         return { content: [{ type: 'text', text }] }
       }
+    )
+
+    server.registerTool(
+      'loop_stop',
+      {
+        description:
+          'End the /loop running in this chat. Call it when the loop has done its job (what it was ' +
+          'watching for happened, the task is finished) or when another round cannot help (it is ' +
+          'blocked on something only the user can do, or every round would repeat the last). Do ' +
+          'this instead of asking the user to stop it or saying again that nothing is left: each ' +
+          'further round costs them a turn. Say in `reason` why, in one sentence; the user sees it ' +
+          'and can start a new /loop.',
+        inputSchema: {
+          reason: z.string().describe('One sentence on why the loop is over — shown to the user.')
+        }
+      },
+      async ({ reason }) => ({
+        content: [
+          {
+            type: 'text',
+            text: agentStopLoop(CHAT_ID, reason)
+              ? 'The loop is stopped. No further rounds will run. Finish this reply normally.'
+              : 'No /loop is running in this chat, so there was nothing to stop.'
+          }
+        ]
+      })
     )
   }
 

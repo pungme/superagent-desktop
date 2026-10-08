@@ -77,7 +77,14 @@ export const SELF_PACE_NOTE =
   '\n\n(/loop, self-paced: pick your own pace with the loop_wait tool, exactly as you would call ' +
   "ScheduleWakeup in a terminal — clamped to [60, 3600]s. Don't bother for a short, ~60s gap; " +
   'Superagent already waits that long by default. Call it once, before ending the turn, when this ' +
-  "round's wait should be longer than that. Keep rounds brief; the loop runs until stopped.)"
+  "round's wait should be longer than that. Keep rounds brief. The loop runs until it is stopped: " +
+  'when it has done its job, or another round cannot help, end it yourself with the loop_stop ' +
+  'tool rather than asking to be stopped.)'
+
+/** Sent with a round of a loop on a fixed interval: the one thing it needs to know. */
+export const LOOP_STOP_NOTE =
+  '\n\n(/loop: this repeats on a timer until it is stopped. When it has done its job, or another ' +
+  'round cannot help, end it yourself with the loop_stop tool rather than asking to be stopped.)'
 
 export const LOOP_USAGE =
   'Usage: /loop [5m·2h·…] <prompt> — repeats the prompt in this chat until you Stop it. `/loop pause` and `/loop resume` hold and continue it; `/loop stop` ends it.'

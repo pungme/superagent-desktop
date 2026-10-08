@@ -10,6 +10,7 @@ import {
   LOOP_USAGE,
   MAX_LOOP_ROUND_GAP_MS,
   SELF_PACE_NOTE,
+  LOOP_STOP_NOTE,
   humanInterval,
   parseLoopCmd
 } from '../shared/loop'
@@ -147,7 +148,7 @@ async function fire(l: Loop): Promise<void> {
   l.requestedGapMs = null
   l.awaiting = true
   changed(l.chatId)
-  const text = l.intervalMs === null ? l.prompt + SELF_PACE_NOTE : l.prompt
+  const text = l.prompt + (l.intervalMs === null ? SELF_PACE_NOTE : LOOP_STOP_NOTE)
   const result = await deliver(l.chatId, text)
   if (loops.get(l.chatId) !== l) return
   if (result === 'failed') {
@@ -306,6 +307,19 @@ export function loopCommand(chatId: string, text: string): string | null {
   return cmd.intervalMs
     ? `🔁 Looping every ${humanInterval(cmd.intervalMs)}: “${cmd.prompt}”. Stop anytime.`
     : `🔁 Looping: “${cmd.prompt}” — self-paced: the agent decides when each next round runs. Stop anytime.`
+}
+
+/**
+ * The agent ending its own loop (mcp.ts loop_stop): the work is finished, or
+ * another round cannot move it. Without this a loop had one way to stop, the
+ * user, so an agent that was done kept being woken to say so again, round
+ * after round, each one costing a turn. False when no loop is running.
+ */
+export function agentStopLoop(chatId: string, reason: string): boolean {
+  if (!loops.has(chatId)) return false
+  const why = reason.trim().replace(/\s+/g, ' ').slice(0, 300)
+  stopWith(chatId, `⏹ The agent ended the loop${why ? `: ${why}` : '.'}`)
+  return true
 }
 
 /** The model's loop_wait call (mcp.ts): the gap before this chat's next round. */

@@ -821,6 +821,11 @@ export interface CoveApi {
   ) => Promise<{ ok: boolean; error?: string }>
   /** Open Terminal on the CLI's one-time interactive sign-in. */
   openAgentLogin: (provider: AgentProvider) => void
+  /** Keep working with the lid closed: whether it is on, and turning it on or off. */
+  lidAwake: () => Promise<boolean>
+  setLidAwake: (
+    on: boolean
+  ) => Promise<{ ok: true; enabled: boolean } | { ok: false; error: string }>
   /** Sign an agent in, in a window of Superagent's own. Resolves when it is over. */
   signInAgent: (
     provider: AgentProvider
@@ -1264,6 +1269,8 @@ const cove: CoveApi = {
       .finally(() => ipcRenderer.removeListener('env:install-progress', listener))
   },
   openAgentLogin: (provider) => ipcRenderer.send('env:open-login', provider),
+  lidAwake: () => ipcRenderer.invoke('power:lid-awake'),
+  setLidAwake: (on) => ipcRenderer.invoke('power:set-lid-awake', on),
   signInAgent: (provider) => ipcRenderer.invoke('env:sign-in', provider),
   cancelAgentSignIn: () => ipcRenderer.send('env:cancel-sign-in'),
   browserFocusShell: () => ipcRenderer.send('browser:focus-shell'),

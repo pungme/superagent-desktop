@@ -5065,7 +5065,15 @@ export function EasyChat({
               <div className="easy-shots-thumbs">
                 {shots.map((s) => (
                   <div key={s.name} className="easy-shot" title={s.name}>
-                    <img src={s.url} alt={s.name} onClick={() => attachShots([s])} />
+                    {/* A look first: the thumbnail is too small to tell which
+                        screenshot it is, and attaching on a click meant finding
+                        out by sending it. Attach is the button beside. */}
+                    <img
+                      src={s.url}
+                      alt={s.name}
+                      title={`${s.name} — click to see it`}
+                      onClick={() => setLightbox(s.url)}
+                    />
                     <button
                       className="easy-shot-remove"
                       title="Not this one"

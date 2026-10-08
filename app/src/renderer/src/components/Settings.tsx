@@ -2,7 +2,9 @@ import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Account } from '../../../preload'
-import { useStore, ACCENTS, ICON_COLOURS, type Accent } from '../state'
+import { useStore, ACCENTS, ICON_COLOURS, applyAccent, iconFill } from '../state'
+import { IconEditor } from './IconEditor'
+import type { IconPlace } from '../app-icon'
 import { PhoneSettings } from './PhoneSettings'
 import { REPLAY_INTRO_EVENT } from '../firstRun'
 import {
@@ -522,45 +524,106 @@ export function Settings({
 }: SettingsProps): React.JSX.Element {
   const theme = useStore((s) => s.theme)
   const accent = useStore((s) => s.accent)
-  const [iconColour, setIconColour] = useState<Accent>(
-    () => (localStorage.getItem('cove.iconColour') as Accent) || 'default'
+  // 'default', one of the named colours, or any #rrggbb of your own.
+  const [iconColour, setIconColour] = useState<string>(
+    () => localStorage.getItem('cove.iconColour') || 'default'
   )
   const [iconPhoto, setIconPhoto] = useState(() => !!localStorage.getItem('cove.iconPhoto'))
+  /** A small picture of the icon as it is, for the swatch that stands for it. */
+  const [iconThumbUrl, setIconThumbUrl] = useState(() => localStorage.getItem('cove.iconThumb'))
+  /** The picture being placed, while the editor is open. */
+  const [placing, setPlacing] = useState<{
+    image: HTMLImageElement
+    url: string
+    place: IconPlace
+  } | null>(null)
   const iconFileRef = useRef<HTMLInputElement>(null)
+  const [accentCustom, setAccentCustom] = useState(() => localStorage.getItem('cove.accentCustom'))
 
   /** A colour replaces the dark of the icon; the white square stays. */
-  const chooseIconColour = async (a: Accent): Promise<void> => {
-    localStorage.removeItem('cove.iconPhoto')
+  const chooseIconColour = async (a: string): Promise<void> => {
+    for (const k of ['cove.iconPhoto', 'cove.iconPlace', 'cove.iconThumb'])
+      localStorage.removeItem(k)
     localStorage.setItem('cove.iconColour', a)
     setIconPhoto(false)
+    setIconThumbUrl(null)
     setIconColour(a)
     const { renderAppIcon } = await import('../app-icon')
     // 'default' means the shipped icon, so hand back nothing and let main
     // restore the real one rather than redrawing an imitation of it.
-    const png = a === 'default' ? null : await renderAppIcon(ICON_COLOURS[a])
+    const fill = iconFill(a)
+    const png = fill ? await renderAppIcon(fill) : null
     await window.cove.setAppIcon?.(png)
   }
 
-  /** The picture goes where the dark was, cropped to cover, white square on top. */
+  /** A picture was picked: open it in the editor. Nothing changes until "Use this icon". */
   const pickIconPhoto = async (file?: File): Promise<void> => {
     if (!file) return
-    const { renderAppIcon, loadImage } = await import('../app-icon')
+    const { loadImage, loadImageUrl, shrinkForKeeping, CENTRED } = await import('../app-icon')
     try {
-      const img = await loadImage(file)
-      const png = await renderAppIcon(img)
-      if (!png) return
-      // Kept as a data URL so it survives a restart; the icon is redrawn from it
-      // at launch rather than the PNG being stored, which stays smaller.
-      const reader = new FileReader()
-      reader.onload = () => {
-        localStorage.setItem('cove.iconPhoto', String(reader.result))
-        localStorage.removeItem('cove.iconColour')
-        setIconPhoto(true)
-      }
-      reader.readAsDataURL(file)
-      await window.cove.setAppIcon?.(png)
+      // Kept small enough to store: it has to survive a restart.
+      const url = shrinkForKeeping(await loadImage(file))
+      if (!url) return
+      setPlacing({ image: await loadImageUrl(url), url, place: CENTRED })
     } catch {
       // Not an image, or too large to decode — the icon simply does not change.
+    }
+  }
+
+  /** The picture swatch: place the picture you have again, or pick one. */
+  const openIconPhoto = async (): Promise<void> => {
+    const url = localStorage.getItem('cove.iconPhoto')
+    if (!url) return iconFileRef.current?.click()
+    const { loadImageUrl, clampPlace } = await import('../app-icon')
+    try {
+      let place: unknown = null
+      try {
+        place = JSON.parse(localStorage.getItem('cove.iconPlace') ?? 'null')
+      } catch {
+        // an unreadable placement is just "centred"
+      }
+      setPlacing({ image: await loadImageUrl(url), url, place: clampPlace(place as IconPlace) })
+    } catch {
+      iconFileRef.current?.click()
+    }
+  }
+
+  /** The picture goes where the dark was, as placed, with the white square on top. */
+  const applyIconPhoto = async (place: IconPlace): Promise<void> => {
+    if (!placing) return
+    const { renderAppIcon, iconThumb } = await import('../app-icon')
+    const png = await renderAppIcon(placing.image, place)
+    if (!png) return
+    const thumb = iconThumb(placing.image, place)
+    try {
+      localStorage.setItem('cove.iconPhoto', placing.url)
+      localStorage.setItem('cove.iconPlace', JSON.stringify(place))
+      localStorage.setItem('cove.iconThumb', thumb)
+      localStorage.removeItem('cove.iconColour')
+    } catch {
+      // Out of room to keep it: it still applies now, and is gone on restart.
+    }
+    setIconPhoto(true)
+    setIconThumbUrl(thumb)
+    setPlacing(null)
+    await window.cove.setAppIcon?.(png)
+  }
+  // Keep working with the lid closed: off unless turned on; the main process
+  // owns it, since it is a system setting that needs an administrator.
+  const [lidAwake, setLidAwakeState] = useState(false)
+  const [lidAwakeError, setLidAwakeError] = useState('')
+  useEffect(() => {
+    void window.cove.lidAwake?.().then((on) => setLidAwakeState(!!on))
+  }, [])
+  const toggleLidAwake = async (on: boolean): Promise<void> => {
+    setLidAwakeError('')
+    // Shown at once; put back if macOS says no or the password is cancelled.
+    setLidAwakeState(on)
+    const res = await window.cove.setLidAwake(on)
+    if (res.ok) setLidAwakeState(res.enabled)
+    else {
+      setLidAwakeState(!on)
+      setLidAwakeError(res.error)
     }
   }
   const setAccent = useStore((s) => s.setAccent)
@@ -787,35 +850,77 @@ export function Settings({
                       <span className="icon-swatch-dot" />
                     </button>
                   ))}
-                  <button
-                    className={`accent-swatch icon-swatch icon-swatch-photo ${iconPhoto ? 'active' : ''}`}
-                    onClick={() => iconFileRef.current?.click()}
-                    title="Use a picture"
-                    aria-label="Use your own picture as the icon"
+                  <ColourWell
+                    className="icon-swatch"
+                    value={/^#/.test(iconColour) && !iconPhoto ? iconColour : null}
+                    title="Any colour"
+                    label="Pick any colour for the icon"
+                    onPick={(hex) => void chooseIconColour(hex)}
                   >
                     <span className="icon-swatch-dot" />
+                  </ColourWell>
+                  {/* With a picture in use this swatch IS that icon, so Settings
+                      shows what the Dock shows; pressing it places it again. */}
+                  <button
+                    className={`accent-swatch icon-swatch icon-swatch-photo ${iconPhoto ? 'active' : ''}`}
+                    style={
+                      iconPhoto && iconThumbUrl
+                        ? { backgroundImage: `url(${iconThumbUrl})`, backgroundSize: 'cover' }
+                        : undefined
+                    }
+                    onClick={() => void openIconPhoto()}
+                    title={iconPhoto ? 'Your picture — click to adjust' : 'Use a picture'}
+                    aria-label="Use your own picture as the icon"
+                    aria-pressed={iconPhoto}
+                  >
+                    {!(iconPhoto && iconThumbUrl) && <span className="icon-swatch-dot" />}
                   </button>
                   <input
                     ref={iconFileRef}
                     type="file"
                     accept="image/*"
                     style={{ display: 'none' }}
-                    onChange={(e) => void pickIconPhoto(e.target.files?.[0])}
+                    onChange={(e) => {
+                      void pickIconPhoto(e.target.files?.[0])
+                      e.target.value = '' // allow re-picking the same file
+                    }}
                   />
                 </div>
               </Row>
+              {placing && (
+                <IconEditor
+                  image={placing.image}
+                  initial={placing.place}
+                  onUse={(place) => void applyIconPhoto(place)}
+                  onCancel={() => setPlacing(null)}
+                  onAnother={() => iconFileRef.current?.click()}
+                />
+              )}
               <Row title="Accent" desc="The colour on your messages, and on whatever is selected.">
                 <div className="accent-swatches">
                   {ACCENTS.map((a) => (
                     <button
                       key={a}
-                      className={`accent-swatch accent-${a} ${accent === a ? 'active' : ''}`}
-                      onClick={() => setAccent(a)}
+                      className={`accent-swatch accent-${a} ${accent === a && !accentCustom ? 'active' : ''}`}
+                      onClick={() => {
+                        setAccentCustom(null)
+                        setAccent(a)
+                      }}
                       title={a === 'default' ? 'Default' : a[0].toUpperCase() + a.slice(1)}
                       aria-label={a === 'default' ? 'Default accent' : `${a} accent`}
-                      aria-pressed={accent === a}
+                      aria-pressed={accent === a && !accentCustom}
                     />
                   ))}
+                  <ColourWell
+                    value={accentCustom}
+                    title="Any colour"
+                    label="Pick any colour for the accent"
+                    onPick={(hex) => {
+                      localStorage.setItem('cove.accentCustom', hex)
+                      setAccentCustom(hex)
+                      applyAccent(accent)
+                    }}
+                  />
                 </div>
               </Row>
               <GroupLabel>Notifications</GroupLabel>
@@ -831,6 +936,18 @@ export function Settings({
               >
                 <Toggle checked={notifyNeedsYou} onChange={toggleNotifyNeedsYou} />
               </Row>
+              <GroupLabel>Power</GroupLabel>
+              <Row
+                title="Keep working with the lid closed"
+                desc="Agents carry on when you close your MacBook. macOS asks for your password once. While Superagent is open your Mac will not sleep, so it stays awake, and warm, in a bag."
+              >
+                <Toggle checked={lidAwake} onChange={(v) => void toggleLidAwake(v)} />
+              </Row>
+              {lidAwakeError && (
+                <p role="alert" className="settings-row-error">
+                  {lidAwakeError}
+                </p>
+              )}
             </section>
           )}
 
@@ -1042,5 +1159,43 @@ export function Settings({
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * A swatch that opens the system colour picker: any colour at all, beside the
+ * handful on offer. Shows the rainbow until one is chosen, then that colour.
+ */
+function ColourWell({
+  value,
+  onPick,
+  title,
+  label,
+  className = '',
+  children
+}: {
+  value: string | null
+  onPick: (hex: string) => void
+  title: string
+  label: string
+  className?: string
+  children?: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <label
+      className={`accent-swatch colour-well ${className} ${value ? 'active' : ''}`}
+      style={value ? { background: value, color: value } : undefined}
+      title={title}
+    >
+      {children}
+      <input
+        type="color"
+        aria-label={label}
+        value={value ?? '#7c6cf0'}
+        // On every move of the picker, so the choice is seen as it is made.
+        onInput={(e) => onPick((e.target as HTMLInputElement).value)}
+        onChange={(e) => onPick(e.target.value)}
+      />
+    </label>
   )
 }
