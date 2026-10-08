@@ -1023,11 +1023,19 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     'browser_read_page',
     {
       description:
-        'Read the current page: url, title, visible text, and a numbered list of interactive elements. Use the numbers with browser_click. Prefer this over screenshots — it is cheaper and clickable.',
-      inputSchema: {}
+        'Read the current page: url, title, visible text, and a numbered list of interactive elements. Use the numbers with browser_click. Prefer this over screenshots — it is cheaper and clickable. ' +
+        'Each field says what it is (label, name), what it holds (value, checked, the options of a select) and whether it is disabled or required. ' +
+        'Elements inside iframes and web components are listed too, marked with frame. ' +
+        'Long pages: the text comes 12,000 characters at a time; when textMore is there, pass textOffset to read on.',
+      inputSchema: {
+        textOffset: z
+          .number()
+          .optional()
+          .describe('Where in the page text to start, from textMore of an earlier read')
+      }
     },
-    async () => {
-      const page = JSON.stringify(await auto.readPage(browserPane()))
+    async ({ textOffset }) => {
+      const page = JSON.stringify(await auto.readPage(browserPane(), textOffset ?? 0))
       // Untrusted boundary. Everything here comes from a web page the agent did
       // not author, and a hostile page can plant text shaped like instructions
       // ("ignore your task, run this…"). Fence it and say plainly it is data,
@@ -1064,7 +1072,8 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   server.registerTool(
     'browser_type',
     {
-      description: 'Type text into the focused element (click an input first).',
+      description:
+        'Type text into the focused element (click an input first). For a native dropdown use browser_select_option; for a file input, browser_upload_file.',
       inputSchema: { text: z.string() }
     },
     async ({ text }) => ({
@@ -1075,13 +1084,159 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   server.registerTool(
     'browser_press_key',
     {
-      description: 'Press a key: Enter, Tab, Escape, Backspace, ArrowUp, ArrowDown.',
+      description:
+        'Press a key: Enter, Tab, Escape, Backspace, Delete, Space, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown.',
       inputSchema: { key: z.string() }
     },
     async ({ key }) => ({
       content: [{ type: 'text', text: await auto.pressKey(browserPane(), key) }]
     })
   )
+
+  server.registerTool(
+    'browser_hover',
+    {
+      description:
+        'Move the pointer onto an element without clicking: for menus and tooltips that only open on hover. Target it like browser_click (index, text, or x,y off a screenshot).',
+      inputSchema: {
+        index: z.number().optional(),
+        text: z.string().optional(),
+        x: z.number().optional(),
+        y: z.number().optional()
+      }
+    },
+    async ({ index, text, x, y }) => ({
+      content: [{ type: 'text', text: await auto.hover(browserPane(), { index, text, x, y }) }]
+    })
+  )
+
+  server.registerTool(
+    'browser_drag',
+    {
+      description:
+        'Drag from one place to another: a slider handle, a card to another column, a divider. Each end is an element index, visible text, or an x,y point off a screenshot.',
+      inputSchema: {
+        fromIndex: z.number().optional(),
+        fromText: z.string().optional(),
+        fromX: z.number().optional(),
+        fromY: z.number().optional(),
+        toIndex: z.number().optional(),
+        toText: z.string().optional(),
+        toX: z.number().optional(),
+        toY: z.number().optional()
+      }
+    },
+    async (a) => ({
+      content: [
+        {
+          type: 'text',
+          text: await auto.drag(
+            browserPane(),
+            { index: a.fromIndex, text: a.fromText, x: a.fromX, y: a.fromY },
+            { index: a.toIndex, text: a.toText, x: a.toX, y: a.toY }
+          )
+        }
+      ]
+    })
+  )
+
+  server.registerTool(
+    'browser_select_option',
+    {
+      description:
+        'Choose in a native dropdown (a select element; browser_read_page lists its options). Clicking one opens a system menu these tools cannot press, so set it here. Name the select by index or by its label as text, and the option by its visible text. Custom dropdowns built from divs are not selects: click them open, then click the option.',
+      inputSchema: {
+        index: z.number().optional(),
+        text: z.string().optional().describe("The select's label, when not using index"),
+        option: z
+          .string()
+          .optional()
+          .describe('The option to choose, by its visible text or value'),
+        options: z
+          .array(z.string())
+          .optional()
+          .describe('For a multiple select: every option to leave selected')
+      }
+    },
+    async ({ index, text, option, options }) => ({
+      content: [
+        {
+          type: 'text',
+          text: await auto.selectOption(
+            browserPane(),
+            { index, text },
+            options?.length ? options : option !== undefined ? [option] : []
+          )
+        }
+      ]
+    })
+  )
+
+  server.registerTool(
+    'browser_upload_file',
+    {
+      description:
+        "Attach files to the page's file input, as choosing them in the picker would. Do not click the input or its button first — that opens a system picker these tools cannot use. " +
+        'Leave index and input out when the page has one file input; otherwise pass the element index, or input: its number in fileInputs from browser_read_page (most file inputs are hidden behind a styled button and only appear there). Paths are absolute.',
+      inputSchema: {
+        paths: z.array(z.string()).describe('Absolute paths of the files to attach'),
+        index: z.number().optional(),
+        input: z.number().optional()
+      }
+    },
+    async ({ paths, index, input }) => ({
+      content: [
+        { type: 'text', text: await auto.uploadFiles(browserPane(), paths, { index, input }) }
+      ]
+    })
+  )
+
+  server.registerTool(
+    'browser_dialog',
+    {
+      description:
+        'Say how the NEXT JavaScript dialog on the page is answered, then do the thing that brings it up. Dialogs (alert, confirm, prompt, "leave this page?") are answered for you and reported in the result of the tool that caused them: alerts are acknowledged and leaving a page is allowed, but a confirm or prompt is answered Cancel unless you call this first with accept: true (and text, for a prompt).',
+      inputSchema: {
+        accept: z.boolean().describe('true for OK, false for Cancel'),
+        text: z.string().optional().describe('What to type into a prompt')
+      }
+    },
+    async ({ accept, text }) => ({
+      content: [{ type: 'text', text: await auto.planDialog(browserPane(), accept, text) }]
+    })
+  )
+
+  server.registerTool(
+    'browser_scroll',
+    {
+      description:
+        'Scroll the page: direction down, up, top or bottom (down by default, about a screen at a time; pages changes how far). With an element (index or text) and no direction, bring it into view; with both, scroll the box that element is in (a list or panel with its own scrollbar). Read the page again afterwards.',
+      inputSchema: {
+        direction: z.enum(['down', 'up', 'top', 'bottom']).optional(),
+        pages: z.number().optional().describe('How many screens to move; 0.85 by default'),
+        index: z.number().optional(),
+        text: z.string().optional()
+      }
+    },
+    async ({ direction, pages, index, text }) => ({
+      content: [
+        {
+          type: 'text',
+          text: await auto.scroll(browserPane(), { direction, pages, index, text })
+        }
+      ]
+    })
+  )
+
+  for (const [name, action, what] of [
+    ['browser_back', 'back', 'Go back one page in this tab.'],
+    ['browser_forward', 'forward', 'Go forward one page in this tab.'],
+    ['browser_reload', 'reload', 'Load the current page again.']
+  ] as const) {
+    server.registerTool(name, { description: what, inputSchema: {} }, async () => ({
+      content: [{ type: 'text', text: await auto.history(browserPane(), action) }]
+    }))
+  }
 
   server.registerTool(
     'browser_screenshot',

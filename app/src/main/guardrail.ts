@@ -39,6 +39,9 @@ export function classifyTool(toolName: string): ToolClass {
   // mail_send is not gated here: it asks the user itself, every time, so the
   // gate would only ask a second time.
   if (toolName === 'mcp__cove-browser__mail_draft') return 'gate'
+  // Sends a file from this Mac to whatever page is open: after reading a page,
+  // that is exactly what a planted instruction would ask for.
+  if (toolName === 'mcp__cove-browser__browser_upload_file') return 'gate'
   if (GATED_TOOL.test(toolName)) return 'gate'
   return 'allow'
 }
@@ -105,6 +108,10 @@ export function toolPreview(toolName: string, input: unknown): string {
       .filter((l, i, a) => l || (i > 0 && a[i - 1]))
       .join('\n')
       .slice(0, 1200)
+  }
+  if (toolName === 'mcp__cove-browser__browser_upload_file') {
+    const files = Array.isArray(o.paths) ? o.paths.map(String) : []
+    return `Upload to the page in the browser:\n${files.join('\n') || '(files)'}`.slice(0, 600)
   }
   if (toolName === 'mcp__cove-browser__mail_draft')
     return `Save unsent draft to ${Array.isArray(o.to) ? o.to.join(', ') : '(recipients)'}: ${s(o.subject)}`.slice(

@@ -45,6 +45,9 @@ export function stepsFromAssistant(event: {
  * The full cove-browser tool set. Omissions bite: a routine that tried
  * browser_evaluate to verify its work got every call denied and looped until it
  * timed out. Keep this in sync with the tools mcp.ts registers.
+ *
+ * browser_upload_file is left out on purpose: it sends a file from this Mac to
+ * a web page, and a routine runs with nobody there to be asked.
  */
 const ALLOWED_TOOLS = [
   'mcp__cove-browser__browser_navigate',
@@ -52,6 +55,14 @@ const ALLOWED_TOOLS = [
   'mcp__cove-browser__browser_click',
   'mcp__cove-browser__browser_type',
   'mcp__cove-browser__browser_press_key',
+  'mcp__cove-browser__browser_hover',
+  'mcp__cove-browser__browser_drag',
+  'mcp__cove-browser__browser_select_option',
+  'mcp__cove-browser__browser_dialog',
+  'mcp__cove-browser__browser_scroll',
+  'mcp__cove-browser__browser_back',
+  'mcp__cove-browser__browser_forward',
+  'mcp__cove-browser__browser_reload',
   'mcp__cove-browser__browser_screenshot',
   'mcp__cove-browser__browser_evaluate',
   'mcp__cove-browser__browser_console',

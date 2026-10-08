@@ -24,6 +24,17 @@ describe('classifyTool', () => {
     for (const t of ['Bash', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
       expect(classifyTool(t)).toBe('gate')
   })
+  it('gates sending a file from this Mac to a page, once a page has been read', () => {
+    const upload = 'mcp__cove-browser__browser_upload_file'
+    expect(classifyTool(upload)).toBe('gate')
+    expect(gateDecision(S, upload)).toBe('allow')
+    markTainted(S)
+    expect(gateDecision(S, upload)).toBe('ask')
+    expect(toolPreview(upload, { paths: ['/Users/me/notes.txt'] })).toContain('/Users/me/notes.txt')
+    // The rest of the new browser tools act on the page, not on the machine.
+    for (const t of ['select_option', 'scroll', 'hover', 'drag', 'dialog', 'back', 'reload'])
+      expect(classifyTool(`mcp__cove-browser__browser_${t}`)).toBe('allow')
+  })
   it('leaves read-only / unknown tools as allow', () => {
     for (const t of ['Read', 'Grep', 'Glob', 'mcp__cove-browser__browser_screenshot', 'TodoWrite'])
       expect(classifyTool(t)).toBe('allow')

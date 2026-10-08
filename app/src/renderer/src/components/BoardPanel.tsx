@@ -103,16 +103,16 @@ export function BoardPanel({
   }
 
   /**
-   * Hand an item to the agent: move it to doing, then send it as the prompt and
-   * get out of the way so you can watch. The body goes too when there is one —
-   * that is where the specification lives.
+   * Hand an item to the agent: move it to doing, then send it as the prompt.
+   * The body goes too when there is one — that is where the specification
+   * lives. The list stays open: it sits beside the chat, not over it, and
+   * closing it on every hand-over meant opening it again for the next item.
    */
   const workOn = async (c: BoardCard): Promise<void> => {
     const text = cardText(c)
     if (c.status !== 'doing') await window.cove.boardMove(c.id, 'doing', null)
     await refresh()
     window.dispatchEvent(new CustomEvent('cove:work-on', { detail: { workspaceId, text } }))
-    onClose()
   }
 
   const save = async (
@@ -137,13 +137,28 @@ export function BoardPanel({
         <h2>Todo</h2>
         <span className="board-sub">
           {cards.length === 0
-            ? 'Claude adds work here as it goes — or type your own below'
+            ? 'Claude adds work here as it goes — or type your own'
             : `${done} of ${cards.length} done`}
         </span>
         <div className="board-head-spacer" />
         <button className="board-close" onClick={onClose} title="Close the to-do">
           ✕
         </button>
+      </div>
+
+      {/* Above the list and outside its scrolling: at the foot of it, adding an
+          item meant scrolling past every other one first. */}
+      <div className="board-add-row">
+        <input
+          ref={inputRef}
+          className="board-add-input"
+          value={draft}
+          placeholder="Add something to do…"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void add()
+          }}
+        />
       </div>
 
       <div className="board-list">
@@ -311,19 +326,6 @@ export function BoardPanel({
             </section>
           )
         })}
-
-        <div className="board-add-row">
-          <input
-            ref={inputRef}
-            className="board-add-input"
-            value={draft}
-            placeholder="Add something to do…"
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void add()
-            }}
-          />
-        </div>
       </div>
     </div>
   )

@@ -532,7 +532,7 @@ export function mergeCoveHooks(settings: HookSettings, scriptPath: string): Hook
   // otherwise pass over every repo it only links to (copy-on-write.ts).
   addEntry('PreToolUse', {
     matcher:
-      'Bash|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|mcp__cove-browser__browser_read_page|mcp__cove-browser__mail_(accounts|search|read|draft|send)',
+      'Bash|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|mcp__cove-browser__browser_read_page|mcp__cove-browser__browser_upload_file|mcp__cove-browser__mail_(accounts|search|read|draft|send)',
     hooks: [{ type: 'command', command: `sh ${quoted} PreToolUse`, timeout: 600 }]
   })
   // Real tool approvals, for chats running in the "Ask" mode: Claude Code asks

@@ -18,7 +18,7 @@ const BROWSER_SYSTEM_PROMPT =
   'You are working inside Superagent, a desktop app with a live Chromium browser pane open and ' +
   'visible to the user, right next to this chat. To browse the web or interact with ANY ' +
   'website, use the cove-browser tools (browser_navigate, browser_read_page, browser_click, ' +
-  'browser_type, browser_press_key, browser_screenshot, browser_wait_for) — they drive the ' +
+  'browser_type, browser_press_key, browser_select_option, browser_upload_file, browser_scroll, browser_hover, browser_drag, browser_back, browser_screenshot, browser_wait_for) — they drive the ' +
   'actual visible browser so the user can watch. You can drive real websites, not just ' +
   'localhost. Strongly prefer these tools over WebSearch and WebFetch. To run a web search, ' +
   'navigate the browser to the search engine and type the query rather than calling WebSearch. ' +

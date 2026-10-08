@@ -319,6 +319,53 @@ test('click, type, read and screenshot work in Brave', async () => {
   expect(Buffer.from(shot, 'base64').subarray(1, 4).toString()).toBe('PNG')
 })
 
+test('fields, a select, dialogs, scrolling and a file work in Brave too', async () => {
+  const html =
+    '<label for=n>Your name</label><input id=n name=who value=Ada>' +
+    '<label for=c>Colour</label><select id=c name=colour><option>Red</option><option>Blue</option></select>' +
+    "<button onclick=\"document.title = 'c:' + confirm('Sure?')\">Ask</button>" +
+    "<button onclick=\"document.title = 'p:' + prompt('Name?', 'x')\">Name it</button>" +
+    '<input type=file id=f style=display:none onchange="document.title = \'f:\' + this.files[0].name">' +
+    '<div style=height:3000px></div><button onclick="document.title = \'end\'">The end</button>'
+  await tool('browser_evaluate', {
+    expression: `(document.body.innerHTML = ${JSON.stringify(html)}, 1)`
+  })
+  const title = (): Promise<string> => tool('browser_evaluate', { expression: 'document.title' })
+
+  const page = await tool('browser_read_page', {})
+  expect(page).toContain('"label":"Your name"')
+  expect(page).toContain('"value":"Ada"')
+  expect(page).toContain('"options":["Red","Blue"]')
+  expect(page).toContain('"fileInputs"')
+
+  expect(await tool('browser_select_option', { text: 'Colour', option: 'Blue' })).toContain('Blue')
+  expect(
+    await tool('browser_evaluate', { expression: 'document.getElementById("c").value' })
+  ).toContain('Blue')
+
+  // A question is answered Cancel and reported; told to, OK.
+  expect(await tool('browser_click', { text: 'Ask' })).toContain('"Sure?" — answered Cancel')
+  expect(await title()).toContain('c:false')
+  await tool('browser_dialog', { accept: true })
+  expect(await tool('browser_click', { text: 'Ask' })).toContain('answered OK')
+  expect(await title()).toContain('c:true')
+  await tool('browser_dialog', { accept: true, text: 'Zed' })
+  expect(await tool('browser_click', { text: 'Name it' })).toContain('answered "Zed"')
+  expect(await title()).toContain('p:Zed')
+
+  expect(await tool('browser_scroll', { direction: 'bottom' })).toContain('(the bottom)')
+  await tool('browser_click', { text: 'The end' })
+  expect(await title()).toContain('end')
+
+  const file = join(userDataDir, 'for-brave.txt')
+  writeFileSync(file, 'x')
+  expect(await tool('browser_upload_file', { paths: [file] })).toContain('for-brave.txt')
+  await expect.poll(title).toContain('f:for-brave.txt')
+
+  expect(await tool('browser_reload', {})).toContain('Now at')
+  expect(await title()).toContain('Shop')
+})
+
 test('asking the user for help waits for Done', async () => {
   // Listen first, then ask — the ask reaches the window like a permission prompt.
   await window.evaluate(() => {

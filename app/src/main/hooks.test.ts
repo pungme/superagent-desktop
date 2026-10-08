@@ -29,6 +29,9 @@ describe('mergeCoveHooks', () => {
     for (const op of ['accounts', 'search', 'read', 'draft'])
       expect(new RegExp(pre[0].matcher!).test(`mcp__cove-browser__mail_${op}`)).toBe(true)
     expect(pre[0].matcher).toContain('mcp__cove-browser__browser_read_page')
+    expect(
+      new RegExp(`^(?:${pre[0].matcher})$`).test('mcp__cove-browser__browser_upload_file')
+    ).toBe(true)
     // Running twice must not duplicate it.
     const twice = mergeCoveHooks(out, SCRIPT)
     expect((twice.hooks!.PreToolUse as unknown[]).length).toBe(1)

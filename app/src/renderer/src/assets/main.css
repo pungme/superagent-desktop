@@ -5101,20 +5101,22 @@ button {
 }
 
 .board-add-row {
-  padding: 4px 8px;
+  flex-shrink: 0;
+  padding: 0 14px 10px;
 }
 .board-add-input {
   width: 100%;
-  border: 0;
-  border-top: 1px solid var(--border);
-  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
   color: var(--text-primary);
-  padding: 9px 2px 4px;
+  padding: 7px 10px;
   font: inherit;
   font-size: 12.5px;
 }
 .board-add-input:focus {
   outline: none;
+  border-color: var(--border-strong);
 }
 
 /* The desk: the pane half of a workspace, holding one or more cards over a
@@ -8477,16 +8479,19 @@ button {
   cursor: default;
   /* The device rises into place when the mirror first appears (HTML img, so this
      really animates). */
-  animation: sim-screen-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  /* `backwards`, and nothing said about where it ends: with `both` and a
+     closing `transform: none`, the finished animation went on holding that
+     value, which outranks the inline rotation a turned device is drawn with —
+     so a landscape device was sized for the turn and then drawn unturned, on
+     its side. translate and scale rather than transform, for the same reason:
+     the rise must not touch the rotation even while it plays. */
+  animation: sim-screen-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
 @keyframes sim-screen-in {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+    translate: 0 14px;
+    scale: 0.96;
   }
 }
 @media (prefers-reduced-motion: reduce) {

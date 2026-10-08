@@ -11,6 +11,10 @@ const pane = {
     )
   },
   once: vi.fn(),
+  // What the dialog hook asks of a pane (automation.ts hookDialogs).
+  on: vi.fn(),
+  listeners: () => [],
+  removeAllListeners: vi.fn(),
   executeJavaScript: vi.fn(async () => undefined),
   loadURL: vi.fn(async () => undefined),
   getURL: () => 'https://example.com/'

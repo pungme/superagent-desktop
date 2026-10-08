@@ -62,7 +62,10 @@ const APPS: {
 function executablePath(id: BrowserId): string | null {
   const a = APPS.find((x) => x.id === id)
   if (!a) return null
-  for (const dir of ['/Applications', join(homedir(), 'Applications')]) {
+  // COVE_E2E_BROWSER_DIR: a folder holding a browser that is not installed, so
+  // a test can run against, say, Chrome on a Mac that only has Brave.
+  const extra = process.env.COVE_E2E_BROWSER_DIR
+  for (const dir of [...(extra ? [extra] : []), '/Applications', join(homedir(), 'Applications')]) {
     const p = join(dir, a.bundle, 'Contents', 'MacOS', a.binary)
     if (existsSync(p)) return p
   }
