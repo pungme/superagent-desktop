@@ -118,8 +118,30 @@ type Item =
  */
 const NO_SHOTS: Shot[] = []
 
+let measure: CanvasRenderingContext2D | null = null
+/** Whether what is typed needs more than the one line beside the buttons. */
+function needsLines(el: HTMLTextAreaElement): boolean {
+  if (el.value.includes('\n')) return true
+  measure ??= document.createElement('canvas').getContext('2d')
+  if (!measure) return false
+  const cs = getComputedStyle(el)
+  measure.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+  // The single-line box: 12px on the left, 74px kept clear for attach and mic.
+  return measure.measureText(el.value).width > el.clientWidth - 86
+}
+
 function fitInput(el: HTMLTextAreaElement): void {
   if (!el.isConnected || el.offsetParent === null) return
+  // On one line the text stops short of the attach and mic buttons. Kept on
+  // every line, that margin left a blank column down the right of a longer
+  // message; so once it wraps the buttons get a strip of their own under the
+  // text and the lines run the full width. Decided from the text's own width,
+  // not the box's height, which the padding it changes would feed back into.
+  const box = el.parentElement
+  if (box) {
+    if (needsLines(el)) box.dataset.tall = ''
+    else delete box.dataset.tall
+  }
   el.style.height = 'auto'
   const h = el.scrollHeight
   el.style.height = h > 0 ? Math.min(h, 160) + 'px' : ''
@@ -3701,6 +3723,8 @@ export function EasyChat({
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width ?? 0
       setNarrowComposer(w > 0 && w < 400)
+      // A different width wraps the text differently.
+      fitInput(el)
     })
     ro.observe(el)
     return () => ro.disconnect()

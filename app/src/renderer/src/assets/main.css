@@ -13312,3 +13312,13 @@ button {
   font-size: 12px;
   color: var(--danger, #d64545);
 }
+
+/* A message of more than one line: the lines run the full width, and attach
+   and mic sit in a strip of their own under them (see fitInput). */
+.easy-input-box[data-tall] .easy-input,
+.easy-input-box[data-tall] .easy-input-mirror {
+  padding: 10px 12px 38px;
+}
+.easy-input-box[data-tall] .easy-input {
+  max-height: 188px;
+}
