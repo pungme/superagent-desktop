@@ -1,0 +1,46 @@
+# Keeps the README's downloads badge true.
+#
+# shields.io's "downloads/total" badge counts only the newest 100 releases. With
+# more than that, every new beta dropped an old release from the count and the
+# number fell while downloads rose. This totals every release and publishes the
+# figure as a shields "endpoint" badge on the `badges` branch.
+name: Downloads badge
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: downloads-badge
+  cancel-in-progress: true
+
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Count downloads across every release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh .github/scripts/downloads-badge.sh > /tmp/downloads.json && cat /tmp/downloads.json
+      - name: Publish to the badges branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch origin badges 2>/dev/null; then
+            git checkout -q -B badges FETCH_HEAD
+          else
+            git checkout -q --orphan badges && git rm -rfq . || true
+          fi
+          cp /tmp/downloads.json downloads.json
+          git add downloads.json
+          git diff --cached --quiet && { echo "unchanged"; exit 0; }
+          git commit -qm "downloads: $(sed 's/.*"message":"\([^"]*\)".*/\1/' downloads.json)"
+          git push -q origin badges
