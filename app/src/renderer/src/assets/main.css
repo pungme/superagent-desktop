@@ -13100,8 +13100,43 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.easy-controls.unfolded .easy-controls-summary .easy-control-caret {
+.easy-controls-summary .easy-control-caret {
+  transition: transform 0.2s ease;
+}
+.easy-controls.unfolded:not(.folding) .easy-controls-summary .easy-control-caret {
   transform: rotate(180deg);
+}
+/* The list opens a row at a time, each growing into its place, and closes the
+   same way faster. Only for the length of the animation: a row at rest has no
+   height limit and no clipping, or its menu could not open out of it. */
+@keyframes easy-controls-row-in {
+  from {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-4px);
+    overflow: hidden;
+    border-top-color: transparent;
+  }
+  to {
+    max-height: 44px;
+    opacity: 1;
+    transform: none;
+    overflow: hidden;
+  }
+}
+@keyframes easy-controls-row-out {
+  from {
+    max-height: 44px;
+    opacity: 1;
+    overflow: hidden;
+  }
+  to {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-4px);
+    overflow: hidden;
+    border-top-color: transparent;
+  }
 }
 @container easy-controls (max-width: 560px) {
   .easy-controls-summary {
@@ -13127,6 +13162,31 @@ button {
   }
   .easy-controls.unfolded > .easy-stats {
     order: 1;
+  }
+  .easy-controls.unfolded > .easy-control {
+    animation: easy-controls-row-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  }
+  .easy-controls.unfolded > .easy-control:nth-of-type(2) {
+    animation-delay: 0.025s;
+  }
+  .easy-controls.unfolded > .easy-control:nth-of-type(3) {
+    animation-delay: 0.05s;
+  }
+  .easy-controls.unfolded > .easy-control:nth-of-type(4) {
+    animation-delay: 0.075s;
+  }
+  .easy-controls.unfolded > .easy-control:nth-of-type(n + 5) {
+    animation-delay: 0.1s;
+  }
+  /* 0.16s: FOLD_OUT_MS in EasyChat.tsx, which takes the rows out when it ends. */
+  .easy-controls.unfolded.folding > .easy-control {
+    animation: easy-controls-row-out 0.16s ease-out forwards;
+    animation-delay: 0s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .easy-controls.unfolded > .easy-control {
+      animation: none;
+    }
   }
   .easy-controls.unfolded .easy-control-btn {
     width: 100%;

@@ -2,7 +2,7 @@ import './assets/main.css'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { startOverlayGuard } from './overlay-guard'
+import { startOverlayGuard, startAutoOverlayLock } from './overlay-guard'
 import { useStore, applyAccent, applySavedIcon, type Accent } from './state'
 import App from './App'
 
@@ -71,4 +71,10 @@ void hydrateStorage().then(() => {
   // Dev only, and a no-op in a build: shouts if an overlay mounts over a browser
   // pane without taking the lock, which is the one mistake CSS cannot warn about.
   startOverlayGuard(() => useStore.getState().overlayCount > 0)
+  // In every build: a tooltip or menu that reaches over a browser pane takes the
+  // lock for as long as it is there, so it is drawn over the page, not under it.
+  startAutoOverlayLock(
+    () => useStore.getState().enterOverlay(),
+    () => useStore.getState().exitOverlay()
+  )
 })

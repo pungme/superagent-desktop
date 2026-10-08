@@ -56,13 +56,34 @@ test('a narrow chat folds its settings into one line that opens as a list', asyn
     const box = (await controls.boundingBox())!
     expect(row.width).toBeGreaterThan(box.width - 40)
     if (process.env.SHOT) await controls.screenshot({ path: '/tmp/sa-fold-list.png' })
+    // The rows grow into place; once there, nothing is left limiting or
+    // clipping them, or a row's menu could not open out of it.
+    await expect
+      .poll(() =>
+        model.evaluate((b) => {
+          const row = getComputedStyle(b.closest('.easy-control')!)
+          return `${row.maxHeight} ${row.overflow} ${row.opacity}`
+        })
+      )
+      .toBe('none visible 1')
     // A row still opens its menu.
     await model.click()
     await expect(controls.locator('.easy-control-menu')).toBeVisible()
     await model.click()
     await expect(controls.locator('.easy-control-menu')).toHaveCount(0)
 
-    // And folds away again.
+    // And folds away again: the rows close first, then go.
+    await summary.click()
+    await expect(controls).toHaveClass(/folding/)
+    await expect(model).toBeHidden()
+    await expect(controls).not.toHaveClass(/folding|unfolded/)
+    expect((await controls.boundingBox())!.height).toBe(folded)
+    // Pressed again while it is closing, it opens straight back up.
+    await summary.click()
+    await summary.click()
+    await summary.click()
+    await expect(model).toBeVisible()
+    await expect(controls).not.toHaveClass(/folding/)
     await summary.click()
     await expect(model).toBeHidden()
     if (process.env.SHOT) await controls.screenshot({ path: '/tmp/sa-fold-line.png' })

@@ -68,6 +68,9 @@ interface ChatMessage {
   tokensNew?: number
 }
 
+/** How long the folded settings take to close; the same figure as the CSS. */
+const FOLD_OUT_MS = 160
+
 /** A screenshot suggestion lasts this long, and holds at most this many. */
 
 interface PendingImage {
@@ -1491,6 +1494,32 @@ export function EasyChat({
   const [controlMenu, setControlMenu] = useState<string | null>(null)
   // In a narrow column the settings fold into one line; this opens them as a list.
   const [controlsOpen, setControlsOpen] = useState(false)
+  // Folding away takes a moment: the rows stay drawn while they close, and are
+  // only taken out once they have (see .easy-controls.folding).
+  const [controlsFolding, setControlsFolding] = useState(false)
+  const foldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => void (foldTimerRef.current && clearTimeout(foldTimerRef.current)), [])
+  const toggleControls = (): void => {
+    setControlMenu(null)
+    if (foldTimerRef.current) clearTimeout(foldTimerRef.current)
+    foldTimerRef.current = null
+    // Pressed again mid-fold: open straight back up.
+    if (!controlsOpen || controlsFolding) {
+      setControlsFolding(false)
+      setControlsOpen(true)
+      return
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setControlsOpen(false)
+      return
+    }
+    setControlsFolding(true)
+    foldTimerRef.current = setTimeout(() => {
+      foldTimerRef.current = null
+      setControlsFolding(false)
+      setControlsOpen(false)
+    }, FOLD_OUT_MS)
+  }
   const [olderOpen, setOlderOpen] = useState(false)
   // Fold the older models back away each time the menu opens.
   useEffect(() => {
@@ -5414,18 +5443,17 @@ export function EasyChat({
           </div>
         )}
       </div>
-      <div className={`easy-controls ${controlsOpen ? 'unfolded' : ''}`}>
+      <div
+        className={`easy-controls ${controlsOpen ? 'unfolded' : ''} ${controlsFolding ? 'folding' : ''}`}
+      >
         {/* Only drawn when the column is narrow (see .easy-controls-summary):
             one quiet line saying what the chat is set to, in place of a heap of
             pills. Pressing it lays the same settings out as a list. */}
         <button
           className="easy-controls-summary"
-          aria-expanded={controlsOpen}
+          aria-expanded={controlsOpen && !controlsFolding}
           title={controlsOpen ? 'Hide the settings' : "This chat's agent, model, mode and browser"}
-          onClick={() => {
-            setControlMenu(null)
-            setControlsOpen((o) => !o)
-          }}
+          onClick={toggleControls}
         >
           <ProviderLogo provider={provider} size={12} />
           <span className="easy-controls-summary-text">
