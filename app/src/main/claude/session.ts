@@ -5,6 +5,7 @@ import os from 'os'
 import { getHookUrl } from '../hooks'
 import { getMcpUrl } from '../mcp'
 import { buildAppendedPrompt } from '../prompts'
+import { promptAsFile } from './prompt-file'
 import { describeRepoSet, projectMemoryDir } from '../repo-set'
 import { findClaude } from '../claude-cli'
 import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
@@ -194,7 +195,7 @@ export function startClaudeSession(
   let sawInit = false
 
   const spawnProc = (resume: string | null): void => {
-    const args = buildAgentArgs(opts, { resume, mcpConfig: ctx.mcpConfigPath })
+    const args = promptAsFile(buildAgentArgs(opts, { resume, mcpConfig: ctx.mcpConfigPath }))
 
     const proc = spawn(findClaude(), args, {
       cwd: opts.cwd || os.homedir(),

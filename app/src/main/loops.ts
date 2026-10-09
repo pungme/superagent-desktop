@@ -6,13 +6,13 @@ import { getChat } from './store'
 import { broadcastToWindows } from './util'
 import {
   DEFAULT_LOOP_ROUND_GAP_MS,
-  LOOP_CAP,
   LOOP_USAGE,
   MAX_LOOP_ROUND_GAP_MS,
   SELF_PACE_NOTE,
   LOOP_STOP_NOTE,
   humanInterval,
-  parseLoopCmd
+  parseLoopCmd,
+  quietGapMs
 } from '../shared/loop'
 import type { WireLoop } from '../shared/companion-protocol'
 
@@ -39,6 +39,14 @@ interface Loop extends WireLoop {
   awaiting: boolean
   /** The model's own loop_wait for the round in progress, if it called one. */
   requestedGapMs: number | null
+  quiet: number
+  needsUser: boolean
+  /** The agent said this round found nothing to do (loop_idle). */
+  quietThisRound: boolean
+  /** An interval loop sits out its ticks until then, after quiet rounds. */
+  quietUntil: number
+  /** Rounds in a row that could not be handed to an agent at all. */
+  failures: number
 }
 
 const loops = new Map<string, Loop>()
@@ -52,6 +60,9 @@ const OFFER_MS = 1000
 const WATCHDOG_MS = 45_000
 /** A window whose agent is mid-restart asked us to hold the round; try again after this. */
 const BUSY_RETRY_MS = 5000
+/** No agent could be started for the round: try again after this, a few times. */
+const FAILED_RETRY_MS = 30_000
+const MAX_FAILURES = 3
 
 export function loopFor(chatId: string): WireLoop | null {
   const l = loops.get(chatId)
@@ -61,7 +72,9 @@ export function loopFor(chatId: string): WireLoop | null {
         intervalMs: l.intervalMs,
         count: l.count,
         nextAt: l.nextAt,
-        paused: l.paused
+        paused: l.paused,
+        quiet: l.quiet,
+        needsUser: l.needsUser
       }
     : null
 }
@@ -138,33 +151,34 @@ async function fire(l: Loop): Promise<void> {
     stopLoop(l.chatId)
     return
   }
-  if (l.count >= LOOP_CAP) {
-    stopWith(l.chatId, `⏹ Loop stopped after ${LOOP_CAP} runs (safety cap).`)
-    return
-  }
   l.count++
   l.nextAt = nextTick(l)
   l.roundStart = Date.now()
   l.requestedGapMs = null
+  l.quietThisRound = false
   l.awaiting = true
   changed(l.chatId)
   const text = l.prompt + (l.intervalMs === null ? SELF_PACE_NOTE : LOOP_STOP_NOTE)
   const result = await deliver(l.chatId, text)
   if (loops.get(l.chatId) !== l) return
-  if (result === 'failed') {
+  if (result === 'failed' && ++l.failures >= MAX_FAILURES) {
     stopWith(l.chatId, '⏹ Loop stopped: the agent for this chat could not be started.')
     return
   }
-  if (result === 'busy') {
+  if (result === 'sent') l.failures = 0
+  if (result !== 'sent') {
     // Not sent: give the count back and try again shortly.
     l.count--
     l.awaiting = false
     changed(l.chatId)
     if (l.guard) clearTimeout(l.guard)
-    l.guard = setTimeout(() => {
-      l.guard = null
-      if (l.intervalMs === null) void fire(l)
-    }, BUSY_RETRY_MS)
+    l.guard = setTimeout(
+      () => {
+        l.guard = null
+        if (l.intervalMs === null || result === 'failed') void fire(l)
+      },
+      result === 'failed' ? FAILED_RETRY_MS : BUSY_RETRY_MS
+    )
     return
   }
   // Handed over. If no turn ever starts for it (a send that got dropped), a
@@ -182,7 +196,9 @@ async function fire(l: Loop): Promise<void> {
 /** An interval loop's next tick; null for a continuous one (it has no clock). */
 function nextTick(l: Loop): number | null {
   if (l.intervalMs === null) return null
-  const n = Math.floor((Date.now() - l.startedAt) / l.intervalMs) + 1
+  // The first tick after now, or after the quiet wait when that is later.
+  const from = Math.max(Date.now(), l.quietUntil - 1)
+  const n = Math.floor((from - l.startedAt) / l.intervalMs) + 1
   return l.startedAt + n * l.intervalMs
 }
 
@@ -193,8 +209,11 @@ function scheduleNext(l: Loop): void {
   // otherwise it's the same floor a bare ScheduleWakeup call would hit. Only
   // wait out what's left of it — a round that spent real time working never
   // waits twice.
+  // Rounds that found nothing to do wait longer each time (see quietGapMs),
+  // counted from the end of the round rather than its start.
+  const quiet = quietGapMs(l.quiet)
   const target = l.requestedGapMs ?? DEFAULT_LOOP_ROUND_GAP_MS
-  const delay = Math.max(900, target - (Date.now() - l.roundStart))
+  const delay = Math.max(900, target - (Date.now() - l.roundStart), quiet)
   l.nextAt = Date.now() + delay
   l.timer = setTimeout(() => {
     l.timer = null
@@ -223,14 +242,20 @@ export function startLoop(chatId: string, prompt: string, intervalMs: number | n
     roundStart: 0,
     startedAt: Date.now(),
     awaiting: false,
-    requestedGapMs: null
+    requestedGapMs: null,
+    quiet: 0,
+    needsUser: false,
+    quietThisRound: false,
+    quietUntil: 0,
+    failures: 0
   }
   loops.set(chatId, l)
   if (intervalMs !== null) {
     l.timer = setInterval(() => {
       if (l.paused) return
-      // Skip a tick while a turn is still running, so runs don't pile up.
-      if (isGenerating(chatId)) {
+      // Skip a tick while a turn is still running, so runs don't pile up, and
+      // while sitting out quiet rounds.
+      if (isGenerating(chatId) || Date.now() < l.quietUntil) {
         l.nextAt = nextTick(l)
         changed(chatId)
         return
@@ -250,6 +275,7 @@ export function pauseLoop(chatId: string, paused: boolean): boolean {
   if (!l) return false
   if (l.paused === paused) return true
   l.paused = paused
+  if (!paused) l.needsUser = false
   if (paused) {
     // A continuous loop's pending round; an interval's clock keeps ticking and
     // skips while held, so it resumes on the beat it always had.
@@ -310,16 +336,71 @@ export function loopCommand(chatId: string, text: string): string | null {
 }
 
 /**
- * The agent ending its own loop (mcp.ts loop_stop): the work is finished, or
- * another round cannot move it. Without this a loop had one way to stop, the
- * user, so an agent that was done kept being woken to say so again, round
- * after round, each one costing a turn. False when no loop is running.
+ * The agent saying a round had nothing in it (mcp.ts loop_idle).
+ *
+ * A loop runs until the user stops it. The agent could end one for a while
+ * (loop_stop), and ended them far too readily: asked to keep improving
+ * something, it finished its own list in a round or two and stopped. Rewording
+ * the instruction did not hold. So the agent no longer decides whether the loop
+ * goes on, only whether this round did anything, and the loop answers a quiet
+ * round by waiting longer before the next: it never ends by itself and never
+ * hammers an agent that has nothing to do.
+ *
+ * `needsUser` is the other honest reason for a round to do nothing: it cannot
+ * move without the person. Then the loop is held until they write.
  */
-export function agentStopLoop(chatId: string, reason: string): boolean {
-  if (!loops.has(chatId)) return false
+export function agentIdleLoop(
+  chatId: string,
+  reason: string,
+  needsUser: boolean
+): { state: 'none' } | { state: 'needs-user' } | { state: 'quiet'; nextInMs: number } {
+  const l = loops.get(chatId)
+  if (!l) return { state: 'none' }
   const why = reason.trim().replace(/\s+/g, ' ').slice(0, 300)
-  stopWith(chatId, `⏹ The agent ended the loop${why ? `: ${why}` : '.'}`)
-  return true
+  if (needsUser) {
+    pauseLoop(chatId, true)
+    l.needsUser = true
+    changed(chatId)
+    record(chatId, {
+      kind: 'notice',
+      text: `⏸ The loop is waiting for you${why ? `: ${why}` : '.'} It carries on when you reply.`
+    })
+    return { state: 'needs-user' }
+  }
+  if (!l.quietThisRound) {
+    l.quietThisRound = true
+    l.quiet++
+    changed(chatId)
+  }
+  return { state: 'quiet', nextInMs: Math.max(quietGapMs(l.quiet), l.intervalMs ?? 0) }
+}
+
+/** Whether a message in a looping chat is one of the loop's own rounds. */
+function isRound(l: Loop, text: string): boolean {
+  return text.startsWith(l.prompt) && text.slice(l.prompt.length).trimStart().startsWith('(/loop')
+}
+
+/**
+ * The person wrote in a looping chat: there is something new to work with, so
+ * the loop goes back to its short wait, and one that was held for them goes on.
+ */
+function userSpoke(l: Loop): void {
+  l.quiet = 0
+  l.quietUntil = 0
+  l.quietThisRound = false
+  // A long wait already on the clock was set for a chat with nothing in it.
+  // Drop it; the end of the turn this message starts sets the next round.
+  if (l.intervalMs === null && l.timer) {
+    clearTimeout(l.timer as ReturnType<typeof setTimeout>)
+    l.timer = null
+    l.nextAt = null
+  }
+  if (l.needsUser) {
+    // Their message starts a turn, and its end sets the next round. The wait
+    // set here is only for a message that never becomes one.
+    l.roundStart = Date.now()
+    pauseLoop(l.chatId, false)
+  } else changed(l.chatId)
 }
 
 /** The model's loop_wait call (mcp.ts): the gap before this chat's next round. */
@@ -353,7 +434,23 @@ export function registerLoops(): void {
       l.awaiting = false
       return
     }
+    // The turn is over. A round that did something ends a run of quiet ones.
+    if (l.quietThisRound) {
+      if (l.intervalMs !== null) l.quietUntil = Date.now() + quietGapMs(l.quiet)
+    } else if (l.quiet > 0) {
+      l.quiet = 0
+      l.quietUntil = 0
+    }
+    l.quietThisRound = false
+    if (l.intervalMs !== null) {
+      l.nextAt = l.paused ? null : nextTick(l)
+      changed(l.chatId)
+    }
     scheduleNext(l)
+  })
+  agentBus.on('user', ({ chatId, text }: { chatId?: string; text?: string }) => {
+    const l = chatId ? loops.get(chatId) : undefined
+    if (l && typeof text === 'string' && !isRound(l, text)) userSpoke(l)
   })
   // Stopping the agent mid-turn is taking over: the loop ends with it, rather
   // than silently never firing again.

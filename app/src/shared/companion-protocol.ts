@@ -214,6 +214,10 @@ export interface WireLoop {
   nextAt: number | null
   /** Held: the round in flight finishes, no new one starts until resumed. Absent from older Macs. */
   paused?: boolean
+  /** Rounds in a row that found nothing to do; each one lengthens the wait. Absent from older Macs. */
+  quiet?: number
+  /** Held because the agent cannot go on without the person; their next message resumes it. */
+  needsUser?: boolean
 }
 
 export interface WireMachine {

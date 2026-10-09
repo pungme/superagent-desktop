@@ -5,6 +5,7 @@ import { join } from 'path'
 vi.mock('./mail', () => ({ mailConnected: () => false }))
 
 import { buildAgentArgs } from './claude/session'
+import { promptAsFile } from './claude/prompt-file'
 
 /** The value that follows a flag, or undefined when the flag isn't there. */
 function valueAfter(args: string[], flag: string): string | undefined {
@@ -165,6 +166,21 @@ describe('a model whose allowance is used up', () => {
     } finally {
       _resetAccountsForTests()
       delete process.env.COVE_USER_DATA
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // The bug: one chat's `pkill -f xcodebuild` matched every other chat's
+  // `claude`, whose command line carried the whole prompt, and killed them.
+  it('leaves none of the prompt on the command line a session is started with', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sa-prompt-'))
+    try {
+      const before = buildAgentArgs({ browserProject: true })
+      expect(valueAfter(before, '--append-system-prompt')).toContain('xcodebuild')
+      const line = promptAsFile(before, dir).join(' ')
+      for (const word of ['xcodebuild', 'simctl', 'Simulator', 'Superagent', 'browser_'])
+        expect(line).not.toContain(word)
+    } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })

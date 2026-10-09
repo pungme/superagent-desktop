@@ -48,11 +48,11 @@ import {
   pauseLoop,
   registerLoops,
   requestLoopWait,
-  agentStopLoop,
+  agentIdleLoop,
   setUnattendedSend,
   _resetLoopsForTests
 } from './loops'
-import { LOOP_CAP, LOOP_STOP_NOTE, parseLoopCmd, SELF_PACE_NOTE } from '../shared/loop'
+import { LOOP_STOP_NOTE, parseLoopCmd, quietGapMs, SELF_PACE_NOTE } from '../shared/loop'
 
 registerLoops()
 
@@ -198,10 +198,11 @@ describe('loops', () => {
       text: expect.stringMatching(/interrupted/)
     })
 
+    // No cap: a loop runs until it is stopped.
     loopCommand('c3', '/loop 1s c')
-    await vi.advanceTimersByTimeAsync(LOOP_CAP * 1000 + 5000)
-    expect(loopFor('c3')).toBeNull()
-    expect(h.rounds.filter((r) => r.chatId === 'c3')).toHaveLength(LOOP_CAP)
+    await vi.advanceTimersByTimeAsync(300 * 1000 + 500)
+    expect(loopFor('c3')).not.toBeNull()
+    expect(h.rounds.filter((r) => r.chatId === 'c3').length).toBeGreaterThan(250)
   })
 
   it('stops quietly once the chat is gone', async () => {
@@ -260,19 +261,129 @@ describe('loops', () => {
     expect(loopCommand('c9', '/loop resume')).toMatch(/No loop/)
   })
 
-  /** An agent that is done used to be woken, round after round, to say so again. */
-  it('lets the agent end its own loop, and says why in the chat', async () => {
-    loopCommand('c1', '/loop 5m watch the deploy')
+  /** A round of a loop as the agent sees it: the turn runs, maybe says it was idle, ends. */
+  async function round(chatId: string, idle: boolean): Promise<void> {
+    h.generating.add(chatId)
+    h.logBus.emit('busy', { chatId })
+    if (idle) agentIdleLoop(chatId, 'checked everything, nothing left', false)
+    h.generating.delete(chatId)
+    h.logBus.emit('busy', { chatId })
     await vi.advanceTimersByTimeAsync(0)
+  }
+
+  it('waits a minute, then five, fifteen, thirty and an hour', () => {
+    expect([0, 1, 2, 3, 4, 5, 9].map(quietGapMs)).toEqual([
+      0, 60_000, 300_000, 900_000, 1_800_000, 3_600_000, 3_600_000
+    ])
+  })
+
+  /** The agent cannot end a loop; a round with nothing in it makes the next one later. */
+  it('waits longer after each quiet round and never ends by itself', async () => {
+    loopCommand('c1', '/loop keep polishing')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(h.rounds).toHaveLength(1)
+
+    await round('c1', true)
+    expect(loopFor('c1')).toMatchObject({ quiet: 1 })
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(h.rounds).toHaveLength(2)
+
+    // A second quiet round in a row: five minutes, not one.
+    await round('c1', true)
+    expect(loopFor('c1')).toMatchObject({ quiet: 2 })
+    await vi.advanceTimersByTimeAsync(4 * 60_000)
+    expect(h.rounds).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(h.rounds).toHaveLength(3)
+
+    // Many more: still running, each after its own wait, an hour at the most.
+    for (let i = 0; i < 6; i++) {
+      await round('c1', true)
+      await vi.advanceTimersByTimeAsync(quietGapMs(3 + i) - 1000)
+      expect(h.rounds).toHaveLength(3 + i)
+      await vi.advanceTimersByTimeAsync(2000)
+    }
     expect(loopFor('c1')).not.toBeNull()
-    expect(agentStopLoop('c1', 'The deploy   finished and is healthy.')).toBe(true)
-    expect(loopFor('c1')).toBeNull()
-    // No further round, however long we wait.
+    expect(h.rounds).toHaveLength(9)
+  })
+
+  it('goes back to the short wait once a round does something', async () => {
+    loopCommand('c1', '/loop keep polishing')
+    await vi.advanceTimersByTimeAsync(0)
+    await round('c1', true)
+    await vi.advanceTimersByTimeAsync(61_000)
+    await round('c1', true)
+    await vi.advanceTimersByTimeAsync(301_000)
+    expect(h.rounds).toHaveLength(3)
+    // This round worked.
+    await round('c1', false)
+    expect(loopFor('c1')).toMatchObject({ quiet: 0 })
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(h.rounds).toHaveLength(4)
+  })
+
+  it('goes back to the short wait when the person writes', async () => {
+    loopCommand('c1', '/loop keep polishing')
+    await vi.advanceTimersByTimeAsync(0)
+    for (const wait of [61_000, 301_000, 901_000]) {
+      await round('c1', true)
+      await vi.advanceTimersByTimeAsync(wait)
+    }
+    await round('c1', true)
+    expect(loopFor('c1')).toMatchObject({ quiet: 4 })
     const sent = h.rounds.length
-    await vi.advanceTimersByTimeAsync(20 * 60_000)
-    expect(h.rounds.length).toBe(sent)
-    // Nothing to stop the second time.
-    expect(agentStopLoop('c1', 'again')).toBe(false)
+    // A round's own message is not the person writing.
+    h.agentBus.emit('user', { chatId: 'c1', text: 'keep polishing' + SELF_PACE_NOTE })
+    expect(loopFor('c1')).toMatchObject({ quiet: 4 })
+    // They write; that turn runs and ends; the next round is a minute away, not thirty.
+    h.agentBus.emit('user', { chatId: 'c1', text: 'the header is still off' })
+    expect(loopFor('c1')).toMatchObject({ quiet: 0 })
+    await round('c1', false)
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(h.rounds).toHaveLength(sent + 1)
+  })
+
+  it('an interval loop sits out its ticks after quiet rounds', async () => {
+    loopCommand('c1', '/loop 1m check the queue')
+    await vi.advanceTimersByTimeAsync(0)
+    await round('c1', true)
+    await vi.advanceTimersByTimeAsync(60_000)
+    await round('c1', true)
+    const sent = h.rounds.length
+    // Five minutes of quiet wait: the one-minute ticks in between are skipped.
+    await vi.advanceTimersByTimeAsync(4 * 60_000)
+    expect(h.rounds).toHaveLength(sent)
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(h.rounds).toHaveLength(sent + 1)
+  })
+
+  it('is held when the agent needs the person, and goes on when they reply', async () => {
+    loopCommand('c1', '/loop ship the fix')
+    await vi.advanceTimersByTimeAsync(0)
+    h.generating.add('c1')
+    h.logBus.emit('busy', { chatId: 'c1' })
+    expect(agentIdleLoop('c1', 'I need the   App Store password.', true)).toEqual({
+      state: 'needs-user'
+    })
+    h.generating.delete('c1')
+    h.logBus.emit('busy', { chatId: 'c1' })
+    expect(loopFor('c1')).toMatchObject({ paused: true, needsUser: true })
+    expect(h.record).toHaveBeenCalledWith('c1', {
+      kind: 'notice',
+      text: expect.stringMatching(/waiting for you: I need the App Store password\./)
+    })
+    await vi.advanceTimersByTimeAsync(3 * 3_600_000)
+    expect(h.rounds).toHaveLength(1)
+
+    h.agentBus.emit('user', { chatId: 'c1', text: 'it is in 1Password' })
+    expect(loopFor('c1')).toMatchObject({ paused: false, needsUser: false })
+    await round('c1', false)
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(h.rounds).toHaveLength(2)
+  })
+
+  it('tells the agent when there is no loop to be idle in', () => {
+    expect(agentIdleLoop('c9', 'nothing', false)).toEqual({ state: 'none' })
   })
 
   it("tells the agent when there's no loop to wait for", async () => {

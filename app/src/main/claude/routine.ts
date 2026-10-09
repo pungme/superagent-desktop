@@ -2,6 +2,7 @@ import { spawn } from 'child_process'
 import { getHookUrl } from '../hooks'
 import { findClaude } from '../claude-cli'
 import { killProcessTree, trackOneShot, DETACH_FOR_TREE_KILL } from '../kill-tree'
+import { promptAsFile } from './prompt-file'
 import type { RoutineOutcome, RoutineRunOptions, RoutineStep } from '../agent-backend'
 
 /**
@@ -74,9 +75,10 @@ export function runClaudeRoutine(opts: RoutineRunOptions): Promise<RoutineOutcom
   return new Promise((resolve) => {
     const proc = spawn(
       findClaude(),
-      [
+      // Neither prompt rides on the command line, where another agent's
+      // `pkill -f <a word in it>` would find this process. See prompt-file.ts.
+      promptAsFile([
         '-p',
-        opts.prompt,
         // stream-json (not plain json) so we capture the thinking + tool calls as
         // they happen, for the run transcript the user can inspect.
         '--output-format',
@@ -92,7 +94,7 @@ export function runClaudeRoutine(opts: RoutineRunOptions): Promise<RoutineOutcom
         // follows as tool names.
         '--allowedTools',
         ...ALLOWED_TOOLS
-      ],
+      ]),
       {
         cwd: opts.cwd,
         env: {
@@ -106,6 +108,10 @@ export function runClaudeRoutine(opts: RoutineRunOptions): Promise<RoutineOutcom
       }
     )
     trackOneShot(proc)
+    // The routine's own prompt goes in on stdin, which `-p` reads when it is
+    // given no prompt argument.
+    proc.stdin?.on('error', () => {})
+    proc.stdin?.end(opts.prompt)
 
     const steps: RoutineStep[] = []
     let summary = '(no summary)'

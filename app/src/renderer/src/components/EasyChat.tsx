@@ -24,6 +24,8 @@ import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { replyingTo } from '../../../shared/reply-quote'
 import { splitLoopNote } from '../lib/loop-note'
+import { quietRuns } from '../lib/quiet-rounds'
+import { AUTO_RESTART_WINDOW_MS, CARRY_ON_NUDGE, shouldAutoRestart } from '../lib/auto-restart'
 import { humanInterval, isLoopCommand } from '../../../shared/loop'
 import { SignInsDialog } from './SignInsDialog'
 import type { ChatLoop } from '../../../preload'
@@ -1061,6 +1063,42 @@ type Row =
   | { kind: 'msg'; msg: ChatMessage }
   | { kind: 'thinking'; id: string; text: string }
   | { kind: 'activity'; entries: Activity[] }
+  /** Loop rounds that found nothing to do, folded into a line (lib/quiet-rounds). */
+  | { kind: 'quiet'; id: string; rounds: number; open: boolean }
+
+/**
+ * Fold each run of quiet loop rounds into one row, except the runs the person
+ * opened: those keep their rows, under the same line.
+ */
+function foldQuietRounds(rows: Row[], opened: ReadonlySet<string>): Row[] {
+  const runs = quietRuns(
+    rows.map((r) => ({
+      user: r.kind === 'msg' && r.msg.role === 'user' && !r.msg.system,
+      round:
+        r.kind === 'msg' &&
+        r.msg.role === 'user' &&
+        !r.msg.system &&
+        splitLoopNote(r.msg.text).note !== null,
+      idle:
+        r.kind === 'activity' &&
+        r.entries.some((e) => e.kind === 'tool' && e.tool.name.endsWith('loop_idle'))
+    }))
+  )
+  if (runs.length === 0) return rows
+  const out: Row[] = []
+  let at = 0
+  for (const run of runs) {
+    out.push(...rows.slice(at, run.from))
+    const first = rows[run.from]
+    const id = first.kind === 'msg' ? first.msg.id : String(run.from)
+    const open = opened.has(id)
+    out.push({ kind: 'quiet', id, rounds: run.rounds, open })
+    if (open) out.push(...rows.slice(run.from, run.to))
+    at = run.to
+  }
+  out.push(...rows.slice(at))
+  return out
+}
 
 // A whole working segment — tool calls AND file edits, in order — collapses into
 // one strip. Only a real message breaks the run; thinking is ambient narration,
@@ -1456,6 +1494,8 @@ export function EasyChat({
    */
   const everStartedRef = useRef(false)
   const [generating, setGenerating] = useState(false)
+  const generatingRef = useRef(false)
+  generatingRef.current = generating
   const [resetKey, setResetKey] = useState(0)
   // No live claude process. Chats START here — opening a project must not cost
   // a process; the first message does (spawning then, resuming any persisted
@@ -2002,6 +2042,10 @@ export function EasyChat({
   // resume and starts fresh (a crashed session can leave a stale lock that keeps
   // failing to resume, which would otherwise loop the Retry button).
   const resumeRetriedRef = useRef(false)
+  // Sessions restarted without being asked, lately (see autoRestartRef below).
+  const autoRestartsRef = useRef<number[]>([])
+  const autoRestartRef = useRef<(wasWorking: boolean) => boolean>(() => false)
+  const retryRef = useRef<() => void>(() => undefined)
   // Naming happens once per chat, so a rename is never clobbered by a late
   // suggestion; the placeholder is the only title we'll overwrite.
   const aiTitledRef = useRef(false)
@@ -3496,10 +3540,19 @@ export function EasyChat({
             // clearing the banner when the new agent said hello did not help:
             // the stale exit simply arrived afterwards and raised it again.
             if (disposed || agentIdRef.current !== id) return
+            const wasWorking = generatingRef.current
             setReady(false)
             setGenerating(false)
             setThinking(false)
             setRunningAgents([])
+            // A session that was up and then went away is started again here,
+            // not left under a banner for someone to find and press Retry on.
+            if (
+              reason !== 'missing-cwd' &&
+              everStartedRef.current &&
+              autoRestartRef.current(wasWorking)
+            )
+              return
             setAgentFailed(reason === 'missing-cwd' ? 'missing-cwd' : true)
             setRestarting(false)
           }
@@ -4364,7 +4417,22 @@ export function EasyChat({
   // vary wildly in height (a one-line reply vs a giant code block) and the
   // streaming row grows token by token, so each row's height is MEASURED live
   // rather than assumed — @tanstack/react-virtual watches every mounted row.
-  const vrows = useMemo(() => rows.filter((r) => !(r.kind === 'thinking' && !r.text)), [rows])
+  const [openQuiet, setOpenQuiet] = useState<ReadonlySet<string>>(() => new Set())
+  const toggleQuiet = useCallback((id: string) => {
+    setOpenQuiet((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }, [])
+  const vrows = useMemo(
+    () =>
+      foldQuietRounds(
+        rows.filter((r) => !(r.kind === 'thinking' && !r.text)),
+        openQuiet
+      ),
+    [rows, openQuiet]
+  )
   // One stable, guaranteed-unique key per row. A duplicate key makes both React
   // and the virtualizer leak/misplace nodes; toRows already drops duplicate
   // messages, and this dedups any remaining id collision (tool/diff/file) once.
@@ -4384,6 +4452,7 @@ export function EasyChat({
     return vrows.map((row) => {
       if (row.kind === 'msg') return uniq(row.msg.id)
       if (row.kind === 'thinking') return uniq(row.id)
+      if (row.kind === 'quiet') return uniq('quiet-' + row.id)
       const first = row.entries[0]
       return uniq(
         'act-' +
@@ -4491,6 +4560,22 @@ export function EasyChat({
     if (row.kind === 'thinking') {
       return <div className="easy-thought">{row.text}</div>
     }
+    if (row.kind === 'quiet') {
+      return (
+        <button
+          className={`easy-quiet-rounds ${row.open ? 'open' : ''}`}
+          onClick={() => toggleQuiet(row.id)}
+          aria-expanded={row.open}
+        >
+          <span className="easy-quiet-caret" aria-hidden="true">
+            ›
+          </span>
+          {row.rounds === 1
+            ? 'Checked once, nothing to do'
+            : `Checked ${row.rounds} times, nothing to do`}
+        </button>
+      )
+    }
     return (
       <ActivityStrip entries={row.entries} workspaceId={workspaceId} onLightbox={onRowLightbox} />
     )
@@ -4588,6 +4673,47 @@ export function EasyChat({
     resumeRetriedRef.current = true
     setResetKey((k) => k + 1)
   }
+
+  // The same restart, taken without being asked when a session that was
+  // running ends by itself. It used to stop there: a banner, a Retry button, and
+  // whatever the agent was in the middle of left undone until someone came back
+  // to the Mac and pressed it — a loop sat on "run 7" for good. Now the chat
+  // says what happened, starts the session again, and, when it was cut off
+  // mid-reply, asks it to carry on. A loop sends its own next round, so it gets
+  // no nudge. Not without limit: a session that keeps dying gets the banner.
+  autoRestartRef.current = (wasWorking: boolean): boolean => {
+    const now = Date.now()
+    const recent = autoRestartsRef.current.filter((t) => now - t < AUTO_RESTART_WINDOW_MS)
+    if (!shouldAutoRestart(recent.length)) return false
+    recent.push(now)
+    autoRestartsRef.current = recent
+    const carryOn = wasWorking && !loop
+    setRestarting(true)
+    setItems((prev) => [
+      ...prev,
+      {
+        kind: 'msg',
+        msg: {
+          id: `sys-restart-${now}`,
+          at: now,
+          role: 'assistant',
+          text: carryOn
+            ? `↻ The ${agentName} session ended in the middle of a reply. Restarted it and asked it to carry on.`
+            : `↻ The ${agentName} session ended by itself. Restarted it; nothing in the conversation is lost.`,
+          system: true
+        }
+      }
+    ])
+    if (carryOn) {
+      pendingSendsRef.current.push({ text: CARRY_ON_NUDGE, images: [] })
+      setGenerating(true)
+      setThinking(true)
+    }
+    // A moment longer each time, so a session dying on arrival is not respawned in a blur.
+    window.setTimeout(() => retryRef.current(), 1000 * recent.length)
+    return true
+  }
+  retryRef.current = retry
 
   // Apply a new model or mode: persist it, then respawn the agent (resuming this
   // conversation) so the flag takes effect now. Stops any in-flight turn first.
@@ -4908,8 +5034,15 @@ export function EasyChat({
           <div className={`easy-loop-bar ${loop.paused ? 'paused' : ''}`}>
             <span className="easy-loop-spin" />
             <span className="easy-loop-text">
-              {loop.paused ? 'Paused' : 'Looping'}
+              {loop.needsUser ? 'Waiting for you' : loop.paused ? 'Paused' : 'Looping'}
               {loop.intervalMs ? ` every ${humanInterval(loop.intervalMs)}` : ''} · run {loop.count}
+              {!loop.paused && loop.quiet
+                ? ` · nothing to do${loop.quiet > 1 ? ` ×${loop.quiet}` : ''}${
+                    loop.nextAt
+                      ? `, next at ${new Date(loop.nextAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                      : ''
+                  }`
+                : ''}
               <span className="easy-loop-prompt"> — “{loop.prompt}”</span>
             </span>
             <button

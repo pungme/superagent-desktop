@@ -6,8 +6,22 @@
  * Shared between main and renderer, so no Electron or Node imports.
  */
 
-/** Safety cap so a loop can't run away forever. */
-export const LOOP_CAP = 100
+/**
+ * How long a loop waits after rounds that found nothing to do, by how many in
+ * a row: a minute, then five, fifteen, thirty, and an hour from there on.
+ *
+ * This is what lets a loop run until the person stops it. It used to be capped
+ * at a hundred rounds, and the agent could end it; both were there to keep an
+ * agent with nothing left to do from being woken every minute for good. Waiting
+ * longer does the same job without ending anything: a loop that has run dry
+ * costs a round an hour, and is back to its short wait the moment a round does
+ * something or the person writes.
+ */
+const QUIET_GAPS_MS = [60_000, 300_000, 900_000, 1_800_000, 3_600_000]
+export function quietGapMs(quietRounds: number): number {
+  if (quietRounds <= 0) return 0
+  return QUIET_GAPS_MS[Math.min(quietRounds, QUIET_GAPS_MS.length) - 1]
+}
 /**
  * A terminal's self-paced /loop is the model calling ScheduleWakeup, clamped
  * to [60, 3600] seconds by the CLI's own runtime — Superagent disallows that
@@ -68,23 +82,26 @@ export function parseLoopCmd(raw: string): LoopCommand | null {
 }
 
 /**
- * When a loop is over, said to the agent with every round.
+ * What a loop is, said to the agent with every round.
  *
  * The first wording ("when it has done its job, or another round cannot help,
  * end it yourself") was read as leave to stop at the first quiet moment: an
  * agent asked to keep improving something finished its own list in a round or
- * two and ended the loop. Someone who starts a loop wants the rounds, so the
- * default is the other way: finishing what was planned is the cue to look for
- * the next thing, and ending is for when there is truly nothing left to do.
+ * two and ended the loop. Asking it to end the loop only as a last resort did
+ * not hold either. So ending is no longer the agent's to do (see
+ * main/loops.ts agentIdleLoop): it says when a round had nothing in it, and the
+ * loop waits longer.
  */
 const LOOP_KEEP_GOING =
-  'The user started a loop because they want it to keep going, so each round, do the next ' +
-  'useful thing. Finishing what you had planned is not the end of the loop: look again at what ' +
-  'was asked and find what is still weak, untested, unverified, unpolished or not yet tried, ' +
-  'and do that. End it yourself with the loop_stop tool only when a specific thing it was ' +
-  'waiting for has happened and nothing follows from it, when it cannot move without the user, ' +
-  'or when you have honestly looked for more to do, more than once, and found nothing worth a ' +
-  'round. When unsure, keep going.'
+  'This loop runs until the user stops it; you cannot end it, so never say it is finished or ' +
+  'ask to be stopped. Each round, do the next useful thing. Finishing what you had planned is ' +
+  'the cue to look again at what was asked and find what is still weak, untested, unverified, ' +
+  'unpolished or not yet tried, and do that. Only when you have honestly looked and there is ' +
+  'nothing worth doing this round, call the loop_idle tool and reply in one short line: ' +
+  'Superagent then waits longer before the next round, up to an hour, and returns to the short ' +
+  'wait as soon as a round does real work or the user writes. If you cannot go on without the ' +
+  'user, call loop_idle with needsUser: true and ask them what you need; the loop holds until ' +
+  'they reply.'
 
 /**
  * A no-interval /loop hands the cadence to the model, as the terminal's does

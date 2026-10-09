@@ -75,7 +75,7 @@ import { toolPreview } from './guardrail'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 import { isAbsolute, resolve } from 'path'
 import { homedir } from 'os'
-import { agentStopLoop, requestLoopWait } from './loops'
+import { agentIdleLoop, requestLoopWait } from './loops'
 
 let port = 0
 let secret = ''
@@ -235,33 +235,40 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     )
 
     server.registerTool(
-      'loop_stop',
+      'loop_idle',
       {
         description:
-          'End the /loop running in this chat. A last resort: the user started the loop because ' +
-          'they want it to keep going, and ending it early leaves work undone that they expected ' +
-          'to find finished. Having completed what you planned is not a reason. First look again ' +
-          'at what was asked and at the state of the work, and if anything is still weak, ' +
-          'untested, unverified, unpolished or not yet tried, do that this round instead. Call ' +
-          'this only when the one thing the loop was watching for has happened and nothing ' +
-          'follows from it, when it is blocked on something only the user can do, or when you ' +
-          'have looked for more to do in more than one round and found nothing worth a turn. ' +
-          'When unsure, do not call it. Say in `reason` why, in one sentence, and what you ' +
-          'checked before deciding; the user sees it and can start a new /loop.',
+          'Say that this round of the /loop running in this chat had nothing in it. The loop ' +
+          'runs until the user stops it and you cannot end it; this is how you keep it from ' +
+          'waking you for nothing. Call it only after looking: go back to what was asked and ' +
+          'the state of the work, and if anything is still weak, untested, unverified, ' +
+          'unpolished or not yet tried, do that instead and do not call this. When there is ' +
+          'honestly nothing worth doing right now, call it and end the turn with one short ' +
+          'line. Each quiet round in a row makes the wait before the next longer (a minute, ' +
+          'then 5, 15, 30, up to 60), and a round that does real work, or a message from the ' +
+          'user, brings back the short wait. Set `needsUser` when you cannot go on without ' +
+          'the user (a decision, a login, access only they have): the loop is then held until ' +
+          'they reply, so say clearly in your reply what you need from them.',
         inputSchema: {
-          reason: z.string().describe('One sentence on why the loop is over — shown to the user.')
+          reason: z
+            .string()
+            .describe('One sentence on what you checked and why nothing is left — shown to the user.'),
+          needsUser: z
+            .boolean()
+            .optional()
+            .describe('True when only the user can unblock the work; the loop waits for their reply.')
         }
       },
-      async ({ reason }) => ({
-        content: [
-          {
-            type: 'text',
-            text: agentStopLoop(CHAT_ID, reason)
-              ? 'The loop is stopped. No further rounds will run. Finish this reply normally.'
-              : 'No /loop is running in this chat, so there was nothing to stop.'
-          }
-        ]
-      })
+      async ({ reason, needsUser }) => {
+        const r = agentIdleLoop(CHAT_ID, reason, needsUser === true)
+        const text =
+          r.state === 'none'
+            ? 'No /loop is running in this chat, so there is no next round. Do not tell the user one is coming.'
+            : r.state === 'needs-user'
+              ? 'The loop is held until the user replies. Tell them now, plainly, what you need from them, then end the turn.'
+              : `Noted. The next round starts in about ${Math.round(r.nextInMs / 60_000)} min, sooner if the user writes. End this turn with one short line.`
+        return { content: [{ type: 'text', text }] }
+      }
     )
   }
 

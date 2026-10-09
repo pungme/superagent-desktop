@@ -2740,6 +2740,30 @@ button {
 /* The /loop skill's own reminder text, split out of the user's actual words
    (see splitLoopNote in EasyChat.tsx) so a self-paced round doesn't read as
    one run-on sentence mixing what you asked for with loop mechanics. */
+/* A run of loop rounds that found nothing to do, folded into one line. */
+.easy-quiet-rounds {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.easy-quiet-rounds:hover {
+  background: var(--hover);
+  color: var(--text-secondary);
+}
+.easy-quiet-caret {
+  display: inline-block;
+  transition: transform 0.12s ease;
+}
+.easy-quiet-rounds.open .easy-quiet-caret {
+  transform: rotate(90deg);
+}
 .easy-loop-note {
   margin-top: 6px;
   padding-top: 6px;
