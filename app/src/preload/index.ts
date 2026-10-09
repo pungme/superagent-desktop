@@ -423,6 +423,8 @@ export interface CoveApi {
   onProjectsChanged: (cb: (p: { activate?: string }) => void) => () => void
   /** A chat's stored transcript grew while no window owned it (the phone). */
   onChatAppended: (cb: (p: { chatId: string }) => void) => () => void
+  /** A line from Superagent itself to put in a chat (a repo was copied for it, say). */
+  onChatNotice: (cb: (p: { chatId: string; text: string }) => void) => () => void
   /** The agent booted or launched something on a simulator — reveal the pane. */
   onOpenSimulator: (
     cb: (p: { workspaceId: string; udid?: string; chatId?: string | null }) => void
@@ -1116,6 +1118,7 @@ const cove: CoveApi = {
     ),
   onProjectsChanged: (cb) => subscribe('projects:changed', (p) => cb(p as { activate?: string })),
   onChatAppended: (cb) => subscribe('chat:appended', (p) => cb(p as { chatId: string })),
+  onChatNotice: (cb) => subscribe('chat:notice', (p) => cb(p as { chatId: string; text: string })),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),
   flatGroup: () => ipcRenderer.invoke('store:flat-group'),

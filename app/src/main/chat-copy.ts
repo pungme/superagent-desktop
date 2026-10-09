@@ -37,7 +37,7 @@ import {
   writeSetMeta,
   type SetMember
 } from './repo-set'
-import { getChat, setChatCwd, takePendingBranch } from './store'
+import { chatIdByCwd, getChat, setChatCwd, takePendingBranch } from './store'
 import { broadcastToWindows } from './util'
 
 /**
@@ -205,6 +205,15 @@ export function cutRepo(setPath: string, name: string): Promise<CutResult> {
   return next
 }
 
+/** What the chat is told when it gets a copy of one repo. */
+export function copyNotice(name: string, branch: string): string {
+  return (
+    `📂 This chat now has its own copy of \`${name}\`, on the branch \`${branch}\`, because it ` +
+    'is about to change it. Your checkout is untouched, and the other repos in this folder are ' +
+    'not copied. Keep adds its changes back; Throw away discards them.'
+  )
+}
+
 async function cutRepoNow(setPath: string, name: string): Promise<CutResult> {
   if (!isRepoSet(setPath) || !existsSync(setPath)) return { ok: false, reason: 'not-a-copy' }
   const at = join(setPath, name)
@@ -235,6 +244,12 @@ async function cutRepoNow(setPath: string, name: string): Promise<CutResult> {
   }
   // The repo's project now has a branch row, and this chat a repo chip.
   broadcastToWindows('projects:changed', {})
+  // And the chat says so, in so many words. A worktree and a new branch
+  // appearing in one repo out of nineteen is otherwise learned from a chip in
+  // the sidebar, if at all: which repo, why only that one, and that the
+  // user's own checkout was left alone.
+  const chatId = chatIdByCwd(setPath)
+  if (chatId) broadcastToWindows('chat:notice', { chatId, text: copyNotice(name, made.branch) })
   return { ok: true, path: made.path, branch: made.branch, fresh: true }
 }
 

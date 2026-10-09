@@ -4000,6 +4000,27 @@ export function EasyChat({
 
   // Command palette / ⌘.: stop whichever chat is on screen. A no-op if
   // nothing is running — interruptNow itself bails when there's no live agent.
+  // A line from Superagent itself, into this chat: it was given its own copy
+  // of a repo, for one. Whether or not the chat is the one on screen.
+  useEffect(() => {
+    return window.cove.onChatNotice?.((p) => {
+      if (p.chatId !== chatId) return
+      setItems((prev) => [
+        ...prev,
+        {
+          kind: 'msg',
+          msg: {
+            id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            at: Date.now(),
+            role: 'assistant',
+            text: p.text,
+            system: true
+          }
+        }
+      ])
+    })
+  }, [chatId])
+
   useEffect(() => {
     if (!visible) return
     const onStop = (): void => void interruptNow()

@@ -717,6 +717,13 @@ export function reorderPinned(chatIds: string[]): void {
  * nowhere else, so anything that lists or reads files for a chat has to root
  * here rather than on the project, or it shows main and the work is invisible.
  */
+/** The chat working in this copy of a project, if there is one. */
+export function chatIdByCwd(cwd: string): string | null {
+  const row = db.prepare('SELECT id FROM chats WHERE cwd = ? LIMIT 1').get(cwd) as
+    { id: string } | undefined
+  return row?.id ?? null
+}
+
 /** Give a chat its own copy of the project. Used when a branch is cut for it. */
 export function setChatCwd(chatId: string, cwd: string): void {
   db.prepare('UPDATE chats SET cwd = ? WHERE id = ?').run(cwd, chatId)

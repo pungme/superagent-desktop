@@ -22,11 +22,15 @@ vi.mock('electron', () => ({
 }))
 const chats = new Map<string, { cwd?: string }>()
 vi.mock('./store', () => ({
+  chatIdByCwd: (cwd: string) => [...chats].find(([, c]) => c.cwd === cwd)?.[0] ?? null,
   getChat: (id: string) => chats.get(id),
   setChatCwd: (id: string, cwd: string) => chats.set(id, { cwd }),
   takePendingBranch: () => true
 }))
-vi.mock('./util', () => ({ broadcastToWindows: () => undefined }))
+const sent: { channel: string; payload: unknown }[] = []
+vi.mock('./util', () => ({
+  broadcastToWindows: (channel: string, payload: unknown) => void sent.push({ channel, payload })
+}))
 
 import {
   copyKind,
@@ -175,8 +179,23 @@ describe('a copy of a folder of repos', () => {
     const web = repo('web')
     const dir = (await createWorktreeSet(root, { newBranch: 'add-login', autoName: true }))!.path
 
+    chats.set('chat-1', { cwd: dir })
+    sent.length = 0
     const cut = await cutRepo(dir, 'api')
     expect(cut).toEqual({ ok: true, path: join(dir, 'api'), branch: 'add-login', fresh: true })
+    // The chat is told which repo, on which branch, and that nothing else moved.
+    const notice = sent.find((m) => m.channel === 'chat:notice')?.payload as {
+      chatId: string
+      text: string
+    }
+    expect(notice.chatId).toBe('chat-1')
+    expect(notice.text).toContain('`api`')
+    expect(notice.text).toContain('`add-login`')
+    expect(notice.text).toContain('Your checkout is untouched')
+    // Asking again copies nothing, so says nothing.
+    sent.length = 0
+    await cutRepo(dir, 'api')
+    expect(sent.some((m) => m.channel === 'chat:notice')).toBe(false)
     expect(isLink(join(dir, 'api'))).toBe(false)
     expect(git(join(dir, 'api'), 'symbolic-ref', '--short', 'HEAD')).toBe('add-login')
     expect(readFileSync(join(dir, 'api', 'README.md'), 'utf8')).toBe('# api\n')
