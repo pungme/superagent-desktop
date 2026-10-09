@@ -100,7 +100,8 @@ export function startCompanion(): void {
   // Fan-out: every phone subscribed to a chat hears its events.
   logBus.on('event', ({ event }: { event: WireEvent }) => {
     for (const c of conns.values())
-      if (c.authenticated && c.subs.has(event.chatId)) c.send({ t: 'event', event })
+      if (c.authenticated && c.subs.has(event.chatId) && !c.replaying(event.chatId))
+        c.send({ t: 'event', event })
     // A chat's first event makes it "live"/renames it — keep the list fresh.
     if (event.data.kind === 'session' || event.data.kind === 'turn_end') schedulePushChats()
     if (event.data.kind === 'turn_end') void nameIfNeeded(event.chatId)

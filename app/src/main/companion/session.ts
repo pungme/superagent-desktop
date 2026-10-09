@@ -18,6 +18,34 @@ import {
   type WireMachine
 } from '../../shared/companion-protocol'
 
+/** With this much still unsent on the relay socket, a catch-up waits instead of adding to it. */
+const REPLAY_HIGH_WATER = 1024 * 1024
+/** Asks for one chat's catch-up are counted over this long... */
+const REPLAY_WINDOW_MS = 30_000
+/** ...and this many of them are answered at once. */
+const REPLAY_FREE = 3
+
+/**
+ * How long the next catch-up of one chat waits, given how many this phone has
+ * asked for lately (this one included).
+ *
+ * A phone asks again whenever what it is sent does not line up with what it
+ * holds, and each ask used to be answered in full, at once: up to ten thousand
+ * events. A phone that kept asking was sent the same conversation over and
+ * over, faster than the socket could take it. On 2026-10-09 that was 3.4
+ * million queued events, 2.4 GB, and main died at the heap ceiling a few
+ * minutes after a phone connected. So the first few are free, and a phone
+ * that keeps asking is answered less and less often.
+ */
+export function replayDelay(recent: number): number {
+  return recent <= REPLAY_FREE ? 0 : Math.min(15_000, 500 * 2 ** (recent - REPLAY_FREE))
+}
+
+interface Replay {
+  after: number
+  timer: ReturnType<typeof setTimeout> | null
+}
+
 /**
  * One phone connection through the relay. Starts anonymous: the first frame
  * tells us who it is by which key opens it — the pending pairing's, or a paired
@@ -32,6 +60,9 @@ export class ClientConn {
   readonly subs = new Set<string>()
   presenceActive = false
   private closed = false
+  /** Chats being caught up, one job each: a new ask replaces the one running. */
+  private replays = new Map<string, Replay>()
+  private replayAsks = new Map<string, number[]>()
 
   constructor(
     readonly id: string,
@@ -54,14 +85,74 @@ export class ClientConn {
   close(): void {
     if (this.closed) return
     this.closed = true
+    this.stopReplays()
     this.relay.closeConn(this.id)
     this.onClosed(this)
+  }
+
+  /**
+   * Whether this chat is still being caught up. Its live events are held back
+   * until it is: the catch-up reads them from the log in order, and one sent
+   * ahead of it would read as a gap on the phone and start the catch-up again.
+   */
+  replaying(chatId: string): boolean {
+    return this.replays.has(chatId)
+  }
+
+  private stopReplays(): void {
+    for (const job of this.replays.values()) if (job.timer) clearTimeout(job.timer)
+    this.replays.clear()
+  }
+
+  private stopReplay(chatId: string): void {
+    const job = this.replays.get(chatId)
+    if (job?.timer) clearTimeout(job.timer)
+    this.replays.delete(chatId)
+  }
+
+  /** Send everything after `after`, a page at a time, as fast as the socket drains. */
+  private startReplay(chatId: string, after: number): void {
+    this.stopReplay(chatId)
+    const now = Date.now()
+    const asks = (this.replayAsks.get(chatId) ?? []).filter((t) => now - t < REPLAY_WINDOW_MS)
+    asks.push(now)
+    this.replayAsks.set(chatId, asks)
+    const job: Replay = { after, timer: null }
+    this.replays.set(chatId, job)
+    const wait = replayDelay(asks.length)
+    if (wait === 0) this.pumpReplay(chatId, job)
+    else job.timer = setTimeout(() => this.pumpReplay(chatId, job), wait)
+  }
+
+  private pumpReplay(chatId: string, job: Replay): void {
+    job.timer = null
+    if (this.replays.get(chatId) !== job) return
+    if (this.closed || !this.subs.has(chatId)) {
+      this.replays.delete(chatId)
+      return
+    }
+    if (this.relay.bufferedAmount > REPLAY_HIGH_WATER) {
+      job.timer = setTimeout(() => this.pumpReplay(chatId, job), 100)
+      return
+    }
+    const { events, hasMore } = eventsAfter(chatId, job.after)
+    for (const event of events) this.send({ t: 'event', event })
+    if (events.length && hasMore) {
+      job.after = events[events.length - 1].seq
+      job.timer = setTimeout(() => this.pumpReplay(chatId, job), 0)
+      return
+    }
+    this.replays.delete(chatId)
+    // Always, even when empty: a phone still holding words that were
+    // since sent from the Mac has to hear that the composer is clear.
+    this.send({ t: 'draft', chatId, text: draftOf(chatId) })
   }
 
   /** Called by the relay client when the phone went away. */
   dispose(): void {
     if (this.closed) return
     this.closed = true
+    this.stopReplays()
     this.onClosed(this)
   }
 
@@ -200,19 +291,12 @@ export class ClientConn {
         if (after === 0 && typeof frame.tail === 'number' && frame.tail > 0)
           after = tailStart(frame.chatId, frame.tail)
         // Replay everything the phone missed, in order, until we're caught up.
-        for (let i = 0; i < 20; i++) {
-          const { events, hasMore } = eventsAfter(frame.chatId, after)
-          for (const event of events) this.send({ t: 'event', event })
-          if (!events.length || !hasMore) break
-          after = events[events.length - 1].seq
-        }
-        // Always, even when empty: a phone still holding words that were
-        // since sent from the Mac has to hear that the composer is clear.
-        this.send({ t: 'draft', chatId: frame.chatId, text: draftOf(frame.chatId) })
+        this.startReplay(frame.chatId, after)
         return
       }
       case 'unsubscribe':
         this.subs.delete(frame.chatId)
+        this.stopReplay(frame.chatId)
         return
       case 'ping':
         this.send({ t: 'pong' })

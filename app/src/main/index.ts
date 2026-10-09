@@ -79,6 +79,7 @@ import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simu
 import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded } from './updater'
 import { startMemoryWatch } from './memory-watch'
+import { startCrashRelaunch } from './crash-relaunch'
 
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
@@ -280,6 +281,7 @@ app.whenReady().then(async () => {
   )
   registerAgentIpc()
   startMemoryWatch()
+  startCrashRelaunch()
   registerLoops()
   // Must attach before any session starts: it is what the phone reads from.
   startCompanionLog()

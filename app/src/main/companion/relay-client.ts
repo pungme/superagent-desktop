@@ -14,6 +14,14 @@ import { machineId, signNonce } from './identity'
  */
 export type RelayState = 'connected' | 'reconnecting' | 'offline'
 
+/**
+ * This much unsent means the socket is not draining, and whatever is filling
+ * it is not going to stop: everything sent is held in main's memory until it
+ * leaves. Drop the socket and what it holds, and reconnect; a phone catches up
+ * from the last event it has.
+ */
+export const MAX_BUFFERED = 64 * 1024 * 1024
+
 export class RelayClient extends EventEmitter {
   private ws: WebSocket | null = null
   private url = ''
@@ -56,6 +64,11 @@ export class RelayClient extends EventEmitter {
 
   send(conn: string, data: string): void {
     if (!this.authed || !this.ws || this.ws.readyState !== WebSocket.OPEN) return
+    if (this.ws.bufferedAmount > MAX_BUFFERED) {
+      this.lastError = 'the link to the phone backed up'
+      this.ws.terminate()
+      return
+    }
     this.ws.send(JSON.stringify({ t: 'msg', c: conn, d: data }))
   }
 

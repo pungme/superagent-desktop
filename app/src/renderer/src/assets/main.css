@@ -330,6 +330,11 @@ button {
   border-radius: 8px;
   color: inherit;
 }
+/* Two highlighted rows in a row (the open one and the hovered one) used to
+   merge into one block. */
+.activity-row + .activity-row {
+  margin-top: 2px;
+}
 .activity-row:hover {
   background: var(--hover);
 }

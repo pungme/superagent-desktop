@@ -692,6 +692,42 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     phone.ws.close()
   })
 
+  it('a phone that keeps asking for the same catch-up is not sent it every time', async () => {
+    // A long conversation, read from the store (nothing of it in memory).
+    h.events.set(
+      'c-long',
+      Array.from({ length: 1200 }, (_, i) => ({
+        seq: i + 1,
+        kind: 'assistant',
+        data: JSON.stringify({ kind: 'assistant', id: `m${i}`, text: `line ${i}` }),
+        ts: 1
+      }))
+    )
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+
+    // One ask is answered whole, across pages, and ends on the draft.
+    phone.send({ t: 'subscribe', chatId: 'c-long', afterSeq: 0 })
+    const seqs: number[] = []
+    await phone.until((f) => {
+      if (f.t === 'event') seqs.push((f as { event: { seq: number } }).event.seq)
+      return f.t === 'draft'
+    })
+    expect(seqs).toEqual(Array.from({ length: 1200 }, (_, i) => i + 1))
+
+    // What took main down: every event that did not line up on the phone was
+    // another ask, each answered in full. Three hundred of them used to be
+    // 360,000 events queued at once.
+    let events = 0
+    phone.ws.on('message', () => events++)
+    for (let i = 0; i < 300; i++) phone.send({ t: 'subscribe', chatId: 'c-long', afterSeq: 0 })
+    await new Promise((r) => setTimeout(r, 1500))
+    expect(events).toBeLessThan(5000)
+    phone.ws.close()
+  })
+
   it('refuses a bad token and an old protocol', async () => {
     const phone = new FakePhone(secret)
     await phone.connect()
