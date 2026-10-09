@@ -810,6 +810,8 @@ export interface CoveApi {
   onScreenshot: (
     cb: (s: { path: string; name: string; mediaType: string; data: string; at: number }) => void
   ) => () => void
+  /** Move attached screenshots' files to the Trash, by file name. */
+  trashScreenshots: (names: string[]) => Promise<void>
   onModelLimit: (
     cb: (n: { chatId: string; model: string; fallback: string; until: number }) => void
   ) => () => void
@@ -1267,6 +1269,7 @@ const cove: CoveApi = {
   onAccountsPicked: (cb) =>
     subscribe('accounts:picked', (p) => cb(p as { chatId: string; accountId: string })),
   onScreenshot: (cb) => subscribe('screenshots:new', (s) => cb(s as Parameters<typeof cb>[0])),
+  trashScreenshots: (names) => ipcRenderer.invoke('screenshots:trash', names),
   onModelLimit: (cb) => subscribe('accounts:model-limit', (n) => cb(n as Parameters<typeof cb>[0])),
   onBrowserHandsOff: (cb) =>
     subscribe('browser:hands-off', (s) => cb(s as Parameters<typeof cb>[0])),

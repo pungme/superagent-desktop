@@ -1,9 +1,9 @@
-import { nativeImage } from 'electron'
+import { ipcMain, nativeImage, shell } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { existsSync, FSWatcher, readFileSync, statSync, watch } from 'fs'
+import { existsSync, FSWatcher, readFileSync, rmSync, statSync, watch } from 'fs'
 import os from 'os'
-import { join } from 'path'
+import { basename, join } from 'path'
 import { broadcastToWindows } from './util'
 
 const run = promisify(execFile)
@@ -67,10 +67,33 @@ function load(path: string): { mediaType: string; data: string } | null {
   }
 }
 
+/**
+ * "Attach & delete": the picture is in the message now, so the file on the
+ * Desktop is clutter. To the Trash, not gone — and only ever a screenshot in
+ * the screenshot folder, whatever name the window sends.
+ */
+export async function trashScreenshots(names: string[]): Promise<void> {
+  const dir = await screenshotDir()
+  for (const raw of names) {
+    const name = basename(String(raw))
+    if (!looksLikeScreenshot(name)) continue
+    const path = join(dir, name)
+    try {
+      // The e2e folder is a temp one: nothing of the user's Trash to fill.
+      if (process.env.COVE_E2E_SCREENSHOT_DIR) rmSync(path, { force: true })
+      else await shell.trashItem(path)
+    } catch {
+      // already moved or deleted: nothing left to tidy
+    }
+  }
+}
+
 let watcher: FSWatcher | null = null
 
 export async function watchScreenshots(): Promise<void> {
   if (watcher) return
+  ipcMain.removeHandler('screenshots:trash')
+  ipcMain.handle('screenshots:trash', (_e, names: string[]) => trashScreenshots(names))
   const dir = await screenshotDir()
   if (!existsSync(dir)) return
   const startedAt = Date.now()

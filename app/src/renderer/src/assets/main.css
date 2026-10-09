@@ -12822,7 +12822,8 @@ button {
   min-width: 320px;
 }
 
-/* A screenshot just taken, offered above the composer: thumbnails, Attach, ×. */
+/* A screenshot just taken, offered above the composer: thumbnails, Attach,
+   Attach & delete, ×. */
 .easy-shots {
   display: flex;
   align-items: center;
@@ -12892,6 +12893,21 @@ button {
   color: var(--accent-fg);
   font-size: 12px;
   cursor: pointer;
+}
+/* The quieter twin of Attach: the same, and the file goes to the Trash. */
+.easy-shots-attach-delete {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.easy-shots-attach-delete:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
 }
 .easy-shots-dismiss {
   border: none;

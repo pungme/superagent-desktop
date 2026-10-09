@@ -2217,12 +2217,14 @@ export function EasyChat({
     reader.readAsDataURL(file)
   }
 
-  const attachShots = (which: typeof shots): void => {
+  const attachShots = (which: typeof shots, thenDelete = false): void => {
     setPendingImages((prev) => [
       ...prev,
       ...which.map((s) => ({ mediaType: s.mediaType, data: s.data, url: s.url }))
     ])
     dropShots(which.map((s) => s.name))
+    // The picture is held here now; the file it came from goes to the Trash.
+    if (thenDelete) void window.cove.trashScreenshots?.(which.map((s) => s.name))
     inputRef.current?.focus()
   }
 
@@ -5230,6 +5232,17 @@ export function EasyChat({
               </span>
               <button className="easy-shots-attach" onClick={() => attachShots(shots)}>
                 {shots.length === 1 ? 'Attach' : 'Attach all'}
+              </button>
+              <button
+                className="easy-shots-attach-delete"
+                title={
+                  shots.length === 1
+                    ? 'Attach it, and move the file to the Trash'
+                    : 'Attach them, and move the files to the Trash'
+                }
+                onClick={() => attachShots(shots, true)}
+              >
+                {shots.length === 1 ? 'Attach & delete' : 'Attach all & delete'}
               </button>
               <button
                 className="easy-shots-dismiss"

@@ -1,6 +1,6 @@
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
 import { join } from 'path'
-import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 
 /**
@@ -76,7 +76,7 @@ test('several stack into one suggestion, and Attach all attaches them', async ()
   shoot('Screenshot 2026-09-29 at 20.10.05.png')
   await expect(window.locator('.easy-shots')).toContainText('2 screenshots', { timeout: 10_000 })
   await window.locator('.easy-shots').screenshot({ path: 'test-results/screenshot-suggestion.png' })
-  await window.getByRole('button', { name: 'Attach all' }).click()
+  await window.getByRole('button', { name: 'Attach all', exact: true }).click()
   await expect(window.locator('.easy-shots')).toHaveCount(0)
   await expect(window.locator('.easy-attachment img')).toHaveCount(2)
 })
@@ -92,6 +92,20 @@ test('one can be dropped, and × dismisses the rest', async () => {
   await expect(window.locator('.easy-shots')).toHaveCount(0)
   // Nothing was attached by that.
   await expect(window.locator('.easy-attachment img')).toHaveCount(2)
+})
+
+test('Attach & delete attaches it and removes the file', async () => {
+  const name = 'Screenshot 2026-09-29 at 20.12.00.png'
+  const kept = 'Screenshot 2026-09-29 at 20.10.00.png'
+  shoot(name)
+  await expect(window.locator('.easy-shot')).toHaveCount(1, { timeout: 10_000 })
+  await window.locator('.easy-shots').screenshot({ path: 'test-results/screenshot-delete.png' })
+  await window.getByRole('button', { name: 'Attach & delete' }).click()
+  await expect(window.locator('.easy-shots')).toHaveCount(0)
+  await expect(window.locator('.easy-attachment img')).toHaveCount(3)
+  await expect.poll(() => existsSync(join(shotsDir, name))).toBe(false)
+  // Plain Attach, earlier, left its file where it was.
+  expect(existsSync(join(shotsDir, kept))).toBe(true)
 })
 
 test('a shot taken in one chat is offered in the chat you switch to', async () => {
