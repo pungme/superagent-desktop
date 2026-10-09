@@ -108,6 +108,25 @@ test('landing on a project from ⌘K leaves the cursor in its composer', async (
   await composer.fill('')
 })
 
+test('a conversation in Chats opens from ⌘K with the cursor in its composer', async () => {
+  // One that belongs to no project, made the way File → New Chat makes it.
+  await window.evaluate(() => window.dispatchEvent(new CustomEvent('cove:new-chat')))
+  const composer = window.locator('.chats-host textarea.easy-input:visible')
+  await expect(composer).toBeEnabled({ timeout: 15_000 })
+  // Away to the project, so getting back is the palette's doing.
+  await window.click('.sidebar-item:has-text("e2e-project")')
+  await expect(window.locator('.chats-host')).toBeHidden()
+
+  await openPalette()
+  await window.click('.cmdk-item:has(.cmdk-item-subtitle:text-is("Chat"))')
+  await expect(window.locator('.cmdk-panel')).toHaveCount(0)
+  await expect(composer).toBeFocused({ timeout: 10_000 })
+  await window.keyboard.type('typed straight away')
+  await expect(composer).toHaveValue('typed straight away')
+  await composer.fill('')
+  await window.click('.sidebar-item:has-text("e2e-project")')
+})
+
 test('arrow keys move the highlighted result', async () => {
   await openPalette()
   const items = window.locator('.cmdk-item')

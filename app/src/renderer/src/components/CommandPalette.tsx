@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore, useOverlayLock } from '../state'
 import { useEscapeClose } from '../hooks/useEscapeClose'
@@ -23,26 +23,38 @@ interface PaletteItem {
   run: () => void
 }
 
+/** Is this element actually on screen (not inside a hidden chat or page)? */
+const shown = (el: Element | null): el is HTMLElement =>
+  el instanceof HTMLElement && el.isConnected && el.offsetParent !== null
+
 /**
  * Put the cursor in the composer of whichever conversation ends up on screen.
- * Tried for a few seconds: the chat may still be mounting, or its agent still
+ * Tried for a while: the chat may still be mounting, or its agent still
  * starting (the field is disabled until it has). Given up on the moment focus
- * is anywhere else — you clicked something — so it never pulls the cursor away
- * from where you put it.
+ * is somewhere else you can see — you clicked something — so it never pulls
+ * the cursor away from where you put it.
+ *
+ * It keeps looking after the first success, until the cursor has stayed put:
+ * on the first frame the conversation you are leaving can still be the one on
+ * screen, and focusing its composer just before it is hidden left the cursor
+ * nowhere.
  */
 function focusComposerSoon(): void {
   const started = Date.now()
+  let held = 0
   const attempt = (): void => {
-    const active = document.activeElement
-    if (active && active !== document.body) return
     const composer = [
       ...document.querySelectorAll<HTMLTextAreaElement>('textarea.easy-input')
-    ].find((el) => el.offsetParent !== null && !el.disabled)
-    if (composer) {
-      composer.focus()
-      return
+    ].find((el) => shown(el) && !el.disabled)
+    const active = document.activeElement
+    if (active !== composer && active !== document.body && shown(active)) return
+    if (composer && active === composer) {
+      if (++held >= 5) return
+    } else {
+      held = 0
+      composer?.focus()
     }
-    if (Date.now() - started < 4000) window.setTimeout(attempt, 60)
+    if (Date.now() - started < 15000) window.setTimeout(attempt, 60)
   }
   // After the palette has gone: it is what holds focus until it unmounts.
   requestAnimationFrame(attempt)
@@ -118,6 +130,19 @@ export function CommandPalette({
     for (const w of workspaces) m.set(w.id, w.name)
     return m
   }, [workspaces])
+
+  // A conversation in Chats belongs to no project: its workspace is not in the
+  // tree, so there is nothing for setActive to show. It opens the way the
+  // sidebar's Chats list opens it.
+  const openChat = useCallback(
+    (workspaceId: string, chatId: string): void => {
+      const store = useStore.getState()
+      if (projectNames.has(workspaceId)) store.setActive(workspaceId)
+      store.selectChat(workspaceId, chatId)
+      if (!projectNames.has(workspaceId)) dispatch('cove:open-chats')
+    },
+    [projectNames]
+  )
 
   const currentChatCommands = useMemo<PaletteItem[]>(() => {
     if (!currentWorkspace) return []
@@ -205,13 +230,10 @@ export function CommandPalette({
       item: {
         id: `recent.chat.${c.id}`,
         label: c.title || 'New chat',
-        subtitle: projectNames.get(c.workspaceId),
+        subtitle: projectNames.get(c.workspaceId) ?? 'Chat',
         workspace: workspaces.find((w) => w.id === c.workspaceId),
         thenType: true,
-        run: () => {
-          useStore.getState().setActive(c.workspaceId)
-          useStore.getState().selectChat(c.workspaceId, c.id)
-        }
+        run: () => openChat(c.workspaceId, c.id)
       } as PaletteItem
     }))
     const projectEntries = workspaces
@@ -231,7 +253,7 @@ export function CommandPalette({
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 6)
       .map((e) => e.item)
-  }, [allChats, workspaces, projectRecency, projectNames])
+  }, [allChats, workspaces, projectRecency, projectNames, openChat])
 
   // Everything, for search — a project or chat you haven't touched recently
   // still has to be reachable by typing its name.
@@ -247,16 +269,13 @@ export function CommandPalette({
     const chatItems = allChats.map((c) => ({
       id: `chat.${c.id}`,
       label: c.title || 'New chat',
-      subtitle: projectNames.get(c.workspaceId),
+      subtitle: projectNames.get(c.workspaceId) ?? 'Chat',
       workspace: workspaces.find((w) => w.id === c.workspaceId),
       thenType: true,
-      run: () => {
-        useStore.getState().setActive(c.workspaceId)
-        useStore.getState().selectChat(c.workspaceId, c.id)
-      }
+      run: () => openChat(c.workspaceId, c.id)
     }))
     return [...currentChatCommands, ...navigateCommands, ...projects, ...chatItems]
-  }, [currentChatCommands, navigateCommands, workspaces, allChats, projectNames])
+  }, [currentChatCommands, navigateCommands, workspaces, allChats, projectNames, openChat])
 
   const groups = useMemo<Group[]>(() => {
     if (!query.trim()) {
