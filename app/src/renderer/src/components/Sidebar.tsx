@@ -1855,7 +1855,11 @@ function PinnedRow({
           icon carries its own badge — rather than a second icon taking room
           from the title. */}
       <span className="activity-icon-stack">
-        {isRoot && projectKind ? (
+        {/* The project's icon on every pinned chat of it. Only the folder's own
+            chat used to get it and a chat on a branch got a pin instead, so two
+            pinned chats of one project sat side by side looking unrelated; the
+            section is headed Pinned already. */}
+        {projectKind ? (
           <ProjectIcon icon={projectIcon} kind={projectKind} size={18} />
         ) : (
           <PinGlyph />
