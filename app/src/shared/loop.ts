@@ -68,6 +68,25 @@ export function parseLoopCmd(raw: string): LoopCommand | null {
 }
 
 /**
+ * When a loop is over, said to the agent with every round.
+ *
+ * The first wording ("when it has done its job, or another round cannot help,
+ * end it yourself") was read as leave to stop at the first quiet moment: an
+ * agent asked to keep improving something finished its own list in a round or
+ * two and ended the loop. Someone who starts a loop wants the rounds, so the
+ * default is the other way: finishing what was planned is the cue to look for
+ * the next thing, and ending is for when there is truly nothing left to do.
+ */
+const LOOP_KEEP_GOING =
+  'The user started a loop because they want it to keep going, so each round, do the next ' +
+  'useful thing. Finishing what you had planned is not the end of the loop: look again at what ' +
+  'was asked and find what is still weak, untested, unverified, unpolished or not yet tried, ' +
+  'and do that. End it yourself with the loop_stop tool only when a specific thing it was ' +
+  'waiting for has happened and nothing follows from it, when it cannot move without the user, ' +
+  'or when you have honestly looked for more to do, more than once, and found nothing worth a ' +
+  'round. When unsure, keep going.'
+
+/**
  * A no-interval /loop hands the cadence to the model, as the terminal's does
  * — in a terminal that's a ScheduleWakeup call. Superagent disallows that tool
  * (see session.ts for why) and points the model at loop_wait instead: the same
@@ -77,14 +96,13 @@ export const SELF_PACE_NOTE =
   '\n\n(/loop, self-paced: pick your own pace with the loop_wait tool, exactly as you would call ' +
   "ScheduleWakeup in a terminal — clamped to [60, 3600]s. Don't bother for a short, ~60s gap; " +
   'Superagent already waits that long by default. Call it once, before ending the turn, when this ' +
-  "round's wait should be longer than that. Keep rounds brief. The loop runs until it is stopped: " +
-  'when it has done its job, or another round cannot help, end it yourself with the loop_stop ' +
-  'tool rather than asking to be stopped.)'
+  "round's wait should be longer than that. Keep rounds brief. " +
+  LOOP_KEEP_GOING +
+  ')'
 
 /** Sent with a round of a loop on a fixed interval: the one thing it needs to know. */
 export const LOOP_STOP_NOTE =
-  '\n\n(/loop: this repeats on a timer until it is stopped. When it has done its job, or another ' +
-  'round cannot help, end it yourself with the loop_stop tool rather than asking to be stopped.)'
+  '\n\n(/loop: this repeats on a timer until it is stopped. ' + LOOP_KEEP_GOING + ')'
 
 export const LOOP_USAGE =
   'Usage: /loop [5m·2h·…] <prompt> — repeats the prompt in this chat until you Stop it. `/loop pause` and `/loop resume` hold and continue it; `/loop stop` ends it.'

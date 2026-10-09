@@ -238,12 +238,16 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
       'loop_stop',
       {
         description:
-          'End the /loop running in this chat. Call it when the loop has done its job (what it was ' +
-          'watching for happened, the task is finished) or when another round cannot help (it is ' +
-          'blocked on something only the user can do, or every round would repeat the last). Do ' +
-          'this instead of asking the user to stop it or saying again that nothing is left: each ' +
-          'further round costs them a turn. Say in `reason` why, in one sentence; the user sees it ' +
-          'and can start a new /loop.',
+          'End the /loop running in this chat. A last resort: the user started the loop because ' +
+          'they want it to keep going, and ending it early leaves work undone that they expected ' +
+          'to find finished. Having completed what you planned is not a reason. First look again ' +
+          'at what was asked and at the state of the work, and if anything is still weak, ' +
+          'untested, unverified, unpolished or not yet tried, do that this round instead. Call ' +
+          'this only when the one thing the loop was watching for has happened and nothing ' +
+          'follows from it, when it is blocked on something only the user can do, or when you ' +
+          'have looked for more to do in more than one round and found nothing worth a turn. ' +
+          'When unsure, do not call it. Say in `reason` why, in one sentence, and what you ' +
+          'checked before deciding; the user sees it and can start a new /loop.',
         inputSchema: {
           reason: z.string().describe('One sentence on why the loop is over — shown to the user.')
         }
