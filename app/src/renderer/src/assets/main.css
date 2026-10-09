@@ -1616,6 +1616,11 @@ button {
   padding: 6px 8px;
   border-radius: 8px;
 }
+/* A sliver between rows: the one the chat is on is filled, and the row under
+   the pointer fills too, so side by side they ran into one block. */
+.usage-popover-row + .usage-popover-row {
+  margin-top: 2px;
+}
 .usage-popover-row:not(:disabled):hover {
   background: var(--hover);
   cursor: pointer;
@@ -2541,8 +2546,13 @@ button {
   transition: opacity 0.12s ease;
 }
 
-.easy-assistant:hover .easy-msg-copy {
+.easy-assistant:hover .easy-msg-copy,
+.easy-msg-copy.copied {
   opacity: 1;
+}
+/* Still there to be read if the pointer has already moved on. */
+.easy-msg-copy.copied {
+  color: var(--text-primary);
 }
 
 .easy-msg-copy:hover {
@@ -13174,6 +13184,15 @@ button {
   background: var(--hover);
   color: var(--text-primary);
 }
+.easy-controls-summary-warm {
+  flex: none;
+  color: var(--warning, #c98a1b);
+  font-variant-numeric: tabular-nums;
+}
+/* Wide, or open: the Memory gauge itself is showing. */
+.easy-controls-summary-warm {
+  display: none;
+}
 .easy-controls-summary-text {
   min-width: 0;
   overflow: hidden;
@@ -13223,12 +13242,17 @@ button {
     display: inline-flex;
     flex: 0 1 auto;
   }
-  /* Folded: only the line and the Memory readout beside it. */
-  .easy-controls:not(.unfolded) > .easy-control {
-    display: none;
+  .easy-controls:not(.unfolded) .easy-controls-summary-warm {
+    display: inline;
   }
-  .easy-stats {
-    margin-left: auto;
+  /* Folded: the line, and nothing else. Memory and the token count used to
+     stay out beside it, and in a column this narrow they wrapped into two more
+     rows under it — three lines of furniture below the message box. They are
+     the last row of the list now; the line itself says so when memory is
+     running short (.easy-controls-summary-warm). */
+  .easy-controls:not(.unfolded) > .easy-control,
+  .easy-controls:not(.unfolded) > .easy-stats {
+    display: none;
   }
   /* Open: one setting to a row, its name on the left and its value on the
      right, with hairlines between them rather than a box around each. */
@@ -13241,7 +13265,26 @@ button {
     border-top: 1px solid var(--border);
   }
   .easy-controls.unfolded > .easy-stats {
-    order: 1;
+    flex: 0 0 100%;
+    order: 3;
+    margin-left: 0;
+    padding: 8px 4px;
+    border-top: 1px solid var(--border);
+    justify-content: space-between;
+    animation: easy-controls-row-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s backwards;
+  }
+  .easy-controls.unfolded.folding > .easy-stats {
+    animation: easy-controls-row-out 0.16s ease-out forwards;
+  }
+  /* The dot that joins the two on one line has nothing to join across a row. */
+  .easy-controls.unfolded > .easy-stats .easy-session-tokens::before {
+    content: none;
+  }
+  /* Its tooltip opens from the left of the row here, not off its right end. */
+  .easy-controls.unfolded > .easy-stats .easy-ctx-tip {
+    right: auto;
+    left: 0;
+    max-width: calc(100cqw - 8px);
   }
   .easy-controls.unfolded > .easy-control {
     animation: easy-controls-row-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
@@ -13264,7 +13307,8 @@ button {
     animation-delay: 0s;
   }
   @media (prefers-reduced-motion: reduce) {
-    .easy-controls.unfolded > .easy-control {
+    .easy-controls.unfolded > .easy-control,
+    .easy-controls.unfolded > .easy-stats {
       animation: none;
     }
   }

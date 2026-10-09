@@ -27,7 +27,17 @@ test('a narrow chat folds its settings into one line that opens as a list', asyn
     await w.evaluate(async () => {
       const tree = await window.cove.storeTree()
       const ws = tree.flatMap((g) => g.workspaces).find((x) => x.name === 'e2e-project')!
-      await window.cove.chatCreate(ws.id)
+      const chatId = await window.cove.chatCreate(ws.id)
+      // A reply with its token count, so the row of figures has something in it.
+      window.cove.chatSave(
+        chatId,
+        JSON.stringify([
+          {
+            kind: 'msg',
+            msg: { id: 'a1', role: 'assistant', text: 'Done.', tokens: 90000, tokensNew: 4200 }
+          }
+        ])
+      )
     })
     await w.click('.sidebar-item:has-text("e2e-project")')
     const controls = w.locator('.easy-controls:visible').first()
@@ -37,6 +47,7 @@ test('a narrow chat folds its settings into one line that opens as a list', asyn
 
     // Wide: pills, and no summary line.
     await expect(summary).toBeHidden()
+    await expect(controls.locator('.easy-stats')).toBeVisible()
 
     // Narrow the chat column itself, as dragging the split or the window does.
     await w.evaluate(() => {
@@ -46,12 +57,21 @@ test('a narrow chat folds its settings into one line that opens as a list', asyn
     await expect(summary).toBeVisible()
     await expect(summary).toContainText('Claude Code')
     await expect(model).toBeHidden()
+    // Nothing else stays out: the token count is in the fold with the rest.
+    const stats = controls.locator('.easy-stats')
+    await expect(stats).toBeHidden()
     const folded = (await controls.boundingBox())!.height
     expect(folded).toBeLessThan(50)
 
     // Open: a list, one setting to a row across the column.
     await summary.click()
     await expect(model).toBeVisible()
+    // The figures are the last row of the list, across the column like the others.
+    await expect(stats).toBeVisible()
+    await expect(stats).toContainText('4k tokens')
+    const statsBox = (await stats.boundingBox())!
+    expect(statsBox.y).toBeGreaterThan((await model.boundingBox())!.y)
+    expect(statsBox.width).toBeGreaterThan((await controls.boundingBox())!.width - 40)
     const row = (await model.boundingBox())!
     const box = (await controls.boundingBox())!
     expect(row.width).toBeGreaterThan(box.width - 40)
@@ -77,6 +97,7 @@ test('a narrow chat folds its settings into one line that opens as a list', asyn
     await expect(controls).toHaveClass(/folding/)
     await expect(model).toBeHidden()
     await expect(controls).not.toHaveClass(/folding|unfolded/)
+    await expect(stats).toBeHidden()
     expect((await controls.boundingBox())!.height).toBe(folded)
     // Pressed again while it is closing, it opens straight back up.
     await summary.click()

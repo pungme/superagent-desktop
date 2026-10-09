@@ -246,6 +246,15 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   await footer.hover()
   const work = window.locator('.usage-popover-row', { hasText: 'Work' })
   await expect(work).toBeEnabled()
+  // The row the chat is on is filled and so is the one under the pointer: with
+  // nothing between them they read as a single block.
+  await work.hover()
+  const [mine, hovered] = await Promise.all([
+    window.locator('.usage-popover-row.on').boundingBox(),
+    work.boundingBox()
+  ])
+  expect(hovered!.y - (mine!.y + mine!.height)).toBeGreaterThanOrEqual(2)
+  await window.locator('.usage-popover').screenshot({ path: 'test-results/usage-popover.png' })
   await work.click()
   await expect(pill).toContainText('Work')
   await expect

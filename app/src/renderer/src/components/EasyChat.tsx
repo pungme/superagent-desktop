@@ -68,6 +68,32 @@ interface ChatMessage {
   tokensNew?: number
 }
 
+/**
+ * Copy on a reply. It says so for a moment afterwards: a button that does its
+ * work silently reads as one that did nothing, and gets pressed again.
+ */
+function CopyReply({ text }: { text: string }): React.JSX.Element {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const t = setTimeout(() => setCopied(false), 1400)
+    return () => clearTimeout(t)
+  }, [copied])
+  return (
+    <button
+      className={`easy-msg-copy ${copied ? 'copied' : ''}`}
+      title="Copy"
+      aria-live="polite"
+      onClick={() => {
+        window.cove.clipboardWrite(text)
+        setCopied(true)
+      }}
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
+
 /** How long the folded settings take to close; the same figure as the CSS. */
 const FOLD_OUT_MS = 160
 
@@ -1309,15 +1335,7 @@ const MessageRow = memo(function MessageRow({
           ↩
         </button>
       )}
-      {isAssistant && !msg.streaming && msg.text && (
-        <button
-          className="easy-msg-copy"
-          title="Copy"
-          onClick={() => window.cove.clipboardWrite(msg.text)}
-        >
-          Copy
-        </button>
-      )}
+      {isAssistant && !msg.streaming && msg.text && <CopyReply text={msg.text} />}
       {showEdit && msg.text && (
         <button className="easy-msg-edit" title="Edit & resend" onClick={() => onEdit(msg)}>
           Edit
@@ -5589,6 +5607,13 @@ export function EasyChat({
           <span className="easy-controls-summary-text">
             {[PROVIDER_PRODUCT[provider], modelLabel, modeLabel].filter(Boolean).join(' · ')}
           </span>
+          {/* The one thing from inside the fold that should not wait to be
+              looked for: memory nearly full. */}
+          {ctxTokens !== null && ctxPercent >= 75 && (
+            <span className="easy-controls-summary-warm" title="Memory is filling up">
+              · Memory {ctxPercent}%
+            </span>
+          )}
           <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
             <path
               d="M2 3.5L5 6.5L8 3.5"
