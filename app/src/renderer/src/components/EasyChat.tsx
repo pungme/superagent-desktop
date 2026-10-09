@@ -281,6 +281,83 @@ function BrowserPill({
   )
 }
 
+/**
+ * The worktrees this chat has, as a quiet pill beside Model and Mode: "2
+ * worktrees", and on a click which repos they are of and on which branch. In a
+ * folder of many repos a chat is only given a copy of a repo when it is about
+ * to change it, and this is where that can be seen, without a line being
+ * dropped into the conversation each time. Absent when the chat has none.
+ */
+function WorktreePill({
+  chatId,
+  cwd,
+  open,
+  onToggle
+}: {
+  chatId: string
+  cwd: string
+  open: boolean
+  onToggle: () => void
+}): React.JSX.Element | null {
+  const [state, setState] = useState<{
+    copies: { name: string; branch: string; path: string }[]
+    linked: number
+  } | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = (): void => {
+      void window.cove.worktreeCopies?.(cwd).then((r) => {
+        if (alive) setState(r)
+      })
+    }
+    load()
+    const offCopied = window.cove.onWorktreeCopied?.((p) => {
+      if (p.chatId === chatId) load()
+    })
+    // Kept, thrown away or removed from the sidebar: the list changes too.
+    const offProjects = window.cove.onProjectsChanged?.(load)
+    return () => {
+      alive = false
+      offCopied?.()
+      offProjects?.()
+    }
+  }, [chatId, cwd])
+  const n = state?.copies.length ?? 0
+  if (!state || n === 0) return null
+  return (
+    <div className="easy-control">
+      <button
+        className={`easy-control-btn ${open ? 'open' : ''}`}
+        onClick={onToggle}
+        title="The repos this chat has its own copy of"
+      >
+        <span className="easy-control-key">Worktrees</span>
+        <span className="easy-control-val">{n}</span>
+      </button>
+      {open && (
+        <div className="easy-control-menu easy-control-menu-wide easy-worktrees" role="dialog">
+          <div className="easy-worktrees-head">
+            This chat works in its own copy of {n === 1 ? 'this repo' : 'these repos'}. Your
+            checkout is untouched until you press Keep.
+          </div>
+          {state.copies.map((c) => (
+            <div key={c.path} className="easy-worktrees-row" title={c.path}>
+              <span className="easy-worktrees-name">{c.name}</span>
+              <span className="easy-worktrees-branch">⎇ {c.branch || 'no branch'}</span>
+            </div>
+          ))}
+          {state.linked > 0 && (
+            <div className="easy-worktrees-foot">
+              {state.linked} other {state.linked === 1 ? 'repo is' : 'repos are'} read from your
+              checkout, not copied. One is copied only when this chat is about to change it.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DevServerPill({
   workspaceId,
   open,
@@ -5750,6 +5827,12 @@ export function EasyChat({
             onPicked={() => setControlMenu(null)}
           />
         )}
+        <WorktreePill
+          chatId={chatId}
+          cwd={cwd}
+          open={controlMenu === 'worktrees'}
+          onToggle={() => setControlMenu((m) => (m === 'worktrees' ? null : 'worktrees'))}
+        />
         <DevServerPill
           workspaceId={workspaceId}
           open={controlMenu === 'server'}

@@ -38,6 +38,7 @@ import {
   createWorktreeSet,
   cutChatBranch,
   cutRepo,
+  chatCopies,
   ensureChatBranch,
   listWorktreeSets,
   mergeCopy,
@@ -183,19 +184,22 @@ describe('a copy of a folder of repos', () => {
     sent.length = 0
     const cut = await cutRepo(dir, 'api')
     expect(cut).toEqual({ ok: true, path: join(dir, 'api'), branch: 'add-login', fresh: true })
-    // The chat is told which repo, on which branch, and that nothing else moved.
-    const notice = sent.find((m) => m.channel === 'chat:notice')?.payload as {
-      chatId: string
-      text: string
-    }
-    expect(notice.chatId).toBe('chat-1')
-    expect(notice.text).toContain('`api`')
-    expect(notice.text).toContain('`add-login`')
-    expect(notice.text).toContain('Your checkout is untouched')
+    // The chat's pill is told, and can list what it has: one copy, one link.
+    expect(sent.find((m) => m.channel === 'worktree:copied')?.payload).toEqual({
+      chatId: 'chat-1',
+      name: 'api',
+      branch: 'add-login'
+    })
+    expect(chatCopies(dir)).toEqual({
+      copies: [{ name: 'api', branch: 'add-login', path: join(dir, 'api') }],
+      linked: 1
+    })
+    // Nothing is dropped into the conversation.
+    expect(sent.some((m) => m.channel === 'chat:notice')).toBe(false)
     // Asking again copies nothing, so says nothing.
     sent.length = 0
     await cutRepo(dir, 'api')
-    expect(sent.some((m) => m.channel === 'chat:notice')).toBe(false)
+    expect(sent.some((m) => m.channel === 'worktree:copied')).toBe(false)
     expect(isLink(join(dir, 'api'))).toBe(false)
     expect(git(join(dir, 'api'), 'symbolic-ref', '--short', 'HEAD')).toBe('add-login')
     expect(readFileSync(join(dir, 'api', 'README.md'), 'utf8')).toBe('# api\n')

@@ -13322,3 +13322,45 @@ button {
 .easy-input-box[data-tall] .easy-input {
   max-height: 188px;
 }
+
+/* The Worktrees pill's list: which repos this chat has a copy of. */
+.easy-worktrees {
+  padding: 8px 10px;
+  min-width: 260px;
+  max-width: 340px;
+  font-size: 12px;
+}
+.easy-worktrees-head,
+.easy-worktrees-foot {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.easy-worktrees-head {
+  margin-bottom: 6px;
+}
+.easy-worktrees-foot {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.easy-worktrees-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+.easy-worktrees-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.easy-worktrees-branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}

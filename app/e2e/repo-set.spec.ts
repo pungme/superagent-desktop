@@ -190,8 +190,31 @@ test('a new chat cuts nothing until it changes a repo, then only that repo', asy
   await expect(chatRows()).toHaveCount(4)
   await expect(orphanRows()).toHaveCount(0)
 
+  // No worktrees yet, so no pill saying there are.
+  const pill = window.locator('.easy-controls:visible .easy-control-btn', { hasText: 'Worktrees' })
+  await window.locator(`[data-chat-id="${chat.id}"]`).click()
+  await expect(window.locator('textarea.easy-input:visible')).toBeVisible()
+  await expect(pill).toHaveCount(0)
+
   // It is about to change two of the seven.
   await change(chat.cwd, 'backend', 'ios')
+  // Said quietly, where it can be looked up: a pill with the count, and on a
+  // click which repos, on which branch, and that the rest were not copied.
+  const summary = window.locator('.easy-controls:visible .easy-controls-summary').first()
+  if ((await summary.isVisible()) && (await summary.getAttribute('aria-expanded')) !== 'true')
+    await summary.click()
+  await expect(pill).toContainText('2')
+  await pill.click()
+  const list = window.locator('.easy-worktrees:visible')
+  await expect(list.locator('.easy-worktrees-row')).toHaveCount(2)
+  await expect(list.locator('.easy-worktrees-name')).toHaveText(['backend', 'ios'])
+  await expect(list.locator('.easy-worktrees-branch').first()).toContainText('add-login-page')
+  await expect(list).toContainText('5 other repos are read from your checkout, not copied')
+  if (process.env.SHOT) await list.screenshot({ path: '/tmp/sa-worktrees.png' })
+  await pill.click()
+  await expect(list).toHaveCount(0)
+  // And nothing was dropped into the conversation about it.
+  await expect(window.locator('.easy-transcript:visible')).not.toContainText('own copy of')
   for (const r of REPOS) {
     const own = r === 'backend' || r === 'ios'
     expect(lstatSync(join(chat.cwd, r)).isSymbolicLink()).toBe(!own)

@@ -423,7 +423,15 @@ export interface CoveApi {
   onProjectsChanged: (cb: (p: { activate?: string }) => void) => () => void
   /** A chat's stored transcript grew while no window owned it (the phone). */
   onChatAppended: (cb: (p: { chatId: string }) => void) => () => void
-  /** A line from Superagent itself to put in a chat (a repo was copied for it, say). */
+  /** The worktrees a chat has, and how many repos it only reads through a link. */
+  worktreeCopies: (
+    cwd: string
+  ) => Promise<{ copies: { name: string; branch: string; path: string }[]; linked: number }>
+  /** A chat was just given its own copy of a repo. */
+  onWorktreeCopied: (
+    cb: (p: { chatId: string; name: string; branch: string }) => void
+  ) => () => void
+  /** A line from Superagent itself to put in a chat. */
   onChatNotice: (cb: (p: { chatId: string; text: string }) => void) => () => void
   /** The agent booted or launched something on a simulator — reveal the pane. */
   onOpenSimulator: (
@@ -1118,6 +1126,9 @@ const cove: CoveApi = {
     ),
   onProjectsChanged: (cb) => subscribe('projects:changed', (p) => cb(p as { activate?: string })),
   onChatAppended: (cb) => subscribe('chat:appended', (p) => cb(p as { chatId: string })),
+  worktreeCopies: (cwd) => ipcRenderer.invoke('worktree:copies', cwd),
+  onWorktreeCopied: (cb) =>
+    subscribe('worktree:copied', (p) => cb(p as { chatId: string; name: string; branch: string })),
   onChatNotice: (cb) => subscribe('chat:notice', (p) => cb(p as { chatId: string; text: string })),
 
   storeTree: () => ipcRenderer.invoke('store:tree'),

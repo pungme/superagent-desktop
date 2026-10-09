@@ -205,13 +205,35 @@ export function cutRepo(setPath: string, name: string): Promise<CutResult> {
   return next
 }
 
-/** What the chat is told when it gets a copy of one repo. */
-export function copyNotice(name: string, branch: string): string {
-  return (
-    `📂 This chat now has its own copy of \`${name}\`, on the branch \`${branch}\`, because it ` +
-    'is about to change it. Your checkout is untouched, and the other repos in this folder are ' +
-    'not copied. Keep adds its changes back; Throw away discards them.'
-  )
+export interface ChatCopy {
+  /** The repo, by the name of its folder. */
+  name: string
+  branch: string
+  path: string
+}
+
+/**
+ * The worktrees a chat has: for a folder of repos, the ones it has been given
+ * a copy of (and how many it only reads through a link); for a chat on a
+ * worktree of a single repo, that one. Empty for a chat in the folder itself.
+ */
+export function chatCopies(cwd: string): { copies: ChatCopy[]; linked: number } {
+  if (!cwd.includes('/.worktrees/') || !existsSync(cwd)) return { copies: [], linked: 0 }
+  if (isRepoSet(cwd))
+    return {
+      copies: setMembers(cwd).map((m) => ({
+        name: m.name,
+        branch: gitBranch(m.path) ?? '',
+        path: m.path
+      })),
+      linked: linkedRepos(cwd).length
+    }
+  return {
+    copies: [
+      { name: basename(cwd.split('/.worktrees/')[0]), branch: gitBranch(cwd) ?? '', path: cwd }
+    ],
+    linked: 0
+  }
 }
 
 async function cutRepoNow(setPath: string, name: string): Promise<CutResult> {
@@ -244,12 +266,10 @@ async function cutRepoNow(setPath: string, name: string): Promise<CutResult> {
   }
   // The repo's project now has a branch row, and this chat a repo chip.
   broadcastToWindows('projects:changed', {})
-  // And the chat says so, in so many words. A worktree and a new branch
-  // appearing in one repo out of nineteen is otherwise learned from a chip in
-  // the sidebar, if at all: which repo, why only that one, and that the
-  // user's own checkout was left alone.
+  // The chat's Worktrees pill counts it (see chatCopies): there to be looked at,
+  // rather than a line dropped into the conversation each time.
   const chatId = chatIdByCwd(setPath)
-  if (chatId) broadcastToWindows('chat:notice', { chatId, text: copyNotice(name, made.branch) })
+  if (chatId) broadcastToWindows('worktree:copied', { chatId, name, branch: made.branch })
   return { ok: true, path: made.path, branch: made.branch, fresh: true }
 }
 
@@ -581,6 +601,7 @@ export function registerChatCopyIpc(): void {
   ipcMain.handle('worktree:sets', (_e, projectPath: string) => listWorktreeSets(projectPath))
   // The chat is about to change this repo: its link becomes its own worktree.
   ipcMain.handle('worktree:cut-repo', (_e, setPath: string, name: string) => cutRepo(setPath, name))
+  ipcMain.handle('worktree:copies', (_e, cwd: string) => chatCopies(String(cwd)))
   /**
    * The first message's branch, for the window. The same call the phone's send
    * path makes, so the rule about when a chat gets its own copy has one home.
