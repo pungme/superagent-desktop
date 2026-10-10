@@ -158,8 +158,11 @@ describe.runIf(LIVE)('codex session (live)', () => {
 
     expect(
       run.backend.send(
+        // Asked for by name: left to itself a newer model edits with a shell
+        // one-liner, which is a command card, and the diff card is what this checks.
         'Run `cat greeting.txt` with the shell, then change the word "world" to "codex" in ' +
-          'that file. Then reply with exactly: DONE.',
+          'that file using your apply_patch file-editing tool (not a shell command). Then ' +
+          'reply with exactly: DONE.',
         [],
         []
       )
