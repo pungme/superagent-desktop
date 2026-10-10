@@ -181,6 +181,7 @@ export function startCompanion(): void {
       toolName: string
       preview: string
       kind?: 'guardrail' | 'permission' | 'handoff'
+      macOnly?: boolean
       expiresAt: number
     }) => {
       const chatId = chatForSession(a.sessionId)
@@ -199,7 +200,8 @@ export function startCompanion(): void {
         workspaceId: a.workspaceId,
         chatId,
         approvalId: a.requestId,
-        detail: a.preview
+        detail: a.preview,
+        macOnly: a.macOnly
       })
     }
   )
@@ -437,7 +439,13 @@ function safeProvider(chatId: string): AgentProvider {
 
 function notifyPhones(
   kind: PushKind,
-  e: { workspaceId?: string; chatId?: string; approvalId?: string; detail?: string }
+  e: {
+    workspaceId?: string
+    chatId?: string
+    approvalId?: string
+    detail?: string
+    macOnly?: boolean
+  }
 ): void {
   const active = new Set(
     [...conns.values()].filter((c) => c.presenceActive && c.deviceId).map((c) => c.deviceId!)

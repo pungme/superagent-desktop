@@ -31,6 +31,8 @@ export interface PushEvent {
   machineName: string
   /** What to call the agent in the copy. Defaults to Claude, the original one. */
   agent?: string
+  /** An approval only the Mac can say yes to: told about, with nothing to press. */
+  macOnly?: boolean
 }
 
 /** Pure: the APNs payload for an event. */
@@ -46,6 +48,13 @@ export function composePush(e: PushEvent): {
   let category: string
   switch (e.kind) {
     case 'approval':
+      if (e.macOnly) {
+        // No Approve to press: the Mac only takes this yes at the Mac.
+        title = `${agent} wants to use your Mac`
+        body = 'Allow it on your Mac. Open Superagent here to say no.'
+        category = 'DONE'
+        break
+      }
       title = `${agent} wants to act`
       body = e.detail ? e.detail.slice(0, 140) : 'Approve or deny from here.'
       category = 'APPROVAL'

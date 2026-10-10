@@ -17,6 +17,23 @@ vi.mock('../store', () => ({
 import { composePush, pushTargets } from './push'
 
 describe('push', () => {
+  it('tells the phone about a request to use the Mac, with no Approve to press', () => {
+    const { payload } = composePush({
+      kind: 'approval',
+      workspaceId: 'w1',
+      chatId: 'c1',
+      approvalId: 'gate-9',
+      detail: 'Use this Mac: see the screen…',
+      machineName: 'Studio Mac',
+      macOnly: true
+    })
+    const aps = payload.aps as Record<string, unknown>
+    expect((aps.alert as { title: string }).title).toBe('Claude wants to use your Mac')
+    expect((aps.alert as { body: string }).body).toContain('Allow it on your Mac')
+    // The category with the Approve and Deny buttons is not used.
+    expect(aps.category).toBe('DONE')
+  })
+
   it('composes an approval as a time-sensitive alert with the APPROVAL category', () => {
     const { payload, collapseId } = composePush({
       kind: 'approval',
