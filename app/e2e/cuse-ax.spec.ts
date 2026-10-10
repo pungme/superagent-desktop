@@ -37,6 +37,13 @@ const cuse = (...args: string[]): Promise<Record<string, unknown>> =>
     [helper, args] as const
   )
 
+/** A locked Mac has the login window in front, and apps are not described through it. */
+function macLocked(): boolean {
+  const front = spawnSync('/usr/bin/lsappinfo', ['front']).stdout?.toString().trim() ?? ''
+  const info = spawnSync('/usr/bin/lsappinfo', ['info', '-only', 'bundleid', front])
+  return /com\.apple\.loginwindow/.test(info.stdout?.toString() ?? '')
+}
+
 type Control = { i: number; role: string; label: string; value: string }
 const controls = async (): Promise<Control[]> =>
   ((await cuse('--pid', String(pid), 'ax', '60')) as { elements: Control[] }).elements
@@ -47,6 +54,7 @@ test.beforeAll(async () => {
     process.platform !== 'darwin' || clang.status !== 0 || !existsSync(helper),
     'needs a Mac, clang and the built helper'
   )
+  test.skip(macLocked(), 'this Mac is locked: accessibility does not describe apps while it is')
   dir = mkdtempSync(join(tmpdir(), 'cove-ax-'))
   data = mkdtempSync(join(tmpdir(), 'cove-ax-data-'))
   const built = spawnSync('/usr/bin/clang', [
@@ -70,6 +78,8 @@ test.beforeAll(async () => {
     env: { ...process.env, COVE_USER_DATA: data, COVE_E2E_PROJECT: proj, NODE_ENV: 'production' }
   })
   await app.firstWindow()
+  // The test app's window takes a moment to be known to accessibility.
+  await expect.poll(async () => (await controls()).length, { timeout: 15_000 }).toBeGreaterThan(0)
 })
 
 test.afterAll(async () => {

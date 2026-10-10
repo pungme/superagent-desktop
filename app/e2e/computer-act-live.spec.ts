@@ -21,6 +21,13 @@ const helper = join(__dirname, '..', 'native', 'cuse')
 test('a real agent asks, is allowed, reads the controls and acts on them by name', async () => {
   test.skip(!LIVE, 'set CLAUDE_LIVE=1 to run against the real claude CLI')
   test.skip(!existsSync(helper), 'the helper is not built here')
+  const front = spawnSync('/usr/bin/lsappinfo', ['front']).stdout?.toString().trim() ?? ''
+  test.skip(
+    /com\.apple\.loginwindow/.test(
+      spawnSync('/usr/bin/lsappinfo', ['info', '-only', 'bundleid', front]).stdout?.toString() ?? ''
+    ),
+    'this Mac is locked: nothing can be done on it, by design'
+  )
   test.setTimeout(360_000)
   const dir = mkdtempSync(join(tmpdir(), 'cove-actlive-'))
   const data = mkdtempSync(join(tmpdir(), 'cove-actlive-data-'))
