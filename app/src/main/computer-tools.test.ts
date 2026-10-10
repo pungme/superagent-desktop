@@ -415,6 +415,21 @@ describe("the agent's tools for using the Mac", () => {
       expect(no.isError).toBe(true)
       expect(state.asked[0]).toContain('Work in TextEdit')
       expect(text(no)).toContain('did not allow working in TextEdit')
+
+      // Something that cannot be identified is not opened to find out what it is.
+      const before = state.asked.length
+      const unknown = await call(c, 'computer_open_mac_app', { name: '/tmp/Something.app' })
+      expect(unknown.isError).toBe(true)
+      expect(text(unknown)).toContain('no app called')
+      expect(state.asked).toHaveLength(before)
+
+      // Step by step, an app already allowed is still asked about before it
+      // is brought forward. (Answered no: nothing here opens a real app.)
+      state.steps = true
+      state.approvedApps = ['com.apple.TextEdit']
+      const step = await call(c, 'computer_open_mac_app', { name: 'TextEdit' })
+      expect(state.asked.at(-1)).toBe('Next step: Open TextEdit.')
+      expect(text(step)).toContain('did not allow that step')
     })
   })
 

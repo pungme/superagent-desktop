@@ -608,10 +608,20 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       // Which app that is, before it is opened: one that is out of bounds is
       // not brought to the front at all, and any other is asked about first.
       const which = await appNamed(name)
-      if (which) {
-        const stop = await mayWorkIn(which)
-        if (stop) return failed(stop)
-      }
+      // Not known by that name: not opened on the chance that it is something.
+      // A path, or a name macOS resolves another way, would otherwise open an
+      // app nobody was asked about.
+      if (!which)
+        return failed(
+          `There is no app called "${name}" on this Mac that can be identified. Use its name as it appears in the Applications folder.`
+        )
+      const asked = !appApproved(owner, which.id)
+      const stop = await mayWorkIn(which)
+      if (stop) return failed(stop)
+      // Step by step: bringing an app forward is a step too, unless the
+      // question about working in it was only just answered.
+      if (!asked && stepByStep() && !(await askStep(`Open ${which.name}`)))
+        return failed(STEP_REFUSED)
       const opened = await new Promise<string>((resolve) =>
         execFile('/usr/bin/open', ['-a', name], { timeout: 15_000 }, (err, _o, stderr) =>
           resolve(err ? String(stderr || err.message).trim() : '')
