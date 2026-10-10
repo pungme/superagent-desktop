@@ -10,6 +10,11 @@ export interface DotApproval {
   id: string
   toolName: string
   preview: string
+  /**
+   * A handoff is the agent stuck in the browser (a login, a captcha, a code
+   * from your phone): something for you to do there, not an action to allow.
+   */
+  handoff: boolean
 }
 
 export interface DotTask {
@@ -121,7 +126,12 @@ export function applyEvent(task: DotTask, chatId: string, data: Record<string, u
       return {
         ...task,
         status: 'needs',
-        approval: { id: s(data.id), toolName: s(data.toolName), preview: s(data.preview) }
+        approval: {
+          id: s(data.id),
+          toolName: s(data.toolName),
+          preview: s(data.preview),
+          handoff: data.approvalKind === 'handoff'
+        }
       }
     case 'approval_end':
       return task.approval?.id === s(data.id)

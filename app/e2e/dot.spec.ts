@@ -278,6 +278,26 @@ test('it goes amber and asks before anything risky, and passes the answer on', a
   await expect(dot.locator('.dot-tile')).toHaveClass(/dot-working/)
 })
 
+test('stuck in the browser, it sends you to the browser rather than asking to allow', async () => {
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  await event({
+    kind: 'approval',
+    id: 'handoff-1',
+    toolName: 'mcp__cove-browser__browser_ask_user',
+    preview: 'Sign in to Shopify, then press Done',
+    approvalKind: 'handoff',
+    expiresAt: Date.now() + 60_000
+  })
+  await expect(dot.locator('.dot-tile')).toHaveClass(/dot-needs/)
+  await expect(panel.locator('.dot-approval')).toContainText('Sign in to Shopify')
+  await expect(panel).toContainText('It needs you in the browser.')
+  // Nothing to allow or refuse from here.
+  await expect(panel.getByRole('button', { name: 'Allow' })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Open in Superagent', exact: true })).toBeVisible()
+  await event({ kind: 'approval_end', id: 'handoff-1', outcome: 'approved', by: 'desktop' })
+  await expect(dot.locator('.dot-tile')).toHaveClass(/dot-working/)
+})
+
 test('the answer lands by the dot, with a way to the whole conversation', async () => {
   const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
   await event({

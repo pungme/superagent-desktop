@@ -49,7 +49,17 @@ describe('what the dot shows for a request', () => {
       toolName: 'mcp__cove-browser__mail_send',
       preview: 'Send email to caspar@example.com'
     })
-    expect(t).toMatchObject({ status: 'needs', approval: { id: 'g1' } })
+    expect(t).toMatchObject({ status: 'needs', approval: { id: 'g1', handoff: false } })
+    // Stuck in the browser is a different kind of waiting.
+    expect(
+      applyEvent(start(), 'c1', {
+        kind: 'approval',
+        id: 'h1',
+        toolName: 'browser_ask_user',
+        preview: 'Sign in to Shopify, then press Done',
+        approvalKind: 'handoff'
+      }).approval
+    ).toMatchObject({ handoff: true })
     // Someone else's approval ending is not ours.
     expect(applyEvent(t, 'c1', { kind: 'approval_end', id: 'other' }).status).toBe('needs')
     t = applyEvent(t, 'c1', { kind: 'approval_end', id: 'g1', outcome: 'approved' })

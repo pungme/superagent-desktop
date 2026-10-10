@@ -382,21 +382,35 @@ export function Dot(): React.JSX.Element {
                   <div className="dot-approval">
                     {task.approval.preview || task.approval.toolName}
                   </div>
-                  <div className="dot-row">
-                    <span className="dot-quiet">It needs your yes to carry on.</span>
-                    <button
-                      className="dot-btn"
-                      onClick={() => void window.cove.dotAnswer(task.approval!.id, false)}
-                    >
-                      Not now
-                    </button>
-                    <button
-                      className="dot-btn primary"
-                      onClick={() => void window.cove.dotAnswer(task.approval!.id, true)}
-                    >
-                      Allow
-                    </button>
-                  </div>
+                  {task.approval.handoff ? (
+                    // Stuck in the browser: it is yours to do there, and the
+                    // browser is in the app, so that is where this goes.
+                    <div className="dot-row">
+                      <span className="dot-quiet">It needs you in the browser.</span>
+                      <button
+                        className="dot-btn primary"
+                        onClick={() => window.cove.dotOpen(task.chatId)}
+                      >
+                        Open in Superagent
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="dot-row">
+                      <span className="dot-quiet">It needs your yes to carry on.</span>
+                      <button
+                        className="dot-btn"
+                        onClick={() => void window.cove.dotAnswer(task.approval!.id, false)}
+                      >
+                        Not now
+                      </button>
+                      <button
+                        className="dot-btn primary"
+                        onClick={() => void window.cove.dotAnswer(task.approval!.id, true)}
+                      >
+                        Allow
+                      </button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
