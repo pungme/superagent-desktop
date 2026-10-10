@@ -106,6 +106,12 @@ Mac's shape — sidebar left, conversation right, the page beside it.
 <tr>
 <td width="46%" valign="top">
 
+**Ask from anywhere.** Superagent also sits as a small tile in the corner of
+your screen, over every app. Click it or press its shortcut, say where (the
+Computer, or any project) and what, and the answer comes back beside it without
+opening the window. It spins while it works, turns amber when it needs your
+yes, and every request is an ordinary chat you can open afterwards.
+
 **Everything in its place.** The Computer sits at the top of the sidebar with
 its own conversations under it. Then one Projects section: your open browser
 tabs first, then your projects, each with its own icon and its conversations

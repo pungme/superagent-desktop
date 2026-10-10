@@ -32,6 +32,39 @@ Notarization is an Apple round trip of several minutes. The script verifies
 rather than trusting exit codes, and stops BEFORE publishing when something is
 off, so a failure there has shipped nothing and a re-run is safe.
 
+### 2.0 betas come off the `2.0.0` branch
+
+2.0 is being built on the branch `2.0.0`, so its betas stay off `main` until it
+is ready. A push to that branch does not start a release (the workflow only
+watches `main`). To cut one:
+
+1. bump `version` in `app/package.json` (`2.0.0-beta.N`) and write the notes,
+   on the `2.0.0` branch
+2. commit and push the branch
+3. `gh workflow run release.yml --ref 2.0.0`
+
+The release script checks against `origin/<the branch it runs on>` and tags the
+commit it built (`--target`), so the tag is right whichever branch that was.
+Merge `origin/main` into `2.0.0` before a beta when main has moved, or the beta
+ships without main's fixes; the only conflict is usually the version line, and
+2.0's wins.
+
+The branch has its own working copy at `.worktrees/2.0.0` (with
+`app/node_modules` linked to the main checkout's).
+
+## The dot
+
+`src/main/dot.ts` is a second window: a frameless, transparent, always-on-top
+panel with a tile in its corner, loaded from the same page with `#dot`
+(`src/renderer/src/dot/`). Two things follow for anything that counts windows:
+
+- It is not the app's window. Use `isDotWindow()` rather than assuming
+  `BrowserWindow.getAllWindows()` is one window, or that an empty list means the
+  app is closed.
+- It is not created in a test run unless `COVE_E2E_DOT=1`, because a second
+  window would be "the first window" to other specs. `e2e/dot.spec.ts` sets it;
+  `e2e/dot-live.spec.ts` (`CLAUDE_LIVE=1`) asks a real agent.
+
 ## Checks
 
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and
