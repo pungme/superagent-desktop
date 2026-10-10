@@ -3,6 +3,7 @@ import {
   CONSENT_IDLE_MS,
   consentStands,
   bundleIdFrom,
+  focusMoved,
   offLimitsApp,
   shotSize,
   toScreenPoint,
@@ -78,5 +79,14 @@ describe('apps computer use stays out of', () => {
     ).toBe('com.apple.loginwindow')
     expect(bundleIdFrom('bundleID=[ NULL ]')).toBeNull()
     expect(bundleIdFrom('')).toBeNull()
+  })
+})
+
+describe('whether focus moved since the last look', () => {
+  it('is yes only when both are known and differ', () => {
+    expect(focusMoved('com.apple.TextEdit', 'com.apple.Safari')).toBe(true)
+    expect(focusMoved('com.apple.TextEdit', 'com.apple.textedit')).toBe(false)
+    expect(focusMoved(undefined, 'com.apple.Safari')).toBe(false)
+    expect(focusMoved('com.apple.TextEdit', null)).toBe(false)
   })
 })

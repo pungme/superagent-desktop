@@ -108,3 +108,14 @@ export function offLimitsApp(bundleId: string | null | undefined): string | null
 export function bundleIdFrom(lsappinfo: string): string | null {
   return /bundleID="([^"]+)"/i.exec(lsappinfo)?.[1] ?? null
 }
+
+/**
+ * Whether a different app is in front now than at the last look. Not knowing
+ * either one is not a move: macOS declining to say must not stop all typing.
+ */
+export function focusMoved(
+  seen: string | null | undefined,
+  now: string | null | undefined
+): boolean {
+  return !!seen && !!now && seen.toLowerCase() !== now.toLowerCase()
+}

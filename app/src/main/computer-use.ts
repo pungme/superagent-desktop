@@ -18,6 +18,7 @@ import {
   bundleIdFrom,
   COMPUTER_STOP_HOTKEY,
   consentStands,
+  focusMoved,
   offLimitsApp,
   shotSize,
   toScreenPoint,
@@ -176,8 +177,10 @@ export interface Screenshot {
 
 export async function takeScreenshot(owner: string, display?: number): Promise<Screenshot> {
   // Not a picture of the user's passwords either.
-  const no = owner === '__check__' ? null : await offLimitsNow()
+  const front = owner === '__check__' ? null : await frontApp()
+  const no = offLimitsMessage(front)
   if (no) throw new Error(no)
+  sawFront(owner, front)
   const all = screen.getAllDisplays()
   // The one asked for; else the one last used; else the one the pointer is on,
   // which is where the person is looking.
@@ -328,19 +331,40 @@ export function frontApp(): Promise<string | null> {
  * no business typing into a password manager, and anything aimed at a locked
  * Mac is aimed at its password field.
  */
-export async function offLimitsNow(): Promise<string | null> {
-  const name = offLimitsApp(await frontApp())
+function offLimitsMessage(front: string | null): string | null {
+  const name = offLimitsApp(front)
   if (!name) return null
   return name === 'the lock screen'
     ? 'This Mac is locked. Nothing can be done on it until the user unlocks it; do not try to.'
     : `${name} is in front, and computer use does not operate in it: it holds the user's secrets. Ask the user to do that part themselves, or to bring another app to the front.`
 }
 
+export async function offLimitsNow(): Promise<string | null> {
+  return offLimitsMessage(await frontApp())
+}
+
+/** The app that was in front when each conversation last looked at the screen. */
+const frontAtLook = new Map<string, string>()
+
+/** Record which app was in front for a look. Unknown is not recorded. */
+export function sawFront(owner: string, bundleId: string | null): void {
+  if (bundleId) frontAtLook.set(owner, bundleId)
+  else frontAtLook.delete(owner)
+}
+
 /** Do one thing with the mouse or keyboard, for a conversation that has been allowed to. */
 export async function act(owner: string, action: ComputerAction): Promise<void> {
   const args = cuseArgs(action, lastShot.get(owner))
-  const no = await offLimitsNow()
+  const front = await frontApp()
+  const no = offLimitsMessage(front)
   if (no) throw new Error(no)
+  // Keys go to whatever is in front. If that is no longer the app the agent
+  // was looking at, the text would land somewhere it has not seen.
+  const seen = frontAtLook.get(owner)
+  if ((action.type === 'type' || action.type === 'key') && focusMoved(seen, front))
+    throw new Error(
+      'Another app has come to the front since you last looked at the screen, so nothing was typed. Take a screenshot and check where the cursor is before trying again.'
+    )
   allowed.set(owner, Date.now())
   setActive(true)
   const res = await cuse(args)

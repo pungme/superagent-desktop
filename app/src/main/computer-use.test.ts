@@ -29,6 +29,7 @@ const {
   hasConsent,
   notReady,
   offLimitsNow,
+  sawFront,
   setComputerStop,
   stopComputerUse
 } = await import('./computer-use')
@@ -142,5 +143,16 @@ describe('where it will not go', () => {
   it('refuses everything while the Mac is locked', async () => {
     front = 'com.apple.loginwindow'
     await expect(act('locked', { type: 'key', keys: 'Enter' })).rejects.toThrow(/locked/)
+  })
+})
+
+describe('typing after focus has moved', () => {
+  it('is refused until the agent looks again, while the mouse is not', async () => {
+    sawFront('t', 'com.apple.TextEdit')
+    front = 'com.apple.Safari'
+    await expect(act('t', { type: 'type', text: 'hello' })).rejects.toThrow(/since you last looked/)
+    await expect(act('t', { type: 'key', keys: 'cmd+a' })).rejects.toThrow(/since you last looked/)
+    // A click names its own place on the screen; it is not stopped by this.
+    await expect(act('t', { type: 'click', x: 1, y: 1 })).rejects.toThrow(/screenshot/i)
   })
 })
