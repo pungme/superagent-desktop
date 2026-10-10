@@ -245,6 +245,59 @@ test("any project's todo list can be read and added to by its name", async () =>
   expect((await tool('app_board', { project: 'zebra' })).isError).toBe(true)
 })
 
+test('a card is moved by its id, routines are listed, and deleting a chat needs a yes', async () => {
+  const board = await tool('app_board', { project: projectName.slice(0, -2) })
+  const cardId = /Fix the header on mobile\s+\[([^\]]+)\]/.exec(board.text)![1]
+  expect((await tool('app_board_move', { id: cardId, status: 'done' })).text).toBe(
+    '"Fix the header on mobile" is now in done.'
+  )
+  expect((await tool('app_board', { project: projectName.slice(0, -2) })).text).toContain(
+    'done (1)'
+  )
+  expect((await tool('app_board_move', { id: 'nope', status: 'done' })).isError).toBe(true)
+
+  expect((await tool('app_routines')).text).toBe('There are no routines.')
+  expect((await tool('app_routine', { id: 'nope', action: 'run' })).isError).toBe(true)
+
+  // Deleting: asked first, and a no leaves it there.
+  const status = await tool('app_status')
+  const id = /^(\S+)\s+·\s+"Fix the header"/m.exec(status.text)![1]
+  const deleting = tool('app_delete_chat', { chatId: id })
+  let settled = false
+  void deleting.finally(() => (settled = true))
+  await window.waitForTimeout(400)
+  expect(settled).toBe(false)
+  await expect
+    .poll(async () => {
+      await app.evaluate(({ ipcMain }) => {
+        for (let n = 1; n <= 80; n++)
+          ipcMain.emit('guardrail:resolve', {}, `gate-${n}`, false, false)
+      })
+      return settled
+    })
+    .toBe(true)
+  expect((await deleting).text).toContain('did not allow deleting it')
+  expect((await tool('app_status')).text).toContain('"Fix the header"')
+
+  // A yes, and it is gone.
+  const again = tool('app_delete_chat', { chatId: id })
+  let done = false
+  void again.finally(() => (done = true))
+  await expect
+    .poll(async () => {
+      await app.evaluate(({ ipcMain }) => {
+        for (let n = 1; n <= 80; n++)
+          ipcMain.emit('guardrail:resolve', {}, `gate-${n}`, true, false)
+      })
+      return done
+    })
+    .toBe(true)
+  expect((await again).text).toBe('Deleted "Fix the header".')
+  expect((await tool('app_status')).text).not.toContain('"Fix the header"')
+  // Not itself.
+  expect((await tool('app_delete_chat', { chatId })).text).toContain('cannot delete itself')
+})
+
 test('a new conversation is started in the project that was named', async () => {
   const made = await tool('app_new_chat', { project: projectName.slice(0, -2) })
   expect(made.isError).toBe(false)

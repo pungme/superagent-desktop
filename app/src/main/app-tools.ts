@@ -15,6 +15,7 @@ import {
   getWorkspace,
   listAllChats,
   listCards,
+  moveCard,
   markPendingBranch,
   searchChats,
   setChatPinned,
@@ -340,7 +341,7 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
               return mine.length
                 ? `${stage} (${mine.length})\n${mine
                     .slice(0, stage === 'done' ? 8 : 40)
-                    .map((c) => `  - ${c.title}`)
+                    .map((c) => `  - ${c.title}  [${c.id}]`)
                     .join('\n')}`
                 : ''
             })
@@ -367,6 +368,96 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
       const card = addCard(p.id, title.trim(), { body: body?.trim() || undefined, status: 'todo' })
       broadcastToWindows('board:changed', { workspaceId: p.id })
       return said(`Added "${card.title}" to ${p.name}'s todo.`)
+    }
+  )
+
+  server.registerTool(
+    'app_board_move',
+    {
+      description:
+        'Move an item on any project\'s todo board to another stage (todo, doing, testing, done), by the id app_board shows in brackets. "Mark the header one done on the portal board."',
+      inputSchema: {
+        id: z.string().min(1).max(100),
+        status: z.enum(['todo', 'doing', 'testing', 'done'])
+      }
+    },
+    async ({ id, status }) => {
+      const card = moveCard(id, status, null)
+      if (!card) return said(`There is no item with the id "${id}".`, true)
+      broadcastToWindows('board:changed', { workspaceId: card.workspaceId })
+      return said(`"${card.title}" is now in ${status}.`)
+    }
+  )
+
+  server.registerTool(
+    'app_delete_chat',
+    {
+      description:
+        'Delete a conversation for good: its messages, and its own copy of the project with any changes that were not kept. The user is asked to confirm each one. Not for this conversation itself.',
+      inputSchema: { chatId: z.string().min(1).max(100) }
+    },
+    async ({ chatId }) => {
+      const chat = getChat(chatId)
+      if (!chat) return said(`There is no conversation with the id "${chatId}".`, true)
+      if (chatId === ctx.chatId)
+        return said('That is this conversation; it cannot delete itself.', true)
+      const yes = await requestApproval(
+        ctx.workspaceId,
+        ctx.sessionId,
+        'mcp__cove-browser__app_delete_chat',
+        `Delete the conversation "${chat.title ?? 'New chat'}" for good.\nIts messages go, and any changes in its own copy of the project that were not kept.`,
+        'permission'
+      )
+      if (!yes) return said('The user did not allow deleting it. Leave it as it is.', true)
+      const { deleteChatFully } = await import('./companion/rpc')
+      await deleteChatFully(chatId, 'asked for through an agent')
+      return said(`Deleted "${chat.title ?? 'New chat'}".`)
+    }
+  )
+
+  server.registerTool(
+    'app_routines',
+    {
+      description:
+        'The routines (tasks that run on a schedule) across Superagent: each with its id, its project, what it does, how often, whether it is on, and how its last run went.',
+      inputSchema: {}
+    },
+    async () => {
+      const { listRoutines } = await import('./routines')
+      const names = new Map(dotProjects().map((p) => [p.id, p.name]))
+      const rows = listRoutines()
+      return said(
+        rows.length
+          ? rows
+              .map(
+                (r) =>
+                  `${r.id}  ·  ${names.get(r.workspaceId) ?? 'a project'}  ·  every ${Math.round(r.intervalMs / 60_000)} min  ·  ${r.enabled ? 'on' : 'paused'}  ·  last run ${r.lastRunStatus ?? 'never'}${r.lastRunAt ? ` ${ago(r.lastRunAt)}` : ''}\n    ${r.prompt.replace(/\s+/g, ' ').slice(0, 160)}`
+              )
+              .join('\n')
+          : 'There are no routines.'
+      )
+    }
+  )
+
+  server.registerTool(
+    'app_routine',
+    {
+      description: 'Run a routine now, pause it, or turn it back on, by the id app_routines gives.',
+      inputSchema: {
+        id: z.string().min(1).max(100),
+        action: z.enum(['run', 'pause', 'resume'])
+      }
+    },
+    async ({ id, action }) => {
+      const { listRoutines, runRoutine, setRoutineEnabled } = await import('./routines')
+      const r = listRoutines().find((x) => x.id === id)
+      if (!r) return said(`There is no routine with the id "${id}".`, true)
+      if (action === 'run') {
+        void runRoutine(r)
+        return said('The routine is running now; app_routines says how it went.')
+      }
+      setRoutineEnabled(id, action === 'resume')
+      return said(action === 'resume' ? 'The routine is on again.' : 'The routine is paused.')
     }
   )
 

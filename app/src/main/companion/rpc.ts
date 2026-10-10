@@ -379,18 +379,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const p = chatId.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
         if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
-        const s = findSessionByChat(p.data.chatId)
-        if (s) stopAgent(s.id, 'phone: chat deleted')
-        // Take the chat's copy of the project with it, exactly as the window
-        // does. Deleting only the row left the worktree and its branch on disk,
-        // so the Mac kept showing a row for a conversation that was gone.
-        const dying = getChat(p.data.chatId)
-        if (dying?.cwd && dying.cwd.includes('/.worktrees/')) {
-          await removeCopy(dying.cwd.split('/.worktrees/')[0], dying.cwd)
-        }
-        deleteChat(p.data.chatId)
-        broadcastToWindows('projects:changed', {})
-        pushChats()
+        await deleteChatFully(p.data.chatId, 'phone: chat deleted')
         return { ok: true }
       }
       case 'chat.pin': {
@@ -1260,6 +1249,25 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
 setUnattendedSend(async (chatId, text) => (await sendToChat({ chatId, text })).ok)
 
 /** The dot's request: sent the way a phone sends one, into a chat nobody has open. */
+/**
+ * Delete a conversation the way the window does: its agent stopped, and its
+ * copy of the project taken with it. Deleting only the row left the worktree
+ * and its branch on disk, so the Mac kept showing a row for a conversation
+ * that was gone.
+ */
+export async function deleteChatFully(chatId: string, why: string): Promise<boolean> {
+  const dying = getChat(chatId)
+  if (!dying) return false
+  const s = findSessionByChat(chatId)
+  if (s) stopAgent(s.id, why)
+  if (dying.cwd && dying.cwd.includes('/.worktrees/'))
+    await removeCopy(dying.cwd.split('/.worktrees/')[0], dying.cwd)
+  deleteChat(chatId)
+  broadcastToWindows('projects:changed', {})
+  pushChats()
+  return true
+}
+
 export async function askFromDot(
   chatId: string,
   text: string
