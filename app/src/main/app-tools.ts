@@ -8,6 +8,7 @@ import { rankChats, searchWords, type FindableChat } from '../shared/find-chat'
 import { requestApproval } from './hooks'
 import {
   addCard,
+  chatsMentioning,
   createChat,
   DESKTOP_WORKSPACE_ID,
   ensureDesktopWorkspace,
@@ -49,12 +50,19 @@ function findable(words: string[]): (FindableChat & { running: boolean })[] {
   const home = ensureDesktopWorkspace().workspaceId
   // What was said in each chat, a word at a time: which words, and one line.
   const said = new Map<string, { words: Set<string>; snippet: string }>()
-  for (const w of words)
-    for (const hit of searchChats(w, 40)) {
-      const s = said.get(hit.chatId) ?? { words: new Set<string>(), snippet: hit.snippet }
+  for (const w of words) {
+    // Every chat that says it, however long ago; then a line to show for the
+    // ones recent enough to have one to hand.
+    for (const chatId of chatsMentioning(w)) {
+      const s = said.get(chatId) ?? { words: new Set<string>(), snippet: '' }
       s.words.add(w)
-      said.set(hit.chatId, s)
+      said.set(chatId, s)
     }
+    for (const hit of searchChats(w, 40)) {
+      const s = said.get(hit.chatId)
+      if (s && !s.snippet) s.snippet = hit.snippet
+    }
+  }
   return listAllChats()
     .filter((c) => c.title || said.has(c.id))
     .map((c) => ({

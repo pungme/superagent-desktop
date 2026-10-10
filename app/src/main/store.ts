@@ -736,6 +736,25 @@ export function chatCwd(chatId: string): string | undefined {
 }
 
 /**
+ * Every conversation in which a word was said, by the user or the agent, most
+ * recently mentioned first. Unlike searchChats this is not cut off by how
+ * often a few recent chats say it: finding "the one where we talked about X"
+ * has to reach the old ones too.
+ */
+export function chatsMentioning(word: string, limit = 300): string[] {
+  const q = word.trim()
+  if (!q) return []
+  const rows = db
+    .prepare(
+      `SELECT e.chatId, MAX(e.ts) AS ts FROM chat_events e
+       WHERE e.kind IN ('user', 'assistant') AND e.data LIKE ? ESCAPE '\\'
+       GROUP BY e.chatId ORDER BY ts DESC LIMIT ?`
+    )
+    .all(`%${q.replace(/[\\%_]/g, (m) => '\\' + m)}%`, limit) as { chatId: string }[]
+  return rows.map((r) => r.chatId)
+}
+
+/**
  * Messages that mention `query`, newest first — what the phone's search box
  * shows. Only what people and the agent said; tool noise stays out.
  */
