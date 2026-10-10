@@ -52,7 +52,12 @@ test.beforeAll(async () => {
   })
   window = await app.firstWindow()
   await window.waitForLoadState('domcontentloaded')
-  await window.evaluate(() => localStorage.setItem('cove.onboarded', '1'))
+  // THEME=dark with SHOT=1 takes the pictures in dark mode, to look at.
+  await window.evaluate((theme) => {
+    localStorage.setItem('cove.onboarded', '1')
+    localStorage.setItem('cove.connectionsOffered', '1')
+    if (theme) localStorage.setItem('cove.theme', theme)
+  }, process.env.THEME ?? '')
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
   await window.evaluate(
