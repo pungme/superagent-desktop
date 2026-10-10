@@ -62,7 +62,9 @@ vi.mock('./util', () => ({ broadcastToWindows: vi.fn() }))
 const {
   act,
   approveApp,
+  appRule,
   appsToAsk,
+  setAppRule,
   denyApp,
   undenyApp,
   cuseArgs,
@@ -170,6 +172,7 @@ describe('what is missing, in words for the user', () => {
     accessibility: true,
     helper: true,
     stopKeyRefused: false,
+    rules: [],
     builtInDenied: [],
     denied: []
   }
@@ -545,5 +548,52 @@ describe('waiting for a control', () => {
         stopComputerUse()
       })
     ).rejects.toThrow(/Stopped by the user/)
+  })
+})
+
+describe("the user's standing answers, app by app", () => {
+  const figma = { id: 'com.figma.Desktop', name: 'Figma' }
+  const mail = { id: 'com.apple.mail', name: 'Mail' }
+  it('an app allowed for good is not asked about, in any conversation', async () => {
+    stopComputerUse()
+    front = figma.id
+    under = null
+    expect((await appsToAsk('r1', { type: 'key', keys: 'return' })).map((a) => a.id)).toEqual([
+      figma.id
+    ])
+    setAppRule(figma, 'allow')
+    expect(await appsToAsk('r1', { type: 'key', keys: 'return' })).toEqual([])
+    expect(await appsToAsk('r2', { type: 'key', keys: 'return' })).toEqual([])
+    setAppRule(figma, null)
+    expect(await appsToAsk('r1', { type: 'key', keys: 'return' })).toHaveLength(1)
+  })
+  it('an app that may only be looked at is read but never acted in, by keys or by name', async () => {
+    stopComputerUse()
+    setAppRule(mail, 'look')
+    front = mail.id
+    under = null
+    pointer = { x: 10, y: 10 }
+    grantConsent('lk')
+    controls = []
+    // Reading it is allowed.
+    await expect(readUi('lk')).resolves.toBeTruthy()
+    await expect(act('lk', { type: 'type', text: 'hi' })).rejects.toThrow(
+      /look at .+ but not act/
+    )
+    await expect(pressControl('lk', 1, 'Send')).rejects.toThrow(/look at .+ but not act/)
+    // And it is not something to ask about: the answer is already no.
+    expect(await appsToAsk('lk', { type: 'key', keys: 'return' })).toEqual([])
+    setAppRule(mail, null)
+    stopComputerUse()
+  })
+  it('cannot give leave to an app that is out of bounds, and keeping one out withdraws its leave', () => {
+    setAppRule({ id: 'com.1password.1password', name: '1Password' }, 'allow')
+    expect(appRule('com.1password.1password')).toBeNull()
+    setAppRule({ id: 'dev.superagent.app', name: 'Superagent' }, 'allow')
+    expect(appRule('dev.superagent.app')).toBeNull()
+    setAppRule(figma, 'allow')
+    denyApp(figma)
+    expect(appRule(figma.id)).toBeNull()
+    undenyApp(figma.id)
   })
 })

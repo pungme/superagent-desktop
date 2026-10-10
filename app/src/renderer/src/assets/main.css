@@ -10425,6 +10425,19 @@ button {
   color: var(--text-tertiary);
   cursor: pointer;
 }
+.settings-keepout-app .settings-rule-level {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-primary);
+}
+.settings-keepout-app.rule-look {
+  border-style: dashed;
+}
 .settings-keepout-app button:hover {
   background: var(--hover);
   color: var(--text-primary);

@@ -90,6 +90,8 @@ export interface ComputerStatus {
   helper: boolean
   /** macOS would not give Superagent ⌥Esc: only the Stop buttons work. */
   stopKeyRefused?: boolean
+  /** Standing answers: apps it may always work in ('allow') or only look at ('look'). */
+  rules?: { id: string; name: string; level: 'allow' | 'look' }[]
   /** Apps it never works in: the built-in ones by name, and the user's own. */
   builtInDenied?: string[]
   denied?: { id: string; name: string }[]
@@ -853,6 +855,12 @@ export interface CoveApi {
   /** Pick an app to keep computer use out of, or let one back in. */
   computerDenyPick: () => Promise<ComputerStatus>
   computerUndeny: (id: string) => Promise<ComputerStatus>
+  /** Give an app a standing answer (picked in a dialog), change it, or take it away (null). */
+  computerRulePick: (level: 'allow' | 'look') => Promise<ComputerStatus>
+  computerRule: (
+    app: { id: string; name: string },
+    level: 'allow' | 'look' | null
+  ) => Promise<ComputerStatus>
   /** Ask macOS for one of the two permissions; it prompts the first time. */
   computerRequest: (which: 'screen' | 'accessibility') => Promise<ComputerStatus>
   computerOpenSettings: (which: 'screen' | 'accessibility') => Promise<void>
@@ -1379,6 +1387,8 @@ const cove: CoveApi = {
   setComputerUse: (on) => ipcRenderer.invoke('computer:set-enabled', on),
   computerDenyPick: () => ipcRenderer.invoke('computer:deny-pick'),
   computerUndeny: (id) => ipcRenderer.invoke('computer:undeny', id),
+  computerRulePick: (level) => ipcRenderer.invoke('computer:rule-pick', level),
+  computerRule: (app, level) => ipcRenderer.invoke('computer:rule', app, level),
   computerRequest: (which) => ipcRenderer.invoke('computer:request', which),
   computerOpenSettings: (which) => ipcRenderer.invoke('computer:open-settings', which),
   computerStop: () => ipcRenderer.invoke('computer:stop'),

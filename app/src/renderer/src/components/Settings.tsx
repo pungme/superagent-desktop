@@ -1184,6 +1184,53 @@ export function Settings({
                   </div>
                 </Row>
               )}
+              {computer.enabled && (
+                <Row
+                  title="Apps with a standing answer"
+                  desc="Always: it works there without asking each conversation. Look only: it may see the app and read its controls, but never click or type in it. Click a name to switch between the two."
+                >
+                  <div className="settings-keepout">
+                    {(computer.rules ?? []).map((a) => (
+                      <span key={a.id} className={`settings-keepout-app rule-${a.level}`}>
+                        <button
+                          className="settings-rule-level"
+                          title={
+                            a.level === 'allow'
+                              ? 'Always allowed. Click for look only.'
+                              : 'Look only. Click for always allowed.'
+                          }
+                          onClick={() =>
+                            void window.cove
+                              .computerRule(a, a.level === 'allow' ? 'look' : 'allow')
+                              .then(setComputer)
+                          }
+                        >
+                          {a.name} · {a.level === 'allow' ? 'always' : 'look only'}
+                        </button>
+                        <button
+                          aria-label={`Ask about ${a.name} again`}
+                          title="Remove"
+                          onClick={() => void window.cove.computerRule(a, null).then(setComputer)}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      className="settings-agent-btn"
+                      onClick={() => void window.cove.computerRulePick('allow').then(setComputer)}
+                    >
+                      Always allow…
+                    </button>
+                    <button
+                      className="settings-agent-btn ghost"
+                      onClick={() => void window.cove.computerRulePick('look').then(setComputer)}
+                    >
+                      Look only…
+                    </button>
+                  </div>
+                </Row>
+              )}
               <GroupLabel>Power</GroupLabel>
               <Row
                 title="Keep working with the lid closed"

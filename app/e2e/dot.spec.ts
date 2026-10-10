@@ -750,6 +750,53 @@ test('apps can be put out of bounds for computer use, and let back in', async ()
   await expect(row.locator('.settings-keepout-app')).toHaveCount(0)
 })
 
+test('an app can be given a standing answer: always allowed, or look only', async () => {
+  await app.evaluate(({ ipcMain }) => {
+    const g = globalThis as unknown as {
+      cu: Record<string, unknown>
+      denied: unknown[]
+      rules: { id: string; name: string; level: string }[]
+    }
+    g.rules = []
+    const status = (): unknown => ({
+      supported: true,
+      helper: true,
+      ...g.cu,
+      asked: undefined,
+      builtInDenied: ['Passwords'],
+      denied: g.denied ?? [],
+      rules: g.rules
+    })
+    for (const ch of ['computer:status', 'computer:rule-pick', 'computer:rule'])
+      ipcMain.removeHandler(ch)
+    ipcMain.handle('computer:status', status)
+    ipcMain.handle('computer:rule-pick', (_e, level: string) => {
+      g.rules = [...g.rules, { id: 'com.figma.Desktop', name: 'Figma', level }]
+      return status()
+    })
+    ipcMain.handle('computer:rule', (_e, a: { id: string; name: string }, level: string | null) => {
+      g.rules = g.rules.filter((r) => r.id !== a.id)
+      if (level) g.rules.push({ ...a, level })
+      return status()
+    })
+  })
+  await main.reload()
+  await main.waitForSelector('.sidebar', { timeout: 20_000 })
+  await main.click('.sidebar-settings[title="Settings"]')
+  const row = main.locator('.settings-row', { hasText: 'Apps with a standing answer' })
+  await row.getByRole('button', { name: 'Always allow…' }).click()
+  const chip = row.locator('.settings-keepout-app')
+  await expect(chip).toContainText('Figma · always')
+  // Click the name to switch it to look only, and back.
+  await chip.locator('.settings-rule-level').click()
+  await expect(chip).toContainText('Figma · look only')
+  await expect(chip).toHaveClass(/rule-look/)
+  if (process.env.SHOT)
+    await row.locator('xpath=..').screenshot({ path: '/tmp/sa-computer-settings.png' })
+  await row.getByRole('button', { name: 'Ask about Figma again' }).click()
+  await expect(chip).toHaveCount(0)
+})
+
 test('it can be turned off in Settings, and back on', async () => {
   if ((await main.locator('.settings-row').count()) === 0)
     await main.click('.sidebar-settings[title="Settings"]')

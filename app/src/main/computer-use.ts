@@ -129,6 +129,8 @@ export interface ComputerStatus {
   /** Apps it never works in: the built-in ones by name, and the user's own. */
   builtInDenied: string[]
   denied: AppRef[]
+  /** The user's standing answers: apps it may always work in, or only look at. */
+  rules: AppRule[]
 }
 
 export function computerStatus(): ComputerStatus {
@@ -141,7 +143,8 @@ export function computerStatus(): ComputerStatus {
     helper: cusePath() !== null,
     stopKeyRefused: stopRefused,
     builtInDenied: OFF_LIMITS_NAMES,
-    denied: deniedApps()
+    denied: deniedApps(),
+    rules: appRules()
   }
 }
 
@@ -688,6 +691,8 @@ export function denyApp(app: AppRef): AppRef[] {
   const next = [...rest, app].sort((a, b) => a.name.localeCompare(b.name))
   deniedNow = next
   kvSet(DENIED_KEY, JSON.stringify(next))
+  // Kept out is kept out: any leave it had goes.
+  if (appRule(app.id)) setAppRule(app, null)
   return next
 }
 
@@ -695,6 +700,54 @@ export function undenyApp(id: string): AppRef[] {
   const next = deniedApps().filter((a) => a.id.toLowerCase() !== id.toLowerCase())
   deniedNow = next
   kvSet(DENIED_KEY, JSON.stringify(next))
+  return next
+}
+
+// --- the user's standing answers, app by app -------------------------------
+
+/** 'allow': work in it without asking each conversation. 'look': see it, never act in it. */
+export type AppLevel = 'allow' | 'look'
+export interface AppRule extends AppRef {
+  level: AppLevel
+}
+
+const RULES_KEY = 'computer.rules'
+let rulesNow: AppRule[] | null = null
+
+export function appRules(): AppRule[] {
+  if (rulesNow) return rulesNow
+  try {
+    const saved = JSON.parse(kvGet(RULES_KEY) || '[]') as AppRule[]
+    rulesNow = Array.isArray(saved)
+      ? saved.filter(
+          (a) =>
+            a &&
+            typeof a.id === 'string' &&
+            typeof a.name === 'string' &&
+            (a.level === 'allow' || a.level === 'look')
+        )
+      : []
+  } catch {
+    rulesNow = []
+  }
+  return rulesNow
+}
+
+/** The user's standing answer for an app, if they gave one. */
+export function appRule(id: string): AppLevel | null {
+  return appRules().find((r) => r.id.toLowerCase() === id.toLowerCase())?.level ?? null
+}
+
+export function setAppRule(app: AppRef, level: AppLevel | null): AppRule[] {
+  const rest = appRules().filter((r) => r.id.toLowerCase() !== app.id.toLowerCase())
+  // An app that is out of bounds cannot be given leave here: the keep-out list wins.
+  const next = (
+    level && !offLimitsApp(app.id, deniedApps()) && !isSelfApp(app.id)
+      ? [...rest, { ...app, level }]
+      : rest
+  ).sort((a, b) => a.name.localeCompare(b.name))
+  rulesNow = next
+  kvSet(RULES_KEY, JSON.stringify(next))
   return next
 }
 
@@ -725,6 +778,9 @@ function offLimitsMessage(app: AppRef | null, acting = false): string | null {
   if (acting && isSelfApp(app?.id))
     return "That is Superagent's own window, and computer use does not work in it. Use computer_open_mac_app to bring the app you need to the front, or the other tools for anything inside Superagent."
   const name = offLimitsApp(app?.id, deniedApps())
+  // Looked at, never touched: the user's own rule for this app.
+  if (!name && acting && app && appRule(app.id) === 'look')
+    return `The user lets computer use look at ${app.name} but not act in it (Settings → General → Computer use). Tell them what you would have done there.`
   if (!name) return null
   if (name === 'the lock screen')
     return 'This Mac is locked. Nothing can be done on it until the user unlocks it; do not try to.'
@@ -837,7 +893,8 @@ export function offLimitsFor(app: AppRef): string | null {
 
 /** Whether this conversation has been allowed to work in an app. */
 export function appApproved(owner: string, id: string): boolean {
-  return !!approved.get(owner)?.has(id.toLowerCase())
+  // Said yes to in this conversation, or allowed for good in Settings.
+  return !!approved.get(owner)?.has(id.toLowerCase()) || appRule(id) === 'allow'
 }
 
 /** What is on the clipboard, as text. It is the user's, and often a password: asked about every time. */
@@ -866,9 +923,8 @@ export function approveApp(owner: string, id: string): void {
  * action is refused instead.
  */
 export async function appsToAsk(owner: string, action: ComputerAction): Promise<AppRef[]> {
-  const ok = approved.get(owner)
   return (await targetApps(owner, action)).filter(
-    (a) => !ok?.has(a.id.toLowerCase()) && !offLimitsMessage(a, true)
+    (a) => !appApproved(owner, a.id) && !offLimitsMessage(a, true)
   )
 }
 
@@ -1019,6 +1075,31 @@ export function registerComputerUseIpc(): void {
     const path = picked.canceled ? null : picked.filePaths[0]
     const found = path ? await appAtPath(path) : null
     if (found) denyApp(found)
+    return computerStatus()
+  })
+  /** Pick an app and give it a standing answer: always allowed, or look only. */
+  ipcMain.handle('computer:rule-pick', async (_e, level: AppLevel) => {
+    const picked = await dialog.showOpenDialog({
+      title:
+        level === 'look'
+          ? 'An app computer use may only look at'
+          : 'An app computer use may always work in',
+      buttonLabel: level === 'look' ? 'Look only' : 'Always allow',
+      defaultPath: '/Applications',
+      properties: ['openFile'],
+      filters: [{ name: 'Apps', extensions: ['app'] }]
+    })
+    const path = picked.canceled ? null : picked.filePaths[0]
+    const found = path ? await appAtPath(path) : null
+    if (found) setAppRule(found, level === 'look' ? 'look' : 'allow')
+    return computerStatus()
+  })
+  ipcMain.handle('computer:rule', (_e, app: AppRef, level: AppLevel | null) => {
+    if (app && typeof app.id === 'string' && app.id)
+      setAppRule(
+        { id: app.id, name: String(app.name || app.id) },
+        level === 'allow' || level === 'look' ? level : null
+      )
     return computerStatus()
   })
   ipcMain.handle('computer:deny', (_e, app: AppRef) => {
