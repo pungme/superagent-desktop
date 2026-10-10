@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOverlayLock } from '../state'
-import type { ChatImageRef } from '../../../shared/chat-images'
+import { imagesByDay, type ChatImageRef } from '../../../shared/chat-images'
 
 /** A picture being shown large, and the file it came from when there is one. */
 export interface Shown {
@@ -228,7 +228,9 @@ export function ChatImagesView({
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [covered, onClose])
-  const newestFirst = [...images].reverse()
+  const days = imagesByDay(images)
+  // Pictures with no date at all (an older chat): a heading would say nothing.
+  const headed = days.some((g) => g.day !== 'Earlier')
   return (
     <div className="chat-images" role="dialog" aria-label="Images in this chat" onClick={onClose}>
       <div className="chat-images-panel" onClick={(e) => e.stopPropagation()}>
@@ -240,9 +242,16 @@ export function ChatImagesView({
             ×
           </button>
         </div>
-        <div className="chat-images-grid">
-          {newestFirst.map((im) => (
-            <Tile key={im.key} image={im} cwd={cwd} onOpen={onOpen} />
+        <div className="chat-images-scroll">
+          {days.map((g) => (
+            <section key={g.day + g.images[0].key}>
+              {headed && <h3 className="chat-images-day">{g.day}</h3>}
+              <div className="chat-images-grid">
+                {g.images.map((im) => (
+                  <Tile key={im.key} image={im} cwd={cwd} onOpen={onOpen} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </div>

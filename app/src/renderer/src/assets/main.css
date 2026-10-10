@@ -4181,12 +4181,23 @@ button {
   background: var(--hover);
   color: var(--text-primary);
 }
+.chat-images-scroll {
+  overflow-y: auto;
+  padding: 6px 14px 14px;
+}
+.chat-images-day {
+  margin: 10px 2px 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
 .chat-images-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 8px;
-  padding: 14px;
-  overflow-y: auto;
+  padding-top: 8px;
 }
 .chat-images-tile {
   position: relative;

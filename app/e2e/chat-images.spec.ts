@@ -70,11 +70,22 @@ test.beforeAll(async () => {
         JSON.stringify([
           {
             kind: 'msg',
-            msg: { id: 'u1', role: 'user', text: 'two shots', images: [attached, attached] }
+            msg: {
+              id: 'u1',
+              role: 'user',
+              text: 'two shots',
+              images: [attached, attached],
+              at: Date.now() - 3 * 86_400_000
+            }
           },
           {
             kind: 'msg',
-            msg: { id: 'a1', role: 'assistant', text: `The header:\n\n![the header](${shown})` }
+            msg: {
+              id: 'a1',
+              role: 'assistant',
+              text: `The header:\n\n![the header](${shown})`,
+              at: Date.now()
+            }
           },
           { kind: 'msg', msg: { id: 'a2', role: 'assistant', text: 'No picture in this one.' } }
         ])
@@ -172,6 +183,10 @@ test('Images lists every picture in the chat, newest first, and opens one large'
     'you',
     'you'
   ])
+  // Headed by the day each arrived, newest day first.
+  const days = await view.locator('.chat-images-day').allInnerTexts()
+  expect(days.length).toBeGreaterThanOrEqual(1)
+  expect(days[0].toLowerCase()).toBe('today')
   if (process.env.SHOT) await window.screenshot({ path: '/tmp/sa-chat-images.png' })
 
   await tiles.first().locator('.chat-images-open').click()

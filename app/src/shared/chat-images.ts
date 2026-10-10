@@ -113,3 +113,37 @@ export function stampedName(ext: string, now = new Date()): string {
   const p = (n: number): string => String(n).padStart(2, '0')
   return `Superagent ${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())} at ${p(now.getHours())}.${p(now.getMinutes())}.${p(now.getSeconds())}.${ext}`
 }
+
+/** The day a picture arrived, as a heading: Today, Yesterday, a weekday this week, else the date. */
+export function dayLabel(at: number | undefined, now = Date.now()): string {
+  if (!at) return 'Earlier'
+  const day = (t: number): number => {
+    const d = new Date(t)
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  }
+  const days = Math.round((day(now) - day(at)) / 86_400_000)
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  const d = new Date(at)
+  if (days < 7) return d.toLocaleDateString('en-GB', { weekday: 'long' })
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    ...(d.getFullYear() === new Date(now).getFullYear() ? {} : { year: 'numeric' })
+  })
+}
+
+/** Pictures newest first, in runs of the same day. */
+export function imagesByDay(
+  images: ChatImageRef[],
+  now = Date.now()
+): { day: string; images: ChatImageRef[] }[] {
+  const groups: { day: string; images: ChatImageRef[] }[] = []
+  for (const im of [...images].reverse()) {
+    const day = dayLabel(im.at, now)
+    const last = groups[groups.length - 1]
+    if (last && last.day === day) last.images.push(im)
+    else groups.push({ day, images: [im] })
+  }
+  return groups
+}

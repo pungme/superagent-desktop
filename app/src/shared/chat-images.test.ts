@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { chatImageRefs, dataUrlParts, freeName, markdownImages, stampedName } from './chat-images'
+import {
+  chatImageRefs,
+  dataUrlParts,
+  dayLabel,
+  freeName,
+  imagesByDay,
+  markdownImages,
+  stampedName
+} from './chat-images'
 
 describe('the pictures in a conversation', () => {
   it('lists what the user attached, what a tool returned and what the agent showed, in order', () => {
@@ -65,5 +73,36 @@ describe('saving a picture', () => {
     expect(stampedName('png', new Date(2026, 9, 10, 9, 5, 7))).toBe(
       'Superagent 2026-10-10 at 09.05.07.png'
     )
+  })
+})
+
+describe('pictures by the day they arrived', () => {
+  const now = new Date(2026, 9, 10, 15, 0).getTime()
+  const at = (y: number, m: number, d: number, h = 12): number => new Date(y, m, d, h).getTime()
+  it('names the day the way a person would', () => {
+    expect(dayLabel(at(2026, 9, 10, 9), now)).toBe('Today')
+    expect(dayLabel(at(2026, 9, 9, 23), now)).toBe('Yesterday')
+    expect(dayLabel(at(2026, 9, 7), now)).toBe('Wednesday')
+    expect(dayLabel(at(2026, 8, 2), now)).toBe('2 September')
+    expect(dayLabel(at(2025, 11, 24), now)).toBe('24 December 2025')
+    expect(dayLabel(undefined, now)).toBe('Earlier')
+  })
+  it('puts the newest first, in runs of the same day', () => {
+    const pic = (key: string, t?: number): never =>
+      ({ kind: 'data', key, from: 'you', src: 'data:x', at: t }) as never
+    const groups = imagesByDay(
+      [
+        pic('old'),
+        pic('a', at(2026, 9, 9)),
+        pic('b', at(2026, 9, 10, 8)),
+        pic('c', at(2026, 9, 10, 9))
+      ],
+      now
+    )
+    expect(groups.map((g) => [g.day, g.images.map((i) => i.key)])).toEqual([
+      ['Today', ['c', 'b']],
+      ['Yesterday', ['a']],
+      ['Earlier', ['old']]
+    ])
   })
 })
