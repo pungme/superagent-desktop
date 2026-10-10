@@ -81,7 +81,7 @@ import { startAutoUpdate, isUpdateDownloaded } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
-import { registerDot } from './dot'
+import { isDotWindow, registerDot } from './dot'
 
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
@@ -702,7 +702,9 @@ app.whenReady().then(async () => {
   startAutoUpdate()
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    // The dot is a window too, and is not the app's window: with only it left,
+    // a Dock click still has to bring the app back.
+    if (BrowserWindow.getAllWindows().every((w) => isDotWindow(w))) createWindow()
   })
 })
 
@@ -865,7 +867,8 @@ app.on('before-quit', () => {
   stopAllSimInput()
 })
 
-app.on('window-all-closed', () => {
+/** The app's own windows are all closed (the dot does not count as one). */
+function onAppWindowsClosed(): void {
   // A pending update installs on quit — and with no windows open there is
   // nothing to lose, so take the moment. Otherwise closing the last window
   // leaves the OLD version running headless (macOS convention), and reopening
@@ -874,4 +877,13 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' || isUpdateDownloaded()) {
     app.quit()
   }
+}
+app.on('window-all-closed', onAppWindowsClosed)
+// With the dot floating, Electron never sees "all closed" when the main window
+// goes: the same moment is when the last window that is not the dot closes.
+app.on('browser-window-created', (_e, created) => {
+  created.on('closed', () => {
+    const left = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+    if (left.length > 0 && left.every((w) => isDotWindow(w))) onAppWindowsClosed()
+  })
 })

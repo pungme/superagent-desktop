@@ -88,6 +88,14 @@ function checkGh() {
   }
 }
 
+/** The branch this release is cut from: the workflow's ref in CI, the checkout's here. */
+function releaseBranch() {
+  const ref = process.env.GITHUB_REF_NAME
+  if (ref && process.env.GITHUB_REF_TYPE !== 'tag') return ref
+  const here = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']).trim()
+  return here && here !== 'HEAD' ? here : 'main'
+}
+
 function checkGitClean() {
   const dirty = run('git', ['status', '--porcelain']).trim()
   if (dirty) die(`the working tree has uncommitted changes:\n\n${dirty}`, 'commit or stash first')
@@ -96,8 +104,12 @@ function checkGitClean() {
   // PREVIOUS release's source. It succeeds, and the only symptom is that the tag
   // is a lie. Caught by hand once, seconds before it happened.
   run('git', ['fetch', 'origin', '--quiet'])
-  const ahead = run('git', ['log', '--oneline', 'origin/main..HEAD']).trim()
-  if (ahead) die(`these commits are not on origin/main yet:\n\n${ahead}`, 'git push origin main')
+  // Against the branch being released, which is main unless a release branch
+  // is (2.0.0 was cut from one, to keep its betas off main until it was ready).
+  const branch = releaseBranch()
+  const ahead = run('git', ['log', '--oneline', `origin/${branch}..HEAD`]).trim()
+  if (ahead)
+    die(`these commits are not on origin/${branch} yet:\n\n${ahead}`, `git push origin ${branch}`)
 }
 
 function readVersion() {
@@ -284,6 +296,9 @@ runLoud('gh', [
   ...assets,
   '--title', `Superagent ${version}`,
   '--notes-file', join(APP, `notes-${version}.md`),
+  // The commit that was built, whichever branch it is on: left to itself gh
+  // tags the default branch's tip, which is not what a release branch built.
+  '--target', run('git', ['rev-parse', 'HEAD']).trim(),
   // A beta is --prerelease (never latest). A stable release must be --latest,
   // or the updater asks GitHub for the latest release, is told an older tag,
   // and reaches nobody — how 1.7.23 and 1.7.24 shipped to no one.

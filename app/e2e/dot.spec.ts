@@ -97,6 +97,72 @@ test('it is a tile until asked, and the main window is still the app', async () 
   await shoot('1-idle')
 })
 
+test('its window floats over everything, in the corner, and lets clicks through', async () => {
+  const w = await app.evaluate(({ BrowserWindow, screen, globalShortcut }) => {
+    const win = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().endsWith('#dot'))!
+    const area = screen.getPrimaryDisplay().workArea
+    const b = win.getBounds()
+    return {
+      onTop: win.isAlwaysOnTop(),
+      everySpace: win.isVisibleOnAllWorkspaces(),
+      resizable: win.isResizable(),
+      // Bottom right of the screen's usable area.
+      right: area.x + area.width - (b.x + b.width),
+      bottom: area.y + area.height - (b.y + b.height),
+      hotkey: globalShortcut.isRegistered('Alt+Space')
+    }
+  })
+  expect(w).toEqual({
+    onTop: true,
+    everySpace: true,
+    resizable: false,
+    right: 0,
+    bottom: 0,
+    hotkey: true
+  })
+
+  // Solid only where something is drawn: main is told as the pointer crosses.
+  await app.evaluate(({ ipcMain }) => {
+    const g = globalThis as unknown as { solid: boolean[] }
+    g.solid = []
+    ipcMain.on('dot:solid', (_e, v: boolean) => g.solid.push(v))
+  })
+  const tile = (await dot.locator('.dot-tile').boundingBox())!
+  await dot.mouse.move(40, 40)
+  await dot.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2)
+  await dot.mouse.move(40, 40)
+  await expect
+    .poll(() => app.evaluate(() => (globalThis as unknown as { solid: boolean[] }).solid))
+    .toEqual([true, false])
+})
+
+test('dragging the tile moves it, and it stays where it was left', async () => {
+  const where = (): Promise<{ x: number; y: number }> =>
+    app.evaluate(({ BrowserWindow }) => {
+      const b = BrowserWindow.getAllWindows()
+        .find((x) => x.webContents.getURL().endsWith('#dot'))!
+        .getBounds()
+      return { x: b.x, y: b.y }
+    })
+  const before = await where()
+  const tile = (await dot.locator('.dot-tile').boundingBox())!
+  const cx = tile.x + tile.width / 2
+  const cy = tile.y + tile.height / 2
+  await dot.mouse.move(cx, cy)
+  await dot.mouse.down()
+  await dot.mouse.move(cx - 60, cy - 40, { steps: 6 })
+  await dot.mouse.up()
+  const after = await where()
+  expect(after.x).toBeLessThan(before.x)
+  expect(after.y).toBeLessThan(before.y)
+  // A drag is not a click: the panel did not open.
+  await expect(dot.locator('.dot-panel')).toHaveCount(0)
+  // Remembered for the next launch.
+  await expect
+    .poll(() => main.evaluate(() => window.cove.kvAll().then((k) => k['dot.position'] ?? '')))
+    .toContain(`"x":${after.x}`)
+})
+
 test('a click opens the panel on the Computer, with things to ask', async () => {
   await dot.locator('.dot-tile').click()
   const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
@@ -218,6 +284,33 @@ test('an answer that arrives while it is closed shows on the tile until looked a
   await dot.locator('.dot-tile').click()
   await expect(dot.locator('.dot-badge')).toHaveCount(0)
   await expect(panel.locator('.dot-answer')).toContainText('Staging is healthy.')
+})
+
+test('closing the app window leaves the dot, and a Dock click brings the app back', async () => {
+  const appWindows = (): Promise<number> =>
+    app.evaluate(
+      ({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().filter((w) => !w.webContents.getURL().endsWith('#dot')).length
+    )
+  expect(await appWindows()).toBe(1)
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((w) => !w.webContents.getURL().endsWith('#dot'))!
+      .close()
+  })
+  await expect.poll(appWindows).toBe(0)
+  // The dot is still there and still works.
+  await expect(dot.locator('.dot-tile')).toBeVisible()
+  // What a click on the Dock icon does.
+  await app.evaluate(({ app: a }) => {
+    a.emit('activate')
+  })
+  await expect.poll(appWindows, { timeout: 15_000 }).toBe(1)
+  const appPage = (): Page | undefined =>
+    app.windows().find((p) => p.url().includes('index.html') && !p.url().endsWith('#dot'))
+  await expect.poll(() => !!appPage(), { timeout: 15_000 }).toBe(true)
+  main = appPage()!
+  await main.waitForSelector('.sidebar', { timeout: 20_000 })
 })
 
 test('it can be turned off in Settings, and back on', async () => {
