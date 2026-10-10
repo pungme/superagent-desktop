@@ -14,7 +14,7 @@ vi.mock('../store', () => ({
   getWorkspaceName: (id: string) => (id === 'w1' ? 'rowfill' : undefined)
 }))
 
-import { composePush, pushTargets } from './push'
+import { composePush, macOnlyPushDue, MAC_ONLY_PUSH_GAP_MS, pushTargets } from './push'
 
 describe('push', () => {
   it('tells the phone about a request to use the Mac, with no Approve to press', () => {
@@ -90,5 +90,15 @@ describe('push', () => {
       sa: { kind: 'test' }
     })
     expect(pushTargets('test', new Set())).toEqual([])
+  })
+})
+
+describe('a run of Mac-only questions', () => {
+  it('is one notice to the phone, then another only after a while', () => {
+    const t = 1_000_000
+    expect(macOnlyPushDue(undefined, t)).toBe(true)
+    expect(macOnlyPushDue(t, t + 5_000)).toBe(false)
+    expect(macOnlyPushDue(t, t + MAC_ONLY_PUSH_GAP_MS - 1)).toBe(false)
+    expect(macOnlyPushDue(t, t + MAC_ONLY_PUSH_GAP_MS)).toBe(true)
   })
 })

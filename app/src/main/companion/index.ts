@@ -30,7 +30,13 @@ import {
 } from './pairing'
 import { watchStatuses, effectiveStatus } from './status'
 import { startReaper } from './reaper'
-import { composePush, pushTargets, testPushTarget, type PushKind } from './push'
+import {
+  composePush,
+  macOnlyPushDue,
+  pushTargets,
+  testPushTarget,
+  type PushKind
+} from './push'
 import { prettyHostname } from './pairing'
 import { EventEmitter } from 'events'
 import { loadedMachineId } from './identity'
@@ -172,6 +178,8 @@ export function startCompanion(): void {
   )
   // Approvals become log events, so a phone sees them live or on catch-up.
   const approvalChats = new Map<string, string>()
+  /** When each conversation's phone was last told of a Mac-only question. */
+  const macOnlyPushedAt = new Map<string, number>()
   hookBus.on(
     'approval',
     (a: {
@@ -195,6 +203,14 @@ export function startCompanion(): void {
           approvalKind: a.kind ?? 'guardrail',
           expiresAt: a.expiresAt
         })
+      }
+      // A run of Mac-only questions (each step of computer use, say) is one
+      // thing to the phone, not a buzz apiece.
+      const key = chatId ?? a.sessionId
+      if (a.macOnly) {
+        const now = Date.now()
+        if (!macOnlyPushDue(macOnlyPushedAt.get(key), now)) return
+        macOnlyPushedAt.set(key, now)
       }
       notifyPhones('approval', {
         workspaceId: a.workspaceId,

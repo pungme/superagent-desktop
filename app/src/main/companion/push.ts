@@ -35,6 +35,23 @@ export interface PushEvent {
   macOnly?: boolean
 }
 
+/**
+ * How long after telling a phone "it wants to use your Mac" the next such
+ * notice for the same conversation is held back. Computer use asks often (an
+ * app the first time, each step when that is turned on), every one of them
+ * answered at the Mac: the phone need only hear that it is going on.
+ */
+export const MAC_ONLY_PUSH_GAP_MS = 2 * 60_000
+
+/** Pure: whether a Mac-only question is worth another notification yet. */
+export function macOnlyPushDue(
+  lastAt: number | undefined,
+  now: number,
+  gap = MAC_ONLY_PUSH_GAP_MS
+): boolean {
+  return lastAt === undefined || now - lastAt >= gap
+}
+
 /** Pure: the APNs payload for an event. */
 export function composePush(e: PushEvent): {
   payload: Record<string, unknown>
