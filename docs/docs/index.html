@@ -216,6 +216,8 @@
     <a href="#modes">What it's allowed to do</a>
     <a href="#board">Board, routines, dashboard</a>
     <a href="#phone">Your phone</a>
+    <a href="#dot">The dot (beta)</a>
+    <a href="#computer">Computer use (beta)</a>
     <a href="#shortcuts">Shortcuts</a>
     <h4>The fine print</h4>
     <a href="#privacy">What leaves your Mac</a>
@@ -520,12 +522,88 @@ npm run dev</code></pre>
         from source for now &mdash; see its README.</p>
     </section>
 
+    <!-- ============ the dot ============ -->
+    <section id="dot">
+      <h2>The dot <small>(beta)</small></h2>
+      <div class="note"><b>In the 2.0 beta.</b>
+        <p>Turn on Beta updates in Settings &rarr; About to get it. It reaches everyone when it
+          is ready, and it may change before then.</p></div>
+      <p>A small tile in the corner of your screen, above every other window. It is Superagent
+        without the window: press <kbd>&#8997;</kbd> <kbd>Space</kbd> anywhere, type or say what
+        you want, and it answers there. If you would rather not have it, turn it off in
+        Settings &rarr; General.</p>
+      <h3>What to ask it</h3>
+      <ul>
+        <li><b>Go somewhere.</b> "Open the wepush chat about end-to-end testing." It finds a
+          conversation from how you describe it, not only by its name, and brings Superagent
+          forward on it.</li>
+        <li><b>Ask what is going on.</b> "What's running?" "What is waiting for me?"</li>
+        <li><b>Hand over a job.</b> "Start a chat in the portal to fix the header."</li>
+        <li><b>Keep the list.</b> "Add that to the board." "What's on the board for the
+          landing page?"</li>
+      </ul>
+      <h3>What it will not do from there</h3>
+      <p>The dot shows you when an agent is asking for permission, but a spoken or typed
+        request to the dot never answers one. Sending a message into another conversation and
+        deleting a conversation are asked about first.</p>
+    </section>
+
+    <!-- ============ computer use ============ -->
+    <section id="computer">
+      <h2>Computer use <small>(beta)</small></h2>
+      <div class="note"><b>In the 2.0 beta, and off until you turn it on.</b>
+        <p>Settings &rarr; General &rarr; Computer use. macOS will ask you for two permissions,
+          Screen Recording and Accessibility; the page there says which is missing and has a
+          Check button that tries both without clicking anything.</p></div>
+      <p>With it on, an agent can work in other apps on your Mac: see the screen, read an app's
+        buttons and fields by name, and press, fill, click and type. It is for the things that
+        have no command line, like exporting from an app or changing a setting.</p>
+      <h3>What it asks you</h3>
+      <table class="t">
+        <thead><tr><th>When</th><th>What you are asked</th></tr></thead>
+        <tbody>
+          <tr><th>The first time in a conversation</th><td>Whether it may use your Mac at all. The yes lapses after a while and after a few hundred actions, and is asked again.</td></tr>
+          <tr><th>The first time in each app</th><td>Whether it may work in that app, with a warning for terminals, Finder, System Settings and browsers.</td></tr>
+          <tr><th>Every time</th><td>Before anything named Quit, Log Out, Delete, Empty Trash, Send or Pay, and before reading your clipboard.</td></tr>
+          <tr><th>Every step, if you want</th><td>Turn on "Ask before each step" and each click, keystroke and piece of typing is put to you in words first.</td></tr>
+        </tbody>
+      </table>
+      <p>These questions are answered at the Mac. Your phone is told one is waiting and can say
+        no, but it cannot say yes.</p>
+      <h3>Where it does not go</h3>
+      <ul>
+        <li><b>Password managers, Keychain, a macOS password prompt and the lock screen.</b> It
+          neither acts nor takes a picture while one of them is on the display.</li>
+        <li><b>Any app you list</b> under "Apps it stays out of". You can also mark an app
+          "look only": it may read it, never click or type in it.</li>
+        <li><b>Superagent itself</b>, and the permission question it is asking you.</li>
+      </ul>
+      <h3>Staying in charge</h3>
+      <ul>
+        <li><b><kbd>&#8997;</kbd> <kbd>Esc</kbd> stops it</b>, from any app, and takes back the
+          permission.</li>
+        <li><b>Move the mouse</b> or switch apps yourself and its next action is refused rather
+          than aimed at the wrong place.</li>
+        <li><b>A ring</b> appears where it is about to click, a moment before it does.</li>
+        <li><b>A record</b> of what it looked at and did, without what it typed, is in
+          Settings.</li>
+        <li><b>"Show it only the apps you allowed"</b> covers every other window, notification
+          and the desktop in grey in its screenshots.</li>
+      </ul>
+      <div class="warn"><b>It is a beta of something powerful.</b>
+        <p>The safeguards above are a list of known ways, not a proof. Start with "Ask before
+          each step" on, in an app where a mistake is cheap.</p></div>
+    </section>
+
     <!-- ============ shortcuts ============ -->
     <section id="shortcuts">
       <h2>Shortcuts &amp; small things</h2>
       <table class="t">
         <tbody>
           <tr><th><kbd>&#8997;</kbd> <kbd>Space</kbd></th><td>Hold to talk. Transcribed on your Mac.</td></tr>
+          <tr><th><kbd>&#8963;</kbd> <kbd>&#8997;</kbd> <kbd>S</kbd></th><td>Bring Superagent forward from any app, or put it away. Change it in Settings. <small>(2.0 beta)</small></td></tr>
+          <tr><th><kbd>&#8963;</kbd> <kbd>&#8997;</kbd> <kbd>V</kbd></th><td>Talk to the dot from any app. <small>(2.0 beta)</small></td></tr>
+          <tr><th><kbd>&#8997;</kbd> <kbd>Esc</kbd></th><td>Stop computer use, wherever you are. <small>(2.0 beta)</small></td></tr>
           <tr><th><kbd>&#8984;</kbd> <kbd>&#8679;</kbd> <kbd>S</kbd></th><td>Snip the browser or the simulator into your message.</td></tr>
         </tbody>
       </table>
