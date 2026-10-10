@@ -112,6 +112,18 @@ Computer, or any project) and what, and the answer comes back beside it without
 opening the window. It spins while it works, turns amber when it needs your
 yes, and every request is an ordinary chat you can open afterwards.
 
+**Run the app by asking.** From the tile or any chat, typed or spoken: "go to
+the wepush chat about e2e testing", "what's running?", "start a chat in the
+portal to fix the header", "show me its board", "go back". It finds the
+conversation from how you describe it and takes you there.
+
+**It can use your Mac, when you let it.** Turned on in Settings, an agent can
+see the screen, read an app's controls by name, and press, fill and click in
+any app. It asks first, for the Mac and again for each app, and before
+anything named Quit, Delete or Send. Password managers, password prompts and
+the lock screen are out of bounds, you can add any app to that list, and ⌥Esc
+stops it from wherever you are.
+
 **Everything in its place.** The Computer sits at the top of the sidebar with
 its own conversations under it. Then one Projects section: your open browser
 tabs first, then your projects, each with its own icon and its conversations
