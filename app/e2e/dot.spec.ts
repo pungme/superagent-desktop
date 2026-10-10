@@ -63,8 +63,8 @@ test.beforeAll(async () => {
     g.answered = []
     g.stopped = []
     ipcMain.removeHandler('dot:ask')
-    ipcMain.handle('dot:ask', (_e, workspaceId: string, text: string) => {
-      g.asked.push({ workspaceId, text })
+    ipcMain.handle('dot:ask', (_e, workspaceId: string, text: string, into?: string) => {
+      g.asked.push({ workspaceId, text, into: into ?? null })
       return { ok: true, chatId: 'chat-1', workspaceId }
     })
     ipcMain.removeHandler('dot:answer')
@@ -278,9 +278,16 @@ test('the answer lands by the dot, with a way to the whole conversation', async 
 test('an answer that arrives while it is closed shows on the tile until looked at', async () => {
   await dot.locator('.dot-tile').click()
   const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
-  await panel.getByRole('button', { name: 'Clear' }).click()
+  // Asked with the last answer still on screen, it is a follow-up: the same
+  // conversation, so the agent knows what "the staging one" refers to.
   await panel.locator('.dot-input').fill('And the staging one?')
   await panel.locator('.dot-input').press('Enter')
+  const asks = await app.evaluate(
+    () => (globalThis as unknown as { asked: { text: string; into: string | null }[] }).asked
+  )
+  expect(asks.map((a) => a.into)).toEqual([null, 'chat-1'])
+  await expect(panel.locator('.dot-you')).toHaveText('And the staging one?')
+  await expect(panel.locator('.dot-answer')).toHaveCount(0)
   await panel.locator('.dot-input').press('Escape')
   await expect(panel).toHaveCount(0)
   // Working, closed: the tile says whose work it is.

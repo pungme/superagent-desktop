@@ -58,6 +58,18 @@ test('a question asked from the dot is answered by a real agent, in the right pl
     if (process.env.SHOT)
       await dot.screenshot({ path: '/tmp/sa-dot-live.png', omitBackground: true })
 
+    // A follow-up is the same conversation: it knows what was just said.
+    await panel.locator('.dot-input').fill('What one word did you just reply with? One word.')
+    await panel.locator('.dot-input').press('Enter')
+    await expect(panel.locator('.dot-you')).toContainText('What one word')
+    // Really a new turn: the last answer is gone and it is working again.
+    await expect(panel.locator('.dot-answer')).toHaveCount(0)
+    await expect(dot.locator('.dot-tile')).toHaveClass(/dot-working/)
+    await expect(panel.locator('.dot-answer')).toContainText(/pong/i, { timeout: 120_000 })
+    await expect(panel.getByRole('button', { name: /Open in Superagent/ })).toBeVisible({
+      timeout: 60_000
+    })
+
     // In a project: it reads that project's files, and the chat is the project's.
     await panel.getByRole('button', { name: 'Clear' }).click()
     await panel.locator('.dot-chip').click()

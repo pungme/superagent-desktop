@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { applyDelta, applyEvent, elapsed, newTask, stepLabel, suggestions } from './dot-state'
+import {
+  applyDelta,
+  applyEvent,
+  elapsed,
+  followUp,
+  newTask,
+  stepLabel,
+  suggestions
+} from './dot-state'
 
 const start = (): ReturnType<typeof newTask> => newTask('c1', 'w1', 'Tidy my Downloads', 1000)
 
@@ -68,6 +76,36 @@ describe('what the dot shows for a request', () => {
   it('stops taking streamed text once it is over', () => {
     const done = applyEvent(start(), 'c1', { kind: 'turn_end', ok: true })
     expect(applyDelta(done, 'c1', 'late')).toBe(done)
+  })
+})
+
+describe('a follow-up in the same conversation', () => {
+  it('starts what is shown over, and stays the same chat', () => {
+    let t = start()
+    t = applyEvent(t, 'c1', { kind: 'tool', name: 'Bash', detail: 'ls' })
+    t = applyEvent(t, 'c1', { kind: 'assistant', id: 'a', text: 'Done.' })
+    t = applyEvent(t, 'c1', { kind: 'turn_end', ok: true })
+    const next = followUp(t, 'And the Desktop?', 9000)
+    expect(next).toMatchObject({
+      chatId: 'c1',
+      question: 'And the Desktop?',
+      status: 'working',
+      steps: [],
+      answer: '',
+      startedAt: 9000
+    })
+  })
+  it('does not lose an approval that is still waiting', () => {
+    const waiting = applyEvent(start(), 'c1', {
+      kind: 'approval',
+      id: 'g1',
+      toolName: 'Bash',
+      preview: 'rm -rf build'
+    })
+    expect(followUp(waiting, 'also the cache', 2000)).toMatchObject({
+      status: 'needs',
+      approval: { id: 'g1' }
+    })
   })
 })
 

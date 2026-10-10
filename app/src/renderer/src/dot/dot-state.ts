@@ -49,6 +49,23 @@ export function newTask(
   }
 }
 
+/**
+ * A second question in the same conversation: what is shown starts over for
+ * it, but it is the same chat, and it keeps an approval that is still waiting.
+ */
+export function followUp(task: DotTask, question: string, now: number): DotTask {
+  return {
+    ...task,
+    question,
+    startedAt: now,
+    status: task.approval ? 'needs' : 'working',
+    steps: [],
+    answer: '',
+    live: '',
+    error: ''
+  }
+}
+
 const TOOL_WORDS: Record<string, string> = {
   Bash: 'Running a command',
   Read: 'Reading',

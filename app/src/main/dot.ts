@@ -215,9 +215,18 @@ export function registerDot(): void {
   })
 
   /** A request: a new chat in the chosen project, sent like a phone sends one. */
-  ipcMain.handle('dot:ask', async (_e, workspaceId: string, text: string) => {
+  ipcMain.handle('dot:ask', async (_e, workspaceId: string, text: string, into?: string) => {
     const said = String(text ?? '').trim()
     if (!said) return { ok: false as const, error: 'Nothing to send.' }
+    // A follow-up: the same conversation, so it knows what was just said. Sent
+    // the way a phone's next message is, which waits its turn if one is running.
+    const prior = into && watched.has(into) ? getChat(into) : undefined
+    if (prior) {
+      const sent = await askFromDot(prior.id, said)
+      return sent.ok
+        ? { ok: true as const, chatId: prior.id, workspaceId: prior.workspaceId }
+        : { ok: false as const, error: sent.error }
+    }
     const wsId =
       workspaceId === DESKTOP_WORKSPACE_ID ? ensureDesktopWorkspace().workspaceId : workspaceId
     if (!getWorkspace(wsId)) return { ok: false as const, error: 'That project is gone.' }

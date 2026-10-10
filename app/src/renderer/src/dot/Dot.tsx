@@ -3,7 +3,15 @@ import { Markdown } from '../components/Markdown'
 import { ProjectIcon } from '../components/ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import { useDictation } from '../lib/dictation'
-import { applyDelta, applyEvent, elapsed, newTask, suggestions, type DotTask } from './dot-state'
+import {
+  applyDelta,
+  applyEvent,
+  elapsed,
+  followUp,
+  newTask,
+  suggestions,
+  type DotTask
+} from './dot-state'
 import './dot.css'
 
 interface Project {
@@ -150,14 +158,22 @@ export function Dot(): React.JSX.Element {
     if (!q || !project || sending) return
     setSending(true)
     setError('')
-    const res = await window.cove.dotAsk(project.id, q)
+    // With a request on screen, in the same project, this is a follow-up to
+    // it: the same conversation carries on. Clear, or another project, starts
+    // a new one.
+    const into = task && task.workspaceId === project.id ? task.chatId : undefined
+    const res = await window.cove.dotAsk(project.id, q, into)
     setSending(false)
     if (!res.ok) {
       setError(res.error)
       return
     }
     localStorage.setItem(LAST_PROJECT, project.id)
-    setTask(newTask(res.chatId, res.workspaceId, q, Date.now()))
+    setTask((t) =>
+      t && t.chatId === res.chatId
+        ? followUp(t, q, Date.now())
+        : newTask(res.chatId, res.workspaceId, q, Date.now())
+    )
     setNow(Date.now())
     setText('')
   }

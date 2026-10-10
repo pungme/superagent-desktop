@@ -842,7 +842,9 @@ export interface CoveApi {
   /** A new chat in that project with this as its first message. */
   dotAsk: (
     workspaceId: string,
-    text: string
+    text: string,
+    /** A chat the dot already started, to carry on in rather than start another. */
+    into?: string
   ) => Promise<{ ok: true; chatId: string; workspaceId: string } | { ok: false; error: string }>
   dotStop: (chatId: string) => Promise<boolean>
   dotAnswer: (approvalId: string, approve: boolean) => Promise<boolean>
@@ -1313,7 +1315,7 @@ const cove: CoveApi = {
   dotEnabled: () => ipcRenderer.invoke('dot:enabled'),
   setDotEnabled: (on) => ipcRenderer.invoke('dot:set-enabled', on),
   dotProjects: () => ipcRenderer.invoke('dot:projects'),
-  dotAsk: (workspaceId, text) => ipcRenderer.invoke('dot:ask', workspaceId, text),
+  dotAsk: (workspaceId, text, into) => ipcRenderer.invoke('dot:ask', workspaceId, text, into),
   dotStop: (chatId) => ipcRenderer.invoke('dot:stop', chatId),
   dotAnswer: (id, approve) => ipcRenderer.invoke('dot:answer', id, approve),
   dotOpen: (chatId) => ipcRenderer.send('dot:open', chatId),
