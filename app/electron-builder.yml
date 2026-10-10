@@ -12,6 +12,7 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!e2e/*'
+  - '!native/spike/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!playwright.config.{js,ts}'
   - '!vitest.config.{js,ts}'

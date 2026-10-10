@@ -11,7 +11,7 @@ on 2026-10-10.
     ./bg sl <pid> 200 60 left 48     # SLEventPostToPid (private, SkyLight)
     ./bg drag|scroll|key|ax <pid> …
 
-`chromium-target.js` is the same thing as an Electron window that is shown but
+`chromium-target.cjs` is the same thing as an Electron window that is shown but
 invisible (opacity 0), unfocusable and click-through to the real mouse.
 
 ## What was found
