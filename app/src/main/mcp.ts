@@ -1,3 +1,4 @@
+import { registerAppTools } from './app-tools'
 import { registerComputerTools } from './computer-tools'
 import { registerMailTools } from './mail-tools'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
@@ -126,6 +127,8 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     workspaceId: workspaceIdFromPane(paneId),
     sessionId: chatId ?? paneId
   })
+  // Not for a routine: nobody is there to have asked for a window to change.
+  if (!paneId.endsWith('::routine')) registerAppTools(server)
   /**
    * The desktop chat is not a project — it is the computer's own agent, and the
    * things it drives are the desktop's, not a workspace's.

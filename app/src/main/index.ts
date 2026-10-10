@@ -81,6 +81,7 @@ import { startAutoUpdate, isUpdateDownloaded } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
+import { registerAppHotkey } from './app-hotkey'
 import { isDotWindow, registerDot } from './dot'
 import { computerUseEnabled, registerComputerUseIpc, setComputerStop } from './computer-use'
 import { setComputerUseProbe } from './prompts'
@@ -294,6 +295,12 @@ app.whenReady().then(async () => {
   registerRoutinesIpc()
   registerEnvironmentIpc()
   registerDot()
+  registerAppHotkey({
+    window: () =>
+      BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && !isDotWindow(w)) ?? null,
+    create: () => void createWindow(),
+    wanted: allowUserFocus
+  })
   registerComputerUseIpc()
   setComputerUseProbe(computerUseEnabled)
   // ⌥Esc, or turning it off, stops the agents that were using the Mac.

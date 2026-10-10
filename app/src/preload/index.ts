@@ -860,6 +860,10 @@ export interface CoveApi {
   }>
   onComputerActive: (cb: (on: boolean) => void) => () => void
   onComputerStopped: (cb: () => void) => () => void
+  // --- The shortcut that brings this window forward (main/app-hotkey.ts) --
+  appHotkey: () => Promise<{ hotkey: string; ok: boolean }>
+  setAppHotkey: (accelerator: string) => Promise<{ hotkey: string; ok: boolean }>
+  onAppHotkey: (cb: (s: { hotkey: string; ok: boolean }) => void) => () => void
   // --- The dot: Superagent as a floating tile (main/dot.ts) ---------------
   dotEnabled: () => Promise<boolean>
   setDotEnabled: (on: boolean) => Promise<boolean>
@@ -1353,6 +1357,9 @@ const cove: CoveApi = {
   onComputerStopped: (cb) => subscribe('computer:stopped', () => cb()),
   dotEnabled: () => ipcRenderer.invoke('dot:enabled'),
   setDotEnabled: (on) => ipcRenderer.invoke('dot:set-enabled', on),
+  appHotkey: () => ipcRenderer.invoke('app:hotkey'),
+  setAppHotkey: (accelerator) => ipcRenderer.invoke('app:set-hotkey', accelerator),
+  onAppHotkey: (cb) => subscribe('app:hotkey', (s) => cb(s as { hotkey: string; ok: boolean })),
   dotHotkey: () => ipcRenderer.invoke('dot:hotkey'),
   setDotHotkey: (accelerator) => ipcRenderer.invoke('dot:set-hotkey', accelerator),
   onDotHotkey: (cb) => subscribe('dot:hotkey', (s) => cb(s as { hotkey: string; ok: boolean })),

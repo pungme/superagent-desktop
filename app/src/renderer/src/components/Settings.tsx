@@ -1,5 +1,6 @@
 import type { ComputerStatus } from '../../../preload'
 import { DOT_HOTKEYS, NO_DOT_HOTKEY, dotHotkeyLabel } from '../../../shared/dot-hotkey'
+import { APP_HOTKEYS, NO_APP_HOTKEY, appHotkeyLabel } from '../../../shared/app-hotkey'
 import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -625,6 +626,14 @@ export function Settings({
     void window.cove.dotHotkey?.().then(setDotKey)
     return window.cove.onDotHotkey?.(setDotKey)
   }, [])
+  const [appKey, setAppKey] = useState<{ hotkey: string; ok: boolean }>({
+    hotkey: APP_HOTKEYS[0].accelerator,
+    ok: true
+  })
+  useEffect(() => {
+    void window.cove.appHotkey?.().then(setAppKey)
+    return window.cove.onAppHotkey?.(setAppKey)
+  }, [])
   const toggleDot = async (on: boolean): Promise<void> => {
     setDotOn(on)
     setDotOn(await window.cove.setDotEnabled(on))
@@ -993,6 +1002,29 @@ export function Settings({
                 desc="A banner when the agent is waiting on your input."
               >
                 <Toggle checked={notifyNeedsYou} onChange={toggleNotifyNeedsYou} />
+              </Row>
+              <GroupLabel>Shortcut</GroupLabel>
+              <Row
+                title="Bring Superagent forward"
+                desc={
+                  appKey.ok
+                    ? 'From any app: brings this window to the front. Press it again to put it away and go back to where you were.'
+                    : `${appHotkeyLabel(appKey.hotkey)} is already used by another app, so it does nothing here. Pick another.`
+                }
+              >
+                <select
+                  className={`settings-select ${appKey.ok ? '' : 'warn'}`}
+                  aria-label="Shortcut that brings Superagent forward"
+                  value={appKey.hotkey}
+                  onChange={(e) => void window.cove.setAppHotkey(e.target.value).then(setAppKey)}
+                >
+                  {APP_HOTKEYS.map((h) => (
+                    <option key={h.accelerator} value={h.accelerator}>
+                      {h.label}
+                    </option>
+                  ))}
+                  <option value={NO_APP_HOTKEY}>None</option>
+                </select>
               </Row>
               <GroupLabel>The dot</GroupLabel>
               <Row

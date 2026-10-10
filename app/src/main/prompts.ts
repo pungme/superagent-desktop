@@ -158,6 +158,12 @@ const INLINE_IMAGE_PROMPT =
   'shown screenshots, photos or images, answer with the pictures themselves this way, each ' +
   'with a short caption, rather than a list of file names or a file opened in the viewer.'
 
+const APP_PROMPT =
+  'You can change what Superagent itself is showing. When the user asks to open, switch to, go to or show a ' +
+  'project ("open wepush", "take me to the portal project"), call app_open_project with the name as they said ' +
+  'it: the app switches to it and comes to the front. Do not answer with instructions for doing it by hand. ' +
+  'app_list_projects says which projects there are.'
+
 const FILE_OPEN_PROMPT =
   'When the user asks you to open or show them a file (a PDF, an image, a document, ' +
   'a markdown/text/code file), use the open_file tool — it displays the file inside ' +
@@ -208,7 +214,7 @@ export function setComputerUseProbe(fn: () => boolean): void {
 const COMPUTER_PROMPT =
   'You can use this Mac itself: see its screen and work its mouse and keyboard in any app, with the computer_* tools. ' +
   'The loop is computer_screenshot to see, one action (computer_click, computer_type, computer_key, computer_scroll, ' +
-  'computer_drag, computer_move, computer_open_app), then look at the screen the action returns before the next. ' +
+  'computer_drag, computer_move, computer_open_mac_app), then look at the screen the action returns before the next. ' +
   "Points are pixels on the latest screenshot. Rules that follow from it being the user's real computer:\n" +
   '1. Reach for it last. A shell command, a file edit, the built-in browser or the simulator tools are faster and ' +
   "surer when they can do the job; use the screen for what only an app's own interface can do.\n" +
@@ -351,6 +357,7 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
     SCHEDULING_PROMPT,
     CHOICES_PROMPT,
     REPLY_PROMPT,
+    APP_PROMPT,
     FILE_OPEN_PROMPT,
     INLINE_IMAGE_PROMPT,
     SIMULATOR_PROMPT,

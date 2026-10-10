@@ -321,7 +321,8 @@ function App(): React.JSX.Element {
         setSettingsOpen(false)
         s.setActive(workspaceId)
       }
-      useStore.getState().selectChat(workspaceId, chatId)
+      // No chat named: the agent was asked for the project, not a conversation.
+      if (chatId) useStore.getState().selectChat(workspaceId, chatId)
     })
     // These live on the desktop now. Show it, then let it raise the window —
     // after a tick, so a freshly mounted desktop is listening by then.

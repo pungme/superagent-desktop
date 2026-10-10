@@ -34,6 +34,22 @@ export const CONSENT_PREVIEW =
  * use is turned on, and each one checks again when called: the permissions,
  * and that this conversation has been allowed to.
  */
+/**
+ * Every tool this registers. The Computer chat has tools of its own that begin
+ * computer_ (they arrange Superagent's windows, in mcp.ts); a name used twice
+ * stops the whole tool server from starting, so these are checked against them.
+ */
+export const COMPUTER_TOOL_NAMES = [
+  'computer_screenshot',
+  'computer_click',
+  'computer_move',
+  'computer_drag',
+  'computer_scroll',
+  'computer_type',
+  'computer_key',
+  'computer_open_mac_app'
+] as const
+
 export function registerComputerTools(server: McpServer, ctx: ComputerContext): void {
   if (!computerUseEnabled()) return
   const owner = ctx.sessionId
@@ -196,7 +212,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
   )
 
   server.registerTool(
-    'computer_open_app',
+    'computer_open_mac_app',
     {
       description:
         'Open an app on this Mac by name ("Finder", "System Settings", "Figma"), or bring it to the front if it is open. Quicker and surer than clicking its Dock icon. Returns the screen afterwards.',

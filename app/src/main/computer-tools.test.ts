@@ -84,6 +84,23 @@ describe("the agent's tools for using the Mac", () => {
     })
   })
 
+  it('share no name with the tools the Computer chat already has', async () => {
+    // Both sets are registered on one server in the Computer chat, and a name
+    // used twice stops it starting: that chat would have no tools at all.
+    const { readFileSync } = await import('fs')
+    const { join } = await import('path')
+    const mcp = readFileSync(join(__dirname, 'mcp.ts'), 'utf8')
+    const theirs = [...mcp.matchAll(/registerTool\(\s*'(computer_\w+)'/g)].map((m) => m[1])
+    expect(theirs.length).toBeGreaterThan(3)
+    const { COMPUTER_TOOL_NAMES } = await import('./computer-tools')
+    expect(COMPUTER_TOOL_NAMES.filter((n) => theirs.includes(n))).toEqual([])
+    await withClient(async (c) => {
+      expect((await c.listTools()).tools.map((t) => t.name).sort()).toEqual(
+        [...COMPUTER_TOOL_NAMES].sort()
+      )
+    })
+  })
+
   it('are there when it is on', async () => {
     await withClient(async (c) => {
       expect((await c.listTools()).tools.map((t) => t.name).sort()).toEqual([
@@ -91,7 +108,7 @@ describe("the agent's tools for using the Mac", () => {
         'computer_drag',
         'computer_key',
         'computer_move',
-        'computer_open_app',
+        'computer_open_mac_app',
         'computer_screenshot',
         'computer_scroll',
         'computer_type'
