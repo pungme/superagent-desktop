@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Markdown } from '../components/Markdown'
+import { splitAssistant, type ChoiceSpec } from '../components/assistantSegments'
 import { ProjectIcon } from '../components/ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import { useDictation } from '../lib/dictation'
@@ -26,6 +27,53 @@ interface Project {
 
 const COMPUTER = '__desktop_chat__'
 const LAST_PROJECT = 'cove.dotProject'
+
+/** A question the agent put as choices: one click answers it, or several and Send. */
+function Choices({
+  spec,
+  disabled,
+  onPick
+}: {
+  spec: ChoiceSpec
+  disabled: boolean
+  onPick: (said: string) => void
+}): React.JSX.Element {
+  const [picked, setPicked] = useState<string[]>([])
+  return (
+    <div className="dot-choices" role="group" aria-label={spec.question ?? 'Choose'}>
+      {spec.question && <div className="dot-choices-q">{spec.question}</div>}
+      {spec.options.map((o) => {
+        const on = picked.includes(o.label)
+        return (
+          <button
+            key={o.label}
+            className={`dot-choice ${on ? 'on' : ''}`}
+            disabled={disabled}
+            aria-pressed={spec.multiple ? on : undefined}
+            title={o.hint}
+            onClick={() =>
+              spec.multiple
+                ? setPicked((p) => (on ? p.filter((x) => x !== o.label) : [...p, o.label]))
+                : onPick(o.label)
+            }
+          >
+            <span>{o.label}</span>
+            {o.hint && <small>{o.hint}</small>}
+          </button>
+        )
+      })}
+      {spec.multiple && (
+        <button
+          className="dot-btn primary dot-choices-send"
+          disabled={disabled || picked.length === 0}
+          onClick={() => onPick(picked.join(', '))}
+        >
+          Send
+        </button>
+      )}
+    </div>
+  )
+}
 
 /** A project's own icon; the Mac itself gets a screen. */
 function Mark({ project, size = 16 }: { project: Project; size?: number }): React.JSX.Element {
@@ -373,10 +421,21 @@ export function Dot(): React.JSX.Element {
                   )}
                   {(task.answer || task.live) && (
                     <div className="dot-answer">
-                      <Markdown
-                        text={task.live || task.answer}
-                        streaming={task.status === 'working'}
-                      />
+                      {splitAssistant(task.live || task.answer).map((seg, i) =>
+                        'md' in seg ? (
+                          <Markdown key={i} text={seg.md} streaming={task.status === 'working'} />
+                        ) : (
+                          // The agent asking you to choose: buttons, as in the
+                          // chat, not the block of JSON it is written as. A
+                          // pick is your next message in the conversation.
+                          <Choices
+                            key={i}
+                            spec={seg.ask}
+                            disabled={task.status === 'working' || sending}
+                            onPick={(said) => void ask(said)}
+                          />
+                        )
+                      )}
                     </div>
                   )}
                   {task.status === 'failed' && <div className="dot-error">{task.error}</div>}

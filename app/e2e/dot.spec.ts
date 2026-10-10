@@ -375,6 +375,42 @@ test('closing the app window leaves the dot, and a Dock click brings the app bac
   await main.waitForSelector('.sidebar', { timeout: 20_000 })
 })
 
+test('a question the agent asks as choices shows as buttons, and a click answers it', async () => {
+  if ((await dot.locator('.dot-panel').count()) === 0) await dot.locator('.dot-tile').click()
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  const before = await app.evaluate(
+    () => (globalThis as unknown as { asked: unknown[] }).asked.length
+  )
+  await event({
+    kind: 'assistant',
+    id: 'a9',
+    text:
+      'Two ways to do it.\n\n```ask\n' +
+      JSON.stringify({
+        question: 'Which one?',
+        multiple: false,
+        options: [{ label: 'Rebase', hint: 'Keeps history straight' }, { label: 'Merge' }]
+      }) +
+      '\n```'
+  })
+  await event({ kind: 'turn_end', ok: true, subtype: 'success' })
+  const choices = panel.getByRole('group', { name: 'Which one?' })
+  await expect(choices.locator('.dot-choice')).toHaveText(['RebaseKeeps history straight', 'Merge'])
+  // The JSON it is written as never shows.
+  await expect(panel.locator('.dot-answer')).not.toContainText('"options"')
+  await expect(panel.locator('.dot-answer')).toContainText('Two ways to do it.')
+  await shoot('8-choices')
+  await choices.getByRole('button', { name: /Merge/ }).click()
+  const asked = await app.evaluate(
+    () => (globalThis as unknown as { asked: { text: string; into: string | null }[] }).asked
+  )
+  expect(asked).toHaveLength(before + 1)
+  // The pick goes into the same conversation, as your answer.
+  expect(asked[asked.length - 1]).toMatchObject({ text: 'Merge', into: 'chat-1' })
+  await expect(panel.locator('.dot-you')).toHaveText('Merge')
+  await event({ kind: 'turn_end', ok: true, subtype: 'success' })
+})
+
 test('a request that cannot be sent says why, and keeps what was typed', async () => {
   await app.evaluate(({ ipcMain }) => {
     ipcMain.removeHandler('dot:ask')
