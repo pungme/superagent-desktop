@@ -18,6 +18,7 @@ import { resolveGate } from './hooks'
 import { dotProjects } from './dot-projects'
 import { dotBounds, DOT_H as H, DOT_W as W } from './dot-bounds'
 import { QUIET, showInactiveForReal } from './quiet'
+import { dotHotkeyFrom, NO_DOT_HOTKEY, type DotHotkeyState } from '../shared/dot-hotkey'
 
 /**
  * The dot: Superagent as a small tile floating over everything, bottom right.
@@ -37,7 +38,6 @@ import { QUIET, showInactiveForReal } from './quiet'
 
 const ENABLED_KEY = 'dot.enabled'
 const POS_KEY = 'dot.position'
-export const DOT_HOTKEY = 'Alt+Space'
 
 let win: BrowserWindow | null = null
 /** Chats the dot started: only their events are passed on to it. */
@@ -131,19 +131,47 @@ function destroyDot(): void {
   win = null
 }
 
+const HOTKEY_KEY = 'dot.hotkey'
+/** What is registered now, so it can be let go of before another is taken. */
+let held: string | null = null
+/** Whether the system gave us the chosen shortcut. */
+let hotkeyOk = true
+
+export function dotHotkey(): DotHotkeyState {
+  return { hotkey: dotHotkeyFrom(kvGet(HOTKEY_KEY)), ok: hotkeyOk }
+}
+
+/**
+ * Take the chosen shortcut, letting go of the last. The system refuses one
+ * another app already has, without a word: `register` just answers false. That
+ * is kept, so Settings can say the shortcut is taken instead of leaving a
+ * shortcut that does nothing.
+ */
 function registerHotkey(): void {
+  if (held) globalShortcut.unregister(held)
+  held = null
+  hotkeyOk = true
+  const want = dotHotkeyFrom(kvGet(HOTKEY_KEY))
+  if (!dotEnabled() || want === NO_DOT_HOTKEY) return
   try {
-    globalShortcut.unregister(DOT_HOTKEY)
-    if (!dotEnabled()) return
-    globalShortcut.register(DOT_HOTKEY, () => {
+    hotkeyOk = globalShortcut.register(want, () => {
       if (!win || win.isDestroyed()) createDot()
       win?.show()
       win?.focus()
       send('dot:summon')
     })
   } catch {
-    // Another app has the shortcut: the tile is still there to click.
+    hotkeyOk = false
   }
+  if (hotkeyOk) held = want
+}
+
+export function setDotHotkey(accelerator: string): DotHotkeyState {
+  kvSet(HOTKEY_KEY, dotHotkeyFrom(accelerator))
+  registerHotkey()
+  const state = dotHotkey()
+  broadcastToWindows('dot:hotkey', state)
+  return state
 }
 
 export function setDotEnabled(on: boolean): boolean {
@@ -152,6 +180,7 @@ export function setDotEnabled(on: boolean): boolean {
   else destroyDot()
   registerHotkey()
   broadcastToWindows('dot:enabled', on)
+  broadcastToWindows('dot:hotkey', dotHotkey())
   return on
 }
 
@@ -159,6 +188,8 @@ export function registerDot(): void {
   ipcMain.handle('dot:enabled', () => dotEnabled())
   ipcMain.handle('dot:set-enabled', (_e, on: boolean) => setDotEnabled(!!on))
   ipcMain.handle('dot:projects', () => dotProjects())
+  ipcMain.handle('dot:hotkey', () => dotHotkey())
+  ipcMain.handle('dot:set-hotkey', (_e, accelerator: string) => setDotHotkey(String(accelerator)))
 
   /** The page is solid under the pointer (true) or see-through (false). */
   ipcMain.on('dot:solid', (_e, solid: boolean) => {
@@ -246,5 +277,7 @@ export function registerDot(): void {
     screen.on('display-removed', place)
     screen.on('display-metrics-changed', place)
   })
-  app.on('will-quit', () => globalShortcut.unregister(DOT_HOTKEY))
+  app.on('will-quit', () => {
+    if (held) globalShortcut.unregister(held)
+  })
 }

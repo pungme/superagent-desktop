@@ -354,8 +354,51 @@ test('a request that cannot be sent says why, and keeps what was typed', async (
   await panel.locator('.dot-input').press('Escape')
 })
 
-test('it can be turned off in Settings, and back on', async () => {
+test('the shortcut can be changed, and Settings says when another app has it', async () => {
   await main.click('.sidebar-settings[title="Settings"]')
+  const row = main.locator('.settings-row', { hasText: 'Shortcut' })
+  const pick = row.getByLabel('Shortcut for the dot')
+  await expect(pick).toHaveValue('Alt+Space')
+  const registered = (acc: string): Promise<boolean> =>
+    app.evaluate(({ globalShortcut }, a) => globalShortcut.isRegistered(a), acc)
+
+  await pick.selectOption('Control+Alt+Space')
+  expect(await registered('Control+Alt+Space')).toBe(true)
+  // The old one is let go of, not left held for nothing.
+  expect(await registered('Alt+Space')).toBe(false)
+  await expect(row).toContainText('Opens the dot from anywhere')
+  // The tile's tooltip says the same.
+  await expect(dot.locator('.dot-tile')).toHaveAttribute('title', /⌃⌥ Space/)
+
+  // None: no shortcut at all.
+  await pick.selectOption('none')
+  expect(await registered('Control+Alt+Space')).toBe(false)
+  await expect(dot.locator('.dot-tile')).toHaveAttribute('title', 'Ask Superagent')
+
+  // One that is taken: the system says no, and Settings says so.
+  await app.evaluate(({ globalShortcut }) => {
+    const real = globalShortcut.register.bind(globalShortcut)
+    globalShortcut.register = ((acc: string, cb: () => void) =>
+      acc === 'Alt+Shift+Space' ? false : real(acc, cb)) as typeof globalShortcut.register
+  })
+  await pick.selectOption('Alt+Shift+Space')
+  await expect(row).toContainText('⌥⇧ Space is already used by another app')
+  await expect(pick).toHaveClass(/warn/)
+  await expect(dot.locator('.dot-tile')).toHaveAttribute('title', 'Ask Superagent')
+  // Back to the default, which is free.
+  await pick.selectOption('Alt+Space')
+  await expect(row).toContainText('Opens the dot from anywhere')
+  expect(await registered('Alt+Space')).toBe(true)
+  if (process.env.SHOT)
+    await main
+      .locator('.settings-row', { hasText: 'Show Superagent as a floating dot' })
+      .locator('xpath=..')
+      .screenshot({ path: '/tmp/sa-dot-settings.png' })
+})
+
+test('it can be turned off in Settings, and back on', async () => {
+  if ((await main.locator('.settings-row').count()) === 0)
+    await main.click('.sidebar-settings[title="Settings"]')
   const row = main.locator('.settings-row', { hasText: 'Show Superagent as a floating dot' })
   await expect(row.locator('input[type="checkbox"]')).toBeChecked()
   await row.locator('.switch').click()

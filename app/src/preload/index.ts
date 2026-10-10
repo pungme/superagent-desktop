@@ -836,6 +836,10 @@ export interface CoveApi {
   // --- The dot: Superagent as a floating tile (main/dot.ts) ---------------
   dotEnabled: () => Promise<boolean>
   setDotEnabled: (on: boolean) => Promise<boolean>
+  /** The shortcut that summons it, and whether the system let us have it. */
+  dotHotkey: () => Promise<{ hotkey: string; ok: boolean }>
+  setDotHotkey: (accelerator: string) => Promise<{ hotkey: string; ok: boolean }>
+  onDotHotkey: (cb: (s: { hotkey: string; ok: boolean }) => void) => () => void
   dotProjects: () => Promise<
     { id: string; name: string; kind: string; path: string; usedAt: number; pinned: boolean }[]
   >
@@ -1314,6 +1318,9 @@ const cove: CoveApi = {
   openAgentLogin: (provider) => ipcRenderer.send('env:open-login', provider),
   dotEnabled: () => ipcRenderer.invoke('dot:enabled'),
   setDotEnabled: (on) => ipcRenderer.invoke('dot:set-enabled', on),
+  dotHotkey: () => ipcRenderer.invoke('dot:hotkey'),
+  setDotHotkey: (accelerator) => ipcRenderer.invoke('dot:set-hotkey', accelerator),
+  onDotHotkey: (cb) => subscribe('dot:hotkey', (s) => cb(s as { hotkey: string; ok: boolean })),
   dotProjects: () => ipcRenderer.invoke('dot:projects'),
   dotAsk: (workspaceId, text, into) => ipcRenderer.invoke('dot:ask', workspaceId, text, into),
   dotStop: (chatId) => ipcRenderer.invoke('dot:stop', chatId),

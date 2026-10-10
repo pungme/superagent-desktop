@@ -1,3 +1,4 @@
+import { DOT_HOTKEYS, NO_DOT_HOTKEY, dotHotkeyLabel } from '../../../shared/dot-hotkey'
 import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -615,6 +616,14 @@ export function Settings({
   useEffect(() => {
     void window.cove.dotEnabled?.().then((on) => setDotOn(!!on))
   }, [])
+  const [dotKey, setDotKey] = useState<{ hotkey: string; ok: boolean }>({
+    hotkey: DOT_HOTKEYS[0].accelerator,
+    ok: true
+  })
+  useEffect(() => {
+    void window.cove.dotHotkey?.().then(setDotKey)
+    return window.cove.onDotHotkey?.(setDotKey)
+  }, [])
   const toggleDot = async (on: boolean): Promise<void> => {
     setDotOn(on)
     setDotOn(await window.cove.setDotEnabled(on))
@@ -948,10 +957,34 @@ export function Settings({
               <GroupLabel>The dot</GroupLabel>
               <Row
                 title="Show Superagent as a floating dot"
-                desc="A small tile in the corner of your screen, over every app. Click it or press ⌥Space to ask something or hand it a job, in the Computer or any project, without opening this window."
+                desc="A small tile in the corner of your screen, over every app. Click it, or press its shortcut, to ask something or hand it a job, in the Computer or any project, without opening this window."
               >
                 <Toggle checked={dotOn} onChange={(v) => void toggleDot(v)} />
               </Row>
+              {dotOn && (
+                <Row
+                  title="Shortcut"
+                  desc={
+                    dotKey.ok
+                      ? 'Opens the dot from anywhere, and closes it again.'
+                      : `${dotHotkeyLabel(dotKey.hotkey)} is already used by another app, so it does nothing here. Pick another, or click the dot.`
+                  }
+                >
+                  <select
+                    className={`settings-select ${dotKey.ok ? '' : 'warn'}`}
+                    aria-label="Shortcut for the dot"
+                    value={dotKey.hotkey}
+                    onChange={(e) => void window.cove.setDotHotkey(e.target.value).then(setDotKey)}
+                  >
+                    {DOT_HOTKEYS.map((h) => (
+                      <option key={h.accelerator} value={h.accelerator}>
+                        {h.label}
+                      </option>
+                    ))}
+                    <option value={NO_DOT_HOTKEY}>None</option>
+                  </select>
+                </Row>
+              )}
               <GroupLabel>Power</GroupLabel>
               <Row
                 title="Keep working with the lid closed"

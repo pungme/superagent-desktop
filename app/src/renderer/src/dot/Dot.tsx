@@ -12,6 +12,7 @@ import {
   suggestions,
   type DotTask
 } from './dot-state'
+import { dotHotkeyLabel } from '../../../shared/dot-hotkey'
 import './dot.css'
 
 interface Project {
@@ -70,6 +71,15 @@ export function Dot(): React.JSX.Element {
   const [now, setNow] = useState(() => Date.now())
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const filterRef = useRef<HTMLInputElement>(null)
+  // The shortcut that opens it, for the tile's tooltip; blank when there is
+  // none, or when another app has it.
+  const [hotkey, setHotkey] = useState('')
+  useEffect(() => {
+    const take = (k: { hotkey: string; ok: boolean }): void =>
+      setHotkey(k.ok ? dotHotkeyLabel(k.hotkey) : '')
+    void window.cove.dotHotkey().then(take)
+    return window.cove.onDotHotkey(take)
+  }, [])
   const dictation = useDictation()
   const openRef = useRef(open)
   useEffect(() => {
@@ -497,7 +507,7 @@ export function Dot(): React.JSX.Element {
         className={`dot-tile dot-${state}`}
         data-solid
         aria-label="Superagent"
-        title={open ? 'Close' : 'Ask Superagent  ⌥Space'}
+        title={open ? 'Close' : `Ask Superagent${hotkey ? `  ${hotkey}` : ''}`}
         onPointerDown={onTileDown}
         onPointerMove={onTileMove}
         onPointerUp={onTileUp}
