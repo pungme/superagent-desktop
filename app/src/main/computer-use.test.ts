@@ -10,6 +10,9 @@ vi.mock('electron', () => ({
   systemPreferences: {}
 }))
 // What macOS says is in front, set by each test that cares.
+// What the helper was asked to type, and something to do just after each piece.
+const typed: string[] = []
+let afterType: (() => void) | null = null
 let front = 'com.apple.finder'
 // Whose window is under the point the mouse is sent to, when it is not the app in front.
 let under: { id: string; name: string } | null = null
@@ -21,7 +24,9 @@ vi.mock('node:child_process', () => ({
     args: string[],
     _opts: unknown,
     done: (e: Error | null, out: string) => void
-  ) =>
+  ) => {
+    if (args[0] === 'type') typed.push(args[1])
+    if (args[0] === 'type') afterType?.()
     done(
       null,
       args[0] === 'front'
@@ -32,6 +37,7 @@ vi.mock('node:child_process', () => ({
             ? `"Front" ASN:0x0-0x1001: \n    bundleID="${front}"`
             : '{"ok":true}'
     )
+  }
 }))
 const kv = new Map<string, string>()
 vi.mock('./store', () => ({
@@ -54,9 +60,13 @@ const {
   offLimitsNow,
   sawFront,
   setComputerStop,
+  setOwnProbe,
+  setOwnSurfaceProbe,
+  touchConsent,
   stopComputerUse
 } = await import('./computer-use')
-const { CONSENT_IDLE_MS } = await import('../shared/computer-use')
+const { CONSENT_IDLE_MS, CONSENT_MAX_ACTIONS, CONSENT_MAX_MS } =
+  await import('../shared/computer-use')
 
 const shot = { width: 1440, height: 931, area: { x: 0, y: 0, width: 1728, height: 1117 } }
 
@@ -141,6 +151,7 @@ describe('what is missing, in words for the user', () => {
     screen: true,
     accessibility: true,
     helper: true,
+    stopKeyRefused: false,
     builtInDenied: [],
     denied: []
   }
@@ -179,6 +190,7 @@ describe('where it will not go', () => {
 
 describe('typing after focus has moved', () => {
   it('is refused until the agent looks again, while the mouse is not', async () => {
+    grantConsent('t')
     sawFront('t', 'com.apple.TextEdit')
     front = 'com.apple.Safari'
     await expect(act('t', { type: 'type', text: 'hello' })).rejects.toThrow(/since you last looked/)
@@ -192,6 +204,7 @@ describe('when the user takes the mouse', () => {
   it('stands back once, until the agent has looked again', async () => {
     stopComputerUse()
     front = 'com.apple.finder'
+    grantConsent('m')
     sawFront('m', 'com.apple.finder')
     leftPointerAt('m', { x: 200, y: 200 })
     pointer = { x: 600, y: 420 }
@@ -240,17 +253,121 @@ describe('what the mouse would land on', () => {
     stopComputerUse()
     front = 'com.apple.TextEdit'
     pointer = { x: 0, y: 0 }
+    grantConsent('first')
+    grantConsent('second')
     await act('first', { type: 'key', keys: 'cmd+a' }).catch(() => undefined)
     await expect(act('second', { type: 'key', keys: 'cmd+a' })).rejects.toThrow(
       /Another conversation is using this Mac/
     )
     // Stopping lets go of it.
     stopComputerUse()
+    grantConsent('second')
     const after = await act('second', { type: 'key', keys: 'cmd+a' }).then(
       () => '',
       (e: Error) => e.message
     )
     expect(after).not.toMatch(/Another conversation/)
+    stopComputerUse()
+  })
+})
+
+describe('so that it cannot run away', () => {
+  it('does nothing for a conversation that has not been told yes', async () => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    await expect(act('nobody', { type: 'key', keys: 'cmd+a' })).rejects.toThrow(/has not allowed/)
+  })
+  it('asks again after half an hour, however busy it has been', () => {
+    stopComputerUse()
+    const t0 = 1_000_000
+    grantConsent('busy', t0)
+    // Working the whole time: never idle for ten minutes.
+    for (let t = t0; t < t0 + CONSENT_MAX_MS; t += 60_000) touchConsent('busy', t)
+    expect(hasConsent('busy', t0 + CONSENT_MAX_MS - 1)).toBe(true)
+    touchConsent('busy', t0 + CONSENT_MAX_MS)
+    expect(hasConsent('busy', t0 + CONSENT_MAX_MS)).toBe(false)
+    // A fresh yes starts the clock again.
+    grantConsent('busy', t0 + CONSENT_MAX_MS)
+    expect(hasConsent('busy', t0 + CONSENT_MAX_MS + 1)).toBe(true)
+    stopComputerUse()
+  })
+  it('asks again after a great many actions', async () => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    under = null
+    grantConsent('many')
+    sawFront('many', 'com.apple.TextEdit')
+    for (let i = 0; i < CONSENT_MAX_ACTIONS; i++)
+      await act('many', { type: 'key', keys: 'down' }).catch(() => undefined)
+    expect(hasConsent('many')).toBe(false)
+    await expect(act('many', { type: 'key', keys: 'down' })).rejects.toThrow(/has not allowed/)
+    stopComputerUse()
+  })
+  it("never clicks on Superagent's own dot, where an Allow button can be", async () => {
+    stopComputerUse()
+    setOwnSurfaceProbe((x, y) => x > 1000 && y > 600)
+    // A click needs a screenshot to map from, so the mapping refuses first
+    // without one; keys are not pointed anywhere and are not stopped by this.
+    grantConsent('d')
+    await expect(act('d', { type: 'click', x: 1200, y: 700 })).rejects.toThrow(/screenshot/i)
+    setOwnSurfaceProbe(() => false)
+    stopComputerUse()
+  })
+})
+
+describe('what it will not be talked into', () => {
+  const ready = (owner: string): void => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    under = null
+    pointer = { x: 0, y: 0 }
+    grantConsent(owner)
+    sawFront(owner, 'com.apple.TextEdit')
+  }
+  it("does not type while Superagent's own window has the keyboard", async () => {
+    ready('f')
+    setOwnProbe({ focused: () => true, shortcuts: () => [] })
+    await expect(act('f', { type: 'type', text: 'yes' })).rejects.toThrow(/own window/)
+    await expect(act('f', { type: 'key', keys: 'return' })).rejects.toThrow(/own window/)
+    setOwnProbe({ focused: () => false, shortcuts: () => [] })
+  })
+  it("does not press Superagent's own shortcuts, or the one that stops it", async () => {
+    ready('s')
+    setOwnProbe({ focused: () => false, shortcuts: () => ['Alt+Space', 'Control+Alt+S'] })
+    for (const keys of ['alt+space', 'option+space', 'ctrl+alt+s', 'alt+escape', 'opt+esc'])
+      await expect(act('s', { type: 'key', keys }), keys).rejects.toThrow(/own shortcuts/)
+    setOwnProbe({ focused: () => false, shortcuts: () => [] })
+  })
+  it('is not turned on, and its keep-out list is not emptied, by a write to the store', async () => {
+    stopComputerUse()
+    const { computerUseEnabled, deniedApps } = await import('./computer-use')
+    const was = computerUseEnabled()
+    denyApp({ id: 'com.tinyspeck.slackmacgap', name: 'Slack' })
+    // What an agent's shell could do to the database behind the app's back.
+    kv.set('computer.enabled', was ? '0' : '1')
+    kv.set('computer.denied', '[]')
+    expect(computerUseEnabled()).toBe(was)
+    expect(deniedApps().map((a) => a.name)).toEqual(['Slack'])
+    undenyApp('com.tinyspeck.slackmacgap')
+  })
+  it('stops typing when Return brings another app to the front', async () => {
+    ready('l')
+    // Return on the first line opens something else: Terminal comes to the front.
+    typed.length = 0
+    afterType = () => {
+      front = 'com.apple.Terminal'
+    }
+    const said = await act('l', { type: 'type', text: 'Terminal\nrm -rf ~\nmore' }).then(
+      () => '',
+      (e: Error) => e.message
+    )
+    afterType = null
+    front = 'com.apple.TextEdit'
+    // Without the helper built (CI) nothing is typed at all, for that reason.
+    if (typed.length) {
+      expect(typed).toEqual(['Terminal\n'])
+      expect(said).toMatch(/Typing stopped after 1 line: pressing Return brought/)
+    } else expect(said).not.toBe('')
     stopComputerUse()
   })
 })

@@ -16,6 +16,7 @@ import {
 } from './store'
 import { copyBeforeWrite } from './copy-on-write'
 import { simulatorBeforeShell } from './sim-guard'
+import { computerBeforeShell } from './computer-guard'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL } from '../shared/agent-provider'
 import { paneLog, allowUserFocus } from './browser'
 import {
@@ -221,6 +222,9 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
   // Its shell stays off another conversation's simulator (sim-guard.ts).
   const sim = simulatorBeforeShell(toolName, body.tool_input, chatId)
   if (sim) return DENY_JSON(sim)
+  // Nor is it a second way to the mouse, the keyboard or the screen (computer-guard.ts).
+  const hands = computerBeforeShell(toolName, body.tool_input)
+  if (hands) return DENY_JSON(hands)
 
   const cls = classifyTool(toolName)
   if (cls === 'taint') {
@@ -280,6 +284,8 @@ async function decideAntigravityTool(
   if (held) return agyDecision('deny', held)
   const sim = simulatorBeforeShell(call.name, call.input, chatId)
   if (sim) return agyDecision('deny', sim)
+  const hands = computerBeforeShell(call.name, call.input)
+  if (hands) return agyDecision('deny', hands)
 
   if (key) {
     const cls = classifyTool(call.name)

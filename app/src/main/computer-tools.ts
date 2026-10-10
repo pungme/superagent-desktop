@@ -11,10 +11,16 @@ import {
   notReady,
   settle,
   takeScreenshot,
+  touchConsent,
   type ComputerAction
 } from './computer-use'
 import { requestApproval } from './hooks'
-import { appCaution, COMPUTER_STOP_HOTKEY, validKeyCombo } from '../shared/computer-use'
+import {
+  appCaution,
+  COMPUTER_STOP_HOTKEY,
+  riskyShortcut,
+  validKeyCombo
+} from '../shared/computer-use'
 
 export interface ComputerContext {
   workspaceId: string
@@ -99,6 +105,21 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     const no = await gate()
     if (no) return failed(no)
     try {
+      // A shortcut that quits, logs out or deletes is asked about every time.
+      const risk = action.type === 'key' ? riskyShortcut(action.keys) : null
+      if (risk) {
+        const yes = await requestApproval(
+          ctx.workspaceId,
+          ctx.sessionId,
+          'mcp__cove-browser__computer_use',
+          `Press ${action.type === 'key' ? action.keys : ''}: it ${risk}.`,
+          'permission'
+        )
+        if (!yes)
+          return failed(
+            'The user did not allow that shortcut. Do not press it another way; ask what they would like instead.'
+          )
+      }
       // Each app, the first time this conversation would touch it.
       for (const app of await appsToAsk(owner, action)) {
         const caution = appCaution(app.id)
@@ -245,7 +266,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         )
       )
       if (opened) return failed(`Could not open "${name}": ${opened.slice(0, 200)}`)
-      grantConsent(owner)
+      touchConsent(owner)
       await settle(900)
       try {
         return await look(`Opened ${name}.`)

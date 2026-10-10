@@ -17,7 +17,7 @@ import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
 import { homedir } from 'os'
 import { isRepoSet, setMembers } from './repo-set'
 
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic'])
+export const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic'])
 
 export interface PublishedBackgroundTask {
   chatId: string

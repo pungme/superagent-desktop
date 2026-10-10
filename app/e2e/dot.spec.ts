@@ -631,6 +631,23 @@ test('computer use is off until turned on, and shows which permissions it still 
     await row.locator('xpath=..').screenshot({ path: '/tmp/sa-computer-settings.png' })
 })
 
+test('the helper that posts events answers to the app, and to nothing else', async () => {
+  // Asked from the app's own main process, it knows its parent; the same
+  // question from a shell is answered no (cuse-helper.test.ts). Nothing is posted.
+  const said = await app.evaluate(() => {
+    const load = (process as unknown as { getBuiltinModule: (n: string) => Record<string, never> })
+      .getBuiltinModule
+    const { execFileSync } = load('child_process') as unknown as {
+      execFileSync: (bin: string, args: string[], o: { encoding: 'utf8' }) => string
+    }
+    const { existsSync } = load('fs') as unknown as { existsSync: (p: string) => boolean }
+    const bin = `${process.cwd()}/native/cuse`
+    return existsSync(bin) ? execFileSync(bin, ['parent'], { encoding: 'utf8' }) : 'absent'
+  })
+  test.skip(said === 'absent', 'the helper is not built here')
+  expect(JSON.parse(said)).toEqual({ superagent: true })
+})
+
 test('apps can be put out of bounds for computer use, and let back in', async () => {
   // The app picker is macOS's own dialog: what it would return is stood in for.
   await app.evaluate(({ ipcMain }) => {

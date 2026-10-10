@@ -123,10 +123,12 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     workspaceId: workspaceIdFromPane(paneId),
     sessionId: chatId ?? paneId
   })
-  registerComputerTools(server, {
-    workspaceId: workspaceIdFromPane(paneId),
-    sessionId: chatId ?? paneId
-  })
+  // Not for a routine: nobody is at the Mac to be asked, or to stop it.
+  if (!paneId.endsWith('::routine'))
+    registerComputerTools(server, {
+      workspaceId: workspaceIdFromPane(paneId),
+      sessionId: chatId ?? paneId
+    })
   // Not for a routine: nobody is there to have asked for a window to change.
   if (!paneId.endsWith('::routine')) registerAppTools(server)
   /**

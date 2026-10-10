@@ -1060,7 +1060,11 @@ export function Settings({
               <GroupLabel>Computer use</GroupLabel>
               <Row
                 title="Let agents use this Mac"
-                desc="An agent can see your screen and work the mouse and keyboard in any app, for what only an app's own window can do. Each conversation asks you first, and ⌥Esc stops it from anywhere."
+                desc={
+                  computer.stopKeyRefused
+                    ? 'An agent can see your screen and work the mouse and keyboard in any app. Each conversation asks you first. Another app has ⌥Esc, so it will NOT stop computer use here: use the Stop button in the chat or on the dot.'
+                    : "An agent can see your screen and work the mouse and keyboard in any app, for what only an app's own window can do. Each conversation asks you first, and ⌥Esc stops it from anywhere."
+                }
               >
                 <Toggle checked={computer.enabled} onChange={(v) => void toggleComputer(v)} />
               </Row>

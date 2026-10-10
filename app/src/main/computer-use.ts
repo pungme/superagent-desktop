@@ -1,4 +1,4 @@
-import { execFile } from 'child_process'
+import { execFile, type ChildProcess } from 'child_process'
 import {
   app,
   desktopCapturer,
@@ -17,7 +17,9 @@ import { kvGet, kvSet } from './store'
 import { broadcastToWindows } from './util'
 import {
   appFrom,
-  cleanAppName,
+  normalKeyCombo,
+  ownerApp,
+  typedLines,
   heldByAnother,
   isSelfApp,
   OFF_LIMITS_NAMES,
@@ -51,8 +53,17 @@ import {
 
 const KEY = 'computer.enabled'
 
+/**
+ * Read from the store once, then held here and changed only by the user in
+ * Settings. An agent's shell can write to the store's file; that must not be a
+ * way to turn this on, or to empty the list of apps it stays out of.
+ */
+let enabledNow: boolean | null = null
+let deniedNow: AppRef[] | null = null
+
 export function computerUseEnabled(): boolean {
-  return process.platform === 'darwin' && kvGet(KEY) === '1'
+  if (enabledNow === null) enabledNow = kvGet(KEY) === '1'
+  return process.platform === 'darwin' && enabledNow
 }
 
 function cusePath(): string | null {
@@ -69,8 +80,10 @@ function cuse(
   const bin = cusePath()
   if (!bin)
     return Promise.resolve({ ok: false, out: {}, error: 'The computer-use helper is missing.' })
-  return new Promise((resolve) =>
-    execFile(bin, args, { timeout: 20_000 }, (err, stdout) => {
+  return new Promise((resolve) => {
+    let child: ChildProcess | undefined = undefined
+    child = execFile(bin, args, { timeout: 20_000 }, (err, stdout) => {
+      if (child) running.delete(child)
       let out: Record<string, unknown> = {}
       try {
         out = JSON.parse(String(stdout).trim().split('\n').pop() || '{}')
@@ -80,8 +93,14 @@ function cuse(
       const error = typeof out.error === 'string' ? out.error : err ? err.message : ''
       resolve({ ok: !err && out.ok !== false, out, error })
     })
-  )
+    // Only the ones that post events are worth cutting short.
+    if (child && !['at', 'windows', 'pos', 'trusted', 'parent'].includes(args[0]))
+      running.add(child)
+  })
 }
+
+/** Helper runs that are posting events right now, so Stop can end one mid-way. */
+const running = new Set<ChildProcess>()
 
 export interface ComputerStatus {
   supported: boolean
@@ -91,6 +110,8 @@ export interface ComputerStatus {
   /** Accessibility: lets it move the pointer and type. */
   accessibility: boolean
   helper: boolean
+  /** macOS would not give us ⌥Esc (another app has it): only the Stop buttons work. */
+  stopKeyRefused: boolean
   /** Apps it never works in: the built-in ones by name, and the user's own. */
   builtInDenied: string[]
   denied: AppRef[]
@@ -104,6 +125,7 @@ export function computerStatus(): ComputerStatus {
     screen: mac && systemPreferences.getMediaAccessStatus('screen') === 'granted',
     accessibility: mac && systemPreferences.isTrustedAccessibilityClient(false),
     helper: cusePath() !== null,
+    stopKeyRefused: stopRefused,
     builtInDenied: OFF_LIMITS_NAMES,
     denied: deniedApps()
   }
@@ -192,7 +214,15 @@ export async function takeScreenshot(owner: string, display?: number): Promise<S
   const front = owner === '__check__' ? null : await frontApp()
   const no = offLimitsMessage(front)
   if (no) throw new Error(no)
-  if (owner !== '__check__') claim(owner)
+  if (owner !== '__check__') {
+    // Not only the app in front: a window beside it would be in the picture too.
+    const showing = (await appsOnScreen()).find((a) => offLimitsMessage(a))
+    if (showing)
+      throw new Error(
+        `${offLimitsApp(showing.id, deniedApps()) === 'a macOS password or permission prompt' ? 'A macOS password or permission prompt' : showing.name} is on screen, and computer use does not look at it. Ask the user to answer or close it, or to hide that window, then try again.`
+      )
+    claim(owner)
+  }
   sawFront(owner, front?.id ?? null)
   // Where the pointer is at this look: every action is followed by one, so a
   // pointer found elsewhere at the next action was moved by the user.
@@ -288,17 +318,47 @@ export function setComputerStop(fn: (chatId: string) => void): void {
 }
 
 export function hasConsent(owner: string, now = Date.now()): boolean {
-  return consentStands(allowed.get(owner), now)
+  return consentStands(allowed.get(owner), now, grantedAt.get(owner), actionsDone.get(owner) ?? 0)
+}
+
+/** When the user last said yes for a conversation, and what it has done since. */
+const grantedAt = new Map<string, number>()
+const actionsDone = new Map<string, number>()
+
+/** Still working, so not idle. Does not renew the yes itself. */
+export function touchConsent(owner: string, now = Date.now()): void {
+  if (allowed.has(owner)) allowed.set(owner, now)
+}
+
+/**
+ * Whether a point on the screen is on one of Superagent's own floating
+ * surfaces (the dot and its panel, which can hold an Allow button). Set by
+ * index.ts, to keep this module free of the windows.
+ */
+let onOwnSurface: (x: number, y: number) => boolean = () => false
+export function setOwnSurfaceProbe(fn: (x: number, y: number) => boolean): void {
+  onOwnSurface = fn
 }
 
 export function grantConsent(owner: string, now = Date.now()): void {
+  grantedAt.set(owner, now)
+  actionsDone.set(owner, 0)
+  // From the moment of the yes, not only from the first action.
+  holdStopKey()
+  // A new yes starts over: each app is asked about again.
+  approved.delete(owner)
   allowed.set(owner, now)
 }
 
 /** Everything stops: every yes is withdrawn and each agent using the Mac is interrupted. */
 export function stopComputerUse(): string[] {
   const stopped = [...allowed.keys()]
+  // Whatever is being typed or dragged right now ends here, not when it is done.
+  for (const child of running) child.kill('SIGKILL')
+  running.clear()
   allowed.clear()
+  grantedAt.clear()
+  actionsDone.clear()
   approved.clear()
   holder = null
   for (const id of stopped) onStop?.(id)
@@ -306,27 +366,46 @@ export function stopComputerUse(): string[] {
   return stopped
 }
 
+/** Whether ⌥Esc is ours right now, and whether macOS refused it to us. */
+let stopRefused = false
+
+function holdStopKey(): void {
+  if (stopHeld) return
+  try {
+    stopHeld = globalShortcut.register(COMPUTER_STOP_HOTKEY, () => {
+      stopComputerUse()
+      broadcastToWindows('computer:stopped')
+    })
+  } catch {
+    stopHeld = false
+  }
+  stopRefused = !stopHeld
+}
+
+function releaseStopKey(): void {
+  if (!stopHeld) return
+  globalShortcut.unregister(COMPUTER_STOP_HOTKEY)
+  stopHeld = false
+}
+
+const anyConsent = (): boolean => [...allowed.keys()].some((o) => hasConsent(o))
+
+/**
+ * The indicator follows activity: on with an action, off after a quiet while.
+ * The stop key does not: it is held for as long as any conversation still has
+ * a yes, so it works while the agent is thinking between two steps.
+ */
 function setActive(on: boolean): void {
   if (idleTimer) clearTimeout(idleTimer)
   idleTimer = null
   if (on) {
-    if (!stopHeld) {
-      try {
-        stopHeld = globalShortcut.register(COMPUTER_STOP_HOTKEY, () => {
-          stopComputerUse()
-          broadcastToWindows('computer:stopped')
-        })
-      } catch {
-        stopHeld = false
-      }
-    }
-    // Quiet for a while: it is no longer "in control", and the shortcut is
-    // given back so it does not sit on ⌥Esc all day.
+    holdStopKey()
     idleTimer = setTimeout(() => setActive(false), 20_000)
-  } else if (stopHeld) {
-    globalShortcut.unregister(COMPUTER_STOP_HOTKEY)
-    stopHeld = false
-  }
+  } else if (anyConsent()) {
+    // Look again once the yes could have lapsed.
+    idleTimer = setTimeout(() => setActive(false), 60_000)
+    idleTimer.unref?.()
+  } else releaseStopKey()
   broadcastToWindows('computer:active', on)
 }
 
@@ -356,25 +435,29 @@ export function frontApp(): Promise<AppRef | null> {
 const DENIED_KEY = 'computer.denied'
 
 export function deniedApps(): AppRef[] {
+  if (deniedNow) return deniedNow
   try {
     const saved = JSON.parse(kvGet(DENIED_KEY) || '[]') as AppRef[]
-    return Array.isArray(saved)
+    deniedNow = Array.isArray(saved)
       ? saved.filter((a) => a && typeof a.id === 'string' && typeof a.name === 'string')
       : []
   } catch {
-    return []
+    deniedNow = []
   }
+  return deniedNow
 }
 
 export function denyApp(app: AppRef): AppRef[] {
   const rest = deniedApps().filter((a) => a.id.toLowerCase() !== app.id.toLowerCase())
   const next = [...rest, app].sort((a, b) => a.name.localeCompare(b.name))
+  deniedNow = next
   kvSet(DENIED_KEY, JSON.stringify(next))
   return next
 }
 
 export function undenyApp(id: string): AppRef[] {
   const next = deniedApps().filter((a) => a.id.toLowerCase() !== id.toLowerCase())
+  deniedNow = next
   kvSet(DENIED_KEY, JSON.stringify(next))
   return next
 }
@@ -420,11 +503,39 @@ export async function offLimitsNow(): Promise<string | null> {
 
 /** Whose window is at a point on the screen: what a click there lands on. */
 function appAt(x: string, y: string): Promise<AppRef | null> {
-  return cuse(['at', x, y]).then(({ out }) => {
-    const id = typeof out.bundle === 'string' ? out.bundle : ''
-    const name = typeof out.name === 'string' ? cleanAppName(out.name) : ''
-    return id ? { id, name: name || id } : null
-  })
+  return cuse(['at', x, y]).then(({ out }) =>
+    ownerApp(
+      typeof out.name === 'string' ? out.name : '',
+      typeof out.bundle === 'string' ? out.bundle : ''
+    )
+  )
+}
+
+/** Every app with a window on screen now. Empty when the helper cannot say. */
+function appsOnScreen(): Promise<AppRef[]> {
+  return cuse(['windows']).then(({ out }) =>
+    (Array.isArray(out.apps) ? (out.apps as { name?: unknown; bundle?: unknown }[]) : [])
+      .map((a) =>
+        ownerApp(
+          typeof a.name === 'string' ? a.name : '',
+          typeof a.bundle === 'string' ? a.bundle : ''
+        )
+      )
+      .filter((a): a is AppRef => !!a)
+  )
+}
+
+/**
+ * Superagent's own windows and shortcuts, asked of index.ts so this module
+ * stays free of them. `focused`: one of its windows has the keyboard, which
+ * the dot's panel can have without Superagent being the app in front.
+ */
+let own: { focused: () => boolean; shortcuts: () => string[] } = {
+  focused: () => false,
+  shortcuts: () => []
+}
+export function setOwnProbe(p: typeof own): void {
+  own = p
 }
 
 /**
@@ -517,7 +628,44 @@ export async function act(owner: string, action: ComputerAction): Promise<void> 
     offLimitsMessage(front) ??
     (await targetApps(owner, action)).map((a) => offLimitsMessage(a, true)).find(Boolean)
   if (no) throw new Error(no)
+  // The dot floats over other apps' windows, so the window under the point is
+  // not the whole story: its panel is where an Allow button can be.
+  const pts = args.slice(1, action.type === 'drag' ? 5 : 3).map(Number)
+  if (
+    action.type !== 'type' &&
+    action.type !== 'key' &&
+    (onOwnSurface(pts[0], pts[1]) || (action.type === 'drag' && onOwnSurface(pts[2], pts[3])))
+  )
+    throw new Error(
+      "That point is on Superagent's own dot, and computer use does not click its own controls. If the dot is in the way, ask the user to move it."
+    )
+  // The yes was for this conversation, a while ago: check it still stands here
+  // too, not only in the tools.
+  if (!hasConsent(owner))
+    throw new Error(
+      'The user has not allowed this conversation to use the Mac. Ask again through the tool.'
+    )
   claim(owner)
+  const keys = action.type === 'type' || action.type === 'key'
+  // Not knowing where keys would go is a reason not to send them.
+  if (keys && !front)
+    throw new Error(
+      'macOS would not say which app is in front, so nothing was typed. Take a screenshot and try again.'
+    )
+  // The dot's panel can hold the keyboard while another app is "in front".
+  if (keys && own.focused())
+    throw new Error(
+      "The keyboard is in Superagent's own window, and computer use does not type there. Click in the app you mean first, or use computer_open_mac_app."
+    )
+  if (
+    action.type === 'key' &&
+    [COMPUTER_STOP_HOTKEY, ...own.shortcuts()].some(
+      (k) => normalKeyCombo(k) === normalKeyCombo(action.keys)
+    )
+  )
+    throw new Error(
+      "That is one of Superagent's own shortcuts, and computer use does not press it."
+    )
   // Keys go to whatever is in front. If that is no longer the app the agent
   // was looking at, the text would land somewhere it has not seen.
   const seen = frontAtLook.get(owner)
@@ -534,9 +682,28 @@ export async function act(owner: string, action: ComputerAction): Promise<void> 
     )
   }
   allowed.set(owner, Date.now())
+  actionsDone.set(owner, (actionsDone.get(owner) ?? 0) + 1)
   setActive(true)
-  const res = await cuse(args)
-  if (!res.ok) throw new Error(res.error || 'The action could not be carried out.')
+  // Text with Return in it can open something else part-way (Spotlight, then
+  // an app): it goes a line at a time, and stops if the app in front changes.
+  const parts = action.type === 'type' ? typedLines(action.text) : null
+  if (parts && parts.length > 1) {
+    for (let i = 0; i < parts.length; i++) {
+      if (i > 0) {
+        const now = await frontApp()
+        if (!hasConsent(owner)) throw new Error('Stopped by the user.')
+        if (!now || now.id.toLowerCase() !== front?.id.toLowerCase())
+          throw new Error(
+            `Typing stopped after ${i} line${i === 1 ? '' : 's'}: pressing Return brought ${now?.name ?? 'another app'} to the front, and the rest was not typed there. Take a screenshot to see where things are.`
+          )
+      }
+      const r = await cuse(['type', parts[i]])
+      if (!r.ok) throw new Error(r.error || 'The action could not be carried out.')
+    }
+  } else {
+    const res = await cuse(args)
+    if (!res.ok) throw new Error(res.error || 'The action could not be carried out.')
+  }
   const at = pointerNow()
   if (at) pointerLeftAt.set(owner, at)
   else pointerLeftAt.delete(owner)
@@ -571,6 +738,7 @@ export function registerComputerUseIpc(): void {
     return computerStatus()
   })
   ipcMain.handle('computer:set-enabled', (_e, on: boolean) => {
+    enabledNow = !!on
     kvSet(KEY, on ? '1' : '0')
     if (!on) stopComputerUse()
     return computerStatus()

@@ -44,3 +44,20 @@ describe("where the dot's window goes", () => {
     expect(dotBounds(far, [laptop], laptop)).toMatchObject(far)
   })
 })
+
+describe('whether a point is on the dot', () => {
+  const b = { x: 1000, y: 400, width: 420, height: 620 }
+  it('is only the tile in the corner while the panel is closed', async () => {
+    const { pointOnDot } = await import('./dot-bounds')
+    expect(pointOnDot(b, false, 1400, 1000)).toBe(true)
+    // The rest of its window is see-through: what is under it can be clicked.
+    expect(pointOnDot(b, false, 1100, 500)).toBe(false)
+    expect(pointOnDot(b, false, 500, 500)).toBe(false)
+  })
+  it('is the whole window while the panel is open, and nothing outside it', async () => {
+    const { pointOnDot } = await import('./dot-bounds')
+    expect(pointOnDot(b, true, 1100, 500)).toBe(true)
+    expect(pointOnDot(b, true, 999, 500)).toBe(false)
+    expect(pointOnDot(b, true, 1100, 1020)).toBe(false)
+  })
+})

@@ -88,6 +88,16 @@ panel with a tile in its corner, loaded from the same page with `#dot`
   window under the point (`cuse at X Y`), for keys the app in front. That app
   must not be off limits (built-in list, the user's list, Superagent itself)
   and must have been approved for the conversation (`appsToAsk`).
+- `cuse` posts nothing unless its parent process is Superagent with a window
+  (`from_superagent` in `cuse.c`), so it cannot be run from an agent's shell.
+  `cuse parent`, `at` and `windows` post nothing and can be run from anywhere.
+  `computer-guard.ts` blocks the other shell routes (AppleScript, screencapture…)
+  in the pre-tool hook. It is a list of known ways, not a proof.
+- `computer.enabled` and the keep-out list are read from the store once and
+  then held in memory, changed only through IPC: the store's file is writable
+  by an agent's shell. Do not go back to reading them with `kvGet` each time.
+- What is still open from the 2026-10-10 safety review is on the board
+  ("Computer use: close what the safety review found…").
 - `prompts.ts` learns whether it is on through `setComputerUseProbe`, not an
   import, so building a prompt does not drag in Electron.
 

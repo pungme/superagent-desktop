@@ -74,6 +74,7 @@ import { registerDrafts } from './drafts'
 import { watchScreenshots } from './screenshots'
 import { signInBus } from './google-signin'
 import { registerFilesIpc } from './files'
+import { registerImageSaveIpc } from './image-save'
 import { registerChatCopyIpc, copyStatus } from './chat-copy'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
@@ -81,9 +82,15 @@ import { startAutoUpdate, isUpdateDownloaded } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
-import { registerAppHotkey } from './app-hotkey'
-import { isDotWindow, registerDot } from './dot'
-import { computerUseEnabled, registerComputerUseIpc, setComputerStop } from './computer-use'
+import { appHotkey, registerAppHotkey } from './app-hotkey'
+import { dotCovers, dotHotkey, isDotWindow, registerDot } from './dot'
+import {
+  computerUseEnabled,
+  registerComputerUseIpc,
+  setComputerStop,
+  setOwnProbe,
+  setOwnSurfaceProbe
+} from './computer-use'
 import { setComputerUseProbe } from './prompts'
 import { stopFromDot } from './companion/rpc'
 
@@ -278,6 +285,7 @@ app.whenReady().then(async () => {
   registerDesktopIpc()
   registerChatBrowserTabsIpc()
   registerDeskIpc()
+  registerImageSaveIpc()
   registerHookIpc()
   registerAutomationIpc()
   // The built-in pane took the agent's hands off for a Google sign-in (or Google
@@ -303,6 +311,11 @@ app.whenReady().then(async () => {
   })
   registerComputerUseIpc()
   setComputerUseProbe(computerUseEnabled)
+  setOwnSurfaceProbe(dotCovers)
+  setOwnProbe({
+    focused: () => BrowserWindow.getFocusedWindow() !== null,
+    shortcuts: () => [dotHotkey().hotkey, appHotkey().hotkey].filter((k) => k && k !== 'none')
+  })
   // ⌥Esc, or turning it off, stops the agents that were using the Mac.
   setComputerStop((chatId) => void stopFromDot(chatId))
   registerLidAwakeIpc()

@@ -41,4 +41,35 @@ describe.skipIf(!existsSync(bin))('cuse, the hands of computer use', () => {
   it('types text of any script as characters, counted in bytes', () => {
     expect(run('type', 'héllo 👋')).toEqual({ ok: true, chars: 11 })
   })
+  it('posts nothing unless Superagent itself ran it', () => {
+    // Without --dry, from here: a shell, a script, an agent's own Bash. Refused
+    // before any event is made, so this is safe to run at the Mac.
+    const real = (...args: string[]): Record<string, unknown> => {
+      try {
+        return JSON.parse(execFileSync(bin, args, { encoding: 'utf8' }))
+      } catch (e) {
+        return JSON.parse(String((e as { stdout?: string }).stdout ?? '{}'))
+      }
+    }
+    expect(real('parent')).toEqual({ superagent: false })
+    for (const args of [
+      ['click', '5', '5'],
+      ['move', '5', '5'],
+      ['type', 'x'],
+      ['key', 'cmd+q'],
+      ['drag', '1', '1', '2', '2'],
+      ['scroll', '5', '5', '0', '-1']
+    ])
+      expect(real(...args), args.join(' ')).toEqual({
+        ok: false,
+        error: 'this helper only acts when Superagent itself runs it'
+      })
+  })
+  it('says which apps have a window on screen, without touching anything', () => {
+    const out = JSON.parse(execFileSync(bin, ['windows'], { encoding: 'utf8' })) as {
+      apps: { name: string; bundle: string }[]
+    }
+    expect(Array.isArray(out.apps)).toBe(true)
+    for (const a of out.apps) expect(typeof a.name + typeof a.bundle).toBe('stringstring')
+  })
 })

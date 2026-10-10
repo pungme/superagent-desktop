@@ -67,13 +67,83 @@ export function validKeyCombo(combo: string): boolean {
   return /^[a-z0-9]+$/.test(key) || /^[=\-[\];',./\\`]$/.test(key)
 }
 
+const MOD_NAMES: Record<string, string> = {
+  cmd: 'cmd',
+  command: 'cmd',
+  meta: 'cmd',
+  shift: 'shift',
+  alt: 'opt',
+  option: 'opt',
+  opt: 'opt',
+  ctrl: 'ctrl',
+  control: 'ctrl',
+  fn: 'fn'
+}
+const KEY_NAMES: Record<string, string> = { backspace: 'delete', escape: 'esc', enter: 'return' }
+
+/** A shortcut in one spelling, modifiers in a fixed order: "Shift+Command+Q" → "cmd+shift+q". */
+export function normalKeyCombo(combo: string): string {
+  const parts = combo.trim().toLowerCase().split('+')
+  const key = parts.pop() ?? ''
+  const mods = [...new Set(parts.map((p) => MOD_NAMES[p] ?? p))].sort()
+  return [...mods, KEY_NAMES[key] ?? key].join('+')
+}
+
+/** Shortcuts that end, lose or destroy something, and what each does. */
+const RISKY_SHORTCUTS: Record<string, string> = {
+  'cmd+q': 'quits the app in front, and anything unsaved in it may be lost',
+  'cmd+opt+q': 'quits the app in front and forgets its windows',
+  'cmd+shift+q': 'logs you out of this Mac, closing every app',
+  'cmd+opt+shift+q': 'logs you out of this Mac at once, without asking',
+  'cmd+ctrl+q': 'locks this Mac',
+  'cmd+esc+opt': 'opens Force Quit',
+  'cmd+delete': 'moves what is selected to the Trash',
+  'cmd+delete+shift': 'empties the Trash',
+  'cmd+delete+opt+shift': 'empties the Trash without asking',
+  'cmd+delete+opt': 'deletes what is selected at once, skipping the Trash',
+  'cmd+shift+w': 'closes the whole window',
+  'cmd+opt+w': 'closes every window of the app in front'
+}
+const RISKY = new Map(
+  Object.entries(RISKY_SHORTCUTS).map(([k, v]) => [normalKeyCombo(reorderKeyLast(k)), v])
+)
+/** The table above is written loosely; put its one non-modifier last, as a combo is. */
+function reorderKeyLast(combo: string): string {
+  const parts = combo.split('+')
+  const key = parts.find((p) => !MOD_NAMES[p]) ?? ''
+  return [...parts.filter((p) => p !== key), key].join('+')
+}
+
+/**
+ * What a shortcut would end, lose or destroy, or null for an ordinary one.
+ * These are asked about every time, whatever has already been allowed.
+ */
+export function riskyShortcut(combo: string): string | null {
+  return RISKY.get(normalKeyCombo(combo)) ?? null
+}
+
 /** How long a yes to "let it use this Mac" lasts without the agent doing anything. */
 export const CONSENT_IDLE_MS = 10 * 60_000
 
 /** Whether an earlier yes still stands: it does while the agent keeps working. */
-export function consentStands(lastUsedAt: number | undefined, now: number): boolean {
-  return lastUsedAt !== undefined && now - lastUsedAt < CONSENT_IDLE_MS
+export function consentStands(
+  lastUsedAt: number | undefined,
+  now: number,
+  grantedAt?: number,
+  actions = 0
+): boolean {
+  if (lastUsedAt === undefined || now - lastUsedAt >= CONSENT_IDLE_MS) return false
+  if (grantedAt !== undefined && now - grantedAt >= CONSENT_MAX_MS) return false
+  return actions < CONSENT_MAX_ACTIONS
 }
+
+/**
+ * However busy the agent stays, one yes does not last for ever: after this
+ * long, or this many actions, the user is asked again. A task that is going
+ * well costs one more click; one that has run away is stopped.
+ */
+export const CONSENT_MAX_MS = 30 * 60_000
+export const CONSENT_MAX_ACTIONS = 300
 
 /** The shortcut that stops it, whatever app is in front. */
 export const COMPUTER_STOP_HOTKEY = 'Alt+Escape'
@@ -97,6 +167,34 @@ const OFF_LIMITS: [prefix: string, name: string][] = [
   ['com.apple.SecurityAgent', 'a macOS password prompt']
 ]
 
+/** How a window's owner is identified when it has no bundle id: by its process name. */
+export const UNBUNDLED = 'name:'
+
+/**
+ * The processes that draw macOS's own password, Touch ID and permission
+ * prompts. They are not apps, so they are known by name. An agent never
+ * answers one of these: they are the user's to answer.
+ */
+const SYSTEM_PROMPTS = [
+  'securityagent',
+  'coreautha',
+  'loginwindow',
+  'universalaccessauthwarn',
+  'coreservicesuiagent',
+  'usernotificationcenter',
+  'authorizationhost',
+  'localauthenticationremoteservice'
+]
+
+/** A window's owner as an app: by bundle id, or by name when it has none. Null for the system's own chrome. */
+export function ownerApp(name: string, bundle: string): AppRef | null {
+  const clean = cleanAppName(name)
+  if (bundle) return { id: bundle, name: clean || bundle }
+  // The menu bar and the desktop belong to the window server: the app in front answers for them.
+  if (!clean || clean === 'Window Server') return null
+  return { id: `${UNBUNDLED}${clean}`, name: clean }
+}
+
 /** An app, as its bundle id and the name a person knows it by. */
 export interface AppRef {
   id: string
@@ -113,6 +211,11 @@ export function offLimitsApp(
 ): string | null {
   if (!bundleId) return null
   const id = bundleId.toLowerCase()
+  // A window whose owner is not an app at all: known only by its process name.
+  if (id.startsWith(UNBUNDLED))
+    return SYSTEM_PROMPTS.includes(id.slice(UNBUNDLED.length))
+      ? 'a macOS password or permission prompt'
+      : null
   const builtIn = OFF_LIMITS.find(([prefix]) => id.startsWith(prefix.toLowerCase()))?.[1]
   return builtIn ?? denied.find((d) => d.id.toLowerCase() === id)?.name ?? null
 }
@@ -234,4 +337,12 @@ export function pointerMoved(
 ): boolean {
   if (!left || !now) return false
   return Math.hypot(now.x - left.x, now.y - left.y) > 6
+}
+
+/**
+ * Text as the pieces it is typed in: each line with the Return that ends it.
+ * One piece when there is no Return inside it.
+ */
+export function typedLines(text: string): string[] {
+  return text.match(/[^\n]*\n|[^\n]+/g) ?? []
 }

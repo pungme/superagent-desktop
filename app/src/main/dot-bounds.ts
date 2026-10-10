@@ -42,3 +42,21 @@ export function dotBounds(
       : { x: primary.x + primary.width - DOT_W, y: primary.y + primary.height - DOT_H }
   return { x: Math.round(at.x), y: Math.round(at.y), width: DOT_W, height: DOT_H }
 }
+
+/** The corner of the dot's window that the tile, with its hover hint, takes up. */
+export const DOT_TILE = 96
+
+/**
+ * Whether a point is on the dot, given where its window is: anywhere in the
+ * window while the panel is open, else only the tile in the bottom right.
+ */
+export function pointOnDot(
+  b: { x: number; y: number; width: number; height: number },
+  panelOpen: boolean,
+  x: number,
+  y: number
+): boolean {
+  const inside = x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height
+  if (!inside) return false
+  return panelOpen || (x >= b.x + b.width - DOT_TILE && y >= b.y + b.height - DOT_TILE)
+}

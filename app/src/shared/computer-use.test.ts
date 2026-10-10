@@ -9,7 +9,11 @@ import {
   isSelfApp,
   LOCK_MS,
   focusMoved,
+  normalKeyCombo,
   offLimitsApp,
+  ownerApp,
+  typedLines,
+  riskyShortcut,
   pointerMoved,
   shotSize,
   toScreenPoint,
@@ -155,5 +159,70 @@ describe('one conversation on the Mac at a time', () => {
     expect(heldByAnother(holder, 'b', 1_000 + LOCK_MS)).toBe(false)
     expect(heldByAnother(holder, 'a', 1_001)).toBe(false)
     expect(heldByAnother(null, 'b', 1_001)).toBe(false)
+  })
+})
+
+describe('shortcuts that end or destroy something', () => {
+  it('are known however they are spelled', () => {
+    expect(normalKeyCombo('Shift+Command+Q')).toBe('cmd+shift+q')
+    expect(normalKeyCombo('alt+cmd+escape')).toBe('cmd+opt+esc')
+    expect(riskyShortcut('cmd+q')).toContain('quits')
+    expect(riskyShortcut('Command+Shift+Q')).toContain('logs you out')
+    expect(riskyShortcut('ctrl+cmd+q')).toContain('locks')
+    expect(riskyShortcut('cmd+option+escape')).toContain('Force Quit')
+    expect(riskyShortcut('cmd+backspace')).toContain('Trash')
+    expect(riskyShortcut('shift+cmd+delete')).toContain('empties the Trash')
+    expect(riskyShortcut('cmd+alt+delete')).toContain('skipping the Trash')
+  })
+  it('leave ordinary ones alone', () => {
+    for (const ok of [
+      'cmd+c',
+      'cmd+v',
+      'return',
+      'cmd+w',
+      'cmd+space',
+      'delete',
+      'cmd+shift+4',
+      'q'
+    ])
+      expect(riskyShortcut(ok), ok).toBeNull()
+  })
+})
+
+describe("windows that are not an app's", () => {
+  it("are known by their owner's name, and the system's prompts are out of bounds", () => {
+    expect(ownerApp('SecurityAgent', '')).toEqual({
+      id: 'name:SecurityAgent',
+      name: 'SecurityAgent'
+    })
+    for (const prompt of [
+      'SecurityAgent',
+      'coreautha',
+      'universalAccessAuthWarn',
+      'CoreServicesUIAgent'
+    ])
+      expect(offLimitsApp(ownerApp(prompt, '')!.id), prompt).toBe(
+        'a macOS password or permission prompt'
+      )
+    // Some other tool with a window of its own is just a thing to ask about.
+    expect(offLimitsApp(ownerApp('ffplay', '')!.id)).toBeNull()
+  })
+  it('leave the menu bar and desktop to the app in front, and prefer a bundle id when there is one', () => {
+    expect(ownerApp('Window Server', '')).toBeNull()
+    expect(ownerApp('', '')).toBeNull()
+    expect(ownerApp('\u200eWhatsApp', 'net.whatsapp.WhatsApp')).toEqual({
+      id: 'net.whatsapp.WhatsApp',
+      name: 'WhatsApp'
+    })
+  })
+})
+
+describe('text as the pieces it is typed in', () => {
+  it('is one piece without a Return, else a line at a time with its Return', () => {
+    expect(typedLines('hello world')).toEqual(['hello world'])
+    expect(typedLines('a\nb\n')).toEqual(['a\n', 'b\n'])
+    expect(typedLines('Terminal\nls')).toEqual(['Terminal\n', 'ls'])
+    expect(typedLines('\n')).toEqual(['\n'])
+    expect(typedLines('')).toEqual([])
   })
 })

@@ -16,7 +16,7 @@ import { logBus } from './companion/log'
 import { askFromDot, stopFromDot } from './companion/rpc'
 import { resolveGate } from './hooks'
 import { dotProjects } from './dot-projects'
-import { dotBounds, DOT_H as H, DOT_W as W } from './dot-bounds'
+import { dotBounds, DOT_H as H, DOT_W as W, pointOnDot } from './dot-bounds'
 import { QUIET, showInactiveForReal } from './quiet'
 import { dotHotkeyFrom, NO_DOT_HOTKEY, type DotHotkeyState } from '../shared/dot-hotkey'
 
@@ -74,6 +74,19 @@ function send(channel: string, payload?: unknown): void {
 /** The app's own window, as opposed to the dot. */
 function mainWindow(): BrowserWindow | null {
   return BrowserWindow.getAllWindows().find((w) => w !== win && !w.isDestroyed()) ?? null
+}
+
+/** The panel is open: its whole window can hold buttons, an Allow among them. */
+let panelOpen = false
+
+/**
+ * Whether a point on the screen is on the dot: its whole window while the
+ * panel is open, otherwise only the tile in its corner. Computer use asks,
+ * so that an agent never clicks Superagent's own controls.
+ */
+export function dotCovers(x: number, y: number): boolean {
+  if (!win || win.isDestroyed() || !win.isVisible()) return false
+  return pointOnDot(win.getBounds(), panelOpen, x, y)
 }
 
 export function isDotWindow(w: BrowserWindow | null | undefined): boolean {
@@ -202,6 +215,7 @@ export function registerDot(): void {
   })
   /** The panel opened and wants the keyboard; closed, it gives it back. */
   ipcMain.on('dot:focus', (_e, want: boolean) => {
+    panelOpen = !!want
     if (!win || win.isDestroyed()) return
     if (want) {
       win.show()

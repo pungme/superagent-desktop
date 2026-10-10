@@ -176,6 +176,26 @@ describe("the agent's tools for using the Mac", () => {
     })
   })
 
+  it('ask every time before a shortcut that quits, logs out or deletes', async () => {
+    state.consent = true
+    await withClient(async (c) => {
+      await call(c, 'computer_key', { keys: 'cmd+c' })
+      expect(state.asked).toEqual([])
+      const quit = await call(c, 'computer_key', { keys: 'cmd+q' })
+      expect(quit.isError).toBeFalsy()
+      expect(state.asked[0]).toContain('Press cmd+q: it quits the app in front')
+      // Asked again the next time: one yes is for one press.
+      await call(c, 'computer_key', { keys: 'cmd+q' })
+      expect(state.asked).toHaveLength(2)
+
+      state.answer = false
+      const out = await call(c, 'computer_key', { keys: 'cmd+shift+q' })
+      expect(out.isError).toBe(true)
+      expect(text(out)).toContain('did not allow that shortcut')
+      expect(state.acted).toHaveLength(3)
+    })
+  })
+
   it('do nothing at all when the user says no', async () => {
     state.answer = false
     await withClient(async (c) => {

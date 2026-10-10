@@ -11,6 +11,8 @@ import {
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore, useOverlayLock, TodoItem, PermissionMode, type Shot } from '../state'
+import { ChatImagesView, Lightbox, type Shown } from './ChatImages'
+import { chatImageRefs } from '../../../shared/chat-images'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { useChatBrowser } from '../hooks/useChatBrowser'
@@ -899,7 +901,7 @@ const ActivityStrip = memo(function ActivityStrip({
 }: {
   entries: Activity[]
   workspaceId: string
-  onLightbox: (src: string) => void
+  onLightbox: (src: string, origin?: string) => void
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
 
@@ -982,7 +984,7 @@ function FileHandoffCard({
 }: {
   path: string
   workspaceId: string
-  onLightbox?: (src: string) => void
+  onLightbox?: (src: string, origin?: string) => void
 }): React.JSX.Element {
   const openPath = useStore((s) => s.openPath)
   const name = path.split('/').pop() || path
@@ -1176,7 +1178,7 @@ function RemoteImages({
 }: {
   id: string
   count: number
-  onLightbox: (src: string) => void
+  onLightbox: (src: string, origin?: string) => void
 }): React.JSX.Element | null {
   const [urls, setUrls] = useState<string[]>([])
   useEffect(() => {
@@ -1276,7 +1278,7 @@ const MessageRow = memo(function MessageRow({
   onEdit: (msg: ChatMessage) => void
   /** `from`: the message the choice was in, and what it asked. */
   onAnswer: (a: string, from: { id: string; question: string }) => void
-  onLightbox: (src: string) => void
+  onLightbox: (src: string, origin?: string) => void
 }): React.JSX.Element {
   const isAssistant = msg.role === 'assistant'
   // The regex+JSON scan runs once per text change (i.e. once per frame for the
@@ -1835,8 +1837,24 @@ export function EasyChat({
   // it: disabled, it dropped the cursor of someone already typing their next
   // message, and did not give it back.
   const [restarting, setRestarting] = useState(false)
-  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [lightbox, setShown] = useState<Shown | null>(null)
+  // `origin` is the file a picture came from, when the agent named one: what
+  // Download saves, rather than the preview on screen.
+  const setLightbox = useCallback(
+    (src: string | null, origin?: string) => setShown(src === null ? null : { src, origin }),
+    []
+  )
   useOverlayLock(lightbox !== null)
+  // Every picture in the conversation, for its Images view. Worked out when a
+  // message is added or a turn ends, not on every word of a streaming reply.
+  const [imagesOpen, setImagesOpen] = useState(false)
+  const itemsForImages = useRef(items)
+  itemsForImages.current = items
+  const imageRefs = useMemo(
+    () => chatImageRefs(itemsForImages.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items.length, generating, imagesOpen]
+  )
   // Esc closes the picture, and only the picture: caught before the composer
   // sees it, where Esc would also stop the agent mid-reply.
   useEffect(() => {
@@ -1849,7 +1867,7 @@ export function EasyChat({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [lightbox])
+  }, [lightbox, setLightbox])
   // A pending permission/guardrail ask belonging to THIS chat — rendered
   // inline, prominently, right above the composer (see the return below).
   const guardrailAsks = useStore((s) => s.guardrailAsks)
@@ -4406,7 +4424,10 @@ export function EasyChat({
       keepComposer: true
     })
   }, [])
-  const onRowLightbox = useCallback((src: string) => rowFnsRef.current.setLightbox(src), [])
+  const onRowLightbox = useCallback(
+    (src: string, origin?: string) => rowFnsRef.current.setLightbox(src, origin),
+    []
+  )
   // The transcript rows, recomputed only when the items actually change — not on
   // every keystroke/timer render of the surrounding component.
   const rows = useMemo(() => toRows(items), [items])
@@ -5999,6 +6020,21 @@ export function EasyChat({
             onPicked={() => setControlMenu(null)}
           />
         )}
+        {imageRefs.length > 0 && (
+          <div className="easy-control">
+            <button
+              className="easy-control-btn"
+              onClick={() => {
+                setControlMenu(null)
+                setImagesOpen(true)
+              }}
+              title="Every picture in this chat"
+            >
+              <span className="easy-control-key">Images</span>
+              <span className="easy-control-val">{imageRefs.length}</span>
+            </button>
+          </div>
+        )}
         <WorktreePill
           chatId={chatId}
           cwd={cwd}
@@ -6219,11 +6255,16 @@ export function EasyChat({
           </div>
         )
       })()}
-      {lightbox && (
-        <div className="easy-lightbox" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="attachment" />
-        </div>
+      {imagesOpen && (
+        <ChatImagesView
+          images={imageRefs}
+          cwd={cwd}
+          covered={lightbox !== null}
+          onOpen={(shown) => setLightbox(shown.src, shown.origin)}
+          onClose={() => setImagesOpen(false)}
+        />
       )}
+      {lightbox && <Lightbox image={lightbox} cwd={cwd} onClose={() => setLightbox(null)} />}
     </div>
   )
 }

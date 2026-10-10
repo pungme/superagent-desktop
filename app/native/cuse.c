@@ -6,6 +6,14 @@
 //   cuse pos                          {"x":..,"y":..}
 //   cuse at X Y                       {"name":"Finder","bundle":"com.apple.finder","pid":123}
 //                                     the app whose window is at that point, {} if none
+//   cuse windows                      {"apps":[{"name":..,"bundle":..},..]} every app with a
+//                                     window on screen now
+//   cuse parent                       {"superagent":true|false} whether it was run by the app
+//
+// The actions that post an event only do so when the app itself ran this: the
+// parent process has to be Superagent, with a window. Run from a shell, they
+// refuse. That is not a wall (anything able to post events could be written
+// again), but it means this binary is not a ready-made way round the app.
 //   cuse move  X Y
 //   cuse click X Y [left|right|middle] [count]
 //   cuse drag  X1 Y1 X2 Y2
@@ -22,6 +30,8 @@
 // events and drops them, in silence, which is why `trusted` exists.
 #include <ApplicationServices/ApplicationServices.h>
 #include <libproc.h>
+#include <limits.h>
+#include <mach-o/dyld.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -223,6 +233,78 @@ static int app_at(CGPoint p) {
   return 0;
 }
 
+// Whether the process that ran this is Superagent itself: in the same .app as
+// this helper (or Electron, when run from source), and owning a window, which
+// a copy of the app's binary run as a script interpreter does not.
+static int from_superagent(void) {
+  pid_t parent = getppid();
+  char pp[PROC_PIDPATHINFO_MAXSIZE];
+  if (proc_pidpath(parent, pp, sizeof pp) <= 0) return 0;
+  char raw[PATH_MAX], me[PATH_MAX];
+  uint32_t n = sizeof raw;
+  if (_NSGetExecutablePath(raw, &n) || !realpath(raw, me)) return 0;
+  int same = 0;
+  char *app = strstr(me, ".app/");
+  if (app) {
+    size_t len = (size_t)(app - me) + 5;
+    same = !strncmp(me, pp, len);
+  } else {
+    const char *base = strrchr(pp, '/');
+    same = base && !strcmp(base + 1, "Electron");
+  }
+  if (!same) return 0;
+  CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID);
+  if (!list) return 0;
+  int has = 0;
+  for (CFIndex i = 0; i < CFArrayGetCount(list) && !has; i++) {
+    CFDictionaryRef w = CFArrayGetValueAtIndex(list, i);
+    int pid = 0;
+    CFNumberRef num = CFDictionaryGetValue(w, kCGWindowOwnerPID);
+    if (num) CFNumberGetValue(num, kCFNumberIntType, &pid);
+    has = pid == parent;
+  }
+  CFRelease(list);
+  return has;
+}
+
+// Every app with an ordinary window on screen now, once each.
+static int apps_on_screen(void) {
+  CFArrayRef list = CGWindowListCopyWindowInfo(
+      kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+  printf("{\"apps\":[");
+  int seen[512], count = 0, first = 1;
+  for (CFIndex i = 0; list && i < CFArrayGetCount(list); i++) {
+    CFDictionaryRef w = CFArrayGetValueAtIndex(list, i);
+    int layer = 0, pid = 0;
+    double alpha = 1;
+    CGRect r = CGRectZero;
+    CFNumberRef n;
+    if ((n = CFDictionaryGetValue(w, kCGWindowLayer))) CFNumberGetValue(n, kCFNumberIntType, &layer);
+    if ((n = CFDictionaryGetValue(w, kCGWindowOwnerPID))) CFNumberGetValue(n, kCFNumberIntType, &pid);
+    if ((n = CFDictionaryGetValue(w, kCGWindowAlpha))) CFNumberGetValue(n, kCFNumberDoubleType, &alpha);
+    CFDictionaryRef b = CFDictionaryGetValue(w, kCGWindowBounds);
+    if (!b || !CGRectMakeWithDictionaryRepresentation(b, &r)) continue;
+    // Ordinary windows and panels, big enough to read anything from.
+    if ((layer != 0 && layer != 3 && layer != 8) || alpha <= 0 || r.size.width < 60 || r.size.height < 40) continue;
+    int dup = 0;
+    for (int k = 0; k < count && !dup; k++) dup = seen[k] == pid;
+    if (dup || count >= 512) continue;
+    seen[count++] = pid;
+    CFStringRef id = bundle_of(pid);
+    if (!first) putchar(',');
+    first = 0;
+    printf("{\"name\":");
+    json_string(CFDictionaryGetValue(w, kCGWindowOwnerName));
+    printf(",\"bundle\":");
+    json_string(id);
+    putchar('}');
+    if (id) CFRelease(id);
+  }
+  if (list) CFRelease(list);
+  printf("]}\n");
+  return 0;
+}
+
 static int fail(const char *why) {
   printf("{\"ok\":false,\"error\":\"%s\"}\n", why);
   return 1;
@@ -247,10 +329,17 @@ int main(int argc, char **argv) {
     printf("{\"x\":%.0f,\"y\":%.0f}\n", p.x, p.y);
     return 0;
   }
+  if (!strcmp(act, "windows")) return apps_on_screen();
+  if (!strcmp(act, "parent")) {
+    printf("{\"superagent\":%s}\n", from_superagent() ? "true" : "false");
+    return 0;
+  }
   if (!strcmp(act, "at")) {
     if (left < 2) return fail("at X Y");
     return app_at(CGPointMake(atof(v[0]), atof(v[1])));
   }
+  // From here on an event is posted. Only for the app itself.
+  if (!dry && !from_superagent()) return fail("this helper only acts when Superagent itself runs it");
   if (!strcmp(act, "move")) {
     if (left < 2) return fail("move X Y");
     glide(CGPointMake(atof(v[0]), atof(v[1])));

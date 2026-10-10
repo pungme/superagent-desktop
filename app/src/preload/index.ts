@@ -88,6 +88,8 @@ export interface ComputerStatus {
   screen: boolean
   accessibility: boolean
   helper: boolean
+  /** macOS would not give Superagent ⌥Esc: only the Stop buttons work. */
+  stopKeyRefused?: boolean
   /** Apps it never works in: the built-in ones by name, and the user's own. */
   builtInDenied?: string[]
   denied?: { id: string; name: string }[]
@@ -920,6 +922,13 @@ export interface CoveApi {
   filesOpenExternal: (path: string) => Promise<string>
   fileRead: (path: string) => Promise<string | null>
   /** A downscaled JPEG of an image file, for showing it inside the chat. */
+  /** Save a picture from a conversation into Downloads; never over a file. */
+  imageSave: (req: {
+    src: string
+    origin?: string
+    base?: string
+  }) => Promise<{ ok: true; path: string; name: string } | { ok: false; error: string }>
+  imageReveal: (path: string) => void
   fileThumbnail: (
     path: string,
     opts?: { base?: string; width?: number }
@@ -1397,6 +1406,8 @@ const cove: CoveApi = {
   filesOpenExternal: (path) => ipcRenderer.invoke('files:openExternal', path),
   fileRead: (path) => ipcRenderer.invoke('files:read', path),
   fileThumbnail: (path, opts) => ipcRenderer.invoke('files:thumbnail', path, opts),
+  imageSave: (req) => ipcRenderer.invoke('image:save', req),
+  imageReveal: (path) => ipcRenderer.send('image:reveal', path),
   fileWrite: (path, content) => ipcRenderer.invoke('files:write', path, content),
   gitBranch: (cwd) => ipcRenderer.invoke('git:branch', cwd),
   gitAheadBehind: (cwd) => ipcRenderer.invoke('git:aheadBehind', cwd),

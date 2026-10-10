@@ -108,7 +108,8 @@ function MdImage({
   src: string
   alt: string
   baseDir?: string
-  onImage?: (src: string) => void
+  /** The picture as shown, and what the agent wrote for it: the file to save. */
+  onImage?: (src: string, origin?: string) => void
 }): React.JSX.Element | null {
   const web = isWebImage(src)
   const [local, setLocal] = useState<string | null | undefined>(undefined)
@@ -140,7 +141,7 @@ function MdImage({
   return (
     <button
       className="md-img-thumb"
-      onClick={() => onImage(shown)}
+      onClick={() => onImage(shown, src)}
       title={alt ? `${alt} — click to enlarge` : 'Click to enlarge'}
     >
       <img src={shown} alt={alt} />
@@ -162,7 +163,7 @@ export const Markdown = memo(function Markdown({
   streaming?: boolean
   /** Show images as a small thumbnail that calls this with the full image —
    *  the chat's lightbox. Without it (a file viewer) they render full width. */
-  onImage?: (src: string) => void
+  onImage?: (src: string, origin?: string) => void
 }): React.JSX.Element {
   return (
     <div className="md">
