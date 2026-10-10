@@ -411,6 +411,43 @@ test('a question the agent asks as choices shows as buttons, and a click answers
   await event({ kind: 'turn_end', ok: true, subtype: 'success' })
 })
 
+test('a question with several answers lets you tick them, then Send', async () => {
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  await event({
+    kind: 'assistant',
+    id: 'a10',
+    text:
+      '```ask\n' +
+      JSON.stringify({
+        question: 'Which checks?',
+        multiple: true,
+        options: [{ label: 'Lint' }, { label: 'Tests' }, { label: 'Build' }]
+      }) +
+      '\n```'
+  })
+  await event({ kind: 'turn_end', ok: true, subtype: 'success' })
+  const choices = panel.getByRole('group', { name: 'Which checks?' })
+  const send = choices.getByRole('button', { name: 'Send', exact: true })
+  // Nothing ticked, nothing to send.
+  await expect(send).toBeDisabled()
+  await choices.getByRole('button', { name: 'Lint' }).click()
+  await choices.getByRole('button', { name: 'Build' }).click()
+  await expect(choices.getByRole('button', { name: 'Lint' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+  // A tick comes off again.
+  await choices.getByRole('button', { name: 'Lint' }).click()
+  await choices.getByRole('button', { name: 'Tests' }).click()
+  await send.click()
+  const asked = await app.evaluate(
+    () => (globalThis as unknown as { asked: { text: string; into: string | null }[] }).asked
+  )
+  // In the order they were ticked, in the same conversation.
+  expect(asked[asked.length - 1]).toMatchObject({ text: 'Build, Tests', into: 'chat-1' })
+  await event({ kind: 'turn_end', ok: true, subtype: 'success' })
+})
+
 test('a request that cannot be sent says why, and keeps what was typed', async () => {
   await app.evaluate(({ ipcMain }) => {
     ipcMain.removeHandler('dot:ask')
