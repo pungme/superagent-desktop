@@ -33,3 +33,20 @@ describe('memoryVerdict', () => {
     expect(memoryVerdict(big, { ...quiet, snapshotTaken: true }).snapshot).toBe(false)
   })
 })
+
+describe('old heap snapshots', () => {
+  it('are removed after a week, and nothing else in the folder is', async () => {
+    const { staleSnapshots, SNAPSHOT_KEEP_MS } = await import('./memory-watch')
+    const now = 1_000_000_000_000
+    expect(
+      staleSnapshots(
+        [
+          { name: 'main-old.heapsnapshot', mtimeMs: now - SNAPSHOT_KEEP_MS - 1 },
+          { name: 'main-new.heapsnapshot', mtimeMs: now - 3600_000 },
+          { name: 'notes.txt', mtimeMs: 0 }
+        ],
+        now
+      )
+    ).toEqual(['main-old.heapsnapshot'])
+  })
+})

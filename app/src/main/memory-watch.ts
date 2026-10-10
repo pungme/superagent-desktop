@@ -95,6 +95,41 @@ function takeSnapshot(): string | null {
   }
 }
 
+/** A snapshot has been read, or never will be, by the time it is this old. */
+export const SNAPSHOT_KEEP_MS = 7 * 24 * 3600 * 1000
+
+/** The snapshots past keeping, by their age. Pure, so it can be tested. */
+export function staleSnapshots(
+  files: { name: string; mtimeMs: number }[],
+  now: number,
+  keepMs = SNAPSHOT_KEEP_MS
+): string[] {
+  return files
+    .filter((f) => f.name.endsWith('.heapsnapshot') && now - f.mtimeMs > keepMs)
+    .map((f) => f.name)
+}
+
+/**
+ * Each snapshot is gigabytes, and nothing used to remove one: the one from
+ * 2026-10-09 was 3.4 GB of the 4.1 GB the app kept on disk, long after the
+ * fault it recorded was fixed.
+ */
+function pruneSnapshots(): void {
+  try {
+    const dir = join(app.getPath('userData'), 'diagnostics')
+    const files = readdirSync(dir).map((name) => ({
+      name,
+      mtimeMs: statSync(join(dir, name)).mtimeMs
+    }))
+    for (const name of staleSnapshots(files, Date.now())) {
+      unlinkSync(join(dir, name))
+      memoryLog(`removed old snapshot ${name}`)
+    }
+  } catch {
+    /* no diagnostics folder: nothing to remove */
+  }
+}
+
 let started = false
 
 export function startMemoryWatch(): void {
@@ -102,6 +137,7 @@ export function startMemoryWatch(): void {
   started = true
   const state: WatchState = { loggedAt: 0, loggedHeap: 0, snapshotTaken: false }
   memoryLog(`start version=${app.getVersion()}`)
+  pruneSnapshots()
   const timer = setInterval(() => {
     const u = process.memoryUsage()
     const sample = { at: Date.now(), heapUsed: u.heapUsed }
