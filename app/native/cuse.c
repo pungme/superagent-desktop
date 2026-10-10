@@ -9,6 +9,11 @@
 //   cuse windows                      {"apps":[{"name":..,"bundle":..},..]} every app with a
 //                                     window on screen now
 //   cuse parent                       {"superagent":true|false} whether it was run by the app
+//   cuse ax [MAX]                     the controls of the window in front: {"app":..,"window":..,
+//                                     "elements":[{"role":..,"label":..,"value":..,"x":..,"y":..,
+//                                     "w":..,"h":..,"enabled":true}]}. A password field's value
+//                                     is never read.
+//   cuse axat X Y                     {"role":..,"label":..} the control at a point, {} if none
 //
 // The actions that post an event only do so when the app itself ran this: the
 // parent process has to be Superagent, with a window. Run from a shell, they
@@ -305,6 +310,161 @@ static int apps_on_screen(void) {
   return 0;
 }
 
+// --- the accessibility tree: what the controls on screen are called ---------
+
+static CFStringRef ax_copy_string(AXUIElementRef el, CFStringRef attr) {
+  CFTypeRef v = NULL;
+  if (AXUIElementCopyAttributeValue(el, attr, &v) != kAXErrorSuccess || !v) return NULL;
+  if (CFGetTypeID(v) == CFStringGetTypeID()) return (CFStringRef)v;
+  CFRelease(v);
+  return NULL;
+}
+
+// What a person would call a control: its title, else its description, else its help.
+static CFStringRef ax_label(AXUIElementRef el) {
+  CFStringRef attrs[] = {kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, CFSTR("AXPlaceholderValue")};
+  for (int i = 0; i < 4; i++) {
+    CFStringRef s = ax_copy_string(el, attrs[i]);
+    if (s && CFStringGetLength(s) > 0) return s;
+    if (s) CFRelease(s);
+  }
+  return NULL;
+}
+
+static int ax_frame(AXUIElementRef el, CGRect *r) {
+  CFTypeRef pos = NULL, size = NULL;
+  int ok = 0;
+  if (AXUIElementCopyAttributeValue(el, kAXPositionAttribute, &pos) == kAXErrorSuccess && pos &&
+      AXUIElementCopyAttributeValue(el, kAXSizeAttribute, &size) == kAXErrorSuccess && size) {
+    CGPoint p; CGSize z;
+    if (AXValueGetValue(pos, kAXValueCGPointType, &p) && AXValueGetValue(size, kAXValueCGSizeType, &z)) {
+      *r = CGRectMake(p.x, p.y, z.width, z.height);
+      ok = 1;
+    }
+  }
+  if (pos) CFRelease(pos);
+  if (size) CFRelease(size);
+  return ok;
+}
+
+static const char *WANTED_ROLES[] = {
+  "AXButton", "AXTextField", "AXTextArea", "AXSecureTextField", "AXSearchField", "AXCheckBox",
+  "AXRadioButton", "AXPopUpButton", "AXMenuButton", "AXLink", "AXMenuItem", "AXMenuBarItem",
+  "AXSlider", "AXComboBox", "AXDisclosureTriangle", "AXIncrementor", "AXSwitch", "AXTab", "AXToolbarButton",
+  NULL};
+
+static int ax_count, ax_max, ax_first;
+
+static void ax_walk(AXUIElementRef el, int depth) {
+  if (depth > 14 || ax_count >= ax_max) return;
+  CFStringRef role = ax_copy_string(el, kAXRoleAttribute);
+  char rolebuf[64] = "";
+  if (role) { CFStringGetCString(role, rolebuf, sizeof rolebuf, kCFStringEncodingUTF8); CFRelease(role); }
+  int wanted = 0;
+  for (int i = 0; WANTED_ROLES[i] && !wanted; i++) wanted = !strcmp(rolebuf, WANTED_ROLES[i]);
+  CGRect r;
+  if (wanted && ax_frame(el, &r) && r.size.width >= 4 && r.size.height >= 4) {
+    CFStringRef label = ax_label(el);
+    // What a password field holds is never read, not even to be thrown away.
+    int secret = !strcmp(rolebuf, "AXSecureTextField");
+    CFTypeRef value = NULL;
+    if (!secret) AXUIElementCopyAttributeValue(el, kAXValueAttribute, &value);
+    CFTypeRef enabled = NULL;
+    AXUIElementCopyAttributeValue(el, kAXEnabledAttribute, &enabled);
+    if (!ax_first) putchar(',');
+    ax_first = 0;
+    ax_count++;
+    printf("{\"role\":\"%s\",\"label\":", rolebuf + 2);
+    json_string(label);
+    printf(",\"value\":");
+    if (secret) printf("\"(hidden)\"");
+    else if (value && CFGetTypeID(value) == CFStringGetTypeID()) {
+      CFStringRef vs = (CFStringRef)value;
+      CFIndex len = CFStringGetLength(vs);
+      CFStringRef cut = len > 80 ? CFStringCreateWithSubstring(NULL, vs, CFRangeMake(0, 80)) : CFRetain(vs);
+      json_string(cut);
+      CFRelease(cut);
+    } else if (value && CFGetTypeID(value) == CFNumberGetTypeID()) {
+      double d = 0;
+      CFNumberGetValue(value, kCFNumberDoubleType, &d);
+      printf("\"%g\"", d);
+    } else printf("\"\"");
+    printf(",\"x\":%.0f,\"y\":%.0f,\"w\":%.0f,\"h\":%.0f,\"enabled\":%s}", r.origin.x, r.origin.y,
+           r.size.width, r.size.height, enabled == kCFBooleanFalse ? "false" : "true");
+    if (label) CFRelease(label);
+    if (value) CFRelease(value);
+    if (enabled) CFRelease(enabled);
+  }
+  CFTypeRef kids = NULL;
+  if (AXUIElementCopyAttributeValue(el, kAXChildrenAttribute, &kids) == kAXErrorSuccess && kids &&
+      CFGetTypeID(kids) == CFArrayGetTypeID()) {
+    CFIndex n = CFArrayGetCount(kids);
+    for (CFIndex i = 0; i < n && i < 400 && ax_count < ax_max; i++)
+      ax_walk(CFArrayGetValueAtIndex(kids, i), depth + 1);
+  }
+  if (kids) CFRelease(kids);
+}
+
+// The controls of the window in front, and the app's menu bar.
+static int ax_tree(int max) {
+  AXUIElementRef sys = AXUIElementCreateSystemWide();
+  CFTypeRef app = NULL;
+  if (AXUIElementCopyAttributeValue(sys, kAXFocusedApplicationAttribute, &app) != kAXErrorSuccess || !app) {
+    CFRelease(sys);
+    printf("{\"elements\":[]}\n");
+    return 0;
+  }
+  AXUIElementSetMessagingTimeout(app, 1.5);
+  CFStringRef name = ax_copy_string(app, kAXTitleAttribute);
+  CFTypeRef win = NULL;
+  if (AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute, &win) != kAXErrorSuccess || !win)
+    AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute, &win);
+  CFStringRef title = win ? ax_copy_string(win, kAXTitleAttribute) : NULL;
+  printf("{\"app\":");
+  json_string(name);
+  printf(",\"window\":");
+  json_string(title);
+  printf(",\"elements\":[");
+  ax_count = 0; ax_max = max; ax_first = 1;
+  if (win) ax_walk(win, 0);
+  CFTypeRef bar = NULL;
+  if (AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute, &bar) == kAXErrorSuccess && bar) {
+    ax_walk(bar, 10);
+    CFRelease(bar);
+  }
+  printf("]}\n");
+  if (name) CFRelease(name);
+  if (title) CFRelease(title);
+  if (win) CFRelease(win);
+  CFRelease(app);
+  CFRelease(sys);
+  return 0;
+}
+
+// The control at a point: what a click there would press.
+static int ax_at(CGPoint p) {
+  AXUIElementRef sys = AXUIElementCreateSystemWide();
+  AXUIElementSetMessagingTimeout(sys, 1.0);
+  AXUIElementRef el = NULL;
+  if (AXUIElementCopyElementAtPosition(sys, p.x, p.y, &el) != kAXErrorSuccess || !el) {
+    CFRelease(sys);
+    printf("{}\n");
+    return 0;
+  }
+  CFStringRef role = ax_copy_string(el, kAXRoleAttribute);
+  CFStringRef label = ax_label(el);
+  printf("{\"role\":");
+  json_string(role);
+  printf(",\"label\":");
+  json_string(label);
+  printf("}\n");
+  if (role) CFRelease(role);
+  if (label) CFRelease(label);
+  CFRelease(el);
+  CFRelease(sys);
+  return 0;
+}
+
 static int fail(const char *why) {
   printf("{\"ok\":false,\"error\":\"%s\"}\n", why);
   return 1;
@@ -338,8 +498,18 @@ int main(int argc, char **argv) {
     if (left < 2) return fail("at X Y");
     return app_at(CGPointMake(atof(v[0]), atof(v[1])));
   }
-  // From here on an event is posted. Only for the app itself.
+  // From here on the screen is read, or an event is posted. Only for the app itself.
   if (!dry && !from_superagent()) return fail("this helper only acts when Superagent itself runs it");
+  if (!strcmp(act, "ax")) {
+    if (dry) { printf("{\"ok\":true}\n"); return 0; }
+    int max = left > 0 ? atoi(v[0]) : 120;
+    return ax_tree(max < 1 ? 1 : max > 400 ? 400 : max);
+  }
+  if (!strcmp(act, "axat")) {
+    if (left < 2) return fail("axat X Y");
+    if (dry) { printf("{\"ok\":true}\n"); return 0; }
+    return ax_at(CGPointMake(atof(v[0]), atof(v[1])));
+  }
   if (!strcmp(act, "move")) {
     if (left < 2) return fail("move X Y");
     glide(CGPointMake(atof(v[0]), atof(v[1])));

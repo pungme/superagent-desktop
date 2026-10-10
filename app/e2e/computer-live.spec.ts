@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron } from '@playwright/test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -29,6 +29,7 @@ test('a real agent has the computer-use tools, and switches project when asked',
       COVE_USER_DATA: data,
       COVE_E2E_PROJECT: proj,
       COVE_E2E_DOT: '1',
+      COVE_E2E_MCP_URL_FILE: join(data, 'mcp-url.txt'),
       NODE_ENV: 'production'
     }
   })
@@ -86,6 +87,58 @@ test('a real agent has the computer-use tools, and switches project when asked',
       timeout: 60_000
     })
     console.log('SAID:', (await panel.locator('.dot-answer').innerText()).replace(/\s+/g, ' '))
+
+    // A conversation, described rather than named: it finds it and goes there.
+    await expect.poll(() => existsSync(join(data, 'mcp-url.txt'))).toBe(true)
+    const mcpUrl = readFileSync(join(data, 'mcp-url.txt'), 'utf8')
+    const made = await main.evaluate(async () => {
+      const tree = await window.cove.storeTree()
+      const ws = tree.flatMap((g) => g.workspaces).find((x) => x.name === 'e2e-project')!
+      return {
+        ws: ws.id,
+        a: await window.cove.chatCreate(ws.id),
+        b: await window.cove.chatCreate(ws.id)
+      }
+    })
+    const name = (chatId: string, title: string): Promise<Response> =>
+      fetch(`${mcpUrl}?ws=${made.ws}&chat=setup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream'
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'app_rename_chat', arguments: { chatId, title } }
+        })
+      })
+    await name(made.a, 'Checkout e2e testing is flaky')
+    await name(made.b, 'Pricing page copy')
+    await main.click('.sidebar-settings[title="Settings"]')
+    await expect(main.getByLabel('Shortcut that brings Superagent forward')).toBeVisible()
+    await panel
+      .locator('.dot-input')
+      .fill('hey go to the chat in the e2e project about the flaky checkout testing')
+    await panel.locator('.dot-input').press('Enter')
+    await expect(main.getByLabel('Shortcut that brings Superagent forward')).toHaveCount(0, {
+      timeout: 150_000
+    })
+    await expect(panel.getByRole('button', { name: /Open in Superagent/ })).toBeVisible({
+      timeout: 60_000
+    })
+    const went = (await panel.locator('.dot-answer').innerText()).replace(/\s+/g, ' ')
+    console.log('WENT:', went)
+    expect(went).toMatch(/Checkout e2e testing is flaky/i)
+
+    // And what is going on, asked plainly.
+    await panel.locator('.dot-input').fill('what is running right now? one line')
+    await panel.locator('.dot-input').press('Enter')
+    await expect(panel.locator('.dot-answer')).toContainText(/nothing|no |none|idle|not/i, {
+      timeout: 150_000
+    })
+    console.log('STATUS:', (await panel.locator('.dot-answer').innerText()).replace(/\s+/g, ' '))
   } finally {
     await app.close()
     for (const dir of [data, proj]) rmSync(dir, { recursive: true, force: true })

@@ -133,7 +133,12 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
       sessionId: chatId ?? paneId
     })
   // Not for a routine: nobody is there to have asked for a window to change.
-  if (!paneId.endsWith('::routine')) registerAppTools(server)
+  if (!paneId.endsWith('::routine'))
+    registerAppTools(server, {
+      workspaceId: workspaceIdFromPane(paneId),
+      sessionId: chatId ?? paneId,
+      chatId
+    })
   /**
    * The desktop chat is not a project — it is the computer's own agent, and the
    * things it drives are the desktop's, not a workspace's.

@@ -139,6 +139,88 @@ test('a name that fits nothing is not guessed at: it says what there is', async 
   expect(said.text).toContain('Computer')
 })
 
+test('a conversation is found from how it is described, and opened', async () => {
+  // Two more chats in the project, named the way a person would remember them.
+  const ids = await window.evaluate(async (ws) => {
+    return [await window.cove.chatCreate(ws), await window.cove.chatCreate(ws)]
+  }, wsId)
+  expect(
+    (await tool('app_rename_chat', { chatId: ids[0], title: 'E2E testing for checkout' })).text
+  ).toBe('Renamed to "E2E testing for checkout".')
+  await tool('app_rename_chat', { chatId: ids[1], title: 'Fix the header' })
+
+  const found = await tool('app_find_chats', { query: 'go to the chat about e2e testing' })
+  expect(found.isError).toBe(false)
+  const first = found.text.split('\n')[0]
+  expect(first).toContain(ids[0])
+  expect(first).toContain('"E2E testing for checkout"')
+  expect(first).toContain(projectName)
+  expect(found.text).not.toContain('Fix the header')
+  // Nothing fits: it says so rather than offering whatever is nearest.
+  expect((await tool('app_find_chats', { query: 'kubernetes migration' })).text).toContain(
+    'No conversation fits'
+  )
+
+  // With Settings up, opening it takes the app there.
+  expect((await tool('app_open_view', { view: 'settings' })).text).toBe(
+    'Superagent is now showing Settings.'
+  )
+  await expect(window.getByLabel('Shortcut that brings Superagent forward')).toBeVisible()
+  const opened = await tool('app_open_chat', { chatId: ids[0] })
+  expect(opened.text).toBe('Superagent is now showing "E2E testing for checkout".')
+  await expect(window.getByLabel('Shortcut that brings Superagent forward')).toHaveCount(0)
+  await expect(window.locator('.workspace-toolbar:visible')).toBeVisible()
+  expect((await tool('app_open_chat', { chatId: 'nope' })).isError).toBe(true)
+})
+
+test('it can say what is going on, and tidy: pin, stop', async () => {
+  const status = await tool('app_status')
+  expect(status.text).toContain('Working now (0)')
+  expect(status.text).toContain('"E2E testing for checkout"')
+  const id = /^(\S+)\s+·\s+"Fix the header"/m.exec(status.text)![1]
+  expect((await tool('app_pin_chat', { chatId: id, pinned: true })).text).toBe(
+    'Pinned "Fix the header".'
+  )
+  expect((await tool('app_stop_chat', { chatId: id })).text).toContain('was not working')
+})
+
+test('a message into another conversation is the user speaking: they are asked, and a no is a no', async () => {
+  const status = await tool('app_status')
+  const id = /^(\S+)\s+·\s+"Fix the header"/m.exec(status.text)![1]
+  const sending = tool('app_send_message', { chatId: id, text: 'rerun the tests' })
+  // Nothing is sent while the question waits; it is answered no, as the user
+  // would (the card itself shows in the asking chat, which is not on screen here).
+  let settled = false
+  void sending.finally(() => (settled = true))
+  await window.waitForTimeout(400)
+  expect(settled).toBe(false)
+  await expect
+    .poll(async () => {
+      await app.evaluate(({ ipcMain }) => {
+        for (let n = 1; n <= 60; n++)
+          ipcMain.emit('guardrail:resolve', {}, `gate-${n}`, false, false)
+      })
+      return settled
+    })
+    .toBe(true)
+  const said = await sending
+  expect(said.isError).toBe(true)
+  expect(said.text).toContain('did not allow that message')
+  // Its own conversation is not somewhere to send to.
+  expect((await tool('app_send_message', { chatId, text: 'hello' })).text).toContain(
+    'this conversation'
+  )
+})
+
+test('a new conversation is started in the project that was named', async () => {
+  const made = await tool('app_new_chat', { project: projectName.slice(0, -2) })
+  expect(made.isError).toBe(false)
+  expect(made.text).toMatch(
+    new RegExp(`^Started a new conversation in ${projectName} \\(id \\S+\\)\\.$`)
+  )
+  expect((await tool('app_new_chat', { project: 'zebra' })).isError).toBe(true)
+})
+
 test("the Computer chat's tools still start when computer use is on", async () => {
   // Two sets of tools begin computer_; one name used twice stopped the whole
   // server for that chat, so it had no tools at all.

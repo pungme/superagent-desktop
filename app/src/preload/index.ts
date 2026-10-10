@@ -907,6 +907,8 @@ export interface CoveApi {
   onDotEvent: (cb: (p: { chatId: string; data: Record<string, unknown> }) => void) => () => void
   onDotDelta: (cb: (p: { chatId: string; text: string }) => void) => () => void
   onDotOpenChat: (cb: (p: { workspaceId: string; chatId: string }) => void) => () => void
+  /** An agent asked for one of the app's own screens (main/app-tools.ts). */
+  onAppOpenView: (cb: (p: { view: 'settings' | 'computer' | 'chats' }) => void) => () => void
   /** Keep working with the lid closed: whether it is on, and turning it on or off. */
   lidAwake: () => Promise<boolean>
   setLidAwake: (
@@ -1403,6 +1405,8 @@ const cove: CoveApi = {
   onDotEvent: (cb) =>
     subscribe('dot:event', (p) => cb(p as { chatId: string; data: Record<string, unknown> })),
   onDotDelta: (cb) => subscribe('dot:delta', (p) => cb(p as { chatId: string; text: string })),
+  onAppOpenView: (cb) =>
+    subscribe('app:open-view', (p) => cb(p as { view: 'settings' | 'computer' | 'chats' })),
   onDotOpenChat: (cb) =>
     subscribe('dot:open-chat', (p) => cb(p as { workspaceId: string; chatId: string })),
   lidAwake: () => ipcRenderer.invoke('power:lid-awake'),

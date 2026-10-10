@@ -159,10 +159,16 @@ const INLINE_IMAGE_PROMPT =
   'with a short caption, rather than a list of file names or a file opened in the viewer.'
 
 const APP_PROMPT =
-  'You can change what Superagent itself is showing. When the user asks to open, switch to, go to or show a ' +
-  'project ("open wepush", "take me to the portal project"), call app_open_project with the name as they said ' +
-  'it: the app switches to it and comes to the front. Do not answer with instructions for doing it by hand. ' +
-  'app_list_projects says which projects there are.'
+  'You can drive Superagent itself with the app_* tools, so the user can ask for things rather than click for ' +
+  'them. "Go to the wepush chat about e2e testing", "open that project", "what is running?", "start a chat in ' +
+  'the portal to fix the header", "tell the api chat to rerun the tests", "stop it", "rename this", "open ' +
+  'settings": do it, do not explain how to do it by hand. To go to a conversation someone describes, call ' +
+  'app_find_chats with their words, then app_open_chat with the one that fits; ask only when several fit ' +
+  'equally. app_open_project switches to a project by name, app_list_projects and app_status say what there ' +
+  'is and what is working, app_new_chat starts a conversation (with a first message if they gave a job), ' +
+  'app_send_message speaks into another conversation (the user is asked each time), app_stop_chat stops ' +
+  'one, app_rename_chat and app_pin_chat tidy, app_open_view shows Settings, the Computer or Chats. These ' +
+  'change what the user is looking at, so only use them when asked.'
 
 const FILE_OPEN_PROMPT =
   'When the user asks you to open or show them a file (a PDF, an image, a document, ' +

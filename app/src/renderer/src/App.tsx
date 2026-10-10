@@ -324,6 +324,11 @@ function App(): React.JSX.Element {
       // No chat named: the agent was asked for the project, not a conversation.
       if (chatId) useStore.getState().selectChat(workspaceId, chatId)
     })
+    // Asked for by an agent, by name (app_open_view).
+    const offView = window.cove.onAppOpenView?.(({ view }) => {
+      if (view === 'settings') setSettingsOpen(true)
+      else show(view)
+    })
     // These live on the desktop now. Show it, then let it raise the window —
     // after a tick, so a freshly mounted desktop is listening by then.
     const openOnDesktop = (app: 'dashboard' | 'skills' | 'routines') => (): void => {
@@ -357,6 +362,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('cove:open-chats', openChats)
       window.removeEventListener('cove:new-chat', onNewChat)
       offDotOpen?.()
+      offView?.()
       window.removeEventListener('cove:close-dashboard', close)
     }
   }, [])
