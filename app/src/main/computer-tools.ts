@@ -5,6 +5,9 @@ import {
   approveApp,
   appsShowing,
   appsToAsk,
+  fillControl,
+  pickMenu,
+  pressControl,
   readUi,
   riskAt,
   takeZoom,
@@ -22,6 +25,7 @@ import { hooksIntact, requestApproval } from './hooks'
 import {
   appCaution,
   COMPUTER_STOP_HOTKEY,
+  riskyControl,
   riskyShortcut,
   validKeyCombo
 } from '../shared/computer-use'
@@ -63,7 +67,10 @@ export const COMPUTER_TOOL_NAMES = [
   'computer_read_ui',
   'computer_zoom',
   'computer_wait',
-  'computer_windows'
+  'computer_windows',
+  'computer_press',
+  'computer_fill',
+  'computer_menu'
 ] as const
 
 export function registerComputerTools(server: McpServer, ctx: ComputerContext): void {
@@ -227,6 +234,104 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       } catch (e) {
         return failed((e as Error).message)
       }
+    }
+  )
+
+  /** Act on a control by name: the same questions as for a click, then the screen. */
+  const byName = async (
+    risky: string | null,
+    what: string,
+    doIt: () => Promise<void>,
+    said: string
+  ): Promise<Result> => {
+    const no = await gate()
+    if (no) return failed(no)
+    try {
+      // The app in front is the one being worked in: asked about the first time.
+      for (const app of await appsToAsk(owner, { type: 'key', keys: 'return' })) {
+        const caution = appCaution(app.id)
+        const yes = await requestApproval(
+          ctx.workspaceId,
+          ctx.sessionId,
+          'mcp__cove-browser__computer_use',
+          `Work in ${app.name}: click and type in its windows, for this task.${caution ? `\n${caution}` : ''}`,
+          'permission'
+        )
+        if (!yes)
+          return failed(
+            `The user did not allow working in ${app.name}. Do not try again there; ask what they would like instead, or do it another way.`
+          )
+        approveApp(owner, app.id)
+      }
+      if (risky) {
+        const yes = await requestApproval(
+          ctx.workspaceId,
+          ctx.sessionId,
+          'mcp__cove-browser__computer_use',
+          `${what}: it ${risky}.`,
+          'permission'
+        )
+        if (!yes)
+          return failed(
+            'The user did not allow that. Do not reach it another way; ask what they would like instead.'
+          )
+      }
+      await doIt()
+      await settle()
+      // The screen afterwards when it can be seen; the action stands either way.
+      return await look(said).catch(() => ({ content: [{ type: 'text', text: said }] }) as Result)
+    } catch (e) {
+      return failed((e as Error).message)
+    }
+  }
+
+  const control = {
+    index: z.number().int().min(0).describe('The number in brackets from computer_read_ui.'),
+    name: z.string().max(300).describe('What computer_read_ui called it, exactly.')
+  }
+
+  server.registerTool(
+    'computer_press',
+    {
+      description:
+        'Press a button, checkbox, link or menu by its number and name from computer_read_ui, without moving the pointer. Surer than clicking at a point: prefer it whenever the control is in that list. Returns the screen afterwards.',
+      inputSchema: control
+    },
+    ({ index, name }) =>
+      byName(
+        riskyControl('AXButton', name),
+        `Press "${name}"`,
+        () => pressControl(owner, index, name),
+        `Pressed "${name}".`
+      )
+  )
+
+  server.registerTool(
+    'computer_fill',
+    {
+      description:
+        'Put text in a text field by its number and name from computer_read_ui, replacing what is there, without clicking in it or typing key by key. Never works on a password field. Returns the screen afterwards.',
+      inputSchema: { ...control, text: z.string().max(4000) }
+    },
+    ({ index, name, text }) =>
+      byName(null, '', () => fillControl(owner, index, name, text), `Filled "${name}".`)
+  )
+
+  server.registerTool(
+    'computer_menu',
+    {
+      description:
+        'Pick a menu item of the app in front by its path, written with ">" between the levels and the item spelled as the menu shows it: "File > Export > PDF…", "Edit > Select All". No clicking through menus. Returns the screen afterwards.',
+      inputSchema: { path: z.string().min(1).max(300) }
+    },
+    ({ path }) => {
+      const last = path.split('>').pop()?.trim() ?? ''
+      return byName(
+        riskyControl('AXMenuItem', last),
+        `Pick ${path}`,
+        () => pickMenu(owner, path),
+        `Picked ${path}.`
+      )
     }
   )
 

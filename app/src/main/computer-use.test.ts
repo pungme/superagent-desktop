@@ -17,6 +17,8 @@ vi.mock('electron', () => ({
 // What macOS says is in front, set by each test that cares.
 // What the helper was asked to type, and something to do just after each piece.
 const typed: string[] = []
+// What the helper was asked to do to a control by its name.
+const byName: string[][] = []
 let afterType: (() => void) | null = null
 // What the front window's controls are said to be.
 let controls: Record<string, unknown>[] = []
@@ -33,6 +35,7 @@ vi.mock('node:child_process', () => ({
     done: (e: Error | null, out: string) => void
   ) => {
     if (args[0] === 'type') typed.push(args[1])
+    if (/^ax(press|set|menu)$/.test(args[0])) byName.push(args)
     if (args[0] === 'type') afterType?.()
     done(
       null,
@@ -67,6 +70,9 @@ const {
   leftPointerAt,
   notReady,
   offLimitsNow,
+  pickMenu,
+  pressControl,
+  fillControl,
   readUi,
   sawFront,
   setComputerStop,
@@ -430,6 +436,54 @@ describe('reading the controls by name', () => {
     front = 'dev.superagent.app'
     await expect(readUi('ui2')).rejects.toThrow(/own window/)
     front = 'com.apple.TextEdit'
+    stopComputerUse()
+  })
+})
+
+describe('acting on a control by its name', () => {
+  const ready = (owner: string): void => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    under = null
+    pointer = { x: 0, y: 0 }
+    grantConsent(owner)
+    sawFront(owner, 'com.apple.TextEdit')
+    byName.length = 0
+  }
+  it.skipIf(!helperBuilt)(
+    'asks the helper for exactly that control, text and menu path',
+    async () => {
+      ready('n')
+      await pressControl('n', 3, 'Save')
+      await fillControl('n', 4, 'Title', 'Notes; rm -rf ~')
+      await pickMenu('n', 'File > Export…')
+      expect(byName).toEqual([
+        ['axpress', '3', 'Save'],
+        ['axset', '4', 'Title', 'Notes; rm -rf ~'],
+        ['axmenu', 'File > Export…']
+      ])
+      stopComputerUse()
+    }
+  )
+  it('is held to everything a click is: a yes, the apps out of bounds, its own window', async () => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    byName.length = 0
+    await expect(pressControl('nobody', 1, 'OK')).rejects.toThrow(/has not allowed/)
+    grantConsent('g')
+    front = 'com.1password.1password'
+    await expect(pressControl('g', 1, 'Copy')).rejects.toThrow(/1Password/)
+    front = 'dev.superagent.app'
+    await expect(pressControl('g', 1, 'Allow')).rejects.toThrow(/own window/)
+    await expect(pickMenu('g', 'File > Quit')).rejects.toThrow(/own window/)
+    expect(byName).toEqual([])
+    stopComputerUse()
+  })
+  it('does nothing when another app has come to the front since the controls were read', async () => {
+    ready('m')
+    front = 'com.apple.Safari'
+    await expect(fillControl('m', 2, 'Search', 'x')).rejects.toThrow(/Read the controls again/)
+    expect(byName).toEqual([])
     stopComputerUse()
   })
 })

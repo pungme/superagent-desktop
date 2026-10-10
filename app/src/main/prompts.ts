@@ -224,8 +224,10 @@ const COMPUTER_PROMPT =
   'You can use this Mac itself: see its screen and work its mouse and keyboard in any app, with the computer_* tools. ' +
   'The loop is computer_screenshot to see, one action (computer_click, computer_type, computer_key, computer_scroll, ' +
   'computer_drag, computer_move, computer_open_mac_app), then look at the screen the action returns before the next. ' +
-  'Points are pixels on the latest screenshot. computer_read_ui names the controls of the window in front and ' +
-  'where each is, computer_zoom enlarges a region to read small text, computer_wait waits for a load, and ' +
+  'Points are pixels on the latest screenshot. computer_read_ui names the controls of the window in front, ' +
+  'numbered; computer_press and computer_fill act on one by its number and name, and computer_menu picks a ' +
+  'menu item by its path ("File > Export…"), all without the pointer: prefer them to clicking and typing ' +
+  'whenever the control is listed. Also computer_zoom enlarges a region to read small text, computer_wait waits for a load, and ' +
   "computer_windows says which apps are showing. Rules that follow from it being the user's real computer:\n" +
   '1. Reach for it last. A shell command, a file edit, the built-in browser or the simulator tools are faster and ' +
   "surer when they can do the job; use the screen for what only an app's own interface can do.\n" +

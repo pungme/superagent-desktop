@@ -362,6 +362,8 @@ export function toShotPoint(shot: Shot, x: number, y: number): { x: number; y: n
 
 /** A control on screen, as the accessibility tree describes it (screen points). */
 export interface UiControl {
+  /** Its number in the listing: what computer_press and computer_fill take. */
+  i?: number
   role: string
   label: string
   value: string
@@ -385,7 +387,7 @@ export function describeControls(shot: Shot, controls: UiControl[], max = 120): 
     const value = c.value.replace(/\s+/g, ' ').trim()
     if (!at || (!label && !value)) continue
     lines.push(
-      `${c.role.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()} ${label ? `"${label.slice(0, 80)}"` : '(no name)'}` +
+      `${typeof c.i === 'number' ? `[${c.i}] ` : ''}${c.role.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()} ${label ? `"${label.slice(0, 80)}"` : '(no name)'}` +
         (value && value !== label
           ? ` = ${value === '(hidden)' ? '(hidden)' : `"${value.slice(0, 60)}"`}`
           : '') +

@@ -273,6 +273,90 @@ export async function readUi(
   }
 }
 
+/**
+ * Before acting on a control by its name: everything a click or a key is
+ * checked for, since this is the same thing done another way. Returns the app
+ * in front, which is the one the controls were read from.
+ */
+async function mayActByName(owner: string): Promise<AppRef> {
+  const front = await frontApp()
+  const no = offLimitsMessage(front) ?? offLimitsMessage(front, true)
+  if (no) throw new Error(no)
+  if (!front)
+    throw new Error(
+      'macOS would not say which app is in front, so nothing was done. Take a screenshot and try again.'
+    )
+  if (!hasConsent(owner))
+    throw new Error(
+      'The user has not allowed this conversation to use the Mac. Ask again through the tool.'
+    )
+  claim(owner)
+  // The numbers are those of the app that was read. Another in front now: read again.
+  if (focusMoved(frontAtLook.get(owner), front.id))
+    throw new Error(
+      'Another app has come to the front since you last looked, so nothing was done. Read the controls again.'
+    )
+  if (pointerMoved(pointerLeftAt.get(owner), pointerNow())) {
+    pointerLeftAt.delete(owner)
+    throw new Error(
+      'The user moved the mouse since you last looked at the screen, so nothing was done: they may be using the Mac themselves. Look again before going on.'
+    )
+  }
+  return front
+}
+
+function didAct(owner: string): void {
+  allowed.set(owner, Date.now())
+  actionsDone.set(owner, (actionsDone.get(owner) ?? 0) + 1)
+  setActive(true)
+}
+
+/**
+ * Press a control by its number and name, as computer_read_ui listed it. The
+ * pointer does not move. Nothing is pressed if the control at that number is
+ * no longer called that.
+ */
+export async function pressControl(owner: string, index: number, name: string): Promise<void> {
+  await mayActByName(owner)
+  didAct(owner)
+  const res = await cuse(['axpress', String(index), name])
+  if (!res.ok) throw new Error(byNameError(res.error))
+}
+
+/** Put text in a field by its number and name. Never in a password field. */
+export async function fillControl(
+  owner: string,
+  index: number,
+  name: string,
+  text: string
+): Promise<void> {
+  await mayActByName(owner)
+  didAct(owner)
+  const res = await cuse(['axset', String(index), name, text])
+  if (!res.ok) throw new Error(byNameError(res.error))
+}
+
+/** Pick a menu item of the app in front by its path: "File > Export > PDF…". */
+export async function pickMenu(owner: string, path: string): Promise<void> {
+  await mayActByName(owner)
+  didAct(owner)
+  const res = await cuse(['axmenu', path])
+  if (!res.ok) throw new Error(byNameError(res.error))
+}
+
+function byNameError(error: string): string {
+  if (/changed since/.test(error) || /no such control/.test(error))
+    return 'The window has changed since its controls were read, so nothing was done. Call computer_read_ui again and use the new numbers.'
+  if (/password field/.test(error))
+    return 'That is a password field, and computer use never fills one. Ask the user to type it.'
+  if (/greyed out/.test(error)) return 'That menu item is greyed out right now.'
+  if (/no menu item/.test(error))
+    return `${error.replace(/^no/, 'There is no')}. Check the exact wording, including "…".`
+  if (/refused/.test(error))
+    return 'The app would not do that through accessibility. Use computer_click on it instead.'
+  return error || 'The action could not be carried out.'
+}
+
 /** What clicking at a point would press, when it is something that needs asking about first. */
 export async function riskAt(owner: string, action: ComputerAction): Promise<string | null> {
   if (action.type !== 'click') return null

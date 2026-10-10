@@ -30,6 +30,15 @@ vi.mock('./computer-use', () => ({
   settle: async () => undefined,
   touchConsent: () => undefined,
   readUi: async () => state.ui,
+  pressControl: async (_o: string, index: number, name: string) => {
+    state.acted.push({ type: 'press', index, name })
+  },
+  fillControl: async (_o: string, index: number, name: string, text: string) => {
+    state.acted.push({ type: 'fill', index, name, text })
+  },
+  pickMenu: async (_o: string, path: string) => {
+    state.acted.push({ type: 'menu', path })
+  },
   riskAt: async () => state.risk,
   takeZoom: async () => ({ jpeg: Buffer.from('zoomed'), width: 800, height: 400 }),
   appsShowing: async () => ({ front: 'TextEdit', apps: ['TextEdit', 'Safari'] }),
@@ -267,6 +276,34 @@ describe("the agent's tools for using the Mac", () => {
       expect(no.isError).toBe(true)
       expect(text(no)).toContain('did not allow that click')
       expect(state.acted).toHaveLength(1)
+    })
+  })
+
+  it('press, fill and pick a menu item by name, asking first where the name says to', async () => {
+    state.consent = true
+    state.toAsk = [{ id: 'com.apple.TextEdit', name: 'TextEdit' }]
+    await withClient(async (c) => {
+      const pressed = await call(c, 'computer_press', { index: 3, name: 'Save' })
+      expect(pressed.isError).toBeFalsy()
+      // The app, the first time; not again for the next thing in it.
+      expect(state.asked).toEqual([expect.stringContaining('Work in TextEdit')])
+      await call(c, 'computer_fill', { index: 4, name: 'Title', text: 'Notes' })
+      await call(c, 'computer_menu', { path: 'Edit > Select All' })
+      expect(state.asked).toHaveLength(1)
+      expect(state.acted).toEqual([
+        { type: 'press', index: 3, name: 'Save' },
+        { type: 'fill', index: 4, name: 'Title', text: 'Notes' },
+        { type: 'menu', path: 'Edit > Select All' }
+      ])
+
+      // A name that ends or destroys something is asked about every time.
+      await call(c, 'computer_menu', { path: 'TextEdit > Quit TextEdit' })
+      expect(state.asked[1]).toContain('Pick TextEdit > Quit TextEdit: it quits an app')
+      state.answer = false
+      const no = await call(c, 'computer_press', { index: 9, name: 'Empty Trash…' })
+      expect(no.isError).toBe(true)
+      expect(state.asked[2]).toContain('Press "Empty Trash…": it deletes for good')
+      expect(state.acted).toHaveLength(4)
     })
   })
 

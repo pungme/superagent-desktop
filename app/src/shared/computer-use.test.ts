@@ -248,6 +248,8 @@ describe('the controls on screen, for an agent to act on', () => {
   it('says what each is called and where to click for it, on the screenshot', () => {
     expect(toShotPoint(shot, 240, 120)).toEqual({ x: 120, y: 60 })
     expect(describeControls(shot, [control({})])).toEqual(['button "Save" at 120,60'])
+    // Numbered, so it can be pressed by name rather than by where it is.
+    expect(describeControls(shot, [control({ i: 7 })])).toEqual(['[7] button "Save" at 120,60'])
     expect(
       describeControls(shot, [control({ role: 'TextField', label: 'Email', value: 'a@b.c' })])
     ).toEqual(['text field "Email" = "a@b.c" at 120,60'])
