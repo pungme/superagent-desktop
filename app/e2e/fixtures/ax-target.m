@@ -6,6 +6,15 @@
 @interface T : NSObject @end
 @implementation T
 - (void)pressed:(id)s { printf("PRESSED active=%d\n", NSApp.isActive); fflush(stdout); }
+// macOS now and then makes a newly started app the active one, window or not.
+// That would take the keyboard from whoever is at the Mac, so it is handed
+// straight back.
+- (void)becameActive:(NSNotification *)n {
+  printf("ACTIVATED, handing back\n");
+  fflush(stdout);
+  [NSApp deactivate];
+  [NSApp hide:nil];
+}
 - (void)ping:(id)s { printf("MENU ping\n"); fflush(stdout); }
 - (void)report:(NSTimer *)t {
   NSTextField *f = t.userInfo[0], *p = t.userInfo[1];
@@ -17,10 +26,14 @@ int main(void) {
   @autoreleasepool {
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+    T *t = [T new];
+    [[NSNotificationCenter defaultCenter] addObserver:t
+                                             selector:@selector(becameActive:)
+                                                 name:NSApplicationDidBecomeActiveNotification
+                                               object:nil];
     NSMenu *bar = [NSMenu new];
     NSMenuItem *fileItem = [[NSMenuItem alloc] initWithTitle:@"File" action:nil keyEquivalent:@""];
     NSMenu *file = [[NSMenu alloc] initWithTitle:@"File"];
-    T *t = [T new];
     NSMenuItem *ping = [[NSMenuItem alloc] initWithTitle:@"Ping" action:@selector(ping:) keyEquivalent:@""];
     ping.target = t;
     [file addItem:ping];

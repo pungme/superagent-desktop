@@ -99,6 +99,7 @@ test('the controls of an app are listed by name, a password never read', async (
 
 test('a button is pressed by its name, with the app staying in the background', async () => {
   const press = (await controls()).find((c) => c.label === 'Press')!
+  expect(press, 'the Press button is listed').toBeTruthy()
   expect(await cuse('--pid', String(pid), 'axpress', String(press.i), 'Press')).toMatchObject({
     ok: true
   })
