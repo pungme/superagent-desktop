@@ -1179,6 +1179,17 @@ export function Settings({
               )}
               {computer.enabled && (
                 <Row
+                  title="Show it only the apps you allowed"
+                  desc="In an agent's screenshots, every other app's window, notifications and the desktop are covered in grey. It sees an app once you have allowed it there. Off: it sees the whole screen, apart from the apps on the list below."
+                >
+                  <Toggle
+                    checked={computer.focused === true}
+                    onChange={(v) => void window.cove.setComputerFocused(v).then(setComputer)}
+                  />
+                </Row>
+              )}
+              {computer.enabled && (
+                <Row
                   title="Apps it stays out of"
                   desc={`Never ${(computer.builtInDenied ?? []).slice(0, 3).join(', ') || 'password managers'}, other password managers, a password prompt or the lock screen. Add any app you want left alone. In every other app it asks you the first time.`}
                 >

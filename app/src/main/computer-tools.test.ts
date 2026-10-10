@@ -72,6 +72,7 @@ vi.mock('./computer-use', () => ({
     return {
       shot: { width: 1440, height: 900, area: { x: 0, y: 0, width: 1440, height: 900 } },
       jpeg: Buffer.from('jpeg-bytes'),
+      hidden: [],
       displays: [
         { index: 0, width: 1440, height: 900, current: true },
         { index: 1, width: 2560, height: 1440, current: false }

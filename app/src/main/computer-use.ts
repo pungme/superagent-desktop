@@ -21,6 +21,8 @@ import {
   appFrom,
   ringLabel,
   overlaps,
+  coverOthers,
+  type LaidWindow,
   type ScreenArea,
   cleanAppName,
   describeControls,
@@ -91,6 +93,14 @@ let ringNow: boolean | null = null
 export function ringEnabled(): boolean {
   if (ringNow === null) ringNow = kvGet(RING_KEY) !== '0'
   return ringNow
+}
+
+const FOCUSED_KEY = 'computer.focused'
+let focusedNow: boolean | null = null
+/** Whether a picture of the screen shows only the apps the user allowed. Off unless turned on. */
+export function focusedView(): boolean {
+  if (focusedNow === null) focusedNow = kvGet(FOCUSED_KEY) === '1'
+  return focusedNow
 }
 
 /** How long the ring is up before the action it announces, so the eye gets there first. */
@@ -172,6 +182,8 @@ export interface ComputerStatus {
   stopKeyRefused: boolean
   /** A ring is shown where an action is about to happen. */
   ring: boolean
+  /** A picture shows only the apps the user allowed; the rest is covered. */
+  focused: boolean
   /** Apps it never works in: the built-in ones by name, and the user's own. */
   builtInDenied: string[]
   denied: AppRef[]
@@ -189,6 +201,7 @@ export function computerStatus(): ComputerStatus {
     helper: cusePath() !== null,
     stopKeyRefused: stopRefused,
     ring: ringEnabled(),
+    focused: focusedView(),
     builtInDenied: OFF_LIMITS_NAMES,
     denied: deniedApps(),
     rules: appRules()
@@ -269,8 +282,60 @@ const lastShot = new Map<string, Shot>()
 export interface Screenshot {
   shot: Shot
   jpeg: Buffer
+  /** Apps with something on this display that was covered over, when only allowed apps are shown. */
+  hidden: string[]
   /** Every display, so the agent can ask for another by number. */
   displays: { index: number; width: number; height: number; current: boolean }[]
+}
+
+/** Every window on screen, front to back. Throws when the helper cannot say. */
+async function layout(): Promise<LaidWindow[]> {
+  const { out } = await cuse(['layout'])
+  if (!Array.isArray(out.windows)) throw new Error('no layout')
+  const n = (v: unknown): number => (typeof v === 'number' ? v : 0)
+  return (out.windows as Record<string, unknown>[]).map((w) => {
+    const owner = typeof w.name === 'string' ? w.name : ''
+    const bundle = typeof w.bundle === 'string' ? w.bundle : ''
+    return {
+      // Only what has a bundle is an app the user can have allowed.
+      app: bundle ? { id: bundle, name: cleanAppName(owner) || bundle } : null,
+      owner,
+      layer: n(w.layer),
+      frame: { x: n(w.x), y: n(w.y), width: n(w.w), height: n(w.h) }
+    }
+  })
+}
+
+/**
+ * The picture with everything but the conversation's allowed apps covered,
+ * when the user asked for that. No picture at all if the windows cannot be
+ * listed: an uncovered one is not the fallback.
+ */
+async function onlyAllowed(
+  owner: string,
+  image: Electron.NativeImage,
+  area: ScreenArea
+): Promise<{ image: Electron.NativeImage; hidden: string[] }> {
+  if (!focusedView() || owner === '__check__') return { image, hidden: [] }
+  let windows: LaidWindow[]
+  try {
+    windows = await layout()
+  } catch {
+    throw new Error(
+      'The windows on screen could not be listed, so a picture showing only the allowed apps cannot be made. computer_read_ui still works on the app in front.'
+    )
+  }
+  const { width, height } = image.getSize()
+  const pixels = image.toBitmap({ scaleFactor: 1 })
+  if (pixels.length !== width * height * 4)
+    throw new Error('The picture could not be prepared. computer_read_ui still works.')
+  const hidden = coverOthers(
+    pixels,
+    { width, height, area },
+    windows,
+    (id) => appApproved(owner, id) || appRule(id) === 'look'
+  )
+  return { image: nativeImage.createFromBitmap(pixels, { width, height }), hidden }
 }
 
 /**
@@ -488,7 +553,7 @@ export async function takeZoom(
   const picture = await capture(all.indexOf(display), String(display.id), full)
   const got = picture.image.getSize()
   const k = got.width / shot.width
-  const cut = picture.image.crop({
+  const cut = (await onlyAllowed(owner, picture.image, display.bounds)).image.crop({
     x: Math.round(rect.x * k),
     y: Math.round(rect.y * k),
     width: Math.max(1, Math.round(rect.width * k)),
@@ -529,11 +594,13 @@ export async function takeScreenshot(owner: string, display?: number): Promise<S
   const picture = await capture(all.indexOf(chosen), String(chosen.id), size)
   const got = picture.image.getSize()
   const shot: Shot = { width: got.width, height: got.height, area: chosen.bounds }
+  const seen = await onlyAllowed(owner, picture.image, chosen.bounds)
   lastShot.set(owner, shot)
   lastVia = picture.via
   return {
     shot,
-    jpeg: picture.image.toJPEG(72),
+    jpeg: seen.image.toJPEG(72),
+    hidden: seen.hidden,
     displays: all.map((d, index) => ({
       index,
       width: d.bounds.width,
@@ -1168,6 +1235,11 @@ export function registerComputerUseIpc(): void {
   ipcMain.handle('computer:set-ring', (_e, on: boolean) => {
     ringNow = !!on
     kvSet(RING_KEY, on ? '1' : '0')
+    return computerStatus()
+  })
+  ipcMain.handle('computer:set-focused', (_e, on: boolean) => {
+    focusedNow = !!on
+    kvSet(FOCUSED_KEY, on ? '1' : '0')
     return computerStatus()
   })
   ipcMain.handle('computer:set-enabled', (_e, on: boolean) => {

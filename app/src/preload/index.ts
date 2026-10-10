@@ -92,6 +92,7 @@ export interface ComputerStatus {
   stopKeyRefused?: boolean
   /** A ring is shown where an action is about to happen. */
   ring?: boolean
+  focused?: boolean
   /** Standing answers: apps it may always work in ('allow') or only look at ('look'). */
   rules?: { id: string; name: string; level: 'allow' | 'look' }[]
   /** Apps it never works in: the built-in ones by name, and the user's own. */
@@ -706,8 +707,10 @@ export interface CoveApi {
       claudeSessionId: string | null
       cwd: string | null
       provider: AgentProvider
+      /** Write the title only while the stored one is still this (null: none yet). */
+      onlyIfTitle: string | null
     }>
-  ) => Promise<void>
+  ) => Promise<boolean>
   chatLoad: (chatId: string) => Promise<string | null>
   /** The model THIS conversation runs on; null/'' means the app's default. */
   chatSetModel: (chatId: string, model: string | null) => Promise<void>
@@ -858,6 +861,7 @@ export interface CoveApi {
   computerDenyPick: () => Promise<ComputerStatus>
   computerUndeny: (id: string) => Promise<ComputerStatus>
   setComputerRing: (on: boolean) => Promise<ComputerStatus>
+  setComputerFocused: (on: boolean) => Promise<ComputerStatus>
   /** What agents have done with the Mac lately, newest first. */
   computerLog: () => Promise<
     { at: number; owner: string; chat: string; what: string; app?: string; kind?: string }[]
@@ -1395,6 +1399,7 @@ const cove: CoveApi = {
   computerDenyPick: () => ipcRenderer.invoke('computer:deny-pick'),
   computerUndeny: (id) => ipcRenderer.invoke('computer:undeny', id),
   setComputerRing: (on) => ipcRenderer.invoke('computer:set-ring', on),
+  setComputerFocused: (on) => ipcRenderer.invoke('computer:set-focused', on),
   computerLog: () => ipcRenderer.invoke('computer:log'),
   computerRulePick: (level) => ipcRenderer.invoke('computer:rule-pick', level),
   computerRule: (app, level) => ipcRenderer.invoke('computer:rule', app, level),

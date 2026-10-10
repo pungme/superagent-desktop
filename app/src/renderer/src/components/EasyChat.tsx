@@ -2661,6 +2661,13 @@ export function EasyChat({
     if (!title) return
     const latest = useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)
     if (latest && latest.title !== placeholderTitleRef.current) return // renamed while we waited
+    // And asked of the store itself: a rename from the phone or the dot may
+    // not have reached this window yet.
+    const mine = await window.cove.chatUpdate(chatId, {
+      title,
+      onlyIfTitle: placeholderTitleRef.current
+    })
+    if (!mine) return
     // Through renameChat, so a worktree chat's branch follows the title too.
     await useStore.getState().renameChat(workspaceId, chatId, title)
     // `provider` is a dependency: the title is suggested by a one-shot run of
@@ -4041,11 +4048,22 @@ export function EasyChat({
     if (text.trim() && items.length === 0) {
       // Provisional, so the sidebar isn't blank while the turn runs; the agent
       // replaces it with a real summary once it has something to summarize.
+      // Only for a chat with no name: one the user named before saying
+      // anything keeps it, and is not renamed after the turn either.
       const title = text.trim().replace(/\s+/g, ' ').slice(0, 60)
-      placeholderTitleRef.current = title
-      aiTitledRef.current = false
-      window.cove.chatUpdate(chatId, { title })
-      useStore.getState().touchChat(workspaceId, chatId, { title })
+      const named = !!useStore.getState().chats[workspaceId]?.find((c) => c.id === chatId)?.title
+      if (!named) {
+        placeholderTitleRef.current = title
+        aiTitledRef.current = false
+        useStore.getState().touchChat(workspaceId, chatId, { title })
+        void window.cove.chatUpdate(chatId, { title, onlyIfTitle: null }).then((written) => {
+          if (written) return
+          // It had a name after all (given on the phone, say): that one stands.
+          placeholderTitleRef.current = null
+          aiTitledRef.current = true
+          void useStore.getState().refreshChats()
+        })
+      } else aiTitledRef.current = true
     }
     // Show the message and clear the composer right away.
     setItems((prev) => [

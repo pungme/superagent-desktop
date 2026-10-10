@@ -26,8 +26,30 @@ type ItemLike =
   | { kind: string }
 
 /** The images a piece of Markdown shows, leaving out anything inside code. */
+/**
+ * Markdown takes no space in a picture's address, and a path on a Mac often
+ * has one ("Application Support"): written plainly, the whole thing shows as
+ * text. Such a path is put in angle brackets, which is how markdown wants it.
+ * Code is left as written.
+ */
+export function spacedImagePaths(text: string): string {
+  if (!text.includes('![')) return text
+  return text
+    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
+    .map((part, i) =>
+      i % 2
+        ? part
+        : part.replace(
+            /(!\[[^\]\n]*\]\()\s*((?:\/|~\/|file:\/\/)[^()<>\n"]*[^()<>\n"\s])\s*(\))/g,
+            (all, open: string, path: string, close: string) =>
+              /\s/.test(path) ? `${open}<${path}>${close}` : all
+          )
+    )
+    .join('')
+}
+
 export function markdownImages(text: string): { src: string; alt: string }[] {
-  const prose = text.replace(/```[\s\S]*?(```|$)/g, '').replace(/`[^`\n]*`/g, '')
+  const prose = spacedImagePaths(text).replace(/```[\s\S]*?(```|$)/g, '').replace(/`[^`\n]*`/g, '')
   const found: { src: string; alt: string }[] = []
   const re = /!\[([^\]]*)\]\(\s*(<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\s*\)/g
   for (let m = re.exec(prose); m; m = re.exec(prose))

@@ -1801,7 +1801,10 @@ function PinnedRow({
   // chat's own title earns a second, subtitle line below it — skipped for a
   // nameless root chat, where `label` already IS the project name and a
   // second line would just repeat the headline.
-  const showSubtitle = !isRoot || hasOwnTitle
+  // A chat from Chats belongs to no project: its own name is the headline,
+  // and there is nothing for a second line to add.
+  const plain = !projectName
+  const showSubtitle = !plain && (!isRoot || hasOwnTitle)
   const [draft, setDraft] = useState(label)
   // The same branch chip the tree shows — a worktree chat's own branch, or a
   // root chat's project's branch — read from git the same way, so a pinned
@@ -1877,7 +1880,29 @@ function PinnedRow({
       </span>
       <span className="activity-body">
         <span className="activity-top">
-          <span className="activity-title">{projectName}</span>
+          {plain && editing ? (
+            <input
+              className="sidebar-item-rename"
+              value={draft}
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => {
+                const n = draft.trim()
+                if (n && n !== label)
+                  void renameChat(chat.workspaceId, chat.id, n).then(() =>
+                    window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+                  )
+                setEditing(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+                if (e.key === 'Escape') setEditing(false)
+              }}
+            />
+          ) : (
+            <span className="activity-title">{plain ? label : projectName}</span>
+          )}
           <span className="activity-when">{when(chat.updatedAt)}</span>
         </span>
         {/* The label already IS the project name for a nameless root chat —
@@ -1887,7 +1912,7 @@ function PinnedRow({
             row names it); the branch (if any) always earns its place. */}
         {(showSubtitle || branch) && (
           <span className="activity-where">
-            {editing ? (
+            {editing && !plain ? (
               <input
                 className="sidebar-item-rename"
                 value={draft}
@@ -1931,6 +1956,7 @@ function PinnedShortcuts(): React.JSX.Element | null {
   const busy = useStore((s) => s.busy)
   const activeChatId = useStore((s) => s.activeChatId)
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
+  const overlay = useStore((s) => s.overlay)
   const chats = useAllChats()
 
   const names = new Map<string, string>()
@@ -1997,12 +2023,26 @@ function PinnedShortcuts(): React.JSX.Element | null {
               projectName={names.get(c.workspaceId) ?? ''}
               projectKind={kinds.get(c.workspaceId)}
               projectPath={paths.get(c.workspaceId)}
-              isRoot={isFolderRoot(byWorkspace.get(c.workspaceId) ?? [c], c)}
-              open={c.id === activeChatId[c.workspaceId] && c.workspaceId === activeWorkspaceId}
+              // A chat from Chats has no folder to be the root of.
+              isRoot={
+                names.has(c.workspaceId) && isFolderRoot(byWorkspace.get(c.workspaceId) ?? [c], c)
+              }
+              open={
+                c.id === activeChatId[c.workspaceId] &&
+                (names.has(c.workspaceId)
+                  ? c.workspaceId === activeWorkspaceId && overlay !== 'chats'
+                  : overlay === 'chats')
+              }
               live={Boolean(busy[c.id]?.generating)}
               background={(busy[c.id]?.background ?? 0) > 0}
               unread={Boolean(unread[c.id]) || movedSinceSeen(c)}
               onOpen={() => {
+                // Chats are not a project to switch to: they open where Chats does.
+                if (!names.has(c.workspaceId)) {
+                  selectChat(c.workspaceId, c.id)
+                  window.dispatchEvent(new CustomEvent('cove:open-chats'))
+                  return
+                }
                 setActive(c.workspaceId)
                 selectChat(c.workspaceId, c.id)
               }}

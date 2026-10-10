@@ -6,6 +6,8 @@
 //   cuse pos                          {"x":..,"y":..}
 //   cuse at X Y                       {"name":"Finder","bundle":"com.apple.finder","pid":123}
 //                                     the app whose window is at that point, {} if none
+//   cuse layout                       {"windows":[{"name":..,"bundle":..,"layer":..,"x":..}]} every
+//                                     window on screen, front to back
 //   cuse windows                      {"apps":[{"name":..,"bundle":..},..]} every app with a
 //                                     window on screen now
 //   cuse parent                       {"superagent":true|false} whether it was run by the app
@@ -305,6 +307,41 @@ static int apps_on_screen(void) {
     printf(",\"bundle\":");
     json_string(id);
     printf(",\"x\":%.0f,\"y\":%.0f,\"w\":%.0f,\"h\":%.0f}", r.origin.x, r.origin.y, r.size.width, r.size.height);
+    if (id) CFRelease(id);
+  }
+  if (list) CFRelease(list);
+  printf("]}\n");
+  return 0;
+}
+
+// Every window on screen, front to back, on whatever layer: what a picture of
+// the screen is made of, so the parts that are not the user's to show can be
+// left out of it.
+static int layout(void) {
+  CFArrayRef list = CGWindowListCopyWindowInfo(
+      kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+  printf("{\"windows\":[");
+  int first = 1;
+  for (CFIndex i = 0; list && i < CFArrayGetCount(list); i++) {
+    CFDictionaryRef w = CFArrayGetValueAtIndex(list, i);
+    int layer = 0, pid = 0;
+    double alpha = 1;
+    CGRect r = CGRectZero;
+    CFNumberRef n;
+    if ((n = CFDictionaryGetValue(w, kCGWindowLayer))) CFNumberGetValue(n, kCFNumberIntType, &layer);
+    if ((n = CFDictionaryGetValue(w, kCGWindowOwnerPID))) CFNumberGetValue(n, kCFNumberIntType, &pid);
+    if ((n = CFDictionaryGetValue(w, kCGWindowAlpha))) CFNumberGetValue(n, kCFNumberDoubleType, &alpha);
+    CFDictionaryRef b = CFDictionaryGetValue(w, kCGWindowBounds);
+    if (!b || !CGRectMakeWithDictionaryRepresentation(b, &r)) continue;
+    if (alpha <= 0 || r.size.width < 1 || r.size.height < 1) continue;
+    CFStringRef id = bundle_of(pid);
+    if (!first) putchar(',');
+    first = 0;
+    printf("{\"name\":");
+    json_string(CFDictionaryGetValue(w, kCGWindowOwnerName));
+    printf(",\"bundle\":");
+    json_string(id);
+    printf(",\"layer\":%d,\"x\":%.0f,\"y\":%.0f,\"w\":%.0f,\"h\":%.0f}", layer, r.origin.x, r.origin.y, r.size.width, r.size.height);
     if (id) CFRelease(id);
   }
   if (list) CFRelease(list);
@@ -641,6 +678,7 @@ int main(int argc, char **argv) {
     return 0;
   }
   if (!strcmp(act, "windows")) return apps_on_screen();
+  if (!strcmp(act, "layout")) return layout();
   if (!strcmp(act, "parent")) {
     printf("{\"superagent\":%s}\n", from_superagent() ? "true" : "false");
     return 0;

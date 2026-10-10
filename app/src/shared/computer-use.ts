@@ -505,3 +505,84 @@ export function ringLabel(action: { type: string; button?: string; count?: numbe
       return ''
   }
 }
+
+/** A window on screen, as the helper lists them front to back. */
+export interface LaidWindow {
+  /** The app it belongs to; null when nothing names it (the system's own). */
+  app: { id: string; name: string } | null
+  owner: string
+  layer: number
+  frame: ScreenArea
+}
+
+/** What a window is to a picture: shown, covered over, or not there at all. */
+export type WindowPart = 'show' | 'hide' | 'skip'
+
+/**
+ * How a window is treated in a picture that shows only the apps the user
+ * allowed. The Dock's window spans the display and is mostly nothing, as are
+ * the screen-wide overlays some utilities keep: they neither show nor cover.
+ * The menu bar is the system's and stays. Everything else belongs to an app,
+ * and is covered unless that app was allowed.
+ */
+export function windowPart(
+  w: LaidWindow,
+  display: ScreenArea,
+  allowed: (id: string) => boolean
+): WindowPart {
+  if (w.app?.id.toLowerCase() === 'com.apple.dock') return 'skip'
+  if (!w.app) return w.owner === 'Window Server' ? 'show' : 'hide'
+  if (allowed(w.app.id)) return 'show'
+  const ordinary = w.layer === 0 || w.layer === 3 || w.layer === 8
+  const spans =
+    w.frame.x <= display.x &&
+    w.frame.y <= display.y &&
+    w.frame.x + w.frame.width >= display.x + display.width &&
+    w.frame.y + w.frame.height >= display.y + display.height
+  return !ordinary && spans ? 'skip' : 'hide'
+}
+
+/**
+ * Covers, in a picture of a display, everything that is not a window of an
+ * allowed app: other apps' windows, notifications, the desktop behind them.
+ * `pixels` is four bytes a pixel and is changed in place. Returns the apps
+ * that had something covered, front first.
+ */
+export function coverOthers(
+  pixels: Uint8Array,
+  shot: Shot,
+  windows: LaidWindow[],
+  allowed: (id: string) => boolean,
+  grey = 0x2b
+): string[] {
+  const { width, height, area } = shot
+  const k = width / area.width
+  // 1 where the topmost thing is an allowed app's window. Back to front, so
+  // each window overrules what it sits on.
+  const keep = new Uint8Array(width * height)
+  const hidden = new Map<string, true>()
+  for (let i = windows.length - 1; i >= 0; i--) {
+    const w = windows[i]
+    const part = windowPart(w, area, allowed)
+    if (part === 'skip') continue
+    const x0 = Math.max(0, Math.floor((w.frame.x - area.x) * k))
+    const y0 = Math.max(0, Math.floor((w.frame.y - area.y) * k))
+    const x1 = Math.min(width, Math.ceil((w.frame.x + w.frame.width - area.x) * k))
+    const y1 = Math.min(height, Math.ceil((w.frame.y + w.frame.height - area.y) * k))
+    if (x1 <= x0 || y1 <= y0) continue
+    const v = part === 'show' ? 1 : 0
+    for (let y = y0; y < y1; y++) keep.fill(v, y * width + x0, y * width + x1)
+  }
+  // Named front first, and only those with something of theirs left covered.
+  for (const w of windows) {
+    if (!w.app || windowPart(w, area, allowed) !== 'hide' || hidden.has(w.app.name)) continue
+    if (overlaps(w.frame, area)) hidden.set(w.app.name, true)
+  }
+  for (let i = 0; i < keep.length; i++) {
+    if (keep[i]) continue
+    const p = i * 4
+    pixels[p] = pixels[p + 1] = pixels[p + 2] = grey
+    pixels[p + 3] = 255
+  }
+  return [...hidden.keys()]
+}

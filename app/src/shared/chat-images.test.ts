@@ -6,6 +6,7 @@ import {
   freeName,
   imagesByDay,
   markdownImages,
+  spacedImagePaths,
   stampedName
 } from './chat-images'
 
@@ -104,5 +105,29 @@ describe('pictures by the day they arrived', () => {
       ['Yesterday', ['a']],
       ['Earlier', ['old']]
     ])
+  })
+})
+
+describe('a picture whose path has a space in it', () => {
+  const path = '/Users/me/Library/Application Support/SuperAgent/desktop-chat/floorplan.png'
+  it('is put in angle brackets, so markdown reads it as a picture', () => {
+    expect(spacedImagePaths(`Here:\n\n![Floor plan: kino top left](${path})\n\nDone.`)).toBe(
+      `Here:\n\n![Floor plan: kino top left](<${path}>)\n\nDone.`
+    )
+    expect(markdownImages(`![plan](${path})`)).toEqual([{ alt: 'plan', src: path }])
+    expect(spacedImagePaths('![a](~/My Pictures/a b.png)')).toBe('![a](<~/My Pictures/a b.png>)')
+  })
+  it('leaves everything else as written', () => {
+    for (const same of [
+      '![a](/tmp/a.png)',
+      `![a](<${path}>)`,
+      '![a](/tmp/a.png "A title")',
+      '![a](https://x.test/a b.png)',
+      `\`![a](${path})\``,
+      '```\n![a](/tmp/my file.png)\n```',
+      '[a link](/tmp/my file.png)',
+      'no pictures here (at all)'
+    ])
+      expect(spacedImagePaths(same)).toBe(same)
   })
 })

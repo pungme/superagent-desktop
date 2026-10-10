@@ -125,6 +125,9 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
           text:
             `${note}${note ? ' ' : ''}Screen: ${s.shot.width}×${s.shot.height} pixels, top left 0,0. ` +
             'Coordinates you pass are in these pixels.' +
+            (s.hidden.length
+              ? ` The user shows you only the apps they allowed: the grey parts are covered, not empty. Covered here: ${s.hidden.slice(0, 12).join(', ')}. To work in one of them, open it with computer_open_mac_app or act in it, and the user is asked.`
+              : '') +
             (others.length
               ? ` Other displays: ${others.map((d) => `#${d.index} (${d.width}×${d.height})`).join(', ')}; pass display to computer_screenshot to look at one.`
               : '')

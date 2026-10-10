@@ -1,4 +1,5 @@
 import { SaveCorner } from './ChatImages'
+import { spacedImagePaths } from '../../../shared/chat-images'
 import { useEffect, useState, useMemo, memo } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -205,7 +206,7 @@ export const Markdown = memo(function Markdown({
           }
         }}
       >
-        {text}
+        {spacedImagePaths(text)}
       </ReactMarkdown>
     </div>
   )

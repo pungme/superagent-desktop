@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { deflateSync, crc32 } from 'node:zlib'
@@ -45,7 +45,10 @@ test.beforeAll(async () => {
   data = mkdtempSync(join(tmpdir(), 'cove-imgs-data-'))
   proj = mkdtempSync(join(tmpdir(), 'cove-imgs-proj-'))
   writeFileSync(join(proj, 'README.md'), '# e2e project\n')
-  writeFileSync(join(proj, 'header.png'), png(320, 120))
+  // In a folder with a space in its name, as "Application Support" has: written
+  // plainly in a reply, markdown would not take that for a picture.
+  mkdirSync(join(proj, 'my shots'))
+  writeFileSync(join(proj, 'my shots', 'header.png'), png(320, 120))
   app = await electron.launch({
     args: [join(__dirname, '..', 'out', 'main', 'index.js')],
     env: { ...process.env, COVE_USER_DATA: data, COVE_E2E_PROJECT: proj, NODE_ENV: 'production' }
@@ -93,7 +96,7 @@ test.beforeAll(async () => {
     },
     {
       attached: `data:image/png;base64,${png(40, 40).toString('base64')}`,
-      shown: join(proj, 'header.png')
+      shown: join(proj, 'my shots', 'header.png')
     }
   )
   await window.reload()
@@ -135,7 +138,7 @@ test('a picture the agent showed is saved as the file itself, never over one alr
   await expect(box.getByRole('status')).toContainText('Saved to Downloads as header.png')
   // The original, byte for byte: not the preview that is on screen.
   expect(readFileSync(join(data, 'downloads', 'header.png'))).toEqual(
-    readFileSync(join(proj, 'header.png'))
+    readFileSync(join(proj, 'my shots', 'header.png'))
   )
   await window.keyboard.press('Escape')
   await window.locator('.md-img-thumb:visible').first().click()

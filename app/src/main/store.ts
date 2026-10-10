@@ -2199,8 +2199,19 @@ function registerStoreIpcTail(): void {
         claudeSessionId?: string | null
         cwd?: string | null
         provider?: AgentProvider | null
+        /**
+         * Write the title only while the stored one is still this (null: no
+         * title yet). How an automatic name is offered: asked here, where the
+         * truth is, so a name the user gave from the window, the phone or the
+         * dot is never written over. False when it was not written.
+         */
+        onlyIfTitle?: string | null
       }
-    ) => {
+    ): boolean => {
+      if ('onlyIfTitle' in patch && 'title' in patch) {
+        const now = getChat(id)?.title ?? null
+        if (now !== (patch.onlyIfTitle ?? null)) return false
+      }
       const sets: string[] = []
       const vals: (string | number | null)[] = []
       for (const key of ['title', 'claudeSessionId', 'cwd', 'provider'] as const) {
@@ -2209,9 +2220,10 @@ function registerStoreIpcTail(): void {
           vals.push(patch[key] ?? null)
         }
       }
-      if (!sets.length) return
+      if (!sets.length) return true
       vals.push(id)
       db.prepare(`UPDATE chats SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
+      return true
     }
   )
 
