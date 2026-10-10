@@ -19,7 +19,10 @@
 
 // MCP tools whose result is untrusted web or email text. Reading one taints the turn.
 // (Screenshots can carry injected text too, but read_page is the primary text
-// ingestion path; widen this set if that changes.)
+// ingestion path; widen this set if that changes. A computer_screenshot is
+// deliberately not here: an agent that may work the mouse and keyboard can type
+// into Terminal, so asking before Bash would stop nothing. That risk is carried
+// by the consent to use the Mac at all, and by the briefing in prompts.ts.)
 const UNTRUSTED_READ_TOOLS = new Set([
   'mcp__cove-browser__browser_read_page',
   'mcp__cove-browser__mail_accounts',
