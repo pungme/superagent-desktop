@@ -164,7 +164,10 @@
     .doc-foot a { color: var(--muted); }
 
     @media (max-width: 900px) {
-      .shell { grid-template-columns: 1fr; gap: 0; }
+      /* minmax(0, …): a bare 1fr grows to the widest code block or table, and
+         the whole page then scrolls sideways on a phone. */
+      .shell { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      .doc { min-width: 0; }
       .side {
         position: static; max-height: none; overflow: visible; padding: 18px 0 4px;
         display: flex; gap: 6px; overflow-x: auto; border-bottom: 1px solid var(--line);
@@ -179,6 +182,9 @@
     }
     @media (max-width: 560px) {
       .shell { padding: 0 18px; }
+      /* A row's heading wraps rather than pushing its table off the screen. */
+      table.t tbody th { white-space: normal; width: 34%; }
+      table.t th, table.t td { padding: 9px 10px; }
       .nav-inner { padding: 11px 18px; gap: 12px; }
       .nav-links { gap: 12px; }
     }
