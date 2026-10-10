@@ -1,3 +1,4 @@
+import { answerNeedsQuestion } from '../../../shared/answer-context'
 import { resetLabel } from '../../../shared/usage-reset'
 import {
   Fragment,
@@ -25,7 +26,7 @@ import { Markdown } from './Markdown'
 import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { replyingTo } from '../../../shared/reply-quote'
-import { splitLoopNote } from '../lib/loop-note'
+import { loopLabel, splitLoopNote } from '../lib/loop-note'
 import { quietRuns } from '../lib/quiet-rounds'
 import { AUTO_RESTART_WINDOW_MS, CARRY_ON_NUDGE, shouldAutoRestart } from '../lib/auto-restart'
 import { humanInterval, isLoopCommand } from '../../../shared/loop'
@@ -1313,7 +1314,7 @@ const MessageRow = memo(function MessageRow({
     <div
       className={`easy-msg easy-${msg.role} ${msg.system ? 'easy-system' : ''} ${
         !msg.streaming && !showTime ? 'easy-msg-grouped' : ''
-      } ${hasMeta ? 'easy-msg-has-meta' : ''}`}
+      } ${hasMeta ? 'easy-msg-has-meta' : ''} ${loopSplit?.note ? 'easy-loop-round' : ''}`}
       onWheel={(e) => onWheelMsg(e, msg)}
     >
       {answering && (
@@ -1368,9 +1369,21 @@ const MessageRow = memo(function MessageRow({
           )
         )
       ) : (
-        <PastedText text={loopSplit?.main ?? msg.text} />
+        <>
+          {/* A round the loop sent, not something typed just now: it says so,
+              and the instructions that go with it to the agent stay out of
+              sight (they are on the chip, for whoever wants them). */}
+          {loopSplit?.note && (
+            <span className="easy-loop-chip" title={loopSplit.note}>
+              <span className="easy-loop-chip-mark" aria-hidden="true">
+                ↻
+              </span>
+              {loopLabel(loopSplit.note)}
+            </span>
+          )}
+          <PastedText text={loopSplit?.main ?? msg.text} />
+        </>
       )}
-      {loopSplit?.note && <div className="easy-loop-note">{loopSplit.note}</div>}
       {msg.streaming && <span className="easy-caret" />}
       {!msg.streaming && msg.text && (
         <button
@@ -4428,20 +4441,16 @@ export function EasyChat({
   // quoted, the way Reply sends one. Sent bare, "Push and cut beta.15" read
   // as an answer to whatever the agent said last — not to the question five
   // messages up that it was actually picked from.
-  const lastAssistantIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    for (let i = items.length - 1; i >= 0; i--) {
-      const it = items[i]
-      if (it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system) {
-        lastAssistantIdRef.current = it.msg.id
-        return
-      }
-    }
-    lastAssistantIdRef.current = null
-  }, [items])
   const onRowAnswer = useCallback((a: string, from: { id: string; question: string }) => {
     setAtBottom(true)
-    const older = from.id !== lastAssistantIdRef.current
+    // Also when the user has written since, or a turn is running: the answer
+    // then arrives out of place, and has to say what it answers.
+    const said = itemsRef.current.flatMap((it) =>
+      it.kind === 'msg' && !it.msg.system
+        ? [{ id: it.msg.id, role: it.msg.role }]
+        : []
+    )
+    const older = answerNeedsQuestion(said, from.id, generatingRef.current)
     rowFnsRef.current.submit(a, [], {
       files: [],
       reply: older ? { role: 'assistant', text: from.question.slice(0, 600) } : null,

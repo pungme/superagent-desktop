@@ -1398,6 +1398,16 @@ export function Settings({
                             <span className={`storage-dot storage-${g.key}`} />
                             <span className="storage-label">{g.label}</span>
                             <span className="storage-bytes">{fmtBytes(g.bytes)}</span>
+                            {g.key === 'logs' && g.bytes > 0 && (
+                              <button
+                                className="storage-byproject-toggle"
+                                onClick={() =>
+                                  void window.cove.clearLogs().then(() => setStorage(null))
+                                }
+                              >
+                                Clear
+                              </button>
+                            )}
                             {g.key === 'conversations' && g.bytes > 0 && (
                               <button
                                 className="storage-byproject-toggle"

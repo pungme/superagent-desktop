@@ -27,7 +27,7 @@ const LOG_ON_CHANGE = 100 * 1024 * 1024
  * below the 4 GB ceiling that writing the snapshot itself is safe.
  */
 export const SNAPSHOT_AT = 1200 * 1024 * 1024
-const KEEP_SNAPSHOTS = 2
+const KEEP_SNAPSHOTS = 1
 
 export interface MemorySample {
   at: number

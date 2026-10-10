@@ -7,3 +7,12 @@ export function splitLoopNote(text: string): { main: string; note: string | null
   if (!m) return { main: text, note: null }
   return { main: text.slice(0, m.index).trimEnd(), note: m[1] }
 }
+
+/**
+ * What to call a round of a loop where the instructions used to be shown: the
+ * note is for the agent, a paragraph the user never wrote and need not read.
+ */
+export function loopLabel(note: string): string {
+  const every = /^\(\/loop\s+(\d+\s*[smhd])\b/.exec(note)
+  return every ? `Loop · every ${every[1].replace(/\s+/g, '')}` : 'Loop'
+}

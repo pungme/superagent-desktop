@@ -2764,13 +2764,31 @@ button {
 .easy-quiet-rounds.open .easy-quiet-caret {
   transform: rotate(90deg);
 }
-.easy-loop-note {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
-  font-size: 11.5px;
-  font-style: italic;
-  opacity: 0.7;
+/* A round a loop sent. Not a message typed just now, so not the solid bubble
+   of one: an outline, quieter, with a chip saying what it is. */
+.easy-user.easy-loop-round {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-strong);
+  font-size: 12.5px;
+  padding-top: 7px;
+  padding-bottom: 8px;
+}
+.easy-loop-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary, var(--text-secondary));
+  cursor: default;
+}
+.easy-loop-chip-mark {
+  font-size: 12px;
+  line-height: 1;
 }
 
 /* Chip that expands/collapses a long paste (see PastedText in EasyChat.tsx) —

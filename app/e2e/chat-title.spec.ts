@@ -44,7 +44,10 @@ test.beforeAll(async () => {
     ipcMain.removeHandler('agent:suggestTitle')
     ipcMain.handle('agent:suggestTitle', () => 'Named by the agent')
     ipcMain.removeAllListeners('agent:send')
-    ipcMain.on('agent:send', () => undefined)
+    ipcMain.on('agent:send', (_e, _id, text, _images, replyTo) => {
+      ;(g as unknown as { sent: unknown[] }).sent ??= []
+      ;(g as unknown as { sent: unknown[] }).sent.push({ text, replyTo: replyTo ?? null })
+    })
   })
 })
 test.afterAll(async () => {
@@ -130,4 +133,56 @@ test('a name given elsewhere while the turn ran is not written over', async () =
   await expect(window.getByText('Done, as asked.')).toBeVisible({ timeout: 15_000 })
   await window.waitForTimeout(1500)
   expect(await titleOf(id)).toBe('From my phone')
+})
+
+/** What the window has sent the stood-in agent since it started. */
+const sent = (): Promise<{ text: string; replyTo: { text: string } | null }[]> =>
+  app.evaluate(
+    () =>
+      (globalThis as unknown as { sent?: { text: string; replyTo: { text: string } | null }[] })
+        .sent ?? []
+  )
+
+/** The agent asks something with options, and ends its turn. */
+async function ask(id: string, question: string, options: string[]): Promise<void> {
+  await app.evaluate(
+    ({ BrowserWindow }, m) => {
+      const g = globalThis as unknown as { fake: { ids: string[] } }
+      const session = g.fake.ids[g.fake.ids.length - 1]
+      const send = (e: unknown): void =>
+        BrowserWindow.getAllWindows()[0].webContents.send(`agent:event:${session}`, e)
+      send({ type: 'assistant', message: { id: m.id, content: [{ type: 'text', text: m.text }] } })
+      send({ type: 'result', subtype: 'success', usage: {} })
+    },
+    {
+      id,
+      text:
+        'A thought first.\n\n```ask\n' +
+        JSON.stringify({ question, multiple: false, options: options.map((label) => ({ label })) }) +
+        '\n```'
+    }
+  )
+}
+
+test('an option answers bare while the question is the last word, and with the question once it is not', async () => {
+  await freshChat('Options')
+  await say('hello')
+  await ask('q1', 'Delete the snapshot?', ['Yes, delete it', 'Keep it'])
+  await window.getByRole('button', { name: 'Yes, delete it' }).click()
+  await expect.poll(async () => (await sent()).length).toBeGreaterThan(0)
+  const first = (await sent()).at(-1)!
+  expect(first.text).toContain('Yes, delete it')
+  expect(first.replyTo).toBeNull()
+
+  // The agent asks again; the user writes about something else first, and only
+  // then picks: the agent is at work by now, so the answer says what it answers.
+  await ask('q2', 'Ship it tonight?', ['Ship it', 'Wait'])
+  await expect(window.getByRole('button', { name: 'Ship it', exact: true })).toBeVisible()
+  await say('do we even need those logs?')
+  const before = (await sent()).length
+  await window.getByRole('button', { name: 'Ship it', exact: true }).click()
+  await expect.poll(async () => (await sent()).length).toBeGreaterThan(before)
+  const later = (await sent()).at(-1)!
+  expect(later.text).toContain('Ship it')
+  expect(later.replyTo?.text).toContain('Ship it tonight?')
 })

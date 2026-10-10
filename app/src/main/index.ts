@@ -14,7 +14,7 @@ import {
   nativeImage
 } from 'electron'
 import { basename } from 'path'
-import { writeFileSync } from 'fs'
+import { rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { SHARED_BROWSER_PARTITION, broadcastToWindows } from './util'
 import { execFile } from 'child_process'
@@ -795,6 +795,25 @@ ipcMain.handle('app:clear-browser-caches', async () => {
   return true
 })
 
+/**
+ * What the app writes for its own fault-finding: a few small logs, and
+ * `diagnostics`, where a memory snapshot of several gigabytes can land. None
+ * of it is the user's and none of it is needed to run.
+ */
+const LOG_PATHS = [
+  'updater.log',
+  'pane-debug.log',
+  'pane-debug.log.old',
+  'memory.log',
+  'memory.log.old',
+  'diagnostics'
+]
+
+ipcMain.handle('app:clear-logs', () => {
+  const userData = app.getPath('userData')
+  for (const p of LOG_PATHS) rmSync(join(userData, p), { recursive: true, force: true })
+})
+
 ipcMain.handle('app:storage-usage', async () => {
   const userData = app.getPath('userData')
   const updCache = join(app.getPath('home'), 'Library', 'Caches', 'superagent-updater')
@@ -821,15 +840,8 @@ ipcMain.handle('app:storage-usage', async () => {
     { key: 'updates', label: 'Update downloads — installers already applied', paths: [updCache] },
     {
       key: 'logs',
-      label: 'Logs',
-      paths: [
-        'updater.log',
-        'pane-debug.log',
-        'pane-debug.log.old',
-        'memory.log',
-        'memory.log.old',
-        'diagnostics'
-      ].map((p) => join(userData, p))
+      label: 'Logs — what the app noted for finding a fault; nothing of yours',
+      paths: LOG_PATHS.map((p) => join(userData, p))
     }
   ]
   const duK = (path: string): Promise<number> =>

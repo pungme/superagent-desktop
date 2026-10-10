@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitLoopNote } from './loop-note'
+import { splitLoopNote, loopLabel } from './loop-note'
 
 describe('splitLoopNote', () => {
   it('splits the self-paced reminder off a loop round', () => {
@@ -32,5 +32,13 @@ describe('splitLoopNote', () => {
     const { main, note } = splitLoopNote('can you explain what /loop does?')
     expect(main).toBe('can you explain what /loop does?')
     expect(note).toBeNull()
+  })
+})
+
+describe('what a round of a loop is called', () => {
+  it('is Loop, with the interval when it has one', () => {
+    expect(loopLabel('(/loop, self-paced: pick your own pace…)')).toBe('Loop')
+    expect(loopLabel('(/loop: this repeats on a timer until it is stopped.)')).toBe('Loop')
+    expect(loopLabel('(/loop 5m: run sleep as your last action)')).toBe('Loop · every 5m')
   })
 })

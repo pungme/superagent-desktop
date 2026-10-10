@@ -733,6 +733,8 @@ export interface CoveApi {
   setAppIcon: (png: Uint8Array | null) => Promise<boolean>
   /** Disk usage by category; bytes are measured with du, not estimated. */
   storageUsage: () => Promise<{ key: string; label: string; bytes: number }[]>
+  /** Remove the app's own logs and memory snapshots. */
+  clearLogs: () => Promise<void>
   /** The Conversations category, broken down by project — largest first. */
   storageByProject: () => Promise<
     { workspaceId: string; name: string; bytes: number; chatCount: number }[]
@@ -1310,6 +1312,7 @@ const cove: CoveApi = {
   setTheme: (source) => ipcRenderer.send('theme:set', source),
   setAppIcon: (png) => ipcRenderer.invoke('app:set-icon', png),
   storageUsage: () => ipcRenderer.invoke('app:storage-usage'),
+  clearLogs: () => ipcRenderer.invoke('app:clear-logs'),
   storageByProject: () => ipcRenderer.invoke('app:storage-by-project'),
   clearWorkspaceChats: (workspaceId) =>
     ipcRenderer.invoke('app:clear-workspace-chats', workspaceId),
