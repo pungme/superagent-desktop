@@ -49,6 +49,8 @@ export function Dot(): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [picking, setPicking] = useState(false)
   const [filter, setFilter] = useState('')
+  /** The row the arrow keys are on, in the list as filtered. */
+  const [cursor, setCursor] = useState(0)
   const [projects, setProjects] = useState<Project[]>([])
   const [projectId, setProjectId] = useState(() => localStorage.getItem(LAST_PROJECT) ?? COMPUTER)
   const [text, setText] = useState('')
@@ -231,6 +233,12 @@ export function Dot(): React.JSX.Element {
               aria-label={`Project: ${project.name}`}
               onClick={() => {
                 setPicking((v) => !v)
+                setCursor(
+                  Math.max(
+                    0,
+                    projects.findIndex((p) => p.id === project.id)
+                  )
+                )
                 setTimeout(() => filterRef.current?.focus(), 30)
               }}
             >
@@ -247,24 +255,43 @@ export function Dot(): React.JSX.Element {
                 className="dot-find"
                 placeholder="Find a project…"
                 value={filter}
-                onChange={(e) => setFilter(e.target.value)}
+                onChange={(e) => {
+                  setFilter(e.target.value)
+                  setCursor(0)
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && shown[0]) pick(shown[0])
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    const step = e.key === 'ArrowDown' ? 1 : -1
+                    setCursor((c) => (shown.length ? (c + step + shown.length) % shown.length : 0))
+                  }
+                  const at = shown[Math.min(cursor, shown.length - 1)]
+                  if (e.key === 'Enter' && at) pick(at)
                 }}
               />
               <div className="dot-menu-list">
-                {shown.map((p) => (
+                {shown.map((p, i) => (
                   <button
                     key={p.id}
                     role="option"
-                    aria-selected={p.id === project.id}
-                    className={`dot-item ${p.id === project.id ? 'on' : ''}`}
+                    aria-selected={i === cursor}
+                    className={`dot-item ${i === cursor ? 'on' : ''}`}
+                    ref={
+                      i === cursor ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined
+                    }
+                    onMouseMove={() => setCursor(i)}
                     onClick={() => pick(p)}
                   >
                     <Mark project={p} />
                     <span className="dot-item-name">{p.name}</span>
                     <span className="dot-item-note">
-                      {p.kind === 'computer' ? 'this Mac' : p.pinned ? 'pinned' : ''}
+                      {p.id === project.id
+                        ? '✓'
+                        : p.kind === 'computer'
+                          ? 'this Mac'
+                          : p.pinned
+                            ? 'pinned'
+                            : ''}
                     </span>
                   </button>
                 ))}
@@ -384,6 +411,12 @@ export function Dot(): React.JSX.Element {
                     }
                     if (e.key === 'Tab' && !text) {
                       e.preventDefault()
+                      setCursor(
+                        Math.max(
+                          0,
+                          projects.findIndex((p) => p.id === project.id)
+                        )
+                      )
                       setPicking(true)
                       setTimeout(() => filterRef.current?.focus(), 30)
                     }

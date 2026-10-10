@@ -16,7 +16,7 @@ import { logBus } from './companion/log'
 import { askFromDot, stopFromDot } from './companion/rpc'
 import { resolveGate } from './hooks'
 import { dotProjects } from './dot-projects'
-import { QUIET } from './quiet'
+import { QUIET, showInactiveForReal } from './quiet'
 
 /**
  * The dot: Superagent as a small tile floating over everything, bottom right.
@@ -146,6 +146,9 @@ function createDot(): void {
   else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'dot' })
   win.once('ready-to-show', () => {
     if (!QUIET) win?.showInactive()
+    // A hidden test run that is checking how the tile really looks on screen:
+    // the tile alone, never focused, with the app's own window still hidden.
+    else if (process.env.COVE_E2E_SHOW_DOT === '1' && win) showInactiveForReal.call(win)
   })
   win.on('closed', () => {
     win = null

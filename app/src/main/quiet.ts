@@ -12,6 +12,9 @@ import { app, BrowserWindow, Notification } from 'electron'
  */
 export const QUIET = process.env.COVE_E2E_QUIET === '1'
 
+/** The real thing, kept for the one window a hidden run may still show (the dot). */
+export const showInactiveForReal = BrowserWindow.prototype.showInactive
+
 if (QUIET) {
   const noop = function (): void {}
   BrowserWindow.prototype.show = noop

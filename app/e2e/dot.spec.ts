@@ -181,6 +181,16 @@ test('the project can be picked by name, and is where the request goes', async (
   await expect(list.locator('.dot-item').first()).toContainText('Computer')
   await expect(list).toContainText('e2e-project')
   await shoot('3-projects')
+  // The arrow keys move through it, starting from the one in use, and wrap.
+  const on = list.locator('.dot-item.on .dot-item-name')
+  await expect(on).toHaveText('Computer')
+  await list.locator('.dot-find').press('ArrowDown')
+  await expect(on).toHaveText('e2e-project')
+  await list.locator('.dot-find').press('ArrowDown')
+  await expect(on).toHaveText('Computer')
+  await list.locator('.dot-find').press('ArrowUp')
+  await expect(on).toHaveText('e2e-project')
+  await list.locator('.dot-find').press('ArrowUp')
   // Typing narrows it; Enter takes the first match.
   await list.locator('.dot-find').fill('e2e')
   await expect(list.locator('.dot-item')).toHaveCount(1)
