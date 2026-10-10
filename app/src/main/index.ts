@@ -82,6 +82,7 @@ import { startAutoUpdate, isUpdateDownloaded } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
+import { chatToken } from './mcp-token'
 import { appHotkey, registerAppHotkey } from './app-hotkey'
 import { dotCovers, dotHotkey, isDotWindow, registerDot } from './dot'
 import {
@@ -710,7 +711,12 @@ app.whenReady().then(async () => {
   // E2E hook, like COVE_E2E_PROJECT: tell the test where the agent's tools
   // live, so it can call them as an agent would without running one.
   void startMcpServer().then(({ url }) => {
-    if (process.env.COVE_E2E_MCP_URL_FILE) writeFileSync(process.env.COVE_E2E_MCP_URL_FILE, url)
+    if (process.env.COVE_E2E_MCP_URL_FILE) {
+      writeFileSync(process.env.COVE_E2E_MCP_URL_FILE, url)
+      // A test stands in for an agent, so it needs what an agent is given: the
+      // token for its own conversation. Only ever in a test run.
+      ;(globalThis as unknown as { __mcpToken: typeof chatToken }).__mcpToken = chatToken
+    }
   })
 
   // Before any pane exists: the old per-project cookie jars fold into the one

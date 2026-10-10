@@ -1,4 +1,5 @@
 import { registerAppTools } from './app-tools'
+import { chatToken, chatTokenValid } from './mcp-token'
 import { registerComputerTools } from './computer-tools'
 import { registerMailTools } from './mail-tools'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
@@ -115,7 +116,7 @@ function openFileInApp(workspaceId: string, path: string, chatId: string | null)
   })
 }
 
-function buildServer(paneId: string, chatId: string | null): McpServer {
+function buildServer(paneId: string, chatId: string | null, proven = false): McpServer {
   const PANE_ID = paneId
   const CHAT_ID = chatId
   const server = new McpServer({ name: 'cove-browser', version: '0.1.0' })
@@ -123,8 +124,10 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
     workspaceId: workspaceIdFromPane(paneId),
     sessionId: chatId ?? paneId
   })
-  // Not for a routine: nobody is at the Mac to be asked, or to stop it.
-  if (!paneId.endsWith('::routine'))
+  // Not for a routine: nobody is at the Mac to be asked, or to stop it. And
+  // only for a caller that has proved which conversation it is (mcp-token.ts):
+  // a yes to use the Mac belongs to one conversation.
+  if (proven && !paneId.endsWith('::routine'))
     registerComputerTools(server, {
       workspaceId: workspaceIdFromPane(paneId),
       sessionId: chatId ?? paneId
@@ -1958,7 +1961,7 @@ export function startMcpServer(): Promise<{ url: string }> {
       // (board cards, reveal broadcasts).
       const paneId = chatId && ws !== DESKTOP_WORKSPACE_ID ? `${ws}::${chatId}` : ws
       // Stateless mode: fresh server+transport per request, no session tracking.
-      const server = buildServer(paneId, chatId)
+      const server = buildServer(paneId, chatId, chatTokenValid(params.get('k'), ws, chatId ?? ''))
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
       res.on('close', () => {
         transport.close()
@@ -2003,7 +2006,8 @@ export function getMcpUrl(): string {
 export function workspaceMcpUrl(workspaceId: string, chatId?: string): string {
   return (
     `${getMcpUrl()}?ws=${encodeURIComponent(workspaceId)}` +
-    (chatId ? `&chat=${encodeURIComponent(chatId)}` : '')
+    (chatId ? `&chat=${encodeURIComponent(chatId)}` : '') +
+    `&k=${chatToken(workspaceId, chatId ?? '')}`
   )
 }
 

@@ -22,10 +22,11 @@ async function rpc(
   method: string,
   params: Record<string, unknown>,
   ws = wsId,
-  chat = chatId
+  chat = chatId,
+  token = ''
 ): Promise<{ result?: Record<string, unknown>; error?: { message: string } }> {
   const res = await fetch(
-    `${mcpUrl}?ws=${encodeURIComponent(ws)}&chat=${encodeURIComponent(chat)}`,
+    `${mcpUrl}?ws=${encodeURIComponent(ws)}&chat=${encodeURIComponent(chat)}${token ? `&k=${token}` : ''}`,
     {
       method: 'POST',
       headers: {
@@ -142,13 +143,41 @@ test("the Computer chat's tools still start when computer use is on", async () =
   // Two sets of tools begin computer_; one name used twice stopped the whole
   // server for that chat, so it had no tools at all.
   await window.evaluate(() => window.cove.setComputerUse(true))
-  const msg = await rpc('tools/list', {}, '__desktop_chat__', 'c-desktop')
-  expect(msg.error).toBeUndefined()
-  const names = (msg.result as { tools: { name: string }[] }).tools.map((t) => t.name)
+  // What an agent is given for its own conversation, and nothing else.
+  const token = await app.evaluate(
+    (_e, [ws, chat]) =>
+      (globalThis as unknown as { __mcpToken: (ws: string, chat: string) => string }).__mcpToken(
+        ws,
+        chat
+      ),
+    ['__desktop_chat__', 'c-desktop']
+  )
+  const list = async (chat: string, k: string): Promise<string[]> => {
+    const msg = await rpc('tools/list', {}, '__desktop_chat__', chat, k)
+    expect(msg.error).toBeUndefined()
+    return (msg.result as { tools: { name: string }[] }).tools.map((t) => t.name)
+  }
+  const names = await list('c-desktop', token)
   expect(names).toContain('computer_state')
   expect(names).toContain('computer_open_app')
   expect(names).toContain('computer_open_mac_app')
   expect(names).toContain('app_open_project')
   expect(new Set(names).size).toBe(names.length)
+
+  // The same address with another conversation's id written in, or with no
+  // token at all: no hands on the Mac. Everything else is still there.
+  for (const [chat, k] of [
+    ['someone-else', token],
+    ['c-desktop', ''],
+    ['c-desktop', 'a'.repeat(32)]
+  ]) {
+    const got = await list(chat, k)
+    expect(
+      got.filter((n) =>
+        /^computer_(screenshot|click|type|key|drag|move|scroll|open_mac_app)$/.test(n)
+      )
+    ).toEqual([])
+    expect(got).toContain('computer_state')
+  }
   await window.evaluate(() => window.cove.setComputerUse(false))
 })
