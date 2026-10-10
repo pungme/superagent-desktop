@@ -833,6 +833,30 @@ export interface CoveApi {
   ) => Promise<{ ok: boolean; error?: string }>
   /** Open Terminal on the CLI's one-time interactive sign-in. */
   openAgentLogin: (provider: AgentProvider) => void
+  // --- The dot: Superagent as a floating tile (main/dot.ts) ---------------
+  dotEnabled: () => Promise<boolean>
+  setDotEnabled: (on: boolean) => Promise<boolean>
+  dotProjects: () => Promise<
+    { id: string; name: string; kind: string; path: string; usedAt: number; pinned: boolean }[]
+  >
+  /** A new chat in that project with this as its first message. */
+  dotAsk: (
+    workspaceId: string,
+    text: string
+  ) => Promise<{ ok: true; chatId: string; workspaceId: string } | { ok: false; error: string }>
+  dotStop: (chatId: string) => Promise<boolean>
+  dotAnswer: (approvalId: string, approve: boolean) => Promise<boolean>
+  /** Bring the main window up on this conversation. */
+  dotOpen: (chatId: string) => void
+  /** Whether the pointer is over something drawn (true) or see-through (false). */
+  dotSolid: (solid: boolean) => void
+  dotFocus: (want: boolean) => void
+  dotMove: (dx: number, dy: number) => void
+  dotMoved: () => void
+  onDotSummon: (cb: () => void) => () => void
+  onDotEvent: (cb: (p: { chatId: string; data: Record<string, unknown> }) => void) => () => void
+  onDotDelta: (cb: (p: { chatId: string; text: string }) => void) => () => void
+  onDotOpenChat: (cb: (p: { workspaceId: string; chatId: string }) => void) => () => void
   /** Keep working with the lid closed: whether it is on, and turning it on or off. */
   lidAwake: () => Promise<boolean>
   setLidAwake: (
@@ -1286,6 +1310,23 @@ const cove: CoveApi = {
       .finally(() => ipcRenderer.removeListener('env:install-progress', listener))
   },
   openAgentLogin: (provider) => ipcRenderer.send('env:open-login', provider),
+  dotEnabled: () => ipcRenderer.invoke('dot:enabled'),
+  setDotEnabled: (on) => ipcRenderer.invoke('dot:set-enabled', on),
+  dotProjects: () => ipcRenderer.invoke('dot:projects'),
+  dotAsk: (workspaceId, text) => ipcRenderer.invoke('dot:ask', workspaceId, text),
+  dotStop: (chatId) => ipcRenderer.invoke('dot:stop', chatId),
+  dotAnswer: (id, approve) => ipcRenderer.invoke('dot:answer', id, approve),
+  dotOpen: (chatId) => ipcRenderer.send('dot:open', chatId),
+  dotSolid: (solid) => ipcRenderer.send('dot:solid', solid),
+  dotFocus: (want) => ipcRenderer.send('dot:focus', want),
+  dotMove: (dx, dy) => ipcRenderer.send('dot:move', dx, dy),
+  dotMoved: () => ipcRenderer.send('dot:moved'),
+  onDotSummon: (cb) => subscribe('dot:summon', () => cb()),
+  onDotEvent: (cb) =>
+    subscribe('dot:event', (p) => cb(p as { chatId: string; data: Record<string, unknown> })),
+  onDotDelta: (cb) => subscribe('dot:delta', (p) => cb(p as { chatId: string; text: string })),
+  onDotOpenChat: (cb) =>
+    subscribe('dot:open-chat', (p) => cb(p as { workspaceId: string; chatId: string })),
   lidAwake: () => ipcRenderer.invoke('power:lid-awake'),
   setLidAwake: (on) => ipcRenderer.invoke('power:set-lid-awake', on),
   signInAgent: (provider) => ipcRenderer.invoke('env:sign-in', provider),

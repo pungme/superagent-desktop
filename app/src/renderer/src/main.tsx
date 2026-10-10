@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { startOverlayGuard, startAutoOverlayLock } from './overlay-guard'
 import { useStore, applyAccent, applySavedIcon, type Accent } from './state'
 import App from './App'
+import { Dot } from './dot/Dot'
 
 /**
  * Durable UI state: localStorage is the fast synchronous layer the whole app
@@ -61,6 +62,18 @@ void hydrateStorage().then(() => {
   useStore.setState({ accent: storedAccent })
   // The Dock icon is the app's own, per launch — a chosen one has to be put back.
   void applySavedIcon()
+
+  // The dot is a second window on the same page (main/dot.ts): a tile and its
+  // panel, not the app. None of the app's own start-up applies to it.
+  if (location.hash === '#dot') {
+    document.documentElement.classList.add('dot-window')
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <Dot />
+      </StrictMode>
+    )
+    return
+  }
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

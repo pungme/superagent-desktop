@@ -1976,6 +1976,18 @@ export function registerStoreIpc(): void {
  * scratch files without leaving them in the middle of anything. Created the
  * first time anything (the window's Computer row, or a phone's) asks for it.
  */
+/** Per project: when a conversation in it was last touched, and whether one is pinned. */
+export function lastUsedByWorkspace(): Record<string, { usedAt: number; pinned: boolean }> {
+  const rows = db
+    .prepare(
+      'SELECT workspaceId, MAX(updatedAt) AS usedAt, MAX(pinned) AS pinned FROM chats GROUP BY workspaceId'
+    )
+    .all() as { workspaceId: string; usedAt: number | null; pinned: number | null }[]
+  const out: Record<string, { usedAt: number; pinned: boolean }> = {}
+  for (const r of rows) out[r.workspaceId] = { usedAt: r.usedAt ?? 0, pinned: !!r.pinned }
+  return out
+}
+
 export function ensureDesktopWorkspace(): { workspaceId: string; cwd: string } {
   {
     const cwd = join(app.getPath('userData'), 'desktop-chat')

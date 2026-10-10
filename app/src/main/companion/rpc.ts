@@ -1254,6 +1254,24 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
 // phone message does.
 setUnattendedSend(async (chatId, text) => (await sendToChat({ chatId, text })).ok)
 
+/** The dot's request: sent the way a phone sends one, into a chat nobody has open. */
+export async function askFromDot(
+  chatId: string,
+  text: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await sendToChat({ chatId, text })
+  return r.ok ? { ok: true } : { ok: false, error: r.error.message }
+}
+
+/** The dot's Stop: the same interrupt the phone's is. */
+export async function stopFromDot(chatId: string): Promise<boolean> {
+  const s = findSessionByChat(chatId)
+  if (!s) return false
+  interruptedChats.add(chatId)
+  await hardInterruptAgent(s.id)
+  return true
+}
+
 /** A chat whose current turn ended via a deliberate stop, not a finish — see `chat.interrupt`. */
 const interruptedChats = new Set<string>()
 

@@ -610,6 +610,15 @@ export function Settings({
   }
   // Keep working with the lid closed: off unless turned on; the main process
   // owns it, since it is a system setting that needs an administrator.
+  // The floating dot (main/dot.ts): on unless turned off.
+  const [dotOn, setDotOn] = useState(true)
+  useEffect(() => {
+    void window.cove.dotEnabled?.().then((on) => setDotOn(!!on))
+  }, [])
+  const toggleDot = async (on: boolean): Promise<void> => {
+    setDotOn(on)
+    setDotOn(await window.cove.setDotEnabled(on))
+  }
   const [lidAwake, setLidAwakeState] = useState(false)
   const [lidAwakeError, setLidAwakeError] = useState('')
   useEffect(() => {
@@ -935,6 +944,13 @@ export function Settings({
                 desc="A banner when the agent is waiting on your input."
               >
                 <Toggle checked={notifyNeedsYou} onChange={toggleNotifyNeedsYou} />
+              </Row>
+              <GroupLabel>The dot</GroupLabel>
+              <Row
+                title="Show Superagent as a floating dot"
+                desc="A small tile in the corner of your screen, over every app. Click it or press ⌥Space to ask something or hand it a job, in the Computer or any project, without opening this window."
+              >
+                <Toggle checked={dotOn} onChange={(v) => void toggleDot(v)} />
               </Row>
               <GroupLabel>Power</GroupLabel>
               <Row

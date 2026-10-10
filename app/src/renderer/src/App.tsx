@@ -309,6 +309,20 @@ function App(): React.JSX.Element {
     }
     const onNewChat = (): void => void newChatInChats()
     window.addEventListener('cove:new-chat', onNewChat)
+    // "Open in Superagent" on the dot: straight to that conversation, whether
+    // it is a project's or one of the Computer's own.
+    const offDotOpen = window.cove.onDotOpenChat?.(async ({ workspaceId, chatId }) => {
+      const home = await window.cove.desktopChatHome?.()
+      const s = useStore.getState()
+      await s.refresh()
+      if (home && home.workspaceId === workspaceId) show('chats')
+      else {
+        setOverlay(null)
+        setSettingsOpen(false)
+        s.setActive(workspaceId)
+      }
+      useStore.getState().selectChat(workspaceId, chatId)
+    })
     // These live on the desktop now. Show it, then let it raise the window —
     // after a tick, so a freshly mounted desktop is listening by then.
     const openOnDesktop = (app: 'dashboard' | 'skills' | 'routines') => (): void => {
@@ -341,6 +355,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('cove:open-computer', openComputer)
       window.removeEventListener('cove:open-chats', openChats)
       window.removeEventListener('cove:new-chat', onNewChat)
+      offDotOpen?.()
       window.removeEventListener('cove:close-dashboard', close)
     }
   }, [])

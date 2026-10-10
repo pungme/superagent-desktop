@@ -80,6 +80,8 @@ import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startCrashRelaunch } from './crash-relaunch'
+// Last: it reaches into the companion's send path, which has to be loaded first.
+import { registerDot } from './dot'
 
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
@@ -288,6 +290,7 @@ app.whenReady().then(async () => {
   registerSkillsIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
+  registerDot()
   registerLidAwakeIpc()
   registerMailIpc()
   registerClaudeModelsIpc()
