@@ -7,6 +7,7 @@ import { remoteUserMessage } from './remote-user'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { writeWorkspaceMcpConfig } from './mcp'
+import { agentLog } from './agent-log'
 import { loadChatItems, getChatProvider, setChatSession } from './store'
 import type { LegacyItem } from './transcript'
 import { startClaudeSession, suggestTitleWithClaude } from './claude/session'
@@ -139,7 +140,7 @@ function adoptSession(session: AgentSession, owner: WebContents): void {
  */
 function killSessionsOwnedBy(owner: WebContents): void {
   for (const [id, session] of [...sessions]) {
-    if (session.owner === owner) stopAgent(id)
+    if (session.owner === owner) stopAgent(id, 'its window reloaded or closed')
   }
 }
 
@@ -277,6 +278,14 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
     }, 0)
     return id
   }
+  // One agent to a conversation. Whoever asks for a new one (the window
+  // restarting it, a message from the phone, a loop) means it to take over, and
+  // two on one conversation work in the same folder without knowing of each
+  // other: each edits, commits and replies as if it were alone.
+  if (opts.chatId) {
+    for (const [running, s] of [...sessions])
+      if (s.chatId === opts.chatId) stopAgent(running, 'replaced by a new agent for the same chat')
+  }
   const mcpConfig =
     opts.mcpConfigPath ||
     (opts.workspaceId ? writeWorkspaceMcpConfig(opts.workspaceId, opts.chatId) : undefined)
@@ -325,6 +334,11 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
         opts
       })
       agentBus.emit('started', meta)
+      agentLog(
+        'start',
+        id,
+        `chat=${opts.chatId ?? '-'} by=${owner ? 'window' : 'main'} resume=${opts.resumeSessionId ?? '-'}`
+      )
     },
     event(event) {
       const session = sessions.get(id)
@@ -398,6 +412,11 @@ export function startAgent(owner: WebContents | null, opts: AgentStartOptions): 
     exit(code, reason) {
       const session = sessions.get(id)
       sessions.delete(id)
+      agentLog(
+        'exit',
+        id,
+        `chat=${meta.chatId ?? '-'} code=${code} reason=${reason ?? '-'} asked=${stoppedOnPurpose.has(id) || !!session?.killed}`
+      )
       if (session?.killed) return
       markDead(id, code, reason)
       // stopAgent has already taken the session out of the map, so `killed`
@@ -559,6 +578,7 @@ export async function hardInterruptAgent(id: string): Promise<boolean> {
   const session = sessions.get(id)
   if (!session) return true
   session.killed = true // a deliberate interrupt is not a crash
+  agentLog('interrupt', id, `chat=${session.chatId ?? '-'}`)
   agentBus.emit('interrupted', { chatId: session.chatId })
   const ended = await session.backend.hardInterrupt()
   if (ended) sessions.delete(id)
@@ -568,9 +588,10 @@ export async function hardInterruptAgent(id: string): Promise<boolean> {
 /** Sessions stopAgent ended, until their process reports its exit. */
 const stoppedOnPurpose = new Set<string>()
 
-export function stopAgent(id: string): void {
+export function stopAgent(id: string, why = 'unspecified'): void {
   const session = sessions.get(id)
   if (session) {
+    agentLog('stop', id, `chat=${session.chatId ?? '-'} why=${why}`)
     session.killed = true // don't trigger the resume→fresh fallback on a deliberate stop
     stoppedOnPurpose.add(id)
     sessions.delete(id)
@@ -579,7 +600,7 @@ export function stopAgent(id: string): void {
 }
 
 export function killAllAgents(): void {
-  for (const id of [...sessions.keys()]) stopAgent(id)
+  for (const id of [...sessions.keys()]) stopAgent(id, 'the app is quitting')
 }
 
 /**
@@ -644,6 +665,8 @@ export function registerAgentIpc(): void {
     ) => sendToAgent(id, text, images ?? [], { from: 'desktop', replyTo })
   )
   ipcMain.on('agent:interrupt', (_e, id: string) => interruptAgent(id))
-  ipcMain.on('agent:stop', (_e, id: string) => stopAgent(id))
+  ipcMain.on('agent:stop', (_e, id: string, why?: string) =>
+    stopAgent(id, `window: ${why ?? 'unspecified'}`)
+  )
   ipcMain.handle('agent:hard-interrupt', (_e, id: string) => hardInterruptAgent(id))
 }

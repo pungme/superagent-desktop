@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { spawn } from 'child_process'
-import { killProcessTree, DETACH_FOR_TREE_KILL } from './kill-tree'
+import { killProcessTree, killProcessTreeForSure, DETACH_FOR_TREE_KILL } from './kill-tree'
 
 const isAlive = (pid: number): boolean => {
   try {
@@ -38,5 +38,23 @@ describe('killProcessTree', () => {
 
       expect(isAlive(grandchildPid)).toBe(false)
     }
+  )
+
+  // An agent mid-turn took the polite signal and kept working, unseen.
+  it.skipIf(process.platform === 'win32')(
+    'ends a process that ignores being asked to stop',
+    async () => {
+      const proc = spawn('sh', ['-c', 'trap "" TERM; echo ready; while true; do sleep 1; done'], {
+        detached: DETACH_FOR_TREE_KILL
+      })
+      await new Promise<void>((resolve) => proc.stdout?.once('data', () => resolve()))
+      const gone = new Promise<void>((resolve) => proc.once('exit', () => resolve()))
+      killProcessTreeForSure(proc, 300)
+      await new Promise((r) => setTimeout(r, 150))
+      expect(isAlive(proc.pid!)).toBe(true) // asked, and still there
+      await gone
+      expect(proc.signalCode).toBe('SIGKILL')
+    },
+    10_000
   )
 })

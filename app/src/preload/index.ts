@@ -944,7 +944,7 @@ export interface CoveApi {
     index: number
   ) => Promise<{ mediaType: string; data: string } | null>
   agentInterrupt: (id: string) => void
-  agentStop: (id: string) => void
+  agentStop: (id: string, why?: string) => void
   onAgentEvent: (id: string, cb: (event: Record<string, unknown>) => void) => () => void
   /** A prompt that reached this session from somewhere other than this window (the phone). */
   onAgentUser: (
@@ -1363,7 +1363,7 @@ const cove: CoveApi = {
     ipcRenderer.send('agent:send', id, text, images, replyTo),
   chatImage: (messageId, index) => ipcRenderer.invoke('chat:image', messageId, index),
   agentInterrupt: (id) => ipcRenderer.send('agent:interrupt', id),
-  agentStop: (id) => ipcRenderer.send('agent:stop', id),
+  agentStop: (id, why) => ipcRenderer.send('agent:stop', id, why),
   onAgentEvent: (id, cb) =>
     subscribe(`agent:event:${id}`, (event) => cb(event as Record<string, unknown>)),
   onAgentUser: (id, cb) =>

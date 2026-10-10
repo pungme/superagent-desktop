@@ -25,7 +25,7 @@ export function startReaper(): void {
       if (s.owned) continue
       const last = lastActivity.get(s.id) ?? now
       if (now - last > IDLE_MS) {
-        stopAgent(s.id)
+        stopAgent(s.id, 'started from the phone and idle for ten minutes')
         lastActivity.delete(s.id)
       }
     }
