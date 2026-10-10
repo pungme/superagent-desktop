@@ -169,8 +169,8 @@ const APP_PROMPT =
   'app_send_message speaks into another conversation (the user is asked each time), app_stop_chat stops ' +
   'one, app_rename_chat and app_pin_chat tidy, app_open_view shows Settings, the Computer, Chats, or the board, files, browser or simulator of a project, ' +
   'app_board / app_board_add / app_board_move work the todo list of any project, app_routines and app_routine ' +
-  'list, run and pause scheduled tasks, and app_delete_chat deletes a conversation (the user confirms). For ' +
-  '"go back", open the most recently used other conversation from app_status. These ' +
+  'list, run and pause scheduled tasks, and app_delete_chat deletes a conversation (the user confirms). app_go_back ' +
+  'returns to the conversation that was on screen before. These ' +
   'change what the user is looking at, so only use them when asked.'
 
 const FILE_OPEN_PROMPT =

@@ -461,6 +461,22 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
     }
   )
 
+  server.registerTool(
+    'app_go_back',
+    {
+      description:
+        'Take Superagent back to the conversation the user was looking at before the current one ("go back", "back to where I was"). Call it again to go further back.',
+      inputSchema: {}
+    },
+    async () => {
+      if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
+      broadcastToWindows('app:go-back', {})
+      return said(
+        'Superagent went back to where the user was before, if there was anywhere earlier.'
+      )
+    }
+  )
+
   const VIEW_NAMES: Record<string, string> = {
     settings: 'Settings',
     computer: 'the Computer',

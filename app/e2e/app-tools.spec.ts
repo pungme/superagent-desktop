@@ -298,6 +298,23 @@ test('a card is moved by its id, routines are listed, and deleting a chat needs 
   expect((await tool('app_delete_chat', { chatId })).text).toContain('cannot delete itself')
 })
 
+test('"go back" returns to the conversation that was on screen before', async () => {
+  const ids = await window.evaluate(async (ws) => {
+    return [await window.cove.chatCreate(ws), await window.cove.chatCreate(ws)]
+  }, wsId)
+  await tool('app_rename_chat', { chatId: ids[0], title: 'First stop' })
+  await tool('app_rename_chat', { chatId: ids[1], title: 'Second stop' })
+  await tool('app_open_chat', { chatId: ids[0] })
+  await tool('app_open_chat', { chatId: ids[1] })
+  const onScreen = (): Promise<string> =>
+    window.evaluate(
+      () => localStorage.getItem(`activeChat:${localStorage.getItem('activeWorkspace')}`) ?? ''
+    )
+  await expect.poll(onScreen).toBe(ids[1])
+  await tool('app_go_back')
+  await expect.poll(onScreen).toBe(ids[0])
+})
+
 test('a new conversation is started in the project that was named', async () => {
   const made = await tool('app_new_chat', { project: projectName.slice(0, -2) })
   expect(made.isError).toBe(false)

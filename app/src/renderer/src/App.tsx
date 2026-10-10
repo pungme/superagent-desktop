@@ -1,3 +1,4 @@
+import { goBack, visited, type Visit } from '../../shared/visit-history'
 import { useCallback, useEffect, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { WorkspaceView } from './components/WorkspaceView'
@@ -324,6 +325,28 @@ function App(): React.JSX.Element {
       // No chat named: the agent was asked for the project, not a conversation.
       if (chatId) useStore.getState().selectChat(workspaceId, chatId)
     })
+    // Where the user has been, so "go back" (app_go_back) has somewhere to go.
+    let history: Visit[] = []
+    let goingBack = false
+    const place = (): Visit => {
+      const s = useStore.getState()
+      const workspaceId = s.activeWorkspaceId ?? ''
+      return { workspaceId, chatId: s.activeChatId[workspaceId] ?? '' }
+    }
+    history = visited(history, place())
+    const offVisits = useStore.subscribe(() => {
+      if (!goingBack) history = visited(history, place())
+    })
+    const offBack = window.cove.onAppGoBack?.(() => {
+      const back = goBack(history)
+      if (!back) return
+      goingBack = true
+      history = back.history
+      setSettingsOpen(false)
+      useStore.getState().setActive(back.to.workspaceId)
+      if (back.to.chatId) useStore.getState().selectChat(back.to.workspaceId, back.to.chatId)
+      goingBack = false
+    })
     // Asked for by an agent, by name (app_open_view).
     const offView = window.cove.onAppOpenView?.(({ view }) => {
       if (view === 'settings') setSettingsOpen(true)
@@ -369,6 +392,8 @@ function App(): React.JSX.Element {
       window.removeEventListener('cove:new-chat', onNewChat)
       offDotOpen?.()
       offView?.()
+      offVisits()
+      offBack?.()
       window.removeEventListener('cove:close-dashboard', close)
     }
   }, [])

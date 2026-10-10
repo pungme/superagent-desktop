@@ -907,6 +907,8 @@ export interface CoveApi {
   onDotEvent: (cb: (p: { chatId: string; data: Record<string, unknown> }) => void) => () => void
   onDotDelta: (cb: (p: { chatId: string; text: string }) => void) => () => void
   onDotOpenChat: (cb: (p: { workspaceId: string; chatId: string }) => void) => () => void
+  /** An agent asked to go back to where the user was before (main/app-tools.ts). */
+  onAppGoBack: (cb: () => void) => () => void
   /** An agent asked for one of the app's own screens (main/app-tools.ts). */
   onAppOpenView: (
     cb: (p: {
@@ -1409,6 +1411,7 @@ const cove: CoveApi = {
   onDotEvent: (cb) =>
     subscribe('dot:event', (p) => cb(p as { chatId: string; data: Record<string, unknown> })),
   onDotDelta: (cb) => subscribe('dot:delta', (p) => cb(p as { chatId: string; text: string })),
+  onAppGoBack: (cb) => subscribe('app:go-back', () => cb()),
   onAppOpenView: (cb) =>
     subscribe('app:open-view', (p) =>
       cb(

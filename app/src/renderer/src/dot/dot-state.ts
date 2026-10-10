@@ -97,6 +97,7 @@ const TOOL_WORDS: Record<string, string> = {
   app_pin_chat: 'Pinning it',
   app_delete_chat: 'Deleting a chat',
   app_open_view: 'Opening',
+  app_go_back: 'Going back',
   app_board: 'Reading the todo list',
   app_board_add: 'Adding to the todo list',
   app_board_move: 'Updating the todo list',
