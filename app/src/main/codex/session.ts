@@ -87,7 +87,14 @@ export function codexThreadOptions(opts: AgentStartOptions): CodexThreadOptions 
     // Superagent's own tools reach Codex the same way they reach Claude Code —
     // as an MCP server — but per thread rather than via a config file, so a
     // chat's browser pane and board are scoped to that chat.
-    ...(mcpUrl ? { config: { mcp_servers: { 'cove-browser': { url: mcpUrl } } } } : {})
+    // Codex has a computer use of its own (a feature, on by default in the
+    // CLI). In a Superagent chat that would be a way to the Mac's mouse and
+    // keyboard that the user was never asked about here and ⌥Esc does not
+    // stop, so it is turned off: using the Mac goes through Superagent's tools.
+    config: {
+      features: { computer_use: false },
+      ...(mcpUrl ? { mcp_servers: { 'cove-browser': { url: mcpUrl } } } : {})
+    }
   }
 }
 

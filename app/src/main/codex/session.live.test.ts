@@ -25,6 +25,12 @@ vi.mock('../hooks', () => ({
   requestApproval: async () => true,
   reportAgentLifecycle: () => undefined
 }))
+// No app means no store to ask which browser a chat uses: the built-in one.
+vi.mock('../external-browser', () => ({
+  browserFor: () => 'builtin',
+  browserScope: () => '',
+  browserName: () => ''
+}))
 // No app means no tool server to point Codex at.
 vi.mock('../mcp', () => ({ workspaceMcpUrl: () => '' }))
 vi.mock('../prompts', () => ({

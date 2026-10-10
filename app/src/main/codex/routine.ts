@@ -87,7 +87,11 @@ export async function runCodexRoutine(opts: RoutineRunOptions): Promise<RoutineO
     // A routine drives a browser and may write files in its project; it runs
     // unattended, so there is nobody to approve anything it stops for.
     sandbox: 'workspace-write',
-    config: opts.mcpUrl ? { 'mcp_servers.cove-browser.url': `"${opts.mcpUrl}"` } : {},
+    // No computer use of Codex's own, least of all with nobody there (see session.ts).
+    config: {
+      'features.computer_use': 'false',
+      ...(opts.mcpUrl ? { 'mcp_servers.cove-browser.url': `"${opts.mcpUrl}"` } : {})
+    },
     timeoutMs: opts.timeoutMs
   })
 
