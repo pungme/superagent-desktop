@@ -7,12 +7,14 @@ import { findProject } from '../shared/find-project'
 import { rankChats, searchWords, type FindableChat } from '../shared/find-chat'
 import { requestApproval } from './hooks'
 import {
+  addCard,
   createChat,
   DESKTOP_WORKSPACE_ID,
   ensureDesktopWorkspace,
   getChat,
   getWorkspace,
   listAllChats,
+  listCards,
   markPendingBranch,
   searchChats,
   setChatPinned,
@@ -300,19 +302,116 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
     }
   )
 
+  /** A project by what the user called it, or what to tell the agent instead. */
+  const projectNamed = (name: string): { id: string; name: string } | Result => {
+    const { match, candidates } = findProject(
+      dotProjects().filter((p) => p.id !== DESKTOP_WORKSPACE_ID),
+      name
+    )
+    return (
+      match ??
+      said(
+        candidates.length
+          ? `More than one project fits "${name}": ${candidates.map((p) => p.name).join(', ')}. Ask the user which.`
+          : `No project is called "${name}".`,
+        true
+      )
+    )
+  }
+
+  server.registerTool(
+    'app_board',
+    {
+      description:
+        'Read the todo board of ANY project, by the project\'s name: every item with its stage (todo, doing, testing, done) and title. board_list only sees this conversation\'s own project; use this for "what is on the wepush todo?".',
+      inputSchema: { project: z.string().min(1).max(200) }
+    },
+    async ({ project }) => {
+      const p = projectNamed(project)
+      if ('content' in p) return p
+      const cards = listCards(p.id)
+      if (!cards.length) return said(`${p.name}'s board is empty.`)
+      const stages = ['doing', 'testing', 'todo', 'done']
+      return said(
+        `${p.name}:\n` +
+          stages
+            .map((stage) => {
+              const mine = cards.filter((c) => c.status === stage)
+              return mine.length
+                ? `${stage} (${mine.length})\n${mine
+                    .slice(0, stage === 'done' ? 8 : 40)
+                    .map((c) => `  - ${c.title}`)
+                    .join('\n')}`
+                : ''
+            })
+            .filter(Boolean)
+            .join('\n')
+      )
+    }
+  )
+
+  server.registerTool(
+    'app_board_add',
+    {
+      description:
+        'Add an item to the todo board of ANY project, by the project\'s name ("put a card on the portal board to fix the header"). For this conversation\'s own project, board_add is the same thing.',
+      inputSchema: {
+        project: z.string().min(1).max(200),
+        title: z.string().min(1).max(300),
+        body: z.string().max(8000).optional()
+      }
+    },
+    async ({ project, title, body }) => {
+      const p = projectNamed(project)
+      if ('content' in p) return p
+      const card = addCard(p.id, title.trim(), { body: body?.trim() || undefined, status: 'todo' })
+      broadcastToWindows('board:changed', { workspaceId: p.id })
+      return said(`Added "${card.title}" to ${p.name}'s todo.`)
+    }
+  )
+
+  const VIEW_NAMES: Record<string, string> = {
+    settings: 'Settings',
+    computer: 'the Computer',
+    chats: 'Chats',
+    board: 'the todo board',
+    files: 'the files',
+    browser: 'the browser',
+    simulator: 'the simulator'
+  }
   server.registerTool(
     'app_open_view',
     {
       description:
-        'Show one of Superagent\'s own screens: "settings", "computer" (the desktop with its Dashboard, Skills and Routines) or "chats" (conversations that belong to no project).',
-      inputSchema: { view: z.enum(['settings', 'computer', 'chats']) }
+        'Show one of Superagent\'s screens. For the whole app: "settings", "computer" (the desktop with its Dashboard, Skills and Routines), "chats" (conversations that belong to no project). For a project: its "board" (todo list), "files", "browser" or "simulator"; give `project` to go to that project first ("show me the wepush board"), or leave it out for the project on screen.',
+      inputSchema: {
+        view: z.enum(['settings', 'computer', 'chats', 'board', 'files', 'browser', 'simulator']),
+        project: z.string().max(200).optional()
+      }
     },
-    async ({ view }) => {
+    async ({ view, project }) => {
+      const pane = !['settings', 'computer', 'chats'].includes(view)
+      let where = ''
+      if (pane && project) {
+        const { match, candidates } = findProject(
+          dotProjects().filter((p) => p.id !== DESKTOP_WORKSPACE_ID),
+          project
+        )
+        if (!match)
+          return said(
+            candidates.length
+              ? `More than one project fits "${project}": ${candidates.map((p) => p.name).join(', ')}. Ask the user which.`
+              : `No project is called "${project}".`,
+            true
+          )
+        broadcastToWindows('dot:open-chat', { workspaceId: match.id, chatId: '' })
+        where = ` of ${match.name}`
+        // The project's own view has to be the one on screen before it is asked.
+        await new Promise((r) => setTimeout(r, 350))
+      }
       if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
       broadcastToWindows('app:open-view', { view })
-      return said(
-        `Superagent is now showing ${view === 'settings' ? 'Settings' : view === 'computer' ? 'the Computer' : 'Chats'}.`
-      )
+      return said(`Superagent is now showing ${VIEW_NAMES[view]}${where}.`)
     }
   )
 }

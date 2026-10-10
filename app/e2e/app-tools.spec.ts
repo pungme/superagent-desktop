@@ -212,6 +212,39 @@ test('a message into another conversation is the user speaking: they are asked, 
   )
 })
 
+test("a project's board and files open by asking, from wherever the app is", async () => {
+  await tool('app_open_view', { view: 'settings' })
+  await expect(window.getByLabel('Shortcut that brings Superagent forward')).toBeVisible()
+  const said = await tool('app_open_view', { view: 'board', project: projectName.slice(0, -2) })
+  expect(said.text).toBe(`Superagent is now showing the todo board of ${projectName}.`)
+  await expect(window.getByLabel('Shortcut that brings Superagent forward')).toHaveCount(0)
+  const boardBtn = window.locator('.workspace-toolbar:visible .toolbar-btn.on')
+  await expect(boardBtn).toHaveCount(1)
+  // Asked again, it stays shown rather than toggling away.
+  await tool('app_open_view', { view: 'board' })
+  await expect(boardBtn).toHaveCount(1)
+  // Files beside it.
+  await tool('app_open_view', { view: 'files' })
+  await expect(window.locator('.workspace-toolbar:visible .toolbar-btn.on')).toHaveCount(2)
+  expect((await tool('app_open_view', { view: 'board', project: 'zebra' })).isError).toBe(true)
+})
+
+test("any project's todo list can be read and added to by its name", async () => {
+  const short = projectName.slice(0, -2)
+  expect((await tool('app_board', { project: short })).text).toBe(
+    `${projectName}'s board is empty.`
+  )
+  expect(
+    (await tool('app_board_add', { project: short, title: 'Fix the header on mobile' })).text
+  ).toBe(`Added "Fix the header on mobile" to ${projectName}'s todo.`)
+  const board = await tool('app_board', { project: short })
+  expect(board.text).toContain('todo (1)')
+  expect(board.text).toContain('- Fix the header on mobile')
+  // It is on the board the user sees (opened by the test before this one).
+  await expect(window.locator('text=Fix the header on mobile').first()).toBeVisible()
+  expect((await tool('app_board', { project: 'zebra' })).isError).toBe(true)
+})
+
 test('a new conversation is started in the project that was named', async () => {
   const made = await tool('app_new_chat', { project: projectName.slice(0, -2) })
   expect(made.isError).toBe(false)

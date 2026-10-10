@@ -327,7 +327,13 @@ function App(): React.JSX.Element {
     // Asked for by an agent, by name (app_open_view).
     const offView = window.cove.onAppOpenView?.(({ view }) => {
       if (view === 'settings') setSettingsOpen(true)
-      else show(view)
+      else if (view === 'computer' || view === 'chats') show(view)
+      else {
+        // A pane of the project on screen: its own view opens it.
+        setOverlay(null)
+        setSettingsOpen(false)
+        window.dispatchEvent(new CustomEvent('cove:app-pane', { detail: { pane: view } }))
+      }
     })
     // These live on the desktop now. Show it, then let it raise the window —
     // after a tick, so a freshly mounted desktop is listening by then.

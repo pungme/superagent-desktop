@@ -167,7 +167,8 @@ const APP_PROMPT =
   'equally. app_open_project switches to a project by name, app_list_projects and app_status say what there ' +
   'is and what is working, app_new_chat starts a conversation (with a first message if they gave a job), ' +
   'app_send_message speaks into another conversation (the user is asked each time), app_stop_chat stops ' +
-  'one, app_rename_chat and app_pin_chat tidy, app_open_view shows Settings, the Computer or Chats. These ' +
+  'one, app_rename_chat and app_pin_chat tidy, app_open_view shows Settings, the Computer, Chats, or the board, files, browser or simulator of a project, ' +
+  'and app_board / app_board_add read and add to the todo list of any project. These ' +
   'change what the user is looking at, so only use them when asked.'
 
 const FILE_OPEN_PROMPT =

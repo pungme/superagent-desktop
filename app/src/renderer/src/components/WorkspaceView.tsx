@@ -431,6 +431,16 @@ export function WorkspaceView({
       localStorage.setItem(`boardOpen:${deskKey}`, next ? '1' : '0')
       setBoardOpen(next)
     }
+    // Asked for by an agent (app_open_view): open one of this project's panes.
+    // Opening only: asked to show the board twice, it stays shown.
+    const onPane = (e: Event): void => {
+      const pane = (e as CustomEvent<{ pane: string }>).detail?.pane
+      if (pane === 'board' && !boardOpen) onToggleBoard()
+      else if (pane === 'simulator') onOpenSimulator()
+      else if (pane === 'browser' && !browserOpen) toggleBrowser(ws.id, browserOpen)
+      else if (pane === 'files' && !filesOpen) toggleFiles(ws.id)
+    }
+    window.addEventListener('cove:app-pane', onPane)
     window.addEventListener('cove:menu-skills', onSkills)
     window.addEventListener('cove:menu-routines', onRoutines)
     window.addEventListener('cove:menu-toggle-preview', onToggle)
@@ -439,6 +449,7 @@ export function WorkspaceView({
     window.addEventListener('cove:command-open-simulator', onOpenSimulator)
     window.addEventListener('cove:command-toggle-board', onToggleBoard)
     return () => {
+      window.removeEventListener('cove:app-pane', onPane)
       window.removeEventListener('cove:menu-skills', onSkills)
       window.removeEventListener('cove:menu-routines', onRoutines)
       window.removeEventListener('cove:menu-toggle-preview', onToggle)
@@ -447,7 +458,18 @@ export function WorkspaceView({
       window.removeEventListener('cove:command-open-simulator', onOpenSimulator)
       window.removeEventListener('cove:command-toggle-board', onToggleBoard)
     }
-  }, [ws.id, browserPaneId, toggleBrowser, visible, browserOpen, simOpen, boardOpen, deskKey])
+  }, [
+    ws.id,
+    browserPaneId,
+    toggleBrowser,
+    toggleFiles,
+    visible,
+    browserOpen,
+    filesOpen,
+    simOpen,
+    boardOpen,
+    deskKey
+  ])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [ratio, setRatio] = useState(() => {
