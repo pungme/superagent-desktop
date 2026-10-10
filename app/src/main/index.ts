@@ -83,6 +83,7 @@ import { startMemoryWatch } from './memory-watch'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
 import { chatToken } from './mcp-token'
+import { appendChatEvent } from './store'
 import { appHotkey, registerAppHotkey } from './app-hotkey'
 import { dotCovers, dotHotkey, isDotWindow, registerDot, talkHotkey } from './dot'
 import {
@@ -250,6 +251,11 @@ function createWindow(): BrowserWindow {
   watchWindowGeometry(mainWindow)
 
   return mainWindow
+}
+
+/** Test runs only: a line said in a chat, written where search reads from. */
+function saidInChat(chatId: string, role: 'user' | 'assistant', text: string): void {
+  appendChatEvent(chatId, role, { kind: role, text })
 }
 
 app.whenReady().then(async () => {
@@ -717,6 +723,8 @@ app.whenReady().then(async () => {
       // A test stands in for an agent, so it needs what an agent is given: the
       // token for its own conversation. Only ever in a test run.
       ;(globalThis as unknown as { __mcpToken: typeof chatToken }).__mcpToken = chatToken
+      // And a way to put words into a conversation's history without an agent.
+      ;(globalThis as unknown as { __said: typeof saidInChat }).__said = saidInChat
     }
   })
 

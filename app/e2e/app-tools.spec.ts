@@ -298,6 +298,36 @@ test('a card is moved by its id, routines are listed, and deleting a chat needs 
   expect((await tool('app_delete_chat', { chatId })).text).toContain('cannot delete itself')
 })
 
+test('a conversation is found by something said in it, however long ago and however buried', async () => {
+  const ids = await window.evaluate(async (ws) => {
+    return [await window.cove.chatCreate(ws), await window.cove.chatCreate(ws)]
+  }, wsId)
+  await tool('app_rename_chat', { chatId: ids[0], title: 'Tuesday planning' })
+  await tool('app_rename_chat', { chatId: ids[1], title: 'Loud chat' })
+  // The quiet chat says the word once, long ago in its history; the loud one
+  // says a lot afterwards, enough to crowd a search that only reads recent lines.
+  await app.evaluate(
+    (_e, [quiet, loud]) => {
+      const said = (
+        globalThis as unknown as {
+          __said: (chat: string, role: 'user' | 'assistant', text: string) => void
+        }
+      ).__said
+      said(quiet, 'user', 'can we move the zeppelin invoices to the new ledger')
+      for (let i = 0; i < 200; i++)
+        said(loud, 'assistant', `line ${i} about the ledger and nothing else`)
+    },
+    [ids[0], ids[1]]
+  )
+  const found = await tool('app_find_chats', { query: 'where we talked about zeppelin invoices' })
+  expect(found.text.split('\n')[0]).toContain('"Tuesday planning"')
+  expect(found.text).toContain('zeppelin invoices')
+  // A word both say: both are offered, the quiet one included.
+  const both = await tool('app_find_chats', { query: 'the ledger' })
+  expect(both.text).toContain('"Tuesday planning"')
+  expect(both.text).toContain('"Loud chat"')
+})
+
 test('"go back" returns to the conversation that was on screen before', async () => {
   const ids = await window.evaluate(async (ws) => {
     return [await window.cove.chatCreate(ws), await window.cove.chatCreate(ws)]
