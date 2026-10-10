@@ -67,6 +67,9 @@ void hydrateStorage().then(() => {
   // panel, not the app. None of the app's own start-up applies to it.
   if (location.hash === '#dot') {
     document.documentElement.classList.add('dot-window')
+    // Always the dark palette: its panel is dark whatever the app is set to,
+    // and an answer drawn with the light theme's ink on it could not be read.
+    document.documentElement.setAttribute('data-theme', 'dark')
     createRoot(document.getElementById('root')!).render(
       <StrictMode>
         <Dot />

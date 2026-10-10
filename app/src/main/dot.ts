@@ -16,6 +16,7 @@ import { logBus } from './companion/log'
 import { askFromDot, stopFromDot } from './companion/rpc'
 import { resolveGate } from './hooks'
 import { dotProjects } from './dot-projects'
+import { dotBounds, DOT_H as H, DOT_W as W } from './dot-bounds'
 import { QUIET, showInactiveForReal } from './quiet'
 
 /**
@@ -34,10 +35,6 @@ import { QUIET, showInactiveForReal } from './quiet'
  * watches that chat's events.
  */
 
-const W = 420
-const H = 620
-/** The tile's own box, bottom right of the window: where a drag takes hold. */
-const MARGIN = 18
 const ENABLED_KEY = 'dot.enabled'
 const POS_KEY = 'dot.position'
 export const DOT_HOTKEY = 'Alt+Space'
@@ -48,32 +45,6 @@ const watched = new Set<string>()
 
 export function dotEnabled(): boolean {
   return kvGet(ENABLED_KEY) !== '0'
-}
-
-/** Where the window goes so the tile sits in the corner of the screen it was left on. */
-export function dotBounds(
-  saved: { x: number; y: number } | null,
-  displays: { x: number; y: number; width: number; height: number }[],
-  primary: { x: number; y: number; width: number; height: number }
-): { x: number; y: number; width: number; height: number } {
-  const corner = (a: typeof primary): { x: number; y: number } => ({
-    x: a.x + a.width - W,
-    y: a.y + a.height - H
-  })
-  // Still on a screen that exists (a monitor may have been unplugged): at
-  // least the tile itself, bottom right of the window, has to be reachable.
-  const tile = saved && { x: saved.x + W - MARGIN - 46, y: saved.y + H - MARGIN - 46 }
-  const home =
-    tile &&
-    displays.find(
-      (d) =>
-        tile.x >= d.x &&
-        tile.x + 46 <= d.x + d.width &&
-        tile.y >= d.y &&
-        tile.y + 46 <= d.y + d.height
-    )
-  const at = saved && home ? saved : corner(primary)
-  return { x: Math.round(at.x), y: Math.round(at.y), width: W, height: H }
 }
 
 function savedPosition(): { x: number; y: number } | null {

@@ -99,7 +99,9 @@ test('it is a tile until asked, and the main window is still the app', async () 
 
 test('its window floats over everything, in the corner, and lets clicks through', async () => {
   const w = await app.evaluate(({ BrowserWindow, screen, globalShortcut }) => {
-    const win = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().endsWith('#dot'))!
+    const win = BrowserWindow.getAllWindows().find(
+      (x) => !x.isDestroyed() && x.webContents.getURL().endsWith('#dot')
+    )!
     const area = screen.getPrimaryDisplay().workArea
     const b = win.getBounds()
     return {
@@ -140,7 +142,7 @@ test('dragging the tile moves it, and it stays where it was left', async () => {
   const where = (): Promise<{ x: number; y: number }> =>
     app.evaluate(({ BrowserWindow }) => {
       const b = BrowserWindow.getAllWindows()
-        .find((x) => x.webContents.getURL().endsWith('#dot'))!
+        .find((x) => !x.isDestroyed() && x.webContents.getURL().endsWith('#dot'))!
         .getBounds()
       return { x: b.x, y: b.y }
     })
@@ -307,12 +309,14 @@ test('closing the app window leaves the dot, and a Dock click brings the app bac
   const appWindows = (): Promise<number> =>
     app.evaluate(
       ({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows().filter((w) => !w.webContents.getURL().endsWith('#dot')).length
+        BrowserWindow.getAllWindows().filter(
+          (w) => !w.isDestroyed() && !w.webContents.getURL().endsWith('#dot')
+        ).length
     )
   expect(await appWindows()).toBe(1)
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()
-      .find((w) => !w.webContents.getURL().endsWith('#dot'))!
+      .find((w) => !w.isDestroyed() && !w.webContents.getURL().endsWith('#dot'))!
       .close()
   })
   await expect.poll(appWindows).toBe(0)
@@ -328,6 +332,26 @@ test('closing the app window leaves the dot, and a Dock click brings the app bac
   await expect.poll(() => !!appPage(), { timeout: 15_000 }).toBe(true)
   main = appPage()!
   await main.waitForSelector('.sidebar', { timeout: 20_000 })
+})
+
+test('a request that cannot be sent says why, and keeps what was typed', async () => {
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('dot:ask')
+    ipcMain.handle('dot:ask', () => ({ ok: false, error: 'Claude Code is not signed in.' }))
+  })
+  if ((await dot.locator('.dot-panel').count()) === 0) await dot.locator('.dot-tile').click()
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  const clear = panel.getByRole('button', { name: 'Clear' })
+  if (await clear.count()) await clear.click()
+  await panel.locator('.dot-input').fill('Is it up?')
+  await panel.locator('.dot-input').press('Enter')
+  await expect(panel.getByRole('alert')).toHaveText('Claude Code is not signed in.')
+  await expect(panel.locator('.dot-input')).toHaveValue('Is it up?')
+  await expect(dot.locator('.dot-tile')).toHaveClass(/dot-idle/)
+  // Dark whatever the app's theme is: an answer in the light theme's ink
+  // would not show on its panel.
+  expect(await dot.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('dark')
+  await panel.locator('.dot-input').press('Escape')
 })
 
 test('it can be turned off in Settings, and back on', async () => {
