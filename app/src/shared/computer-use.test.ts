@@ -3,6 +3,10 @@ import {
   CONSENT_IDLE_MS,
   consentStands,
   appCaution,
+  describeControls,
+  riskyControl,
+  toShotPoint,
+  zoomRect,
   appFrom,
   bundleIdFrom,
   heldByAnother,
@@ -224,5 +228,91 @@ describe('text as the pieces it is typed in', () => {
     expect(typedLines('Terminal\nls')).toEqual(['Terminal\n', 'ls'])
     expect(typedLines('\n')).toEqual(['\n'])
     expect(typedLines('')).toEqual([])
+  })
+})
+
+describe('the controls on screen, for an agent to act on', () => {
+  const shot = { width: 1440, height: 900, area: { x: 0, y: 0, width: 2880, height: 1800 } }
+  const control = (over: Record<string, unknown>): never =>
+    ({
+      role: 'Button',
+      label: 'Save',
+      value: '',
+      x: 200,
+      y: 100,
+      w: 80,
+      h: 40,
+      enabled: true,
+      ...over
+    }) as never
+  it('says what each is called and where to click for it, on the screenshot', () => {
+    expect(toShotPoint(shot, 240, 120)).toEqual({ x: 120, y: 60 })
+    expect(describeControls(shot, [control({})])).toEqual(['button "Save" at 120,60'])
+    expect(
+      describeControls(shot, [control({ role: 'TextField', label: 'Email', value: 'a@b.c' })])
+    ).toEqual(['text field "Email" = "a@b.c" at 120,60'])
+    expect(
+      describeControls(shot, [control({ role: 'CheckBox', label: 'Remember', enabled: false })])
+    ).toEqual(['check box "Remember" (disabled) at 120,60'])
+  })
+  it('never shows what a password field holds', () => {
+    expect(
+      describeControls(shot, [
+        control({ role: 'SecureTextField', label: 'Password', value: '(hidden)' })
+      ])
+    ).toEqual(['secure text field "Password" = (hidden) at 120,60'])
+  })
+  it('leaves out what has no name, and what is on another display', () => {
+    expect(describeControls(shot, [control({ label: '', value: '' })])).toEqual([])
+    expect(describeControls(shot, [control({ x: 5000 })])).toEqual([])
+    expect(toShotPoint(shot, -10, 5)).toBeNull()
+  })
+})
+
+describe('a click on something that ends or destroys', () => {
+  it('is known by what the control is called', () => {
+    expect(riskyControl('AXMenuItem', 'Log Out Worathiti…')).toContain('logs you out')
+    expect(riskyControl('AXMenuItem', 'Shut Down…')).toContain('shuts down')
+    expect(riskyControl('AXMenuItem', 'Empty Trash…')).toContain('deletes for good')
+    expect(riskyControl('AXMenuItem', 'Move to Trash')).toContain('deletes')
+    expect(riskyControl('AXMenuItem', 'Quit Safari')).toContain('quits')
+    expect(riskyControl('AXButton', 'Erase All Content and Settings…')).toContain(
+      'deletes for good'
+    )
+    expect(riskyControl('AXButton', 'Send')).toContain('sends')
+    expect(riskyControl('AXButton', 'Buy Now')).toContain('spends money')
+  })
+  it('leaves ordinary controls alone, and text that only mentions the words', () => {
+    for (const [role, label] of [
+      ['AXButton', 'Save'],
+      ['AXMenuItem', 'New Window'],
+      ['AXMenuItem', 'Restart Recording'],
+      ['AXButton', 'Sender details'],
+      ['AXStaticText', 'Log Out'],
+      ['AXButton', '']
+    ])
+      expect(riskyControl(role, label), `${role} ${label}`).toBeNull()
+  })
+})
+
+describe('the part of the screen to enlarge', () => {
+  const shot = { width: 1440, height: 900, area: { x: 0, y: 0, width: 1440, height: 900 } }
+  it('is kept inside the picture', () => {
+    expect(zoomRect(shot, { x: 1400, y: 880, width: 300, height: 300 })).toEqual({
+      x: 1400,
+      y: 880,
+      width: 40,
+      height: 20
+    })
+    expect(zoomRect(shot, { x: 10, y: 10, width: 200, height: 100 })).toEqual({
+      x: 10,
+      y: 10,
+      width: 200,
+      height: 100
+    })
+  })
+  it('is refused when nothing worth seeing is left', () => {
+    expect(zoomRect(shot, { x: 1439, y: 10, width: 200, height: 100 })).toBeNull()
+    expect(zoomRect(shot, { x: 10, y: 10, width: 5, height: 5 })).toBeNull()
   })
 })

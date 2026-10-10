@@ -346,3 +346,101 @@ export function pointerMoved(
 export function typedLines(text: string): string[] {
   return text.match(/[^\n]*\n|[^\n]+/g) ?? []
 }
+
+/**
+ * A point on the screen as a point on the screenshot: the other way from
+ * toScreenPoint. Null when it is not on the display the picture is of.
+ */
+export function toShotPoint(shot: Shot, x: number, y: number): { x: number; y: number } | null {
+  const a = shot.area
+  if (x < a.x || y < a.y || x > a.x + a.width || y > a.y + a.height) return null
+  return {
+    x: Math.round(((x - a.x) / a.width) * shot.width),
+    y: Math.round(((y - a.y) / a.height) * shot.height)
+  }
+}
+
+/** A control on screen, as the accessibility tree describes it (screen points). */
+export interface UiControl {
+  role: string
+  label: string
+  value: string
+  x: number
+  y: number
+  w: number
+  h: number
+  enabled: boolean
+}
+
+/**
+ * The controls as lines an agent can act on: what each is, what it is called,
+ * and the point on the screenshot to click for it. Ones off the pictured
+ * display, or with neither a name nor a value, are left out.
+ */
+export function describeControls(shot: Shot, controls: UiControl[], max = 120): string[] {
+  const lines: string[] = []
+  for (const c of controls) {
+    const at = toShotPoint(shot, c.x + c.w / 2, c.y + c.h / 2)
+    const label = c.label.replace(/\s+/g, ' ').trim()
+    const value = c.value.replace(/\s+/g, ' ').trim()
+    if (!at || (!label && !value)) continue
+    lines.push(
+      `${c.role.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()} ${label ? `"${label.slice(0, 80)}"` : '(no name)'}` +
+        (value && value !== label
+          ? ` = ${value === '(hidden)' ? '(hidden)' : `"${value.slice(0, 60)}"`}`
+          : '') +
+        `${c.enabled ? '' : ' (disabled)'} at ${at.x},${at.y}`
+    )
+    if (lines.length >= max) break
+  }
+  return lines
+}
+
+/**
+ * What clicking a control would end, lose or destroy, going by what it is
+ * called: a menu item or a button named Log Out, Shut Down, Empty Trash…
+ * Null for an ordinary one. Asked about every time, like riskyShortcut.
+ */
+export function riskyControl(role: string, label: string): string | null {
+  if (!/^AX(MenuItem|Button|MenuBarItem|PopUpButton|Link)$/.test(role)) return null
+  const l = label
+    .toLowerCase()
+    .replace(/[….]+$/, '')
+    .trim()
+  const found = RISKY_LABELS.find(([pattern]) => pattern.test(l))
+  return found ? found[1] : null
+}
+
+const RISKY_LABELS: [RegExp, string][] = [
+  [/^log out\b/, 'logs you out of this Mac, closing every app'],
+  [/^(shut down|restart)$/, 'shuts down or restarts this Mac'],
+  [/^(empty (trash|bin)|delete immediately|erase\b.*)/, 'deletes for good, with no way back'],
+  [/^(move to (trash|bin)|delete)$/, 'deletes what is selected'],
+  [/^force quit/, 'force quits an app, losing anything unsaved'],
+  [
+    /^(quit|quit and .*|quit all.*)$|^quit \S/,
+    'quits an app, and anything unsaved in it may be lost'
+  ],
+  [/^(sign out|sign out of .*)$/, 'signs you out of an account'],
+  [
+    /^(reset|erase all content and settings|restore defaults|factory reset).*$/,
+    'resets settings or data'
+  ],
+  [/^(uninstall|remove account|delete account).*$/, 'removes an app or an account'],
+  [
+    /^(send|send now|send message|send email|send all|pay|pay now|buy|buy now|purchase|place order|confirm payment|confirm purchase|subscribe|transfer)$/,
+    'sends something or spends money'
+  ]
+]
+
+/** The part of a picture to enlarge, kept inside the picture and not absurdly small. */
+export function zoomRect(
+  shot: Shot,
+  r: { x: number; y: number; width: number; height: number }
+): { x: number; y: number; width: number; height: number } | null {
+  const x = Math.max(0, Math.min(shot.width, Math.round(r.x)))
+  const y = Math.max(0, Math.min(shot.height, Math.round(r.y)))
+  const width = Math.min(shot.width - x, Math.round(r.width))
+  const height = Math.min(shot.height - y, Math.round(r.height))
+  return width >= 20 && height >= 20 ? { x, y, width, height } : null
+}

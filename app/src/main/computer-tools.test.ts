@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   acted: [] as unknown[],
   shots: 0,
   hooks: true,
+  risk: null as string | null,
+  ui: { app: 'TextEdit', window: 'Untitled', lines: ['button "Save" at 100,40'] },
   toAsk: [] as { id: string; name: string }[],
   approvedApps: [] as string[]
 }))
@@ -26,6 +28,11 @@ vi.mock('./computer-use', () => ({
     state.acted.push(action)
   },
   settle: async () => undefined,
+  touchConsent: () => undefined,
+  readUi: async () => state.ui,
+  riskAt: async () => state.risk,
+  takeZoom: async () => ({ jpeg: Buffer.from('zoomed'), width: 800, height: 400 }),
+  appsShowing: async () => ({ front: 'TextEdit', apps: ['TextEdit', 'Safari'] }),
   appsToAsk: async () => state.toAsk.filter((a) => !state.approvedApps.includes(a.id)),
   approveApp: (_owner: string, id: string) => {
     state.approvedApps.push(id)
@@ -82,6 +89,8 @@ beforeEach(() => {
     acted: [],
     shots: 0,
     hooks: true,
+    risk: null,
+    ui: { app: 'TextEdit', window: 'Untitled', lines: ['button "Save" at 100,40'] },
     toAsk: [],
     approvedApps: []
   })
@@ -113,17 +122,18 @@ describe("the agent's tools for using the Mac", () => {
   })
 
   it('are there when it is on', async () => {
+    const { COMPUTER_TOOL_NAMES } = await import('./computer-tools')
     await withClient(async (c) => {
-      expect((await c.listTools()).tools.map((t) => t.name).sort()).toEqual([
-        'computer_click',
-        'computer_drag',
-        'computer_key',
-        'computer_move',
-        'computer_open_mac_app',
+      const names = (await c.listTools()).tools.map((t) => t.name).sort()
+      expect(names).toEqual([...COMPUTER_TOOL_NAMES].sort())
+      // The ones that look, and the ones that act.
+      for (const n of [
         'computer_screenshot',
-        'computer_scroll',
-        'computer_type'
+        'computer_read_ui',
+        'computer_zoom',
+        'computer_click'
       ])
+        expect(names).toContain(n)
     })
   })
 
@@ -215,6 +225,48 @@ describe("the agent's tools for using the Mac", () => {
       expect(state.acted).toEqual([])
       expect(state.shots).toBe(0)
       expect(state.asked).toEqual([])
+    })
+  })
+
+  it('read the controls by name, give a closer look, wait, and say which apps are showing', async () => {
+    state.consent = true
+    await withClient(async (c) => {
+      const ui = await call(c, 'computer_read_ui')
+      expect(text(ui)).toContain('TextEdit — Untitled')
+      expect(text(ui)).toContain('button "Save" at 100,40')
+      state.ui = { app: 'Figma', window: '', lines: [] }
+      expect(text(await call(c, 'computer_read_ui'))).toContain('does not describe its controls')
+
+      const zoom = await call(c, 'computer_zoom', { x: 10, y: 20, width: 200, height: 100 })
+      expect(zoom.content.find((p) => p.type === 'image')?.data).toBe(
+        Buffer.from('zoomed').toString('base64')
+      )
+      expect(text(zoom)).toContain('still those of the full screenshot')
+
+      const waited = await call(c, 'computer_wait', { seconds: 2 })
+      expect(text(waited)).toContain('Waited 2 s.')
+      expect(waited.content.some((p) => p.type === 'image')).toBe(true)
+
+      expect(text(await call(c, 'computer_windows'))).toBe(
+        'In front: TextEdit.\nOn screen: TextEdit, Safari.'
+      )
+      // None of them is an action on the Mac.
+      expect(state.acted).toEqual([])
+    })
+  })
+
+  it('ask every time before a click on something named Log Out or Empty Trash', async () => {
+    state.consent = true
+    state.risk = 'Click "Empty Trash": it deletes for good, with no way back.'
+    await withClient(async (c) => {
+      const yes = await call(c, 'computer_click', { x: 5, y: 5 })
+      expect(yes.isError).toBeFalsy()
+      expect(state.asked).toEqual(['Click "Empty Trash": it deletes for good, with no way back.'])
+      state.answer = false
+      const no = await call(c, 'computer_click', { x: 5, y: 5 })
+      expect(no.isError).toBe(true)
+      expect(text(no)).toContain('did not allow that click')
+      expect(state.acted).toHaveLength(1)
     })
   })
 

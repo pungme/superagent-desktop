@@ -677,6 +677,32 @@ test('the helper that posts events answers to the app, and to nothing else', asy
   })
   test.skip(said === 'absent', 'the helper is not built here')
   expect(JSON.parse(said)).toEqual({ superagent: true })
+
+  // Run by the app, it reads the controls of whatever window is in front (it
+  // only reads) and says what is at a point. What comes back depends on the
+  // Mac the test runs on; its shape does not.
+  const read = await app.evaluate(() => {
+    const load = (process as unknown as { getBuiltinModule: (n: string) => Record<string, never> })
+      .getBuiltinModule
+    const { execFileSync } = load('child_process') as unknown as {
+      execFileSync: (bin: string, args: string[], o: { encoding: 'utf8' }) => string
+    }
+    const bin = `${process.cwd()}/native/cuse`
+    return {
+      ax: execFileSync(bin, ['ax', '40'], { encoding: 'utf8' }),
+      at: execFileSync(bin, ['axat', '10', '10'], { encoding: 'utf8' })
+    }
+  })
+  const tree = JSON.parse(read.ax) as { elements: { role: string; label: string; x: number }[] }
+  expect(Array.isArray(tree.elements)).toBe(true)
+  expect(tree.elements.length).toBeLessThanOrEqual(40)
+  for (const el of tree.elements) {
+    expect(typeof el.role).toBe('string')
+    expect(typeof el.label).toBe('string')
+    expect(typeof el.x).toBe('number')
+  }
+  console.log(`AX: ${tree.elements.length} controls; at 10,10: ${read.at.trim()}`)
+  expect(typeof JSON.parse(read.at)).toBe('object')
 })
 
 test('apps can be put out of bounds for computer use, and let back in', async () => {

@@ -17,6 +17,12 @@ import { kvGet, kvSet } from './store'
 import { broadcastToWindows } from './util'
 import {
   appFrom,
+  cleanAppName,
+  describeControls,
+  riskyControl,
+  SHOT_MAX_WIDTH,
+  type UiControl,
+  zoomRect,
   normalKeyCombo,
   ownerApp,
   typedLines,
@@ -209,20 +215,108 @@ export interface Screenshot {
   displays: { index: number; width: number; height: number; current: boolean }[]
 }
 
-export async function takeScreenshot(owner: string, display?: number): Promise<Screenshot> {
+/**
+ * Whether a conversation may look at the screen now, by any means: a picture,
+ * a closer picture, or the names of its controls. Throws what to tell the
+ * agent; returns the app in front.
+ */
+async function mayLook(owner: string): Promise<AppRef | null> {
   // Not a picture of the user's passwords either.
-  const front = owner === '__check__' ? null : await frontApp()
+  const front = await frontApp()
   const no = offLimitsMessage(front)
   if (no) throw new Error(no)
-  if (owner !== '__check__') {
-    // Not only the app in front: a window beside it would be in the picture too.
-    const showing = (await appsOnScreen()).find((a) => offLimitsMessage(a))
-    if (showing)
-      throw new Error(
-        `${offLimitsApp(showing.id, deniedApps()) === 'a macOS password or permission prompt' ? 'A macOS password or permission prompt' : showing.name} is on screen, and computer use does not look at it. Ask the user to answer or close it, or to hide that window, then try again.`
-      )
-    claim(owner)
+  // Not only the app in front: a window beside it would be in the picture too.
+  const showing = (await appsOnScreen()).find((a) => offLimitsMessage(a))
+  if (showing)
+    throw new Error(
+      `${offLimitsApp(showing.id, deniedApps()) === 'a macOS password or permission prompt' ? 'A macOS password or permission prompt' : showing.name} is on screen, and computer use does not look at it. Ask the user to answer or close it, or to hide that window, then try again.`
+    )
+  claim(owner)
+  return front
+}
+
+/**
+ * The controls of the window in front, by name, with where to click for each
+ * on the last screenshot. Surer than reading small text off a picture.
+ */
+export async function readUi(
+  owner: string
+): Promise<{ app: string; window: string; lines: string[] }> {
+  const shot = lastShot.get(owner)
+  if (!shot) throw new Error('Take a screenshot first: the controls are placed on it.')
+  const front = await mayLook(owner)
+  if (isSelfApp(front?.id))
+    throw new Error(
+      "Superagent's own window is in front; bring the app you mean to the front first."
+    )
+  const { ok, out, error } = await cuse(['ax', '160'])
+  if (!ok && error) throw new Error(error)
+  const controls = (Array.isArray(out.elements) ? out.elements : []) as UiControl[]
+  allowed.set(owner, Date.now())
+  return {
+    app: typeof out.app === 'string' ? cleanAppName(out.app) : (front?.name ?? ''),
+    window: typeof out.window === 'string' ? out.window : '',
+    lines: describeControls(
+      shot,
+      controls.filter((c) => c && typeof c.role === 'string')
+    )
   }
+}
+
+/** What clicking at a point would press, when it is something that needs asking about first. */
+export async function riskAt(owner: string, action: ComputerAction): Promise<string | null> {
+  if (action.type !== 'click') return null
+  const args = cuseArgs(action, lastShot.get(owner))
+  const { out } = await cuse(['axat', args[1], args[2]])
+  const role = typeof out.role === 'string' ? out.role : ''
+  const label = typeof out.label === 'string' ? out.label : ''
+  const risk = riskyControl(role, label)
+  return risk ? `Click "${label}": it ${risk}.` : null
+}
+
+/** Part of the screen, enlarged: for text too small to read on the whole picture. */
+export async function takeZoom(
+  owner: string,
+  region: { x: number; y: number; width: number; height: number }
+): Promise<{ jpeg: Buffer; width: number; height: number }> {
+  const shot = lastShot.get(owner)
+  if (!shot) throw new Error('Take a screenshot first: the region is measured on it.')
+  const rect = zoomRect(shot, region)
+  if (!rect) throw new Error('That region is outside the screenshot, or smaller than 20 pixels.')
+  await mayLook(owner)
+  const all = screen.getAllDisplays()
+  const display =
+    all.find((d) => d.bounds.x === shot.area.x && d.bounds.y === shot.area.y) ?? all[0]
+  // The display at its real size, so the region has every pixel there is.
+  const scale = Math.min(display.scaleFactor || 1, 2)
+  const full = {
+    width: Math.round(display.bounds.width * scale),
+    height: Math.round(display.bounds.height * scale)
+  }
+  const picture = await capture(all.indexOf(display), String(display.id), full)
+  const got = picture.image.getSize()
+  const k = got.width / shot.width
+  const cut = picture.image.crop({
+    x: Math.round(rect.x * k),
+    y: Math.round(rect.y * k),
+    width: Math.max(1, Math.round(rect.width * k)),
+    height: Math.max(1, Math.round(rect.height * k))
+  })
+  const size = cut.getSize()
+  const out = size.width > SHOT_MAX_WIDTH ? cut.resize({ width: SHOT_MAX_WIDTH }) : cut
+  allowed.set(owner, Date.now())
+  return { jpeg: out.toJPEG(85), ...out.getSize() }
+}
+
+/** The apps with a window on screen, and which is in front. */
+export async function appsShowing(owner: string): Promise<{ front: string; apps: string[] }> {
+  const front = await mayLook(owner)
+  const apps = (await appsOnScreen()).map((a) => a.name)
+  return { front: front?.name ?? '', apps: [...new Set(apps)] }
+}
+
+export async function takeScreenshot(owner: string, display?: number): Promise<Screenshot> {
+  const front = owner === '__check__' ? null : await mayLook(owner)
   sawFront(owner, front?.id ?? null)
   // Where the pointer is at this look: every action is followed by one, so a
   // pointer found elsewhere at the next action was moved by the user.

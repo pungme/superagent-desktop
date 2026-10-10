@@ -3,7 +3,11 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import {
   approveApp,
+  appsShowing,
   appsToAsk,
+  readUi,
+  riskAt,
+  takeZoom,
   act,
   computerUseEnabled,
   grantConsent,
@@ -55,7 +59,11 @@ export const COMPUTER_TOOL_NAMES = [
   'computer_scroll',
   'computer_type',
   'computer_key',
-  'computer_open_mac_app'
+  'computer_open_mac_app',
+  'computer_read_ui',
+  'computer_zoom',
+  'computer_wait',
+  'computer_windows'
 ] as const
 
 export function registerComputerTools(server: McpServer, ctx: ComputerContext): void {
@@ -109,19 +117,25 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     const no = await gate()
     if (no) return failed(no)
     try {
-      // A shortcut that quits, logs out or deletes is asked about every time.
-      const risk = action.type === 'key' ? riskyShortcut(action.keys) : null
+      // A shortcut that quits, logs out or deletes is asked about every time,
+      // and so is a click on a menu item or button named for the same things.
+      const shortcut = action.type === 'key' ? riskyShortcut(action.keys) : null
+      const risk = shortcut
+        ? `Press ${action.type === 'key' ? action.keys : ''}: it ${shortcut}.`
+        : await riskAt(owner, action)
       if (risk) {
         const yes = await requestApproval(
           ctx.workspaceId,
           ctx.sessionId,
           'mcp__cove-browser__computer_use',
-          `Press ${action.type === 'key' ? action.keys : ''}: it ${risk}.`,
+          risk,
           'permission'
         )
         if (!yes)
           return failed(
-            'The user did not allow that shortcut. Do not press it another way; ask what they would like instead.'
+            shortcut
+              ? 'The user did not allow that shortcut. Do not press it another way; ask what they would like instead.'
+              : 'The user did not allow that click. Do not reach it another way; ask what they would like instead.'
           )
       }
       // Each app, the first time this conversation would touch it.
@@ -186,6 +200,111 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     },
     ({ x, y, button, count }) =>
       doThen({ type: 'click', x, y, button, count }, `Clicked at ${x}, ${y}.`)
+  )
+
+  server.registerTool(
+    'computer_read_ui',
+    {
+      description:
+        'The controls of the window in front, by name: every button, field, checkbox, menu and link with what it is called, what it holds, and the point on the latest screenshot to click for it. Surer than reading small text off the picture; use it when a screenshot does not make clear what something is or where exactly it is. Take a screenshot first. A password field is listed but never read.',
+      inputSchema: {}
+    },
+    async () => {
+      const no = await gate()
+      if (no) return failed(no)
+      try {
+        const ui = await readUi(owner)
+        return {
+          content: [
+            {
+              type: 'text',
+              text: ui.lines.length
+                ? `${ui.app}${ui.window ? ` — ${ui.window}` : ''}\n${ui.lines.join('\n')}`
+                : `${ui.app || 'This app'} does not describe its controls. Go by the screenshot instead.`
+            }
+          ]
+        }
+      } catch (e) {
+        return failed((e as Error).message)
+      }
+    }
+  )
+
+  server.registerTool(
+    'computer_zoom',
+    {
+      description:
+        'A closer look at part of the screen: the region, in pixels of the latest screenshot, enlarged at full sharpness. For text too small to read. Points for the other tools are still those of the full screenshot, not of this picture.',
+      inputSchema: {
+        ...point,
+        width: z.number().min(20).describe('Width of the region, in screenshot pixels.'),
+        height: z.number().min(20).describe('Height of the region, in screenshot pixels.')
+      }
+    },
+    async ({ x, y, width, height }) => {
+      const no = await gate()
+      if (no) return failed(no)
+      try {
+        const z = await takeZoom(owner, { x, y, width, height })
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `The region at ${Math.round(x)},${Math.round(y)}, ${Math.round(width)}×${Math.round(height)}, enlarged. Coordinates you pass are still those of the full screenshot.`
+            },
+            { type: 'image', data: z.jpeg.toString('base64'), mimeType: 'image/jpeg' }
+          ]
+        }
+      } catch (e) {
+        return failed((e as Error).message)
+      }
+    }
+  )
+
+  server.registerTool(
+    'computer_wait',
+    {
+      description:
+        'Wait for something on screen to finish (a page loading, an app opening, a progress bar), then return the screen. Up to 10 seconds a call.',
+      inputSchema: { seconds: z.number().min(0.5).max(10) }
+    },
+    async ({ seconds }) => {
+      const no = await gate()
+      if (no) return failed(no)
+      touchConsent(owner)
+      await settle(Math.round(seconds * 1000))
+      try {
+        return await look(`Waited ${seconds} s.`)
+      } catch (e) {
+        return failed((e as Error).message)
+      }
+    }
+  )
+
+  server.registerTool(
+    'computer_windows',
+    {
+      description:
+        'Which apps have a window on screen, and which is in front. Cheaper than a screenshot when that is all you need to know.',
+      inputSchema: {}
+    },
+    async () => {
+      const no = await gate()
+      if (no) return failed(no)
+      try {
+        const w = await appsShowing(owner)
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `In front: ${w.front || 'unknown'}.\nOn screen: ${w.apps.join(', ') || 'nothing'}.`
+            }
+          ]
+        }
+      } catch (e) {
+        return failed((e as Error).message)
+      }
+    }
   )
 
   server.registerTool(
