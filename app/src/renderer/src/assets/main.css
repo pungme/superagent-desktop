@@ -4249,6 +4249,30 @@ button {
   font-size: 10.5px;
   pointer-events: none;
 }
+.chat-images-who.as-link {
+  border: 0;
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.chat-images-who.as-link:hover {
+  background: rgba(52, 54, 62, 0.95);
+}
+/* The row a picture was traced back to, lit for a moment. */
+.easy-vrow-found {
+  animation: easy-vrow-found 1.8s ease-out;
+  border-radius: 12px;
+}
+@keyframes easy-vrow-found {
+  0%,
+  35% {
+    background: color-mix(in srgb, var(--accent, #4f46e5) 16%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
 .chat-images-save {
   right: 6px;
   display: inline-flex;

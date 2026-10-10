@@ -135,11 +135,13 @@ export function Lightbox({
 function Tile({
   image,
   cwd,
-  onOpen
+  onOpen,
+  onShowInChat
 }: {
   image: ChatImageRef
   cwd: string
   onOpen: (shown: Shown) => void
+  onShowInChat?: (image: ChatImageRef) => void
 }): React.JSX.Element | null {
   // undefined while it is being fetched, null when it is gone.
   const ready =
@@ -181,7 +183,17 @@ function Tile({
       ) : (
         <span className="chat-images-loading" aria-hidden="true" />
       )}
-      <span className="chat-images-who">{image.from === 'you' ? 'You' : 'Agent'}</span>
+      {onShowInChat ? (
+        <button
+          className="chat-images-who as-link"
+          onClick={() => onShowInChat(image)}
+          title="Show where this is in the chat"
+        >
+          {image.from === 'you' ? 'You' : 'Agent'} · show in chat
+        </button>
+      ) : (
+        <span className="chat-images-who">{image.from === 'you' ? 'You' : 'Agent'}</span>
+      )}
       {shown && (
         <button
           className={`chat-images-save ${saved ? 'done' : ''}`}
@@ -207,7 +219,8 @@ export function ChatImagesView({
   cwd,
   covered,
   onOpen,
-  onClose
+  onClose,
+  onShowInChat
 }: {
   images: ChatImageRef[]
   cwd: string
@@ -215,6 +228,8 @@ export function ChatImagesView({
   covered: boolean
   onOpen: (shown: Shown) => void
   onClose: () => void
+  /** Close this and go to the message a picture came from. */
+  onShowInChat?: (image: ChatImageRef) => void
 }): React.JSX.Element {
   useOverlayLock(true)
   useEffect(() => {
@@ -248,7 +263,13 @@ export function ChatImagesView({
               {headed && <h3 className="chat-images-day">{g.day}</h3>}
               <div className="chat-images-grid">
                 {g.images.map((im) => (
-                  <Tile key={im.key} image={im} cwd={cwd} onOpen={onOpen} />
+                  <Tile
+                    key={im.key}
+                    image={im}
+                    cwd={cwd}
+                    onOpen={onOpen}
+                    onShowInChat={onShowInChat}
+                  />
                 ))}
               </div>
             </section>

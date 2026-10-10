@@ -209,3 +209,18 @@ test('a picture can be downloaded straight from the list', async () => {
   await window.keyboard.press('Escape')
   await expect(view).toHaveCount(0)
 })
+
+test('a picture leads back to the message it came from', async () => {
+  await window.locator('.easy-control-btn:visible', { hasText: 'Images' }).click()
+  const view = window.getByRole('dialog', { name: 'Images in this chat' })
+  // The agent's picture, the newest: back to its reply.
+  const tile = view.locator('.chat-images-tile').first()
+  await tile.hover()
+  await tile.getByRole('button', { name: /show in chat/ }).click()
+  await expect(view).toHaveCount(0)
+  const lit = window.locator('.easy-vrow-found')
+  await expect(lit).toHaveCount(1)
+  await expect(lit).toContainText('The header:')
+  // And the light goes out by itself.
+  await expect(lit).toHaveCount(0, { timeout: 5000 })
+})

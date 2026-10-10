@@ -12,7 +12,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore, useOverlayLock, TodoItem, PermissionMode, type Shot } from '../state'
 import { ChatImagesView, Lightbox, SaveCorner, type Shown } from './ChatImages'
-import { chatImageRefs } from '../../../shared/chat-images'
+import { chatImageRefs, type ChatImageRef } from '../../../shared/chat-images'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
 import { useChatBrowser } from '../hooks/useChatBrowser'
@@ -4512,6 +4512,21 @@ export function EasyChat({
     scrollMargin: listMargin,
     getItemKey: (i) => rowKeys[i] ?? i
   })
+  // "Show in chat" from the Images view: the row a picture came from is
+  // scrolled into the middle and lit for a moment, so it can be picked out.
+  const [flashRow, setFlashRow] = useState<number | null>(null)
+  const showInChat = (image: ChatImageRef): void => {
+    const id = image.kind === 'remote' ? image.id : image.key.split(':')[0]
+    const index = vrows.findIndex((r) =>
+      r.kind === 'msg'
+        ? r.msg.id === id
+        : r.kind === 'activity' && r.entries.some((e) => e.kind === 'tool' && e.tool.id === id)
+    )
+    if (index < 0) return
+    virtualizer.scrollToIndex(index, { align: 'center' })
+    setFlashRow(index)
+    setTimeout(() => setFlashRow((cur) => (cur === index ? null : cur)), 1800)
+  }
 
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current
@@ -5159,13 +5174,14 @@ export function EasyChat({
               {virtualizer.getVirtualItems().map((vi) => {
                 const row = vrows[vi.index]
                 const key = rowKeys[vi.index]
+                const found = flashRow === vi.index
                 const seen = row.kind === 'msg' && animatedRef.current.has(key)
                 return (
                   <div
                     key={key}
                     data-index={vi.index}
                     ref={virtualizer.measureElement}
-                    className={`easy-vrow${seen ? ' no-anim' : ''}`}
+                    className={`easy-vrow${seen ? ' no-anim' : ''}${found ? ' easy-vrow-found' : ''}`}
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -6268,6 +6284,10 @@ export function EasyChat({
           covered={lightbox !== null}
           onOpen={(shown) => setLightbox(shown.src, shown.origin)}
           onClose={() => setImagesOpen(false)}
+          onShowInChat={(image) => {
+            setImagesOpen(false)
+            showInChat(image)
+          }}
         />
       )}
       {lightbox && <Lightbox image={lightbox} cwd={cwd} onClose={() => setLightbox(null)} />}
