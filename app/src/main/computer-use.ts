@@ -86,6 +86,11 @@ function cuse(
   const bin = cusePath()
   if (!bin)
     return Promise.resolve({ ok: false, out: {}, error: 'The computer-use helper is missing.' })
+  // A test run can aim the accessibility actions at an app of its own (a window
+  // off every screen), so that a real agent can be watched pressing and filling
+  // without anything of the user's being touched. Never outside a test run.
+  const aim = process.env.COVE_USER_DATA ? process.env.COVE_E2E_AX_PID : undefined
+  if (aim && /^ax(press|set|menu)?$/.test(args[0])) args = ['--pid', aim, ...args]
   return new Promise((resolve) => {
     let child: ChildProcess | undefined = undefined
     child = execFile(bin, args, { timeout: 20_000 }, (err, stdout) => {

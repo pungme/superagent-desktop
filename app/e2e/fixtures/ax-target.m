@@ -53,7 +53,8 @@ int main(void) {
     [NSTimer scheduledTimerWithTimeInterval:0.25 target:t selector:@selector(report:) userInfo:@[f, p] repeats:YES];
     printf("READY pid=%d\n", getpid());
     fflush(stdout);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 40 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ exit(0); });
+    // Long enough for a real agent to get to it; the test kills it when done.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 600 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ exit(0); });
     [NSApp run];
   }
 }
