@@ -227,7 +227,7 @@ const COMPUTER_PROMPT =
   'Points are pixels on the latest screenshot. computer_read_ui names the controls of the window in front, ' +
   'numbered; computer_press and computer_fill act on one by its number and name, and computer_menu picks a ' +
   'menu item by its path ("File > Export…"), all without the pointer: prefer them to clicking and typing ' +
-  'whenever the control is listed. Also computer_zoom enlarges a region to read small text, computer_wait waits for a load, and ' +
+  'whenever the control is listed. Also computer_zoom enlarges a region to read small text, computer_wait waits a fixed time and computer_wait_for waits until a named control appears or goes, and ' +
   "computer_windows says which apps are showing. Rules that follow from it being the user's real computer:\n" +
   '1. Reach for it last. A shell command, a file edit, the built-in browser or the simulator tools are faster and ' +
   "surer when they can do the job; use the screen for what only an app's own interface can do.\n" +

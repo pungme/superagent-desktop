@@ -11,6 +11,7 @@ import {
   readUi,
   riskAt,
   takeZoom,
+  waitForControl,
   act,
   computerUseEnabled,
   grantConsent,
@@ -70,7 +71,8 @@ export const COMPUTER_TOOL_NAMES = [
   'computer_windows',
   'computer_press',
   'computer_fill',
-  'computer_menu'
+  'computer_menu',
+  'computer_wait_for'
 ] as const
 
 export function registerComputerTools(server: McpServer, ctx: ComputerContext): void {
@@ -380,6 +382,41 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       await settle(Math.round(seconds * 1000))
       try {
         return await look(`Waited ${seconds} s.`)
+      } catch (e) {
+        return failed((e as Error).message)
+      }
+    }
+  )
+
+  server.registerTool(
+    'computer_wait_for',
+    {
+      description:
+        'Wait until a control with this text in its name appears in the window in front (a "Done" button, a result), or with gone: true until it disappears (a progress bar, "Loading…"). Better than waiting a fixed time. Up to 30 seconds a call; returns whether it happened and the controls as they are then.',
+      inputSchema: {
+        text: z.string().min(1).max(200),
+        gone: z.boolean().optional(),
+        seconds: z.number().min(1).max(30).optional()
+      }
+    },
+    async ({ text, gone, seconds }) => {
+      const no = await gate()
+      if (no) return failed(no)
+      try {
+        const r = await waitForControl(owner, text, !!gone, seconds ?? 10)
+        const what = gone ? `"${text}" was gone` : `"${text}" was there`
+        return {
+          content: [
+            {
+              type: 'text',
+              text:
+                (r.happened
+                  ? `After ${r.waited} s, ${what}.`
+                  : `Still ${gone ? 'there' : 'not there'} after ${r.waited} s: "${text}".`) +
+                (r.ui.lines.length ? `\n${r.ui.lines.join('\n')}` : '')
+            }
+          ]
+        }
       } catch (e) {
         return failed((e as Error).message)
       }

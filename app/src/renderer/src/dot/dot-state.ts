@@ -108,6 +108,7 @@ const TOOL_WORDS: Record<string, string> = {
   computer_read_ui: 'Reading the controls',
   computer_zoom: 'Looking closer',
   computer_wait: 'Waiting',
+  computer_wait_for: 'Waiting for',
   computer_windows: 'Checking which apps are open',
   computer_click: 'Clicking',
   computer_move: 'Moving the pointer',

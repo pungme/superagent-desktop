@@ -371,6 +371,33 @@ function byNameError(error: string): string {
   return error || 'The action could not be carried out.'
 }
 
+/**
+ * Wait for a control to be there (or to be gone): a button that appears when
+ * something has loaded, a progress bar that goes away. Looks every half
+ * second; says whether it happened, and the controls as they are at the end.
+ */
+export async function waitForControl(
+  owner: string,
+  text: string,
+  gone: boolean,
+  seconds: number,
+  pause: (ms: number) => Promise<void> = settle
+): Promise<{ happened: boolean; waited: number; ui: Awaited<ReturnType<typeof readUi>> }> {
+  const want = text.trim().toLowerCase()
+  const started = Date.now()
+  const until = started + Math.min(Math.max(seconds, 1), 30) * 1000
+  for (;;) {
+    // Stopped by the user while it waited: not another look.
+    if (!hasConsent(owner)) throw new Error('Stopped by the user.')
+    const ui = await readUi(owner)
+    const there = ui.lines.some((l) => l.toLowerCase().includes(want))
+    const waited = Math.round((Date.now() - started) / 100) / 10
+    if (there !== gone) return { happened: true, waited, ui }
+    if (Date.now() >= until) return { happened: false, waited, ui }
+    await pause(500)
+  }
+}
+
 /** What clicking at a point would press, when it is something that needs asking about first. */
 export async function riskAt(owner: string, action: ComputerAction): Promise<string | null> {
   if (action.type !== 'click') return null

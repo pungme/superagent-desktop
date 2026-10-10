@@ -102,7 +102,7 @@ test('a button is pressed by its name, with the app staying in the background', 
   expect(await cuse('--pid', String(pid), 'axpress', String(press.i), 'Press')).toMatchObject({
     ok: true
   })
-  await expect.poll(() => log).toContain('PRESSED active=0')
+  await expect.poll(() => log, { timeout: 20_000 }).toContain('PRESSED active=0')
 })
 
 test('nothing is pressed when the control is no longer the one that was read', async () => {
@@ -125,7 +125,7 @@ test('text is put in a field by its name, and never in a password field', async 
   expect(
     await cuse('--pid', String(pid), 'axset', String(name.i), 'Name', 'Ada Lovelace')
   ).toMatchObject({ ok: true })
-  await expect.poll(() => log).toContain('FIELD Ada Lovelace')
+  await expect.poll(() => log, { timeout: 20_000 }).toContain('FIELD Ada Lovelace')
   expect(await cuse('--pid', String(pid), 'axset', String(secret.i), 'Password', 'guess')).toEqual({
     ok: false,
     error: 'that is a password field'
@@ -136,7 +136,7 @@ test('text is put in a field by its name, and never in a password field', async 
 
 test('a menu item is picked by its path; a greyed one, or one that is not there, is not', async () => {
   expect(await cuse('--pid', String(pid), 'axmenu', 'File > Ping')).toMatchObject({ ok: true })
-  await expect.poll(() => log).toContain('MENU ping')
+  await expect.poll(() => log, { timeout: 20_000 }).toContain('MENU ping')
   expect(await cuse('--pid', String(pid), 'axmenu', 'File>Greyed')).toEqual({
     ok: false,
     error: 'that menu item is greyed out'

@@ -30,6 +30,11 @@ vi.mock('./computer-use', () => ({
   settle: async () => undefined,
   touchConsent: () => undefined,
   readUi: async () => state.ui,
+  waitForControl: async (_o: string, text: string, gone: boolean) => ({
+    happened: state.ui.lines.some((l) => l.includes(text)) !== gone,
+    waited: 1.5,
+    ui: state.ui
+  }),
   pressControl: async (_o: string, index: number, name: string) => {
     state.acted.push({ type: 'press', index, name })
   },
@@ -260,6 +265,22 @@ describe("the agent's tools for using the Mac", () => {
         'In front: TextEdit.\nOn screen: TextEdit, Safari.'
       )
       // None of them is an action on the Mac.
+      expect(state.acted).toEqual([])
+    })
+  })
+
+  it('wait for a control to appear or to go, and say which happened', async () => {
+    state.consent = true
+    await withClient(async (c) => {
+      expect(text(await call(c, 'computer_wait_for', { text: 'Save' }))).toContain(
+        'After 1.5 s, "Save" was there.'
+      )
+      expect(text(await call(c, 'computer_wait_for', { text: 'Loading', gone: true }))).toContain(
+        '"Loading" was gone'
+      )
+      expect(text(await call(c, 'computer_wait_for', { text: 'Export finished' }))).toContain(
+        'Still not there after 1.5 s: "Export finished".'
+      )
       expect(state.acted).toEqual([])
     })
   })

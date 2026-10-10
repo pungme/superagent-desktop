@@ -79,6 +79,7 @@ const {
   setOwnProbe,
   setOwnSurfaceProbe,
   touchConsent,
+  waitForControl,
   stopComputerUse
 } = await import('./computer-use')
 const { CONSENT_IDLE_MS, CONSENT_MAX_ACTIONS, CONSENT_MAX_MS } =
@@ -485,5 +486,57 @@ describe('acting on a control by its name', () => {
     await expect(fillControl('m', 2, 'Search', 'x')).rejects.toThrow(/Read the controls again/)
     expect(byName).toEqual([])
     stopComputerUse()
+  })
+})
+
+describe('waiting for a control', () => {
+  const start = (owner: string): void => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    under = null
+    pointer = { x: 10, y: 10 }
+    grantConsent(owner)
+  }
+  const button = (label: string): Record<string, unknown> => ({
+    role: 'Button',
+    label,
+    value: '',
+    x: 100,
+    y: 100,
+    w: 80,
+    h: 40,
+    enabled: true
+  })
+  it.skipIf(!helperBuilt)(
+    'returns as soon as it is there, without waiting out the time',
+    async () => {
+      start('w')
+      controls = [button('Cancel')]
+      let looks = 0
+      const r = await waitForControl('w', 'done', false, 30, async () => {
+        // It appears on the third look.
+        if (++looks === 2) controls = [button('Cancel'), button('Done')]
+      })
+      expect(r.happened).toBe(true)
+      expect(looks).toBe(2)
+      expect(r.ui.lines.join(' ')).toContain('"Done"')
+      stopComputerUse()
+    }
+  )
+  it.skipIf(!helperBuilt)('waits for one to go, and stops when the user stops it', async () => {
+    start('g')
+    controls = [button('Loading…')]
+    let looks = 0
+    const gone = await waitForControl('g', 'loading', true, 30, async () => {
+      if (++looks === 1) controls = [button('Open')]
+    })
+    expect(gone.happened).toBe(true)
+
+    controls = [button('Loading…')]
+    await expect(
+      waitForControl('g', 'loading', true, 30, async () => {
+        stopComputerUse()
+      })
+    ).rejects.toThrow(/Stopped by the user/)
   })
 })
