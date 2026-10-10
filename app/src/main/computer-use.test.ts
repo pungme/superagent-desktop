@@ -9,11 +9,29 @@ vi.mock('electron', () => ({
   shell: {},
   systemPreferences: {}
 }))
+// What macOS says is in front, set by each test that cares.
+let front = 'com.apple.finder'
+vi.mock('node:child_process', () => ({
+  execFile: (
+    _cmd: string,
+    args: string[],
+    _opts: unknown,
+    done: (e: Error | null, out: string) => void
+  ) => done(null, args[0] === 'front' ? 'ASN:0x0-0x1001:' : `    bundleID="${front}"`)
+}))
 vi.mock('./store', () => ({ kvGet: () => undefined, kvSet: vi.fn() }))
 vi.mock('./util', () => ({ broadcastToWindows: vi.fn() }))
 
-const { cuseArgs, grantConsent, hasConsent, notReady, setComputerStop, stopComputerUse } =
-  await import('./computer-use')
+const {
+  act,
+  cuseArgs,
+  grantConsent,
+  hasConsent,
+  notReady,
+  offLimitsNow,
+  setComputerStop,
+  stopComputerUse
+} = await import('./computer-use')
 const { CONSENT_IDLE_MS } = await import('../shared/computer-use')
 
 const shot = { width: 1440, height: 931, area: { x: 0, y: 0, width: 1728, height: 1117 } }
@@ -106,5 +124,23 @@ describe('what is missing, in words for the user', () => {
     const both = notReady({ ...ready, screen: false, accessibility: false })!
     expect(both).toContain('Screen Recording')
     expect(both).toContain('Accessibility')
+  })
+})
+
+describe('where it will not go', () => {
+  it('is fine in an ordinary app', async () => {
+    front = 'com.figma.Desktop'
+    expect(await offLimitsNow()).toBeNull()
+  })
+  it('refuses to type into a password manager, and does not count it as activity', async () => {
+    front = 'com.1password.1password'
+    expect(await offLimitsNow()).toMatch(/1Password is in front/)
+    stopComputerUse()
+    await expect(act('pw', { type: 'type', text: 'hunter2' })).rejects.toThrow(/1Password/)
+    expect(hasConsent('pw')).toBe(false)
+  })
+  it('refuses everything while the Mac is locked', async () => {
+    front = 'com.apple.loginwindow'
+    await expect(act('locked', { type: 'key', keys: 'Enter' })).rejects.toThrow(/locked/)
   })
 })

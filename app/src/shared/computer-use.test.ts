@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   CONSENT_IDLE_MS,
   consentStands,
+  bundleIdFrom,
+  offLimitsApp,
   shotSize,
   toScreenPoint,
   validKeyCombo
@@ -52,4 +54,29 @@ it("keeps a yes while the agent keeps working, and lets it lapse when it doesn't
   expect(consentStands(undefined, 1000)).toBe(false)
   expect(consentStands(1000, 1000 + CONSENT_IDLE_MS - 1)).toBe(true)
   expect(consentStands(1000, 1000 + CONSENT_IDLE_MS)).toBe(false)
+})
+
+describe('apps computer use stays out of', () => {
+  it('names the password managers and the lock screen, and their helper apps', () => {
+    expect(offLimitsApp('com.1password.1password')).toBe('1Password')
+    expect(offLimitsApp('com.1password.1password-launcher')).toBe('1Password')
+    expect(offLimitsApp('com.apple.Passwords')).toBe('Passwords')
+    expect(offLimitsApp('com.apple.keychainaccess')).toBe('Keychain Access')
+    expect(offLimitsApp('com.bitwarden.desktop')).toBe('Bitwarden')
+    expect(offLimitsApp('com.apple.loginwindow')).toBe('the lock screen')
+    expect(offLimitsApp('COM.APPLE.LOGINWINDOW')).toBe('the lock screen')
+  })
+  it('lets every other app through, and an unknown one', () => {
+    for (const ok of ['com.apple.finder', 'com.figma.Desktop', 'com.apple.Safari', '', null])
+      expect(offLimitsApp(ok), String(ok)).toBeNull()
+    // Not fooled by a name that merely contains one.
+    expect(offLimitsApp('com.example.com.1password.notes')).toBeNull()
+  })
+  it('reads the bundle id out of what macOS prints', () => {
+    expect(
+      bundleIdFrom('[ NULL ]  ASN:0x0-0x1001: (in front) \n    bundleID="com.apple.loginwindow"')
+    ).toBe('com.apple.loginwindow')
+    expect(bundleIdFrom('bundleID=[ NULL ]')).toBeNull()
+    expect(bundleIdFrom('')).toBeNull()
+  })
 })

@@ -77,6 +77,10 @@ panel with a tile in its corner, loaded from the same page with `#dot`
 - `systemPreferences.getMediaAccessStatus('screen')` can say granted when a
   capture still fails (until a restart). `computer:check` really tries; trust
   that, not the status.
+- It refuses to act or look while a password manager, Keychain or the lock
+  screen is in front (`offLimitsApp` in `shared/computer-use.ts`, asked through
+  `lsappinfo`). A locked Mac reports `com.apple.loginwindow` in front, so a
+  manual try from a locked machine is refused; that is the guard, not a bug.
 - `prompts.ts` learns whether it is on through `setComputerUseProbe`, not an
   import, so building a prompt does not drag in Electron.
 

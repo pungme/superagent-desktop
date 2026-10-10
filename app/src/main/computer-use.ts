@@ -15,8 +15,10 @@ import { join } from 'path'
 import { kvGet, kvSet } from './store'
 import { broadcastToWindows } from './util'
 import {
+  bundleIdFrom,
   COMPUTER_STOP_HOTKEY,
   consentStands,
+  offLimitsApp,
   shotSize,
   toScreenPoint,
   type Shot
@@ -173,6 +175,9 @@ export interface Screenshot {
 }
 
 export async function takeScreenshot(owner: string, display?: number): Promise<Screenshot> {
+  // Not a picture of the user's passwords either.
+  const no = owner === '__check__' ? null : await offLimitsNow()
+  if (no) throw new Error(no)
   const all = screen.getAllDisplays()
   // The one asked for; else the one last used; else the one the pointer is on,
   // which is where the person is looking.
@@ -302,9 +307,40 @@ function setActive(on: boolean): void {
   broadcastToWindows('computer:active', on)
 }
 
+/** The app in front: where a key press or typed text would go. Null if macOS will not say. */
+export function frontApp(): Promise<string | null> {
+  return new Promise((resolve) =>
+    execFile('/usr/bin/lsappinfo', ['front'], { timeout: 4000 }, (err, asn) => {
+      if (err || !String(asn).trim()) return resolve(null)
+      execFile(
+        '/usr/bin/lsappinfo',
+        ['info', '-only', 'bundleid', String(asn).trim()],
+        { timeout: 4000 },
+        (e, out) => resolve(e ? null : bundleIdFrom(String(out)))
+      )
+    })
+  )
+}
+
+/**
+ * Why the Mac must not be used right now, or null. The lock screen and the
+ * apps where secrets live are out of bounds whatever was asked: an agent has
+ * no business typing into a password manager, and anything aimed at a locked
+ * Mac is aimed at its password field.
+ */
+export async function offLimitsNow(): Promise<string | null> {
+  const name = offLimitsApp(await frontApp())
+  if (!name) return null
+  return name === 'the lock screen'
+    ? 'This Mac is locked. Nothing can be done on it until the user unlocks it; do not try to.'
+    : `${name} is in front, and computer use does not operate in it: it holds the user's secrets. Ask the user to do that part themselves, or to bring another app to the front.`
+}
+
 /** Do one thing with the mouse or keyboard, for a conversation that has been allowed to. */
 export async function act(owner: string, action: ComputerAction): Promise<void> {
   const args = cuseArgs(action, lastShot.get(owner))
+  const no = await offLimitsNow()
+  if (no) throw new Error(no)
   allowed.set(owner, Date.now())
   setActive(true)
   const res = await cuse(args)

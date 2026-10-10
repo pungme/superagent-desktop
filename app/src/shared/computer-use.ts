@@ -77,3 +77,34 @@ export function consentStands(lastUsedAt: number | undefined, now: number): bool
 
 /** The shortcut that stops it, whatever app is in front. */
 export const COMPUTER_STOP_HOTKEY = 'Alt+Escape'
+
+/**
+ * Apps computer use keeps its hands out of: where secrets are kept, and the
+ * lock screen. Matched on the bundle id's start, so a vendor's helper apps
+ * and new major versions are covered too.
+ */
+const OFF_LIMITS: [prefix: string, name: string][] = [
+  ['com.apple.loginwindow', 'the lock screen'],
+  ['com.apple.Passwords', 'Passwords'],
+  ['com.apple.keychainaccess', 'Keychain Access'],
+  ['com.1password.', '1Password'],
+  ['com.agilebits.onepassword', '1Password'],
+  ['com.bitwarden.', 'Bitwarden'],
+  ['com.lastpass.', 'LastPass'],
+  ['com.dashlane.', 'Dashlane'],
+  ['in.sinew.Enpass', 'Enpass'],
+  ['org.keepassxc.', 'KeePassXC'],
+  ['com.apple.SecurityAgent', 'a macOS password prompt']
+]
+
+/** The name of the off-limits app this bundle id belongs to, or null when it is fine. */
+export function offLimitsApp(bundleId: string | null | undefined): string | null {
+  if (!bundleId) return null
+  const id = bundleId.toLowerCase()
+  return OFF_LIMITS.find(([prefix]) => id.startsWith(prefix.toLowerCase()))?.[1] ?? null
+}
+
+/** The bundle id in what `lsappinfo info -only bundleid` prints, or null. */
+export function bundleIdFrom(lsappinfo: string): string | null {
+  return /bundleID="([^"]+)"/i.exec(lsappinfo)?.[1] ?? null
+}
