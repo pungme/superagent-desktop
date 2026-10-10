@@ -3486,7 +3486,7 @@ export function EasyChat({
         })
         .then((id) => {
           if (disposed) {
-            window.cove.agentStop(id)
+            window.cove.agentStop(id, 'started after its chat view had moved on')
             return
           }
           agentIdRef.current = id
@@ -3608,7 +3608,8 @@ export function EasyChat({
       offUser?.()
       offStderr?.()
       offExit?.()
-      if (agentIdRef.current) window.cove.agentStop(agentIdRef.current)
+      if (agentIdRef.current)
+        window.cove.agentStop(agentIdRef.current, 'chat view restarting or closing')
     }
     // model, permissionMode and provider are dependencies on purpose: changing
     // any of them must restart the agent or the picker silently does nothing to
@@ -3656,7 +3657,7 @@ export function EasyChat({
     const timer = window.setTimeout(() => {
       const id = agentIdRef.current
       if (!id) return
-      window.cove.agentStop(id)
+      window.cove.agentStop(id, 'chat off screen and idle for five minutes')
       agentIdRef.current = null
       setReady(false)
       suspendedRef.current = true
@@ -3900,7 +3901,7 @@ export function EasyChat({
       const detail = (e as CustomEvent).detail as { chatId: string }
       if (detail.chatId !== chatId) return
       if (agentIdRef.current) {
-        window.cove.agentStop(agentIdRef.current)
+        window.cove.agentStop(agentIdRef.current, 'chat cleared')
         agentIdRef.current = null
       }
       stopLoop()

@@ -8,7 +8,7 @@ import { buildAppendedPrompt } from '../prompts'
 import { promptAsFile } from './prompt-file'
 import { describeRepoSet, projectMemoryDir } from '../repo-set'
 import { findClaude } from '../claude-cli'
-import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
+import { killProcessTree, killProcessTreeForSure, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import { cachedClaudeModels } from './models'
 import { limitFromEvent, modelLimitedUntil } from '../accounts'
 import { fallbackModelFor, modelFamily } from '../../shared/model-fallback'
@@ -173,7 +173,7 @@ function claudeBackend(proc: ChildProcessWithoutNullStreams): AgentBackend {
       return true
     },
     kill() {
-      killProcessTree(proc)
+      killProcessTreeForSure(proc)
     }
   }
 }

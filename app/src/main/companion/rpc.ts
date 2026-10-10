@@ -358,7 +358,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
         const running = findSessionByChat(p.data.chatId)
-        if (running) stopAgent(running.id)
+        if (running) stopAgent(running.id, 'phone: switched agent')
         setChatProvider(p.data.chatId, toProvider(p.data.provider))
         clearChatSession(p.data.chatId)
         markContextLost(p.data.chatId)
@@ -380,7 +380,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
         const s = findSessionByChat(p.data.chatId)
-        if (s) stopAgent(s.id)
+        if (s) stopAgent(s.id, 'phone: chat deleted')
         // Take the chat's copy of the project with it, exactly as the window
         // does. Deleting only the row left the worktree and its branch on disk,
         // so the Mac kept showing a row for a conversation that was gone.
@@ -783,7 +783,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         for (const c of listAllChats()) {
           if (c.workspaceId !== p.data.id) continue
           const s = findSessionByChat(c.id)
-          if (s) stopAgent(s.id)
+          if (s) stopAgent(s.id, 'phone: project removed')
         }
         deleteWorkspace(p.data.id)
         broadcastToWindows('projects:changed', {})
@@ -1204,7 +1204,10 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
       (cur?.model ?? '') !== wantModel ||
       (cur?.permissionMode ?? 'bypassPermissions') !== wantMode
     ) {
-      stopAgent(session.id)
+      stopAgent(
+        session.id,
+        `phone message asks for another model or mode: model ${cur?.model ?? ''} -> ${wantModel}, mode ${cur?.permissionMode ?? ''} -> ${wantMode}`
+      )
       session = undefined
     }
   }

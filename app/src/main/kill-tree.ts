@@ -30,6 +30,23 @@ export function killProcessTree(proc: ChildProcess, signal: NodeJS.Signals = 'SI
   }
 }
 
+/**
+ * Stop a process and everything under it, and make sure of it.
+ *
+ * SIGTERM is a request. An agent in the middle of a turn can take it and carry
+ * on: on 2026-10-10 a chat's `claude` that had been stopped to make way for a
+ * new one kept working for minutes, unseen by the app, in the same folder as
+ * its replacement, and pushed a release. So what is still running after
+ * `graceMs` is killed outright.
+ */
+export function killProcessTreeForSure(proc: ChildProcess, graceMs = 4000): void {
+  killProcessTree(proc)
+  if (proc.exitCode !== null || proc.signalCode !== null) return
+  const timer = setTimeout(() => killProcessTree(proc, 'SIGKILL'), graceMs)
+  timer.unref?.()
+  proc.once('exit', () => clearTimeout(timer))
+}
+
 /** Whether to spawn detached for killProcessTree's group-signal to work.
  *  POSIX only — `detached: true` means something unrelated on Windows (its
  *  own console), and taskkill /T doesn't need it. */
