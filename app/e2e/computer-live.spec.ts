@@ -139,6 +139,21 @@ test('a real agent has the computer-use tools, and switches project when asked',
       timeout: 150_000
     })
     console.log('STATUS:', (await panel.locator('.dot-answer').innerText()).replace(/\s+/g, ' '))
+
+    // A todo list by its project's name, and the board put on screen.
+    await panel
+      .locator('.dot-input')
+      .fill(
+        'put a card on the e2e project todo: "Fix the header on mobile". then show me its board'
+      )
+    await panel.locator('.dot-input').press('Enter')
+    await expect(main.locator('text=Fix the header on mobile').first()).toBeVisible({
+      timeout: 150_000
+    })
+    await expect(panel.getByRole('button', { name: /Open in Superagent/ })).toBeVisible({
+      timeout: 60_000
+    })
+    console.log('BOARD:', (await panel.locator('.dot-answer').innerText()).replace(/\s+/g, ' '))
   } finally {
     await app.close()
     for (const dir of [data, proj]) rmSync(dir, { recursive: true, force: true })
