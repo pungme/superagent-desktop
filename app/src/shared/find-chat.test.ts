@@ -53,6 +53,12 @@ describe('which conversation someone means', () => {
     expect(rankChats(chats, 'shot caller').map((c) => c.id)).toEqual(['e'])
     expect(rankChats(chats, 'wepush').map((c) => c.id)).toEqual(['b', 'd', 'a'])
   })
+  it('takes the project whose name fits the most of the words', () => {
+    // "wepush portal" is wepush-portal, not wepush, though both start the same.
+    expect(rankChats(chats, 'wepush portal pricing').map((c) => c.id)).toEqual(['d'])
+    // Nothing there about this topic: its chats are offered rather than nothing.
+    expect(rankChats(chats, 'the portal one about kubernetes').map((c) => c.id)).toEqual(['d'])
+  })
   it('finds nothing for words no chat has, or for no words at all', () => {
     expect(rankChats(chats, 'kubernetes migration')).toEqual([])
     expect(rankChats(chats, 'open the chat please')).toEqual([])

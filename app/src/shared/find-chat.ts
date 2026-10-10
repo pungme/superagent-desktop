@@ -37,42 +37,42 @@ export function searchWords(said: string): string[] {
 const squash = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
 
 /**
- * Chats that fit a description, best first. A chat has to match at least one
- * word; when the description names a project, chats of other projects are
- * left out. Ties go to the one used most recently.
+ * Chats that fit a description, best first.
+ *
+ * Words that name a project keep the list to that project: the one whose name
+ * fits the most of them ("wepush portal" is wepush-portal, not wepush). The
+ * rest of the words are the topic, looked for in each chat's title and in what
+ * was said in it. When no chat of the project fits the topic, its chats are
+ * offered anyway, most recent first, rather than nothing. With no project
+ * named, a chat has to fit the topic. Ties go to the one used most recently.
  */
 export function rankChats<T extends FindableChat>(chats: T[], said: string, limit = 8): T[] {
   const words = searchWords(said)
   if (!words.length) return []
-  const scored = chats
-    .map((c) => {
-      const title = squash(c.title)
-      const project = squash(c.projectName)
-      let score = 0
-      let hits = 0
-      for (const w of words) {
-        const k = squash(w)
-        const inTitle = title.includes(k)
-        const inProject = project.includes(k)
-        const inSaid = !!c.saidWords?.includes(w)
-        if (inTitle) score += 3
-        if (inProject) score += 2
-        if (inSaid) score += 1
-        if (inTitle || inProject || inSaid) hits++
-      }
-      // Only its project's name fitting is not a match: every chat there would be one.
-      const more = words.some((w) => title.includes(squash(w)) || c.saidWords?.includes(w))
-      const onlyProjectWords = words.every((w) => project.includes(squash(w)))
-      return { c, score, hits, ok: hits > 0 && (more || onlyProjectWords) }
-    })
-    .filter((s) => s.ok)
-  // A word that names a project keeps the list to that project.
-  const named = new Set(
-    scored
-      .filter((s) => words.some((w) => squash(s.c.projectName).includes(squash(w))))
-      .map((s) => s.c.projectId)
-  )
-  const kept = named.size ? scored.filter((s) => named.has(s.c.projectId)) : scored
+  const inProject = (c: T): string[] => {
+    const project = squash(c.projectName)
+    return words.filter((w) => project.includes(squash(w)))
+  }
+  const most = Math.max(0, ...chats.map((c) => inProject(c).length))
+  const pool = most > 0 ? chats.filter((c) => inProject(c).length === most) : chats
+  const scored = pool.map((c) => {
+    const title = squash(c.title)
+    const named = new Set(most > 0 ? inProject(c) : [])
+    let score = 0
+    let hits = 0
+    for (const w of words) {
+      if (named.has(w)) continue
+      const inTitle = title.includes(squash(w))
+      const inSaid = !!c.saidWords?.includes(w)
+      if (inTitle) score += 3
+      if (inSaid) score += 1
+      if (inTitle || inSaid) hits++
+    }
+    return { c, score, hits }
+  })
+  const fitting = scored.filter((s) => s.hits > 0)
+  // A project was named and nothing in it fits the rest: its chats, as they are.
+  const kept = fitting.length ? fitting : most > 0 ? scored : []
   return kept
     .sort((a, b) => b.hits - a.hits || b.score - a.score || b.c.updatedAt - a.c.updatedAt)
     .slice(0, limit)
