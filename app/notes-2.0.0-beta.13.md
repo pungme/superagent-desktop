@@ -10,3 +10,8 @@
 **Computer use**
 
 - It can read the controls of the window in front by name without taking a screenshot first, which is often enough by itself to know where to click.
+
+**Pictures in a chat**
+
+- The Images view is grouped by the day each picture arrived.
+- Hover a picture there and press "show in chat" to go to the message it came from; the message is lit for a moment.

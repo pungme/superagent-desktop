@@ -1,3 +1,5 @@
+import { existsSync } from 'fs'
+import { join } from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -380,8 +382,12 @@ describe('what it will not be talked into', () => {
   })
 })
 
+const helperBuilt = existsSync(join(__dirname, '..', '..', 'native', 'cuse'))
+
 describe('reading the controls by name', () => {
-  it('needs no screenshot, and gives points a click can use', async () => {
+  // Where the helper has not been built (CI, before the native step) there is
+  // nothing to read the controls with, and the tool says so instead.
+  it.skipIf(!helperBuilt)('needs no screenshot, and gives points a click can use', async () => {
     stopComputerUse()
     front = 'com.apple.TextEdit'
     under = null

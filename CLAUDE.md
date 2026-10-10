@@ -72,6 +72,10 @@ panel with a tile in its corner, loaded from the same page with `#dot`
 `native/cuse.c` (the helper that posts mouse and keyboard events, built by
 `native/build.sh` and shipped beside `simfb`). Off unless the user turns it on.
 
+- CI runs `npm test` BEFORE the native helper is built, so a unit test that
+  needs `native/cuse` must skip itself when it is absent (see `helperBuilt` in
+  `computer-use.test.ts`). 2.0.0-beta.13's first release run failed on exactly
+  this. To check locally: move `native/cuse` aside and run `npm test`.
 - Never post real events from a test. `cuse --dry` parses and echoes without
   posting, and is what `cuse-helper.test.ts` runs.
 - `systemPreferences.getMediaAccessStatus('screen')` can say granted when a
