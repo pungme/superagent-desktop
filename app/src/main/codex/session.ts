@@ -11,6 +11,7 @@ import { buildAppendedPrompt } from '../prompts'
 import { describeRepoSet } from '../repo-set'
 import { workspaceMcpUrl } from '../mcp'
 import { requestApproval, reportAgentLifecycle } from '../hooks'
+import { computerShellVerdict } from '../computer-guard'
 import type { AgentBackend, AgentStartOptions, SessionContext, SessionHost } from '../agent-backend'
 
 /**
@@ -139,6 +140,13 @@ export function startCodexSession(
       case 'item/commandExecution/requestApproval':
       case 'execCommandApproval': {
         const command = typeof p.command === 'string' ? unwrapShellCommand(p.command) : '(command)'
+        // The same refusal Claude's hook gives (computer-guard.ts): a shell is
+        // not a second way to the mouse, the keyboard or the screen. Only where
+        // Codex asks at all; in its full-access mode nothing comes through here.
+        if (computerShellVerdict(command)) {
+          req.respond({ decision: 'decline' })
+          return
+        }
         const reason = typeof p.reason === 'string' && p.reason ? `\n${p.reason}` : ''
         void decide('Bash', command.slice(0, 400) + reason).then((ok) =>
           req.respond({ decision: ok ? 'accept' : 'decline' })
