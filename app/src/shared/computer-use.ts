@@ -376,8 +376,9 @@ export interface UiControl {
 
 /**
  * The controls as lines an agent can act on: what each is, what it is called,
- * and the point on the screenshot to click for it. Ones off the pictured
- * display, or with neither a name nor a value, are left out.
+ * and the point on the screenshot to click for it. Ones with neither a name
+ * nor a value are left out; ones off the pictured display are listed without
+ * a point.
  */
 export function describeControls(shot: Shot, controls: UiControl[], max = 120): string[] {
   const lines: string[] = []
@@ -385,13 +386,15 @@ export function describeControls(shot: Shot, controls: UiControl[], max = 120): 
     const at = toShotPoint(shot, c.x + c.w / 2, c.y + c.h / 2)
     const label = c.label.replace(/\s+/g, ' ').trim()
     const value = c.value.replace(/\s+/g, ' ').trim()
-    if (!at || (!label && !value)) continue
+    if (!label && !value) continue
+    // One that is not on the pictured display has no point to click, but it can
+    // still be pressed or filled by its number: that needs no point.
     lines.push(
       `${typeof c.i === 'number' ? `[${c.i}] ` : ''}${c.role.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()} ${label ? `"${label.slice(0, 80)}"` : '(no name)'}` +
         (value && value !== label
           ? ` = ${value === '(hidden)' ? '(hidden)' : `"${value.slice(0, 60)}"`}`
           : '') +
-        `${c.enabled ? '' : ' (disabled)'} at ${at.x},${at.y}`
+        `${c.enabled ? '' : ' (disabled)'}${at ? ` at ${at.x},${at.y}` : ' (not on this display: use its number)'}`
     )
     if (lines.length >= max) break
   }
@@ -445,4 +448,9 @@ export function zoomRect(
   const width = Math.min(shot.width - x, Math.round(r.width))
   const height = Math.min(shot.height - y, Math.round(r.height))
   return width >= 20 && height >= 20 ? { x, y, width, height } : null
+}
+
+/** Whether two rectangles on the desktop share any area. */
+export function overlaps(a: ScreenArea, b: ScreenArea): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 }

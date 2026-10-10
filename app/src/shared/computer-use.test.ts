@@ -15,6 +15,7 @@ import {
   focusMoved,
   normalKeyCombo,
   offLimitsApp,
+  overlaps,
   ownerApp,
   typedLines,
   riskyShortcut,
@@ -264,9 +265,11 @@ describe('the controls on screen, for an agent to act on', () => {
       ])
     ).toEqual(['secure text field "Password" = (hidden) at 120,60'])
   })
-  it('leaves out what has no name, and what is on another display', () => {
+  it('leaves out what has no name; what is on another display has a number but no point', () => {
     expect(describeControls(shot, [control({ label: '', value: '' })])).toEqual([])
-    expect(describeControls(shot, [control({ x: 5000 })])).toEqual([])
+    expect(describeControls(shot, [control({ i: 2, x: 5000 })])).toEqual([
+      '[2] button "Save" (not on this display: use its number)'
+    ])
     expect(toShotPoint(shot, -10, 5)).toBeNull()
   })
 })
@@ -316,5 +319,18 @@ describe('the part of the screen to enlarge', () => {
   it('is refused when nothing worth seeing is left', () => {
     expect(zoomRect(shot, { x: 1439, y: 10, width: 200, height: 100 })).toBeNull()
     expect(zoomRect(shot, { x: 10, y: 10, width: 5, height: 5 })).toBeNull()
+  })
+})
+
+describe('whether a window is in the part of the desktop being pictured', () => {
+  const laptop = { x: 0, y: 0, width: 1728, height: 1117 }
+  it('is, when any of it is on that display', () => {
+    expect(overlaps({ x: 100, y: 100, width: 900, height: 530 }, laptop)).toBe(true)
+    expect(overlaps({ x: 1700, y: 400, width: 900, height: 530 }, laptop)).toBe(true)
+  })
+  it('is not, on the display beside it or wholly off it', () => {
+    expect(overlaps({ x: 2220, y: 446, width: 900, height: 530 }, laptop)).toBe(false)
+    expect(overlaps({ x: 1728, y: 0, width: 500, height: 500 }, laptop)).toBe(false)
+    expect(overlaps({ x: -6000, y: -6000, width: 300, height: 160 }, laptop)).toBe(false)
   })
 })

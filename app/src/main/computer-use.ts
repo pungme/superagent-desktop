@@ -17,6 +17,8 @@ import { kvGet, kvSet } from './store'
 import { broadcastToWindows } from './util'
 import {
   appFrom,
+  overlaps,
+  type ScreenArea,
   cleanAppName,
   describeControls,
   riskyControl,
@@ -225,17 +227,24 @@ export interface Screenshot {
  * a closer picture, or the names of its controls. Throws what to tell the
  * agent; returns the app in front.
  */
-async function mayLook(owner: string): Promise<AppRef | null> {
+async function mayLook(owner: string, picture: ScreenArea | null = null): Promise<AppRef | null> {
   // Not a picture of the user's passwords either.
   const front = await frontApp()
   const no = offLimitsMessage(front)
   if (no) throw new Error(no)
-  // Not only the app in front: a window beside it would be in the picture too.
-  const showing = (await appsOnScreen()).find((a) => offLimitsMessage(a))
-  if (showing)
-    throw new Error(
-      `${offLimitsApp(showing.id, deniedApps()) === 'a macOS password or permission prompt' ? 'A macOS password or permission prompt' : showing.name} is on screen, and computer use does not look at it. Ask the user to answer or close it, or to hide that window, then try again.`
+  // Not only the app in front: a window beside it would be in a picture too.
+  // What matters is the part of the desktop being pictured: a password
+  // manager left open on another display is not in a picture of this one.
+  // Reading the controls of the window in front takes no picture at all.
+  if (picture) {
+    const showing = (await windowsOnScreen()).find(
+      (w) => overlaps(w.frame, picture) && offLimitsMessage(w.app)
     )
+    if (showing)
+      throw new Error(
+        `${offLimitsApp(showing.app.id, deniedApps()) === 'a macOS password or permission prompt' ? 'A macOS password or permission prompt' : showing.app.name} is on this display, and computer use does not take a picture with it in. Ask the user to answer or close it, or to move or hide that window; computer_read_ui still works on the app in front.`
+      )
+  }
   claim(owner)
   return front
 }
@@ -382,7 +391,7 @@ export async function takeZoom(
   if (!shot) throw new Error('Take a screenshot first: the region is measured on it.')
   const rect = zoomRect(shot, region)
   if (!rect) throw new Error('That region is outside the screenshot, or smaller than 20 pixels.')
-  await mayLook(owner)
+  await mayLook(owner, shot.area)
   const all = screen.getAllDisplays()
   const display =
     all.find((d) => d.bounds.x === shot.area.x && d.bounds.y === shot.area.y) ?? all[0]
@@ -415,13 +424,6 @@ export async function appsShowing(owner: string): Promise<{ front: string; apps:
 }
 
 export async function takeScreenshot(owner: string, display?: number): Promise<Screenshot> {
-  const front = owner === '__check__' ? null : await mayLook(owner)
-  sawFront(owner, front?.id ?? null)
-  // Where the pointer is at this look: every action is followed by one, so a
-  // pointer found elsewhere at the next action was moved by the user.
-  const at = pointerNow()
-  if (at) pointerLeftAt.set(owner, at)
-  else pointerLeftAt.delete(owner)
   const all = screen.getAllDisplays()
   // The one asked for; else the one last used; else the one the pointer is on,
   // which is where the person is looking.
@@ -432,6 +434,13 @@ export async function takeScreenshot(owner: string, display?: number): Promise<S
     (display !== undefined && all[display]) ||
     byPrior ||
     screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  const front = owner === '__check__' ? null : await mayLook(owner, chosen.bounds)
+  sawFront(owner, front?.id ?? null)
+  // Where the pointer is at this look: every action is followed by one, so a
+  // pointer found elsewhere at the next action was moved by the user.
+  const at = pointerNow()
+  if (at) pointerLeftAt.set(owner, at)
+  else pointerLeftAt.delete(owner)
   const size = shotSize(chosen.bounds)
   const picture = await capture(all.indexOf(chosen), String(chosen.id), size)
   const got = picture.image.getSize()
@@ -705,17 +714,33 @@ function appAt(x: string, y: string): Promise<AppRef | null> {
 }
 
 /** Every app with a window on screen now. Empty when the helper cannot say. */
-function appsOnScreen(): Promise<AppRef[]> {
+function windowsOnScreen(): Promise<{ app: AppRef; frame: ScreenArea }[]> {
+  type Raw = {
+    name?: unknown
+    bundle?: unknown
+    x?: unknown
+    y?: unknown
+    w?: unknown
+    h?: unknown
+  }
+  const n = (v: unknown): number => (typeof v === 'number' ? v : 0)
   return cuse(['windows']).then(({ out }) =>
-    (Array.isArray(out.apps) ? (out.apps as { name?: unknown; bundle?: unknown }[]) : [])
-      .map((a) =>
-        ownerApp(
-          typeof a.name === 'string' ? a.name : '',
-          typeof a.bundle === 'string' ? a.bundle : ''
-        )
+    (Array.isArray(out.apps) ? (out.apps as Raw[]) : []).flatMap((a) => {
+      const app = ownerApp(
+        typeof a.name === 'string' ? a.name : '',
+        typeof a.bundle === 'string' ? a.bundle : ''
       )
-      .filter((a): a is AppRef => !!a)
+      return app ? [{ app, frame: { x: n(a.x), y: n(a.y), width: n(a.w), height: n(a.h) } }] : []
+    })
   )
+}
+
+/** Every app with a window on screen now, once each. */
+async function appsOnScreen(): Promise<AppRef[]> {
+  const seen = new Set<string>()
+  return (await windowsOnScreen())
+    .map((w) => w.app)
+    .filter((a) => !seen.has(a.id) && !!seen.add(a.id))
 }
 
 /**

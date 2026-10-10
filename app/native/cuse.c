@@ -294,9 +294,8 @@ static int apps_on_screen(void) {
     if (!b || !CGRectMakeWithDictionaryRepresentation(b, &r)) continue;
     // Ordinary windows and panels, big enough to read anything from.
     if ((layer != 0 && layer != 3 && layer != 8) || alpha <= 0 || r.size.width < 60 || r.size.height < 40) continue;
-    int dup = 0;
-    for (int k = 0; k < count && !dup; k++) dup = seen[k] == pid;
-    if (dup || count >= 512) continue;
+    // Every window, with where it is: which display it is on matters.
+    if (count >= 512) continue;
     seen[count++] = pid;
     CFStringRef id = bundle_of(pid);
     if (!first) putchar(',');
@@ -305,7 +304,7 @@ static int apps_on_screen(void) {
     json_string(CFDictionaryGetValue(w, kCGWindowOwnerName));
     printf(",\"bundle\":");
     json_string(id);
-    putchar('}');
+    printf(",\"x\":%.0f,\"y\":%.0f,\"w\":%.0f,\"h\":%.0f}", r.origin.x, r.origin.y, r.size.width, r.size.height);
     if (id) CFRelease(id);
   }
   if (list) CFRelease(list);
