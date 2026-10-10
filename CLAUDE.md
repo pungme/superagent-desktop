@@ -65,6 +65,21 @@ panel with a tile in its corner, loaded from the same page with `#dot`
   window would be "the first window" to other specs. `e2e/dot.spec.ts` sets it;
   `e2e/dot-live.spec.ts` (`CLAUDE_LIVE=1`) asks a real agent.
 
+## Computer use
+
+`src/main/computer-use.ts` (permissions, screenshots, consent, ⌥Esc),
+`src/main/computer-tools.ts` (the agent's `computer_*` tools) and
+`native/cuse.c` (the helper that posts mouse and keyboard events, built by
+`native/build.sh` and shipped beside `simfb`). Off unless the user turns it on.
+
+- Never post real events from a test. `cuse --dry` parses and echoes without
+  posting, and is what `cuse-helper.test.ts` runs.
+- `systemPreferences.getMediaAccessStatus('screen')` can say granted when a
+  capture still fails (until a restart). `computer:check` really tries; trust
+  that, not the status.
+- `prompts.ts` learns whether it is on through `setComputerUseProbe`, not an
+  import, so building a prompt does not drag in Electron.
+
 ## Checks
 
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and

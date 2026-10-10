@@ -81,6 +81,15 @@ export type RoutineStep =
   | { kind: 'tool'; name: string; input?: string }
 
 /** One conversation inside a project. A project can hold many. */
+/** What computer use needs, and has. */
+export interface ComputerStatus {
+  supported: boolean
+  enabled: boolean
+  screen: boolean
+  accessibility: boolean
+  helper: boolean
+}
+
 export interface Chat {
   id: string
   workspaceId: string
@@ -833,6 +842,24 @@ export interface CoveApi {
   ) => Promise<{ ok: boolean; error?: string }>
   /** Open Terminal on the CLI's one-time interactive sign-in. */
   openAgentLogin: (provider: AgentProvider) => void
+  // --- Computer use (main/computer-use.ts) ---------------------------------
+  computerStatus: () => Promise<ComputerStatus>
+  setComputerUse: (on: boolean) => Promise<ComputerStatus>
+  /** Ask macOS for one of the two permissions; it prompts the first time. */
+  computerRequest: (which: 'screen' | 'accessibility') => Promise<ComputerStatus>
+  computerOpenSettings: (which: 'screen' | 'accessibility') => Promise<void>
+  /** Stop every agent that is using the Mac, as ⌥Esc does. */
+  computerStop: () => Promise<string[]>
+  /** Really take a screenshot and really ask whether it may act. Moves nothing. */
+  computerCheck: () => Promise<{
+    see: boolean
+    act: boolean
+    via: string
+    size: string
+    error: string
+  }>
+  onComputerActive: (cb: (on: boolean) => void) => () => void
+  onComputerStopped: (cb: () => void) => () => void
   // --- The dot: Superagent as a floating tile (main/dot.ts) ---------------
   dotEnabled: () => Promise<boolean>
   setDotEnabled: (on: boolean) => Promise<boolean>
@@ -1316,6 +1343,14 @@ const cove: CoveApi = {
       .finally(() => ipcRenderer.removeListener('env:install-progress', listener))
   },
   openAgentLogin: (provider) => ipcRenderer.send('env:open-login', provider),
+  computerStatus: () => ipcRenderer.invoke('computer:status'),
+  setComputerUse: (on) => ipcRenderer.invoke('computer:set-enabled', on),
+  computerRequest: (which) => ipcRenderer.invoke('computer:request', which),
+  computerOpenSettings: (which) => ipcRenderer.invoke('computer:open-settings', which),
+  computerStop: () => ipcRenderer.invoke('computer:stop'),
+  computerCheck: () => ipcRenderer.invoke('computer:check'),
+  onComputerActive: (cb) => subscribe('computer:active', (on) => cb(!!on)),
+  onComputerStopped: (cb) => subscribe('computer:stopped', () => cb()),
   dotEnabled: () => ipcRenderer.invoke('dot:enabled'),
   setDotEnabled: (on) => ipcRenderer.invoke('dot:set-enabled', on),
   dotHotkey: () => ipcRenderer.invoke('dot:hotkey'),

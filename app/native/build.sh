@@ -11,3 +11,9 @@ clang -O2 -fobjc-arc -mmacosx-version-min=11.0 \
   -framework IOSurface -framework UniformTypeIdentifiers \
   -o simfb simfb.m
 echo "simfb: built"
+
+# The hands of computer use (cuse.c): optional in the same way. Without it the
+# agent is told computer use is unavailable rather than the build failing.
+clang -O2 -mmacosx-version-min=11.0 \
+  -framework ApplicationServices -framework CoreFoundation \
+  -o cuse cuse.c && echo "cuse: built" || echo "cuse: not built, skipping"

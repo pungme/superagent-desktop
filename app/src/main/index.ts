@@ -82,6 +82,9 @@ import { startMemoryWatch } from './memory-watch'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
 import { isDotWindow, registerDot } from './dot'
+import { computerUseEnabled, registerComputerUseIpc, setComputerStop } from './computer-use'
+import { setComputerUseProbe } from './prompts'
+import { stopFromDot } from './companion/rpc'
 
 // Must run before `ready`: it names the About panel, the menu's first submenu and
 // the userData directory. Packaged builds also get this from electron-builder's
@@ -291,6 +294,10 @@ app.whenReady().then(async () => {
   registerRoutinesIpc()
   registerEnvironmentIpc()
   registerDot()
+  registerComputerUseIpc()
+  setComputerUseProbe(computerUseEnabled)
+  // ⌥Esc, or turning it off, stops the agents that were using the Mac.
+  setComputerStop((chatId) => void stopFromDot(chatId))
   registerLidAwakeIpc()
   registerMailIpc()
   registerClaudeModelsIpc()

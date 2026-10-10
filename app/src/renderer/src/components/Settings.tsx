@@ -1,3 +1,4 @@
+import type { ComputerStatus } from '../../../preload'
 import { DOT_HOTKEYS, NO_DOT_HOTKEY, dotHotkeyLabel } from '../../../shared/dot-hotkey'
 import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
@@ -628,6 +629,45 @@ export function Settings({
     setDotOn(on)
     setDotOn(await window.cove.setDotEnabled(on))
   }
+  // Computer use (main/computer-use.ts): off unless turned on, and then it
+  // needs two permissions only macOS can give.
+  const [computer, setComputer] = useState<ComputerStatus>({
+    supported: true,
+    enabled: false,
+    screen: false,
+    accessibility: false,
+    helper: true
+  })
+  useEffect(() => {
+    void window.cove.computerStatus?.().then(setComputer)
+  }, [])
+  // The permissions are granted in another app; notice when they have been.
+  useEffect(() => {
+    if (!computer.enabled || (computer.screen && computer.accessibility)) return
+    const t = setInterval(() => void window.cove.computerStatus().then(setComputer), 2000)
+    return () => clearInterval(t)
+  }, [computer.enabled, computer.screen, computer.accessibility])
+  const toggleComputer = async (on: boolean): Promise<void> => {
+    setComputer((c) => ({ ...c, enabled: on }))
+    setComputer(await window.cove.setComputerUse(on))
+  }
+  // What macOS reports as granted can lag behind what works (until a restart),
+  // so there is a way to really try.
+  const [computerCheck, setComputerCheck] = useState<Awaited<
+    ReturnType<typeof window.cove.computerCheck>
+  > | null>(null)
+  const [computerChecking, setComputerChecking] = useState(false)
+  const checkComputer = async (): Promise<void> => {
+    setComputerChecking(true)
+    setComputerCheck(await window.cove.computerCheck())
+    setComputerChecking(false)
+  }
+  const grantComputer = async (which: 'screen' | 'accessibility'): Promise<void> => {
+    // macOS's own prompt the first time; its settings page in any case, since
+    // after a refusal the prompt never comes back.
+    setComputer(await window.cove.computerRequest(which))
+    await window.cove.computerOpenSettings(which)
+  }
   const [lidAwake, setLidAwakeState] = useState(false)
   const [lidAwakeError, setLidAwakeError] = useState('')
   useEffect(() => {
@@ -983,6 +1023,62 @@ export function Settings({
                     ))}
                     <option value={NO_DOT_HOTKEY}>None</option>
                   </select>
+                </Row>
+              )}
+              <GroupLabel>Computer use</GroupLabel>
+              <Row
+                title="Let agents use this Mac"
+                desc="An agent can see your screen and work the mouse and keyboard in any app, for what only an app's own window can do. Each conversation asks you first, and ⌥Esc stops it from anywhere."
+              >
+                <Toggle checked={computer.enabled} onChange={(v) => void toggleComputer(v)} />
+              </Row>
+              {computer.enabled &&
+                (
+                  [
+                    ['screen', 'Screen Recording', 'So it can see the screen.'],
+                    ['accessibility', 'Accessibility', 'So it can move the pointer and type.']
+                  ] as const
+                ).map(([which, name, why]) => (
+                  <Row
+                    key={which}
+                    title={name}
+                    desc={
+                      computer[which]
+                        ? `${why} Granted.`
+                        : `${why} Not granted yet: allow Superagent in System Settings, then come back. macOS may ask you to restart Superagent.`
+                    }
+                  >
+                    {computer[which] ? (
+                      <span className="settings-granted">Granted</span>
+                    ) : (
+                      <button
+                        className="settings-agent-btn"
+                        onClick={() => void grantComputer(which)}
+                      >
+                        Grant…
+                      </button>
+                    )}
+                  </Row>
+                ))}
+              {computer.enabled && (
+                <Row
+                  title="Check it works"
+                  desc={
+                    !computerCheck
+                      ? 'Takes one screenshot and asks macOS whether Superagent may act. Nothing is clicked or typed.'
+                      : computerCheck.see && computerCheck.act
+                        ? `It can see the screen (${computerCheck.size}) and use the mouse and keyboard.`
+                        : computerCheck.error ||
+                          'It is not ready yet. Grant the permissions above, then restart Superagent.'
+                  }
+                >
+                  <button
+                    className="settings-agent-btn"
+                    disabled={computerChecking}
+                    onClick={() => void checkComputer()}
+                  >
+                    {computerChecking ? 'Checking…' : 'Check'}
+                  </button>
                 </Row>
               )}
               <GroupLabel>Power</GroupLabel>

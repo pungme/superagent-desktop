@@ -13476,3 +13476,10 @@ button {
 .settings-select.warn {
   border-color: var(--danger, #d64545);
 }
+
+/* A permission that has been given, in Settings. */
+.settings-granted {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--success, #2f9e5b);
+}

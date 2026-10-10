@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Markdown } from '../components/Markdown'
 import { splitAssistant, type ChoiceSpec } from '../components/assistantSegments'
 import { ProjectIcon } from '../components/ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import { useDictation } from '../lib/dictation'
+import { when } from '../lib/relative-time'
 import {
   applyDelta,
   applyEvent,
@@ -27,6 +28,16 @@ interface Project {
 
 const COMPUTER = '__desktop_chat__'
 const LAST_PROJECT = 'cove.dotProject'
+
+/** The heading a row starts, if it starts one: Pinned, then Recent. */
+function sectionAt(list: Project[], i: number): string | null {
+  const p = list[i]
+  if (p.kind === 'computer') return null
+  const prev = list[i - 1]
+  const label = p.pinned ? 'Pinned' : 'Recent'
+  const before = !prev || prev.kind === 'computer' ? null : prev.pinned ? 'Pinned' : 'Recent'
+  return label !== before ? label : null
+}
 
 /** A question the agent put as choices: one click answers it, or several and Send. */
 function Choices({
@@ -127,6 +138,17 @@ export function Dot(): React.JSX.Element {
       setHotkey(k.ok ? dotHotkeyLabel(k.hotkey) : '')
     void window.cove.dotHotkey().then(take)
     return window.cove.onDotHotkey(take)
+  }, [])
+  // An agent is working this Mac's mouse and keyboard right now (any chat's,
+  // not only one the dot started): the tile says so, and is the way to stop it.
+  const [controlling, setControlling] = useState(false)
+  useEffect(() => {
+    const offActive = window.cove.onComputerActive?.(setControlling)
+    const offStopped = window.cove.onComputerStopped?.(() => setControlling(false))
+    return () => {
+      offActive?.()
+      offStopped?.()
+    }
   }, [])
   const dictation = useDictation()
   const openRef = useRef(open)
@@ -277,15 +299,17 @@ export function Dot(): React.JSX.Element {
   }
 
   const listening = dictation.state === 'recording'
-  const state = listening
-    ? 'listening'
-    : task?.status === 'needs'
-      ? 'needs'
-      : task?.status === 'working'
-        ? 'working'
-        : unseen && task?.status === 'done'
-          ? 'done'
-          : 'idle'
+  const state = controlling
+    ? 'controlling'
+    : listening
+      ? 'listening'
+      : task?.status === 'needs'
+        ? 'needs'
+        : task?.status === 'working'
+          ? 'working'
+          : unseen && task?.status === 'done'
+            ? 'done'
+            : 'idle'
   const taskProject = task ? projects.find((p) => p.id === task.workspaceId) : null
 
   return (
@@ -345,29 +369,35 @@ export function Dot(): React.JSX.Element {
               />
               <div className="dot-menu-list">
                 {shown.map((p, i) => (
-                  <button
-                    key={p.id}
-                    role="option"
-                    aria-selected={i === cursor}
-                    className={`dot-item ${i === cursor ? 'on' : ''}`}
-                    ref={
-                      i === cursor ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined
-                    }
-                    onMouseMove={() => setCursor(i)}
-                    onClick={() => pick(p)}
-                  >
-                    <Mark project={p} />
-                    <span className="dot-item-name">{p.name}</span>
-                    <span className="dot-item-note">
-                      {p.id === project.id
-                        ? '✓'
-                        : p.kind === 'computer'
-                          ? 'this Mac'
-                          : p.pinned
-                            ? 'pinned'
-                            : ''}
-                    </span>
-                  </button>
+                  <Fragment key={p.id}>
+                    {/* Headed like the mockup, when the list is not a search:
+                        the Mac, then what is pinned, then the rest by recency. */}
+                    {!filter.trim() && sectionAt(shown, i) && (
+                      <div className="dot-menu-label">{sectionAt(shown, i)}</div>
+                    )}
+                    <button
+                      role="option"
+                      aria-selected={i === cursor}
+                      className={`dot-item ${i === cursor ? 'on' : ''}`}
+                      ref={
+                        i === cursor ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined
+                      }
+                      onMouseMove={() => setCursor(i)}
+                      onClick={() => pick(p)}
+                    >
+                      <Mark project={p} />
+                      <span className="dot-item-name">{p.name}</span>
+                      <span className="dot-item-note">
+                        {p.id === project.id
+                          ? '✓'
+                          : p.kind === 'computer'
+                            ? 'this Mac'
+                            : p.usedAt
+                              ? when(p.usedAt)
+                              : ''}
+                      </span>
+                    </button>
+                  </Fragment>
                 ))}
                 {shown.length === 0 && <div className="dot-empty">No project by that name.</div>}
               </div>
@@ -569,13 +599,32 @@ export function Dot(): React.JSX.Element {
         </div>
       )}
 
-      {working && taskProject && !open && (
+      {controlling && (
+        <button
+          className="dot-tag dot-control"
+          data-solid
+          title="Stop the agent using this Mac"
+          onClick={() => void window.cove.computerStop()}
+        >
+          <span className="dot-control-dot" />
+          Using your Mac
+          <kbd>⌥Esc</kbd>
+          <span className="dot-control-stop">Stop</span>
+        </button>
+      )}
+      {working && taskProject && !open && !controlling && (
         <div className="dot-tag" data-solid>
           <Mark project={taskProject} size={13} />
           {taskProject.name}
         </div>
       )}
       {unseen && !open && <div className="dot-badge">1</div>}
+      {/* What it is and how to call it, on hover, as in the mockup. */}
+      {!open && !working && !controlling && (
+        <div className="dot-hint" aria-hidden>
+          Ask Superagent{hotkey && <kbd>{hotkey}</kbd>}
+        </div>
+      )}
       <button
         className={`dot-tile dot-${state}`}
         data-solid

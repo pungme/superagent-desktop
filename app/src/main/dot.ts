@@ -108,6 +108,10 @@ function createDot(): void {
     }
   })
   win.setAlwaysOnTop(true, 'floating')
+  // Left out of screen captures: an agent using the Mac photographs the screen
+  // to see it, and should see what is under the tile, not the tile. (It also
+  // keeps the tile out of a screen share.)
+  win.setContentProtection(true)
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   // Everything is see-through and click-through until the page says otherwise.
   win.setIgnoreMouseEvents(true, { forward: true })

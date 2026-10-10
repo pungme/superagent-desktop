@@ -4,7 +4,7 @@ vi.mock('./store', () => ({ DESKTOP_WORKSPACE_ID: '__desktop__' }))
 
 vi.mock('./mail', () => ({ mailConnected: vi.fn(() => false) }))
 
-import { buildAppendedPrompt } from './prompts'
+import { buildAppendedPrompt, setComputerUseProbe } from './prompts'
 
 describe('the browser briefing', () => {
   it("tells a project's agent which browser it's on and that it can use the user's own", () => {
@@ -78,5 +78,19 @@ describe('Mail briefing', () => {
     }
     vi.mocked(mailConnected).mockReturnValue(false)
     expect(buildAppendedPrompt({ provider: 'codex' })).toContain('Apple Mail is not connected')
+  })
+})
+
+describe('the computer-use briefing', () => {
+  it('is only there when the user has turned computer use on', () => {
+    expect(buildAppendedPrompt({ provider: 'claude' })).not.toContain('computer_screenshot')
+    setComputerUseProbe(() => true)
+    const prompt = buildAppendedPrompt({ provider: 'claude' })
+    setComputerUseProbe(() => false)
+    expect(prompt).toContain('computer_screenshot')
+    // The rules that matter on a real computer are spelled out.
+    expect(prompt).toContain('Never type a password')
+    expect(prompt).toContain('Reach for it last')
+    expect(prompt).toContain('cannot be undone')
   })
 })

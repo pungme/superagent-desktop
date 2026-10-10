@@ -1,3 +1,4 @@
+import { registerComputerTools } from './computer-tools'
 import { registerMailTools } from './mail-tools'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { randomBytes } from 'crypto'
@@ -118,6 +119,10 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
   const CHAT_ID = chatId
   const server = new McpServer({ name: 'cove-browser', version: '0.1.0' })
   registerMailTools(server, {
+    workspaceId: workspaceIdFromPane(paneId),
+    sessionId: chatId ?? paneId
+  })
+  registerComputerTools(server, {
     workspaceId: workspaceIdFromPane(paneId),
     sessionId: chatId ?? paneId
   })
@@ -252,11 +257,15 @@ function buildServer(paneId: string, chatId: string | null): McpServer {
         inputSchema: {
           reason: z
             .string()
-            .describe('One sentence on what you checked and why nothing is left — shown to the user.'),
+            .describe(
+              'One sentence on what you checked and why nothing is left — shown to the user.'
+            ),
           needsUser: z
             .boolean()
             .optional()
-            .describe('True when only the user can unblock the work; the loop waits for their reply.')
+            .describe(
+              'True when only the user can unblock the work; the loop waits for their reply.'
+            )
         }
       },
       async ({ reason, needsUser }) => {

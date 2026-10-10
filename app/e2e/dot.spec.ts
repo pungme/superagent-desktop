@@ -531,6 +531,106 @@ test('the shortcut can be changed, and Settings says when another app has it', a
       .screenshot({ path: '/tmp/sa-dot-settings.png' })
 })
 
+test('while an agent is using the Mac, the tile says so and can stop it', async () => {
+  await app.evaluate(({ ipcMain, BrowserWindow }) => {
+    const g = globalThis as unknown as { stops: number }
+    g.stops = 0
+    ipcMain.removeHandler('computer:stop')
+    ipcMain.handle('computer:stop', () => {
+      g.stops++
+      return []
+    })
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.send('computer:active', true)
+  })
+  await expect(dot.locator('.dot-tile')).toHaveClass(/dot-controlling/)
+  const tag = dot.locator('.dot-control')
+  await expect(tag).toContainText('Using your Mac')
+  await expect(tag).toContainText('⌥Esc')
+  await shoot('9-controlling')
+  await tag.click()
+  expect(await app.evaluate(() => (globalThis as unknown as { stops: number }).stops)).toBe(1)
+  // ⌥Esc, or it going quiet, clears it.
+  await app.evaluate(({ BrowserWindow }) => {
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.send('computer:stopped')
+  })
+  await expect(dot.locator('.dot-control')).toHaveCount(0)
+  await expect(dot.locator('.dot-tile')).not.toHaveClass(/dot-controlling/)
+})
+
+test('computer use is off until turned on, and shows which permissions it still needs', async () => {
+  // The permissions as macOS would report them, stood in for.
+  await app.evaluate(({ ipcMain }) => {
+    const g = globalThis as unknown as {
+      cu: { enabled: boolean; screen: boolean; accessibility: boolean; asked: string[] }
+    }
+    g.cu = { enabled: false, screen: false, accessibility: true, asked: [] }
+    const status = (): unknown => ({ supported: true, helper: true, ...g.cu, asked: undefined })
+    for (const ch of [
+      'computer:status',
+      'computer:set-enabled',
+      'computer:request',
+      'computer:open-settings',
+      'computer:check'
+    ])
+      ipcMain.removeHandler(ch)
+    ipcMain.handle('computer:status', status)
+    ipcMain.handle('computer:set-enabled', (_e, on: boolean) => {
+      g.cu.enabled = on
+      return status()
+    })
+    ipcMain.handle('computer:request', (_e, which: string) => {
+      g.cu.asked.push(which)
+      return status()
+    })
+    ipcMain.handle('computer:open-settings', (_e, which: string) => {
+      g.cu.asked.push(`open:${which}`)
+    })
+    // Really trying: seeing fails until Screen Recording is truly in force.
+    ipcMain.handle('computer:check', () =>
+      g.cu.screen
+        ? { see: true, act: true, via: 'capturer', size: '1440×900', error: '' }
+        : { see: false, act: true, via: '', size: '', error: 'The screen could not be captured.' }
+    )
+  })
+  // Leave Settings and come back, so it reads the status afresh.
+  await main.reload()
+  await main.waitForSelector('.sidebar', { timeout: 20_000 })
+  await main.click('.sidebar-settings[title="Settings"]')
+  const row = main.locator('.settings-row', { hasText: 'Let agents use this Mac' })
+  await expect(row.locator('input[type="checkbox"]')).not.toBeChecked()
+  // Nothing about permissions until it is wanted.
+  await expect(main.locator('.settings-row', { hasText: 'Screen Recording' })).toHaveCount(0)
+
+  await row.locator('.switch').click()
+  await expect(row.locator('input[type="checkbox"]')).toBeChecked()
+  const screenRow = main.locator('.settings-row', { hasText: 'Screen Recording' })
+  const accessRow = main.locator('.settings-row', { hasText: 'Accessibility' })
+  await expect(accessRow).toContainText('Granted')
+  await expect(screenRow).toContainText('Not granted yet')
+  if (process.env.SHOT)
+    await row.locator('xpath=..').screenshot({ path: '/tmp/sa-computer-settings.png' })
+  // A real try, which says what is wrong rather than what macOS reports.
+  const check = main.locator('.settings-row', { hasText: 'Check it works' })
+  await check.getByRole('button', { name: 'Check', exact: true }).click()
+  await expect(check).toContainText('The screen could not be captured.')
+  await screenRow.getByRole('button', { name: 'Grant…' }).click()
+  await expect
+    .poll(() => app.evaluate(() => (globalThis as unknown as { cu: { asked: string[] } }).cu.asked))
+    .toEqual(['screen', 'open:screen'])
+  // Granted in System Settings: noticed here without a click.
+  await app.evaluate(() => {
+    ;(globalThis as unknown as { cu: { screen: boolean } }).cu.screen = true
+  })
+  await expect(screenRow).toContainText('Granted', { timeout: 6000 })
+  await expect(screenRow.getByRole('button', { name: 'Grant…' })).toHaveCount(0)
+  await check.getByRole('button', { name: 'Check', exact: true }).click()
+  await expect(check).toContainText(
+    'It can see the screen (1440×900) and use the mouse and keyboard.'
+  )
+  if (process.env.SHOT)
+    await row.locator('xpath=..').screenshot({ path: '/tmp/sa-computer-settings.png' })
+})
+
 test('it can be turned off in Settings, and back on', async () => {
   if ((await main.locator('.settings-row').count()) === 0)
     await main.click('.sidebar-settings[title="Settings"]')
