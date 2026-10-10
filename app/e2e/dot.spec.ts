@@ -631,6 +631,51 @@ test('computer use is off until turned on, and shows which permissions it still 
     await row.locator('xpath=..').screenshot({ path: '/tmp/sa-computer-settings.png' })
 })
 
+test('apps can be put out of bounds for computer use, and let back in', async () => {
+  // The app picker is macOS's own dialog: what it would return is stood in for.
+  await app.evaluate(({ ipcMain }) => {
+    const g = globalThis as unknown as {
+      cu: { enabled: boolean; screen: boolean; accessibility: boolean; asked: string[] }
+      denied: { id: string; name: string }[]
+    }
+    g.denied = []
+    const status = (): unknown => ({
+      supported: true,
+      helper: true,
+      ...g.cu,
+      asked: undefined,
+      builtInDenied: ['Passwords', 'Keychain Access', '1Password', 'Bitwarden'],
+      denied: g.denied
+    })
+    for (const ch of ['computer:status', 'computer:deny-pick', 'computer:undeny'])
+      ipcMain.removeHandler(ch)
+    ipcMain.handle('computer:status', status)
+    ipcMain.handle('computer:deny-pick', () => {
+      g.denied = [...g.denied, { id: 'com.tinyspeck.slackmacgap', name: 'Slack' }]
+      return status()
+    })
+    ipcMain.handle('computer:undeny', (_e, id: string) => {
+      g.denied = g.denied.filter((a) => a.id !== id)
+      return status()
+    })
+  })
+  await main.reload()
+  await main.waitForSelector('.sidebar', { timeout: 20_000 })
+  await main.click('.sidebar-settings[title="Settings"]')
+  const row = main.locator('.settings-row', { hasText: 'Apps it stays out of' })
+  // What is always kept out is said, without being a list to manage.
+  await expect(row).toContainText('Never Passwords, Keychain Access, 1Password')
+  await expect(row).toContainText('it asks you the first time')
+  await expect(row.locator('.settings-keepout-app')).toHaveCount(0)
+
+  await row.getByRole('button', { name: 'Add app…' }).click()
+  await expect(row.locator('.settings-keepout-app')).toHaveText(['Slack×'])
+  if (process.env.SHOT)
+    await row.locator('xpath=..').screenshot({ path: '/tmp/sa-computer-settings.png' })
+  await row.getByRole('button', { name: 'Let computer use work in Slack again' }).click()
+  await expect(row.locator('.settings-keepout-app')).toHaveCount(0)
+})
+
 test('it can be turned off in Settings, and back on', async () => {
   if ((await main.locator('.settings-row').count()) === 0)
     await main.click('.sidebar-settings[title="Settings"]')

@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   CONSENT_IDLE_MS,
   consentStands,
+  appCaution,
+  appFrom,
   bundleIdFrom,
+  heldByAnother,
+  isSelfApp,
+  LOCK_MS,
   focusMoved,
   offLimitsApp,
   pointerMoved,
@@ -98,5 +103,57 @@ describe('whether the user has moved the mouse', () => {
     expect(pointerMoved({ x: 100, y: 100 }, { x: 140, y: 100 })).toBe(true)
     expect(pointerMoved(undefined, { x: 1, y: 1 })).toBe(false)
     expect(pointerMoved({ x: 1, y: 1 }, null)).toBe(false)
+  })
+})
+
+describe("the user's own list, and Superagent itself", () => {
+  it('keeps out of an app the user added, by its exact id', () => {
+    const denied = [{ id: 'com.tinyspeck.slackmacgap', name: 'Slack' }]
+    expect(offLimitsApp('com.tinyspeck.slackmacgap', denied)).toBe('Slack')
+    expect(offLimitsApp('com.tinyspeck.slackmacgap.helper', denied)).toBeNull()
+    // The built-in list still comes first.
+    expect(offLimitsApp('com.1password.1password', denied)).toBe('1Password')
+  })
+  it("knows Superagent's own app, packaged or run from source", () => {
+    expect(isSelfApp('dev.superagent.app')).toBe(true)
+    expect(isSelfApp('com.github.Electron')).toBe(true)
+    expect(isSelfApp('com.apple.finder')).toBe(false)
+    expect(isSelfApp(null)).toBe(false)
+  })
+  it('reads an app, with its name, out of what macOS prints', () => {
+    expect(
+      appFrom('"SuperAgent" ASN:0x0-0x5a049ff: (in front) \n    bundleID="dev.superagent.app"\n')
+    ).toEqual({ id: 'dev.superagent.app', name: 'SuperAgent' })
+    // No name given: the id stands in. An invisible mark in front of one is dropped.
+    expect(appFrom('[ NULL ] ASN:0x0-0x1: \n bundleID="com.x.y"')).toEqual({
+      id: 'com.x.y',
+      name: 'com.x.y'
+    })
+    expect(appFrom('"\u200eWhatsApp" ASN:0x0: \n bundleID="net.whatsapp.WhatsApp"')?.name).toBe(
+      'WhatsApp'
+    )
+    expect(appFrom('nothing')).toBeNull()
+  })
+})
+
+describe('what is at stake in an app', () => {
+  it('warns for the ones that can do real damage, and is quiet for the rest', () => {
+    expect(appCaution('com.apple.Terminal')).toContain('command')
+    expect(appCaution('com.googlecode.iterm2')).toContain('command')
+    expect(appCaution('com.microsoft.VSCode')).toContain('code')
+    expect(appCaution('com.apple.finder')).toContain('files')
+    expect(appCaution('com.apple.Safari')).toContain('signed in')
+    expect(appCaution('com.apple.mail')).toContain('send')
+    expect(appCaution('com.apple.TextEdit')).toBe('')
+  })
+})
+
+describe('one conversation on the Mac at a time', () => {
+  it('holds it for a minute after the last thing done, against others only', () => {
+    const holder = { owner: 'a', at: 1_000 }
+    expect(heldByAnother(holder, 'b', 1_000 + LOCK_MS - 1)).toBe(true)
+    expect(heldByAnother(holder, 'b', 1_000 + LOCK_MS)).toBe(false)
+    expect(heldByAnother(holder, 'a', 1_001)).toBe(false)
+    expect(heldByAnother(null, 'b', 1_001)).toBe(false)
   })
 })

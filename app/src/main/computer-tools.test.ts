@@ -10,7 +10,9 @@ const state = vi.hoisted(() => ({
   answer: true,
   asked: [] as string[],
   acted: [] as unknown[],
-  shots: 0
+  shots: 0,
+  toAsk: [] as { id: string; name: string }[],
+  approvedApps: [] as string[]
 }))
 vi.mock('./computer-use', () => ({
   computerUseEnabled: () => state.enabled,
@@ -23,6 +25,10 @@ vi.mock('./computer-use', () => ({
     state.acted.push(action)
   },
   settle: async () => undefined,
+  appsToAsk: async () => state.toAsk.filter((a) => !state.approvedApps.includes(a.id)),
+  approveApp: (_owner: string, id: string) => {
+    state.approvedApps.push(id)
+  },
   takeScreenshot: async () => {
     state.shots++
     return {
@@ -72,7 +78,9 @@ beforeEach(() => {
     answer: true,
     asked: [],
     acted: [],
-    shots: 0
+    shots: 0,
+    toAsk: [],
+    approvedApps: []
   })
 })
 
@@ -137,6 +145,34 @@ describe("the agent's tools for using the Mac", () => {
       // Not asked a second time, and shown the screen afterwards.
       expect(state.asked).toHaveLength(1)
       expect(clicked.content.some((p) => p.type === 'image')).toBe(true)
+    })
+  })
+
+  it('ask about each app the first time it would be touched, with what is at stake', async () => {
+    state.consent = true
+    state.toAsk = [{ id: 'com.apple.Terminal', name: 'Terminal' }]
+    await withClient(async (c) => {
+      const typed = await call(c, 'computer_type', { text: 'ls' })
+      expect(typed.isError).toBeFalsy()
+      expect(state.asked).toHaveLength(1)
+      expect(state.asked[0]).toContain('Work in Terminal')
+      expect(state.asked[0]).toContain('runs as a command')
+      // Said yes once: not asked again for the same app.
+      await call(c, 'computer_key', { keys: 'return' })
+      expect(state.asked).toHaveLength(1)
+      expect(state.acted).toHaveLength(2)
+    })
+  })
+
+  it('leave an app alone when the user says no to it, and say so', async () => {
+    state.consent = true
+    state.answer = false
+    state.toAsk = [{ id: 'com.apple.finder', name: 'Finder' }]
+    await withClient(async (c) => {
+      const r = await call(c, 'computer_click', { x: 5, y: 5 })
+      expect(r.isError).toBe(true)
+      expect(text(r)).toContain('did not allow working in Finder')
+      expect(state.acted).toEqual([])
     })
   })
 

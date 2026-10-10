@@ -1113,6 +1113,33 @@ export function Settings({
                   </button>
                 </Row>
               )}
+              {computer.enabled && (
+                <Row
+                  title="Apps it stays out of"
+                  desc={`Never ${(computer.builtInDenied ?? []).slice(0, 3).join(', ') || 'password managers'}, other password managers, a password prompt or the lock screen. Add any app you want left alone. In every other app it asks you the first time.`}
+                >
+                  <div className="settings-keepout">
+                    {(computer.denied ?? []).map((a) => (
+                      <span key={a.id} className="settings-keepout-app">
+                        {a.name}
+                        <button
+                          aria-label={`Let computer use work in ${a.name} again`}
+                          title="Remove"
+                          onClick={() => void window.cove.computerUndeny(a.id).then(setComputer)}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      className="settings-agent-btn"
+                      onClick={() => void window.cove.computerDenyPick().then(setComputer)}
+                    >
+                      Add app…
+                    </button>
+                  </div>
+                </Row>
+              )}
               <GroupLabel>Power</GroupLabel>
               <Row
                 title="Keep working with the lid closed"

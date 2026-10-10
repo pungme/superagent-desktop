@@ -2,6 +2,8 @@ import { execFile } from 'child_process'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import {
+  approveApp,
+  appsToAsk,
   act,
   computerUseEnabled,
   grantConsent,
@@ -12,7 +14,7 @@ import {
   type ComputerAction
 } from './computer-use'
 import { requestApproval } from './hooks'
-import { COMPUTER_STOP_HOTKEY, validKeyCombo } from '../shared/computer-use'
+import { appCaution, COMPUTER_STOP_HOTKEY, validKeyCombo } from '../shared/computer-use'
 
 export interface ComputerContext {
   workspaceId: string
@@ -97,6 +99,22 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     const no = await gate()
     if (no) return failed(no)
     try {
+      // Each app, the first time this conversation would touch it.
+      for (const app of await appsToAsk(owner, action)) {
+        const caution = appCaution(app.id)
+        const yes = await requestApproval(
+          ctx.workspaceId,
+          ctx.sessionId,
+          'mcp__cove-browser__computer_use',
+          `Work in ${app.name}: click and type in its windows, for this task.${caution ? `\n${caution}` : ''}`,
+          'permission'
+        )
+        if (!yes)
+          return failed(
+            `The user did not allow working in ${app.name}. Do not try again there; ask what they would like instead, or do it another way.`
+          )
+        approveApp(owner, app.id)
+      }
       await act(owner, action)
       await settle()
       return await look(said)

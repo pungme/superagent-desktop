@@ -2,6 +2,7 @@ import { execFile } from 'child_process'
 import {
   app,
   desktopCapturer,
+  dialog,
   globalShortcut,
   ipcMain,
   nativeImage,
@@ -11,11 +12,16 @@ import {
 } from 'electron'
 import { existsSync, unlinkSync } from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { basename, join } from 'path'
 import { kvGet, kvSet } from './store'
 import { broadcastToWindows } from './util'
 import {
-  bundleIdFrom,
+  appFrom,
+  cleanAppName,
+  heldByAnother,
+  isSelfApp,
+  OFF_LIMITS_NAMES,
+  type AppRef,
   COMPUTER_STOP_HOTKEY,
   consentStands,
   focusMoved,
@@ -85,6 +91,9 @@ export interface ComputerStatus {
   /** Accessibility: lets it move the pointer and type. */
   accessibility: boolean
   helper: boolean
+  /** Apps it never works in: the built-in ones by name, and the user's own. */
+  builtInDenied: string[]
+  denied: AppRef[]
 }
 
 export function computerStatus(): ComputerStatus {
@@ -94,7 +103,9 @@ export function computerStatus(): ComputerStatus {
     enabled: computerUseEnabled(),
     screen: mac && systemPreferences.getMediaAccessStatus('screen') === 'granted',
     accessibility: mac && systemPreferences.isTrustedAccessibilityClient(false),
-    helper: cusePath() !== null
+    helper: cusePath() !== null,
+    builtInDenied: OFF_LIMITS_NAMES,
+    denied: deniedApps()
   }
 }
 
@@ -181,7 +192,8 @@ export async function takeScreenshot(owner: string, display?: number): Promise<S
   const front = owner === '__check__' ? null : await frontApp()
   const no = offLimitsMessage(front)
   if (no) throw new Error(no)
-  sawFront(owner, front)
+  if (owner !== '__check__') claim(owner)
+  sawFront(owner, front?.id ?? null)
   // Where the pointer is at this look: every action is followed by one, so a
   // pointer found elsewhere at the next action was moved by the user.
   const at = pointerNow()
@@ -287,6 +299,8 @@ export function grantConsent(owner: string, now = Date.now()): void {
 export function stopComputerUse(): string[] {
   const stopped = [...allowed.keys()]
   allowed.clear()
+  approved.clear()
+  holder = null
   for (const id of stopped) onStop?.(id)
   setActive(false)
   return stopped
@@ -317,15 +331,15 @@ function setActive(on: boolean): void {
 }
 
 /** The app in front: where a key press or typed text would go. Null if macOS will not say. */
-export function frontApp(): Promise<string | null> {
+export function frontApp(): Promise<AppRef | null> {
   return new Promise((resolve) =>
     execFile('/usr/bin/lsappinfo', ['front'], { timeout: 4000 }, (err, asn) => {
       if (err || !String(asn).trim()) return resolve(null)
       execFile(
         '/usr/bin/lsappinfo',
-        ['info', '-only', 'bundleid', String(asn).trim()],
+        ['info', '-only', 'bundleid', '-only', 'name', String(asn).trim()],
         { timeout: 4000 },
-        (e, out) => resolve(e ? null : bundleIdFrom(String(out)))
+        (e, out) => resolve(e ? null : appFrom(String(out)))
       )
     })
   )
@@ -337,16 +351,134 @@ export function frontApp(): Promise<string | null> {
  * no business typing into a password manager, and anything aimed at a locked
  * Mac is aimed at its password field.
  */
-function offLimitsMessage(front: string | null): string | null {
-  const name = offLimitsApp(front)
+// --- the user's own list of apps to stay out of ---------------------------
+
+const DENIED_KEY = 'computer.denied'
+
+export function deniedApps(): AppRef[] {
+  try {
+    const saved = JSON.parse(kvGet(DENIED_KEY) || '[]') as AppRef[]
+    return Array.isArray(saved)
+      ? saved.filter((a) => a && typeof a.id === 'string' && typeof a.name === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
+export function denyApp(app: AppRef): AppRef[] {
+  const rest = deniedApps().filter((a) => a.id.toLowerCase() !== app.id.toLowerCase())
+  const next = [...rest, app].sort((a, b) => a.name.localeCompare(b.name))
+  kvSet(DENIED_KEY, JSON.stringify(next))
+  return next
+}
+
+export function undenyApp(id: string): AppRef[] {
+  const next = deniedApps().filter((a) => a.id.toLowerCase() !== id.toLowerCase())
+  kvSet(DENIED_KEY, JSON.stringify(next))
+  return next
+}
+
+/** The app in a .app folder, read from its Info.plist. Null when it is not one. */
+export function appAtPath(path: string): Promise<AppRef | null> {
+  const plist = join(path, 'Contents', 'Info.plist')
+  const read = (key: string): Promise<string> =>
+    new Promise((resolve) =>
+      execFile('/usr/bin/plutil', ['-extract', key, 'raw', plist], { timeout: 4000 }, (e, out) =>
+        resolve(e ? '' : String(out).trim())
+      )
+    )
+  return Promise.all([
+    read('CFBundleIdentifier'),
+    read('CFBundleDisplayName'),
+    read('CFBundleName')
+  ]).then(([id, display, name]) =>
+    id ? { id, name: display || name || basename(path).replace(/\.app$/, '') } : null
+  )
+}
+
+/**
+ * Why this app is out of bounds, or null. `acting` is for the mouse and
+ * keyboard, which Superagent's own window is closed to as well; looking at
+ * the screen while Superagent is in front is fine.
+ */
+function offLimitsMessage(app: AppRef | null, acting = false): string | null {
+  if (acting && isSelfApp(app?.id))
+    return "That is Superagent's own window, and computer use does not work in it. Use computer_open_mac_app to bring the app you need to the front, or the other tools for anything inside Superagent."
+  const name = offLimitsApp(app?.id, deniedApps())
   if (!name) return null
-  return name === 'the lock screen'
-    ? 'This Mac is locked. Nothing can be done on it until the user unlocks it; do not try to.'
-    : `${name} is in front, and computer use does not operate in it: it holds the user's secrets. Ask the user to do that part themselves, or to bring another app to the front.`
+  if (name === 'the lock screen')
+    return 'This Mac is locked. Nothing can be done on it until the user unlocks it; do not try to.'
+  return OFF_LIMITS_NAMES.includes(name) || name === 'a macOS password prompt'
+    ? `${name} is in the way, and computer use does not operate in it: it holds the user's secrets. Ask the user to do that part themselves, or to bring another app to the front.`
+    : `The user has put ${name} out of bounds for computer use (Settings → General → Computer use). Do not look for a way round it; say which part they have to do themselves.`
 }
 
 export async function offLimitsNow(): Promise<string | null> {
   return offLimitsMessage(await frontApp())
+}
+
+/** Whose window is at a point on the screen: what a click there lands on. */
+function appAt(x: string, y: string): Promise<AppRef | null> {
+  return cuse(['at', x, y]).then(({ out }) => {
+    const id = typeof out.bundle === 'string' ? out.bundle : ''
+    const name = typeof out.name === 'string' ? cleanAppName(out.name) : ''
+    return id ? { id, name: name || id } : null
+  })
+}
+
+/**
+ * The apps an action would touch. The mouse touches whatever is under the
+ * point (both ends of a drag), which need not be the app in front; the
+ * keyboard goes to the app in front. Where a point is on no app's window (the
+ * menu bar, the desktop), it is the app in front that answers.
+ */
+export async function targetApps(owner: string, action: ComputerAction): Promise<AppRef[]> {
+  const args = cuseArgs(action, lastShot.get(owner))
+  const front = await frontApp()
+  const found: (AppRef | null)[] = []
+  if (action.type === 'type' || action.type === 'key') found.push(front)
+  else {
+    found.push((await appAt(args[1], args[2])) ?? front)
+    if (action.type === 'drag') found.push((await appAt(args[3], args[4])) ?? front)
+  }
+  const seen = new Set<string>()
+  return found.filter((a): a is AppRef => !!a && !seen.has(a.id) && !!seen.add(a.id))
+}
+
+// --- one app at a time, asked about ---------------------------------------
+
+/** The apps each conversation has been allowed to work in. */
+const approved = new Map<string, Set<string>>()
+
+export function approveApp(owner: string, id: string): void {
+  if (!approved.has(owner)) approved.set(owner, new Set())
+  approved.get(owner)!.add(id.toLowerCase())
+}
+
+/**
+ * The apps this action would touch that the user has not yet said yes to, for
+ * this conversation. Ones that are out of bounds are not asked about: the
+ * action is refused instead.
+ */
+export async function appsToAsk(owner: string, action: ComputerAction): Promise<AppRef[]> {
+  const ok = approved.get(owner)
+  return (await targetApps(owner, action)).filter(
+    (a) => !ok?.has(a.id.toLowerCase()) && !offLimitsMessage(a, true)
+  )
+}
+
+// --- one conversation at a time --------------------------------------------
+
+let holder: { owner: string; at: number } | null = null
+
+/** Take the Mac for this conversation, or say why not. */
+function claim(owner: string): void {
+  if (heldByAnother(holder, owner, Date.now()))
+    throw new Error(
+      'Another conversation is using this Mac right now, and two cannot share one pointer and keyboard. Wait a minute and try again, or tell the user.'
+    )
+  holder = { owner, at: Date.now() }
 }
 
 /** Where the pointer was when each conversation last looked, or last acted. */
@@ -378,12 +510,18 @@ export function sawFront(owner: string, bundleId: string | null): void {
 export async function act(owner: string, action: ComputerAction): Promise<void> {
   const args = cuseArgs(action, lastShot.get(owner))
   const front = await frontApp()
-  const no = offLimitsMessage(front)
+  // The lock screen and a password manager in front stop everything; then each
+  // app the action would actually touch is checked, which for the mouse is
+  // whatever is under the point.
+  const no =
+    offLimitsMessage(front) ??
+    (await targetApps(owner, action)).map((a) => offLimitsMessage(a, true)).find(Boolean)
   if (no) throw new Error(no)
+  claim(owner)
   // Keys go to whatever is in front. If that is no longer the app the agent
   // was looking at, the text would land somewhere it has not seen.
   const seen = frontAtLook.get(owner)
-  if ((action.type === 'type' || action.type === 'key') && focusMoved(seen, front))
+  if ((action.type === 'type' || action.type === 'key') && focusMoved(seen, front?.id))
     throw new Error(
       'Another app has come to the front since you last looked at the screen, so nothing was typed. Take a screenshot and check where the cursor is before trying again.'
     )
@@ -409,6 +547,29 @@ export const settle = (ms = 450): Promise<void> => new Promise((r) => setTimeout
 
 export function registerComputerUseIpc(): void {
   ipcMain.handle('computer:status', () => computerStatus())
+  /** Pick an app to keep computer use out of. */
+  ipcMain.handle('computer:deny-pick', async () => {
+    const picked = await dialog.showOpenDialog({
+      title: 'Keep computer use out of an app',
+      buttonLabel: 'Keep out',
+      defaultPath: '/Applications',
+      properties: ['openFile'],
+      filters: [{ name: 'Apps', extensions: ['app'] }]
+    })
+    const path = picked.canceled ? null : picked.filePaths[0]
+    const found = path ? await appAtPath(path) : null
+    if (found) denyApp(found)
+    return computerStatus()
+  })
+  ipcMain.handle('computer:deny', (_e, app: AppRef) => {
+    if (app && typeof app.id === 'string' && app.id)
+      denyApp({ id: app.id, name: String(app.name || app.id) })
+    return computerStatus()
+  })
+  ipcMain.handle('computer:undeny', (_e, id: string) => {
+    undenyApp(String(id))
+    return computerStatus()
+  })
   ipcMain.handle('computer:set-enabled', (_e, on: boolean) => {
     kvSet(KEY, on ? '1' : '0')
     if (!on) stopComputerUse()

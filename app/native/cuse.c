@@ -4,6 +4,8 @@
 //
 //   cuse trusted                      {"trusted":true|false}
 //   cuse pos                          {"x":..,"y":..}
+//   cuse at X Y                       {"name":"Finder","bundle":"com.apple.finder","pid":123}
+//                                     the app whose window is at that point, {} if none
 //   cuse move  X Y
 //   cuse click X Y [left|right|middle] [count]
 //   cuse drag  X1 Y1 X2 Y2
@@ -19,6 +21,7 @@
 // Settings → Privacy & Security → Accessibility). Without it macOS accepts the
 // events and drops them, in silence, which is why `trusted` exists.
 #include <ApplicationServices/ApplicationServices.h>
+#include <libproc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -150,6 +153,76 @@ static void type_text(const char *utf8) {
   CFRelease(s);
 }
 
+// A string as JSON: quotes and backslashes escaped, control characters dropped.
+static void json_string(CFStringRef s) {
+  char buf[1024] = "";
+  if (s) CFStringGetCString(s, buf, sizeof buf, kCFStringEncodingUTF8);
+  putchar('"');
+  for (const unsigned char *c = (const unsigned char *)buf; *c; c++) {
+    if (*c == '"' || *c == '\\') { putchar('\\'); putchar(*c); }
+    else if (*c >= 0x20) putchar(*c);
+  }
+  putchar('"');
+}
+
+// The bundle id of the app a process belongs to: the outermost .app on the
+// path to its executable. NULL for something that is not in an app.
+static CFStringRef bundle_of(pid_t pid) {
+  char path[PROC_PIDPATHINFO_MAXSIZE];
+  if (proc_pidpath(pid, path, sizeof path) <= 0) return NULL;
+  char *end = strstr(path, ".app/");
+  if (!end) return NULL;
+  end[4] = 0;
+  CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL, (const UInt8 *)path, strlen(path), true);
+  if (!url) return NULL;
+  CFBundleRef b = CFBundleCreate(NULL, url);
+  CFRelease(url);
+  if (!b) return NULL;
+  CFStringRef id = CFBundleGetIdentifier(b);
+  if (id) CFRetain(id);
+  CFRelease(b);
+  return id;
+}
+
+// Whose window is at a point: what a click there would land on. Windows come
+// front to back. Skipped: ones that are fully transparent, and overlays that
+// are not ordinary windows, the Dock, the menu bar or a menu (a screen-wide
+// overlay of some utility is not what a click reaches). Ours too, when it is
+// not an ordinary window: that is Superagent's own dot, which lets clicks through.
+static int app_at(CGPoint p) {
+  CFArrayRef list = CGWindowListCopyWindowInfo(
+      kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+  if (!list) { printf("{}\n"); return 0; }
+  pid_t parent = getppid();
+  for (CFIndex i = 0; i < CFArrayGetCount(list); i++) {
+    CFDictionaryRef w = CFArrayGetValueAtIndex(list, i);
+    int layer = 0, pid = 0;
+    double alpha = 1;
+    CGRect r = CGRectZero;
+    CFNumberRef n;
+    if ((n = CFDictionaryGetValue(w, kCGWindowLayer))) CFNumberGetValue(n, kCFNumberIntType, &layer);
+    if ((n = CFDictionaryGetValue(w, kCGWindowOwnerPID))) CFNumberGetValue(n, kCFNumberIntType, &pid);
+    if ((n = CFDictionaryGetValue(w, kCGWindowAlpha))) CFNumberGetValue(n, kCFNumberDoubleType, &alpha);
+    CFDictionaryRef b = CFDictionaryGetValue(w, kCGWindowBounds);
+    if (!b || !CGRectMakeWithDictionaryRepresentation(b, &r)) continue;
+    if (alpha <= 0 || !CGRectContainsPoint(r, p)) continue;
+    if (layer != 0 && layer != 3 && layer != 8 && layer != 20 && layer != 24 && layer != 25 && layer != 101) continue;
+    if (layer != 0 && pid == parent) continue;
+    CFStringRef id = bundle_of(pid);
+    printf("{\"name\":");
+    json_string(CFDictionaryGetValue(w, kCGWindowOwnerName));
+    printf(",\"bundle\":");
+    json_string(id);
+    printf(",\"pid\":%d,\"layer\":%d}\n", pid, layer);
+    if (id) CFRelease(id);
+    CFRelease(list);
+    return 0;
+  }
+  CFRelease(list);
+  printf("{}\n");
+  return 0;
+}
+
 static int fail(const char *why) {
   printf("{\"ok\":false,\"error\":\"%s\"}\n", why);
   return 1;
@@ -173,6 +246,10 @@ int main(int argc, char **argv) {
     if (e) CFRelease(e);
     printf("{\"x\":%.0f,\"y\":%.0f}\n", p.x, p.y);
     return 0;
+  }
+  if (!strcmp(act, "at")) {
+    if (left < 2) return fail("at X Y");
+    return app_at(CGPointMake(atof(v[0]), atof(v[1])));
   }
   if (!strcmp(act, "move")) {
     if (left < 2) return fail("move X Y");

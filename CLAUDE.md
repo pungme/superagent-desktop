@@ -81,6 +81,13 @@ panel with a tile in its corner, loaded from the same page with `#dot`
   screen is in front (`offLimitsApp` in `shared/computer-use.ts`, asked through
   `lsappinfo`). A locked Mac reports `com.apple.loginwindow` in front, so a
   manual try from a locked machine is refused; that is the guard, not a bug.
+- Its tools share the `computer_` prefix with the Computer chat's own (which
+  arrange Superagent's windows, in `mcp.ts`). A name used twice stops that
+  chat's tool server: `COMPUTER_TOOL_NAMES` and a test keep them apart.
+- Each action is checked against the app it would touch: for the mouse, the
+  window under the point (`cuse at X Y`), for keys the app in front. That app
+  must not be off limits (built-in list, the user's list, Superagent itself)
+  and must have been approved for the conversation (`appsToAsk`).
 - `prompts.ts` learns whether it is on through `setComputerUseProbe`, not an
   import, so building a prompt does not drag in Electron.
 

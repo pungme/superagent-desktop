@@ -11,6 +11,8 @@ vi.mock('electron', () => ({
 }))
 // What macOS says is in front, set by each test that cares.
 let front = 'com.apple.finder'
+// Whose window is under the point the mouse is sent to, when it is not the app in front.
+let under: { id: string; name: string } | null = null
 // Where the pointer is.
 let pointer = { x: 0, y: 0 }
 vi.mock('node:child_process', () => ({
@@ -19,13 +21,31 @@ vi.mock('node:child_process', () => ({
     args: string[],
     _opts: unknown,
     done: (e: Error | null, out: string) => void
-  ) => done(null, args[0] === 'front' ? 'ASN:0x0-0x1001:' : `    bundleID="${front}"`)
+  ) =>
+    done(
+      null,
+      args[0] === 'front'
+        ? 'ASN:0x0-0x1001:'
+        : args[0] === 'at'
+          ? JSON.stringify(under ? { name: under.name, bundle: under.id } : {})
+          : args[0] === 'info'
+            ? `"Front" ASN:0x0-0x1001: \n    bundleID="${front}"`
+            : '{"ok":true}'
+    )
 }))
-vi.mock('./store', () => ({ kvGet: () => undefined, kvSet: vi.fn() }))
+const kv = new Map<string, string>()
+vi.mock('./store', () => ({
+  kvGet: (k: string) => kv.get(k),
+  kvSet: (k: string, v: string) => void kv.set(k, v)
+}))
 vi.mock('./util', () => ({ broadcastToWindows: vi.fn() }))
 
 const {
   act,
+  approveApp,
+  appsToAsk,
+  denyApp,
+  undenyApp,
   cuseArgs,
   grantConsent,
   hasConsent,
@@ -115,7 +135,15 @@ describe('being allowed to use the Mac', () => {
 })
 
 describe('what is missing, in words for the user', () => {
-  const ready = { supported: true, enabled: true, screen: true, accessibility: true, helper: true }
+  const ready = {
+    supported: true,
+    enabled: true,
+    screen: true,
+    accessibility: true,
+    helper: true,
+    builtInDenied: [],
+    denied: []
+  }
   it('is nothing when it is all there', () => {
     expect(notReady(ready)).toBeNull()
   })
@@ -138,7 +166,7 @@ describe('where it will not go', () => {
   })
   it('refuses to type into a password manager, and does not count it as activity', async () => {
     front = 'com.1password.1password'
-    expect(await offLimitsNow()).toMatch(/1Password is in front/)
+    expect(await offLimitsNow()).toMatch(/1Password is in the way/)
     stopComputerUse()
     await expect(act('pw', { type: 'type', text: 'hunter2' })).rejects.toThrow(/1Password/)
     expect(hasConsent('pw')).toBe(false)
@@ -162,6 +190,7 @@ describe('typing after focus has moved', () => {
 
 describe('when the user takes the mouse', () => {
   it('stands back once, until the agent has looked again', async () => {
+    stopComputerUse()
     front = 'com.apple.finder'
     sawFront('m', 'com.apple.finder')
     leftPointerAt('m', { x: 200, y: 200 })
@@ -174,5 +203,54 @@ describe('when the user takes the mouse', () => {
       (e: Error) => e.message
     )
     expect(again).not.toMatch(/moved the mouse/)
+  })
+})
+
+describe('what the mouse would land on', () => {
+  const shotFor = async (owner: string): Promise<void> => {
+    // A click needs a screenshot to point on; borrow the mapping through a move
+    // that fails for the same reason when there is none.
+    await expect(act(owner, { type: 'click', x: 1, y: 1 })).rejects.toThrow(/screenshot/i)
+  }
+  it('is the app in front for keys: asked about once, then not again', async () => {
+    front = 'com.apple.TextEdit'
+    under = null
+    expect((await appsToAsk('k', { type: 'type', text: 'x' })).map((a) => a.id)).toEqual([
+      'com.apple.TextEdit'
+    ])
+    approveApp('k', 'com.apple.TextEdit')
+    expect(await appsToAsk('k', { type: 'type', text: 'x' })).toEqual([])
+    // Another conversation has not been told yes.
+    expect(await appsToAsk('k2', { type: 'type', text: 'x' })).toHaveLength(1)
+    await shotFor('k')
+  })
+  it("refuses Superagent's own window, and an app the user put out of bounds", async () => {
+    stopComputerUse()
+    front = 'dev.superagent.app'
+    await expect(act('s', { type: 'key', keys: 'return' })).rejects.toThrow(/own window/)
+    expect(await appsToAsk('s', { type: 'key', keys: 'return' })).toEqual([])
+
+    front = 'com.tinyspeck.slackmacgap'
+    denyApp({ id: 'com.tinyspeck.slackmacgap', name: 'Slack' })
+    await expect(act('s', { type: 'type', text: 'hi' })).rejects.toThrow(/put Slack out of bounds/)
+    undenyApp('com.tinyspeck.slackmacgap')
+    stopComputerUse()
+  })
+  it('keeps a second conversation off the Mac while the first is using it', async () => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    pointer = { x: 0, y: 0 }
+    await act('first', { type: 'key', keys: 'cmd+a' }).catch(() => undefined)
+    await expect(act('second', { type: 'key', keys: 'cmd+a' })).rejects.toThrow(
+      /Another conversation is using this Mac/
+    )
+    // Stopping lets go of it.
+    stopComputerUse()
+    const after = await act('second', { type: 'key', keys: 'cmd+a' }).then(
+      () => '',
+      (e: Error) => e.message
+    )
+    expect(after).not.toMatch(/Another conversation/)
+    stopComputerUse()
   })
 })

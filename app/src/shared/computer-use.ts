@@ -97,11 +97,113 @@ const OFF_LIMITS: [prefix: string, name: string][] = [
   ['com.apple.SecurityAgent', 'a macOS password prompt']
 ]
 
-/** The name of the off-limits app this bundle id belongs to, or null when it is fine. */
-export function offLimitsApp(bundleId: string | null | undefined): string | null {
+/** An app, as its bundle id and the name a person knows it by. */
+export interface AppRef {
+  id: string
+  name: string
+}
+
+/**
+ * The name of the off-limits app this bundle id belongs to, or null when it is
+ * fine. `denied` is the user's own list, matched exactly.
+ */
+export function offLimitsApp(
+  bundleId: string | null | undefined,
+  denied: AppRef[] = []
+): string | null {
   if (!bundleId) return null
   const id = bundleId.toLowerCase()
-  return OFF_LIMITS.find(([prefix]) => id.startsWith(prefix.toLowerCase()))?.[1] ?? null
+  const builtIn = OFF_LIMITS.find(([prefix]) => id.startsWith(prefix.toLowerCase()))?.[1]
+  return builtIn ?? denied.find((d) => d.id.toLowerCase() === id)?.name ?? null
+}
+
+/** The built-in list, as the names Settings shows. */
+export const OFF_LIMITS_NAMES = [...new Set(OFF_LIMITS.map(([, name]) => name))].filter(
+  (n) => !/lock screen|password prompt/.test(n)
+)
+
+/** Superagent itself, packaged and when run from source. */
+const SELF_APPS = ['dev.superagent.app', 'com.github.electron']
+
+/**
+ * Whether this is Superagent's own app. An agent does not work its own
+ * window: the button it would be clicking could be the Allow on its own request.
+ */
+export function isSelfApp(bundleId: string | null | undefined): boolean {
+  return !!bundleId && SELF_APPS.includes(bundleId.toLowerCase())
+}
+
+/** The app in what `lsappinfo info -only bundleid -only name` prints, or null. */
+export function appFrom(lsappinfo: string): AppRef | null {
+  const id = bundleIdFrom(lsappinfo)
+  if (!id) return null
+  const name = /^\s*"([^"]+)"\s+ASN/m.exec(lsappinfo)?.[1] ?? ''
+  return { id, name: cleanAppName(name) || id }
+}
+
+/** An app's name without the invisible marks some put in front of theirs. */
+export function cleanAppName(name: string): string {
+  return name.replace(/[\u200e\u200f\u202a-\u202e]/g, '').trim()
+}
+
+const CAUTIONS: [prefixes: string[], warning: string][] = [
+  [
+    [
+      'com.apple.terminal',
+      'com.googlecode.iterm2',
+      'dev.warp.',
+      'com.mitchellh.ghostty',
+      'net.kovidgoyal.kitty',
+      'co.zeit.hyper'
+    ],
+    'It is a terminal: anything typed there runs as a command on this Mac.'
+  ],
+  [
+    ['com.microsoft.vscode', 'com.todesktop.', 'com.apple.dt.xcode', 'com.jetbrains.', 'dev.zed.'],
+    'It is a code editor with a terminal: it can change your code and run commands.'
+  ],
+  [['com.apple.finder'], 'It can move, rename and delete your files there.'],
+  [
+    ['com.apple.systempreferences', 'com.apple.systemsettings'],
+    'It can change how this Mac is set up.'
+  ],
+  [
+    [
+      'com.apple.safari',
+      'com.google.chrome',
+      'com.brave.browser',
+      'com.microsoft.edgemac',
+      'org.mozilla.firefox',
+      'company.thebrowser.',
+      'com.operasoftware.'
+    ],
+    'It acts as you on every site you are signed in to.'
+  ],
+  [
+    ['com.apple.mail', 'com.apple.mobilesms', 'net.whatsapp.', 'com.tinyspeck.slackmacgap'],
+    'It can read your messages there and send new ones as you.'
+  ]
+]
+
+/** What to warn of before an agent works in this app. Empty for an ordinary one. */
+export function appCaution(bundleId: string): string {
+  const id = bundleId.toLowerCase()
+  return CAUTIONS.find(([prefixes]) => prefixes.some((p) => id.startsWith(p)))?.[1] ?? ''
+}
+
+/** How long a conversation keeps the Mac to itself after its last look or action. */
+export const LOCK_MS = 60_000
+
+/**
+ * Whether another conversation is using the Mac right now. Two agents sharing
+ * one pointer and one keyboard would each undo what the other is doing.
+ */
+export function heldByAnother(
+  holder: { owner: string; at: number } | null,
+  owner: string,
+  now: number
+): boolean {
+  return !!holder && holder.owner !== owner && now - holder.at < LOCK_MS
 }
 
 /** The bundle id in what `lsappinfo info -only bundleid` prints, or null. */
