@@ -14,6 +14,9 @@
 //                                     "w":..,"h":..,"enabled":true}]}. A password field's value
 //                                     is never read.
 //   cuse axat X Y                     {"role":..,"label":..} the control at a point, {} if none
+//   cuse axpress I NAME               press control number I of `ax`, if it is still called NAME
+//   cuse axset I NAME TEXT            put TEXT in it (never in a password field)
+//   cuse axmenu "File>Export>PDF…"    press a menu item by its path
 //
 // The actions that post an event only do so when the app itself ran this: the
 // parent process has to be Superagent, with a window. Run from a shell, they
@@ -310,6 +313,8 @@ static int apps_on_screen(void) {
   return 0;
 }
 
+static int fail(const char *why);
+
 // --- the accessibility tree: what the controls on screen are called ---------
 
 static CFStringRef ax_copy_string(AXUIElementRef el, CFStringRef attr) {
@@ -353,17 +358,37 @@ static const char *WANTED_ROLES[] = {
   "AXSlider", "AXComboBox", "AXDisclosureTriangle", "AXIncrementor", "AXSwitch", "AXTab", "AXToolbarButton",
   NULL};
 
+// The app the accessibility actions are about: the one in front, unless --pid names one.
+static pid_t ax_pid = 0;
 static int ax_count, ax_max, ax_first;
+// When looking for one control rather than listing them: which, and what was found.
+static int ax_target = -1;
+static AXUIElementRef ax_found = NULL;
+static char ax_found_role[64];
 
 static void ax_walk(AXUIElementRef el, int depth) {
   if (depth > 14 || ax_count >= ax_max) return;
   CFStringRef role = ax_copy_string(el, kAXRoleAttribute);
   char rolebuf[64] = "";
   if (role) { CFStringGetCString(role, rolebuf, sizeof rolebuf, kCFStringEncodingUTF8); CFRelease(role); }
+  // A password field says it is a text field, and that it is a secure one only
+  // in its subrole: it is treated as what it is.
+  if (!strcmp(rolebuf, "AXTextField")) {
+    CFStringRef sub = ax_copy_string(el, kAXSubroleAttribute);
+    if (sub && CFEqual(sub, CFSTR("AXSecureTextField"))) strlcpy(rolebuf, "AXSecureTextField", sizeof rolebuf);
+    if (sub) CFRelease(sub);
+  }
   int wanted = 0;
   for (int i = 0; WANTED_ROLES[i] && !wanted; i++) wanted = !strcmp(rolebuf, WANTED_ROLES[i]);
   CGRect r;
-  if (wanted && ax_frame(el, &r) && r.size.width >= 4 && r.size.height >= 4) {
+  if (wanted && ax_frame(el, &r) && r.size.width >= 4 && r.size.height >= 4 && ax_target >= 0) {
+    // Counted exactly as the listing counts, so an index means the same control.
+    if (ax_count == ax_target && !ax_found) {
+      ax_found = CFRetain(el);
+      strlcpy(ax_found_role, rolebuf, sizeof ax_found_role);
+    }
+    ax_count++;
+  } else if (wanted && ax_frame(el, &r) && r.size.width >= 4 && r.size.height >= 4) {
     CFStringRef label = ax_label(el);
     // What a password field holds is never read, not even to be thrown away.
     int secret = !strcmp(rolebuf, "AXSecureTextField");
@@ -373,8 +398,8 @@ static void ax_walk(AXUIElementRef el, int depth) {
     AXUIElementCopyAttributeValue(el, kAXEnabledAttribute, &enabled);
     if (!ax_first) putchar(',');
     ax_first = 0;
+    printf("{\"i\":%d,\"role\":\"%s\",\"label\":", ax_count, rolebuf + 2);
     ax_count++;
-    printf("{\"role\":\"%s\",\"label\":", rolebuf + 2);
     json_string(label);
     printf(",\"value\":");
     if (secret) printf("\"(hidden)\"");
@@ -406,19 +431,16 @@ static void ax_walk(AXUIElementRef el, int depth) {
 }
 
 // The controls of the window in front, and the app's menu bar.
+static AXUIElementRef ax_front(CFTypeRef *win);
+
 static int ax_tree(int max) {
-  AXUIElementRef sys = AXUIElementCreateSystemWide();
-  CFTypeRef app = NULL;
-  if (AXUIElementCopyAttributeValue(sys, kAXFocusedApplicationAttribute, &app) != kAXErrorSuccess || !app) {
-    CFRelease(sys);
+  CFTypeRef win = NULL;
+  AXUIElementRef app = ax_front(&win);
+  if (!app) {
     printf("{\"elements\":[]}\n");
     return 0;
   }
-  AXUIElementSetMessagingTimeout(app, 1.5);
   CFStringRef name = ax_copy_string(app, kAXTitleAttribute);
-  CFTypeRef win = NULL;
-  if (AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute, &win) != kAXErrorSuccess || !win)
-    AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute, &win);
   CFStringRef title = win ? ax_copy_string(win, kAXTitleAttribute) : NULL;
   printf("{\"app\":");
   json_string(name);
@@ -437,7 +459,136 @@ static int ax_tree(int max) {
   if (title) CFRelease(title);
   if (win) CFRelease(win);
   CFRelease(app);
+  return 0;
+}
+
+// The app in front, and the window of it that has the keyboard (else its main one).
+static AXUIElementRef ax_front(CFTypeRef *win) {
+  CFTypeRef app = NULL;
+  *win = NULL;
+  if (ax_pid > 0) {
+    // One app by its process id, in front or not: its first window.
+    app = AXUIElementCreateApplication(ax_pid);
+    AXUIElementSetMessagingTimeout(app, 1.5);
+    CFTypeRef wins = NULL;
+    if (AXUIElementCopyAttributeValue(app, kAXWindowsAttribute, &wins) == kAXErrorSuccess && wins) {
+      if (CFArrayGetCount(wins) > 0) *win = CFRetain(CFArrayGetValueAtIndex(wins, 0));
+      CFRelease(wins);
+    }
+    return app;
+  }
+  AXUIElementRef sys = AXUIElementCreateSystemWide();
+  AXUIElementCopyAttributeValue(sys, kAXFocusedApplicationAttribute, &app);
   CFRelease(sys);
+  if (!app) return NULL;
+  AXUIElementSetMessagingTimeout(app, 1.5);
+  if (AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute, win) != kAXErrorSuccess || !*win)
+    AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute, win);
+  return app;
+}
+
+// Control number `index` of the listing, found again. NULL when there is none.
+static AXUIElementRef ax_nth(int index) {
+  CFTypeRef win = NULL;
+  AXUIElementRef app = ax_front(&win);
+  if (!app) return NULL;
+  ax_count = 0; ax_max = index + 1; ax_target = index; ax_found = NULL;
+  if (win) ax_walk(win, 0);
+  CFTypeRef bar = NULL;
+  if (!ax_found && AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute, &bar) == kAXErrorSuccess && bar) {
+    ax_walk(bar, 10);
+    CFRelease(bar);
+  }
+  ax_target = -1;
+  if (win) CFRelease(win);
+  CFRelease(app);
+  return ax_found;
+}
+
+static int same_text(CFStringRef a, const char *b) {
+  char buf[512] = "";
+  if (a) CFStringGetCString(a, buf, sizeof buf, kCFStringEncodingUTF8);
+  return !strcmp(buf, b);
+}
+
+// Press control `index`, or put text in it, but only if it is still the one
+// the agent read: the same name. A window that changed in between is not
+// acted on blind.
+static int ax_do(int index, const char *expect, const char *text) {
+  AXUIElementRef el = ax_nth(index);
+  if (!el) return fail("there is no such control now");
+  CFStringRef label = ax_label(el);
+  int same = same_text(label, expect);
+  if (label) CFRelease(label);
+  if (!same) { CFRelease(el); return fail("the controls have changed since they were read"); }
+  AXError err;
+  if (text) {
+    // Never into a password field: that is the user's to type.
+    if (!strcmp(ax_found_role, "AXSecureTextField")) { CFRelease(el); return fail("that is a password field"); }
+    CFStringRef v = CFStringCreateWithCString(NULL, text, kCFStringEncodingUTF8);
+    err = v ? AXUIElementSetAttributeValue(el, kAXValueAttribute, v) : kAXErrorFailure;
+    if (v) CFRelease(v);
+  } else err = AXUIElementPerformAction(el, kAXPressAction);
+  CFRelease(el);
+  if (err != kAXErrorSuccess) { printf("{\"ok\":false,\"error\":\"the app refused (%d)\"}\n", (int)err); return 1; }
+  printf("{\"ok\":true,\"role\":\"%s\"}\n", ax_found_role);
+  return 0;
+}
+
+// A menu item by its path, "File>Export>PDF…": found under the menu bar and
+// pressed, without the menus having to be opened.
+static int ax_menu(const char *path) {
+  CFTypeRef win = NULL;
+  AXUIElementRef app = ax_front(&win);
+  if (win) CFRelease(win);
+  if (!app) return fail("no app in front");
+  CFTypeRef cur = NULL;
+  if (AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute, &cur) != kAXErrorSuccess || !cur) {
+    CFRelease(app);
+    return fail("that app has no menu bar");
+  }
+  char buf[1024];
+  strlcpy(buf, path, sizeof buf);
+  char *save = NULL;
+  for (char *part = strtok_r(buf, ">", &save); part; part = strtok_r(NULL, ">", &save)) {
+    while (*part == ' ') part++;
+    size_t n = strlen(part);
+    while (n && part[n - 1] == ' ') part[--n] = 0;
+    // A menu's items sit one level down, inside an AXMenu.
+    AXUIElementRef next = NULL;
+    for (int pass = 0; pass < 2 && !next; pass++) {
+      CFTypeRef kids = NULL;
+      if (AXUIElementCopyAttributeValue(cur, kAXChildrenAttribute, &kids) != kAXErrorSuccess || !kids) break;
+      CFIndex count = CFArrayGetCount(kids);
+      AXUIElementRef only = NULL;
+      for (CFIndex i = 0; i < count && !next; i++) {
+        AXUIElementRef k = CFArrayGetValueAtIndex(kids, i);
+        CFStringRef title = ax_copy_string(k, kAXTitleAttribute);
+        if (same_text(title, part)) next = CFRetain(k);
+        if (title) CFRelease(title);
+        if (count == 1) only = k;
+      }
+      if (!next && only) { CFRetain(only); CFRelease(cur); cur = only; CFRelease(kids); continue; }
+      CFRelease(kids);
+      break;
+    }
+    if (!next) {
+      CFRelease(cur);
+      CFRelease(app);
+      printf("{\"ok\":false,\"error\":\"no menu item called \\\"%s\\\"\"}\n", part);
+      return 1;
+    }
+    CFRelease(cur);
+    cur = next;
+  }
+  CFTypeRef enabled = NULL;
+  AXUIElementCopyAttributeValue(cur, kAXEnabledAttribute, &enabled);
+  if (enabled == kCFBooleanFalse) { CFRelease(cur); CFRelease(app); return fail("that menu item is greyed out"); }
+  AXError err = AXUIElementPerformAction(cur, kAXPressAction);
+  CFRelease(cur);
+  CFRelease(app);
+  if (err != kAXErrorSuccess) { printf("{\"ok\":false,\"error\":\"the app refused (%d)\"}\n", (int)err); return 1; }
+  printf("{\"ok\":true}\n");
   return 0;
 }
 
@@ -473,6 +624,7 @@ static int fail(const char *why) {
 int main(int argc, char **argv) {
   int a = 1;
   if (argc > 1 && !strcmp(argv[1], "--dry")) { dry = 1; a = 2; }
+  if (argc > a + 1 && !strcmp(argv[a], "--pid")) { ax_pid = atoi(argv[a + 1]); a += 2; }
   if (argc <= a) return fail("no action");
   const char *act = argv[a];
   int left = argc - a - 1;
@@ -504,6 +656,21 @@ int main(int argc, char **argv) {
     if (dry) { printf("{\"ok\":true}\n"); return 0; }
     int max = left > 0 ? atoi(v[0]) : 120;
     return ax_tree(max < 1 ? 1 : max > 400 ? 400 : max);
+  }
+  if (!strcmp(act, "axpress")) {
+    if (left < 2) return fail("axpress INDEX NAME");
+    if (dry) { printf("{\"ok\":true}\n"); return 0; }
+    return ax_do(atoi(v[0]), v[1], NULL);
+  }
+  if (!strcmp(act, "axset")) {
+    if (left < 3) return fail("axset INDEX NAME TEXT");
+    if (dry) { printf("{\"ok\":true}\n"); return 0; }
+    return ax_do(atoi(v[0]), v[1], v[2]);
+  }
+  if (!strcmp(act, "axmenu")) {
+    if (left < 1) return fail("axmenu PATH");
+    if (dry) { printf("{\"ok\":true}\n"); return 0; }
+    return ax_menu(v[0]);
   }
   if (!strcmp(act, "axat")) {
     if (left < 2) return fail("axat X Y");
