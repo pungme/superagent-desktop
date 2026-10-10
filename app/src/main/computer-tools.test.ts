@@ -21,7 +21,9 @@ const state = vi.hoisted(() => ({
   risk: null as string | null,
   ui: { app: 'TextEdit', window: 'Untitled', lines: ['button "Save" at 100,40'] },
   toAsk: [] as { id: string; name: string }[],
-  approvedApps: [] as string[]
+  approvedApps: [] as string[],
+  steps: false,
+  under: ''
 }))
 vi.mock('./computer-use', () => ({
   computerUseEnabled: () => state.enabled,
@@ -61,6 +63,8 @@ vi.mock('./computer-use', () => ({
     state.acted.push({ type: 'menu', path })
   },
   riskAt: async () => state.risk,
+  stepByStep: () => state.steps,
+  controlAt: async () => ({ role: 'AXButton', label: state.under }),
   takeZoom: async () => ({ jpeg: Buffer.from('zoomed'), width: 800, height: 400 }),
   appsShowing: async () => ({ front: 'TextEdit', apps: ['TextEdit', 'Safari'] }),
   appsToAsk: async () => state.toAsk.filter((a) => !state.approvedApps.includes(a.id)),
@@ -130,7 +134,9 @@ beforeEach(() => {
     risk: null,
     ui: { app: 'TextEdit', window: 'Untitled', lines: ['button "Save" at 100,40'] },
     toAsk: [],
-    approvedApps: []
+    approvedApps: [],
+    steps: false,
+    under: ''
   })
 })
 
@@ -321,6 +327,50 @@ describe("the agent's tools for using the Mac", () => {
       expect(no.isError).toBe(true)
       expect(text(no)).toContain('did not allow that click')
       expect(state.acted).toHaveLength(1)
+    })
+  })
+
+  it('step by step: say each step first, take it only on a yes, and leave looking alone', async () => {
+    state.consent = true
+    state.steps = true
+    state.under = 'Save'
+    await withClient(async (c) => {
+      expect((await call(c, 'computer_click', { x: 5, y: 5 })).isError).toBeFalsy()
+      await call(c, 'computer_type', { text: 'Dear all,\nsecond line' })
+      await call(c, 'computer_key', { keys: 'cmd+s' })
+      await call(c, 'computer_press', { index: 3, name: 'Export' })
+      await call(c, 'computer_fill', { index: 4, name: 'Title', text: 'Notes' })
+      expect(state.asked).toEqual([
+        'Next step: Click "Save".',
+        'Next step: Type "Dear all,…" (21 characters).',
+        'Next step: Press cmd+s.',
+        'Next step: Press "Export".',
+        'Next step: Put 5 characters in "Title".'
+      ])
+      expect(state.acted).toHaveLength(5)
+      // Looking, scrolling and moving the pointer are not asked about.
+      await call(c, 'computer_screenshot', {})
+      await call(c, 'computer_scroll', { x: 5, y: 5, dx: 0, dy: -3 })
+      await call(c, 'computer_move', { x: 9, y: 9 })
+      expect(state.asked).toHaveLength(5)
+      // A no stops that step, and says to stop rather than find another way.
+      state.answer = false
+      const no = await call(c, 'computer_click', { x: 5, y: 5 })
+      expect(no.isError).toBe(true)
+      expect(text(no)).toContain('did not allow that step')
+      const noName = await call(c, 'computer_press', { index: 3, name: 'Export' })
+      expect(text(noName)).toContain('did not allow that step')
+      expect(state.acted).toHaveLength(7)
+    })
+  })
+
+  it('step by step: a risky step is asked about once, in its own words', async () => {
+    state.consent = true
+    state.steps = true
+    state.risk = 'Click "Empty Trash": it deletes for good, with no way back.'
+    await withClient(async (c) => {
+      await call(c, 'computer_click', { x: 5, y: 5 })
+      expect(state.asked).toEqual(['Click "Empty Trash": it deletes for good, with no way back.'])
     })
   })
 

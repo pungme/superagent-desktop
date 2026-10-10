@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { coverOthers, windowPart, type LaidWindow, type Shot } from './computer-use'
+import {
+  coverOthers,
+  stepText,
+  windowPart,
+  type LaidWindow,
+  type Shot
+} from './computer-use'
 
 const display = { x: 0, y: 0, width: 100, height: 50 }
 const shot: Shot = { width: 200, height: 100, area: display }
@@ -94,5 +100,30 @@ describe('a picture of only the allowed apps', () => {
     expect(at(px, 150, 50)).toBe(255)
     expect(at(px, 50, 50)).toBe(0x2b)
     expect(hidden).toEqual([])
+  })
+})
+
+describe('a step, said before it is taken', () => {
+  it('names the control when there is a name, the place when there is not', () => {
+    expect(stepText({ type: 'click', x: 10.4, y: 20 }, 'Save')).toBe('Click "Save"')
+    expect(stepText({ type: 'click', x: 10.4, y: 20 })).toBe('Click at 10, 20')
+    expect(stepText({ type: 'click', x: 1, y: 2, count: 2 }, 'report.pdf')).toBe(
+      'Double-click "report.pdf"'
+    )
+    expect(stepText({ type: 'click', x: 1, y: 2, button: 'right' })).toBe('Right-click at 1, 2')
+  })
+  it('shows only the start of what would be typed', () => {
+    expect(stepText({ type: 'type', text: 'hello' })).toBe('Type "hello" (5 characters)')
+    expect(stepText({ type: 'type', text: 'a'.repeat(200) })).toBe(
+      `Type "${'a'.repeat(60)}…" (200 characters)`
+    )
+    expect(stepText({ type: 'key', keys: 'cmd+s' })).toBe('Press cmd+s')
+    expect(stepText({ type: 'drag', x: 1, y: 2, toX: 30, toY: 40 })).toBe(
+      'Drag from 1, 2 to 30, 40'
+    )
+  })
+  it('has nothing to ask about a move or a scroll', () => {
+    expect(stepText({ type: 'move' })).toBeNull()
+    expect(stepText({ type: 'scroll' })).toBeNull()
   })
 })

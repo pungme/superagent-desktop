@@ -176,6 +176,7 @@ describe('what is missing, in words for the user', () => {
     stopKeyRefused: false,
     ring: true,
     focused: false,
+    steps: false,
     rules: [],
     builtInDenied: [],
     denied: []

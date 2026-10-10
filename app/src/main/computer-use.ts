@@ -103,6 +103,14 @@ export function focusedView(): boolean {
   return focusedNow
 }
 
+const STEPS_KEY = 'computer.steps'
+let stepsNow: boolean | null = null
+/** Whether each step is asked about before it is taken. Off unless turned on. */
+export function stepByStep(): boolean {
+  if (stepsNow === null) stepsNow = kvGet(STEPS_KEY) === '1'
+  return stepsNow
+}
+
 /** How long the ring is up before the action it announces, so the eye gets there first. */
 const RING_LEAD_MS = 320
 /** What was last announced, for a test to read. */
@@ -184,6 +192,8 @@ export interface ComputerStatus {
   ring: boolean
   /** A picture shows only the apps the user allowed; the rest is covered. */
   focused: boolean
+  /** Each click, keystroke and typed text is asked about before it happens. */
+  steps: boolean
   /** Apps it never works in: the built-in ones by name, and the user's own. */
   builtInDenied: string[]
   denied: AppRef[]
@@ -202,6 +212,7 @@ export function computerStatus(): ComputerStatus {
     stopKeyRefused: stopRefused,
     ring: ringEnabled(),
     focused: focusedView(),
+    steps: stepByStep(),
     builtInDenied: OFF_LIMITS_NAMES,
     denied: deniedApps(),
     rules: appRules()
@@ -522,13 +533,23 @@ export async function waitForControl(
 
 /** What clicking at a point would press, when it is something that needs asking about first. */
 export async function riskAt(owner: string, action: ComputerAction): Promise<string | null> {
-  if (action.type !== 'click') return null
-  const args = cuseArgs(action, lastShot.get(owner))
-  const { out } = await cuse(['axat', args[1], args[2]])
-  const role = typeof out.role === 'string' ? out.role : ''
-  const label = typeof out.label === 'string' ? out.label : ''
+  const { role, label } = await controlAt(owner, action)
   const risk = riskyControl(role, label)
   return risk ? `Click "${label}": it ${risk}.` : null
+}
+
+/** What a click would land on, as accessibility names it. Empty when it cannot say. */
+export async function controlAt(
+  owner: string,
+  action: ComputerAction
+): Promise<{ role: string; label: string }> {
+  if (action.type !== 'click') return { role: '', label: '' }
+  const args = cuseArgs(action, lastShot.get(owner))
+  const { out } = await cuse(['axat', args[1], args[2]])
+  return {
+    role: typeof out.role === 'string' ? out.role : '',
+    label: typeof out.label === 'string' ? out.label : ''
+  }
 }
 
 /** Part of the screen, enlarged: for text too small to read on the whole picture. */
@@ -1235,6 +1256,11 @@ export function registerComputerUseIpc(): void {
   ipcMain.handle('computer:set-ring', (_e, on: boolean) => {
     ringNow = !!on
     kvSet(RING_KEY, on ? '1' : '0')
+    return computerStatus()
+  })
+  ipcMain.handle('computer:set-steps', (_e, on: boolean) => {
+    stepsNow = !!on
+    kvSet(STEPS_KEY, on ? '1' : '0')
     return computerStatus()
   })
   ipcMain.handle('computer:set-focused', (_e, on: boolean) => {

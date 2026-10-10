@@ -15,6 +15,8 @@ import {
   pressControl,
   readUi,
   riskAt,
+  controlAt,
+  stepByStep,
   takeZoom,
   waitForControl,
   act,
@@ -38,6 +40,7 @@ import {
   SYSTEM_SETTINGS,
   type SettingsPane,
   riskyShortcut,
+  stepText,
   validKeyCombo
 } from '../shared/computer-use'
 
@@ -147,6 +150,18 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     return failed(why)
   }
 
+  /** The step-by-step question: this is what comes next, may it? */
+  const askStep = (step: string): Promise<boolean> =>
+    requestApproval(
+      ctx.workspaceId,
+      ctx.sessionId,
+      'mcp__cove-browser__computer_use',
+      `Next step: ${step}.`,
+      'permission'
+    )
+  const STEP_REFUSED =
+    'The user did not allow that step. Do not do it another way; stop and ask what they would like instead.'
+
   /** Do it, let the screen catch up, and show what it looks like now. */
   const doThen = async (action: ComputerAction, said: string): Promise<Result> => {
     const no = await gate()
@@ -188,6 +203,15 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
             `The user did not allow working in ${app.name}. Do not try again there; ask what they would like instead, or do it another way.`
           )
         approveApp(owner, app.id)
+      }
+      // Step by step: each one is put to the user first, in words, unless it
+      // was just asked about for being risky.
+      if (!risk && stepByStep()) {
+        const step = stepText(
+          action,
+          action.type === 'click' ? (await controlAt(owner, action).catch(() => null))?.label : ''
+        )
+        if (step && !(await askStep(step))) return failed(STEP_REFUSED)
       }
       await act(owner, action)
       note(said)
@@ -327,6 +351,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
             'The user did not allow that. Do not reach it another way; ask what they would like instead.'
           )
       }
+      if (!risky && what && stepByStep() && !(await askStep(what))) return failed(STEP_REFUSED)
       await doIt()
       note(said)
       await settle()
@@ -366,7 +391,12 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       inputSchema: { ...control, text: z.string().max(4000) }
     },
     ({ index, name, text }) =>
-      byName(null, '', () => fillControl(owner, index, name, text), `Filled "${name}".`)
+      byName(
+        null,
+        `Put ${text.length} characters in "${name}"`,
+        () => fillControl(owner, index, name, text),
+        `Filled "${name}".`
+      )
   )
 
   server.registerTool(

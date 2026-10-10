@@ -1179,6 +1179,17 @@ export function Settings({
               )}
               {computer.enabled && (
                 <Row
+                  title="Ask before each step"
+                  desc="Every click, keystroke and piece of typing is put to you first, in words, and happens only if you allow it. Slower, and nothing happens that you did not see coming. Looking, scrolling and moving the pointer are not asked about."
+                >
+                  <Toggle
+                    checked={computer.steps === true}
+                    onChange={(v) => void window.cove.setComputerSteps(v).then(setComputer)}
+                  />
+                </Row>
+              )}
+              {computer.enabled && (
+                <Row
                   title="Show it only the apps you allowed"
                   desc="In an agent's screenshots, every other app's window, notifications and the desktop are covered in grey. It sees an app once you have allowed it there. Off: it sees the whole screen, apart from the apps on the list below."
                 >

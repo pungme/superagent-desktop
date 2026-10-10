@@ -586,3 +586,50 @@ export function coverOthers(
   }
   return [...hidden.keys()]
 }
+
+/**
+ * What a step is, said before it is taken: for the question the step-by-step
+ * mode asks ahead of each one. Null for a step that changes nothing and is not
+ * worth a question (moving the pointer, scrolling). `label`: what the control
+ * under a click is called, when accessibility knows.
+ */
+export function stepText(
+  action:
+    | { type: 'move' | 'scroll' }
+    | { type: 'click'; x: number; y: number; button?: string; count?: number }
+    | { type: 'drag'; x: number; y: number; toX: number; toY: number }
+    | { type: 'type'; text: string }
+    | { type: 'key'; keys: string },
+  label = ''
+): string | null {
+  switch (action.type) {
+    case 'move':
+    case 'scroll':
+      return null
+    case 'click': {
+      const how =
+        action.button === 'right'
+          ? 'Right-click'
+          : (action.count ?? 1) >= 3
+            ? 'Triple-click'
+            : action.count === 2
+              ? 'Double-click'
+              : 'Click'
+      const name = label.replace(/\s+/g, ' ').trim().slice(0, 60)
+      return name
+        ? `${how} "${name}"`
+        : `${how} at ${Math.round(action.x)}, ${Math.round(action.y)}`
+    }
+    case 'drag':
+      return `Drag from ${Math.round(action.x)}, ${Math.round(action.y)} to ${Math.round(action.toX)}, ${Math.round(action.toY)}`
+    case 'type': {
+      // The first line only, and not much of it: enough to know what it is.
+      const lines = action.text.split('\n')
+      const first = lines[0].slice(0, 60)
+      const more = lines.length > 1 || lines[0].length > 60
+      return `Type "${first}${more ? '…' : ''}" (${action.text.length} characters)`
+    }
+    case 'key':
+      return `Press ${action.keys}`
+  }
+}
