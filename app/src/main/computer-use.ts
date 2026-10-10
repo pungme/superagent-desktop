@@ -1,6 +1,7 @@
 import { execFile, type ChildProcess } from 'child_process'
 import {
   app,
+  clipboard,
   desktopCapturer,
   dialog,
   globalShortcut,
@@ -806,6 +807,47 @@ export async function targetApps(owner: string, action: ComputerAction): Promise
   }
   const seen = new Set<string>()
   return found.filter((a): a is AppRef => !!a && !seen.has(a.id) && !!seen.add(a.id))
+}
+
+/**
+ * Which app a name means, without opening it: "TextEdit" is com.apple.TextEdit.
+ * Null when macOS knows no app by that name. Asked of Launch Services through
+ * osascript; nothing is sent to the app itself.
+ */
+export function appNamed(name: string): Promise<AppRef | null> {
+  const clean = name.replace(/["\\]/g, '').trim()
+  if (!clean) return Promise.resolve(null)
+  return new Promise((resolve) =>
+    execFile(
+      '/usr/bin/osascript',
+      ['-e', `id of app "${clean}"`],
+      { timeout: 6000 },
+      (err, out) => {
+        const id = String(out ?? '').trim()
+        resolve(!err && /^[\w.-]+$/.test(id) ? { id, name: clean } : null)
+      }
+    )
+  )
+}
+
+/** Why an app must not be worked in, whoever is in front. Null when it may be. */
+export function offLimitsFor(app: AppRef): string | null {
+  return offLimitsMessage(app, true)
+}
+
+/** Whether this conversation has been allowed to work in an app. */
+export function appApproved(owner: string, id: string): boolean {
+  return !!approved.get(owner)?.has(id.toLowerCase())
+}
+
+/** What is on the clipboard, as text. It is the user's, and often a password: asked about every time. */
+export function readClipboard(): string {
+  return clipboard.readText()
+}
+
+/** Put text on the clipboard, to paste with ⌘V: surer than typing a long piece key by key. */
+export function writeClipboard(text: string): void {
+  clipboard.writeText(text)
 }
 
 // --- one app at a time, asked about ---------------------------------------

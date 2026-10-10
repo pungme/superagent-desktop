@@ -2,8 +2,13 @@ import { execFile } from 'child_process'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import {
+  appApproved,
+  appNamed,
   approveApp,
   appsShowing,
+  offLimitsFor,
+  readClipboard,
+  writeClipboard,
   appsToAsk,
   fillControl,
   pickMenu,
@@ -27,6 +32,10 @@ import {
   appCaution,
   COMPUTER_STOP_HOTKEY,
   riskyControl,
+  SETTINGS_PANES,
+  settingsUrl,
+  SYSTEM_SETTINGS,
+  type SettingsPane,
   riskyShortcut,
   validKeyCombo
 } from '../shared/computer-use'
@@ -72,7 +81,10 @@ export const COMPUTER_TOOL_NAMES = [
   'computer_press',
   'computer_fill',
   'computer_menu',
-  'computer_wait_for'
+  'computer_wait_for',
+  'computer_open_settings',
+  'computer_clipboard_read',
+  'computer_clipboard_write'
 ] as const
 
 export function registerComputerTools(server: McpServer, ctx: ComputerContext): void {
@@ -169,6 +181,25 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     } catch (e) {
       return failed((e as Error).message)
     }
+  }
+
+  /** May this conversation work in this app? Refused, asked the first time, or already yes. */
+  const mayWorkIn = async (app: { id: string; name: string }): Promise<string | null> => {
+    const out = offLimitsFor(app)
+    if (out) return out
+    if (appApproved(owner, app.id)) return null
+    const caution = appCaution(app.id)
+    const yes = await requestApproval(
+      ctx.workspaceId,
+      ctx.sessionId,
+      'mcp__cove-browser__computer_use',
+      `Work in ${app.name}: click and type in its windows, for this task.${caution ? `\n${caution}` : ''}`,
+      'permission'
+    )
+    if (!yes)
+      return `The user did not allow working in ${app.name}. Do not try again there; ask what they would like instead, or do it another way.`
+    approveApp(owner, app.id)
+    return null
   }
 
   const point = {
@@ -525,6 +556,13 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     async ({ name }) => {
       const no = await gate()
       if (no) return failed(no)
+      // Which app that is, before it is opened: one that is out of bounds is
+      // not brought to the front at all, and any other is asked about first.
+      const which = await appNamed(name)
+      if (which) {
+        const stop = await mayWorkIn(which)
+        if (stop) return failed(stop)
+      }
       const opened = await new Promise<string>((resolve) =>
         execFile('/usr/bin/open', ['-a', name], { timeout: 15_000 }, (err, _o, stderr) =>
           resolve(err ? String(stderr || err.message).trim() : '')
@@ -537,6 +575,90 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         return await look(`Opened ${name}.`)
       } catch (e) {
         return failed((e as Error).message)
+      }
+    }
+  )
+
+  server.registerTool(
+    'computer_open_settings',
+    {
+      description:
+        'Open System Settings straight at a pane, instead of clicking through it: general, appearance, wifi, bluetooth, network, notifications, sound, displays, battery, keyboard, trackpad, privacy, accessibility, screen-recording. Returns the screen afterwards.',
+      inputSchema: {
+        pane: z.enum(Object.keys(SETTINGS_PANES) as [SettingsPane, ...SettingsPane[]])
+      }
+    },
+    async ({ pane }) => {
+      const no = (await gate()) ?? (await mayWorkIn(SYSTEM_SETTINGS))
+      if (no) return failed(no)
+      const opened = await new Promise<string>((resolve) =>
+        execFile('/usr/bin/open', [settingsUrl(pane)], { timeout: 15_000 }, (err, _o, stderr) =>
+          resolve(err ? String(stderr || err.message).trim() : '')
+        )
+      )
+      if (opened) return failed(`Could not open that pane: ${opened.slice(0, 200)}`)
+      touchConsent(owner)
+      await settle(1200)
+      return await look(`Opened System Settings at ${pane}.`).catch(
+        () =>
+          ({ content: [{ type: 'text', text: `Opened System Settings at ${pane}.` }] }) as Result
+      )
+    }
+  )
+
+  server.registerTool(
+    'computer_clipboard_read',
+    {
+      description:
+        "Read the text on the user's clipboard. It is theirs and may hold anything, a password included, so they are asked every time: only call this when the task really needs what they copied.",
+      inputSchema: {}
+    },
+    async () => {
+      const no = await gate()
+      if (no) return failed(no)
+      const yes = await requestApproval(
+        ctx.workspaceId,
+        ctx.sessionId,
+        'mcp__cove-browser__computer_use',
+        'Read what is on your clipboard.\nWhatever you last copied will be shown to the agent.',
+        'permission'
+      )
+      if (!yes)
+        return failed('The user did not allow reading the clipboard. Do not try another way.')
+      const text = readClipboard()
+      touchConsent(owner)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: text
+              ? `The clipboard holds${text.length > 4000 ? ' (first 4000 characters)' : ''}:\n${text.slice(0, 4000)}`
+              : 'The clipboard has no text on it.'
+          }
+        ]
+      }
+    }
+  )
+
+  server.registerTool(
+    'computer_clipboard_write',
+    {
+      description:
+        'Put text on the clipboard, replacing what is there. Then paste it with computer_key "cmd+v": for a long piece of text this is faster and surer than computer_type.',
+      inputSchema: { text: z.string().min(1).max(100_000) }
+    },
+    async ({ text }) => {
+      const no = await gate()
+      if (no) return failed(no)
+      writeClipboard(text)
+      touchConsent(owner)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${text.length} characters are on the clipboard. Paste with cmd+v.`
+          }
+        ]
       }
     }
   )

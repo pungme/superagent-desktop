@@ -15,6 +15,8 @@ import {
   focusMoved,
   normalKeyCombo,
   offLimitsApp,
+  SETTINGS_PANES,
+  settingsUrl,
   overlaps,
   ownerApp,
   typedLines,
@@ -332,5 +334,20 @@ describe('whether a window is in the part of the desktop being pictured', () => 
     expect(overlaps({ x: 2220, y: 446, width: 900, height: 530 }, laptop)).toBe(false)
     expect(overlaps({ x: 1728, y: 0, width: 500, height: 500 }, laptop)).toBe(false)
     expect(overlaps({ x: -6000, y: -6000, width: 300, height: 160 }, laptop)).toBe(false)
+  })
+})
+
+describe('System Settings, straight to a pane', () => {
+  it('has an address for each pane on offer', () => {
+    expect(settingsUrl('privacy')).toBe(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy'
+    )
+    expect(settingsUrl('displays')).toBe(
+      'x-apple.systempreferences:com.apple.Displays-Settings.extension'
+    )
+    for (const pane of Object.keys(SETTINGS_PANES))
+      expect(settingsUrl(pane as keyof typeof SETTINGS_PANES)).toMatch(
+        /^x-apple\.systempreferences:com\.apple\./
+      )
   })
 })

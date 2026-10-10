@@ -454,3 +454,34 @@ export function zoomRect(
 export function overlaps(a: ScreenArea, b: ScreenArea): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 }
+
+/** The panes of System Settings an agent can open straight to, and their addresses. */
+export const SETTINGS_PANES = {
+  general: 'com.apple.systempreferences.GeneralSettings',
+  appearance: 'com.apple.Appearance-Settings.extension',
+  wifi: 'com.apple.wifi-settings-extension',
+  bluetooth: 'com.apple.BluetoothSettings',
+  network: 'com.apple.Network-Settings.extension',
+  notifications: 'com.apple.Notifications-Settings.extension',
+  sound: 'com.apple.Sound-Settings.extension',
+  displays: 'com.apple.Displays-Settings.extension',
+  battery: 'com.apple.Battery-Settings.extension',
+  keyboard: 'com.apple.Keyboard-Settings.extension',
+  trackpad: 'com.apple.Trackpad-Settings.extension',
+  privacy: 'com.apple.preference.security?Privacy',
+  accessibility: 'com.apple.preference.security?Privacy_Accessibility',
+  'screen-recording': 'com.apple.preference.security?Privacy_ScreenCapture'
+} as const
+
+export type SettingsPane = keyof typeof SETTINGS_PANES
+
+/** The address that opens System Settings at a pane. */
+export function settingsUrl(pane: SettingsPane): string {
+  return `x-apple.systempreferences:${SETTINGS_PANES[pane]}`
+}
+
+/** System Settings, as the app an agent is working in when it opens a pane. */
+export const SYSTEM_SETTINGS: AppRef = {
+  id: 'com.apple.systempreferences',
+  name: 'System Settings'
+}

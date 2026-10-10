@@ -12,6 +12,11 @@ const state = vi.hoisted(() => ({
   acted: [] as unknown[],
   shots: 0,
   hooks: true,
+  clipboard: 'copied earlier',
+  known: {
+    TextEdit: { id: 'com.apple.TextEdit', name: 'TextEdit' },
+    '1Password': { id: 'com.1password.1password', name: '1Password' }
+  } as Record<string, { id: string; name: string }>,
   risk: null as string | null,
   ui: { app: 'TextEdit', window: 'Untitled', lines: ['button "Save" at 100,40'] },
   toAsk: [] as { id: string; name: string }[],
@@ -30,6 +35,16 @@ vi.mock('./computer-use', () => ({
   settle: async () => undefined,
   touchConsent: () => undefined,
   readUi: async () => state.ui,
+  appNamed: async (name: string) => state.known[name] ?? null,
+  offLimitsFor: (a: { id: string }) =>
+    a.id.startsWith('com.1password')
+      ? '1Password is in the way, and computer use does not operate in it.'
+      : null,
+  appApproved: (_o: string, id: string) => state.approvedApps.includes(id),
+  readClipboard: () => state.clipboard,
+  writeClipboard: (t: string) => {
+    state.clipboard = t
+  },
   waitForControl: async (_o: string, text: string, gone: boolean) => ({
     happened: state.ui.lines.some((l) => l.includes(text)) !== gone,
     waited: 1.5,
@@ -103,6 +118,7 @@ beforeEach(() => {
     acted: [],
     shots: 0,
     hooks: true,
+    clipboard: 'copied earlier',
     risk: null,
     ui: { app: 'TextEdit', window: 'Untitled', lines: ['button "Save" at 100,40'] },
     toAsk: [],
@@ -325,6 +341,42 @@ describe("the agent's tools for using the Mac", () => {
       expect(no.isError).toBe(true)
       expect(state.asked[2]).toContain('Press "Empty Trash…": it deletes for good')
       expect(state.acted).toHaveLength(4)
+    })
+  })
+
+  it('open an app only after asking about it, and never one that is out of bounds', async () => {
+    state.consent = true
+    await withClient(async (c) => {
+      const locked = await call(c, 'computer_open_mac_app', { name: '1Password' })
+      expect(locked.isError).toBe(true)
+      expect(text(locked)).toContain('1Password')
+      expect(state.asked).toEqual([])
+
+      state.answer = false
+      const no = await call(c, 'computer_open_mac_app', { name: 'TextEdit' })
+      expect(no.isError).toBe(true)
+      expect(state.asked[0]).toContain('Work in TextEdit')
+      expect(text(no)).toContain('did not allow working in TextEdit')
+    })
+  })
+
+  it('read the clipboard only with a yes each time, and write it without one', async () => {
+    state.consent = true
+    await withClient(async (c) => {
+      const read = await call(c, 'computer_clipboard_read')
+      expect(state.asked[0]).toContain('Read what is on your clipboard')
+      expect(text(read)).toContain('copied earlier')
+      await call(c, 'computer_clipboard_read')
+      expect(state.asked).toHaveLength(2)
+
+      await call(c, 'computer_clipboard_write', { text: 'a long paragraph' })
+      expect(state.clipboard).toBe('a long paragraph')
+      expect(state.asked).toHaveLength(2)
+
+      state.answer = false
+      const no = await call(c, 'computer_clipboard_read')
+      expect(no.isError).toBe(true)
+      expect(text(no)).not.toContain('a long paragraph')
     })
   })
 

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
   app: { isPackaged: false, on: vi.fn() },
+  clipboard: { readText: () => '', writeText: vi.fn() },
   desktopCapturer: {},
   globalShortcut: { register: vi.fn(() => true), unregister: vi.fn() },
   ipcMain: { handle: vi.fn() },
