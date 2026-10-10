@@ -206,7 +206,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     'computer_read_ui',
     {
       description:
-        'The controls of the window in front, by name: every button, field, checkbox, menu and link with what it is called, what it holds, and the point on the latest screenshot to click for it. Surer than reading small text off the picture; use it when a screenshot does not make clear what something is or where exactly it is. Take a screenshot first. A password field is listed but never read.',
+        'The controls of the window in front, by name: every button, field, checkbox, menu and link with what it is called, what it holds, and the point on the latest screenshot to click for it. Surer than reading small text off the picture; use it when a screenshot does not make clear what something is or where exactly it is. Works without a screenshot, and is often enough by itself to know where to click. A password field is listed but never read.',
       inputSchema: {}
     },
     async () => {

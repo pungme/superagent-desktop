@@ -5,7 +5,10 @@ vi.mock('electron', () => ({
   desktopCapturer: {},
   globalShortcut: { register: vi.fn(() => true), unregister: vi.fn() },
   ipcMain: { handle: vi.fn() },
-  screen: { getCursorScreenPoint: () => pointer },
+  screen: {
+    getCursorScreenPoint: () => pointer,
+    getDisplayNearestPoint: () => ({ bounds: { x: 0, y: 0, width: 2880, height: 1800 } })
+  },
   shell: {},
   systemPreferences: {}
 }))
@@ -13,6 +16,8 @@ vi.mock('electron', () => ({
 // What the helper was asked to type, and something to do just after each piece.
 const typed: string[] = []
 let afterType: (() => void) | null = null
+// What the front window's controls are said to be.
+let controls: Record<string, unknown>[] = []
 let front = 'com.apple.finder'
 // Whose window is under the point the mouse is sent to, when it is not the app in front.
 let under: { id: string; name: string } | null = null
@@ -33,9 +38,11 @@ vi.mock('node:child_process', () => ({
         ? 'ASN:0x0-0x1001:'
         : args[0] === 'at'
           ? JSON.stringify(under ? { name: under.name, bundle: under.id } : {})
-          : args[0] === 'info'
-            ? `"Front" ASN:0x0-0x1001: \n    bundleID="${front}"`
-            : '{"ok":true}'
+          : args[0] === 'ax'
+            ? JSON.stringify({ app: 'TextEdit', window: 'Untitled', elements: controls })
+            : args[0] === 'info'
+              ? `"Front" ASN:0x0-0x1001: \n    bundleID="${front}"`
+              : '{"ok":true}'
     )
   }
 }))
@@ -58,6 +65,7 @@ const {
   leftPointerAt,
   notReady,
   offLimitsNow,
+  readUi,
   sawFront,
   setComputerStop,
   setOwnProbe,
@@ -368,6 +376,54 @@ describe('what it will not be talked into', () => {
       expect(typed).toEqual(['Terminal\n'])
       expect(said).toMatch(/Typing stopped after 1 line: pressing Return brought/)
     } else expect(said).not.toBe('')
+    stopComputerUse()
+  })
+})
+
+describe('reading the controls by name', () => {
+  it('needs no screenshot, and gives points a click can use', async () => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    under = null
+    pointer = { x: 10, y: 10 }
+    grantConsent('ui')
+    controls = [
+      { role: 'Button', label: 'Save', value: '', x: 2000, y: 100, w: 80, h: 40, enabled: true },
+      {
+        role: 'SecureTextField',
+        label: 'Password',
+        value: '(hidden)',
+        x: 0,
+        y: 0,
+        w: 100,
+        h: 20,
+        enabled: true
+      }
+    ]
+    const ui = await readUi('ui')
+    expect(ui.app).toBe('TextEdit')
+    expect(ui.window).toBe('Untitled')
+    // A 2880-wide display is pictured 1440 wide: its points are halved.
+    expect(ui.lines).toEqual([
+      'button "Save" at 1020,60',
+      'secure text field "Password" = (hidden) at 25,5'
+    ])
+    // A click at the point it gave is now placed without a screenshot.
+    const said = await act('ui', { type: 'click', x: 1020, y: 60 }).then(
+      () => '',
+      (e: Error) => e.message
+    )
+    expect(said).not.toMatch(/screenshot/i)
+    stopComputerUse()
+  })
+  it("is refused over a password manager, and over Superagent's own window", async () => {
+    stopComputerUse()
+    grantConsent('ui2')
+    front = 'com.1password.1password'
+    await expect(readUi('ui2')).rejects.toThrow(/1Password/)
+    front = 'dev.superagent.app'
+    await expect(readUi('ui2')).rejects.toThrow(/own window/)
+    front = 'com.apple.TextEdit'
     stopComputerUse()
   })
 })

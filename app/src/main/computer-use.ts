@@ -242,9 +242,19 @@ async function mayLook(owner: string): Promise<AppRef | null> {
 export async function readUi(
   owner: string
 ): Promise<{ app: string; window: string; lines: string[] }> {
-  const shot = lastShot.get(owner)
-  if (!shot) throw new Error('Take a screenshot first: the controls are placed on it.')
   const front = await mayLook(owner)
+  // With no screenshot yet, the controls are placed on the picture one would
+  // be: the display the pointer is on, at the size a screenshot of it has. The
+  // points it gives are then good for a click, and a later screenshot agrees.
+  let shot = lastShot.get(owner)
+  if (!shot) {
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    shot = { ...shotSize(display.bounds), area: display.bounds }
+    lastShot.set(owner, shot)
+    sawFront(owner, front?.id ?? null)
+    const at = pointerNow()
+    if (at) pointerLeftAt.set(owner, at)
+  }
   if (isSelfApp(front?.id))
     throw new Error(
       "Superagent's own window is in front; bring the app you mean to the front first."
