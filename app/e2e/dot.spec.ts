@@ -531,6 +531,37 @@ test('the shortcut can be changed, and Settings says when another app has it', a
       .screenshot({ path: '/tmp/sa-dot-settings.png' })
 })
 
+test('the talk shortcut can be chosen, and a press opens the dot ready to listen', async () => {
+  if ((await main.locator('.settings-row').count()) === 0)
+    await main.click('.sidebar-settings[title="Settings"]')
+  const pick = main.getByLabel('Shortcut for talking to the dot')
+  await expect(pick).toHaveValue('Control+Alt+V')
+  const registered = (acc: string): Promise<boolean> =>
+    app.evaluate(({ globalShortcut }, a) => globalShortcut.isRegistered(a), acc)
+  await pick.selectOption('Alt+Shift+V')
+  expect(await registered('Alt+Shift+V')).toBe(true)
+  expect(await registered('Control+Alt+V')).toBe(false)
+  await pick.selectOption('none')
+  expect(await registered('Alt+Shift+V')).toBe(false)
+
+  // A press, as main sends it on. The panel opens whether or not this machine
+  // will give a test a microphone.
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  if (await panel.isVisible()) await dot.locator('.dot-tile').click()
+  await expect(panel).toHaveCount(0)
+  // No real microphone in a test: asking for one could put a macOS prompt on
+  // the screen of whoever is at this Mac.
+  await dot.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = () => Promise.reject(new Error('no microphone in a test'))
+  })
+  await app.evaluate(({ BrowserWindow }) => {
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.send('dot:talk')
+  })
+  await expect(panel).toBeVisible()
+  await dot.locator('.dot-tile').click()
+  await expect(panel).toHaveCount(0)
+})
+
 test('while an agent is using the Mac, the tile says so and can stop it', async () => {
   await app.evaluate(({ ipcMain, BrowserWindow }) => {
     const g = globalThis as unknown as { stops: number }

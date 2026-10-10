@@ -18,7 +18,12 @@ import { resolveGate } from './hooks'
 import { dotProjects } from './dot-projects'
 import { dotBounds, DOT_H as H, DOT_W as W, pointOnDot } from './dot-bounds'
 import { QUIET, showInactiveForReal } from './quiet'
-import { dotHotkeyFrom, NO_DOT_HOTKEY, type DotHotkeyState } from '../shared/dot-hotkey'
+import {
+  dotHotkeyFrom,
+  NO_DOT_HOTKEY,
+  talkHotkeyFrom,
+  type DotHotkeyState
+} from '../shared/dot-hotkey'
 
 /**
  * The dot: Superagent as a small tile floating over everything, bottom right.
@@ -183,6 +188,42 @@ function registerHotkey(): void {
   if (hotkeyOk) held = want
 }
 
+const TALK_KEY = 'dot.talkHotkey'
+let talkHeld: string | null = null
+let talkOk = true
+
+export function talkHotkey(): DotHotkeyState {
+  return { hotkey: talkHotkeyFrom(kvGet(TALK_KEY)), ok: talkOk }
+}
+
+/** The shortcut for speaking to the dot: it opens listening; pressed again, it sends. */
+function registerTalkHotkey(): void {
+  if (talkHeld) globalShortcut.unregister(talkHeld)
+  talkHeld = null
+  talkOk = true
+  const want = talkHotkeyFrom(kvGet(TALK_KEY))
+  if (!dotEnabled() || want === NO_DOT_HOTKEY) return
+  try {
+    talkOk = globalShortcut.register(want, () => {
+      if (!win || win.isDestroyed()) createDot()
+      win?.show()
+      win?.focus()
+      send('dot:talk')
+    })
+  } catch {
+    talkOk = false
+  }
+  if (talkOk) talkHeld = want
+}
+
+export function setTalkHotkey(accelerator: string): DotHotkeyState {
+  kvSet(TALK_KEY, talkHotkeyFrom(accelerator))
+  registerTalkHotkey()
+  const state = talkHotkey()
+  broadcastToWindows('dot:talk-hotkey', state)
+  return state
+}
+
 export function setDotHotkey(accelerator: string): DotHotkeyState {
   kvSet(HOTKEY_KEY, dotHotkeyFrom(accelerator))
   registerHotkey()
@@ -196,6 +237,7 @@ export function setDotEnabled(on: boolean): boolean {
   if (on) createDot()
   else destroyDot()
   registerHotkey()
+  registerTalkHotkey()
   broadcastToWindows('dot:enabled', on)
   broadcastToWindows('dot:hotkey', dotHotkey())
   return on
@@ -206,6 +248,10 @@ export function registerDot(): void {
   ipcMain.handle('dot:set-enabled', (_e, on: boolean) => setDotEnabled(!!on))
   ipcMain.handle('dot:projects', () => dotProjects())
   ipcMain.handle('dot:hotkey', () => dotHotkey())
+  ipcMain.handle('dot:talk-hotkey', () => talkHotkey())
+  ipcMain.handle('dot:set-talk-hotkey', (_e, accelerator: string) =>
+    setTalkHotkey(String(accelerator))
+  )
   ipcMain.handle('dot:set-hotkey', (_e, accelerator: string) => setDotHotkey(String(accelerator)))
 
   /** The page is solid under the pointer (true) or see-through (false). */
@@ -292,10 +338,12 @@ export function registerDot(): void {
   void app.whenReady().then(() => {
     if (dotEnabled()) createDot()
     registerHotkey()
+    registerTalkHotkey()
     screen.on('display-removed', place)
     screen.on('display-metrics-changed', place)
   })
   app.on('will-quit', () => {
     if (held) globalShortcut.unregister(held)
+    if (talkHeld) globalShortcut.unregister(talkHeld)
   })
 }

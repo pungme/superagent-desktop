@@ -879,6 +879,11 @@ export interface CoveApi {
   dotHotkey: () => Promise<{ hotkey: string; ok: boolean }>
   setDotHotkey: (accelerator: string) => Promise<{ hotkey: string; ok: boolean }>
   onDotHotkey: (cb: (s: { hotkey: string; ok: boolean }) => void) => () => void
+  /** The shortcut for speaking to the dot, and a press of it. */
+  talkHotkey: () => Promise<{ hotkey: string; ok: boolean }>
+  setTalkHotkey: (accelerator: string) => Promise<{ hotkey: string; ok: boolean }>
+  onTalkHotkey: (cb: (s: { hotkey: string; ok: boolean }) => void) => () => void
+  onDotTalk: (cb: () => void) => () => void
   dotProjects: () => Promise<
     { id: string; name: string; kind: string; path: string; usedAt: number; pinned: boolean }[]
   >
@@ -1390,6 +1395,11 @@ const cove: CoveApi = {
   dotMove: (dx, dy) => ipcRenderer.send('dot:move', dx, dy),
   dotMoved: () => ipcRenderer.send('dot:moved'),
   onDotSummon: (cb) => subscribe('dot:summon', () => cb()),
+  talkHotkey: () => ipcRenderer.invoke('dot:talk-hotkey'),
+  setTalkHotkey: (accelerator) => ipcRenderer.invoke('dot:set-talk-hotkey', accelerator),
+  onTalkHotkey: (cb) =>
+    subscribe('dot:talk-hotkey', (s) => cb(s as { hotkey: string; ok: boolean })),
+  onDotTalk: (cb) => subscribe('dot:talk', () => cb()),
   onDotEvent: (cb) =>
     subscribe('dot:event', (p) => cb(p as { chatId: string; data: Record<string, unknown> })),
   onDotDelta: (cb) => subscribe('dot:delta', (p) => cb(p as { chatId: string; text: string })),

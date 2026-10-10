@@ -84,7 +84,7 @@ import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
 import { chatToken } from './mcp-token'
 import { appHotkey, registerAppHotkey } from './app-hotkey'
-import { dotCovers, dotHotkey, isDotWindow, registerDot } from './dot'
+import { dotCovers, dotHotkey, isDotWindow, registerDot, talkHotkey } from './dot'
 import {
   computerUseEnabled,
   registerComputerUseIpc,
@@ -315,7 +315,8 @@ app.whenReady().then(async () => {
   setOwnSurfaceProbe(dotCovers)
   setOwnProbe({
     focused: () => BrowserWindow.getFocusedWindow() !== null,
-    shortcuts: () => [dotHotkey().hotkey, appHotkey().hotkey].filter((k) => k && k !== 'none')
+    shortcuts: () =>
+      [dotHotkey().hotkey, talkHotkey().hotkey, appHotkey().hotkey].filter((k) => k && k !== 'none')
   })
   // ⌥Esc, or turning it off, stops the agents that were using the Mac.
   setComputerStop((chatId) => void stopFromDot(chatId))

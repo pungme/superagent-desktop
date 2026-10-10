@@ -1,5 +1,11 @@
 import type { ComputerStatus } from '../../../preload'
-import { DOT_HOTKEYS, NO_DOT_HOTKEY, dotHotkeyLabel } from '../../../shared/dot-hotkey'
+import {
+  DOT_HOTKEYS,
+  NO_DOT_HOTKEY,
+  TALK_HOTKEYS,
+  dotHotkeyLabel,
+  talkHotkeyLabel
+} from '../../../shared/dot-hotkey'
 import { APP_HOTKEYS, NO_APP_HOTKEY, appHotkeyLabel } from '../../../shared/app-hotkey'
 import { resetLabel } from '../../../shared/usage-reset'
 import { MailConnection } from './MailConnection'
@@ -626,6 +632,14 @@ export function Settings({
     void window.cove.dotHotkey?.().then(setDotKey)
     return window.cove.onDotHotkey?.(setDotKey)
   }, [])
+  const [talkKey, setTalkKey] = useState<{ hotkey: string; ok: boolean }>({
+    hotkey: TALK_HOTKEYS[0].accelerator,
+    ok: true
+  })
+  useEffect(() => {
+    void window.cove.talkHotkey?.().then(setTalkKey)
+    return window.cove.onTalkHotkey?.(setTalkKey)
+  }, [])
   const [appKey, setAppKey] = useState<{ hotkey: string; ok: boolean }>({
     hotkey: APP_HOTKEYS[0].accelerator,
     ok: true
@@ -1049,6 +1063,32 @@ export function Settings({
                     onChange={(e) => void window.cove.setDotHotkey(e.target.value).then(setDotKey)}
                   >
                     {DOT_HOTKEYS.map((h) => (
+                      <option key={h.accelerator} value={h.accelerator}>
+                        {h.label}
+                      </option>
+                    ))}
+                    <option value={NO_DOT_HOTKEY}>None</option>
+                  </select>
+                </Row>
+              )}
+              {dotOn && (
+                <Row
+                  title="Talk to it"
+                  desc={
+                    talkKey.ok
+                      ? 'From anywhere: press once and speak, press again to send what you said. Transcribed on this Mac.'
+                      : `${talkHotkeyLabel(talkKey.hotkey)} is already used by another app, so it does nothing here. Pick another, or use the microphone button on the dot.`
+                  }
+                >
+                  <select
+                    className={`settings-select ${talkKey.ok ? '' : 'warn'}`}
+                    aria-label="Shortcut for talking to the dot"
+                    value={talkKey.hotkey}
+                    onChange={(e) =>
+                      void window.cove.setTalkHotkey(e.target.value).then(setTalkKey)
+                    }
+                  >
+                    {TALK_HOTKEYS.map((h) => (
                       <option key={h.accelerator} value={h.accelerator}>
                         {h.label}
                       </option>

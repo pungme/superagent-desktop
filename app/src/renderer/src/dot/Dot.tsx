@@ -14,7 +14,7 @@ import {
   suggestions,
   type DotTask
 } from './dot-state'
-import { dotHotkeyLabel } from '../../../shared/dot-hotkey'
+import { dotHotkeyLabel, talkAction } from '../../../shared/dot-hotkey'
 import './dot.css'
 
 interface Project {
@@ -272,6 +272,25 @@ export function Dot(): React.JSX.Element {
       inputRef.current?.focus()
     } else if (dictation.state === 'idle') await dictation.start()
   }
+
+  // The talk shortcut: one press opens the dot listening, the next sends what
+  // was said, with nothing to click in between.
+  const talkRef = useRef<() => void>(() => {})
+  // Kept current after every render, so the press sees what is typed and picked now.
+  useEffect(() => {
+    talkRef.current = (): void => {
+      const what = talkAction(dictation.state)
+      if (what === 'listen') {
+        if (!openRef.current) show()
+        void dictation.start()
+      } else if (what === 'send')
+        void dictation.stop().then((heard) => {
+          const said = `${text} ${heard}`.trim()
+          if (said) void ask(said)
+        })
+    }
+  })
+  useEffect(() => window.cove.onDotTalk?.(() => talkRef.current()), [])
 
   // The tile is a button and a handle: a press that moves is a drag.
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
