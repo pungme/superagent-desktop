@@ -88,7 +88,7 @@ import {
   resolveInside
 } from '../files'
 import { listRoutines, runRoutine, setRoutineEnabled } from '../routines'
-import { resolveGate } from '../hooks'
+import { gateIsMacOnly, resolveGate } from '../hooks'
 import { workspaceStatuses } from './status'
 import { isGenerating, logBus, record } from './log'
 import { loopCommand, loopFor, setUnattendedSend } from '../loops'
@@ -414,6 +414,8 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         const p = approvalAnswer.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
         const a: ApprovalAnswerParams = p.data
+        if (a.approve && gateIsMacOnly(a.id))
+          return fail('unavailable', 'Letting an agent use your Mac is allowed at the Mac itself.')
         const done = resolveGate(a.id, a.approve, a.trustRest ?? false, 'ios')
         return done ? { ok: true } : fail('gone', 'that approval is no longer waiting')
       }

@@ -100,7 +100,14 @@ vi.mock('../store', () => ({
           cwd: null
         }
       : id === 'c-new'
-        ? { id: 'c-new', workspaceId: 'w1', title: null, claudeSessionId: null, updatedAt: 2, cwd: null }
+        ? {
+            id: 'c-new',
+            workspaceId: 'w1',
+            title: null,
+            claudeSessionId: null,
+            updatedAt: 2,
+            cwd: null
+          }
         : undefined,
   getWorkspace: (id: string) =>
     id === 'w1'
@@ -229,6 +236,7 @@ vi.mock('../agent', () => ({
 vi.mock('../hooks', () => ({
   hookBus: h.hookBus,
   notifyPrefs: { done: true, needsYou: true },
+  gateIsMacOnly: () => false,
   resolveGate: (id: string, approve: boolean) => {
     if (!h.gates.has(id)) return false
     h.gates.delete(id)
@@ -545,7 +553,9 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
 
     // And what it sends next comes back to it, numbered from 1.
     late.send({
-      t: 'req', id: 'rc', method: 'chat.send',
+      t: 'req',
+      id: 'rc',
+      method: 'chat.send',
       params: { chatId: 'c1', text: 'after the clear', localId: 'L-clear' }
     })
     const echo = await late.until((f) => f.t === 'event')
@@ -579,7 +589,9 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
 
     // Typing on the phone: the Mac keeps it, and the phone is not told its own words.
     phone.send({
-      t: 'req', id: 'd1', method: 'chat.draft',
+      t: 'req',
+      id: 'd1',
+      method: 'chat.draft',
       params: { chatId: 'c1', text: 'finished on the phone' }
     })
     const next = await phone.until((f) => f.t === 'draft' || f.t === 'res')
@@ -639,7 +651,9 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     phone.send({ t: 'subscribe', chatId: 'c1', afterSeq: 0 })
 
     phone.send({
-      t: 'req', id: 'r1', method: 'chat.send',
+      t: 'req',
+      id: 'r1',
+      method: 'chat.send',
       params: { chatId: 'c1', text: 'only once', localId: 'L-dup' }
     })
     await phone.until((f) => f.t === 'res' && (f as { id?: string }).id === 'r1')
@@ -648,7 +662,9 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     // The ack never reached the phone; it retries the identical message. The
     // Mac must say yes and NOT hand it to the agent again (the "spam").
     phone.send({
-      t: 'req', id: 'r2', method: 'chat.send',
+      t: 'req',
+      id: 'r2',
+      method: 'chat.send',
       params: { chatId: 'c1', text: 'only once', localId: 'L-dup' }
     })
     const second = await phone.until((f) => f.t === 'res' && (f as { id?: string }).id === 'r2')

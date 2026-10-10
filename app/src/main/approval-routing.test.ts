@@ -4,7 +4,7 @@ vi.mock('./store', () => ({
 }))
 vi.mock('./util', () => ({ broadcastToWindows: vi.fn() }))
 import { broadcastToWindows } from './util'
-import { requestApproval, resolveGate } from './hooks'
+import { gateIsMacOnly, requestApproval, resolveGate } from './hooks'
 import { clearTurn, gateDecision, markTainted } from './guardrail'
 
 it('shows an approval under the chat while retaining trust under the provider session', async () => {
@@ -30,4 +30,37 @@ it('preserves callers already using a chat id, and returns denial', async () => 
   expect(payload).toMatchObject({ sessionId: 'chat-1' })
   resolveGate((payload as { requestId: string }).requestId, false, false, 'desktop')
   expect(await pending).toBe(false)
+})
+it('lets only the Mac say yes to using the Mac, while a no can come from the phone', async () => {
+  const ask = (): { pending: Promise<boolean>; id: string } => {
+    const pending = requestApproval(
+      'ws',
+      'chat-1',
+      'mcp__cove-browser__computer_use',
+      'Use this Mac',
+      'permission'
+    )
+    const [, payload] = vi.mocked(broadcastToWindows).mock.calls.at(-1)!
+    return { pending, id: (payload as { requestId: string }).requestId }
+  }
+  // A yes from the phone is not taken, and the request is still waiting.
+  const a = ask()
+  expect(gateIsMacOnly(a.id)).toBe(true)
+  expect(resolveGate(a.id, true, false, 'ios')).toBe(false)
+  expect(gateIsMacOnly(a.id)).toBe(true)
+  expect(resolveGate(a.id, true, false, 'desktop')).toBe(true)
+  expect(await a.pending).toBe(true)
+
+  // A no is always safe to take, from anywhere.
+  const b = ask()
+  expect(resolveGate(b.id, false, false, 'ios')).toBe(true)
+  expect(await b.pending).toBe(false)
+
+  // Other requests are the phone's to answer as before.
+  const pending = requestApproval('ws', 'chat-1', 'Bash', 'ls', 'permission')
+  const [, payload] = vi.mocked(broadcastToWindows).mock.calls.at(-1)!
+  const id = (payload as { requestId: string }).requestId
+  expect(gateIsMacOnly(id)).toBe(false)
+  expect(resolveGate(id, true, false, 'ios')).toBe(true)
+  expect(await pending).toBe(true)
 })

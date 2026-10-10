@@ -87,8 +87,22 @@ interface PendingGate {
   sessionId: string
   resolve: (approved: boolean) => void
   timer: ReturnType<typeof setTimeout>
+  /** A yes has to be given at the Mac itself; a no can come from anywhere. */
+  macOnly: boolean
 }
 const pendingGates = new Map<string, PendingGate>()
+
+/**
+ * Requests that only the Mac may say yes to. Letting an agent work the mouse
+ * and keyboard is agreed to by someone who can see the screen and reach ⌥Esc,
+ * not from a phone in another room.
+ */
+const MAC_ONLY_TOOLS = new Set(['mcp__cove-browser__computer_use'])
+
+/** Whether this waiting request can only be allowed at the Mac. */
+export function gateIsMacOnly(requestId: string): boolean {
+  return pendingGates.get(requestId)?.macOnly ?? false
+}
 let gateSeq = 0
 // If nobody answers, deny — an unattended machine should not run a command that
 // a web page may have planted. Bounded so the agent never hangs indefinitely.
@@ -122,7 +136,8 @@ export function requestApproval(
       hookBus.emit('approval-end', { requestId, outcome: 'expired', by: 'desktop' })
       resolve(false)
     }, timeoutMs)
-    pendingGates.set(requestId, { sessionId, resolve, timer })
+    const macOnly = MAC_ONLY_TOOLS.has(toolName)
+    pendingGates.set(requestId, { sessionId, resolve, timer, macOnly })
     broadcastToWindows('guardrail:ask', {
       requestId,
       workspaceId,
@@ -138,6 +153,8 @@ export function requestApproval(
       toolName,
       preview,
       kind,
+      // The phone shows it, and can say no, but the yes is the Mac's to give.
+      ...(macOnly ? { macOnly: true } : {}),
       expiresAt: Date.now() + timeoutMs
     })
   })
@@ -179,6 +196,8 @@ export function resolveGate(
 ): boolean {
   const p = pendingGates.get(requestId)
   if (!p) return false
+  // Left waiting: it can still be answered at the Mac.
+  if (p.macOnly && approve && by !== 'desktop') return false
   pendingGates.delete(requestId)
   clearTimeout(p.timer)
   if (approve && trustRest) trustTurn(p.sessionId)
