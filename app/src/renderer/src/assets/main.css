@@ -4014,6 +4014,57 @@ button {
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
 }
 
+.easy-msg-thumb,
+.md-img-wrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  line-height: 0;
+}
+.img-save-corner {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(20, 21, 25, 0.82);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+/* The reply's frame has a margin to its right and below: sit inside the picture. */
+.md-img-wrap .img-save-corner {
+  right: 14px;
+  bottom: 10px;
+  width: 26px;
+  height: 26px;
+}
+.img-save-corner svg {
+  width: 13px;
+  height: 13px;
+}
+.easy-msg-thumb:hover .img-save-corner,
+.md-img-wrap:hover .img-save-corner,
+.img-save-corner:focus-visible,
+.img-save-corner.done {
+  opacity: 1;
+}
+.img-save-corner:hover:not(:disabled) {
+  background: rgba(52, 54, 62, 0.95);
+}
+.img-save-corner.done {
+  background: #1f9d55;
+}
+
 .easy-lightbox-bar {
   position: absolute;
   top: 14px;

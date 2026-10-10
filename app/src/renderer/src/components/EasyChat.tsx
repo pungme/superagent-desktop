@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore, useOverlayLock, TodoItem, PermissionMode, type Shot } from '../state'
-import { ChatImagesView, Lightbox, type Shown } from './ChatImages'
+import { ChatImagesView, Lightbox, SaveCorner, type Shown } from './ChatImages'
 import { chatImageRefs } from '../../../shared/chat-images'
 import { KNOWN_TOOLS } from '../../../shared/known-tools'
 import { CARD_MIME } from './BoardPanel'
@@ -1207,7 +1207,10 @@ function RemoteImages({
   return (
     <div className="easy-msg-images">
       {urls.map((src, ii) => (
-        <img key={ii} src={src} alt="attachment" onClick={() => onLightbox(src)} />
+        <span key={ii} className="easy-msg-thumb">
+          <img src={src} alt="attachment" onClick={() => onLightbox(src)} />
+          <SaveCorner image={{ src }} />
+        </span>
       ))}
     </div>
   )
@@ -1332,7 +1335,10 @@ const MessageRow = memo(function MessageRow({
       {msg.images && msg.images.length > 0 ? (
         <div className="easy-msg-images">
           {msg.images.map((src, ii) => (
-            <img key={ii} src={src} alt="attachment" onClick={() => onLightbox(src)} />
+            <span key={ii} className="easy-msg-thumb">
+              <img src={src} alt="attachment" onClick={() => onLightbox(src)} />
+              <SaveCorner image={{ src }} />
+            </span>
           ))}
         </div>
       ) : msg.imageCount ? (

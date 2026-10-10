@@ -134,6 +134,29 @@ test('a picture the agent showed is saved as the file itself, never over one alr
   expect(saved().filter((n) => n.startsWith('header'))).toEqual(['header 2.png', 'header.png'])
 })
 
+test('a picture can be downloaded where it sits in the conversation, without opening it', async () => {
+  const before = saved().length
+  // One you attached: the corner button shows on hover and saves at once.
+  const mine = window.locator('.easy-msg-thumb:visible').first()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Download picture' }).click()
+  await expect(mine.locator('.img-save-corner.done')).toBeVisible()
+  expect(saved()).toHaveLength(before + 1)
+  // It did not open the picture.
+  await expect(window.locator('.easy-lightbox')).toHaveCount(0)
+
+  // One the agent showed: saved as the file, under the next free name.
+  const theirs = window.locator('.md-img-wrap:visible').first()
+  await theirs.hover()
+  await theirs.getByRole('button', { name: 'Download picture' }).click()
+  await expect(theirs.locator('.img-save-corner.done')).toHaveAttribute(
+    'title',
+    /Saved to Downloads as header( \d+)?\.png/
+  )
+  expect(saved()).toHaveLength(before + 2)
+  if (process.env.SHOT) await window.screenshot({ path: '/tmp/sa-chat-thumbs.png' })
+})
+
 test('Images lists every picture in the chat, newest first, and opens one large', async () => {
   const pill = window.locator('.easy-control-btn:visible', { hasText: 'Images' })
   await expect(pill).toContainText('3')

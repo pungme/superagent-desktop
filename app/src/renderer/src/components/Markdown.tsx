@@ -1,3 +1,4 @@
+import { SaveCorner } from './ChatImages'
 import { useEffect, useState, useMemo, memo } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -139,13 +140,16 @@ function MdImage({
     )
   if (!onImage) return <img className="md-img" src={shown} alt={alt} />
   return (
-    <button
-      className="md-img-thumb"
-      onClick={() => onImage(shown, src)}
-      title={alt ? `${alt} — click to enlarge` : 'Click to enlarge'}
-    >
-      <img src={shown} alt={alt} />
-    </button>
+    <span className="md-img-wrap">
+      <button
+        className="md-img-thumb"
+        onClick={() => onImage(shown, src)}
+        title={alt ? `${alt} — click to enlarge` : 'Click to enlarge'}
+      >
+        <img src={shown} alt={alt} />
+      </button>
+      <SaveCorner image={{ src: shown, origin: src }} cwd={baseDir} />
+    </span>
   )
 }
 

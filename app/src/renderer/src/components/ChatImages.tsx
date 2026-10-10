@@ -62,6 +62,28 @@ function useSave(
   return { saving, saved: mine?.saved ?? null, error: mine?.error ?? '', save }
 }
 
+/**
+ * The small Download that shows in a picture's corner when the pointer is
+ * over it, in the conversation itself. Its parent is the frame it sits in.
+ */
+export function SaveCorner({ image, cwd }: { image: Shown; cwd?: string }): React.JSX.Element {
+  const { saving, saved, error, save } = useSave(image, cwd)
+  return (
+    <button
+      className={`img-save-corner ${saved ? 'done' : ''}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        save()
+      }}
+      disabled={saving}
+      aria-label={saved ? `Saved as ${saved.name}` : 'Download picture'}
+      title={saved ? `Saved to Downloads as ${saved.name}` : error || 'Save to Downloads'}
+    >
+      {saved ? '✓' : <DownloadIcon />}
+    </button>
+  )
+}
+
 /** A picture, full size, over the chat: click outside or Esc to close, and a way to keep it. */
 export function Lightbox({
   image,
