@@ -66,8 +66,17 @@ test.afterAll(async () => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+/** Setting up now shows how the app works before the optional connections: past it. */
+async function passTour(p: import('@playwright/test').Page): Promise<void> {
+  const tour = p.getByRole('dialog', { name: 'How Superagent works' })
+  const next = p.getByRole('heading', { name: 'Connect your apps' })
+  await expect(tour.or(next)).toBeVisible({ timeout: 15000 })
+  if (await tour.isVisible()) await tour.getByRole('button', { name: 'Skip', exact: true }).click()
+}
+
 test('with an agent ready, goes straight to optional Mail; handles denial and retry', async () => {
   // Nothing to set up, so the agents step is not flashed up on the way.
+  await passTour(page)
   await expect(page.getByRole('heading', { name: 'Connect your apps' })).toBeVisible({
     timeout: 15000
   })
@@ -106,6 +115,7 @@ test('existing users get a dismissible offer that opens Connections directly', a
 test('Skip for now finishes onboarding without requiring a connection', async () => {
   await page.evaluate(() => localStorage.removeItem('cove.onboarded'))
   await page.reload()
+  await passTour(page)
   await expect(page.getByRole('heading', { name: 'Connect your apps' })).toBeVisible({
     timeout: 15000
   })
@@ -138,5 +148,6 @@ test('install errors belong to one agent and clear when rechecking', async () =>
   await page.getByRole('button', { name: 'Check again', exact: true }).click()
   await expect(page.getByText('Test installer failed')).toHaveCount(0)
   await page.getByRole('button', { name: 'Skip for now' }).click()
+  await passTour(page)
   await expect(page.getByRole('heading', { name: 'Connect your apps' })).toBeVisible()
 })

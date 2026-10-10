@@ -86,6 +86,7 @@ const {
   waitForControl,
   stopComputerUse
 } = await import('./computer-use')
+const helperBuilt = existsSync(join(__dirname, '..', '..', 'native', 'cuse'))
 const { CONSENT_IDLE_MS, CONSENT_MAX_ACTIONS, CONSENT_MAX_MS } =
   await import('../shared/computer-use')
 
@@ -395,8 +396,6 @@ describe('what it will not be talked into', () => {
   })
 })
 
-const helperBuilt = existsSync(join(__dirname, '..', '..', 'native', 'cuse'))
-
 describe('reading the controls by name', () => {
   // Where the helper has not been built (CI, before the native step) there is
   // nothing to read the controls with, and the tool says so instead.
@@ -577,8 +576,8 @@ describe("the user's standing answers, app by app", () => {
     pointer = { x: 10, y: 10 }
     grantConsent('lk')
     controls = []
-    // Reading it is allowed.
-    await expect(readUi('lk')).resolves.toBeTruthy()
+    // Reading it is allowed (where there is a helper to read with).
+    if (helperBuilt) await expect(readUi('lk')).resolves.toBeTruthy()
     await expect(act('lk', { type: 'type', text: 'hi' })).rejects.toThrow(/look at .+ but not act/)
     await expect(pressControl('lk', 1, 'Send')).rejects.toThrow(/look at .+ but not act/)
     // And it is not something to ask about: the answer is already no.

@@ -102,7 +102,10 @@ test('a button is pressed by its name, with the app staying in the background', 
   expect(await cuse('--pid', String(pid), 'axpress', String(press.i), 'Press')).toMatchObject({
     ok: true
   })
-  await expect.poll(() => log, { timeout: 20_000 }).toContain('PRESSED active=0')
+  await expect
+    .poll(() => log, { timeout: 20_000, message: `the test app said: ${log}` })
+    .toContain('PRESSED')
+  expect(log).toContain('PRESSED active=0')
 })
 
 test('nothing is pressed when the control is no longer the one that was read', async () => {

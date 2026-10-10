@@ -8,6 +8,14 @@ import { join } from 'node:path'
  * signs in, in a window of the app's own. It used to open Terminal, which
  * opened the browser, and then wait for a Re-check.
  */
+/** Setting up now shows how the app works before the optional connections: past it. */
+async function passTour(p: import('@playwright/test').Page): Promise<void> {
+  const tour = p.getByRole('dialog', { name: 'How Superagent works' })
+  const next = p.getByRole('heading', { name: 'Connect your apps' })
+  await expect(tour.or(next)).toBeVisible({ timeout: 15000 })
+  if (await tour.isVisible()) await tour.getByRole('button', { name: 'Skip', exact: true }).click()
+}
+
 test('one button installs an agent and signs it in, here', async () => {
   const data = mkdtempSync(join(tmpdir(), 'cove-onb-data-'))
   const proj = mkdtempSync(join(tmpdir(), 'cove-onb-proj-'))
@@ -83,6 +91,7 @@ test('one button installs an agent and signs it in, here', async () => {
       await app.evaluate(() => (globalThis as unknown as { sa: { signIns: string[] } }).sa.signIns)
     ).toEqual(['claude', 'claude'])
     await page.getByRole('button', { name: 'Continue', exact: true }).click()
+    await passTour(page)
     await expect(page.getByRole('heading', { name: 'Connect your apps' })).toBeVisible()
   } finally {
     await app.close()

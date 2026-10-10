@@ -1,4 +1,6 @@
 import { ConnectionsStep } from './MailConnection'
+import { Tour } from '../tour/Tour'
+import { TOUR_SEEN_KEY } from '../tour/tour-keys'
 import { useEffect, useState } from 'react'
 import { useStore } from '../state'
 import { ProviderLogo } from './ProviderLogo'
@@ -7,6 +9,10 @@ import {
   PROVIDER_PRODUCT,
   type AgentProvider
 } from '../../../shared/agent-provider'
+
+/** After the agents: the tour, unless it has been seen (setting up a second time). */
+const afterAgents = (): 'tour' | 'connections' =>
+  localStorage.getItem(TOUR_SEEN_KEY) ? 'connections' : 'tour'
 
 interface OnboardingProps {
   onDone: () => void
@@ -46,7 +52,8 @@ function isReady(env: EnvStatus | null): boolean {
 }
 
 export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | null {
-  const [step, setStep] = useState<'agents' | 'connections'>('agents')
+  // Connect an agent, see how the app works, then the optional connections.
+  const [step, setStep] = useState<'agents' | 'tour' | 'connections'>('agents')
   const [checkError, setCheckError] = useState('')
   const [env, setEnv] = useState<EnvStatus | null>(null)
   const [checking, setChecking] = useState(true)
@@ -122,7 +129,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
         setChecking(false)
         const usable = AGENT_PROVIDERS.filter((p) => status[p]?.installed && status[p]?.loggedIn)
         if (usable.length === 1) setProvider(usable[0])
-        if (usable.length > 0) setStep('connections')
+        if (usable.length > 0) setStep(afterAgents())
       })
       .catch(() => {
         if (active) {
@@ -135,6 +142,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
     }
   }, [setProvider])
 
+  if (step === 'tour') return <Tour onDone={() => setStep('connections')} />
   if (step === 'connections') return <ConnectionsStep onDone={onDone} />
 
   const ready = isReady(env)
@@ -277,7 +285,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
             onClick={() => {
               const usable = AGENT_PROVIDERS.filter((p) => env?.[p].installed && env?.[p].loggedIn)
               if (usable.length === 1) setProvider(usable[0])
-              setStep('connections')
+              setStep(afterAgents())
             }}
             disabled={!ready}
           >
@@ -298,7 +306,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
           {!ready && (
             <>
               {' · '}
-              <button className="onboarding-skip" onClick={() => setStep('connections')}>
+              <button className="onboarding-skip" onClick={() => setStep(afterAgents())}>
                 Skip for now
               </button>
             </>

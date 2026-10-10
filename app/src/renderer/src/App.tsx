@@ -8,6 +8,8 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
 import { FirstRunIntro } from './components/FirstRunIntro'
 import { REPLAY_INTRO_EVENT, shouldPlayFirstRunIntro } from './firstRun'
+import { Tour } from './tour/Tour'
+import { REPLAY_TOUR_EVENT } from './tour/tour-keys'
 import { ComputerPanel } from './components/ComputerPanel'
 import { ChatsView } from './components/ChatsView'
 import { Onboarding } from './components/Onboarding'
@@ -115,6 +117,14 @@ function App(): React.JSX.Element {
       window.clearInterval(sweep)
     }
   }, [])
+  // "How it works", shown again from Settings (it is part of setting up the first time).
+  const [tourOpen, setTourOpen] = useState(false)
+  useEffect(() => {
+    const replay = (): void => setTourOpen(true)
+    window.addEventListener(REPLAY_TOUR_EVENT, replay)
+    return () => window.removeEventListener(REPLAY_TOUR_EVENT, replay)
+  }, [])
+
   // Asked for again from Settings: played whatever has been seen before.
   useEffect(() => {
     const replay = (): void => setFirstRunIntro(true)
@@ -513,7 +523,11 @@ function App(): React.JSX.Element {
     })
   }, [addGroup, addWorkspace])
 
-  const intro = firstRunIntro && <FirstRunIntro onDone={() => setFirstRunIntro(false)} />
+  const intro = firstRunIntro ? (
+    <FirstRunIntro onDone={() => setFirstRunIntro(false)} />
+  ) : (
+    tourOpen && <Tour onDone={() => setTourOpen(false)} />
+  )
 
   if (!onboarded) {
     return (

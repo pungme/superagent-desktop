@@ -1,0 +1,192 @@
+/* The tour's own frame: a card with a picture, a line or two, and a way on. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: var(--bg-content);
+  overflow: auto;
+}
+.tour-card {
+  width: min(680px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.tour-frame {
+  --tour-zoom: 0.62;
+  width: calc(960px * var(--tour-zoom));
+  height: calc(565px * var(--tour-zoom));
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 24px 50px -24px rgba(0, 0, 0, 0.35);
+  flex: none;
+}
+@media (max-height: 760px), (max-width: 700px) {
+  .tour-frame {
+    --tour-zoom: 0.48;
+  }
+}
+.tour-kicker {
+  margin-top: 26px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.tour-beta {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  background: color-mix(in srgb, var(--accent, #4f46e5) 16%, transparent);
+  color: var(--accent, #4f46e5);
+}
+.tour-card h1 {
+  margin: 8px 0 0;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.tour-text {
+  margin: 10px 0 0;
+  max-width: 520px;
+  min-height: 66px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.tour-text kbd {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.tour-extra {
+  margin-top: 6px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.tour-dots {
+  display: flex;
+  gap: 7px;
+  margin-top: 14px;
+}
+.tour-dots button {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition:
+    width 0.2s ease,
+    background 0.2s ease;
+}
+.tour-dots button.on {
+  width: 20px;
+  border-radius: 4px;
+  background: var(--text-primary);
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+.tour-btn {
+  height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--text-primary);
+  color: var(--bg-content);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tour-btn.quiet {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.tour-btn.quiet:hover {
+  color: var(--text-primary);
+}
+.tour-skip {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.tour-skip:hover {
+  color: var(--text-primary);
+}
+/* A slide coming in: the picture and words rise a little. */
+.tour-slide {
+  display: contents;
+}
+.tour-frame,
+.tour-kicker,
+.tour-card h1,
+.tour-text {
+  animation: tour-in 0.42s cubic-bezier(0.22, 0.8, 0.24, 1) both;
+}
+.tour-kicker {
+  animation-delay: 0.04s;
+}
+.tour-card h1 {
+  animation-delay: 0.08s;
+}
+.tour-text {
+  animation-delay: 0.12s;
+}
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour *,
+  .tour-scene * {
+    animation-duration: 0.01s !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+.tour-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.tour-switch input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--text-primary);
+}

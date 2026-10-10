@@ -16,6 +16,7 @@ import { IconEditor } from './IconEditor'
 import type { IconPlace } from '../app-icon'
 import { PhoneSettings } from './PhoneSettings'
 import { REPLAY_INTRO_EVENT } from '../firstRun'
+import { REPLAY_TOUR_EVENT } from '../tour/tour-keys'
 import {
   AGENT_PROVIDERS,
   PROVIDER_LABEL,
@@ -1501,6 +1502,20 @@ export function Settings({
                   }}
                 >
                   Show the intro again
+                </button>
+              </Row>
+              <Row
+                title="How it works"
+                desc="Five short scenes: your chats on one rail, the agent seeing what it builds, how it gets your attention, the dot, and using your Mac."
+              >
+                <button
+                  className="settings-update-check"
+                  onClick={() => {
+                    onClose()
+                    window.dispatchEvent(new CustomEvent(REPLAY_TOUR_EVENT))
+                  }}
+                >
+                  Show me
                 </button>
               </Row>
             </section>
