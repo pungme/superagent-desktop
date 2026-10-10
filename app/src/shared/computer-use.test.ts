@@ -5,6 +5,7 @@ import {
   bundleIdFrom,
   focusMoved,
   offLimitsApp,
+  pointerMoved,
   shotSize,
   toScreenPoint,
   validKeyCombo
@@ -88,5 +89,14 @@ describe('whether focus moved since the last look', () => {
     expect(focusMoved('com.apple.TextEdit', 'com.apple.textedit')).toBe(false)
     expect(focusMoved(undefined, 'com.apple.Safari')).toBe(false)
     expect(focusMoved('com.apple.TextEdit', null)).toBe(false)
+  })
+})
+
+describe('whether the user has moved the mouse', () => {
+  it('ignores a wobble and not knowing, and sees a real move', () => {
+    expect(pointerMoved({ x: 100, y: 100 }, { x: 103, y: 102 })).toBe(false)
+    expect(pointerMoved({ x: 100, y: 100 }, { x: 140, y: 100 })).toBe(true)
+    expect(pointerMoved(undefined, { x: 1, y: 1 })).toBe(false)
+    expect(pointerMoved({ x: 1, y: 1 }, null)).toBe(false)
   })
 })

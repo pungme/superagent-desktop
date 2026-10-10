@@ -119,3 +119,17 @@ export function focusMoved(
 ): boolean {
   return !!seen && !!now && seen.toLowerCase() !== now.toLowerCase()
 }
+
+type Point = { x: number; y: number }
+
+/**
+ * Whether the pointer is somewhere other than where an action left it. A few
+ * points of slack: a trackpad at rest and macOS's own rounding both wobble.
+ */
+export function pointerMoved(
+  left: Point | null | undefined,
+  now: Point | null | undefined
+): boolean {
+  if (!left || !now) return false
+  return Math.hypot(now.x - left.x, now.y - left.y) > 6
+}

@@ -5,12 +5,14 @@ vi.mock('electron', () => ({
   desktopCapturer: {},
   globalShortcut: { register: vi.fn(() => true), unregister: vi.fn() },
   ipcMain: { handle: vi.fn() },
-  screen: {},
+  screen: { getCursorScreenPoint: () => pointer },
   shell: {},
   systemPreferences: {}
 }))
 // What macOS says is in front, set by each test that cares.
 let front = 'com.apple.finder'
+// Where the pointer is.
+let pointer = { x: 0, y: 0 }
 vi.mock('node:child_process', () => ({
   execFile: (
     _cmd: string,
@@ -27,6 +29,7 @@ const {
   cuseArgs,
   grantConsent,
   hasConsent,
+  leftPointerAt,
   notReady,
   offLimitsNow,
   sawFront,
@@ -154,5 +157,22 @@ describe('typing after focus has moved', () => {
     await expect(act('t', { type: 'key', keys: 'cmd+a' })).rejects.toThrow(/since you last looked/)
     // A click names its own place on the screen; it is not stopped by this.
     await expect(act('t', { type: 'click', x: 1, y: 1 })).rejects.toThrow(/screenshot/i)
+  })
+})
+
+describe('when the user takes the mouse', () => {
+  it('stands back once, until the agent has looked again', async () => {
+    front = 'com.apple.finder'
+    sawFront('m', 'com.apple.finder')
+    leftPointerAt('m', { x: 200, y: 200 })
+    pointer = { x: 600, y: 420 }
+    await expect(act('m', { type: 'key', keys: 'cmd+a' })).rejects.toThrow(/moved the mouse/)
+    // Said once; the next try is not refused for the same move.
+    // (Without the helper built, as in CI, it fails for that reason instead.)
+    const again = await act('m', { type: 'key', keys: 'cmd+a' }).then(
+      () => '',
+      (e: Error) => e.message
+    )
+    expect(again).not.toMatch(/moved the mouse/)
   })
 })

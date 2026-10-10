@@ -19,6 +19,7 @@ import {
   COMPUTER_STOP_HOTKEY,
   consentStands,
   focusMoved,
+  pointerMoved,
   offLimitsApp,
   shotSize,
   toScreenPoint,
@@ -181,6 +182,11 @@ export async function takeScreenshot(owner: string, display?: number): Promise<S
   const no = offLimitsMessage(front)
   if (no) throw new Error(no)
   sawFront(owner, front)
+  // Where the pointer is at this look: every action is followed by one, so a
+  // pointer found elsewhere at the next action was moved by the user.
+  const at = pointerNow()
+  if (at) pointerLeftAt.set(owner, at)
+  else pointerLeftAt.delete(owner)
   const all = screen.getAllDisplays()
   // The one asked for; else the one last used; else the one the pointer is on,
   // which is where the person is looking.
@@ -343,6 +349,22 @@ export async function offLimitsNow(): Promise<string | null> {
   return offLimitsMessage(await frontApp())
 }
 
+/** Where the pointer was when each conversation last looked, or last acted. */
+const pointerLeftAt = new Map<string, { x: number; y: number }>()
+
+/** For a test: as if an action had just left the pointer here. */
+export function leftPointerAt(owner: string, at: { x: number; y: number }): void {
+  pointerLeftAt.set(owner, at)
+}
+
+function pointerNow(): { x: number; y: number } | null {
+  try {
+    return screen.getCursorScreenPoint()
+  } catch {
+    return null
+  }
+}
+
 /** The app that was in front when each conversation last looked at the screen. */
 const frontAtLook = new Map<string, string>()
 
@@ -365,10 +387,21 @@ export async function act(owner: string, action: ComputerAction): Promise<void> 
     throw new Error(
       'Another app has come to the front since you last looked at the screen, so nothing was typed. Take a screenshot and check where the cursor is before trying again.'
     )
+  // The pointer is not where it was at the last look: the user has their hand
+  // on the mouse. Stand back until the agent has looked again.
+  if (pointerMoved(pointerLeftAt.get(owner), pointerNow())) {
+    pointerLeftAt.delete(owner)
+    throw new Error(
+      'The user moved the mouse since you last looked at the screen, so nothing was done: they may be using the Mac themselves. Take a screenshot to see what changed before going on.'
+    )
+  }
   allowed.set(owner, Date.now())
   setActive(true)
   const res = await cuse(args)
   if (!res.ok) throw new Error(res.error || 'The action could not be carried out.')
+  const at = pointerNow()
+  if (at) pointerLeftAt.set(owner, at)
+  else pointerLeftAt.delete(owner)
 }
 
 /** Let what was just done show on screen before it is photographed. */
