@@ -17,3 +17,9 @@ echo "simfb: built"
 clang -O2 -mmacosx-version-min=11.0 \
   -framework ApplicationServices -framework CoreFoundation \
   -o cuse cuse.c && echo "cuse: built" || echo "cuse: not built, skipping"
+
+# The ring that shows where computer use is about to act (ring.m). It only
+# draws; without it actions simply happen unannounced.
+clang -O2 -fobjc-arc -mmacosx-version-min=11.0 \
+  -framework Cocoa -framework QuartzCore \
+  -o ring ring.m && echo "ring: built" || echo "ring: not built, skipping"

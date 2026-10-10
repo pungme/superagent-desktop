@@ -1167,6 +1167,17 @@ export function Settings({
               )}
               {computer.enabled && (
                 <Row
+                  title="Show where it is about to act"
+                  desc="A ring appears where an agent is about to click, drag or scroll, a moment before it does. It takes no clicks and is not in the agent's own screenshots."
+                >
+                  <Toggle
+                    checked={computer.ring !== false}
+                    onChange={(v) => void window.cove.setComputerRing(v).then(setComputer)}
+                  />
+                </Row>
+              )}
+              {computer.enabled && (
+                <Row
                   title="Apps it stays out of"
                   desc={`Never ${(computer.builtInDenied ?? []).slice(0, 3).join(', ') || 'password managers'}, other password managers, a password prompt or the lock screen. Add any app you want left alone. In every other app it asks you the first time.`}
                 >

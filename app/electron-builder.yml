@@ -27,6 +27,8 @@ extraResources:
     to: simfb
   - from: native/cuse
     to: cuse
+  - from: native/ring
+    to: ring
   # The fold helper for foldable simulators, as SOURCE: it is a simulator
   # binary, compiled on first use against the user's own Xcode (simulator.ts).
   - from: native/simfold.c

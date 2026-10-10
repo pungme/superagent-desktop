@@ -19,6 +19,7 @@ import { recentComputerLog } from './computer-log'
 import { broadcastToWindows } from './util'
 import {
   appFrom,
+  ringLabel,
   overlaps,
   type ScreenArea,
   cleanAppName,
@@ -76,6 +77,48 @@ export function computerUseEnabled(): boolean {
   return process.platform === 'darwin' && enabledNow
 }
 
+function ringPath(): string | null {
+  const candidates = app.isPackaged
+    ? [join(process.resourcesPath, 'ring')]
+    : [join(__dirname, '../../native/ring'), join(process.cwd(), 'native/ring')]
+  for (const p of candidates) if (existsSync(p)) return p
+  return null
+}
+
+const RING_KEY = 'computer.ring'
+let ringNow: boolean | null = null
+/** Whether to show, on screen, where an action is about to happen. On unless turned off. */
+export function ringEnabled(): boolean {
+  if (ringNow === null) ringNow = kvGet(RING_KEY) !== '0'
+  return ringNow
+}
+
+/** How long the ring is up before the action it announces, so the eye gets there first. */
+const RING_LEAD_MS = 320
+/** What was last announced, for a test to read. */
+export const ringShown: { x: number; y: number; label: string }[] = []
+
+/**
+ * Show where a pointer action is about to land: a ring at the point with a
+ * word under it, drawn by a helper of its own (native/ring.m) that takes no
+ * clicks and is left out of screenshots. Returns once the ring has had a
+ * moment on screen. A test run draws nothing.
+ */
+async function announce(x: number, y: number, label: string): Promise<void> {
+  if (!label || !ringEnabled()) return
+  ringShown.push({ x, y, label })
+  if (ringShown.length > 50) ringShown.shift()
+  const bin = process.env.COVE_USER_DATA ? null : ringPath()
+  if (!bin) return
+  try {
+    const child = execFile(bin, [String(x), String(y), label, '900'], { timeout: 5000 }, () => {})
+    child.unref?.()
+  } catch {
+    return
+  }
+  await new Promise((r) => setTimeout(r, RING_LEAD_MS))
+}
+
 function cusePath(): string | null {
   const candidates = app.isPackaged
     ? [join(process.resourcesPath, 'cuse')]
@@ -127,6 +170,8 @@ export interface ComputerStatus {
   helper: boolean
   /** macOS would not give us ⌥Esc (another app has it): only the Stop buttons work. */
   stopKeyRefused: boolean
+  /** A ring is shown where an action is about to happen. */
+  ring: boolean
   /** Apps it never works in: the built-in ones by name, and the user's own. */
   builtInDenied: string[]
   denied: AppRef[]
@@ -143,6 +188,7 @@ export function computerStatus(): ComputerStatus {
     accessibility: mac && systemPreferences.isTrustedAccessibilityClient(false),
     helper: cusePath() !== null,
     stopKeyRefused: stopRefused,
+    ring: ringEnabled(),
     builtInDenied: OFF_LIMITS_NAMES,
     denied: deniedApps(),
     rules: appRules()
@@ -1034,6 +1080,9 @@ export async function act(owner: string, action: ComputerAction): Promise<void> 
   allowed.set(owner, Date.now())
   actionsDone.set(owner, (actionsDone.get(owner) ?? 0) + 1)
   setActive(true)
+  // Where it is about to land, shown first.
+  if (action.type === 'click' || action.type === 'drag' || action.type === 'scroll')
+    await announce(Number(args[1]), Number(args[2]), ringLabel(action))
   // Text with Return in it can open something else part-way (Spotlight, then
   // an app): it goes a line at a time, and stops if the app in front changes.
   const parts = action.type === 'type' ? typedLines(action.text) : null
@@ -1114,6 +1163,11 @@ export function registerComputerUseIpc(): void {
   })
   ipcMain.handle('computer:undeny', (_e, id: string) => {
     undenyApp(String(id))
+    return computerStatus()
+  })
+  ipcMain.handle('computer:set-ring', (_e, on: boolean) => {
+    ringNow = !!on
+    kvSet(RING_KEY, on ? '1' : '0')
     return computerStatus()
   })
   ipcMain.handle('computer:set-enabled', (_e, on: boolean) => {

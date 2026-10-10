@@ -15,6 +15,7 @@ import {
   focusMoved,
   normalKeyCombo,
   offLimitsApp,
+  ringLabel,
   SETTINGS_PANES,
   settingsUrl,
   overlaps,
@@ -349,5 +350,17 @@ describe('System Settings, straight to a pane', () => {
       expect(settingsUrl(pane as keyof typeof SETTINGS_PANES)).toMatch(
         /^x-apple\.systempreferences:com\.apple\./
       )
+  })
+})
+
+describe('the word under the ring', () => {
+  it('says what kind of action is coming, and nothing for keys', () => {
+    expect(ringLabel({ type: 'click' })).toBe('Click')
+    expect(ringLabel({ type: 'click', count: 2 })).toBe('Double-click')
+    expect(ringLabel({ type: 'click', button: 'right' })).toBe('Right-click')
+    expect(ringLabel({ type: 'drag' })).toBe('Drag from here')
+    expect(ringLabel({ type: 'scroll' })).toBe('Scroll')
+    expect(ringLabel({ type: 'type' })).toBe('')
+    expect(ringLabel({ type: 'move' })).toBe('')
   })
 })

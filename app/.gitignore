@@ -26,3 +26,4 @@ native/baguette.LICENSE
 *.tsbuildinfo
 native/simfold
 native/cuse
+native/ring

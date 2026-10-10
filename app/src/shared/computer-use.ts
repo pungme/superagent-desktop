@@ -485,3 +485,23 @@ export const SYSTEM_SETTINGS: AppRef = {
   id: 'com.apple.systempreferences',
   name: 'System Settings'
 }
+
+/** The word under the ring that shows where an action is about to happen. Empty for none. */
+export function ringLabel(action: { type: string; button?: string; count?: number }): string {
+  switch (action.type) {
+    case 'click':
+      return action.button === 'right'
+        ? 'Right-click'
+        : (action.count ?? 1) === 2
+          ? 'Double-click'
+          : (action.count ?? 1) === 3
+            ? 'Triple-click'
+            : 'Click'
+    case 'drag':
+      return 'Drag from here'
+    case 'scroll':
+      return 'Scroll'
+    default:
+      return ''
+  }
+}
