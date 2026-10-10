@@ -4,8 +4,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { startOverlayGuard, startAutoOverlayLock } from './overlay-guard'
 import { useStore, applyAccent, applySavedIcon, type Accent } from './state'
-import App from './App'
-import { Dot } from './dot/Dot'
 
 /**
  * Durable UI state: localStorage is the fast synchronous layer the whole app
@@ -41,7 +39,7 @@ async function hydrateStorage(): Promise<void> {
   }
 }
 
-void hydrateStorage().then(() => {
+void hydrateStorage().then(async () => {
   // Apply the saved theme before first paint to avoid a dark→light flash.
   const saved = localStorage.getItem('cove.theme') || 'system'
   const resolved =
@@ -70,6 +68,9 @@ void hydrateStorage().then(() => {
     // Always the dark palette: its panel is dark whatever the app is set to,
     // and an answer drawn with the light theme's ink on it could not be read.
     document.documentElement.setAttribute('data-theme', 'dark')
+    // Its own chunk, and the app's is never fetched: the tile is on screen all
+    // day, and should not carry the whole app's code to draw itself.
+    const { Dot } = await import('./dot/Dot')
     createRoot(document.getElementById('root')!).render(
       <StrictMode>
         <Dot />
@@ -78,6 +79,7 @@ void hydrateStorage().then(() => {
     return
   }
 
+  const { default: App } = await import('./App')
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App />
