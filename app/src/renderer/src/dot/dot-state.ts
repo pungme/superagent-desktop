@@ -83,7 +83,38 @@ const TOOL_WORDS: Record<string, string> = {
   WebFetch: 'Reading a page',
   Task: 'Working on a part of it',
   Agent: 'Working on a part of it',
-  TodoWrite: 'Planning'
+  TodoWrite: 'Planning',
+  // Superagent itself, driven by asking (main/app-tools.ts).
+  app_find_chats: 'Looking for the chat',
+  app_open_chat: 'Opening it',
+  app_open_project: 'Opening the project',
+  app_list_projects: 'Looking at your projects',
+  app_status: 'Checking what is running',
+  app_new_chat: 'Starting a chat',
+  app_send_message: 'Sending a message',
+  app_stop_chat: 'Stopping it',
+  app_rename_chat: 'Renaming it',
+  app_pin_chat: 'Pinning it',
+  app_delete_chat: 'Deleting a chat',
+  app_open_view: 'Opening',
+  app_board: 'Reading the todo list',
+  app_board_add: 'Adding to the todo list',
+  app_board_move: 'Updating the todo list',
+  app_routines: 'Looking at routines',
+  app_routine: 'Changing a routine',
+  // The Mac itself (main/computer-tools.ts).
+  computer_screenshot: 'Looking at the screen',
+  computer_read_ui: 'Reading the controls',
+  computer_zoom: 'Looking closer',
+  computer_wait: 'Waiting',
+  computer_windows: 'Checking which apps are open',
+  computer_click: 'Clicking',
+  computer_move: 'Moving the pointer',
+  computer_drag: 'Dragging',
+  computer_scroll: 'Scrolling',
+  computer_type: 'Typing',
+  computer_key: 'Pressing',
+  computer_open_mac_app: 'Opening'
 }
 
 /** A tool call as a few plain words: "Reading package.json", not "Read". */

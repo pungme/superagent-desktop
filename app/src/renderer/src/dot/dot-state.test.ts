@@ -125,6 +125,15 @@ describe('step labels', () => {
       'Browser: navigate · https://example.com'
     )
     expect(stepLabel('mcp__cove-browser__sim_tap', '')).toBe('Simulator: tap')
+    // Its own app and the Mac, in words rather than tool names.
+    expect(stepLabel('mcp__cove-browser__app_find_chats', 'e2e testing wepush')).toBe(
+      'Looking for the chat · e2e testing wepush'
+    )
+    expect(stepLabel('mcp__cove-browser__app_open_chat', '')).toBe('Opening it')
+    expect(stepLabel('mcp__cove-browser__computer_read_ui', '')).toBe('Reading the controls')
+    expect(stepLabel('mcp__cove-browser__computer_open_mac_app', 'TextEdit')).toBe(
+      'Opening · TextEdit'
+    )
   })
   it('cuts a long command rather than letting it run on', () => {
     const label = stepLabel(
