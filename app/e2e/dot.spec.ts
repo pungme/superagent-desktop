@@ -99,9 +99,18 @@ test('it is a tile until asked, and the main window is still the app', async () 
 
 test('its window floats over everything, in the corner, and lets clicks through', async () => {
   const w = await app.evaluate(({ BrowserWindow, screen, globalShortcut }) => {
-    const win = BrowserWindow.getAllWindows().find(
-      (x) => !x.isDestroyed() && x.webContents.getURL().endsWith('#dot')
-    )!
+    // A window on its way out answers nothing; it is not one of ours to count.
+    const urlOf = (w: {
+      isDestroyed(): boolean
+      webContents: { getURL(): string }
+    }): string | null => {
+      try {
+        return w.isDestroyed() ? null : w.webContents.getURL()
+      } catch {
+        return null
+      }
+    }
+    const win = BrowserWindow.getAllWindows().find((x) => (urlOf(x) ?? '').endsWith('#dot'))!
     const area = screen.getPrimaryDisplay().workArea
     const b = win.getBounds()
     return {
@@ -141,8 +150,19 @@ test('its window floats over everything, in the corner, and lets clicks through'
 test('dragging the tile moves it, and it stays where it was left', async () => {
   const where = (): Promise<{ x: number; y: number }> =>
     app.evaluate(({ BrowserWindow }) => {
+      // A window on its way out answers nothing; it is not one of ours to count.
+      const urlOf = (w: {
+        isDestroyed(): boolean
+        webContents: { getURL(): string }
+      }): string | null => {
+        try {
+          return w.isDestroyed() ? null : w.webContents.getURL()
+        } catch {
+          return null
+        }
+      }
       const b = BrowserWindow.getAllWindows()
-        .find((x) => !x.isDestroyed() && x.webContents.getURL().endsWith('#dot'))!
+        .find((x) => (urlOf(x) ?? '').endsWith('#dot'))!
         .getBounds()
       return { x: b.x, y: b.y }
     })
@@ -307,16 +327,37 @@ test('an answer that arrives while it is closed shows on the tile until looked a
 
 test('closing the app window leaves the dot, and a Dock click brings the app back', async () => {
   const appWindows = (): Promise<number> =>
-    app.evaluate(
-      ({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows().filter(
-          (w) => !w.isDestroyed() && !w.webContents.getURL().endsWith('#dot')
-        ).length
-    )
+    app.evaluate(({ BrowserWindow }) => {
+      // A window on its way out answers nothing; it is not one of ours to count.
+      const urlOf = (w: {
+        isDestroyed(): boolean
+        webContents: { getURL(): string }
+      }): string | null => {
+        try {
+          return w.isDestroyed() ? null : w.webContents.getURL()
+        } catch {
+          return null
+        }
+      }
+      return BrowserWindow.getAllWindows().filter(
+        (w) => urlOf(w) !== null && !urlOf(w)!.endsWith('#dot')
+      ).length
+    })
   expect(await appWindows()).toBe(1)
   await app.evaluate(({ BrowserWindow }) => {
+    // A window on its way out answers nothing; it is not one of ours to count.
+    const urlOf = (w: {
+      isDestroyed(): boolean
+      webContents: { getURL(): string }
+    }): string | null => {
+      try {
+        return w.isDestroyed() ? null : w.webContents.getURL()
+      } catch {
+        return null
+      }
+    }
     BrowserWindow.getAllWindows()
-      .find((w) => !w.isDestroyed() && !w.webContents.getURL().endsWith('#dot'))!
+      .find((w) => urlOf(w) !== null && !urlOf(w)!.endsWith('#dot'))!
       .close()
   })
   await expect.poll(appWindows).toBe(0)
@@ -356,7 +397,8 @@ test('a request that cannot be sent says why, and keeps what was typed', async (
 
 test('the shortcut can be changed, and Settings says when another app has it', async () => {
   await main.click('.sidebar-settings[title="Settings"]')
-  const row = main.locator('.settings-row', { hasText: 'Shortcut' })
+  // The row with the choice in it (the switch's own description mentions a shortcut too).
+  const row = main.locator('.settings-row', { has: main.getByLabel('Shortcut for the dot') })
   const pick = row.getByLabel('Shortcut for the dot')
   await expect(pick).toHaveValue('Alt+Space')
   const registered = (acc: string): Promise<boolean> =>
