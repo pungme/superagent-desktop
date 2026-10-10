@@ -1966,7 +1966,19 @@ export function startMcpServer(): Promise<{ url: string }> {
       // (board cards, reveal broadcasts).
       const paneId = chatId && ws !== DESKTOP_WORKSPACE_ID ? `${ws}::${chatId}` : ws
       // Stateless mode: fresh server+transport per request, no session tracking.
-      const server = buildServer(paneId, chatId, chatTokenValid(params.get('k'), ws, chatId ?? ''))
+      // Every address this app hands an agent carries the token for its own
+      // workspace and chat (workspaceMcpUrl). One that names them without it
+      // was put together by hand: another conversation's browser, board, mail
+      // and chats are not there for the asking. A test run stands in for an
+      // agent without a token, unless it is this very rule being tested.
+      const proven = chatTokenValid(params.get('k'), ws, chatId ?? '')
+      const strict = !process.env.COVE_USER_DATA || process.env.COVE_E2E_STRICT_MCP === '1'
+      if (!proven && strict) {
+        res.writeHead(403, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'this address was not issued for that conversation' }))
+        return
+      }
+      const server = buildServer(paneId, chatId, proven)
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
       res.on('close', () => {
         transport.close()

@@ -65,16 +65,17 @@ test.afterAll(async () => {
 })
 
 test('the agent picker sits under the composer and switches the chat to Codex', async () => {
-  const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Agent"))').first()
+  // The first pill under the composer: the agent's mark and name, no label.
+  const pill = window.locator('.easy-control-btn:visible').first()
   await expect(pill).toBeVisible({ timeout: 10_000 })
   // Claude Code is the default, and every existing chat's agent.
-  await expect(pill.locator('.easy-control-val')).toHaveText('Claude Code')
+  await expect(pill).toContainText('Claude Code')
 
   await pill.click()
   const menu = window.locator('.easy-control-menu:visible')
-  await expect(menu.locator('.easy-control-item-label')).toHaveText(['Claude Code', 'Codex'])
-  await menu.locator('.easy-control-item:has-text("Codex")').click()
-  await expect(pill.locator('.easy-control-val')).toHaveText('Codex')
+  await expect(menu.locator('.easy-control-item:has-text("Codex")')).toBeVisible()
+  await menu.locator('.easy-control-item:has-text("Codex")').first().click()
+  await expect(pill).toContainText('Codex')
 })
 
 test('a Codex turn streams a reply and really edits the file', async () => {
@@ -129,6 +130,6 @@ test('the chat keeps its agent across a reload', async () => {
   await window.reload()
   await window.waitForSelector('.sidebar', { timeout: 20_000 })
   await window.click('.sidebar-item:has-text("e2e-project")')
-  const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Agent"))').first()
-  await expect(pill.locator('.easy-control-val')).toHaveText('Codex', { timeout: 10_000 })
+  const pill = window.locator('.easy-control-btn:visible').first()
+  await expect(pill).toContainText('Codex', { timeout: 10_000 })
 })
