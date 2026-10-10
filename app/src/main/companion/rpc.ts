@@ -37,7 +37,8 @@ import {
   getChatModel,
   addQueuedSend,
   cancelQueuedSend,
-  takeQueuedSends
+  takeQueuedSends,
+  agentSaidInChat
 } from '../store'
 import { modelBelongsTo, modeBelongsTo, toProvider } from '../../shared/agent-provider'
 import { accountForChat, listAccounts, pinChatAccount, refreshUsage } from '../accounts'
@@ -83,6 +84,7 @@ import {
   gitSubrepos,
   listProjectFiles,
   readTextFile,
+  replyImagePath,
   resolveInside
 } from '../files'
 import { listRoutines, runRoutine, setRoutineEnabled } from '../routines'
@@ -643,7 +645,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         if (!p.success) return fail('bad-params', p.error.message)
         const root = rootFor(p.data)
         if (!root) return fail('not-found', 'no such project')
-        const abs = resolveInside(root, p.data.path)
+        const abs = fileForPhone(root, p.data.path, p.data.chatId)
         if (!abs) return fail('bad-params', 'that path is outside the project')
         return { ok: true, result: readForPhone(abs, p.data.path) }
       }
@@ -911,6 +913,17 @@ const IMAGE_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
   '.heic': 'image/heic',
   '.bmp': 'image/bmp'
+}
+
+/**
+ * The file a files.read names: one in the project, or a picture from one of
+ * this chat's replies wherever it is on the Mac (see replyImagePath).
+ */
+function fileForPhone(root: string, path: string, chatId?: string): string | null {
+  const inside = resolveInside(root, path)
+  if (inside && existsSync(inside)) return inside
+  if (!chatId) return inside
+  return replyImagePath(path, root, (text) => agentSaidInChat(chatId, text)) ?? inside
 }
 
 /** A project file in the shape a phone can show: text, a picture, or a size. */

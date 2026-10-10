@@ -810,6 +810,20 @@ export function listAllChats(): ChatRow[] {
   ).map((row) => ({ ...row, provider: toProvider(row.provider) }))
 }
 
+/**
+ * Whether the agent wrote this exact text in one of its replies in a chat.
+ * Looked up in the stored event as it is written there, so no reply is parsed.
+ */
+export function agentSaidInChat(chatId: string, text: string): boolean {
+  const needle = JSON.stringify(text).slice(1, -1)
+  if (!needle) return false
+  return !!db
+    .prepare(
+      "SELECT 1 FROM chat_events WHERE chatId = ? AND kind = 'assistant' AND instr(data, ?) > 0 LIMIT 1"
+    )
+    .get(chatId, needle)
+}
+
 /** The last thing said in a chat, from the companion log, for list rows. */
 export function lastChatPreview(chatId: string): string | null {
   const row = db

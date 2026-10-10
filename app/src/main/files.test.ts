@@ -36,4 +36,29 @@ describe('an image named in a reply', () => {
     expect(localImagePath('https://example.com/x.png')).toBeNull()
     expect(localImagePath('data:image/png;base64,AAAA')).toBeNull()
   })
+
+  // The phone reads files through the project, and a screenshot is usually
+  // saved outside it: on the phone the picture never loaded.
+  it('lets the phone have one from outside the project, when a reply in the chat names it', async () => {
+    const { replyImagePath } = await import('./files')
+    const reply =
+      'Here it is:\n\n![The new header](/tmp/pv/header.png)\n\nand ![b](<~/My Shots/b.png>)'
+    const said = (text: string): boolean => reply.includes(text)
+    expect(replyImagePath('/tmp/pv/header.png', '/Users/me/proj', said)).toBe('/tmp/pv/header.png')
+    const { homedir } = await import('os')
+    expect(replyImagePath('~/My Shots/b.png', '/Users/me/proj', said)).toBe(
+      `${homedir()}/My Shots/b.png`
+    )
+    // A path no reply named, and one named only in passing, stay out of reach.
+    expect(replyImagePath('/tmp/pv/other.png', '/Users/me/proj', said)).toBeNull()
+    expect(
+      replyImagePath('/tmp/x.png', '/Users/me/proj', (t) => 'I saved /tmp/x.png'.includes(t))
+    ).toBeNull()
+    // Only pictures: a reply that links a key file does not hand it over.
+    expect(
+      replyImagePath('/Users/me/.ssh/id_rsa', '/Users/me/proj', (t) =>
+        '![k](/Users/me/.ssh/id_rsa)'.includes(t)
+      )
+    ).toBeNull()
+  })
 })

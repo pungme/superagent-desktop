@@ -1032,6 +1032,31 @@ export function localImagePath(given: string, base?: string): string | null {
   return base ? resolve(base, p) : null
 }
 
+/**
+ * Where a picture the phone asks for lives, when it is one the agent put in a
+ * reply but it is not in the chat's folder.
+ *
+ * The phone reads files through the project (resolveInside), which is right
+ * for the Files screen and wrong for a reply: a screenshot is saved in a temp
+ * folder far more often than in the repo, so on the phone the picture the
+ * agent had just "shown" was a grey label with a file name. The window never
+ * had the limit (files:thumbnail). The phone gets the same picture, and only
+ * that: a path counts when a reply in this very chat names it as a link or
+ * image target, so the phone still cannot ask for a file by guessing its path.
+ */
+export function replyImagePath(
+  given: string,
+  base: string | undefined,
+  said: (text: string) => boolean
+): string | null {
+  const abs = localImagePath(given, base)
+  if (!abs || !IMAGE_EXTS.has(extname(abs).toLowerCase())) return null
+  // As written, in angle brackets (a path with spaces), or as the file:// URL
+  // the phone has already turned into a path.
+  const named = [`](${given}`, `](<${given}`, `](file://${given}`].some(said)
+  return named ? abs : null
+}
+
 export function registerFilesIpc(): void {
   ipcMain.on('bg:sync', (_e, chatId: string, tasks: Omit<PublishedBackgroundTask, 'chatId'>[]) => {
     backgroundTasks.set(
