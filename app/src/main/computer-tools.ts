@@ -28,6 +28,7 @@ import {
   type ComputerAction
 } from './computer-use'
 import { hooksIntact, requestApproval } from './hooks'
+import { noteComputer } from './computer-log'
 import {
   appCaution,
   COMPUTER_STOP_HOTKEY,
@@ -133,6 +134,16 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     }
   }
 
+  /** For the record of what was done with the Mac (computer-log.ts). */
+  const note = (what: string, kind: 'did' | 'looked' | 'refused' = 'did'): void =>
+    noteComputer({ owner, what: what.replace(/\.$/, ''), kind })
+  /** Something that was not done, and why, both told to the agent and kept. */
+  const refused = (e: unknown): Result => {
+    const why = (e as Error).message
+    note(`Not done: ${why.split(/(?<=[.:]) /)[0].slice(0, 140)}`, 'refused')
+    return failed(why)
+  }
+
   /** Do it, let the screen catch up, and show what it looks like now. */
   const doThen = async (action: ComputerAction, said: string): Promise<Result> => {
     const no = await gate()
@@ -176,10 +187,11 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         approveApp(owner, app.id)
       }
       await act(owner, action)
+      note(said)
       await settle()
       return await look(said)
     } catch (e) {
-      return failed((e as Error).message)
+      return refused(e)
     }
   }
 
@@ -220,9 +232,11 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       const no = await gate()
       if (no) return failed(no)
       try {
-        return await look('', display)
+        const seen = await look('', display)
+        note('Looked at the screen', 'looked')
+        return seen
       } catch (e) {
-        return failed((e as Error).message)
+        return refused(e)
       }
     }
   )
@@ -254,6 +268,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       if (no) return failed(no)
       try {
         const ui = await readUi(owner)
+        note(`Read the controls of ${ui.app || 'the window in front'}`, 'looked')
         return {
           content: [
             {
@@ -310,6 +325,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
           )
       }
       await doIt()
+      note(said)
       await settle()
       // The screen afterwards when it can be seen; the action stands either way.
       return await look(said).catch(() => ({ content: [{ type: 'text', text: said }] }) as Result)
@@ -569,6 +585,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         )
       )
       if (opened) return failed(`Could not open "${name}": ${opened.slice(0, 200)}`)
+      note(`Opened ${name}`)
       touchConsent(owner)
       await settle(900)
       try {
@@ -597,6 +614,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
         )
       )
       if (opened) return failed(`Could not open that pane: ${opened.slice(0, 200)}`)
+      note(`Opened System Settings at ${pane}`)
       touchConsent(owner)
       await settle(1200)
       return await look(`Opened System Settings at ${pane}.`).catch(
@@ -626,6 +644,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       if (!yes)
         return failed('The user did not allow reading the clipboard. Do not try another way.')
       const text = readClipboard()
+      note('Read the clipboard', 'looked')
       touchConsent(owner)
       return {
         content: [

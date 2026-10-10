@@ -54,6 +54,7 @@ vi.mock('node:child_process', () => ({
 }))
 const kv = new Map<string, string>()
 vi.mock('./store', () => ({
+  getChat: () => undefined,
   kvGet: (k: string) => kv.get(k),
   kvSet: (k: string, v: string) => void kv.set(k, v)
 }))
@@ -577,9 +578,7 @@ describe("the user's standing answers, app by app", () => {
     controls = []
     // Reading it is allowed.
     await expect(readUi('lk')).resolves.toBeTruthy()
-    await expect(act('lk', { type: 'type', text: 'hi' })).rejects.toThrow(
-      /look at .+ but not act/
-    )
+    await expect(act('lk', { type: 'type', text: 'hi' })).rejects.toThrow(/look at .+ but not act/)
     await expect(pressControl('lk', 1, 'Send')).rejects.toThrow(/look at .+ but not act/)
     // And it is not something to ask about: the answer is already no.
     expect(await appsToAsk('lk', { type: 'key', keys: 'return' })).toEqual([])

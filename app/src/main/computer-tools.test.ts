@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   acted: [] as unknown[],
   shots: 0,
   hooks: true,
+  noted: [] as string[],
   clipboard: 'copied earlier',
   known: {
     TextEdit: { id: 'com.apple.TextEdit', name: 'TextEdit' },
@@ -78,6 +79,11 @@ vi.mock('./computer-use', () => ({
     }
   }
 }))
+vi.mock('./computer-log', () => ({
+  noteComputer: (e: { what: string; kind?: string }) => {
+    state.noted.push(`${e.kind}: ${e.what}`)
+  }
+}))
 vi.mock('./hooks', () => ({
   hooksIntact: () => state.hooks,
   requestApproval: vi.fn(async (_ws: string, _s: string, _tool: string, preview: string) => {
@@ -118,6 +124,7 @@ beforeEach(() => {
     acted: [],
     shots: 0,
     hooks: true,
+    noted: [],
     clipboard: 'copied earlier',
     risk: null,
     ui: { app: 'TextEdit', window: 'Untitled', lines: ['button "Save" at 100,40'] },
@@ -377,6 +384,21 @@ describe("the agent's tools for using the Mac", () => {
       const no = await call(c, 'computer_clipboard_read')
       expect(no.isError).toBe(true)
       expect(text(no)).not.toContain('a long paragraph')
+    })
+  })
+
+  it('keep a record of each look and each action, without what was typed', async () => {
+    state.consent = true
+    await withClient(async (c) => {
+      await call(c, 'computer_screenshot')
+      await call(c, 'computer_click', { x: 5, y: 6 })
+      await call(c, 'computer_type', { text: 'my secret words' })
+      await call(c, 'computer_press', { index: 2, name: 'Save' })
+      expect(state.noted[0]).toBe('looked: Looked at the screen')
+      expect(state.noted).toContain('did: Typed 15 characters')
+      expect(state.noted).toContain('did: Pressed "Save"')
+      expect(state.noted.join(' ')).not.toContain('my secret words')
+      expect(state.noted.some((n) => n.startsWith('did: ') && /5, 6|click/i.test(n))).toBe(true)
     })
   })
 

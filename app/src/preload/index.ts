@@ -855,6 +855,10 @@ export interface CoveApi {
   /** Pick an app to keep computer use out of, or let one back in. */
   computerDenyPick: () => Promise<ComputerStatus>
   computerUndeny: (id: string) => Promise<ComputerStatus>
+  /** What agents have done with the Mac lately, newest first. */
+  computerLog: () => Promise<
+    { at: number; owner: string; chat: string; what: string; app?: string; kind?: string }[]
+  >
   /** Give an app a standing answer (picked in a dialog), change it, or take it away (null). */
   computerRulePick: (level: 'allow' | 'look') => Promise<ComputerStatus>
   computerRule: (
@@ -1387,6 +1391,7 @@ const cove: CoveApi = {
   setComputerUse: (on) => ipcRenderer.invoke('computer:set-enabled', on),
   computerDenyPick: () => ipcRenderer.invoke('computer:deny-pick'),
   computerUndeny: (id) => ipcRenderer.invoke('computer:undeny', id),
+  computerLog: () => ipcRenderer.invoke('computer:log'),
   computerRulePick: (level) => ipcRenderer.invoke('computer:rule-pick', level),
   computerRule: (app, level) => ipcRenderer.invoke('computer:rule', app, level),
   computerRequest: (which) => ipcRenderer.invoke('computer:request', which),

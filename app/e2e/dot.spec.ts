@@ -797,6 +797,50 @@ test('an app can be given a standing answer: always allowed, or look only', asyn
   await expect(chip).toHaveCount(0)
 })
 
+test('Settings shows what agents have done with the Mac', async () => {
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('computer:log')
+    ipcMain.handle('computer:log', () => [
+      {
+        at: Date.now(),
+        owner: 'c1',
+        chat: 'Export the invoices',
+        what: 'Pressed "Export…"',
+        kind: 'did'
+      },
+      {
+        at: Date.now() - 60_000,
+        owner: 'c1',
+        chat: 'Export the invoices',
+        what: 'Read the controls of Numbers',
+        kind: 'looked'
+      },
+      {
+        at: Date.now() - 120_000,
+        owner: 'c2',
+        chat: 'Tidy Downloads',
+        what: 'Not done: 1Password is in the way',
+        kind: 'refused'
+      }
+    ])
+  })
+  if ((await main.locator('.settings-row').count()) === 0)
+    await main.click('.sidebar-settings[title="Settings"]')
+  const row = main.locator('.settings-row', { hasText: 'What it has done' })
+  const log = main.getByRole('log', { name: 'What computer use has done' })
+  await expect(log).toHaveCount(0)
+  await row.getByRole('button', { name: 'Show' }).click()
+  await expect(log.locator('.settings-computer-log-row')).toHaveCount(3)
+  await expect(log.locator('.settings-computer-log-row').first()).toContainText('Pressed "Export…"')
+  await expect(log.locator('.settings-computer-log-row').first()).toContainText(
+    'Export the invoices'
+  )
+  await expect(log.locator('.settings-computer-log-row.refused')).toContainText('1Password')
+  if (process.env.SHOT) await log.screenshot({ path: '/tmp/sa-computer-log.png' })
+  await row.getByRole('button', { name: 'Hide' }).click()
+  await expect(log).toHaveCount(0)
+})
+
 test('it can be turned off in Settings, and back on', async () => {
   if ((await main.locator('.settings-row').count()) === 0)
     await main.click('.sidebar-settings[title="Settings"]')

@@ -670,6 +670,14 @@ export function Settings({
     const t = setInterval(() => void window.cove.computerStatus().then(setComputer), 2000)
     return () => clearInterval(t)
   }, [computer.enabled, computer.screen, computer.accessibility])
+  // What agents have done with the Mac, shown on request.
+  const [computerLog, setComputerLog] = useState<
+    { at: number; chat: string; what: string; kind?: string }[] | null
+  >(null)
+  const toggleComputerLog = (): void => {
+    if (computerLog) setComputerLog(null)
+    else void window.cove.computerLog().then(setComputerLog)
+  }
   const toggleComputer = async (on: boolean): Promise<void> => {
     setComputer((c) => ({ ...c, enabled: on }))
     setComputer(await window.cove.setComputerUse(on))
@@ -1230,6 +1238,41 @@ export function Settings({
                     </button>
                   </div>
                 </Row>
+              )}
+              {computer.enabled && (
+                <Row
+                  title="What it has done"
+                  desc="Every look and every action an agent took on this Mac, with when and in which conversation. What it typed is not kept, only that it typed."
+                >
+                  <button className="settings-agent-btn ghost" onClick={toggleComputerLog}>
+                    {computerLog ? 'Hide' : 'Show'}
+                  </button>
+                </Row>
+              )}
+              {computer.enabled && computerLog && (
+                <div
+                  className="settings-computer-log"
+                  role="log"
+                  aria-label="What computer use has done"
+                >
+                  {computerLog.length === 0 && (
+                    <div className="settings-computer-log-empty">Nothing yet.</div>
+                  )}
+                  {computerLog.map((e, i) => (
+                    <div key={i} className={`settings-computer-log-row ${e.kind ?? 'did'}`}>
+                      <time>
+                        {new Date(e.at).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </time>
+                      <span className="what">{e.what}</span>
+                      <span className="chat">{e.chat}</span>
+                    </div>
+                  ))}
+                </div>
               )}
               <GroupLabel>Power</GroupLabel>
               <Row

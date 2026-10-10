@@ -10392,6 +10392,38 @@ button {
   gap: 10px;
   padding: 4px 2px 0;
 }
+.settings-computer-log {
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0 0 4px;
+  padding: 6px 16px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.settings-computer-log-row {
+  display: grid;
+  grid-template-columns: 112px 1fr minmax(0, 180px);
+  gap: 10px;
+  padding: 3px 0;
+  color: var(--text-primary);
+}
+.settings-computer-log-row time,
+.settings-computer-log-row .chat,
+.settings-computer-log-empty {
+  color: var(--text-tertiary);
+}
+.settings-computer-log-row .chat {
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settings-computer-log-row.looked .what {
+  color: var(--text-secondary);
+}
+.settings-computer-log-row.refused .what {
+  color: #c2410c;
+}
 .settings-keepout {
   display: flex;
   flex-wrap: wrap;

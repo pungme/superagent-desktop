@@ -14,7 +14,8 @@ import {
 import { existsSync, unlinkSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, join } from 'path'
-import { kvGet, kvSet } from './store'
+import { getChat, kvGet, kvSet } from './store'
+import { recentComputerLog } from './computer-log'
 import { broadcastToWindows } from './util'
 import {
   appFrom,
@@ -1063,6 +1064,10 @@ export const settle = (ms = 450): Promise<void> => new Promise((r) => setTimeout
 
 export function registerComputerUseIpc(): void {
   ipcMain.handle('computer:status', () => computerStatus())
+  /** What agents have done with the Mac lately, newest first, with each chat's name. */
+  ipcMain.handle('computer:log', () =>
+    recentComputerLog(150).map((e) => ({ ...e, chat: getChat(e.owner)?.title ?? '' }))
+  )
   /** Pick an app to keep computer use out of. */
   ipcMain.handle('computer:deny-pick', async () => {
     const picked = await dialog.showOpenDialog({
