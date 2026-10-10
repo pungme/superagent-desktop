@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computerBeforeShell, computerShellVerdict } from './computer-guard'
+import { computerBeforeShell, computerBeforeWrite, computerShellVerdict } from './computer-guard'
 
 describe("the agent's shell is not a second way to the mouse, keyboard or screen", () => {
   it('refuses the known routes', () => {
@@ -39,5 +39,59 @@ describe("the agent's shell is not a second way to the mouse, keyboard or screen
     expect(computerBeforeShell('Edit', { command: 'screencapture x.png' })).toBeNull()
     expect(computerBeforeShell('Bash', { command: 'screencapture x.png' })).toMatch(/Blocked/)
     expect(computerBeforeShell('Bash', {})).toBeNull()
+  })
+})
+
+describe('a script that would do the same, about to be written', () => {
+  it('is something to ask the user about, naming the file', () => {
+    const asks = [
+      ['Write', { file_path: '/tmp/x.py', content: 'import pyautogui\npyautogui.click(5, 5)' }],
+      [
+        'Write',
+        {
+          file_path: '/tmp/x.swift',
+          content: 'let e = CGEvent(...)\nCGEventPost(.cghidEventTap, e)'
+        }
+      ],
+      [
+        'Edit',
+        {
+          file_path: '/tmp/a.scpt',
+          new_string: 'tell application "System Events" to keystroke "q"'
+        }
+      ],
+      [
+        'MultiEdit',
+        {
+          file_path: '/tmp/s.sh',
+          edits: [{ new_string: 'echo hi' }, { new_string: 'screencapture -x /tmp/a.png' }]
+        }
+      ],
+      ['Write', { file_path: '/tmp/t.sh', content: 'tccutil reset All' }]
+    ] as const
+    for (const [tool, input] of asks) {
+      const q = computerBeforeWrite(tool, input)
+      expect(q, JSON.stringify(input)).toContain(input.file_path)
+      expect(q).toContain('without asking you first')
+    }
+  })
+  it('is nothing for ordinary files, or for what is only being removed', () => {
+    expect(
+      computerBeforeWrite('Write', { file_path: 'a.ts', content: 'export const x = 1' })
+    ).toBeNull()
+    expect(
+      computerBeforeWrite('Edit', {
+        file_path: 'a.c',
+        old_string: 'CGEventPost(tap, e)',
+        new_string: ''
+      })
+    ).toBeNull()
+    expect(
+      computerBeforeWrite('Write', {
+        file_path: 'notes.md',
+        content: 'take a screenshot of the page'
+      })
+    ).toBeNull()
+    expect(computerBeforeWrite('Bash', { command: 'pyautogui' })).toBeNull()
   })
 })

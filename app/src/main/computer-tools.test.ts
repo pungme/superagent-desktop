@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   asked: [] as string[],
   acted: [] as unknown[],
   shots: 0,
+  hooks: true,
   toAsk: [] as { id: string; name: string }[],
   approvedApps: [] as string[]
 }))
@@ -42,6 +43,7 @@ vi.mock('./computer-use', () => ({
   }
 }))
 vi.mock('./hooks', () => ({
+  hooksIntact: () => state.hooks,
   requestApproval: vi.fn(async (_ws: string, _s: string, _tool: string, preview: string) => {
     state.asked.push(preview)
     return state.answer
@@ -79,6 +81,7 @@ beforeEach(() => {
     asked: [],
     acted: [],
     shots: 0,
+    hooks: true,
     toAsk: [],
     approvedApps: []
   })
@@ -193,6 +196,25 @@ describe("the agent's tools for using the Mac", () => {
       expect(out.isError).toBe(true)
       expect(text(out)).toContain('did not allow that shortcut')
       expect(state.acted).toHaveLength(3)
+    })
+  })
+
+  it('do nothing while the safety hooks are gone, however much was allowed before', async () => {
+    state.consent = true
+    state.hooks = false
+    await withClient(async (c) => {
+      for (const [name, args] of [
+        ['computer_screenshot', {}],
+        ['computer_click', { x: 1, y: 1 }],
+        ['computer_type', { text: 'x' }]
+      ] as const) {
+        const r = await call(c, name, args)
+        expect(r.isError, name).toBe(true)
+        expect(text(r)).toContain('safety hooks are missing')
+      }
+      expect(state.acted).toEqual([])
+      expect(state.shots).toBe(0)
+      expect(state.asked).toEqual([])
     })
   })
 

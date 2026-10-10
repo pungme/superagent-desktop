@@ -14,7 +14,7 @@ import {
   touchConsent,
   type ComputerAction
 } from './computer-use'
-import { requestApproval } from './hooks'
+import { hooksIntact, requestApproval } from './hooks'
 import {
   appCaution,
   COMPUTER_STOP_HOTKEY,
@@ -66,6 +66,10 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
   const gate = async (): Promise<string | null> => {
     const missing = notReady()
     if (missing) return missing
+    // The guards on the agent's own shell live in the hooks. Gone, and they
+    // cannot be put back: no hands on the Mac until they are.
+    if (!hooksIntact())
+      return "Superagent's safety hooks are missing from this Mac's Claude settings and could not be put back, so computer use is paused. Tell the user; restarting Superagent restores them."
     if (hasConsent(owner)) return null
     const yes = await requestApproval(
       ctx.workspaceId,

@@ -16,7 +16,7 @@ import {
 } from './store'
 import { copyBeforeWrite } from './copy-on-write'
 import { simulatorBeforeShell } from './sim-guard'
-import { computerBeforeShell } from './computer-guard'
+import { computerBeforeShell, computerBeforeWrite } from './computer-guard'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL } from '../shared/agent-provider'
 import { paneLog, allowUserFocus } from './browser'
 import {
@@ -225,6 +225,12 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
   // Nor is it a second way to the mouse, the keyboard or the screen (computer-guard.ts).
   const hands = computerBeforeShell(toolName, body.tool_input)
   if (hands) return DENY_JSON(hands)
+  // A script that would do the same, about to be written: the user decides.
+  const script = computerBeforeWrite(toolName, body.tool_input)
+  if (script && !(await requestApproval(workspaceId, sessionId, toolName, script)))
+    return DENY_JSON(
+      'Blocked by Superagent: the user did not allow writing code that works the mouse, the keyboard or the screen outside the computer_* tools. Do not write it another way; say what you wanted to do.'
+    )
 
   const cls = classifyTool(toolName)
   if (cls === 'taint') {
@@ -603,6 +609,26 @@ export function hooksInstalled(): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Whether the hooks are in place exactly as this app wrote them, putting them
+ * back first if they are not. The guards on an agent's shell live in them, and
+ * an agent could edit them away; computer use asks this before it is allowed.
+ * A test instance never touches the user's settings, so it is not asked.
+ */
+export function hooksIntact(): boolean {
+  if (process.env.COVE_USER_DATA) return true
+  const sound = (): boolean => {
+    try {
+      return hooksInstalled() && readFileSync(hookScriptPath(), 'utf8') === HOOK_SCRIPT
+    } catch {
+      return false
+    }
+  }
+  if (sound()) return true
+  installHooks()
+  return sound()
 }
 
 /** Additively merge Superagent's hooks into ~/.claude/settings.json. Reversible via uninstallHooks. */

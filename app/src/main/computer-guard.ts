@@ -60,3 +60,54 @@ export function computerBeforeShell(toolName: string, input: unknown): string | 
   const command = (input as { command?: unknown } | null)?.command
   return typeof command === 'string' && command ? computerShellVerdict(command) : null
 }
+
+/**
+ * What a file would be able to do, when it is being written by the agent: a
+ * script that posts events or photographs the screen is the same thing as the
+ * command, one step removed. Not refused outright (someone may really be
+ * building such a tool, this app included): the user is asked.
+ */
+const IN_A_FILE: [pattern: RegExp, what: string][] = [
+  [
+    /\b(CGEventPost|CGEventCreateMouseEvent|CGEventCreateKeyboardEvent|CGWarpMouseCursorPosition|AXUIElementPerformAction|IOHIDPostEvent)\b/,
+    'post mouse or keyboard events'
+  ],
+  [
+    /\b(pyautogui|pynput|robotjs|nut-js|nutjs|enigo|autopy|cliclick)\b/i,
+    'post mouse or keyboard events'
+  ],
+  [
+    /(system events|systemevents)[\s\S]{0,400}(keystroke|key code|key down|click|perform action)/i,
+    'drive the keyboard or mouse through System Events'
+  ],
+  [
+    /\b(CGDisplayCreateImage|CGWindowListCreateImage|SCScreenshotManager|SCStream|ImageGrab\.grab)\b|(^|[\s;&|(`'"/])screencapture\s/,
+    "photograph the user's screen"
+  ],
+  [/\btccutil\b|TCC\.db/, "change this Mac's privacy permissions"]
+]
+
+/** The text a file tool is about to put on disk, whichever tool it is. */
+function writtenText(toolName: string, input: unknown): string {
+  const i = (input ?? {}) as Record<string, unknown>
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+  if (toolName === 'Write') return str(i.content)
+  if (toolName === 'Edit') return str(i.new_string)
+  if (toolName === 'NotebookEdit') return str(i.new_source)
+  if (toolName === 'MultiEdit' && Array.isArray(i.edits))
+    return i.edits.map((e) => str((e as Record<string, unknown>)?.new_string)).join('\n')
+  return ''
+}
+
+/**
+ * What to ask the user before a file is written, or null when the file has
+ * nothing to do with the mouse, keyboard or screen.
+ */
+export function computerBeforeWrite(toolName: string, input: unknown): string | null {
+  const text = writtenText(toolName, input)
+  if (!text) return null
+  const hit = IN_A_FILE.find(([pattern]) => pattern.test(text))
+  if (!hit) return null
+  const path = String((input as Record<string, unknown>)?.file_path ?? 'a file')
+  return `Write code that can ${hit[1]}, into ${path}.\nRun, it would do that without asking you first. Allow only if building such a tool is what you asked for.`
+}
