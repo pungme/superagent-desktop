@@ -429,6 +429,12 @@ describe('reading the controls by name', () => {
     expect(said).not.toMatch(/screenshot/i)
     stopComputerUse()
   })
+  it('is not done at all for a conversation that has not been told yes', async () => {
+    stopComputerUse()
+    front = 'com.apple.TextEdit'
+    await expect(readUi('nobody')).rejects.toThrow(/has not allowed/)
+    await expect(waitForControl('nobody', 'x', false, 1)).rejects.toThrow(/Stopped|has not allowed/)
+  })
   it("is refused over a password manager, and over Superagent's own window", async () => {
     stopComputerUse()
     grantConsent('ui2')

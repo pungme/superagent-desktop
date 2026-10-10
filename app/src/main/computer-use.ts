@@ -228,6 +228,12 @@ export interface Screenshot {
  * agent; returns the app in front.
  */
 async function mayLook(owner: string, picture: ScreenArea | null = null): Promise<AppRef | null> {
+  // The tools ask before they get here; this is the same question asked again
+  // where the looking is done, so no other way in can skip it.
+  if (!hasConsent(owner))
+    throw new Error(
+      'The user has not allowed this conversation to use the Mac. Ask again through the tool.'
+    )
   // Not a picture of the user's passwords either.
   const front = await frontApp()
   const no = offLimitsMessage(front)
