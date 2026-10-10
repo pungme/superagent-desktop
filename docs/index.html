@@ -1569,6 +1569,219 @@
       9%, 100% { opacity: 1; transform: scale(1); }
     }
 
+    /* ---- VIII and IX: the dot, and the Mac itself ---- */
+    .kicker .beta {
+      display: inline-block; margin-left: 12px; padding: 2px 8px; border-radius: 999px;
+      font-size: 0.56rem; letter-spacing: 0.16em; font-weight: 700;
+      background: rgba(134, 166, 198, 0.28); color: #4f6f8e; vertical-align: 1px;
+    }
+    .feat-copy .beta-note { font-size: 0.86rem; color: var(--faint); margin-top: 10px; }
+    /* the window you were in, and the Superagent window that comes forward */
+    .dq-win {
+      position: absolute; left: 34px; right: 330px; top: 34px; bottom: 52px;
+      background: rgba(255, 254, 250, 0.9); border: 1px solid var(--line);
+      border-radius: 11px; overflow: hidden;
+      box-shadow: 0 18px 40px -22px rgba(56, 72, 84, 0.5);
+    }
+    .dq-top { display: flex; align-items: center; gap: 5px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    .dq-top .chrome-title { margin-left: 6px; }
+    .dq-code { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .dq-code .ln { height: 6px; }
+    .d9-other { animation: d9other 16s var(--ease) infinite; }
+    .d9-sa { opacity: 0; animation: d9sa 16s var(--ease) infinite; }
+    @keyframes d9other {
+      0%, 46% { opacity: 0.72; transform: none; filter: saturate(0.6); }
+      52%, 90% { opacity: 0; transform: scale(0.985); }
+      96%, 100% { opacity: 0.72; transform: none; }
+    }
+    @keyframes d9sa {
+      0%, 46% { opacity: 0; transform: translateY(10px) scale(0.985); }
+      53%, 90% { opacity: 1; transform: none; }
+      96%, 100% { opacity: 0; transform: translateY(10px) scale(0.985); }
+    }
+    .d9-body { display: grid; grid-template-columns: 150px 1fr; height: calc(100% - 33px); }
+    .d9-side { border-right: 1px solid var(--line); padding: 10px 8px; display: flex; flex-direction: column; gap: 3px; background: rgba(49, 52, 45, 0.03); }
+    .d9-grp { font-size: 0.5rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); margin: 4px 6px 3px; font-weight: 700; }
+    .d9-row { font-size: 0.6rem; padding: 5px 7px; border-radius: 6px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .d9-row.proj { color: var(--ink); font-weight: 600; }
+    .d9-row.sub { padding-left: 18px; }
+    .d9-row.on { background: rgba(49, 52, 45, 0.09); color: var(--ink); font-weight: 600; }
+    .d9-chat { padding: 14px 18px; display: flex; flex-direction: column; gap: 9px; }
+    .d9-ttl { font-size: 0.72rem; font-weight: 700; }
+    .d9-ttl small { display: block; font-weight: 500; font-size: 0.55rem; color: var(--faint); margin-top: 1px; }
+    .d9-msg { align-self: flex-end; background: var(--ink); color: var(--cream); font-size: 0.6rem; padding: 6px 10px; border-radius: 11px; }
+    .d9-reply { font-size: 0.6rem; line-height: 1.5; background: rgba(49, 52, 45, 0.05); border-radius: 11px; padding: 8px 11px; max-width: 88%; }
+    .d9-reply code { font-family: var(--mono); font-size: 0.54rem; padding: 1px 4px; border-radius: 4px; background: rgba(49, 52, 45, 0.08); }
+
+    /* the dot: a tile in the corner, and the panel that grows out of it */
+    .dq-tile {
+      position: absolute; right: 22px; bottom: 20px; width: 44px; height: 44px; border-radius: 13px;
+      background: linear-gradient(180deg, #2c2e34, #191a1e); border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 10px 24px -8px rgba(20, 22, 28, 0.6);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dq-tile i { width: 13px; height: 13px; border-radius: 4px; background: #fff; }
+    .dq-panel {
+      position: absolute; right: 22px; bottom: 74px; width: 286px;
+      background: #232529; color: #f2f2f4; border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 15px; padding: 12px 13px 13px;
+      box-shadow: 0 24px 50px -18px rgba(20, 22, 28, 0.65);
+      transform-origin: 100% 100%;
+    }
+    .dq-in { display: flex; align-items: center; gap: 6px; font-size: 0.56rem; color: rgba(255, 255, 255, 0.55); margin-bottom: 9px; }
+    .dq-chip { background: rgba(255, 255, 255, 0.1); color: #fff; font-weight: 600; padding: 3px 8px; border-radius: 7px; font-size: 0.58rem; }
+    .dq-step { display: flex; align-items: center; gap: 7px; font-size: 0.58rem; color: rgba(255, 255, 255, 0.72); margin-top: 5px; opacity: 0; }
+    .dq-step i { width: 5px; height: 5px; border-radius: 50%; background: #5fce7b; flex: none; }
+    .dq-ans { font-size: 0.64rem; line-height: 1.5; margin-top: 9px; opacity: 0; }
+    .dq-ans b { font-weight: 700; }
+    .dq-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 0.54rem; color: rgba(255, 255, 255, 0.5); opacity: 0; }
+    .dq-foot span:last-child { background: rgba(255, 255, 255, 0.1); color: #fff; padding: 4px 9px; border-radius: 7px; font-weight: 600; }
+
+    .d9-panel { opacity: 0; animation: d9panel 16s var(--ease) infinite; }
+    @keyframes d9panel {
+      0%, 6% { opacity: 0; transform: translateY(8px) scale(0.96); }
+      10%, 90% { opacity: 1; transform: none; }
+      95%, 100% { opacity: 0; transform: translateY(8px) scale(0.96); }
+    }
+    .d9-q {
+      font-size: 0.64rem; line-height: 1.45; min-height: 30px; padding: 8px 10px; border-radius: 10px;
+      background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .d9-q span { display: inline-block; white-space: nowrap; clip-path: inset(0 100% 0 0); animation: d9type 16s steps(38, end) infinite; }
+    @keyframes d9type {
+      0%, 10% { clip-path: inset(0 100% 0 0); }
+      27%, 100% { clip-path: inset(0 0 0 0); }
+    }
+    .d9-s1 { animation: d9s1 16s var(--ease) infinite; }
+    .d9-s2 { animation: d9s2 16s var(--ease) infinite; }
+    .d9-ans { animation: d9ans 16s var(--ease) infinite; }
+    .d9-foot { animation: d9ans 16s var(--ease) infinite; }
+    @keyframes d9s1 { 0%, 30% { opacity: 0; transform: translateY(4px); } 33%, 100% { opacity: 1; transform: none; } }
+    @keyframes d9s2 { 0%, 38% { opacity: 0; transform: translateY(4px); } 41%, 100% { opacity: 1; transform: none; } }
+    @keyframes d9ans { 0%, 48% { opacity: 0; transform: translateY(4px); } 52%, 100% { opacity: 1; transform: none; } }
+    /* the tile: still, then turning while it works, then still again */
+    .d9-tile i { animation: d9tile 16s linear infinite; }
+    @keyframes d9tile {
+      0%, 28% { transform: none; border-radius: 4px; }
+      30% { transform: rotate(0deg) scale(0.8); border-radius: 50%; }
+      48% { transform: rotate(540deg) scale(0.8); border-radius: 50%; }
+      51%, 100% { transform: rotate(540deg); border-radius: 4px; }
+    }
+
+    /* IX: an app's window, with something in it to press */
+    .d10-app { right: 330px; animation: d10app 16s var(--ease) infinite; }
+    @keyframes d10app { 0%, 66% { filter: none; } 70%, 92% { filter: saturate(0.5) brightness(0.97); } 97%, 100% { filter: none; } }
+    .d10-bar { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+    .d10-btn { font-size: 0.56rem; font-weight: 600; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.7); color: var(--ink); }
+    .d10-btn.go { margin-left: auto; animation: d10press 16s var(--ease) infinite; }
+    @keyframes d10press {
+      0%, 42% { background: rgba(255, 255, 255, 0.7); transform: none; }
+      43.5% { background: rgba(49, 52, 45, 0.16); transform: scale(0.95); }
+      46%, 100% { background: rgba(255, 255, 255, 0.7); transform: none; }
+    }
+    .d10-table { padding: 12px 14px; display: flex; flex-direction: column; gap: 0; }
+    .d10-tr { display: grid; grid-template-columns: 1.6fr 1fr 0.7fr; gap: 14px; padding: 8px 2px; border-bottom: 1px solid var(--line); align-items: center; }
+    .d10-tr .ln { height: 6px; }
+    .d10-tr.hd .ln { height: 5px; opacity: 0.6; }
+    .d10-sheet {
+      position: absolute; left: 50%; top: 34px; transform: translate(-50%, -260%); opacity: 0;
+      background: #fff; border: 1px solid var(--line); border-radius: 0 0 10px 10px; padding: 10px 16px;
+      font-size: 0.6rem; font-weight: 600; box-shadow: 0 14px 30px -14px rgba(56, 72, 84, 0.5);
+      display: flex; align-items: center; gap: 7px; animation: d10sheet 16s var(--ease) infinite;
+    }
+    .d10-sheet i { width: 11px; height: 11px; border-radius: 50%; background: #5fa970; flex: none; }
+    @keyframes d10sheet {
+      0%, 45% { transform: translate(-50%, -260%); opacity: 0; }
+      49%, 62% { transform: translate(-50%, 0); opacity: 1; }
+      66%, 100% { transform: translate(-50%, -260%); opacity: 0; }
+    }
+    /* where it is about to click: a ring that closes in, a word under it */
+    .d10-ring {
+      position: absolute; right: 346px; top: 63px; width: 46px; height: 46px;
+      border-radius: 50%; border: 3px solid #4f8cff; background: rgba(79, 140, 255, 0.16);
+      opacity: 0; animation: d10ring 16s var(--ease) infinite;
+    }
+    .d10-ring::after {
+      content: "Click"; position: absolute; left: 50%; top: 54px; transform: translateX(-50%);
+      background: rgba(23, 25, 30, 0.92); color: #fff; font-size: 0.52rem; font-weight: 700;
+      padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+    }
+    @keyframes d10ring {
+      0%, 35% { opacity: 0; transform: scale(2.3); }
+      38%, 42% { opacity: 1; transform: scale(1); }
+      46%, 100% { opacity: 0; transform: scale(1); }
+    }
+    /* a password manager comes to the front: everything stops */
+    .d10-pw {
+      position: absolute; left: 110px; top: 96px; width: 300px; height: 190px;
+      background: #fffefa; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+      box-shadow: 0 24px 50px -18px rgba(56, 72, 84, 0.6);
+      opacity: 0; transform: translateY(14px) scale(0.97); animation: d10pw 16s var(--ease) infinite;
+    }
+    @keyframes d10pw {
+      0%, 66% { opacity: 0; transform: translateY(14px) scale(0.97); }
+      70%, 91% { opacity: 1; transform: none; }
+      96%, 100% { opacity: 0; transform: translateY(14px) scale(0.97); }
+    }
+    .d10-pwrow { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    .d10-pwrow b { width: 18px; height: 18px; border-radius: 5px; background: rgba(49, 52, 45, 0.12); flex: none; }
+    .d10-pwrow .ln { height: 6px; flex: 1; }
+    .d10-pwrow span { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em; color: var(--faint); }
+
+    .d10-panel { animation: d10panel 16s var(--ease) infinite; opacity: 0; }
+    @keyframes d10panel {
+      0%, 3% { opacity: 0; transform: translateY(8px) scale(0.96); }
+      7%, 91% { opacity: 1; transform: none; }
+      96%, 100% { opacity: 0; transform: translateY(8px) scale(0.96); }
+    }
+    .d10-ask {
+      font-size: 0.6rem; line-height: 1.5; padding: 9px 10px; border-radius: 10px;
+      background: rgba(240, 190, 80, 0.12); border: 1px solid rgba(240, 190, 80, 0.4);
+      animation: d10ask 16s var(--ease) infinite;
+    }
+    .d10-ask small { display: block; color: rgba(255, 255, 255, 0.55); font-size: 0.52rem; margin-top: 3px; }
+    .d10-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; animation: d10ask 16s var(--ease) infinite; }
+    .d10-btns span { font-size: 0.56rem; font-weight: 700; padding: 5px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: #fff; }
+    .d10-btns .yes { background: #f2f2f4; color: #17191e; animation: d10yes 16s var(--ease) infinite; }
+    @keyframes d10ask { 0%, 19% { opacity: 1; max-height: 90px; } 22%, 100% { opacity: 0; max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; border-width: 0; overflow: hidden; } }
+    @keyframes d10yes { 0%, 15% { transform: none; } 17% { transform: scale(0.93); } 19%, 100% { transform: none; } }
+    .d10-using {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      font-size: 0.58rem; font-weight: 600; opacity: 0; overflow: hidden; animation: d10using 16s var(--ease) infinite;
+    }
+    .d10-using span:first-child { display: flex; align-items: center; gap: 6px; }
+    .d10-using span:first-child::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #4f8cff; }
+    .d10-using kbd { font-family: var(--sans); font-size: 0.52rem; padding: 3px 7px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.8); }
+    @keyframes d10using { 0%, 21% { opacity: 0; max-height: 30px; } 24%, 67% { opacity: 1; max-height: 30px; } 70%, 100% { opacity: 0; max-height: 0; } }
+    .d10-s1 { animation: d10s1 16s var(--ease) infinite; }
+    .d10-s2 { animation: d10s2 16s var(--ease) infinite; }
+    .d10-s3 { animation: d10s3 16s var(--ease) infinite; }
+    @keyframes d10s1 { 0%, 26% { opacity: 0; transform: translateY(4px); } 29%, 67% { opacity: 1; transform: none; } 70%, 100% { opacity: 0.45; transform: none; } }
+    @keyframes d10s2 { 0%, 34% { opacity: 0; transform: translateY(4px); } 37%, 67% { opacity: 1; transform: none; } 70%, 100% { opacity: 0.45; transform: none; } }
+    @keyframes d10s3 { 0%, 46% { opacity: 0; transform: translateY(4px); } 49%, 67% { opacity: 1; transform: none; } 70%, 100% { opacity: 0.45; transform: none; } }
+    .d10-stop {
+      margin-top: 9px; font-size: 0.6rem; line-height: 1.5; padding: 8px 10px; border-radius: 10px;
+      background: rgba(240, 190, 80, 0.14); border: 1px solid rgba(240, 190, 80, 0.45);
+      opacity: 0; animation: d10stop 16s var(--ease) infinite;
+    }
+    .d10-stop b { color: #f3c969; }
+    @keyframes d10stop { 0%, 70% { opacity: 0; transform: translateY(4px); } 73%, 100% { opacity: 1; transform: none; } }
+    /* the tile: white, blue while it has the Mac, amber when it stops */
+    .d10-tile { animation: d10tile 16s var(--ease) infinite; }
+    .d10-tile i { animation: d10dot 16s var(--ease) infinite; }
+    @keyframes d10tile {
+      0%, 21% { box-shadow: 0 10px 24px -8px rgba(20, 22, 28, 0.6); }
+      24%, 67% { box-shadow: 0 0 0 4px rgba(79, 140, 255, 0.35), 0 10px 24px -8px rgba(20, 22, 28, 0.6); }
+      70%, 92% { box-shadow: 0 0 0 4px rgba(240, 190, 80, 0.45), 0 10px 24px -8px rgba(20, 22, 28, 0.6); }
+      96%, 100% { box-shadow: 0 10px 24px -8px rgba(20, 22, 28, 0.6); }
+    }
+    @keyframes d10dot {
+      0%, 21% { background: #fff; }
+      24%, 67% { background: #4f8cff; }
+      70%, 92% { background: #f3c969; }
+      96%, 100% { background: #fff; }
+    }
+
     /* ============ Demo 6: the desk ============ */
     /* padding comes from section.feature now — it is a stage like the rest */
     .desk-head { text-align: center; max-width: 100%; margin: 0 auto; }
@@ -1812,6 +2025,9 @@
       .js .io .bar { transform: scaleY(1) !important; }
       .js .io .tile .gauge-fill { transform: scaleX(1) !important; }
       .d1-pg2, .d1-pg3, .d5-click, .d5-flash, .d3-ripple { opacity: 0 !important; }
+      .d9-panel, .d9-sa, .dq-step, .dq-ans, .dq-foot, .d10-panel, .d10-using { opacity: 1 !important; transform: none !important; }
+      .d9-q span { clip-path: none !important; }
+      .d9-other, .d10-ring, .d10-pw, .d10-stop, .d10-ask, .d10-btns { display: none !important; }
       .d3-sheet { transform: translateY(106%) !important; }
       .kb-mover { transform: translate(calc(100% + 18px), 50px) !important; }
       .d5-cursor { transform: translate(70px, 110px) !important; }
@@ -2288,6 +2504,8 @@
     <a href="#automation"><span>Automation</span><i></i></a>
     <a href="#notifications"><span>Notifications</span><i></i></a>
     <a href="#phone"><span>The phone</span><i></i></a>
+    <a href="#dot"><span>The dot</span><i></i></a>
+    <a href="#computer"><span>Computer use</span><i></i></a>
     <a href="#desk"><span>The desk</span><i></i></a>
     <a href="#who"><span>vs. the rest</span><i></i></a>
   </nav>
@@ -2973,10 +3191,126 @@
     </div>
   </section>
 
+  <!-- 8 · the dot: ask from anywhere -->
+  <section class="feature io demo" id="dot">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">VIII.</span>The dot<span class="jp">点</span><span class="beta">Beta</span></span>
+        <h2>Ask from <em>anywhere.</em></h2>
+        <p>Superagent also sits as a small tile in the corner of your screen, over every app. Press <b>&#8997; Space</b>, or <b>&#8963;&#8997; V</b> to say it out loud, and ask: a question, a job, or the app itself. &ldquo;Go to the wepush chat about e2e testing.&rdquo; &ldquo;What&rsquo;s running?&rdquo; &ldquo;Start a chat in the portal to fix the header.&rdquo;</p>
+        <p>It finds the conversation from how you describe it and takes you there. Every request is an ordinary chat you can open afterwards.</p>
+        <p class="beta-note">In the 2.0 beta now. Turn on Beta updates in Settings to try it; it reaches everyone when it is ready.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:11s; --bobo:-2s">
+          <div class="scaler"><div class="mini scene">
+            <div class="d7-desk">
+            <div class="dq-win d9-other">
+            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">invoice.tsx &mdash; editor</span></div>
+            <div class="dq-code">
+            <span class="ln dk" style="width:38%"></span><span class="ln" style="width:64%"></span><span class="ln" style="width:52%"></span><span class="ln" style="width:70%"></span>
+            <span class="ln dk" style="width:30%"></span><span class="ln" style="width:58%"></span><span class="ln" style="width:44%"></span><span class="ln" style="width:66%"></span>
+            <span class="ln" style="width:36%"></span><span class="ln dk" style="width:48%"></span><span class="ln" style="width:61%"></span><span class="ln" style="width:40%"></span>
+            <span class="ln" style="width:55%"></span><span class="ln" style="width:33%"></span>
+            </div>
+            </div>
+            <div class="dq-win d9-sa">
+            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Superagent</span></div>
+            <div class="d9-body">
+            <div class="d9-side">
+            <div class="d9-grp">Projects</div>
+            <div class="d9-row proj">wepush</div>
+            <div class="d9-row sub on">e2e test and harness</div>
+            <div class="d9-row sub">Slow loads on the feed</div>
+            <div class="d9-row proj">wepush-portal</div>
+            <div class="d9-row sub">Pricing page copy</div>
+            <div class="d9-row proj">landing-page</div>
+            </div>
+            <div class="d9-chat">
+            <div class="d9-ttl">e2e test and harness<small>wepush &middot; 2 days ago</small></div>
+            <div class="d9-msg">Add a harness so the checkout flow runs headless.</div>
+            <div class="d9-reply">Done. <code>npm run e2e</code> now boots the app with a seeded shop and runs 14 flows; 13 pass, and the refund one is flaky on slow CI.</div>
+            </div>
+            </div>
+            </div>
+            <div class="dq-panel d9-panel">
+            <div class="dq-in">In <span class="dq-chip">Computer &#9662;</span></div>
+            <div class="d9-q"><span>go to the wepush chat about e2e testing</span></div>
+            <div class="dq-step d9-s1"><i></i>Looking for the chat &middot; e2e testing wepush</div>
+            <div class="dq-step d9-s2"><i></i>Opening it</div>
+            <div class="dq-ans d9-ans">You&rsquo;re now in <b>e2e test and harness</b>, in wepush.</div>
+            <div class="dq-foot d9-foot"><span>Open in Superagent &#8599;</span><span>Clear</span></div>
+            </div>
+            <div class="dq-tile d9-tile"><i></i></div>
+            </div>
+          </div></div>
+          <p class="pane-cap">A tile in the corner. Ask, and it goes there for you.</p>
+          <ul class="spec"><li>Typed or spoken</li><li>Any project, or the Mac itself</li><li>Stays out of screen shares</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · computer use: the Mac itself, when you let it -->
+  <section class="feature flip io demo" id="computer">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">IX.</span>Computer use<span class="jp">操作</span><span class="beta">Beta</span></span>
+        <h2>It can use your Mac. <em>When you let it.</em></h2>
+        <p>Off until you turn it on. Then an agent can see the screen, read an app&rsquo;s controls by name, and press, fill and click in any app, for what only an app&rsquo;s own window can do. A ring shows where it is about to act.</p>
+        <p>It asks first: for the Mac, again for each app, and every time before anything named Quit, Delete or Send. Password managers, password prompts and the lock screen are out of bounds, and so is any app you add. <b>&#8997; Esc</b> stops it from wherever you are.</p>
+        <p class="beta-note">In the 2.0 beta now. Turn on Beta updates in Settings to try it; it reaches everyone when it is ready.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:10s; --bobo:-4s">
+          <div class="scaler"><div class="mini scene">
+            <div class="d7-desk">
+            <div class="dq-win d10-app">
+            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Invoices &mdash; October</span></div>
+            <div class="d10-bar"><span class="d10-btn">Filter</span><span class="d10-btn">Share</span><span class="d10-btn go">Export&hellip;</span></div>
+            <div class="d10-table">
+            <div class="d10-tr hd"><span class="ln dk" style="width:40%"></span><span class="ln dk" style="width:50%"></span><span class="ln dk" style="width:60%"></span></div>
+            <div class="d10-tr"><span class="ln" style="width:72%"></span><span class="ln" style="width:58%"></span><span class="ln dk" style="width:70%"></span></div>
+            <div class="d10-tr"><span class="ln" style="width:55%"></span><span class="ln" style="width:66%"></span><span class="ln dk" style="width:52%"></span></div>
+            <div class="d10-tr"><span class="ln" style="width:80%"></span><span class="ln" style="width:44%"></span><span class="ln dk" style="width:64%"></span></div>
+            <div class="d10-tr"><span class="ln" style="width:62%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:48%"></span></div>
+            <div class="d10-tr"><span class="ln" style="width:48%"></span><span class="ln" style="width:52%"></span><span class="ln dk" style="width:72%"></span></div>
+            <div class="d10-tr"><span class="ln" style="width:68%"></span><span class="ln" style="width:60%"></span><span class="ln dk" style="width:56%"></span></div>
+            </div>
+            <div class="d10-sheet"><i></i>Exported invoices-october.pdf</div>
+            </div>
+            <div class="d10-ring"></div>
+            <div class="d10-pw">
+            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Passwords</span></div>
+            <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
+            <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
+            <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
+            <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
+            </div>
+            <div class="dq-panel d10-panel">
+            <div class="dq-in">In <span class="dq-chip">Computer &#9662;</span><span style="margin-left:auto">export this month&rsquo;s invoices</span></div>
+            <div class="d10-ask">Use this Mac: see the screen, click and type in your apps, for this task.<small>&#8997; Esc stops it at any time.</small></div>
+            <div class="d10-btns"><span>Not now</span><span class="yes">Allow</span></div>
+            <div class="d10-using"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
+            <div class="dq-step d10-s1"><i></i>Reading the controls &middot; Invoices</div>
+            <div class="dq-step d10-s2"><i></i>Clicking &middot; Export&hellip;</div>
+            <div class="dq-step d10-s3"><i></i>Exported invoices-october.pdf</div>
+            <div class="d10-stop"><b>Stopped.</b> Passwords is on screen, and it does not look at that.</div>
+            </div>
+            <div class="dq-tile d10-tile"><i></i></div>
+            </div>
+          </div></div>
+          <p class="pane-cap">It asks, shows where it will click, and stops at anything that holds your secrets.</p>
+          <ul class="spec"><li>Off until you turn it on</li><li>Asks per app</li><li>&#8997; Esc stops it</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="feature desk-sec io demo" id="desk">
     <div class="wrap feat-grid">
       <div class="desk-head feat-copy" data-rv>
-        <span class="kicker"><span class="num">VIII.</span>The finale<span class="jp">机</span></span>
+        <span class="kicker"><span class="num">X.</span>The finale<span class="jp">机</span></span>
         <h2>The computer <em>inside</em> Superagent.</h2>
         <p>A desktop, not a slot. Windows you can move, a dock, and more than one agent working at the same time.</p>
       </div>
@@ -3221,8 +3555,11 @@
         <div class="det" data-rv style="--d:.12s"><div class="glyph">h.</div><b>Quit means quit</b><span>Quitting stops everything it started: the agents, their background tasks, routine runs.</span></div>
         <div class="det" data-rv style="--d:.19s"><div class="glyph">i.</div><b>Stop actually stops</b><span>Interrupting a turn ends the whole job it started, a build or a dev server, not just the agent above it.</span></div>
         <div class="det" data-rv style="--d:.26s"><div class="glyph">j.</div><b>Pins in your order</b><span>Drag pinned chats into any order. Your phone follows it.</span></div>
-        <div class="det" data-rv style="--d:.33s"><div class="glyph">k.</div><b>Pictures in the reply</b><span>Images the agent puts in a reply show as previews. Click one for full size.</span></div>
+        <div class="det" data-rv style="--d:.33s"><div class="glyph">k.</div><b>Pictures, kept</b><span>Every picture in a chat in one place, by day. Download any of them, or jump back to the message it came from.</span></div>
         <div class="det" data-rv style="--d:.4s"><div class="glyph">l.</div><b>Light when idle</b><span>The status dots pulse without redrawing the window every frame, so an idle window uses far less CPU.</span></div>
+        <div class="det" data-rv style="--d:.05s"><div class="glyph">m.</div><b>One key away</b><span>&#8963;&#8997; S brings the window forward from any app. Press it again and you are back where you were.</span></div>
+        <div class="det" data-rv style="--d:.12s"><div class="glyph">n.</div><b>Say it instead</b><span>Dictation runs on your Mac, not on a server. Hold a key in a chat, or talk to the dot.</span></div>
+        <div class="det" data-rv style="--d:.19s"><div class="glyph">o.</div><b>Each agent, its own lane</b><span>An agent can only reach the tools of its own conversation. It cannot borrow another chat's permissions.</span></div>
       </div>
     </div>
   </section>
