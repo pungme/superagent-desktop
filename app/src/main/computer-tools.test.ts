@@ -24,7 +24,9 @@ const state = vi.hoisted(() => ({
   approvedApps: [] as string[],
   steps: false,
   under: '',
-  wrote: null as string | null
+  wrote: null as string | null,
+  /** Something that happens while the user is looking at a question. */
+  whileAsked: null as (() => void) | null
 }))
 vi.mock('./computer-use', () => ({
   computerUseEnabled: () => state.enabled,
@@ -96,6 +98,7 @@ vi.mock('./hooks', () => ({
   hooksIntact: () => state.hooks,
   requestApproval: vi.fn(async (_ws: string, _s: string, _tool: string, preview: string) => {
     state.asked.push(preview)
+    state.whileAsked?.()
     return state.answer
   })
 }))
@@ -140,7 +143,8 @@ beforeEach(() => {
     approvedApps: [],
     steps: false,
     under: '',
-    wrote: null
+    wrote: null,
+    whileAsked: null
   })
 })
 
@@ -365,6 +369,33 @@ describe("the agent's tools for using the Mac", () => {
       const noName = await call(c, 'computer_press', { index: 3, name: 'Export' })
       expect(text(noName)).toContain('did not allow that step')
       expect(state.acted).toHaveLength(7)
+    })
+  })
+
+  it('do nothing when things changed while the user was being asked', async () => {
+    state.consent = true
+    state.steps = true
+    state.under = 'Save'
+    await withClient(async (c) => {
+      // Another window slid under the point while the question was up.
+      state.whileAsked = () => {
+        state.under = 'Delete All'
+      }
+      const moved = await call(c, 'computer_click', { x: 5, y: 5 })
+      expect(state.asked).toEqual(['Next step: Click "Save".'])
+      expect(moved.isError).toBe(true)
+      expect(text(moved)).toContain('changed while the user was being asked')
+      expect(state.acted).toEqual([])
+
+      // ⌥Esc while the clipboard question was up: the yes that follows is no.
+      state.steps = false
+      state.whileAsked = () => {
+        state.consent = false
+      }
+      const stopped = await call(c, 'computer_clipboard_read')
+      expect(stopped.isError).toBe(true)
+      expect(text(stopped)).toContain('stopped computer use')
+      expect(text(stopped)).not.toContain('copied earlier')
     })
   })
 

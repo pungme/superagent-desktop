@@ -199,6 +199,13 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       : 'The user did not allow pasting their clipboard. Do not try another way; to paste text of your own, put it there first with computer_clipboard_write.'
   }
 
+  /**
+   * For a tool that asks and then does something itself: ⌥Esc while the
+   * question was up means no, whatever was answered afterwards.
+   */
+  const STOPPED_MEANWHILE =
+    'The user stopped computer use while that was being asked, so nothing was done. Ask again through the tool only if they want to go on.'
+
   /** Do it, let the screen catch up, and show what it looks like now. */
   const doThen = async (action: ComputerAction, said: string): Promise<Result> => {
     const no = await gate()
@@ -248,11 +255,19 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       // Step by step: each one is put to the user first, in words, unless it
       // was just asked about for being risky.
       if (!risk && stepByStep()) {
-        const step = stepText(
-          action,
-          action.type === 'click' ? (await controlAt(owner, action).catch(() => null))?.label : ''
-        )
+        const under = async (): Promise<string> =>
+          action.type === 'click'
+            ? ((await controlAt(owner, action).catch(() => null))?.label ?? '')
+            : ''
+        const label = await under()
+        const step = stepText(action, label)
         if (step && !(await askStep(step))) return failed(STEP_REFUSED)
+        // The yes was to what was named. Something else under the point by
+        // the time it was given is not what was agreed to.
+        if (step && (await under()) !== label)
+          return failed(
+            'What is under that point changed while the user was being asked, so nothing was clicked. Look again.'
+          )
       }
       await act(owner, action)
       note(said)
@@ -679,6 +694,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       // question about working in it was only just answered.
       if (!asked && stepByStep() && !(await askStep(`Open ${which.name}`)))
         return failed(STEP_REFUSED)
+      if (!hasConsent(owner)) return failed(STOPPED_MEANWHILE)
       const opened = await new Promise<string>((resolve) =>
         execFile('/usr/bin/open', ['-a', name], { timeout: 15_000 }, (err, _o, stderr) =>
           resolve(err ? String(stderr || err.message).trim() : '')
@@ -711,6 +727,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       if (no) return failed(no)
       if (known && stepByStep() && !(await askStep(`Open System Settings at ${pane}`)))
         return failed(STEP_REFUSED)
+      if (!hasConsent(owner)) return failed(STOPPED_MEANWHILE)
       const opened = await new Promise<string>((resolve) =>
         execFile('/usr/bin/open', [settingsUrl(pane)], { timeout: 15_000 }, (err, _o, stderr) =>
           resolve(err ? String(stderr || err.message).trim() : '')
@@ -746,6 +763,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       )
       if (!yes)
         return failed('The user did not allow reading the clipboard. Do not try another way.')
+      if (!hasConsent(owner)) return failed(STOPPED_MEANWHILE)
       const text = readClipboard()
       note('Read the clipboard', 'looked')
       touchConsent(owner)
