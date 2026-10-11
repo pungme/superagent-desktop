@@ -300,6 +300,18 @@ test('stuck in the browser, it sends you to the browser rather than asking to al
 
 test('the answer lands by the dot, with a way to the whole conversation', async () => {
   const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  // While it is being written it arrives as a reply does in the chat: each
+  // word in a span of its own that comes in, and code left whole.
+  await app.evaluate(({ BrowserWindow }) => {
+    for (const w of BrowserWindow.getAllWindows())
+      w.webContents.send('dot:delta', {
+        chatId: 'chat-1',
+        text: 'The **migration step** fails: `users.email` already'
+      })
+  })
+  const arriving = panel.locator('.dot-answer .md-arriving')
+  await expect.poll(() => arriving.locator('.sw').count(), { timeout: 10_000 }).toBeGreaterThan(3)
+  await expect(arriving.locator('code .sw')).toHaveCount(0)
   await event({
     kind: 'assistant',
     id: 'a1',
@@ -308,6 +320,9 @@ test('the answer lands by the dot, with a way to the whole conversation', async 
   await event({ kind: 'turn_end', ok: true, subtype: 'success' })
   await expect(panel.locator('.dot-answer')).toContainText('migration step')
   await expect(panel.locator('.dot-answer strong')).toHaveText('migration step')
+  // Whole, it is plain text again.
+  await expect(panel.locator('.dot-answer')).toContainText('exists on dev.')
+  await expect(panel.locator('.dot-answer .sw')).toHaveCount(0, { timeout: 10_000 })
   await expect(panel.getByRole('button', { name: /Open in Superagent/ })).toBeVisible()
   await expect(dot.locator('.dot-tile')).toHaveClass(/dot-idle/)
   await shoot('6-done')
