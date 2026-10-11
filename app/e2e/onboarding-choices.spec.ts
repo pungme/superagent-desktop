@@ -37,7 +37,7 @@ test.beforeAll(async () => {
     const absent = { installed: false, loggedIn: false, version: null }
     const sa = { calls: [] as [string, unknown][], lidFails: true, noLid: false }
     ;(globalThis as unknown as { sa: typeof sa }).sa = sa
-    const state = { mode: 'ask', lid: false, floor: 20, dot: true, computer: false }
+    const state = { mode: 'ask', lid: false, floor: 20, dot: false, computer: false }
     const swap = (name: string, fn: (arg: unknown) => unknown): void => {
       ipcMain.removeHandler(name)
       ipcMain.handle(name, (_e, arg) => fn(arg))
@@ -107,7 +107,7 @@ test('after the tour it asks how to behave, with the careful answers already cho
     'true'
   )
   await expect(page.getByLabel('Keep working with the lid closed')).not.toBeChecked()
-  await expect(page.getByLabel('Show the dot on my screen')).toBeChecked()
+  await expect(page.getByLabel('Show the dot on my screen')).not.toBeChecked()
   await expect(page.getByLabel('Let agents use this Mac')).not.toBeChecked()
   // Nothing is written by looking.
   expect((await seen()).calls).toEqual([])
@@ -138,12 +138,12 @@ test('each answer is saved as it is given', async () => {
     'true'
   )
   await page.locator('.choice', { hasText: 'The dot' }).locator('.switch').click()
-  await expect(page.getByLabel('Show the dot on my screen')).not.toBeChecked()
+  await expect(page.getByLabel('Show the dot on my screen')).toBeChecked()
   await page.locator('.choice', { hasText: 'Computer use' }).locator('.switch').click()
   await expect(page.getByLabel('Let agents use this Mac')).toBeChecked()
   expect((await seen()).calls).toEqual([
     ['mode', 'auto'],
-    ['dot', false],
+    ['dot', true],
     ['computer', true]
   ])
 })

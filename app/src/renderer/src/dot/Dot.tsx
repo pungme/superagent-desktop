@@ -1,4 +1,12 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties
+} from 'react'
 import { Markdown } from '../components/Markdown'
 import { useArrivingText } from '../lib/use-arriving-text'
 import { splitAssistant, type ChoiceSpec } from '../components/assistantSegments'
@@ -206,6 +214,8 @@ export function Dot(): React.JSX.Element {
   }, [])
 
   useEffect(() => window.cove.onDotSummon(() => (openRef.current ? hide() : show())), [hide, show])
+  // Out of the way for the app's own window: a half-open panel closes with it.
+  useEffect(() => window.cove.onDotAway?.(() => openRef.current && hide()), [hide])
 
   // The chat's events, as the phone would receive them.
   useEffect(() => {
@@ -228,6 +238,7 @@ export function Dot(): React.JSX.Element {
   }, [])
 
   const working = task?.status === 'working' || task?.status === 'needs'
+
   useEffect(() => {
     if (!working) return
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -271,6 +282,22 @@ export function Dot(): React.JSX.Element {
     window.cove.dotOpenProject(p.id)
     hide()
   }
+
+  // Asked to switch project (an agent's tool call, from a request made here):
+  // the dot's target moves, and the window stays away.
+  const projectsRef = useRef(projects)
+  useEffect(() => {
+    projectsRef.current = projects
+  }, [projects])
+  useEffect(
+    () =>
+      window.cove.onDotSwitchProject?.((id) => {
+        const p = projectsRef.current.find((x) => x.id === id)
+        if (p) pick(p)
+      }),
+    // pick only touches state setters and refs.
+    []
+  )
 
   const toggleMic = async (): Promise<void> => {
     if (dictation.state === 'recording') {
@@ -338,9 +365,18 @@ export function Dot(): React.JSX.Element {
             : 'idle'
   const taskProject = task ? projects.find((p) => p.id === task.workspaceId) : null
 
+  // Left alone, it fades to an ember (dot.css): a tile nobody is using has no
+  // business being on the screen all day. Its box stays where it is, so the
+  // pointer finds it, and anything happening (a request, an answer, the Mac
+  // in use, the hotkey) keeps it whole. The fade is the stylesheet's, on a
+  // delay; this only says when it may. A hidden test run shortens the wait.
+  const canRest = !open && !working && !unseen && !controlling && !listening
+  const [restMs] = useState(() => Number(localStorage.getItem('dot.restMs')) || 0)
+
   return (
     <div
-      className="dot-root"
+      className={`dot-root ${canRest ? 'dot-restable' : ''}`}
+      style={restMs ? ({ '--dot-rest-delay': `${restMs}ms` } as CSSProperties) : undefined}
       onKeyDown={(e) => {
         if (e.key !== 'Escape') return
         if (picking) setPicking(false)

@@ -1,5 +1,6 @@
 // Before everything: what the released app will not be started with.
 import './harden'
+import { afterLastWindow } from '../shared/last-window'
 import { registerMailIpc } from './mail'
 import { registerLidAwakeIpc, releaseLidAwake } from './lid-awake'
 import { QUIET } from './quiet'
@@ -80,7 +81,7 @@ import { registerImageSaveIpc } from './image-save'
 import { registerChatCopyIpc, copyStatus } from './chat-copy'
 import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
 import { buildMenu } from './menu'
-import { startAutoUpdate, isUpdateDownloaded } from './updater'
+import { startAutoUpdate, isUpdateDownloaded, installUpdateNow } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
@@ -88,7 +89,7 @@ import { chatToken } from './mcp-token'
 import { appendChatEvent } from './store'
 import { appHotkey, registerAppHotkey } from './app-hotkey'
 import { registerOpenRequests } from './open-request'
-import { dotCovers, dotHotkey, isDotWindow, registerDot, talkHotkey } from './dot'
+import { dotCovers, dotEnabled, dotHotkey, isDotWindow, registerDot, talkHotkey } from './dot'
 import {
   computerUseEnabled,
   registerComputerUseIpc,
@@ -931,9 +932,17 @@ function onAppWindowsClosed(): void {
   // nothing to lose, so take the moment. Otherwise closing the last window
   // leaves the OLD version running headless (macOS convention), and reopening
   // from the Dock resurrects the same stale process with the same "restart to
-  // update" pill: the infinite-update-loop report.
-  if (process.platform !== 'darwin' || isUpdateDownloaded()) {
-    app.quit()
+  // update" pill: the infinite-update-loop report. With the dot on, a restart
+  // rather than a quit, so the dot is back (shared/last-window.ts).
+  switch (afterLastWindow(process.platform, isUpdateDownloaded(), dotEnabled())) {
+    case 'quit':
+      app.quit()
+      break
+    case 'restart':
+      installUpdateNow()
+      break
+    case 'stay':
+      break
   }
 }
 app.on('window-all-closed', onAppWindowsClosed)

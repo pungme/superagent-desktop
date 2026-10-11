@@ -210,14 +210,19 @@ source — see [its README](https://github.com/pungme/superagent-ios).
 Turn on **Beta updates** in Settings → About to get these. They reach everyone
 when they are ready, and may change before then.
 
-- **The dot: the best agent is the one that disappears.** Close the window and
-  Superagent goes on working; what is left is a small tile in the corner of
-  your screen, over every app. Press `⌥ Space` (or `⌃⌥ V` to say it out loud)
+- **The dot: the best agent is the one that disappears.** Turn it on in
+  Settings → General (or while setting up), close the window, and Superagent
+  goes on working; what is left is a small tile in the corner of your screen,
+  over every app. Press `⌥ Space` (or `⌃⌥ V` to say it out loud)
   and ask: a question, a job, or the app itself. "Go to the wepush chat about
   e2e testing." "What's running?" "Start a chat in the portal to fix the
   header." It finds a conversation from how you describe it and brings the
   window back on it. Its project list is a switcher too: find a project, `⌘↩`,
-  and you are there. It tells you when a job is done, window or no window.
+  and you are there; "switch to the portal", said to the dot, switches the dot
+  itself and leaves the window alone. It tells you when a job is done, window
+  or no window. And it gets out of the way: hidden while Superagent's own
+  window is in front, and faded to an ember when nothing is going on, until
+  the pointer finds it.
   `⌃⌥ S` brings Superagent forward from anywhere.
 - **Computer use, off until you turn it on.** An agent can see the screen, read
   an app's controls by name, and press, fill, click and type in other apps,

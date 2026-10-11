@@ -92,17 +92,22 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
   await expect(window.locator('.sidebar')).toBeVisible()
 })
 
-test('the keys work, the dot can be turned off on its own slide, and Esc leaves', async () => {
+test('the keys work, the dot can be turned on on its own slide, and Esc leaves', async () => {
   await window.evaluate(() => window.dispatchEvent(new CustomEvent('cove:replay-tour')))
   const tour = window.getByRole('dialog', { name: 'How Superagent works' })
   await expect(tour.getByRole('heading', { name: 'Every chat on one rail' })).toBeVisible()
   await window.keyboard.press('ArrowRight')
   await window.keyboard.press('ArrowRight')
   await window.keyboard.press('ArrowRight')
-  await expect(tour.getByRole('heading', { name: 'The best agent is the one that disappears' })).toBeVisible()
+  await expect(
+    tour.getByRole('heading', { name: 'The best agent is the one that disappears' })
+  ).toBeVisible()
   // Only this slide has the switch, and it says what the app has.
   const keep = tour.getByLabel('Show the dot on my screen')
-  await expect(keep).toBeChecked()
+  // Off until turned on; the switch here is one place to do that.
+  await expect(keep).not.toBeChecked()
+  await keep.check()
+  expect(await window.evaluate(() => window.cove.dotEnabled())).toBe(true)
   await keep.uncheck()
   expect(await window.evaluate(() => window.cove.dotEnabled())).toBe(false)
   await window.keyboard.press('ArrowLeft')

@@ -2,6 +2,7 @@ import { askToOpen } from './open-request'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { bringAppForward } from './app-hotkey'
+import { dotOwns, switchDotProject } from './dot-link'
 import { dotProjects } from './dot-projects'
 import { broadcastToWindows } from './util'
 import { findProject } from '../shared/find-project'
@@ -119,7 +120,7 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
     'app_open_project',
     {
       description:
-        'Switch Superagent to a project and bring its window to the front, when the user asks to open, go to, switch to or show a project ("open wepush", "take me to the portal"). Takes the name as they said it; part of a name is enough when only one project fits. This changes what the user is looking at, so only call it when they asked for that.',
+        'Switch Superagent to a project and bring its window to the front, when the user asks to open, go to, switch to or show a project ("open wepush", "take me to the portal"). Takes the name as they said it; part of a name is enough when only one project fits. This changes what the user is looking at, so only call it when they asked for that. Asked from the dot (the floating tile), it switches the dot to that project instead, without bringing the window up.',
       inputSchema: { name: z.string().min(1).max(200) }
     },
     async ({ name }) => {
@@ -133,6 +134,10 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
                 .join(', ')}.`,
           true
         )
+      // Asked from the dot: the dot switches, and the window stays out of the
+      // way, which is the point of asking from there.
+      if (dotOwns(ctx.chatId) && switchDotProject(match.id))
+        return said(`The dot is now on ${match.name}: the next request goes there.`)
       // A quiet test run has no window to raise, and must not raise one.
       if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
       askToOpen(match.id, '')

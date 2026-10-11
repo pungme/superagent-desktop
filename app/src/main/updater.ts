@@ -36,6 +36,11 @@ export function betaUpdatesEnabled(): boolean {
 // last window otherwise leaves the OLD version running headless, and the user
 // meets the same "restart to update" pill forever.
 let updateDownloaded = false
+let installer: (() => void) | null = null
+/** Quit and relaunch into the downloaded update, now (nothing before startAutoUpdate). */
+export function installUpdateNow(): void {
+  installer?.()
+}
 export function isUpdateDownloaded(): boolean {
   return updateDownloaded
 }
@@ -222,7 +227,9 @@ export function startAutoUpdate(): void {
   })
 
   // Renderer can trigger the install immediately (quit + relaunch into the update).
-  ipcMain.on('update:install', () => {
+  // Quit and relaunch into the downloaded update, now. Also what closing the
+  // last window does with the dot on and an update waiting (index.ts).
+  const install = (): void => {
     logLine('info', `install requested (downloaded=${updateDownloaded})`)
     setImmediate(() => {
       try {
@@ -264,8 +271,9 @@ export function startAutoUpdate(): void {
         broadcast('update:error', `Restart failed: ${String((err as Error)?.message ?? err)}`)
       }
     })
-  })
-
+  }
+  installer = install
+  ipcMain.on('update:install', install)
   // "What's new" for the update banner. The auto-update feed (latest-mac.yml)
   // carries no release notes, so fetch the release body from the GitHub Releases
   // API on demand — public repo, no auth needed. Cached per version so hovering

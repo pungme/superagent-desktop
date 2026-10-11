@@ -412,7 +412,7 @@ export function Tour({ onDone }: { onDone: () => void }): React.JSX.Element {
 
   // The dot's own slide carries its switch: whether to keep it is decided
   // while looking at what it is.
-  const [dotOn, setDotOn] = useState(true)
+  const [dotOn, setDotOn] = useState(false)
   useEffect(() => {
     void window.cove.dotEnabled?.().then((on) => setDotOn(!!on))
   }, [])

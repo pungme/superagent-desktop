@@ -929,6 +929,12 @@ export interface CoveApi {
   dotMove: (dx: number, dy: number) => void
   dotMoved: () => void
   onDotSummon: (cb: () => void) => () => void
+  /** Hidden because Superagent's own window is in front: the panel closes. */
+  onDotAway: (cb: () => void) => () => void
+  /** Whether the dot is out of the way for the app's window right now. */
+  dotAway: () => Promise<boolean>
+  /** Asked, from the dot, to switch to a project: the dot's target moves there. */
+  onDotSwitchProject: (cb: (workspaceId: string) => void) => () => void
   onDotEvent: (cb: (p: { chatId: string; data: Record<string, unknown> }) => void) => () => void
   onDotDelta: (cb: (p: { chatId: string; text: string }) => void) => () => void
   onDotOpenChat: (cb: (p: { workspaceId: string; chatId: string }) => void) => () => void
@@ -1444,6 +1450,9 @@ const cove: CoveApi = {
   dotMove: (dx, dy) => ipcRenderer.send('dot:move', dx, dy),
   dotMoved: () => ipcRenderer.send('dot:moved'),
   onDotSummon: (cb) => subscribe('dot:summon', () => cb()),
+  onDotAway: (cb) => subscribe('dot:away', () => cb()),
+  dotAway: () => ipcRenderer.invoke('dot:away'),
+  onDotSwitchProject: (cb) => subscribe('dot:switch-project', (id) => cb(String(id))),
   talkHotkey: () => ipcRenderer.invoke('dot:talk-hotkey'),
   setTalkHotkey: (accelerator) => ipcRenderer.invoke('dot:set-talk-hotkey', accelerator),
   onTalkHotkey: (cb) =>

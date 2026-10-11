@@ -45,6 +45,22 @@ html.dot-window #root {
 .dot-tile:active {
   transform: scale(0.96);
 }
+/* Left alone (nothing open, nothing running: .dot-restable, Dot.tsx), after a
+   while an ember, not a tile. Under the pointer it is whole again at once, and
+   the wait starts over when the pointer leaves. */
+.dot-restable .dot-tile {
+  animation: dot-ember 1.1s ease var(--dot-rest-delay, 6s) forwards;
+}
+.dot-restable .dot-tile:hover {
+  animation: none;
+}
+@keyframes dot-ember {
+  to {
+    opacity: 0.32;
+    transform: scale(0.6);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  }
+}
 .dot-core {
   width: 15px;
   height: 15px;

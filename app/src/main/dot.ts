@@ -1,4 +1,5 @@
 import { askToOpen } from './open-request'
+import { linkDot } from './dot-link'
 import { bringAppForward } from './app-hotkey'
 import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron'
 import { join } from 'path'
@@ -49,9 +50,72 @@ const POS_KEY = 'dot.position'
 let win: BrowserWindow | null = null
 /** Chats the dot started: only their events are passed on to it. */
 const watched = new Set<string>()
+/**
+ * Out of the way because Superagent's own window is in front. The dot is for
+ * asking from anywhere else; with the app up you are already here. It comes
+ * back the moment you go to another app, or close or minimise the window.
+ */
+let awayForApp = false
 
+/** A conversation the dot started, so a tool call in it was asked from the dot. */
+export function dotOwns(chatId: string | null | undefined): boolean {
+  return !!chatId && watched.has(chatId)
+}
+
+/**
+ * Asked, from the dot, to switch to a project: the dot's own target moves
+ * there, and the next request goes to it. Superagent's window stays wherever
+ * it is, which from the dot is out of the way.
+ */
+export function switchDotProject(workspaceId: string): boolean {
+  if (!win || win.isDestroyed()) return false
+  if (!dotProjects().some((p) => p.id === workspaceId)) return false
+  send('dot:switch-project', workspaceId)
+  return true
+}
+
+/** One of the app's own windows, as against the dot: the window in question. */
+function appWindow(w: BrowserWindow | null | undefined): w is BrowserWindow {
+  return !!w && w !== win && !w.isDestroyed()
+}
+
+/** Whether one of the app's own windows is in front right now. */
+function appInFrontNow(): boolean {
+  return BrowserWindow.getAllWindows().some(
+    (w) => appWindow(w) && w.isFocused() && w.isVisible() && !w.isMinimized()
+  )
+}
+
+/** On screen, never focused: the tile is not where the keyboard goes. */
+function reveal(): void {
+  if (!win || win.isDestroyed() || win.isVisible()) return
+  if (!QUIET) win.showInactive()
+  // A hidden test run that is checking how the tile really looks on screen:
+  // the tile alone, never focused, with the app's own window still hidden.
+  else if (process.env.COVE_E2E_SHOW_DOT === '1') showInactiveForReal.call(win)
+}
+
+/** Superagent's own window came to the front (true), or left it (false). */
+function appInFront(front: boolean): void {
+  awayForApp = front
+  if (!win || win.isDestroyed()) return
+  if (front) {
+    // The panel, if open, closes with it: a question half-typed into a hidden
+    // window would be a surprise when the tile comes back.
+    send('dot:away')
+    win.hide()
+  } else reveal()
+}
+
+/**
+ * Off until turned on, in Settings → General or while setting up: a tile over
+ * every app is not something to find on your screen unasked. (A test that is
+ * about the dot has it on from the start.)
+ */
 export function dotEnabled(): boolean {
-  return kvGet(ENABLED_KEY) !== '0'
+  const v = kvGet(ENABLED_KEY)
+  if (v === '1') return true
+  return v !== '0' && process.env.COVE_E2E_DOT === '1'
 }
 
 function savedPosition(): { x: number; y: number } | null {
@@ -135,10 +199,10 @@ function createDot(): void {
     void win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#dot`)
   else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'dot' })
   win.once('ready-to-show', () => {
-    if (!QUIET) win?.showInactive()
-    // A hidden test run that is checking how the tile really looks on screen:
-    // the tile alone, never focused, with the app's own window still hidden.
-    else if (process.env.COVE_E2E_SHOW_DOT === '1' && win) showInactiveForReal.call(win)
+    // Made while the app's window is in front (turned on in Settings, say):
+    // it waits for the window to go.
+    if (appInFrontNow()) awayForApp = true
+    else reveal()
   })
   win.on('closed', () => {
     win = null
@@ -241,6 +305,30 @@ export function setDotEnabled(on: boolean): boolean {
 }
 
 export function registerDot(): void {
+  linkDot({ owns: dotOwns, switchTo: switchDotProject })
+  // Out of the way while the app's own window is in front, back when it is not.
+  // Any window of the app's counts; a window closing, hiding or minimising is
+  // checked against the rest, since a dialog going does not mean the app did.
+  app.on('browser-window-focus', (_e, w) => {
+    if (appWindow(w)) appInFront(true)
+  })
+  app.on('browser-window-blur', (_e, w) => {
+    if (w !== win) appInFront(appInFrontNow())
+  })
+  app.on('browser-window-created', (_e, w) => {
+    if (w === win) return
+    const left = (): void => appInFront(appInFrontNow())
+    w.on('hide', left)
+    w.on('minimize', left)
+    w.on('closed', left)
+  })
+  ipcMain.handle('dot:away', () => awayForApp)
+  // A hidden test run stands in for the agent, and so for dot:ask; this is how
+  // it says a conversation is the dot's.
+  if (process.env.COVE_E2E_DOT === '1')
+    (globalThis as { dotOwn?: (id: string) => void }).dotOwn = (id) => {
+      watched.add(id)
+    }
   ipcMain.handle('dot:enabled', () => dotEnabled())
   ipcMain.handle('dot:set-enabled', (_e, on: boolean) => setDotEnabled(!!on))
   ipcMain.handle('dot:projects', () => dotProjects())

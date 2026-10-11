@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -48,6 +48,7 @@ test.beforeAll(async () => {
       COVE_USER_DATA: data,
       COVE_E2E_PROJECT: proj,
       COVE_E2E_DOT: '1',
+      COVE_E2E_MCP_URL_FILE: join(data, 'mcp-url.txt'),
       NODE_ENV: 'production'
     }
   })
@@ -905,4 +906,137 @@ test('a project in the list can be gone to, not only asked in', async () => {
   await list.getByPlaceholder('Find a project…').press('Meta+Enter')
   await expect(main.locator('.settings-row')).toHaveCount(0, { timeout: 10_000 })
   await expect(panel).toBeHidden()
+})
+
+/** A tool call the way an agent in a conversation makes one (over MCP). */
+async function toolFrom(
+  ws: string,
+  chat: string,
+  name: string,
+  args: Record<string, unknown>
+): Promise<{ text: string; isError: boolean }> {
+  const urlFile = join(data, 'mcp-url.txt')
+  await expect.poll(() => existsSync(urlFile)).toBe(true)
+  const res = await fetch(
+    `${readFileSync(urlFile, 'utf8')}?ws=${encodeURIComponent(ws)}&chat=${encodeURIComponent(chat)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream'
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name, arguments: args }
+      })
+    }
+  )
+  const text = await res.text()
+  const json = text.startsWith('{')
+    ? text
+    : text
+        .split('\n')
+        .find((l) => l.startsWith('data: '))!
+        .slice(6)
+  const msg = JSON.parse(json) as {
+    result?: { isError?: boolean; content: { text?: string }[] }
+    error?: { message: string }
+  }
+  if (msg.error) throw new Error(msg.error.message)
+  return {
+    text: msg.result!.content.map((c) => c.text ?? '').join('\n'),
+    isError: !!msg.result!.isError
+  }
+}
+
+test('asked from the dot to switch project, the dot switches and the window stays away', async () => {
+  const dot = app.windows().find((p) => p.url().endsWith('#dot'))!
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  // The app is on Settings; it is still there afterwards.
+  if ((await main.locator('.settings-row').count()) === 0)
+    await main.click('.sidebar-settings[title="Settings"]')
+  await expect(main.locator('.settings-row').first()).toBeVisible()
+  // A request in the project, from the dot: the conversation is the dot's.
+  if (!(await panel.isVisible())) await dot.locator('.dot-tile').click()
+  await panel.locator('.dot-chip').click()
+  const list = panel.getByRole('listbox', { name: 'Projects' })
+  await list.locator('.dot-item', { hasText: 'e2e-project' }).click()
+  await expect(panel.locator('.dot-chip-name')).toHaveText('e2e-project')
+  await panel.getByRole('textbox').fill('switch me to the computer')
+  await panel.getByRole('textbox').press('Enter')
+  const asked = await app.evaluate(
+    () => (globalThis as unknown as { asked: { workspaceId: string }[] }).asked
+  )
+  const ws = asked[asked.length - 1].workspaceId
+  await app.evaluate(() =>
+    (globalThis as unknown as { dotOwn: (id: string) => void }).dotOwn('chat-1')
+  )
+
+  // What the agent does with "switch to the computer": the tool, from that chat.
+  const said = await toolFrom(ws, 'chat-1', 'app_open_project', { name: 'Computer' })
+  expect(said.isError).toBe(false)
+  expect(said.text).toBe('The dot is now on Computer: the next request goes there.')
+  await expect(panel.locator('.dot-chip-name')).toHaveText('Computer')
+  // The window was not touched: still on Settings.
+  await dot.waitForTimeout(400)
+  await expect(main.locator('.settings-row').first()).toBeVisible()
+
+  // From any other conversation the same call shows the project in the window.
+  const other = await toolFrom(ws, 'someone-else', 'app_open_project', { name: 'e2e-project' })
+  expect(other.text).toBe('Superagent is now showing e2e-project.')
+  await expect(main.locator('.settings-row')).toHaveCount(0, { timeout: 10_000 })
+})
+
+test("while Superagent's own window is in front the dot is hidden, and back when you leave", async () => {
+  const dot = app.windows().find((p) => p.url().endsWith('#dot'))!
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  if (!(await panel.isVisible())) await dot.locator('.dot-tile').click()
+  await expect(panel).toBeVisible()
+  expect(await dot.evaluate(() => window.cove.dotAway())).toBe(false)
+  // A window of the app's coming to the front, as macOS tells it.
+  await app.evaluate(({ app: a }) => {
+    const front = {
+      isDestroyed: () => false,
+      isFocused: () => true,
+      isVisible: () => true,
+      isMinimized: () => false
+    }
+    a.emit('browser-window-focus', {}, front)
+  })
+  await expect.poll(() => dot.evaluate(() => window.cove.dotAway())).toBe(true)
+  // The half-open panel closed with it.
+  await expect(panel).toBeHidden()
+  // Gone to another app: back.
+  await app.evaluate(({ app: a }) => {
+    a.emit('browser-window-blur', {}, { isDestroyed: () => false })
+  })
+  await expect.poll(() => dot.evaluate(() => window.cove.dotAway())).toBe(false)
+})
+
+test('left alone it fades to an ember, and the pointer brings it back', async () => {
+  const dot = app.windows().find((p) => p.url().endsWith('#dot'))!
+  // Started afresh, with a short wait: the test before left a request running.
+  await dot.evaluate(() => localStorage.setItem('dot.restMs', '300'))
+  await dot.reload()
+  await dot.waitForSelector('.dot-tile', { timeout: 20_000 })
+  const tile = dot.locator('.dot-tile')
+  const opacity = (): Promise<number> => tile.evaluate((el) => Number(getComputedStyle(el).opacity))
+  // Nothing open, nothing working: after a while, an ember.
+  await expect(dot.locator('.dot-root')).toHaveClass(/dot-restable/)
+  await dot.mouse.move(2, 2)
+  await expect.poll(opacity, { timeout: 5000 }).toBeLessThan(0.5)
+  // The pointer arriving makes it whole, and it rests again once the pointer is gone.
+  await tile.hover()
+  await expect.poll(opacity, { timeout: 5000 }).toBe(1)
+  await dot.mouse.move(2, 2)
+  await expect.poll(opacity, { timeout: 5000 }).toBeLessThan(0.5)
+  // Something to look at keeps it whole: the panel open.
+  await tile.click()
+  await expect(dot.getByRole('dialog', { name: 'Ask Superagent' })).toBeVisible()
+  await expect(dot.locator('.dot-root')).not.toHaveClass(/dot-restable/)
+  await expect.poll(opacity).toBe(1)
+  await dot.keyboard.press('Escape')
+  await dot.evaluate(() => localStorage.removeItem('dot.restMs'))
 })

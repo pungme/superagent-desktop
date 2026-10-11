@@ -16,7 +16,7 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
   const [lidError, setLidError] = useState('')
   const [hasLid, setHasLid] = useState(true)
   const [floor, setFloor] = useState(20)
-  const [dot, setDot] = useState(true)
+  const [dot, setDot] = useState(false)
   const [computer, setComputer] = useState(false)
   const [computerOk, setComputerOk] = useState(true)
 
@@ -25,7 +25,7 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
     void window.cove.lidAwake?.().then((on) => setLid(!!on))
     void window.cove.hasLid?.().then((yes) => setHasLid(yes !== false))
     void window.cove.batteryFloor?.().then(setFloor)
-    void window.cove.dotEnabled?.().then((on) => setDot(on !== false))
+    void window.cove.dotEnabled?.().then((on) => setDot(!!on))
     void window.cove.computerStatus?.().then((s) => {
       setComputer(!!s?.enabled)
       setComputerOk(s?.supported !== false)
@@ -135,7 +135,7 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
               </b>
               <span>
                 A small tile in the corner of your screen, over every app. Press ⌥ Space and ask,
-                with Superagent&rsquo;s window open or closed.
+                with Superagent&rsquo;s window open or closed. Off unless you turn it on.
               </span>
             </div>
             <label className="switch">
