@@ -342,10 +342,10 @@ describe("the agent's tools for using the Mac", () => {
       await call(c, 'computer_fill', { index: 4, name: 'Title', text: 'Notes' })
       expect(state.asked).toEqual([
         'Next step: Click "Save".',
-        'Next step: Type "Dear all,…" (21 characters).',
+        'Next step: Type "Dear all, ⏎ second line" (2 lines).',
         'Next step: Press cmd+s.',
         'Next step: Press "Export".',
-        'Next step: Put 5 characters in "Title".'
+        'Next step: Put this in "Title": "Notes".'
       ])
       expect(state.acted).toHaveLength(5)
       // Looking, scrolling and moving the pointer are not asked about.
@@ -394,11 +394,17 @@ describe("the agent's tools for using the Mac", () => {
       // A name that ends or destroys something is asked about every time.
       await call(c, 'computer_menu', { path: 'TextEdit > Quit TextEdit' })
       expect(state.asked[1]).toContain('Pick TextEdit > Quit TextEdit: it quits an app')
+      // However the path is dressed: a ">" on the end used to hide the item.
+      const before = state.asked.length
+      await call(c, 'computer_menu', { path: 'TextEdit > Quit TextEdit >' })
+      expect(state.asked[before]).toContain('Pick TextEdit > Quit TextEdit: it quits an app')
+      expect(state.acted.at(-1)).toEqual({ type: 'menu', path: 'TextEdit > Quit TextEdit' })
+      expect((await call(c, 'computer_menu', { path: 'Quit >' })).isError).toBe(true)
       state.answer = false
       const no = await call(c, 'computer_press', { index: 9, name: 'Empty Trash…' })
       expect(no.isError).toBe(true)
-      expect(state.asked[2]).toContain('Press "Empty Trash…": it deletes for good')
-      expect(state.acted).toHaveLength(4)
+      expect(state.asked.at(-1)).toContain('Press "Empty Trash…": it deletes for good')
+      expect(state.acted).toHaveLength(5)
     })
   })
 

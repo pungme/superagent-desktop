@@ -333,7 +333,7 @@ async function onlyAllowed(
     windows = await layout()
   } catch {
     throw new Error(
-      'The windows on screen could not be listed, so a picture showing only the allowed apps cannot be made. computer_read_ui still works on the app in front.'
+      'The windows on screen could not be listed, so a picture showing only the allowed apps cannot be made.'
     )
   }
   const { width, height } = image.getSize()
@@ -402,9 +402,15 @@ export async function readUi(
     const at = pointerNow()
     if (at) pointerLeftAt.set(owner, at)
   }
-  if (isSelfApp(front?.id))
+  if (isSelfApp(front?.id) || own.focused())
     throw new Error(
       "Superagent's own window is in front; bring the app you mean to the front first."
+    )
+  // Shown only the apps that were allowed: that holds for their controls by
+  // name as it does for a picture of them.
+  if (focusedView() && front && !appApproved(owner, front.id) && appRule(front.id) !== 'look')
+    throw new Error(
+      `${front.name} has not been allowed for this conversation, and the user shows you only the apps they allowed. To work in it, open it with computer_open_mac_app, and the user is asked.`
     )
   const { ok, out, error } = await cuse(['ax', '160'])
   if (!ok && error) throw new Error(error)
@@ -436,6 +442,13 @@ async function mayActByName(owner: string): Promise<AppRef> {
   if (!hasConsent(owner))
     throw new Error(
       'The user has not allowed this conversation to use the Mac. Ask again through the tool.'
+    )
+  // The helper acts on the app that holds the keyboard, which the dot's panel
+  // can while another app is "in front": never on Superagent's own controls,
+  // where the question it is asking has an Allow button.
+  if (own.focused())
+    throw new Error(
+      "The keyboard is in Superagent's own window, and computer use does not act there. Wait for the user, or bring the app you mean to the front."
     )
   claim(owner)
   // The numbers are those of the app that was read. Another in front now: read again.

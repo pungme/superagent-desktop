@@ -36,6 +36,8 @@ const WAYS: [pattern: RegExp, what: string][] = [
     /\b(CGDisplayCreateImage|CGWindowListCreateImage|SCScreenshotManager|ImageGrab\.grab|mss\(\))/,
     "photographs the user's screen"
   ],
+  // The clipboard, which the tools ask about each time it is read.
+  [/(^|[\s;&|(`'"/])pbpaste(["'`\s;&|)]|$)/, "reads the user's clipboard"],
   // Granting itself the permissions, or resetting them.
   [/\btccutil\b/, "changes this Mac's privacy permissions"],
   [/TCC\.db/, "changes this Mac's privacy permissions"]

@@ -17,6 +17,9 @@ describe("the agent's shell is not a second way to the mouse, keyboard or screen
       'screencapture -x /tmp/s.png',
       'echo ok && /usr/sbin/screencapture -R0,0,100,100 a.png',
       'tccutil reset Accessibility',
+      'pbpaste',
+      'pbpaste | head -c 400',
+      'x=$(pbpaste); echo $x',
       `sqlite3 ~/Library/Application\\ Support/com.apple.TCC/TCC.db "update access set auth_value=2"`
     ])
       expect(computerShellVerdict(cmd), cmd).toMatch(/^Blocked by Superagent/)
@@ -24,6 +27,8 @@ describe("the agent's shell is not a second way to the mouse, keyboard or screen
   it('leaves ordinary commands alone, including ones that only mention the words', () => {
     for (const cmd of [
       'git status',
+      'git diff | pbcopy',
+      'cat notes/pbpaste-usage.md',
       'npm test',
       'ls native/',
       'grep -rn "screencaptures" docs/',

@@ -524,14 +524,16 @@ if [ "$1" = "PreToolUse" ] || [ "$1" = "PermissionRequest" ]; then
   # stdout, which is how Claude Code reads the verdict. Fail open: if the app is
   # unreachable and curl times out, we print nothing and exit 0 (tool proceeds),
   # so the guardrail can never wedge the agent.
-  resp=$(curl -sS -X POST "$COVE_HOOK_URL/$1" \\
+  # -q --noproxy: not the user's ~/.curlrc and no proxy. One line written there
+  # (by an agent, say) would send this nowhere, and nowhere reads as "allowed".
+  resp=$(curl -q --noproxy '*' -sS -X POST "$COVE_HOOK_URL/$1" \\
     -H "x-cove-workspace: \${COVE_WORKSPACE_ID:-}" \\
     -H "content-type: application/json" \\
     --max-time 590 -d @- 2>/dev/null)
   [ -n "$resp" ] && printf '%s' "$resp"
   exit 0
 fi
-curl -sS -X POST "$COVE_HOOK_URL/$1" \\
+curl -q --noproxy '*' -sS -X POST "$COVE_HOOK_URL/$1" \\
   -H "x-cove-workspace: \${COVE_WORKSPACE_ID:-}" \\
   -H "content-type: application/json" \\
   --max-time 2 -d @- >/dev/null 2>&1

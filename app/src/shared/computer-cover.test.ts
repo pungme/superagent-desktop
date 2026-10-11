@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   coverOthers,
+  menuLevels,
+  shownText,
   stepText,
   windowPart,
   type LaidWindow,
@@ -112,15 +114,22 @@ describe('a step, said before it is taken', () => {
     )
     expect(stepText({ type: 'click', x: 1, y: 2, button: 'right' })).toBe('Right-click at 1, 2')
   })
-  it('shows only the start of what would be typed', () => {
-    expect(stepText({ type: 'type', text: 'hello' })).toBe('Type "hello" (5 characters)')
-    expect(stepText({ type: 'type', text: 'a'.repeat(200) })).toBe(
-      `Type "${'a'.repeat(60)}…" (200 characters)`
+  it('shows all of what would be typed, line breaks and all', () => {
+    expect(stepText({ type: 'type', text: 'hello' })).toBe('Type "hello"')
+    // The second line is the one that matters.
+    expect(stepText({ type: 'type', text: 'echo hi\nrm -rf ~\n' })).toBe(
+      'Type "echo hi ⏎ rm -rf ~ ⏎ " (3 lines)'
     )
+    expect(shownText('a'.repeat(700))).toBe(`"${'a'.repeat(600)}"… and 100 more characters`)
     expect(stepText({ type: 'key', keys: 'cmd+s' })).toBe('Press cmd+s')
     expect(stepText({ type: 'drag', x: 1, y: 2, toX: 30, toY: 40 })).toBe(
       'Drag from 1, 2 to 30, 40'
     )
+  })
+  it('reads a menu path the way the helper will, whatever is put on the end', () => {
+    expect(menuLevels('File > Export > PDF…')).toEqual(['File', 'Export', 'PDF…'])
+    expect(menuLevels('Safari > Quit Safari >')).toEqual(['Safari', 'Quit Safari'])
+    expect(menuLevels(' > Finder >> Empty Trash… > > ')).toEqual(['Finder', 'Empty Trash…'])
   })
   it('has nothing to ask about a move or a scroll', () => {
     expect(stepText({ type: 'move' })).toBeNull()

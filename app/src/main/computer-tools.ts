@@ -40,7 +40,9 @@ import {
   SYSTEM_SETTINGS,
   type SettingsPane,
   riskyShortcut,
+  menuLevels,
   stepText,
+  shownText,
   validKeyCombo
 } from '../shared/computer-use'
 
@@ -393,7 +395,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     ({ index, name, text }) =>
       byName(
         null,
-        `Put ${text.length} characters in "${name}"`,
+        `Put this in "${name}": ${shownText(text)}`,
         () => fillControl(owner, index, name, text),
         `Filled "${name}".`
       )
@@ -407,12 +409,20 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       inputSchema: { path: z.string().min(1).max(300) }
     },
     ({ path }) => {
-      const last = path.split('>').pop()?.trim() ?? ''
+      // The levels as the helper will take them: it drops an empty one, so a
+      // path ending in ">" used to be judged by its nothing and pick its
+      // "Quit" unasked. What is judged and what is picked are the same list.
+      const levels = menuLevels(path)
+      if (levels.length < 2)
+        return Promise.resolve(
+          failed('Give the menu and the item, with ">" between them: "File > Save".')
+        )
+      const clean = levels.join(' > ')
       return byName(
-        riskyControl('AXMenuItem', last),
-        `Pick ${path}`,
-        () => pickMenu(owner, path),
-        `Picked ${path}.`
+        riskyControl('AXMenuItem', levels[levels.length - 1]),
+        `Pick ${clean}`,
+        () => pickMenu(owner, clean),
+        `Picked ${clean}.`
       )
     }
   )
@@ -649,8 +659,11 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       }
     },
     async ({ pane }) => {
+      const known = appApproved(owner, SYSTEM_SETTINGS.id)
       const no = (await gate()) ?? (await mayWorkIn(SYSTEM_SETTINGS))
       if (no) return failed(no)
+      if (known && stepByStep() && !(await askStep(`Open System Settings at ${pane}`)))
+        return failed(STEP_REFUSED)
       const opened = await new Promise<string>((resolve) =>
         execFile('/usr/bin/open', [settingsUrl(pane)], { timeout: 15_000 }, (err, _o, stderr) =>
           resolve(err ? String(stderr || err.message).trim() : '')
@@ -712,7 +725,10 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     async ({ text }) => {
       const no = await gate()
       if (no) return failed(no)
+      if (stepByStep() && !(await askStep(`Put this on the clipboard: ${shownText(text)}`)))
+        return failed(STEP_REFUSED)
       writeClipboard(text)
+      note(`Put ${text.length} characters on the clipboard`)
       touchConsent(owner)
       return {
         content: [

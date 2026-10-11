@@ -622,14 +622,29 @@ export function stepText(
     }
     case 'drag':
       return `Drag from ${Math.round(action.x)}, ${Math.round(action.y)} to ${Math.round(action.toX)}, ${Math.round(action.toY)}`
-    case 'type': {
-      // The first line only, and not much of it: enough to know what it is.
-      const lines = action.text.split('\n')
-      const first = lines[0].slice(0, 60)
-      const more = lines.length > 1 || lines[0].length > 60
-      return `Type "${first}${more ? '…' : ''}" (${action.text.length} characters)`
-    }
+    case 'type':
+      return `Type ${shownText(action.text)}`
     case 'key':
       return `Press ${action.keys}`
   }
+}
+
+/**
+ * Text about to be typed or put somewhere, as the question shows it: all of
+ * it up to a generous length, with each line break visible. A question that
+ * showed only the first line let "echo hi" be approved with "rm -rf" under it.
+ */
+export function shownText(text: string, max = 600): string {
+  const lines = text.split('\n').length
+  const shown = text.slice(0, max).replace(/\r?\n/g, ' ⏎ ')
+  const cut = text.length > max ? `… and ${text.length - max} more characters` : ''
+  return `"${shown}"${cut}${lines > 1 ? ` (${lines} lines)` : ''}`
+}
+
+/** The levels of a menu path written "File > Export > PDF…", empty ones dropped. */
+export function menuLevels(path: string): string[] {
+  return path
+    .split('>')
+    .map((s) => s.trim())
+    .filter(Boolean)
 }

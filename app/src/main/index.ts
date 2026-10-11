@@ -1,3 +1,5 @@
+// Before everything: what the released app will not be started with.
+import './harden'
 import { registerMailIpc } from './mail'
 import { registerLidAwakeIpc, releaseLidAwake } from './lid-awake'
 import { QUIET } from './quiet'
