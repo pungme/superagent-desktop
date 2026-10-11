@@ -396,3 +396,44 @@ test("the Computer chat's tools still start when computer use is on", async () =
   }
   await window.evaluate(() => window.cove.setComputerUse(false))
 })
+
+// Last: it closes the window.
+test('asked for a conversation with the window closed, a new window opens on it', async () => {
+  // Two named conversations, the first of them on screen.
+  const ids = await window.evaluate(async (ws) => {
+    const all = await window.cove.chatList(ws)
+    return all.slice(0, 2).map((c) => c.id)
+  }, wsId)
+  await tool('app_rename_chat', { chatId: ids[0], title: 'Left open' })
+  await tool('app_rename_chat', { chatId: ids[1], title: 'Asked for from the dot' })
+  await tool('app_open_chat', { chatId: ids[0] })
+  await expect(window.locator('.chat-tree-row.selected, .sidebar-branch.on')).toContainText(
+    'Left open'
+  )
+
+  // The window is closed. Superagent goes on: the dot, the agents, this tool server.
+  await window.close()
+  await expect.poll(() => app.windows().length).toBe(0)
+  expect((await tool('app_open_chat', { chatId: ids[1] })).isError).toBe(false)
+
+  // A window comes up (a click on the Dock icon, here) and goes where it was asked.
+  const opening = app.waitForEvent('window')
+  await app.evaluate(({ app: a }) => {
+    a.emit('activate')
+  })
+  const again = await opening
+  await again.waitForSelector('.sidebar', { timeout: 20_000 })
+  await expect(again.locator('.chat-tree-row.selected, .sidebar-branch.on')).toContainText(
+    'Asked for from the dot',
+    {
+      timeout: 15_000
+    }
+  )
+  // Once: loaded again, it starts where a window starts, not sent there a
+  // second time by an old request.
+  await again.reload()
+  await again.waitForSelector('.sidebar', { timeout: 20_000 })
+  const row = again.locator('.chat-tree-row.selected, .sidebar-branch.on')
+  await expect(row).toBeVisible({ timeout: 15_000 })
+  await expect(row).not.toContainText('Asked for from the dot')
+})

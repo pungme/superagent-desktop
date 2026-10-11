@@ -26,11 +26,12 @@ const MAX_BEHIND = 900
 /**
  * How many characters of `target` to show now, having shown `shown`, `dtMs`
  * after the last step. Ends on the end of a word, so a word is never seen
- * half-written and then finished.
+ * half-written and then finished. `open`: more is arriving right now, so the
+ * last word may be unfinished and is held back until it is whole.
  */
-export function nextReveal(shown: number, target: string, dtMs: number): number {
-  const total = target.length
-  if (shown >= total) return total
+export function nextReveal(shown: number, target: string, dtMs: number, open = false): number {
+  const total = wholeWords(target, open)
+  if (shown >= total) return Math.min(shown, target.length)
   const from = Math.max(shown, total - MAX_BEHIND)
   const behind = total - from
   const step = Math.max(1, Math.round(((MIN_RATE + behind * CATCH_UP) * Math.max(0, dtMs)) / 1000))
@@ -43,6 +44,21 @@ export function nextReveal(shown: number, target: string, dtMs: number): number 
   }
   return n
 }
+
+/**
+ * How much of `target` may be shown: all of it, or, while more is still
+ * arriving (`open`), up to the end of its last finished word. A burst ends
+ * wherever the network cut it, often mid-word, and "the pro" on its way to
+ * "the problem" reads as a stumble.
+ */
+export function wholeWords(target: string, open: boolean): number {
+  if (!open) return target.length
+  for (let i = target.length - 1; i >= 0; i--) if (/\s/.test(target[i])) return i + 1
+  return 0
+}
+
+/** How long after the last of it arrived a reply still counts as mid-burst. */
+export const OPEN_MS = 300
 
 interface HNode {
   type: string

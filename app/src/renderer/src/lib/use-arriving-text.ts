@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { nextReveal } from './stream-words'
+import { nextReveal, OPEN_MS } from './stream-words'
 
 /**
  * What to show of a reply that is being written. The text arrives in bursts;
@@ -15,7 +15,12 @@ export function useArrivingText(text: string, streaming: boolean): { text: strin
   const [everStreamed, setEverStreamed] = useState(streaming)
   if (streaming && !everStreamed) setEverStreamed(true)
   const target = useRef(text)
+  // When the reply last grew: just now means a burst may have ended mid-word.
+  const grewAt = useRef(0)
+  if (target.current !== text) grewAt.current = performance.now()
   target.current = text
+  const live = useRef(streaming)
+  live.current = streaming
   const behind = shown < text.length
   const running = everStreamed && (streaming || behind)
   useEffect(() => {
@@ -30,7 +35,8 @@ export function useArrivingText(text: string, streaming: boolean): { text: strin
     const tick = (now: number): void => {
       const dt = now - last
       last = now
-      setShown((n) => nextReveal(n, target.current, dt))
+      const open = live.current && now - grewAt.current < OPEN_MS
+      setShown((n) => nextReveal(n, target.current, dt, open))
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)

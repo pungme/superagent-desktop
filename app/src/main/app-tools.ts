@@ -1,3 +1,4 @@
+import { askToOpen } from './open-request'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { bringAppForward } from './app-hotkey'
@@ -88,7 +89,7 @@ const chatLine = (c: FindableChat & { running: boolean }): string =>
 function showChat(workspaceId: string, chatId: string): void {
   // A quiet test run has no window to raise, and must not raise one.
   if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
-  broadcastToWindows('dot:open-chat', { workspaceId, chatId })
+  askToOpen(workspaceId, chatId)
 }
 
 export interface AppToolsContext {
@@ -134,7 +135,7 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
         )
       // A quiet test run has no window to raise, and must not raise one.
       if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
-      broadcastToWindows('dot:open-chat', { workspaceId: match.id, chatId: '' })
+      askToOpen(match.id, '')
       return said(`Superagent is now showing ${match.name}.`)
     }
   )
@@ -519,7 +520,7 @@ export function registerAppTools(server: McpServer, ctx: AppToolsContext): void 
               : `No project is called "${project}".`,
             true
           )
-        broadcastToWindows('dot:open-chat', { workspaceId: match.id, chatId: '' })
+        askToOpen(match.id, '')
         where = ` of ${match.name}`
         // The project's own view has to be the one on screen before it is asked.
         await new Promise((r) => setTimeout(r, 350))

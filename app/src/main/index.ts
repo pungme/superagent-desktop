@@ -87,6 +87,7 @@ import { startCrashRelaunch } from './crash-relaunch'
 import { chatToken } from './mcp-token'
 import { appendChatEvent } from './store'
 import { appHotkey, registerAppHotkey } from './app-hotkey'
+import { registerOpenRequests } from './open-request'
 import { dotCovers, dotHotkey, isDotWindow, registerDot, talkHotkey } from './dot'
 import {
   computerUseEnabled,
@@ -311,6 +312,7 @@ app.whenReady().then(async () => {
   registerSkillsIpc()
   registerRoutinesIpc()
   registerEnvironmentIpc()
+  registerOpenRequests()
   registerDot()
   registerAppHotkey({
     window: () =>

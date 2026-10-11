@@ -1,3 +1,5 @@
+import { askToOpen } from './open-request'
+import { bringAppForward } from './app-hotkey'
 import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
@@ -74,11 +76,6 @@ function place(): void {
 
 function send(channel: string, payload?: unknown): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
-}
-
-/** The app's own window, as opposed to the dot. */
-function mainWindow(): BrowserWindow | null {
-  return BrowserWindow.getAllWindows().find((w) => w !== win && !w.isDestroyed()) ?? null
 }
 
 /** The panel is open: its whole window can hold buttons, an Allow among them. */
@@ -315,13 +312,12 @@ export function registerDot(): void {
   /** "Open in Superagent": bring the main window up on that conversation. */
   ipcMain.on('dot:open', (_e, chatId: string) => {
     const chat = getChat(String(chatId))
-    const main = mainWindow()
-    if (!chat || !main) return
-    if (main.isMinimized()) main.restore()
-    main.show()
-    main.focus()
-    app.focus({ steal: true })
-    main.webContents.send('dot:open-chat', { workspaceId: chat.workspaceId, chatId: chat.id })
+    if (!chat) return
+    // The window may have been closed: Superagent goes on without it, and
+    // this is the way back in. It is opened again, and told where to go
+    // once it is up (open-request.ts).
+    if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
+    askToOpen(chat.workspaceId, chat.id)
   })
 
   logBus.on('event', ({ event }: { event: { chatId: string; data: unknown } }) => {

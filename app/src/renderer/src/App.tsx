@@ -322,7 +322,13 @@ function App(): React.JSX.Element {
     window.addEventListener('cove:new-chat', onNewChat)
     // "Open in Superagent" on the dot: straight to that conversation, whether
     // it is a project's or one of the Computer's own.
-    const offDotOpen = window.cove.onDotOpenChat?.(async ({ workspaceId, chatId }) => {
+    const goTo = async ({
+      workspaceId,
+      chatId
+    }: {
+      workspaceId: string
+      chatId: string
+    }): Promise<void> => {
       const home = await window.cove.desktopChatHome?.()
       const s = useStore.getState()
       await s.refresh()
@@ -334,6 +340,15 @@ function App(): React.JSX.Element {
       }
       // No chat named: the agent was asked for the project, not a conversation.
       if (chatId) useStore.getState().selectChat(workspaceId, chatId)
+    }
+    const offDotOpen = window.cove.onDotOpenChat?.((p) => {
+      window.cove.openDelivered?.()
+      void goTo(p)
+    })
+    // Asked for while there was no window (it had been closed; the dot and the
+    // agents go on without it): this one was opened to show it.
+    void window.cove.pendingOpen?.().then((p) => {
+      if (p) void goTo(p)
     })
     // Where the user has been, so "go back" (app_go_back) has somewhere to go.
     let history: Visit[] = []

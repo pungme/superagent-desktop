@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextReveal, rehypeStreamWords } from './stream-words'
+import { nextReveal, rehypeStreamWords, wholeWords } from './stream-words'
 
 describe('the pace a reply is shown at', () => {
   const text = 'The quick brown fox jumps over the lazy dog, twice over. '.repeat(40)
@@ -32,6 +32,22 @@ describe('the pace a reply is shown at', () => {
     expect(nextReveal(500, text.slice(0, 500), 16)).toBe(500)
     // A reply that got shorter (it never does) does not run past its end.
     expect(nextReveal(500, 'short', 16)).toBe(5)
+  })
+})
+
+describe('a burst that ends mid-word', () => {
+  it('is shown up to its last whole word while more is arriving', () => {
+    expect(wholeWords('The header was the pro', true)).toBe('The header was the '.length)
+    expect(wholeWords('The header was the pro', false)).toBe(22)
+    expect(wholeWords('Th', true)).toBe(0)
+    expect(wholeWords('Done. ', true)).toBe(6)
+    // However long it is given, the half word is not shown…
+    expect(nextReveal(0, 'The header was the pro', 5000, true)).toBe(19)
+    // …until the rest of it comes, or nothing more is on its way.
+    expect(nextReveal(19, 'The header was the problem. ', 5000, true)).toBe(28)
+    expect(nextReveal(19, 'The header was the pro', 5000, false)).toBe(22)
+    // What is already on screen is never taken back.
+    expect(nextReveal(22, 'The header was the pro', 16, true)).toBe(22)
   })
 })
 
