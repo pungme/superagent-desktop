@@ -921,6 +921,8 @@ export interface CoveApi {
   dotAnswer: (approvalId: string, approve: boolean) => Promise<boolean>
   /** Bring the main window up on this conversation. */
   dotOpen: (chatId: string) => void
+  /** Show a project in Superagent's window, opening one if it was closed. */
+  dotOpenProject: (workspaceId: string) => void
   /** Whether the pointer is over something drawn (true) or see-through (false). */
   dotSolid: (solid: boolean) => void
   dotFocus: (want: boolean) => void
@@ -1431,6 +1433,7 @@ const cove: CoveApi = {
   dotStop: (chatId) => ipcRenderer.invoke('dot:stop', chatId),
   dotAnswer: (id, approve) => ipcRenderer.invoke('dot:answer', id, approve),
   dotOpen: (chatId) => ipcRenderer.send('dot:open', chatId),
+  dotOpenProject: (workspaceId) => ipcRenderer.send('dot:open-project', workspaceId),
   dotSolid: (solid) => ipcRenderer.send('dot:solid', solid),
   dotFocus: (want) => ipcRenderer.send('dot:focus', want),
   dotMove: (dx, dy) => ipcRenderer.send('dot:move', dx, dy),

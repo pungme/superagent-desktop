@@ -868,3 +868,41 @@ test('it can be turned off in Settings, and back on', async () => {
   await expect(row.locator('input[type="checkbox"]')).toBeChecked()
   await expect.poll(() => app.windows().length).toBe(2)
 })
+
+test('a project in the list can be gone to, not only asked in', async () => {
+  // The app is on Settings; the dot's list is the quick way to a project.
+  if ((await main.locator('.settings-row').count()) === 0)
+    await main.click('.sidebar-settings[title="Settings"]')
+  await expect(main.locator('.settings-row').first()).toBeVisible()
+  // The test before turned the dot off and on: it is a new window.
+  await expect.poll(() => app.windows().some((p) => p.url().endsWith('#dot'))).toBe(true)
+  const dot = app.windows().find((p) => p.url().endsWith('#dot'))!
+  await dot.waitForSelector('.dot-tile', { timeout: 20_000 })
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  if (!(await panel.isVisible())) await dot.locator('.dot-tile').click()
+  await expect(panel).toBeVisible()
+  await panel.locator('.dot-chip').click()
+  const list = panel.getByRole('listbox', { name: 'Projects' })
+  await expect(list).toContainText('⌘↩ open it in Superagent')
+  // The Mac itself is not a project to go to.
+  const computer = list.locator('.dot-item', { hasText: 'Computer' }).first()
+  await expect(computer.locator('.dot-item-go')).toHaveCount(0)
+
+  const row = list.locator('.dot-item', { hasText: 'e2e-project' })
+  await row.hover()
+  await row.getByRole('button', { name: 'Open e2e-project in Superagent' }).click()
+  // The window is on the project, and the dot has got out of the way.
+  await expect(main.locator('.workspace-toolbar:visible')).toBeVisible({ timeout: 10_000 })
+  await expect(main.locator('.settings-row')).toHaveCount(0)
+  await expect(panel).toBeHidden()
+
+  // The same from the keyboard: find it, ⌘↩.
+  await main.click('.sidebar-settings[title="Settings"]')
+  await expect(main.locator('.settings-row').first()).toBeVisible()
+  await dot.locator('.dot-tile').click()
+  await panel.locator('.dot-chip').click()
+  await list.getByPlaceholder('Find a project…').fill('e2e')
+  await list.getByPlaceholder('Find a project…').press('Meta+Enter')
+  await expect(main.locator('.settings-row')).toHaveCount(0, { timeout: 10_000 })
+  await expect(panel).toBeHidden()
+})

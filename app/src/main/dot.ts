@@ -305,6 +305,13 @@ export function registerDot(): void {
     }
     return { ok: true as const, chatId, workspaceId: wsId }
   })
+  /** A project picked in the dot's list to go to, rather than to ask in. */
+  ipcMain.on('dot:open-project', (_e, workspaceId: string) => {
+    const id = String(workspaceId)
+    if (!dotProjects().some((p) => p.id === id && p.kind !== 'computer')) return
+    if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
+    askToOpen(id, '')
+  })
   ipcMain.handle('dot:stop', (_e, chatId: string) => stopFromDot(String(chatId)))
   ipcMain.handle('dot:answer', (_e, id: string, approve: boolean) =>
     resolveGate(String(id), !!approve, false, 'desktop')

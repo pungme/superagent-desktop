@@ -266,6 +266,12 @@ export function Dot(): React.JSX.Element {
     setTimeout(() => inputRef.current?.focus(), 30)
   }
 
+  /** Go to a project in Superagent's window, and get out of the way. */
+  const goTo = (p: Project): void => {
+    window.cove.dotOpenProject(p.id)
+    hide()
+  }
+
   const toggleMic = async (): Promise<void> => {
     if (dictation.state === 'recording') {
       const heard = (await dictation.stop()).trim()
@@ -384,7 +390,9 @@ export function Dot(): React.JSX.Element {
                     setCursor((c) => (shown.length ? (c + step + shown.length) % shown.length : 0))
                   }
                   const at = shown[Math.min(cursor, shown.length - 1)]
-                  if (e.key === 'Enter' && at) pick(at)
+                  // ⌘↩ goes to the project; ↩ alone asks in it.
+                  if (e.key === 'Enter' && at && e.metaKey && at.kind !== 'computer') goTo(at)
+                  else if (e.key === 'Enter' && at) pick(at)
                 }}
               />
               <div className="dot-menu-list">
@@ -407,6 +415,22 @@ export function Dot(): React.JSX.Element {
                     >
                       <Mark project={p} />
                       <span className="dot-item-name">{p.name}</span>
+                      {p.kind !== 'computer' && (
+                        // Not a button inside a button: a mark that takes its own click.
+                        <span
+                          role="button"
+                          tabIndex={-1}
+                          className="dot-item-go"
+                          title={`Open ${p.name} in Superagent (⌘↩)`}
+                          aria-label={`Open ${p.name} in Superagent`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            goTo(p)
+                          }}
+                        >
+                          ↗
+                        </span>
+                      )}
                       <span className="dot-item-note">
                         {p.id === project.id
                           ? '✓'
@@ -420,6 +444,10 @@ export function Dot(): React.JSX.Element {
                   </Fragment>
                 ))}
                 {shown.length === 0 && <div className="dot-empty">No project by that name.</div>}
+              </div>
+              <div className="dot-menu-keys" aria-hidden>
+                <span>↩ ask in it</span>
+                <span>⌘↩ open it in Superagent</span>
               </div>
             </div>
           )}
