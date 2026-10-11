@@ -1724,7 +1724,7 @@
     .dx-act.on .dx-in { animation: dxin 0.4s var(--ease) var(--at, 0s) both; }
     @keyframes dxin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
     .dx-q span { animation: none; clip-path: inset(0 100% 0 0); }
-    .dx-act.on .dx-q span { animation: dxtype var(--dur, 1.4s) steps(var(--n, 38), end) 0.55s both; }
+    .dx-act.on .dx-q span, .cx-act.on .dx-q span { animation: dxtype var(--dur, 1.4s) steps(var(--n, 38), end) 0.55s both; }
     @keyframes dxtype { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
     .dx-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
     .dx-li { display: flex; align-items: center; gap: 6px; font-size: 0.57rem; color: rgba(255, 255, 255, 0.82); }
@@ -1776,6 +1776,116 @@
     }
     .dx-acts li:hover { color: var(--ink); }
     .dx-acts li.on { color: var(--cream); background: var(--ink); border-color: var(--ink); }
+
+
+    /* IX, computer use: five things it is good for, one after another, the
+       same way the dot's scene goes through its acts. */
+    .cx-w { right: 330px; opacity: 0; pointer-events: none; }
+    .cx[data-act="0"] .cx-w0, .cx[data-act="1"] .cx-w1, .cx[data-act="2"] .cx-w2,
+    .cx[data-act="3"] .cx-w3, .cx[data-act="4"] .cx-w4 { animation: dxup 0.45s var(--ease) both; }
+    .cx-go { margin-left: auto; }
+    .cx[data-act="0"] .cx-go { animation: cxpress 0.5s var(--ease) 4.6s both; }
+    @keyframes cxpress { 40% { transform: scale(0.93); background: rgba(79, 140, 255, 0.18); } }
+    .cx-sheet {
+      position: absolute; left: 50%; top: 34px; transform: translate(-50%, -260%); opacity: 0;
+      background: #fff; border: 1px solid var(--line); border-radius: 0 0 10px 10px; padding: 10px 16px;
+      font-size: 0.6rem; font-weight: 600; box-shadow: 0 14px 30px -14px rgba(56, 72, 84, 0.5);
+      display: flex; align-items: center; gap: 7px; white-space: nowrap;
+    }
+    .cx-sheet i { width: 11px; height: 11px; border-radius: 50%; background: #5fa970; flex: none; }
+    .cx[data-act="0"] .cx-sheet { animation: cxsheet 0.5s var(--ease) 4.9s both; }
+    @keyframes cxsheet { to { transform: translate(-50%, 0); opacity: 1; } }
+    /* where it is about to press: a ring that closes in, a word under it */
+    .cx-ring {
+      position: absolute; width: 44px; height: 44px; border-radius: 50%; z-index: 3;
+      border: 3px solid #4f8cff; background: rgba(79, 140, 255, 0.16); opacity: 0;
+    }
+    .cx-ring::after {
+      content: attr(data-l); position: absolute; left: 50%; top: 50px; transform: translateX(-50%);
+      background: rgba(23, 25, 30, 0.92); color: #fff; font-size: 0.52rem; font-weight: 700;
+      padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+    }
+    .cx[data-act="0"] .cx-w0 .cx-ring, .cx[data-act="1"] .cx-w1 .cx-ring { animation: cxring 1s var(--ease) var(--at) both; }
+    @keyframes cxring { 0% { opacity: 0; transform: scale(2.3); } 28%, 72% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1); } }
+    /* System Settings, which goes dark when its Dark is pressed */
+    .cx-set { display: grid; grid-template-columns: 150px 1fr; height: calc(100% - 33px); }
+    .cx-set-side { border-right: 1px solid var(--line); padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; background: rgba(49, 52, 45, 0.03); }
+    .cx-set-side span { font-size: 0.6rem; padding: 5px 8px; border-radius: 6px; color: var(--muted); }
+    .cx-set-side .on { background: rgba(79, 140, 255, 0.9); color: #fff; font-weight: 600; }
+    .cx-set-main { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .cx-set-main b { font-size: 0.76rem; }
+    .cx-set-main .ln { height: 6px; }
+    .cx-pills { display: flex; gap: 10px; margin: 4px 0 8px; }
+    .cx-pill { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 0.54rem; font-weight: 600; color: var(--muted); }
+    .cx-pill i { width: 62px; height: 40px; border-radius: 7px; border: 2px solid transparent; background: linear-gradient(135deg, #f1efe8 50%, #d9d6cc 50%); box-shadow: 0 0 0 1px var(--line); }
+    .cx-dark i { background: linear-gradient(135deg, #3a3c43 50%, #1f2024 50%); }
+    .cx-light i { border-color: #4f8cff; }
+    .cx[data-act="1"] .cx-light i { animation: cxunpick 0.2s linear 4.4s both; }
+    .cx[data-act="1"] .cx-dark i { animation: cxpick 0.2s linear 4.4s both; }
+    @keyframes cxpick { to { border-color: #4f8cff; } }
+    @keyframes cxunpick { to { border-color: transparent; } }
+    .cx[data-act="1"] .cx-w1 { animation: dxup 0.45s var(--ease) both, cxnight 0.6s var(--ease) 4.5s both; }
+    @keyframes cxnight { to { filter: invert(0.9) hue-rotate(180deg) saturate(0.9); } }
+    /* the swatches are pictures of light and dark: turned back, so they still are */
+    .cx[data-act="1"] .cx-pill i { animation-name: cxpick, cxback; animation-duration: 0.2s, 0.6s; animation-delay: 4.4s, 4.5s; animation-fill-mode: both; }
+    .cx[data-act="1"] .cx-light i { animation-name: cxunpick, cxback; }
+    .cx[data-act="1"] .cx-pill:not(.cx-dark):not(.cx-light) i { animation-name: cxback; animation-duration: 0.6s; animation-delay: 4.5s; }
+    @keyframes cxback { to { filter: invert(1) hue-rotate(180deg); } }
+    /* a form, filled by the names of its fields */
+    .cx-form { padding: 16px 22px; display: flex; flex-direction: column; gap: 9px; }
+    .cx-form label { display: grid; grid-template-columns: 78px 1fr; align-items: center; font-size: 0.58rem; color: var(--muted); font-weight: 600; }
+    .cx-field { height: 24px; border-radius: 7px; border: 1px solid var(--line); background: #fff; display: flex; align-items: center; padding: 0 9px; font-weight: 500; color: var(--ink); }
+    .cx-field em { font-style: normal; font-size: 0.6rem; opacity: 0; }
+    .cx[data-act="2"] .cx-field em { animation: dxin 0.3s var(--ease) var(--at, 0s) both; }
+    .cx-form-foot { display: flex; justify-content: flex-end; gap: 7px; margin-top: 8px; }
+    .cx-form-foot .cx-submit { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+    .cx[data-act="2"] .cx-submit { animation: cxwait 1.3s var(--ease) 3.9s infinite; }
+    @keyframes cxwait { 50% { box-shadow: 0 0 0 4px rgba(240, 179, 74, 0.45); } }
+    /* files, renamed where they are */
+    .cx-files { padding: 8px 14px; }
+    .cx-file { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--line); font-size: 0.6rem; position: relative; }
+    .cx-file i { width: 15px; height: 12px; border-radius: 2px; background: linear-gradient(135deg, #b9c7d6, #dcd3e2); }
+    .cx-file small { font-size: 0.5rem; color: var(--faint); }
+    .cx-file .now { position: absolute; left: 26px; font-weight: 600; opacity: 0; }
+    .cx[data-act="3"] .cx-file .was { animation: dxgone 0.25s var(--ease) var(--at) both; }
+    .cx[data-act="3"] .cx-file .now { animation: dxin 0.3s var(--ease) var(--at) both; }
+    /* a password manager comes to the front: everything stops */
+    .cx-pw {
+      position: absolute; left: 110px; top: 96px; width: 300px; height: 190px; z-index: 4;
+      background: #fffefa; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+      box-shadow: 0 24px 50px -18px rgba(56, 72, 84, 0.6); opacity: 0;
+    }
+    .cx[data-act="4"] .cx-pw { animation: dxup 0.45s var(--ease) 0.9s both; }
+    /* the panel: the ask, the question, what it is doing, what came of it */
+    .cx-panel { opacity: 1; }
+    .cx-act { display: none; }
+    .cx-act.on { display: block; }
+    .cx-in { opacity: 0; }
+    .cx-act.on .cx-in { animation: dxin 0.4s var(--ease) var(--at, 0s) both; }
+    .cx-askbox { margin-top: 8px; opacity: 0; max-height: 0; overflow: hidden; }
+    .cx-act.on .cx-askbox { animation: cxaskin 0.35s var(--ease) var(--at) both, cxaskout 0.3s var(--ease) var(--gone) forwards; }
+    .cx-act.on .cx-askbox.stay { animation: cxaskin 0.35s var(--ease) var(--at) both; }
+    @keyframes cxaskin { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 120px; } }
+    @keyframes cxaskout { to { opacity: 0; max-height: 0; margin-top: 0; } }
+    .cx-ask { font-size: 0.6rem; line-height: 1.5; padding: 9px 10px; border-radius: 10px; background: rgba(240, 190, 80, 0.12); border: 1px solid rgba(240, 190, 80, 0.4); }
+    .cx-ask small { display: block; color: rgba(255, 255, 255, 0.55); font-size: 0.52rem; margin-top: 3px; }
+    .cx-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+    .cx-btns span { font-size: 0.56rem; font-weight: 700; padding: 5px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: #fff; }
+    .cx-btns .yes { background: #f2f2f4; color: #17191e; }
+    .cx-act.on .cx-askbox:not(.stay) .yes { animation: cxyes 0.3s var(--ease) var(--at) both; }
+    @keyframes cxyes { 50% { transform: scale(0.9); } }
+    .cx-using { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.58rem; font-weight: 600; margin-top: 9px; }
+    .cx-using span:first-child { display: flex; align-items: center; gap: 6px; }
+    .cx-using span:first-child::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #4f8cff; }
+    .cx-using kbd { font-family: var(--sans); font-size: 0.52rem; padding: 3px 7px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.8); }
+    .cx-stop { margin-top: 9px; font-size: 0.6rem; line-height: 1.5; padding: 8px 10px; border-radius: 10px; background: rgba(240, 190, 80, 0.14); border: 1px solid rgba(240, 190, 80, 0.45); }
+    .cx-stop b { color: #f3c969; }
+    .cx-stop2 { margin-top: 8px; font-size: 0.54rem; line-height: 1.5; color: rgba(255, 255, 255, 0.62); }
+    .cx-stop2 b { color: #fff; }
+    /* the tile: blue while it has the Mac, amber when it has stopped */
+    .cx-tile i { background: #4f8cff; border-radius: 50%; transform: scale(0.85); }
+    .cx[data-act="4"] .cx-tile i { animation: cxamber 0.3s var(--ease) 1.5s both; }
+    @keyframes cxamber { to { background: #f0b34a; } }
 
     /* IX: an app's window, with something in it to press */
     .d10-app { right: 330px; animation: d10app 16s var(--ease) infinite; }
@@ -2139,6 +2249,8 @@
       .dx-panel, .dx-sa, .dx-in { opacity: 1 !important; transform: none !important; animation: none !important; }
       .dx-q span { clip-path: none !important; animation: none !important; }
       .dx-other, .dx-note { display: none !important; }
+      .cx-w0, .cx-in { opacity: 1 !important; transform: none !important; animation: none !important; }
+      .cx-askbox, .cx-ring, .cx-pw { display: none !important; }
       .d9-other, .d10-ring, .d10-pw, .d10-stop, .d10-ask, .d10-btns { display: none !important; }
       .d3-sheet { transform: translateY(106%) !important; }
       .kb-mover { transform: translate(calc(100% + 18px), 50px) !important; }
@@ -3421,44 +3533,107 @@
       </div>
       <div class="pane-wrap" data-rv style="--d:.15s">
         <div class="pane" style="--bobd:10s; --bobo:-4s">
-          <div class="scaler"><div class="mini scene">
+          <div class="scaler"><div class="mini scene cx" data-act="0">
             <div class="d7-desk">
-            <div class="dq-win d10-app">
+            <div class="dq-win cx-w cx-w0">
             <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Invoices &mdash; October</span></div>
-            <div class="d10-bar"><span class="d10-btn">Filter</span><span class="d10-btn">Share</span><span class="d10-btn go">Export&hellip;</span></div>
-            <div class="d10-table">
-            <div class="d10-tr hd"><span class="ln dk" style="width:40%"></span><span class="ln dk" style="width:50%"></span><span class="ln dk" style="width:60%"></span></div>
-            <div class="d10-tr"><span class="ln" style="width:72%"></span><span class="ln" style="width:58%"></span><span class="ln dk" style="width:70%"></span></div>
-            <div class="d10-tr"><span class="ln" style="width:55%"></span><span class="ln" style="width:66%"></span><span class="ln dk" style="width:52%"></span></div>
-            <div class="d10-tr"><span class="ln" style="width:80%"></span><span class="ln" style="width:44%"></span><span class="ln dk" style="width:64%"></span></div>
-            <div class="d10-tr"><span class="ln" style="width:62%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:48%"></span></div>
-            <div class="d10-tr"><span class="ln" style="width:48%"></span><span class="ln" style="width:52%"></span><span class="ln dk" style="width:72%"></span></div>
-            <div class="d10-tr"><span class="ln" style="width:68%"></span><span class="ln" style="width:60%"></span><span class="ln dk" style="width:56%"></span></div>
+            <div class="d10-bar"><span class="d10-btn">Filter</span><span class="d10-btn">Share</span><span class="d10-btn cx-go">Export&hellip;</span></div>
+            <div class="d10-table"><div class="d10-tr hd"><span class="ln dk" style="width:40%"></span><span class="ln dk" style="width:50%"></span><span class="ln dk" style="width:60%"></span></div><div class="d10-tr"><span class="ln" style="width:72%"></span><span class="ln" style="width:58%"></span><span class="ln dk" style="width:70%"></span></div><div class="d10-tr"><span class="ln" style="width:55%"></span><span class="ln" style="width:66%"></span><span class="ln dk" style="width:52%"></span></div><div class="d10-tr"><span class="ln" style="width:80%"></span><span class="ln" style="width:44%"></span><span class="ln dk" style="width:64%"></span></div><div class="d10-tr"><span class="ln" style="width:62%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:48%"></span></div><div class="d10-tr"><span class="ln" style="width:48%"></span><span class="ln" style="width:52%"></span><span class="ln dk" style="width:72%"></span></div></div>
+            <div class="cx-sheet"><i></i>Exported invoices-october.pdf</div>
+            <div class="cx-ring" data-l="Press" style="right:10px; top:34px; --at:4.0s"></div>
             </div>
-            <div class="d10-sheet"><i></i>Exported invoices-october.pdf</div>
+            <div class="dq-win cx-w cx-w1">
+            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">System Settings</span></div>
+            <div class="cx-set">
+              <div class="cx-set-side"><span>Wi-Fi</span><span>Bluetooth</span><span>Notifications</span><span class="on">Appearance</span><span>Displays</span><span>Keyboard</span></div>
+              <div class="cx-set-main">
+                <b>Appearance</b>
+                <div class="cx-pills"><span class="cx-pill cx-light"><i></i>Light</span><span class="cx-pill cx-dark"><i></i>Dark</span><span class="cx-pill"><i></i>Auto</span></div>
+                <span class="ln" style="width:62%"></span><span class="ln" style="width:48%"></span><span class="ln" style="width:70%"></span>
+              </div>
             </div>
-            <div class="d10-ring"></div>
-            <div class="d10-pw">
+            <div class="cx-ring" data-l="Press" style="left:250px; top:80px; --at:3.7s"></div>
+            </div>
+            <div class="dq-win cx-w cx-w2">
+            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Expenses &mdash; New claim</span></div>
+            <div class="cx-form">
+              <label>Merchant<span class="cx-field"><em style="opacity:1">City Cab</em></span></label>
+              <label>Amount<span class="cx-field"><em style="--at:2.1s">42.50</em></span></label>
+              <label>Date<span class="cx-field"><em style="--at:2.7s">11 Oct 2026</em></span></label>
+              <label>Category<span class="cx-field"><em style="--at:3.3s">Travel</em></span></label>
+              <div class="cx-form-foot"><span class="d10-btn">Save draft</span><span class="d10-btn cx-submit">Submit</span></div>
+            </div>
+            </div>
+            <div class="dq-win cx-w cx-w3">
+            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Screenshots</span></div>
+            <div class="cx-files">
+              <div class="cx-file" style="--at:2.9s"><i></i><span class="was">Screenshot 2026-10-11 at 09.14.02.png</span><span class="now">checkout-empty-cart.png</span><small>1.2 MB</small></div>
+              <div class="cx-file" style="--at:3.2s"><i></i><span class="was">Screenshot 2026-10-11 at 09.14.40.png</span><span class="now">checkout-card-declined.png</span><small>980 KB</small></div>
+              <div class="cx-file" style="--at:3.5s"><i></i><span class="was">Screenshot 2026-10-11 at 09.21.17.png</span><span class="now">header-collapsed-390.png</span><small>640 KB</small></div>
+              <div class="cx-file" style="--at:3.8s"><i></i><span class="was">Screenshot 2026-10-11 at 09.30.55.png</span><span class="now">pricing-three-tiers.png</span><small>1.5 MB</small></div>
+            </div>
+            </div>
+            <div class="dq-win cx-w cx-w4">
+            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Invoices &mdash; October</span></div>
+            <div class="d10-bar"><span class="d10-btn">Filter</span><span class="d10-btn">Share</span><span class="d10-btn cx-go">Export&hellip;</span></div>
+            <div class="d10-table"><div class="d10-tr hd"><span class="ln dk" style="width:40%"></span><span class="ln dk" style="width:50%"></span><span class="ln dk" style="width:60%"></span></div><div class="d10-tr"><span class="ln" style="width:72%"></span><span class="ln" style="width:58%"></span><span class="ln dk" style="width:70%"></span></div><div class="d10-tr"><span class="ln" style="width:55%"></span><span class="ln" style="width:66%"></span><span class="ln dk" style="width:52%"></span></div><div class="d10-tr"><span class="ln" style="width:80%"></span><span class="ln" style="width:44%"></span><span class="ln dk" style="width:64%"></span></div><div class="d10-tr"><span class="ln" style="width:62%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:48%"></span></div><div class="d10-tr"><span class="ln" style="width:48%"></span><span class="ln" style="width:52%"></span><span class="ln dk" style="width:72%"></span></div></div>
+            </div>
+            <div class="cx-pw">
             <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Passwords</span></div>
             <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
             <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
             <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
             <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
             </div>
-            <div class="dq-panel d10-panel">
-            <div class="dq-in">In <span class="dq-chip">Computer &#9662;</span><span style="margin-left:auto">export this month&rsquo;s invoices</span></div>
-            <div class="d10-ask">Use this Mac: see the screen, click and type in your apps, for this task.<small>&#8997; Esc stops it at any time.</small></div>
-            <div class="d10-btns"><span>Not now</span><span class="yes">Allow</span></div>
-            <div class="d10-using"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
-            <div class="dq-step d10-s1"><i></i>Reading the controls &middot; Invoices</div>
-            <div class="dq-step d10-s2"><i></i>Clicking &middot; Export&hellip;</div>
-            <div class="dq-step d10-s3"><i></i>Exported invoices-october.pdf</div>
-            <div class="d10-stop"><b>Stopped.</b> Passwords is on screen, and it does not look at that.</div>
+            <div class="dq-panel cx-panel">
+            <div class="dq-in">In <span class="dq-chip">Computer &#9662;</span></div>
+            <div class="cx-act" data-a="0">
+              <div class="d9-q dx-q" style="--n:30; --dur:1s"><span>export this month&rsquo;s invoices</span></div>
+              <div class="cx-askbox" style="--at:1.7s; --gone:3.0s"><div class="cx-ask">Use this Mac: see the screen, click and type in your apps, for this task.<small>&#8997; Esc stops it at any time.</small></div><div class="cx-btns"><span>Not now</span><span class="yes" style="--at:2.7s">Allow</span></div></div>
+              <div class="cx-using cx-in" style="--at:3.1s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
+              <div class="dq-step cx-in" style="--at:3.4s"><i></i>Reading the controls &middot; Invoices</div>
+              <div class="dq-step cx-in" style="--at:3.9s"><i></i>Pressing &ldquo;Export&hellip;&rdquo;</div>
+              <div class="dq-ans cx-in" style="--at:5.2s">Exported <b>invoices-october.pdf</b> to your Desktop.</div>
             </div>
-            <div class="dq-tile d10-tile"><i></i></div>
+            <div class="cx-act" data-a="1">
+              <div class="d9-q dx-q" style="--n:26; --dur:0.9s"><span>switch my Mac to dark mode</span></div>
+              <div class="cx-askbox" style="--at:1.5s; --gone:2.8s"><div class="cx-ask">Work in <b>System Settings</b>: click and type in its windows, for this task.<small>It asks once for each app.</small></div><div class="cx-btns"><span>Not now</span><span class="yes" style="--at:2.5s">Allow</span></div></div>
+              <div class="cx-using cx-in" style="--at:2.9s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
+              <div class="dq-step cx-in" style="--at:3.1s"><i></i>Opening System Settings &middot; Appearance</div>
+              <div class="dq-step cx-in" style="--at:3.6s"><i></i>Pressing &ldquo;Dark&rdquo;</div>
+              <div class="dq-ans cx-in" style="--at:4.8s">Dark mode is on.</div>
+            </div>
+            <div class="cx-act" data-a="2">
+              <div class="d9-q dx-q" style="--n:34; --dur:1.1s"><span>file the taxi receipt as an expense</span></div>
+              <div class="cx-using cx-in" style="--at:1.8s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
+              <div class="dq-step cx-in" style="--at:2.0s"><i></i>Filling &ldquo;Amount&rdquo;, &ldquo;Date&rdquo;, &ldquo;Category&rdquo; by name</div>
+              <div class="cx-askbox stay" style="--at:3.9s"><div class="cx-ask">Press <b>&ldquo;Submit&rdquo;</b>: it sends something.<small>Asked every time, whatever you allowed before.</small></div><div class="cx-btns"><span>Not now</span><span class="yes">Allow</span></div></div>
+            </div>
+            <div class="cx-act" data-a="3">
+              <div class="d9-q dx-q" style="--n:40; --dur:1.2s"><span>name today&rsquo;s screenshots by what they show</span></div>
+              <div class="cx-using cx-in" style="--at:1.9s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
+              <div class="dq-step cx-in" style="--at:2.1s"><i></i>Looking at 4 screenshots in Finder</div>
+              <div class="dq-step cx-in" style="--at:2.8s"><i></i>Renaming each one</div>
+              <div class="dq-ans cx-in" style="--at:4.3s">Four renamed. Nothing moved or deleted.</div>
+            </div>
+            <div class="cx-act" data-a="4">
+              <div class="cx-using cx-in" style="--at:0s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
+              <div class="dq-step cx-in" style="--at:0s"><i></i>Reading the controls &middot; Invoices</div>
+              <div class="cx-stop cx-in" style="--at:1.5s"><b>Stopped.</b> Passwords is on screen, and it does not look at that.</div>
+              <div class="cx-stop2 cx-in" style="--at:2.6s">Password managers, password prompts, the lock screen, and any app you list. And <b>&#8997; Esc</b> stops it yourself, from anywhere.</div>
+            </div>
+            </div>
+            <div class="dq-tile cx-tile"><i></i></div>
             </div>
           </div></div>
-          <p class="pane-cap">It asks, shows where it will click, and stops at anything that holds your secrets.</p>
+          <ol class="dx-acts" aria-label="What computer use is good for">
+            <li class="on">Export from an app</li>
+            <li>Change a setting</li>
+            <li>Fill in a form</li>
+            <li>Tidy up files</li>
+            <li>Knows where to stop</li>
+          </ol>
+          <p class="pane-cap">For what only an app&rsquo;s own window can do. It asks, shows where it will press, and stops at your secrets.</p>
           <ul class="spec"><li>Off until you turn it on</li><li>Asks per app</li><li>&#8997; Esc stops it</li></ul>
         </div>
       </div>
@@ -3774,20 +3949,24 @@
       }, { threshold: 0.15, rootMargin: "0px 0px -5% 0px" });
       sections.forEach(function (el) { io.observe(el); });
 
-      // The dot's demonstration: five acts, moved along while it is on screen.
-      (function () {
-        var scene = document.querySelector('.dx');
+      // The demonstrations that go through several acts (the dot, computer
+      // use): moved along while their section is on screen; a chip goes to one.
+      function acts(sceneSel, actSel, LONG) {
+        var scene = document.querySelector(sceneSel);
         if (!scene) return;
         var section = scene.closest('.io');
-        var acts = [].slice.call(scene.querySelectorAll('.dx-act'));
-        var chips = [].slice.call(document.querySelectorAll('.dx-acts li'));
-        var LONG = [5600, 4600, 5400, 6000, 5200];
+        var list = [].slice.call(scene.querySelectorAll(actSel));
+        var chips = [].slice.call(scene.closest('.pane').querySelectorAll('.dx-acts li'));
         var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var at = 0, spent = 0;
         function show(n) {
           at = n; spent = 0;
+          // Off and on again, so an act asked for twice plays from its start.
+          scene.removeAttribute('data-act');
+          list.forEach(function (el) { el.classList.remove('on'); });
+          void scene.offsetWidth;
           scene.setAttribute('data-act', String(n));
-          acts.forEach(function (el) { el.classList.toggle('on', el.getAttribute('data-a') === String(n)); });
+          list.forEach(function (el) { el.classList.toggle('on', el.getAttribute('data-a') === String(n)); });
           chips.forEach(function (el, i) { el.classList.toggle('on', i === n); });
         }
         chips.forEach(function (el, i) { el.addEventListener('click', function () { show(i); }); });
@@ -3796,9 +3975,11 @@
         setInterval(function () {
           if (!section || !section.classList.contains('play')) return;
           spent += 200;
-          if (spent >= LONG[at]) show((at + 1) % acts.length);
+          if (spent >= LONG[at]) show((at + 1) % list.length);
         }, 200);
-      })();
+      }
+      acts('.dx', '.dx-act', [5600, 4600, 5400, 6000, 5200]);
+      acts('.cx', '.cx-act', [7000, 6400, 6600, 6000, 5600]);
 
       // Rail: light the dot for whichever stage is crossing the middle.
       var links = [].slice.call(document.querySelectorAll('.rail a'));
