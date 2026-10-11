@@ -702,8 +702,10 @@ export function Settings({
   }
   const [lidAwake, setLidAwakeState] = useState(false)
   const [lidAwakeError, setLidAwakeError] = useState('')
+  const [batteryFloor, setBatteryFloorState] = useState(20)
   useEffect(() => {
     void window.cove.lidAwake?.().then((on) => setLidAwakeState(!!on))
+    void window.cove.batteryFloor?.().then((f) => setBatteryFloorState(f))
   }, [])
   const toggleLidAwake = async (on: boolean): Promise<void> => {
     setLidAwakeError('')
@@ -1319,6 +1321,29 @@ export function Settings({
                 <p role="alert" className="settings-row-error">
                   {lidAwakeError}
                 </p>
+              )}
+              {lidAwake && (
+                <Row
+                  title="Let it sleep when the battery is low"
+                  desc="On battery, under this level a closed Mac is let go to sleep and you are told. Plugged in, or charged back past it, it keeps working with the lid closed again."
+                >
+                  <select
+                    className="settings-select"
+                    aria-label="Battery level under which a closed Mac sleeps"
+                    value={batteryFloor}
+                    onChange={(e) =>
+                      void window.cove
+                        .setBatteryFloor(Number(e.target.value))
+                        .then(setBatteryFloorState)
+                    }
+                  >
+                    <option value={0}>Never</option>
+                    <option value={10}>Under 10%</option>
+                    <option value={20}>Under 20%</option>
+                    <option value={30}>Under 30%</option>
+                    <option value={50}>Under 50%</option>
+                  </select>
+                </Row>
               )}
             </section>
           )}

@@ -2,6 +2,13 @@ import { execFile } from 'child_process'
 import { ipcMain } from 'electron'
 import os from 'os'
 import { kvGet, kvSet } from './store'
+import { Notification } from 'electron'
+import {
+  BATTERY_FLOORS,
+  DEFAULT_BATTERY_FLOOR,
+  holdAwake,
+  parseBattery
+} from '../shared/battery-floor'
 
 /**
  * Keep working with the lid closed. Off unless the user turns it on.
@@ -20,6 +27,9 @@ import { kvGet, kvSet } from './store'
  */
 
 const KEY = 'power.lidAwake'
+const FLOOR_KEY = 'power.lidAwakeFloor'
+/** How often the battery is looked at while the lid setting is on. */
+const BATTERY_EVERY_MS = 60_000
 export const RULE_PATH = '/etc/sudoers.d/superagent-lid-awake'
 const PMSET = '/usr/bin/pmset'
 
@@ -107,13 +117,69 @@ export async function setLidAwake(on: boolean): Promise<LidAwakeResult> {
       return { ok: false, error: 'The permission was installed, but macOS still refused.' }
   }
   kvSet(KEY, '1')
+  letGo = false
+  void applyBatteryFloor()
+  watchBattery()
   return { ok: true, enabled: true }
+}
+
+/** The battery level below which a closed Mac is let go to sleep; 0 is never. */
+export function batteryFloor(): number {
+  const v = Number(kvGet(FLOOR_KEY) ?? DEFAULT_BATTERY_FLOOR)
+  return BATTERY_FLOORS.includes(v) ? v : DEFAULT_BATTERY_FLOOR
+}
+
+/** Let go because the battery fell under the floor; held again once it is back up. */
+let letGo = false
+let batteryTimer: ReturnType<typeof setInterval> | null = null
+
+function readBattery(): Promise<ReturnType<typeof parseBattery>> {
+  return new Promise((resolve) =>
+    execFile(PMSET, ['-g', 'batt'], { timeout: 5000 }, (_e, out) =>
+      resolve(parseBattery(String(out ?? '')))
+    )
+  )
+}
+
+/** Look at the battery and hold or let go accordingly. Exported for the test. */
+export async function applyBatteryFloor(
+  battery = readBattery,
+  set = setDisableSleep,
+  tell: (title: string, body: string) => void = notify
+): Promise<void> {
+  if (!lidAwakeEnabled()) return
+  const b = await battery()
+  const hold = holdAwake(b, batteryFloor(), letGo)
+  if (hold === !letGo) return
+  letGo = !hold
+  await set(hold)
+  if (!hold)
+    tell(
+      'Your Mac will sleep when you close it',
+      `The battery is at ${b.percent}%, under the ${batteryFloor()}% you set. Plug it in and it keeps working with the lid closed again.`
+    )
+  else tell('Working with the lid closed again', 'The battery is back above the level you set.')
+}
+
+function notify(title: string, body: string): void {
+  if (Notification.isSupported()) new Notification({ title, body }).show()
+}
+
+function watchBattery(): void {
+  if (batteryTimer || inert()) return
+  batteryTimer = setInterval(() => void applyBatteryFloor(), BATTERY_EVERY_MS)
+  batteryTimer.unref()
 }
 
 /** At launch: on if the setting is on; cleared otherwise, in case a crash left it set. */
 export async function applyLidAwake(): Promise<void> {
   if (inert()) return
+  letGo = false
   await setDisableSleep(lidAwakeEnabled())
+  if (lidAwakeEnabled()) {
+    await applyBatteryFloor()
+    watchBattery()
+  }
 }
 
 /** At quit: sleep is the Mac's again. Quick, and best effort. */
@@ -129,5 +195,13 @@ export function releaseLidAwake(): void {
 export function registerLidAwakeIpc(): void {
   ipcMain.handle('power:lid-awake', () => lidAwakeEnabled())
   ipcMain.handle('power:set-lid-awake', (_e, on: boolean) => setLidAwake(!!on))
+  ipcMain.handle('power:battery-floor', () => batteryFloor())
+  ipcMain.handle('power:set-battery-floor', (_e, floor: number) => {
+    const v = BATTERY_FLOORS.includes(Number(floor)) ? Number(floor) : DEFAULT_BATTERY_FLOOR
+    kvSet(FLOOR_KEY, String(v))
+    letGo = false
+    void applyBatteryFloor()
+    return v
+  })
   void applyLidAwake()
 }

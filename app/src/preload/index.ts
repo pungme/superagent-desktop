@@ -945,6 +945,9 @@ export interface CoveApi {
   ) => () => void
   /** Keep working with the lid closed: whether it is on, and turning it on or off. */
   lidAwake: () => Promise<boolean>
+  /** The battery level under which a closed Mac is let go to sleep; 0 is never. */
+  batteryFloor: () => Promise<number>
+  setBatteryFloor: (floor: number) => Promise<number>
   setLidAwake: (
     on: boolean
   ) => Promise<{ ok: true; enabled: boolean } | { ok: false; error: string }>
@@ -1461,6 +1464,8 @@ const cove: CoveApi = {
   onDotOpenChat: (cb) =>
     subscribe('dot:open-chat', (p) => cb(p as { workspaceId: string; chatId: string })),
   lidAwake: () => ipcRenderer.invoke('power:lid-awake'),
+  batteryFloor: () => ipcRenderer.invoke('power:battery-floor'),
+  setBatteryFloor: (floor) => ipcRenderer.invoke('power:set-battery-floor', floor),
   setLidAwake: (on) => ipcRenderer.invoke('power:set-lid-awake', on),
   signInAgent: (provider) => ipcRenderer.invoke('env:sign-in', provider),
   cancelAgentSignIn: () => ipcRenderer.send('env:cancel-sign-in'),
