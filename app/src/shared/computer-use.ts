@@ -664,3 +664,9 @@ export function shellGapReason(
     ? 'Computer use is not available to Codex in Full mode: there Codex runs its commands without Superagent seeing them, which the safeguards for using the Mac depend on. Tell the user to switch this conversation to Ask mode (the Mode picker under the message box) and ask again.'
     : null
 }
+
+/** Whether a key combination pastes: ⌘V with or without other modifiers. */
+export function isPaste(keys: string): boolean {
+  const parts = normalKeyCombo(keys).split('+')
+  return parts[parts.length - 1] === 'v' && parts.includes('cmd')
+}

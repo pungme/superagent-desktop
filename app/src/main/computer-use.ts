@@ -1072,8 +1072,22 @@ export function readClipboard(): string {
 }
 
 /** Put text on the clipboard, to paste with ⌘V: surer than typing a long piece key by key. */
-export function writeClipboard(text: string): void {
+export function writeClipboard(text: string, owner = ''): void {
   clipboard.writeText(text)
+  lastWritten.set(owner, text)
+}
+
+/** What each conversation last put on the clipboard itself. */
+const lastWritten = new Map<string, string>()
+
+/**
+ * Whether what is on the clipboard now is what this conversation put there.
+ * Pasting that shows the agent nothing new; pasting anything else is a way to
+ * read what the user copied, and is asked about like reading it.
+ */
+export function clipboardIsOwn(owner: string): boolean {
+  const mine = lastWritten.get(owner)
+  return mine !== undefined && clipboard.readText() === mine
 }
 
 // --- one app at a time, asked about ---------------------------------------

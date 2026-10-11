@@ -23,7 +23,8 @@ const state = vi.hoisted(() => ({
   toAsk: [] as { id: string; name: string }[],
   approvedApps: [] as string[],
   steps: false,
-  under: ''
+  under: '',
+  wrote: null as string | null
 }))
 vi.mock('./computer-use', () => ({
   computerUseEnabled: () => state.enabled,
@@ -47,7 +48,9 @@ vi.mock('./computer-use', () => ({
   readClipboard: () => state.clipboard,
   writeClipboard: (t: string) => {
     state.clipboard = t
+    state.wrote = t
   },
+  clipboardIsOwn: () => state.wrote !== null && state.wrote === state.clipboard,
   waitForControl: async (_o: string, text: string, gone: boolean) => ({
     happened: state.ui.lines.some((l) => l.includes(text)) !== gone,
     waited: 1.5,
@@ -136,7 +139,8 @@ beforeEach(() => {
     toAsk: [],
     approvedApps: [],
     steps: false,
-    under: ''
+    under: '',
+    wrote: null
   })
 })
 
@@ -453,6 +457,37 @@ describe("the agent's tools for using the Mac", () => {
       const step = await call(c, 'computer_open_mac_app', { name: 'TextEdit' })
       expect(state.asked.at(-1)).toBe('Next step: Open TextEdit.')
       expect(text(step)).toContain('did not allow that step')
+    })
+  })
+
+  it('paste what the user copied only with a yes; what it put there itself, freely', async () => {
+    state.consent = true
+    await withClient(async (c) => {
+      // The user's own clipboard: ⌘V is a way to read it, so it is asked.
+      await call(c, 'computer_key', { keys: 'cmd+v' })
+      expect(state.asked).toEqual([expect.stringContaining('Paste what is on your clipboard')])
+      state.answer = false
+      const no = await call(c, 'computer_key', { keys: 'Cmd+Shift+V' })
+      expect(no.isError).toBe(true)
+      expect(text(no)).toContain('did not allow pasting')
+      const menu = await call(c, 'computer_menu', { path: 'Edit > Paste and Match Style' })
+      expect(menu.isError).toBe(true)
+      expect(state.asked).toHaveLength(3)
+      expect(state.acted).toHaveLength(1)
+
+      // What this conversation wrote is its own to paste.
+      state.answer = true
+      await call(c, 'computer_clipboard_write', { text: 'a paragraph of mine' })
+      await call(c, 'computer_key', { keys: 'cmd+v' })
+      expect(state.asked).toHaveLength(3)
+      // Until the user copies something else.
+      state.clipboard = 'a password, say'
+      await call(c, 'computer_key', { keys: 'cmd+v' })
+      expect(state.asked).toHaveLength(4)
+      // Other shortcuts with a v in them, or without ⌘, are not pastes.
+      await call(c, 'computer_key', { keys: 'v' })
+      await call(c, 'computer_key', { keys: 'ctrl+v' })
+      expect(state.asked).toHaveLength(4)
     })
   })
 

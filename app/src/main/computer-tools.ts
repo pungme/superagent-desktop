@@ -15,6 +15,7 @@ import {
   pressControl,
   readUi,
   riskAt,
+  clipboardIsOwn,
   controlAt,
   stepByStep,
   takeZoom,
@@ -40,6 +41,7 @@ import {
   SYSTEM_SETTINGS,
   type SettingsPane,
   riskyShortcut,
+  isPaste,
   menuLevels,
   stepText,
   shownText,
@@ -178,11 +180,34 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
   const STEP_REFUSED =
     'The user did not allow that step. Do not do it another way; stop and ask what they would like instead.'
 
+  /**
+   * Pasting what the user copied puts it where the agent then sees it: the
+   * same question as reading the clipboard, unless this conversation put it
+   * there itself.
+   */
+  const mayPaste = async (): Promise<string | null> => {
+    if (clipboardIsOwn(owner)) return null
+    const yes = await requestApproval(
+      ctx.workspaceId,
+      ctx.sessionId,
+      'mcp__cove-browser__computer_use',
+      'Paste what is on your clipboard.\nWhatever you last copied will be put in the app in front, where the agent can see it.',
+      'permission'
+    )
+    return yes
+      ? null
+      : 'The user did not allow pasting their clipboard. Do not try another way; to paste text of your own, put it there first with computer_clipboard_write.'
+  }
+
   /** Do it, let the screen catch up, and show what it looks like now. */
   const doThen = async (action: ComputerAction, said: string): Promise<Result> => {
     const no = await gate()
     if (no) return failed(no)
     try {
+      if (action.type === 'key' && isPaste(action.keys)) {
+        const stop = await mayPaste()
+        if (stop) return failed(stop)
+      }
       // A shortcut that quits, logs out or deletes is asked about every time,
       // and so is a click on a menu item or button named for the same things.
       const shortcut = action.type === 'key' ? riskyShortcut(action.keys) : null
@@ -432,12 +457,20 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
           failed('Give the menu and the item, with ">" between them: "File > Save".')
         )
       const clean = levels.join(' > ')
-      return byName(
-        riskyControl('AXMenuItem', levels[levels.length - 1]),
-        `Pick ${clean}`,
-        () => pickMenu(owner, clean),
-        `Picked ${clean}.`
-      )
+      const item = levels[levels.length - 1]
+      const pick = (): Promise<Result> =>
+        byName(
+          riskyControl('AXMenuItem', item),
+          `Pick ${clean}`,
+          () => pickMenu(owner, clean),
+          `Picked ${clean}.`
+        )
+      // Edit > Paste is ⌘V by another road.
+      if (!/^paste\b/i.test(item)) return pick()
+      return gate().then(async (no) => {
+        const stop = no ?? (await mayPaste())
+        return stop ? failed(stop) : pick()
+      })
     }
   )
 
@@ -741,7 +774,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       if (no) return failed(no)
       if (stepByStep() && !(await askStep(`Put this on the clipboard: ${shownText(text)}`)))
         return failed(STEP_REFUSED)
-      writeClipboard(text)
+      writeClipboard(text, owner)
       note(`Put ${text.length} characters on the clipboard`)
       touchConsent(owner)
       return {
