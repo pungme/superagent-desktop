@@ -3160,14 +3160,89 @@ button {
   color: var(--text-primary);
 }
 
+/* A reply before its first word: a soft dot, breathing. */
 .easy-caret {
   display: inline-block;
-  width: 7px;
-  height: 14px;
-  margin-left: 2px;
-  vertical-align: text-bottom;
+  width: 8px;
+  height: 8px;
+  margin: 5px 2px 3px;
+  border-radius: 50%;
   background: var(--accent);
-  animation: blink 1s step-start infinite;
+  animation: arriving-dot 1.15s ease-in-out infinite;
+}
+
+/* ---- A reply as it arrives (lib/stream-words.ts) ----
+   Each word is a span, and a span that has just been added comes in: out of a
+   blur and up into focus. Words already there are the same elements as the
+   frame before, so they do not run it again. The text itself is let out at an
+   even pace by the row, so words follow one another rather than landing in
+   clumps. */
+.md-arriving .sw {
+  animation: word-in 0.46s cubic-bezier(0.22, 0.7, 0.3, 1) both;
+}
+@keyframes word-in {
+  from {
+    opacity: 0;
+    filter: blur(5px);
+  }
+  55% {
+    filter: blur(0.6px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+/* Where it has got to: a small dot after the last word, breathing, in place
+   of a blinking block. On the last line of prose, a list's last item, or a
+   heading: wherever the text ends. */
+.md-arriving > p:last-child::after,
+.md-arriving > :is(h1, h2, h3, h4):last-child::after,
+.md-arriving > :is(ul, ol):last-child > li:last-child::after,
+.md-arriving > blockquote:last-child > p:last-child::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 5px;
+  border-radius: 50%;
+  vertical-align: 0.06em;
+  background: var(--accent);
+  animation: arriving-dot 1.15s ease-in-out infinite;
+}
+@keyframes arriving-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.72);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+}
+/* A block that starts (a new paragraph, a list item, a code block) eases its
+   own way in, so the bubble grows rather than snaps. */
+.md-arriving > :is(pre, table, hr):last-child {
+  animation: block-in 0.35s ease-out both;
+}
+@keyframes block-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-arriving .sw,
+  .md-arriving > :is(pre, table, hr):last-child,
+  .easy-caret,
+  .md-arriving ::after {
+    animation: none;
+  }
 }
 
 @keyframes blink {

@@ -1,5 +1,6 @@
 import { SaveCorner } from './ChatImages'
 import { spacedImagePaths } from '../../../shared/chat-images'
+import { rehypeStreamWords } from '../lib/stream-words'
 import { useEffect, useState, useMemo, memo } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -155,9 +156,14 @@ function MdImage({
 }
 
 /** Renders assistant text as GitHub-flavored markdown, with copyable code blocks. */
+// Stable arrays: a new one each render would make react-markdown start over.
+const ARRIVING = [rehypeStreamWords]
+const NONE: never[] = []
+
 export const Markdown = memo(function Markdown({
   text,
   streaming,
+  arriving,
   onImage,
   baseDir
 }: {
@@ -166,14 +172,18 @@ export const Markdown = memo(function Markdown({
   text: string
   /** The bubble is still receiving tokens — defer expensive syntax highlight. */
   streaming?: boolean
+  /** The reply is being written: each new word comes in out of a blur
+   *  (lib/stream-words.ts), and a soft dot marks where it has got to. */
+  arriving?: boolean
   /** Show images as a small thumbnail that calls this with the full image —
    *  the chat's lightbox. Without it (a file viewer) they render full width. */
   onImage?: (src: string, origin?: string) => void
 }): React.JSX.Element {
   return (
-    <div className="md">
+    <div className={arriving ? 'md md-arriving' : 'md'}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={arriving ? ARRIVING : NONE}
         // The default drops file:// and bare paths from image sources; those are
         // exactly the ones MdImage reads from disk. Links keep the safe default.
         urlTransform={(url, key) => (key === 'src' ? url : defaultUrlTransform(url))}
