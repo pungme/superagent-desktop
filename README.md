@@ -187,6 +187,44 @@ source — see [its README](https://github.com/pungme/superagent-ios).
   of the context window it has used, and a running token count for the turn
   and the session — updating live while the agent works, not just at the end.
 
+## New in the 2.0 beta
+
+Turn on **Beta updates** in Settings → About to get these. They reach everyone
+when they are ready, and may change before then.
+
+- **The dot: the best agent is the one that disappears.** Close the window and
+  Superagent goes on working; what is left is a small tile in the corner of
+  your screen, over every app. Press `⌥ Space` (or `⌃⌥ V` to say it out loud)
+  and ask: a question, a job, or the app itself. "Go to the wepush chat about
+  e2e testing." "What's running?" "Start a chat in the portal to fix the
+  header." It finds a conversation from how you describe it and brings the
+  window back on it. `⌃⌥ S` brings Superagent forward from anywhere.
+- **Computer use, off until you turn it on.** An agent can see the screen, read
+  an app's controls by name, and press, fill, click and type in other apps,
+  for the things that have no command line.
+  - It asks first: for the Mac, again for each app, and every time before
+    anything named Quit, Delete, Send or Pay, before reading your clipboard,
+    and before pasting what you copied. "Ask before each step" puts every
+    click and keystroke to you in words.
+  - It stays out of password managers, Keychain, password prompts, the lock
+    screen, Superagent itself, and any app you list. An app can be "look
+    only". "Show it only the apps you allowed" covers everything else in its
+    screenshots.
+  - `⌥ Esc` stops it from any app. A ring shows where it is about to click,
+    and there is a record of what it did.
+  - Those questions are answered at the Mac: a paired phone can say no, never
+    yes.
+  - It is a beta of something powerful. The safeguards are layers, not a
+    proof: an agent also has a shell of its own, and the guard on that is a
+    list of known ways round. Start with "Ask before each step" on.
+- **Replies that arrive.** A reply comes in a word at a time, each word out of
+  a blur into focus, at an even pace however unevenly the agent sends it.
+- **A tour of how it works** when you set up, and again any time from
+  Settings → About.
+- **Chat pictures, kept.** Every picture sent in a conversation in one place,
+  by day, each one a click from the message it came with and a click from your
+  Downloads.
+
 ## The small things
 
 - **Everything survives a restart** — panes, open files, active chat — even
