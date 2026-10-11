@@ -106,6 +106,24 @@ Mac's shape — sidebar left, conversation right, the page beside it.
 <tr>
 <td width="46%" valign="top">
 
+**Ask from anywhere.** Superagent also sits as a small tile in the corner of
+your screen, over every app. Click it or press its shortcut, say where (the
+Computer, or any project) and what, and the answer comes back beside it without
+opening the window. It spins while it works, turns amber when it needs your
+yes, and every request is an ordinary chat you can open afterwards.
+
+**Run the app by asking.** From the tile or any chat, typed or spoken: "go to
+the wepush chat about e2e testing", "what's running?", "start a chat in the
+portal to fix the header", "show me its board", "go back". It finds the
+conversation from how you describe it and takes you there.
+
+**It can use your Mac, when you let it.** Turned on in Settings, an agent can
+see the screen, read an app's controls by name, and press, fill and click in
+any app. It asks first, for the Mac and again for each app, and before
+anything named Quit, Delete or Send. Password managers, password prompts and
+the lock screen are out of bounds, you can add any app to that list, and ⌥Esc
+stops it from wherever you are.
+
 **Everything in its place.** The Computer sits at the top of the sidebar with
 its own conversations under it. Then one Projects section: your open browser
 tabs first, then your projects, each with its own icon and its conversations
@@ -192,14 +210,19 @@ source — see [its README](https://github.com/pungme/superagent-ios).
 Turn on **Beta updates** in Settings → About to get these. They reach everyone
 when they are ready, and may change before then.
 
-- **The dot: the best agent is the one that disappears.** Close the window and
-  Superagent goes on working; what is left is a small tile in the corner of
-  your screen, over every app. Press `⌥ Space` (or `⌃⌥ V` to say it out loud)
+- **The dot: the best agent is the one that disappears.** Turn it on in
+  Settings → General (or while setting up), close the window, and Superagent
+  goes on working; what is left is a small tile in the corner of your screen,
+  over every app. Press `⌥ Space` (or `⌃⌥ V` to say it out loud)
   and ask: a question, a job, or the app itself. "Go to the wepush chat about
   e2e testing." "What's running?" "Start a chat in the portal to fix the
   header." It finds a conversation from how you describe it and brings the
   window back on it. Its project list is a switcher too: find a project, `⌘↩`,
-  and you are there. It tells you when a job is done, window or no window.
+  and you are there; "switch to the portal", said to the dot, switches the dot
+  itself and leaves the window alone. It tells you when a job is done, window
+  or no window. And it gets out of the way: hidden while Superagent's own
+  window is in front, and faded to an ember when nothing is going on, until
+  the pointer finds it.
   `⌃⌥ S` brings Superagent forward from anywhere.
 - **Computer use, off until you turn it on.** An agent can see the screen, read
   an app's controls by name, and press, fill, click and type in other apps,
