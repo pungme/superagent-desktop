@@ -1,3 +1,4 @@
+import { mirrorShotWidth } from '../../shared/mirror-shot'
 import { z } from 'zod'
 import {
   getTree,
@@ -571,7 +572,7 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
             8000,
             'the browser did not produce a frame'
           )
-          const shot = shrinkShot(wc, png, Math.min(p.data.maxWidth ?? 700, 700))
+          const shot = shrinkShot(wc, png, mirrorShotWidth(p.data.maxWidth))
           if (!frameIsNew('browser:' + p.data.chatId, shot.jpeg)) {
             return { ok: true, result: { ...shot, jpeg: '', unchanged: true } }
           }
