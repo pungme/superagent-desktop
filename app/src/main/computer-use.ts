@@ -14,7 +14,8 @@ import {
 import { existsSync, unlinkSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, join } from 'path'
-import { getChat, kvGet, kvSet } from './store'
+import { getChat } from './store'
+import { settingGet, settingSet } from './computer-settings'
 import { recentComputerLog } from './computer-log'
 import { broadcastToWindows } from './util'
 import {
@@ -75,7 +76,11 @@ let enabledNow: boolean | null = null
 let deniedNow: AppRef[] | null = null
 
 export function computerUseEnabled(): boolean {
-  if (enabledNow === null) enabledNow = kvGet(KEY) === '1'
+  if (enabledNow === null) {
+    const v = settingGet(KEY)
+    if (v === undefined) return false
+    enabledNow = v === '1'
+  }
   return process.platform === 'darwin' && enabledNow
 }
 
@@ -91,7 +96,11 @@ const RING_KEY = 'computer.ring'
 let ringNow: boolean | null = null
 /** Whether to show, on screen, where an action is about to happen. On unless turned off. */
 export function ringEnabled(): boolean {
-  if (ringNow === null) ringNow = kvGet(RING_KEY) !== '0'
+  if (ringNow === null) {
+    const v = settingGet(RING_KEY)
+    if (v === undefined) return true
+    ringNow = v !== '0'
+  }
   return ringNow
 }
 
@@ -99,7 +108,11 @@ const FOCUSED_KEY = 'computer.focused'
 let focusedNow: boolean | null = null
 /** Whether a picture of the screen shows only the apps the user allowed. Off unless turned on. */
 export function focusedView(): boolean {
-  if (focusedNow === null) focusedNow = kvGet(FOCUSED_KEY) === '1'
+  if (focusedNow === null) {
+    const v = settingGet(FOCUSED_KEY)
+    if (v === undefined) return false
+    focusedNow = v === '1'
+  }
   return focusedNow
 }
 
@@ -107,7 +120,11 @@ const STEPS_KEY = 'computer.steps'
 let stepsNow: boolean | null = null
 /** Whether each step is asked about before it is taken. Off unless turned on. */
 export function stepByStep(): boolean {
-  if (stepsNow === null) stepsNow = kvGet(STEPS_KEY) === '1'
+  if (stepsNow === null) {
+    const v = settingGet(STEPS_KEY)
+    if (v === undefined) return false
+    stepsNow = v === '1'
+  }
   return stepsNow
 }
 
@@ -823,8 +840,10 @@ const DENIED_KEY = 'computer.denied'
 
 export function deniedApps(): AppRef[] {
   if (deniedNow) return deniedNow
+  const deniedRow = settingGet(DENIED_KEY)
+  if (deniedRow === undefined) return []
   try {
-    const saved = JSON.parse(kvGet(DENIED_KEY) || '[]') as AppRef[]
+    const saved = JSON.parse(deniedRow || '[]') as AppRef[]
     deniedNow = Array.isArray(saved)
       ? saved.filter((a) => a && typeof a.id === 'string' && typeof a.name === 'string')
       : []
@@ -838,7 +857,7 @@ export function denyApp(app: AppRef): AppRef[] {
   const rest = deniedApps().filter((a) => a.id.toLowerCase() !== app.id.toLowerCase())
   const next = [...rest, app].sort((a, b) => a.name.localeCompare(b.name))
   deniedNow = next
-  kvSet(DENIED_KEY, JSON.stringify(next))
+  settingSet(DENIED_KEY, JSON.stringify(next))
   // Kept out is kept out: any leave it had goes.
   if (appRule(app.id)) setAppRule(app, null)
   return next
@@ -847,7 +866,7 @@ export function denyApp(app: AppRef): AppRef[] {
 export function undenyApp(id: string): AppRef[] {
   const next = deniedApps().filter((a) => a.id.toLowerCase() !== id.toLowerCase())
   deniedNow = next
-  kvSet(DENIED_KEY, JSON.stringify(next))
+  settingSet(DENIED_KEY, JSON.stringify(next))
   return next
 }
 
@@ -864,8 +883,10 @@ let rulesNow: AppRule[] | null = null
 
 export function appRules(): AppRule[] {
   if (rulesNow) return rulesNow
+  const rulesRow = settingGet(RULES_KEY)
+  if (rulesRow === undefined) return []
   try {
-    const saved = JSON.parse(kvGet(RULES_KEY) || '[]') as AppRule[]
+    const saved = JSON.parse(rulesRow || '[]') as AppRule[]
     rulesNow = Array.isArray(saved)
       ? saved.filter(
           (a) =>
@@ -895,7 +916,7 @@ export function setAppRule(app: AppRef, level: AppLevel | null): AppRule[] {
       : rest
   ).sort((a, b) => a.name.localeCompare(b.name))
   rulesNow = next
-  kvSet(RULES_KEY, JSON.stringify(next))
+  settingSet(RULES_KEY, JSON.stringify(next))
   return next
 }
 
@@ -1268,22 +1289,22 @@ export function registerComputerUseIpc(): void {
   })
   ipcMain.handle('computer:set-ring', (_e, on: boolean) => {
     ringNow = !!on
-    kvSet(RING_KEY, on ? '1' : '0')
+    settingSet(RING_KEY, on ? '1' : '0')
     return computerStatus()
   })
   ipcMain.handle('computer:set-steps', (_e, on: boolean) => {
     stepsNow = !!on
-    kvSet(STEPS_KEY, on ? '1' : '0')
+    settingSet(STEPS_KEY, on ? '1' : '0')
     return computerStatus()
   })
   ipcMain.handle('computer:set-focused', (_e, on: boolean) => {
     focusedNow = !!on
-    kvSet(FOCUSED_KEY, on ? '1' : '0')
+    settingSet(FOCUSED_KEY, on ? '1' : '0')
     return computerStatus()
   })
   ipcMain.handle('computer:set-enabled', (_e, on: boolean) => {
     enabledNow = !!on
-    kvSet(KEY, on ? '1' : '0')
+    settingSet(KEY, on ? '1' : '0')
     if (!on) stopComputerUse()
     return computerStatus()
   })
