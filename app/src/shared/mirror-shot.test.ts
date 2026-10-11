@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mirrorShotWidth, unseenPaneSize } from './mirror-shot'
+import { frameWanted, mirrorShotWidth, unseenPaneSize } from './mirror-shot'
 
 describe("how wide the phone's picture of a page is", () => {
   it('is 700 unless more is asked for, and never past 1400', () => {
@@ -30,5 +30,18 @@ describe('the size an unseen page is laid out at for the phone', () => {
   it('never collapses to a strip', () => {
     expect(unseenPaneSize({ width: 10, height: 10 }, win)).toEqual({ width: 320, height: 240 })
     expect(unseenPaneSize(null, { width: 100, height: 100 })).toEqual({ width: 320, height: 240 })
+  })
+})
+
+describe('whether a frame has to go to the phone', () => {
+  it('goes unless it is the one the phone says it holds', () => {
+    expect(frameWanted('a', 'a', 'a')).toBe(false)
+    expect(frameWanted('b', 'a', 'b')).toBe(true)
+  })
+  it('a phone that says nothing gets the old rule: the last frame sent to anyone', () => {
+    expect(frameWanted('a', undefined, 'a')).toBe(false)
+    expect(frameWanted('a', '', 'a')).toBe(false)
+    expect(frameWanted('a', undefined, undefined)).toBe(true)
+    expect(frameWanted('a', undefined, 'b')).toBe(true)
   })
 })

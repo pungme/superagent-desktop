@@ -1,4 +1,4 @@
-import { mirrorShotWidth } from '../../shared/mirror-shot'
+import { frameWanted, mirrorShotWidth } from '../../shared/mirror-shot'
 import { z } from 'zod'
 import {
   getTree,
@@ -194,9 +194,11 @@ const boardMove = z.object({
 const browserOpen = z.object({ chatId: z.string().min(1), url: z.string().min(1).max(4000) })
 const browserShot = z.object({
   chatId: z.string().min(1),
-  maxWidth: z.number().int().min(200).max(1600).optional()
+  maxWidth: z.number().int().min(200).max(1600).optional(),
+  /** The digest of the frame the phone holds, so a still page costs no bytes. */
+  have: z.string().optional()
 })
-const simShot = z.object({ chatId: z.string().min(1) })
+const simShot = z.object({ chatId: z.string().min(1), have: z.string().optional() })
 const simInput = z.object({
   chatId: z.string().min(1),
   // Passed through to the Mac's own injector; it validates the shape.
@@ -573,10 +575,14 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
             'the browser did not produce a frame'
           )
           const shot = shrinkShot(wc, png, mirrorShotWidth(p.data.maxWidth))
-          if (!frameIsNew('browser:' + p.data.chatId, shot.jpeg)) {
-            return { ok: true, result: { ...shot, jpeg: '', unchanged: true } }
+          const frame = frameIsNew('browser:' + p.data.chatId, shot.jpeg, p.data.have)
+          if (!frame.wanted) {
+            return {
+              ok: true,
+              result: { ...shot, jpeg: '', unchanged: true, digest: frame.digest }
+            }
           }
-          return { ok: true, result: shot }
+          return { ok: true, result: { ...shot, digest: frame.digest } }
         } finally {
           releaseCompositing(pane)
         }
@@ -593,10 +599,14 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         )
         if (!url) return fail('unavailable', 'the simulator did not produce a frame')
         const device = await deviceLabel(udid)
-        if (!frameIsNew('sim:' + p.data.chatId, url)) {
-          return { ok: true, result: { udid, device, url: '', unchanged: true } }
+        const frame = frameIsNew('sim:' + p.data.chatId, url, p.data.have)
+        if (!frame.wanted) {
+          return {
+            ok: true,
+            result: { udid, device, url: '', unchanged: true, digest: frame.digest }
+          }
         }
-        return { ok: true, result: { udid, device, url } }
+        return { ok: true, result: { udid, device, url, digest: frame.digest } }
       }
       case 'sim.input': {
         const p = simInput.safeParse(params)
@@ -863,12 +873,20 @@ function withTimeout<T>(p: Promise<T>, ms: number, why: string): Promise<T> {
  */
 const lastFrameSent = new Map<string, string>()
 
-/** True when this frame differs from the last one sent for that mirror. */
-function frameIsNew(key: string, payload: string): boolean {
+/**
+ * Whether this frame has to go, and which frame it is. `have` is what the
+ * phone says it holds (see frameWanted); without it, the last frame sent for
+ * that mirror decides.
+ */
+function frameIsNew(
+  key: string,
+  payload: string,
+  have?: string
+): { wanted: boolean; digest: string } {
   const digest = createHash('sha1').update(payload).digest('hex')
-  if (lastFrameSent.get(key) === digest) return false
+  const wanted = frameWanted(digest, have, lastFrameSent.get(key))
   lastFrameSent.set(key, digest)
-  return true
+  return { wanted, digest }
 }
 
 function shrinkShot(

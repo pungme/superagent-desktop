@@ -307,8 +307,11 @@ export interface WireSimulator {
 export interface WireSimulatorShot {
   udid: string
   device: string
-  /** A whole `data:image/jpeg;base64,…` URL, as the Mac's own pane uses. */
+  /** A whole `data:image/jpeg;base64,…` URL, as the Mac's own pane uses; empty when `unchanged`. */
   url: string
+  /** As on WireBrowserShot. */
+  digest?: string
+  unchanged?: boolean
 }
 
 /**
@@ -450,8 +453,15 @@ export interface WireBrowserShot {
   canGoForward: boolean
   width: number
   height: number
-  /** JPEG, base64. Sized to fit one relay frame. */
+  /** JPEG, base64. Sized to fit one relay frame; empty when `unchanged`. */
   jpeg: string
+  /**
+   * Which frame this is. The phone sends it back as `have` with its next
+   * request, and is spared the bytes while the page is still.
+   */
+  digest?: string
+  /** The frame the phone said it holds is this one, so it was not sent again. */
+  unchanged?: boolean
 }
 
 /** `files.read`: a project file, in whichever form the phone can show. */

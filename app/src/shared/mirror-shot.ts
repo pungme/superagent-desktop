@@ -33,3 +33,20 @@ export function unseenPaneSize(shown: Size | null | undefined, window: Size): Si
     height: Math.max(240, Math.min(Math.round(wanted.height), h))
   }
 }
+
+/**
+ * Whether a frame has to go to the phone. The phone says what it holds
+ * (`have`: the digest of the last frame it was sent), and the frame goes
+ * unless it is that one. A phone that says nothing (an older app) gets the
+ * old rule, the last frame sent for that mirror to anyone — which left a phone
+ * that had lost its copy (relaunched, or a second phone) with a still page it
+ * was never sent: a spinner for ever.
+ */
+export function frameWanted(
+  digest: string,
+  have: string | undefined,
+  lastSent: string | undefined
+): boolean {
+  if (have) return have !== digest
+  return lastSent !== digest
+}
