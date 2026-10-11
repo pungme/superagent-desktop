@@ -67,6 +67,23 @@ describe('a picture of only the allowed apps', () => {
     expect(at(px2, 10, 10)).toBe(0x2b)
   })
 
+  it('covered twice, with the windows before and after, shows only what both allow', () => {
+    // Mail was in front when the windows were first listed; Messages had come
+    // over half of it by the time they were listed again.
+    const px = white()
+    const mail = win('com.apple.mail', 0, 0, 100, 50)
+    coverOthers(px, shot, [mail], only('com.apple.mail'))
+    const hidden = coverOthers(
+      px,
+      shot,
+      [win('com.apple.MobileSMS', 50, 0, 50, 50), mail],
+      only('com.apple.mail')
+    )
+    expect(at(px, 20, 50)).toBe(255)
+    expect(at(px, 150, 50)).toBe(0x2b)
+    expect(hidden).toEqual(['MobileSMS'])
+  })
+
   it('covers a notification, keeps the menu bar, and sees through the Dock', () => {
     const px = white()
     coverOthers(

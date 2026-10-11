@@ -339,12 +339,32 @@ async function layout(): Promise<LaidWindow[]> {
  * when the user asked for that. No picture at all if the windows cannot be
  * listed: an uncovered one is not the fallback.
  */
+/**
+ * The windows as they are before a picture is taken, when pictures show only
+ * the allowed apps; null when they show everything. Throws when the windows
+ * cannot be listed: no picture is better than an uncovered one.
+ */
+async function layoutBefore(owner: string): Promise<LaidWindow[] | null> {
+  if (!focusedView() || owner === '__check__') return null
+  try {
+    return await layout()
+  } catch {
+    throw new Error(
+      'The windows on screen could not be listed, so a picture showing only the allowed apps cannot be made.'
+    )
+  }
+}
+
 async function onlyAllowed(
   owner: string,
   image: Electron.NativeImage,
-  area: ScreenArea
+  area: ScreenArea,
+  before: LaidWindow[] | null
 ): Promise<{ image: Electron.NativeImage; hidden: string[] }> {
-  if (!focusedView() || owner === '__check__') return { image, hidden: [] }
+  if (!before) return { image, hidden: [] }
+  // And as they are after it. The picture is of some moment between the two:
+  // only what both lists agree may be shown is shown, so a window brought
+  // forward while the picture was being taken is covered either way.
   let windows: LaidWindow[]
   try {
     windows = await layout()
@@ -357,12 +377,14 @@ async function onlyAllowed(
   const pixels = image.toBitmap({ scaleFactor: 1 })
   if (pixels.length !== width * height * 4)
     throw new Error('The picture could not be prepared. computer_read_ui still works.')
-  const hidden = coverOthers(
-    pixels,
-    { width, height, area },
-    windows,
-    (id) => appApproved(owner, id) || appRule(id) === 'look'
-  )
+  const allowed = (id: string): boolean => appApproved(owner, id) || appRule(id) === 'look'
+  const shot = { width, height, area }
+  const hidden = [
+    ...new Set([
+      ...coverOthers(pixels, shot, before, allowed),
+      ...coverOthers(pixels, shot, windows, allowed)
+    ])
+  ]
   return { image: nativeImage.createFromBitmap(pixels, { width, height }), hidden }
 }
 
@@ -601,10 +623,11 @@ export async function takeZoom(
     width: Math.round(display.bounds.width * scale),
     height: Math.round(display.bounds.height * scale)
   }
+  const before = await layoutBefore(owner)
   const picture = await capture(all.indexOf(display), String(display.id), full)
   const got = picture.image.getSize()
   const k = got.width / shot.width
-  const cut = (await onlyAllowed(owner, picture.image, display.bounds)).image.crop({
+  const cut = (await onlyAllowed(owner, picture.image, display.bounds, before)).image.crop({
     x: Math.round(rect.x * k),
     y: Math.round(rect.y * k),
     width: Math.max(1, Math.round(rect.width * k)),
@@ -642,10 +665,11 @@ export async function takeScreenshot(owner: string, display?: number): Promise<S
   if (at) pointerLeftAt.set(owner, at)
   else pointerLeftAt.delete(owner)
   const size = shotSize(chosen.bounds)
+  const before = await layoutBefore(owner)
   const picture = await capture(all.indexOf(chosen), String(chosen.id), size)
   const got = picture.image.getSize()
   const shot: Shot = { width: got.width, height: got.height, area: chosen.bounds }
-  const seen = await onlyAllowed(owner, picture.image, chosen.bounds)
+  const seen = await onlyAllowed(owner, picture.image, chosen.bounds, before)
   lastShot.set(owner, shot)
   lastVia = picture.via
   return {
