@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { holdAwake, parseBattery } from './battery-floor'
+import { hasLid, holdAwake, parseBattery } from './battery-floor'
 
 describe('the battery floor under working with the lid closed', () => {
   it('reads what pmset says', () => {
@@ -30,5 +30,22 @@ describe('the battery floor under working with the lid closed', () => {
     expect(holdAwake({ onPower: false, percent: 21 }, 20, true)).toBe(false)
     expect(holdAwake({ onPower: false, percent: 25 }, 20, true)).toBe(true)
     expect(holdAwake({ onPower: true, percent: 21 }, 20, true)).toBe(true)
+  })
+})
+
+describe('whether there is a lid to close', () => {
+  it('a Mac with a battery of its own has one', () => {
+    expect(
+      hasLid(
+        "Now drawing from 'AC Power'\n -InternalBattery-0 (id=1)\t100%; charged; 0:00 remaining present: true"
+      )
+    ).toBe(true)
+  })
+  it('a desktop, on mains or on a UPS, has none', () => {
+    expect(hasLid("Now drawing from 'AC Power'\n")).toBe(false)
+    expect(hasLid("Now drawing from 'UPS Power'\n -UPS-1500 (id=2)\t80%; discharging")).toBe(false)
+  })
+  it('an unanswered question is not taken as no', () => {
+    expect(hasLid('')).toBe(true)
   })
 })

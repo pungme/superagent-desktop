@@ -21,7 +21,7 @@ let page: Page
 let dir: string
 test.describe.configure({ mode: 'serial' })
 
-type Seen = { calls: [string, unknown][]; lidFails: boolean }
+type Seen = { calls: [string, unknown][]; lidFails: boolean; noLid: boolean }
 const seen = (): Promise<Seen> => app.evaluate(() => (globalThis as unknown as { sa: Seen }).sa)
 
 test.beforeAll(async () => {
@@ -35,7 +35,7 @@ test.beforeAll(async () => {
   await app.evaluate(({ ipcMain }) => {
     const ready = { installed: true, loggedIn: true, version: 'test' }
     const absent = { installed: false, loggedIn: false, version: null }
-    const sa = { calls: [] as [string, unknown][], lidFails: true }
+    const sa = { calls: [] as [string, unknown][], lidFails: true, noLid: false }
     ;(globalThis as unknown as { sa: typeof sa }).sa = sa
     const state = { mode: 'ask', lid: false, floor: 20, dot: true, computer: false }
     const swap = (name: string, fn: (arg: unknown) => unknown): void => {
@@ -64,6 +64,7 @@ test.beforeAll(async () => {
       state.lid = !!on
       return { ok: true, enabled: state.lid }
     })
+    swap('power:has-lid', () => !sa.noLid)
     swap('power:battery-floor', () => state.floor)
     swap('power:set-battery-floor', (f) => {
       sa.calls.push(['floor', f])
@@ -111,6 +112,23 @@ test('after the tour it asks how to behave, with the careful answers already cho
   // Nothing is written by looking.
   expect((await seen()).calls).toEqual([])
   if (process.env.SHOT) await page.screenshot({ path: '/tmp/superagent-choices.png' })
+})
+
+test('a Mac with no lid to close is not asked about one', async () => {
+  const setNoLid = (no: boolean): Promise<void> =>
+    app.evaluate((_e, no) => {
+      ;(globalThis as unknown as { sa: Seen }).sa.noLid = no
+    }, no)
+  await setNoLid(true)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'How should it behave?' })).toBeVisible({
+    timeout: 15000
+  })
+  await expect(page.getByLabel('Show the dot on my screen')).toBeAttached()
+  await expect(page.getByLabel('Keep working with the lid closed')).toHaveCount(0)
+  await setNoLid(false)
+  await page.reload()
+  await expect(page.getByLabel('Keep working with the lid closed')).toBeAttached({ timeout: 15000 })
 })
 
 test('each answer is saved as it is given', async () => {

@@ -34,3 +34,12 @@ export function holdAwake(b: BatteryState, floor: number, wasLetGo: boolean): bo
   if (!floor || b.onPower || b.percent === null) return true
   return wasLetGo ? b.percent >= floor + 5 : b.percent >= floor
 }
+
+/**
+ * Whether this Mac has a lid to close, from what `pmset -g batt` said: a Mac
+ * with a battery of its own is a laptop. When nothing could be read the answer
+ * is yes, so the setting is never hidden from someone who could use it.
+ */
+export function hasLid(text: string): boolean {
+  return !text.trim() || /InternalBattery/i.test(text)
+}

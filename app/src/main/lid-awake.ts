@@ -6,6 +6,7 @@ import { Notification } from 'electron'
 import {
   BATTERY_FLOORS,
   DEFAULT_BATTERY_FLOOR,
+  hasLid,
   holdAwake,
   parseBattery
 } from '../shared/battery-floor'
@@ -194,6 +195,15 @@ export function releaseLidAwake(): void {
 
 export function registerLidAwakeIpc(): void {
   ipcMain.handle('power:lid-awake', () => lidAwakeEnabled())
+  ipcMain.handle('power:has-lid', () =>
+    inert()
+      ? true
+      : new Promise<boolean>((resolve) =>
+          execFile(PMSET, ['-g', 'batt'], { timeout: 5000 }, (_e, out) =>
+            resolve(hasLid(String(out ?? '')))
+          )
+        )
+  )
   ipcMain.handle('power:set-lid-awake', (_e, on: boolean) => setLidAwake(!!on))
   ipcMain.handle('power:battery-floor', () => batteryFloor())
   ipcMain.handle('power:set-battery-floor', (_e, floor: number) => {

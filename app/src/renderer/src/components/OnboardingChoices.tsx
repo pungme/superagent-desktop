@@ -14,6 +14,7 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
   const [mode, setMode] = useState<'ask' | 'auto'>('ask')
   const [lid, setLid] = useState(false)
   const [lidError, setLidError] = useState('')
+  const [hasLid, setHasLid] = useState(true)
   const [floor, setFloor] = useState(20)
   const [dot, setDot] = useState(true)
   const [computer, setComputer] = useState(false)
@@ -22,6 +23,7 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
   useEffect(() => {
     void window.cove.accountsList?.().then((l) => setMode(l?.mode === 'auto' ? 'auto' : 'ask'))
     void window.cove.lidAwake?.().then((on) => setLid(!!on))
+    void window.cove.hasLid?.().then((yes) => setHasLid(yes !== false))
     void window.cove.batteryFloor?.().then(setFloor)
     void window.cove.dotEnabled?.().then((on) => setDot(on !== false))
     void window.cove.computerStatus?.().then((s) => {
@@ -81,48 +83,50 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
             </div>
           </div>
 
-          <div className="choice">
-            <div className="choice-text">
-              <b>Keep working with the lid closed</b>
-              <span>
-                Agents carry on when you close your MacBook. macOS asks for your password once. The
-                Mac stays awake, and warm, in a bag.
-              </span>
-              {lidError && (
-                <span role="alert" className="choice-error">
-                  {lidError}
+          {hasLid && (
+            <div className="choice">
+              <div className="choice-text">
+                <b>Keep working with the lid closed</b>
+                <span>
+                  Agents carry on when you close your MacBook. macOS asks for your password once.
+                  The Mac stays awake, and warm, in a bag.
                 </span>
-              )}
-              {lid && (
-                <label className="choice-sub">
-                  Let it sleep when the battery is
-                  <select
-                    className="settings-select"
-                    aria-label="Battery level under which a closed Mac sleeps"
-                    value={floor}
-                    onChange={(e) =>
-                      void window.cove.setBatteryFloor(Number(e.target.value)).then(setFloor)
-                    }
-                  >
-                    <option value={0}>never mind the battery</option>
-                    <option value={10}>under 10%</option>
-                    <option value={20}>under 20%</option>
-                    <option value={30}>under 30%</option>
-                    <option value={50}>under 50%</option>
-                  </select>
-                </label>
-              )}
+                {lidError && (
+                  <span role="alert" className="choice-error">
+                    {lidError}
+                  </span>
+                )}
+                {lid && (
+                  <label className="choice-sub">
+                    Let it sleep when the battery is
+                    <select
+                      className="settings-select"
+                      aria-label="Battery level under which a closed Mac sleeps"
+                      value={floor}
+                      onChange={(e) =>
+                        void window.cove.setBatteryFloor(Number(e.target.value)).then(setFloor)
+                      }
+                    >
+                      <option value={0}>never mind the battery</option>
+                      <option value={10}>under 10%</option>
+                      <option value={20}>under 20%</option>
+                      <option value={30}>under 30%</option>
+                      <option value={50}>under 50%</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  aria-label="Keep working with the lid closed"
+                  checked={lid}
+                  onChange={(e) => void toggleLid(e.target.checked)}
+                />
+                <span className="switch-slider" />
+              </label>
             </div>
-            <label className="switch">
-              <input
-                type="checkbox"
-                aria-label="Keep working with the lid closed"
-                checked={lid}
-                onChange={(e) => void toggleLid(e.target.checked)}
-              />
-              <span className="switch-slider" />
-            </label>
-          </div>
+          )}
 
           <div className="choice">
             <div className="choice-text">
@@ -155,9 +159,9 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
                   Computer use <em className="choice-beta">Beta</em>
                 </b>
                 <span>
-                  Lets an agent see the screen and click and type in your other apps. It asks
-                  before the first time, again for each app, and ⌥ Esc stops it. macOS will ask for
-                  two permissions when it is first used. Off unless you turn it on.
+                  Lets an agent see the screen and click and type in your other apps. It asks before
+                  the first time, again for each app, and ⌥ Esc stops it. macOS will ask for two
+                  permissions when it is first used. Off unless you turn it on.
                 </span>
               </div>
               <label className="switch">
