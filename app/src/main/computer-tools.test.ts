@@ -408,6 +408,23 @@ describe("the agent's tools for using the Mac", () => {
     })
   })
 
+  it('are refused, unasked, to an agent whose own shell runs unseen', async () => {
+    const { setShellGapProbe } = await import('./computer-tools')
+    setShellGapProbe(() => 'Computer use is not available to Codex in Full mode.')
+    try {
+      await withClient(async (c) => {
+        const no = await call(c, 'computer_click', { x: 5, y: 5 })
+        expect(no.isError).toBe(true)
+        expect(text(no)).toContain('Codex in Full mode')
+        expect((await call(c, 'computer_screenshot', {})).isError).toBe(true)
+        expect(state.asked).toEqual([])
+        expect(state.acted).toEqual([])
+      })
+    } finally {
+      setShellGapProbe(() => null)
+    }
+  })
+
   it('open an app only after asking about it, and never one that is out of bounds', async () => {
     state.consent = true
     await withClient(async (c) => {

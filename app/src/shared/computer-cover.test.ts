@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   coverOthers,
   menuLevels,
+  shellGapReason,
   shownText,
   stepText,
   windowPart,
@@ -134,5 +135,16 @@ describe('a step, said before it is taken', () => {
   it('has nothing to ask about a move or a scroll', () => {
     expect(stepText({ type: 'move' })).toBeNull()
     expect(stepText({ type: 'scroll' })).toBeNull()
+  })
+})
+
+describe('an agent whose shell runs unseen', () => {
+  it('is Codex in Full mode, and only that', () => {
+    expect(shellGapReason('codex', 'bypassPermissions')).toContain('Ask mode')
+    expect(shellGapReason('codex', undefined)).toContain('Ask mode')
+    expect(shellGapReason('codex', 'ask')).toBeNull()
+    expect(shellGapReason('codex', 'acceptEdits')).toBeNull()
+    expect(shellGapReason('claude', 'bypassPermissions')).toBeNull()
+    expect(shellGapReason('antigravity', 'bypassPermissions')).toBeNull()
   })
 })

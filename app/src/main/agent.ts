@@ -33,6 +33,8 @@ import type {
   SessionContext,
   SessionHost
 } from './agent-backend'
+import { shellGapReason } from '../shared/computer-use'
+import { setShellGapProbe } from './computer-tools'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL, type AgentProvider } from '../shared/agent-provider'
 
 export type { AgentBackend, AgentImage, AgentStartOptions } from './agent-backend'
@@ -103,6 +105,14 @@ export function findSessionByChat(chatId: string): AgentSessionInfo | undefined 
 /** What a session was started with — to tell whether a requested change needs a restart. */
 export function getSessionOpts(id: string): AgentStartOptions | undefined {
   return sessions.get(id)?.opts
+}
+
+/** Why this conversation's agent may not use the Mac (shared/computer-use.ts), or null. */
+export function shellGapForChat(chatId: string): string | null {
+  for (const s of sessions.values())
+    if (s.chatId === chatId)
+      return shellGapReason(s.opts.provider ?? safeChatProvider(chatId), s.opts.permissionMode)
+  return null
 }
 
 export function listSessions(): AgentSessionInfo[] {
@@ -631,6 +641,7 @@ export function registerAgentIpc(): void {
     (_e, cwd: string, excerpt: string, provider?: AgentProvider) =>
       suggestTitle(cwd, excerpt, provider ?? DEFAULT_PROVIDER)
   )
+  setShellGapProbe(shellGapForChat)
   ipcMain.handle('agent:start', (e, opts: AgentStartOptions) => {
     // The phone may already be running this chat's agent. Adopt it rather than
     // spawning a second claude on the same conversation.

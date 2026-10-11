@@ -93,6 +93,16 @@ export const COMPUTER_TOOL_NAMES = [
   'computer_clipboard_write'
 ] as const
 
+/**
+ * Why a conversation's agent may not use the Mac because of how its own shell
+ * runs, or null. Asked of agent.ts, which knows the sessions; set at startup
+ * so this module does not import it.
+ */
+let shellGap: (chatId: string) => string | null = () => null
+export function setShellGapProbe(fn: typeof shellGap): void {
+  shellGap = fn
+}
+
 export function registerComputerTools(server: McpServer, ctx: ComputerContext): void {
   if (!computerUseEnabled()) return
   const owner = ctx.sessionId
@@ -105,6 +115,10 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
     // cannot be put back: no hands on the Mac until they are.
     if (!hooksIntact())
       return "Superagent's safety hooks are missing from this Mac's Claude settings and could not be put back, so computer use is paused. Tell the user; restarting Superagent restores them."
+    // An agent whose shell Superagent cannot see into is not given the Mac as
+    // well: its shell would be a second, unwatched way to the same screen.
+    const gap = shellGap(owner)
+    if (gap) return gap
     if (hasConsent(owner)) return null
     const yes = await requestApproval(
       ctx.workspaceId,

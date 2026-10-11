@@ -648,3 +648,19 @@ export function menuLevels(path: string): string[] {
     .map((s) => s.trim())
     .filter(Boolean)
 }
+
+/**
+ * Why an agent may not be given the Mac because of how its own shell runs, or
+ * null. Computer use leans on Superagent seeing each shell command first (the
+ * guard that refuses a second way to the mouse, the keyboard and the screen).
+ * Codex in its full-access mode asks about nothing, so nothing is seen.
+ */
+export function shellGapReason(
+  provider: string,
+  permissionMode: string | undefined
+): string | null {
+  const full = !permissionMode || permissionMode === 'bypassPermissions'
+  return provider === 'codex' && full
+    ? 'Computer use is not available to Codex in Full mode: there Codex runs its commands without Superagent seeing them, which the safeguards for using the Mac depend on. Tell the user to switch this conversation to Ask mode (the Mode picker under the message box) and ask again.'
+    : null
+}
