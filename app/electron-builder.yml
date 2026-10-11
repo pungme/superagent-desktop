@@ -79,3 +79,13 @@ linux:
   maintainer: superagent
   category: Development
 npmRebuild: false
+# Fuses: switches burnt into the Electron binary itself. Without these, anyone
+# with a shell in the user's account (an agent has one) can run the app's own
+# binary as plain Node (ELECTRON_RUN_AS_NODE), or with an inspector attached,
+# and whatever it does then is "Superagent" to macOS, with Superagent's
+# permissions to see the screen and post events. The app itself uses none of
+# the three. See src/main/harden.ts for the other half.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
