@@ -10764,13 +10764,14 @@ button {
 .onboarding {
   height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
   background: var(--bg-content);
   -webkit-app-region: drag;
+  /* A card taller than a small window scrolls rather than losing its ends. */
+  overflow-y: auto;
 }
 
 .onboarding-card {
+  margin: auto;
   width: 560px;
   max-width: 90%;
   padding: 40px 36px;

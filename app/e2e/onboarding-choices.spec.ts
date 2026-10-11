@@ -22,8 +22,7 @@ let dir: string
 test.describe.configure({ mode: 'serial' })
 
 type Seen = { calls: [string, unknown][]; lidFails: boolean }
-const seen = (): Promise<Seen> =>
-  app.evaluate(() => (globalThis as unknown as { sa: Seen }).sa)
+const seen = (): Promise<Seen> => app.evaluate(() => (globalThis as unknown as { sa: Seen }).sa)
 
 test.beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'superagent-choices-'))
@@ -84,10 +83,11 @@ test.beforeAll(async () => {
       return { supported: true, enabled: state.computer }
     })
   })
-  await page.evaluate(() => {
+  await page.evaluate((theme) => {
     for (const k of ['cove.onboarded', 'cove.connectionsOffered', 'cove.choicesAsked'])
       localStorage.removeItem(k)
-  })
+    if (theme) localStorage.setItem('cove.theme', theme)
+  }, process.env.THEME ?? '')
   await page.reload()
 })
 test.afterAll(async () => {
@@ -147,8 +147,31 @@ test('a refused password leaves the lid setting off and says why', async () => {
   await lid.locator('select').selectOption('30')
   await expect(lid.locator('select')).toHaveValue('30')
   expect((await seen()).calls.slice(-1)).toEqual([['floor', 30]])
-  if (process.env.SHOT) {
+  {
     await page.waitForTimeout(400) // the switch has finished sliding
+    // And in a window as small as it goes, where the card has to scroll.
+    const size = await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows()[0]
+      const was = w.getSize()
+      const [mw, mh] = w.getMinimumSize()
+      w.setSize(mw || 700, mh || 500)
+      return was
+    })
+    await page.waitForTimeout(200)
+    await page.screenshot({ path: '/tmp/superagent-choices-small.png' })
+    // Neither end of the card is lost: the top is there, and Continue can be reached.
+    expect(
+      await page.evaluate(
+        () => document.querySelector('.choices-card')!.getBoundingClientRect().top
+      )
+    ).toBeGreaterThanOrEqual(0)
+    await page.getByRole('button', { name: 'Continue', exact: true }).scrollIntoViewIfNeeded()
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeInViewport()
+    await page.screenshot({ path: '/tmp/superagent-choices-small-end.png' })
+    await app.evaluate(
+      ({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0].setSize(w, h),
+      size
+    )
     await page.screenshot({ path: '/tmp/superagent-choices-set.png' })
   }
 })
