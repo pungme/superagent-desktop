@@ -5,6 +5,7 @@ import {
   setHandsOff,
   signInRetryUrl
 } from './google-signin'
+import { unseenPaneSize } from '../shared/mirror-shot'
 import { applySignInIdentity } from './sign-in-identity'
 import {
   BrowserWindow,
@@ -213,6 +214,11 @@ interface BrowserPane {
   view: WebContentsView
   window: BrowserWindow
   visible: boolean
+  /**
+   * The pane's size the last time it was on screen, for laying it out the same
+   * shape while it composites unseen for the phone (see ensureCompositing).
+   */
+  shown?: { width: number; height: number }
   /** Session partition, kept so the mobile twin can share logins. */
   partition: string
   /**
@@ -1098,9 +1104,11 @@ export function ensureCompositing(paneId: string): void {
   if (!pane || pane.visible || compositingHidden.has(paneId) || pane.window.isDestroyed()) return
   // Not off-window — a view outside the window's bounds is culled and never
   // paints either. Inside the window, underneath the app's own view (index 0),
-  // it is fully covered yet still composited.
+  // it is fully covered yet still composited. At the pane's own size, not the
+  // window's: the phone's picture of the page is the page as the pane shows
+  // it on the Mac, a column, rather than something as wide as the window.
   const { width, height } = pane.window.getContentBounds()
-  pane.view.setBounds({ x: 0, y: 0, width: Math.max(800, width), height: Math.max(600, height) })
+  pane.view.setBounds({ x: 0, y: 0, ...unseenPaneSize(pane.shown, { width, height }) })
   pane.window.contentView.addChildView(pane.view, 0)
   compositingHidden.add(paneId)
   paneLog('composite-hidden', paneId)
@@ -1186,6 +1194,8 @@ export function registerBrowserIpc(): void {
     }
     const applied = toWindowPixels(pane.window, bounds)
     pane.view.setBounds(applied)
+    if (applied.width > 0 && applied.height > 0)
+      pane.shown = { width: applied.width, height: applied.height }
     // A pane that reaches the bottom of the window is covering the composer,
     // which is the "the chat box is just not there" report — the native view
     // paints over it, so nothing in the HTML can be at fault and nothing in the
