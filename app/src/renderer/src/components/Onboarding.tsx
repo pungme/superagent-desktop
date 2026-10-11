@@ -1,4 +1,5 @@
 import { ConnectionsStep } from './MailConnection'
+import { CHOICES_ASKED_KEY, ChoicesStep } from './OnboardingChoices'
 import { Tour } from '../tour/Tour'
 import { TOUR_SEEN_KEY } from '../tour/tour-keys'
 import { useEffect, useState } from 'react'
@@ -11,8 +12,11 @@ import {
 } from '../../../shared/agent-provider'
 
 /** After the agents: the tour, unless it has been seen (setting up a second time). */
-const afterAgents = (): 'tour' | 'connections' =>
-  localStorage.getItem(TOUR_SEEN_KEY) ? 'connections' : 'tour'
+/** After the tour, the choices; each shown once, then straight on. */
+const afterTour = (): 'choices' | 'connections' =>
+  localStorage.getItem(CHOICES_ASKED_KEY) ? 'connections' : 'choices'
+const afterAgents = (): 'tour' | 'choices' | 'connections' =>
+  localStorage.getItem(TOUR_SEEN_KEY) ? afterTour() : 'tour'
 
 interface OnboardingProps {
   onDone: () => void
@@ -53,7 +57,7 @@ function isReady(env: EnvStatus | null): boolean {
 
 export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | null {
   // Connect an agent, see how the app works, then the optional connections.
-  const [step, setStep] = useState<'agents' | 'tour' | 'connections'>('agents')
+  const [step, setStep] = useState<'agents' | 'tour' | 'choices' | 'connections'>('agents')
   const [checkError, setCheckError] = useState('')
   const [env, setEnv] = useState<EnvStatus | null>(null)
   const [checking, setChecking] = useState(true)
@@ -142,7 +146,8 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
     }
   }, [setProvider])
 
-  if (step === 'tour') return <Tour onDone={() => setStep('connections')} />
+  if (step === 'tour') return <Tour onDone={() => setStep(afterTour())} />
+  if (step === 'choices') return <ChoicesStep onDone={() => setStep('connections')} />
   if (step === 'connections') return <ConnectionsStep onDone={onDone} />
 
   const ready = isReady(env)

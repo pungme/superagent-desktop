@@ -13943,3 +13943,70 @@ button {
   font-weight: 600;
   color: var(--success, #2f9e5b);
 }
+
+/* ---- Setting up: the few choices worth making at the start ---- */
+.choices-card {
+  max-width: 560px;
+}
+.choices {
+  margin: 18px 0 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: left;
+  overflow: hidden;
+}
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 13px 15px;
+}
+.choice + .choice {
+  border-top: 1px solid var(--border);
+}
+.choice-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.choice-text b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.choice-text span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.choice-beta {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 4px;
+  vertical-align: 1px;
+  color: var(--text-secondary);
+  background: var(--bg-hover, rgba(127, 127, 127, 0.14));
+}
+.choice-text .choice-error {
+  color: #d9534f;
+}
+.choice-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.choice > .switch,
+.choice > .mode-switch {
+  flex: none;
+  margin-top: 2px;
+}

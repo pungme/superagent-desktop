@@ -70,8 +70,13 @@ test.afterAll(async () => {
 async function passTour(p: import('@playwright/test').Page): Promise<void> {
   const tour = p.getByRole('dialog', { name: 'How Superagent works' })
   const next = p.getByRole('heading', { name: 'Connect your apps' })
-  await expect(tour.or(next)).toBeVisible({ timeout: 15000 })
+  const choices = p.getByRole('heading', { name: 'How should it behave?' })
+  await expect(tour.or(choices).or(next)).toBeVisible({ timeout: 15000 })
   if (await tour.isVisible()) await tour.getByRole('button', { name: 'Skip', exact: true }).click()
+  // Then the few choices worth making at the start: left as they are.
+  await expect(choices.or(next)).toBeVisible({ timeout: 15000 })
+  if (await choices.isVisible())
+    await p.getByRole('button', { name: 'Continue', exact: true }).click()
 }
 
 test('with an agent ready, goes straight to optional Mail; handles denial and retry', async () => {

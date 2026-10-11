@@ -93,7 +93,7 @@ export function ConnectionsStep({ onDone }: { onDone: () => void }): React.JSX.E
   return (
     <div className="onboarding">
       <div className="onboarding-card connections-card">
-        <p className="onboarding-sub">Step 2 of 2 · Optional</p>
+        <p className="onboarding-sub">Step 3 of 3 · Optional</p>
         <h1>Connect your apps</h1>
         <p className="onboarding-intro">
           Give your agent access to the apps you choose. You can connect or disconnect them later in
