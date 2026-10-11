@@ -1668,6 +1668,115 @@
       51%, 100% { transform: rotate(540deg); border-radius: 4px; }
     }
 
+
+    /* VIII, the dot: five short acts, one after another (the script at the end
+       of the page moves `data-act` along while the section is on screen). */
+    .dx .dq-win { transition: none; }
+    .dx-other { opacity: 0.72; filter: saturate(0.6); }
+    .dx-sa { opacity: 0; }
+    @keyframes dxup { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+    @keyframes dxdown { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(0.97); } }
+    @keyframes dxfade { from { opacity: 0.72; } to { opacity: 0; } }
+    @keyframes dxback { from { opacity: 0; } to { opacity: 0.72; } }
+    .dx[data-act="0"] .dx-sa { animation: dxup 0.5s var(--ease) 3.3s both; }
+    .dx[data-act="0"] .dx-other { animation: dxfade 0.4s var(--ease) 3.3s both; }
+    .dx[data-act="1"] .dx-sa, .dx[data-act="2"] .dx-sa { opacity: 1; }
+    .dx[data-act="1"] .dx-other, .dx[data-act="2"] .dx-other { opacity: 0; }
+    .dx[data-act="3"] .dx-sa { animation: dxdown 0.45s var(--ease) 0.5s both; }
+    .dx[data-act="3"] .dx-other { animation: dxback 0.45s var(--ease) 0.6s both; }
+    .dx[data-act="4"] .dx-sa { animation: dxup 0.5s var(--ease) 3.1s both; }
+    .dx[data-act="4"] .dx-other { animation: dxfade 0.4s var(--ease) 3.1s both; }
+    /* what the window shows, and which row of its sidebar is lit */
+    .dx-view { display: none; }
+    .dx[data-act="0"] .dx-v-e2e, .dx[data-act="1"] .dx-v-e2e,
+    .dx[data-act="2"] .dx-v-new, .dx[data-act="3"] .dx-v-new,
+    .dx[data-act="4"] .dx-v-land { display: flex; }
+    .dx[data-act="0"] .dx-r-e2e, .dx[data-act="1"] .dx-r-e2e,
+    .dx[data-act="2"] .dx-r-new, .dx[data-act="3"] .dx-r-new,
+    .dx[data-act="4"] .dx-r-land { background: rgba(49, 52, 45, 0.09); color: var(--ink); font-weight: 600; }
+    .dx-r-new { display: none; align-items: center; gap: 5px; }
+    .dx-r-new i, .dx-working i {
+      width: 6px; height: 6px; border-radius: 50%; flex: none;
+      border: 1.5px solid rgba(49, 52, 45, 0.22); border-top-color: var(--ink);
+      animation: dxspin 0.9s linear infinite;
+    }
+    @keyframes dxspin { to { transform: rotate(360deg); } }
+    .dx[data-act="2"] .dx-r-new, .dx[data-act="3"] .dx-r-new, .dx[data-act="4"] .dx-r-new { display: flex; }
+    .dx[data-act="2"] .dx-r-new { animation: dxin 0.4s var(--ease) 2.5s both; }
+    .dx[data-act="2"] .dx-v-new { animation: dxin 0.4s var(--ease) 2.5s both; }
+    /* both conversations share the one cell, so one can give way to the other */
+    .dx .d9-side { grid-column: 1; grid-row: 1; }
+    .dx .dx-view { grid-column: 2; grid-row: 1; }
+    .dx[data-act="2"] .dx-v-e2e { display: flex; animation: dxgone 0.25s var(--ease) 2.4s both; }
+    @keyframes dxgone { to { opacity: 0; } }
+    .dx[data-act="4"] .dx-r-new i { animation: none; border-color: #5fce7b; background: #5fce7b; }
+    .dx-working { display: flex; align-items: center; gap: 7px; }
+    /* the panel: there for an ask, away when the window is closed, back with news */
+    .dx-panel { opacity: 0; }
+    @keyframes dxpop { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+    .dx[data-act="0"] .dx-panel { animation: dxpop 0.35s var(--ease) 0.3s both; }
+    .dx[data-act="1"] .dx-panel, .dx[data-act="2"] .dx-panel { opacity: 1; }
+    .dx[data-act="3"] .dx-panel { animation: dxpop 0.35s var(--ease) 3.2s both; }
+    .dx[data-act="4"] .dx-panel { animation: dxpop 0.3s var(--ease) 0.2s both; }
+    .dx-act { display: none; }
+    .dx-act.on { display: block; }
+    .dx-in { opacity: 0; }
+    .dx-act.on .dx-in { animation: dxin 0.4s var(--ease) var(--at, 0s) both; }
+    @keyframes dxin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .dx-q span { animation: none; clip-path: inset(0 100% 0 0); }
+    .dx-act.on .dx-q span { animation: dxtype var(--dur, 1.4s) steps(var(--n, 38), end) 0.55s both; }
+    @keyframes dxtype { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+    .dx-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .dx-li { display: flex; align-items: center; gap: 6px; font-size: 0.57rem; color: rgba(255, 255, 255, 0.82); }
+    .dx-li b { font-weight: 700; color: #fff; }
+    .dx-li em { margin-left: auto; font-style: normal; font-size: 0.5rem; color: rgba(255, 255, 255, 0.5); }
+    .dx-li i { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+    .dx-li i.w { background: #5fce7b; }
+    .dx-li i.k { background: #f0b34a; box-shadow: 0 0 0 3px rgba(240, 179, 74, 0.2); }
+    .dx-done { display: flex; gap: 9px; align-items: flex-start; font-size: 0.64rem; line-height: 1.45; }
+    .dx-done i { width: 15px; height: 15px; border-radius: 50%; background: #5fce7b; flex: none; margin-top: 1px; position: relative; }
+    .dx-done i::after { content: ""; position: absolute; left: 5px; top: 3px; width: 3px; height: 6px; border: solid #17321f; border-width: 0 1.6px 1.6px 0; transform: rotate(42deg); }
+    .dx-done small { display: block; font-size: 0.52rem; color: rgba(255, 255, 255, 0.55); margin-top: 2px; }
+    .dx-act[data-a="3"] .dq-foot { opacity: 0; }
+    .dx-find { font-size: 0.6rem; color: rgba(255, 255, 255, 0.45); padding: 7px 9px; border-radius: 9px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 6px; }
+    .dx-proj { display: flex; align-items: center; gap: 8px; font-size: 0.62rem; padding: 6px 8px; border-radius: 8px; color: rgba(255, 255, 255, 0.85); }
+    .dx-proj .gl { width: 11px; height: 8px; border-radius: 2px; border: 1.3px solid rgba(255, 255, 255, 0.6); flex: none; }
+    .dx-proj em { margin-left: auto; font-style: normal; opacity: 0; }
+    .dx-act.on .dx-pick { animation: dxpick 0.3s var(--ease) 1.5s both; }
+    .dx-act.on .dx-pick em { animation: dxin 0.3s var(--ease) 1.7s both; }
+    @keyframes dxpick { to { background: rgba(255, 255, 255, 0.13); color: #fff; } }
+    .dx-keys { display: flex; gap: 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.09); font-size: 0.5rem; color: rgba(255, 255, 255, 0.45); }
+    .dx-act.on .dx-keys span:last-child { animation: dxkey 0.35s var(--ease) 2.4s both; }
+    @keyframes dxkey { to { color: #fff; } }
+    /* the tile: still; turning while a job runs; a green mark when there is news */
+    .dx-tile b { position: absolute; right: -3px; top: -3px; width: 11px; height: 11px; border-radius: 50%; background: #5fce7b; border: 2px solid #f4f3ef; opacity: 0; transform: scale(0.4); }
+    .dx[data-act="2"] .dx-tile i { animation: dxturn 2.6s linear 2.4s both; }
+    .dx[data-act="3"] .dx-tile i { animation: dxturn 2.7s linear 0s both; }
+    @keyframes dxturn {
+      0% { transform: none; border-radius: 4px; }
+      8% { transform: rotate(0deg) scale(0.8); border-radius: 50%; }
+      92% { transform: rotate(720deg) scale(0.8); border-radius: 50%; }
+      100% { transform: rotate(720deg); border-radius: 4px; }
+    }
+    .dx[data-act="3"] .dx-tile b { animation: dxbadge 0.35s var(--ease) 2.8s both; }
+    @keyframes dxbadge { to { opacity: 1; transform: none; } }
+    .dx-note {
+      position: absolute; right: 78px; bottom: 30px; font-size: 0.58rem; color: var(--muted);
+      background: rgba(255, 254, 250, 0.92); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px;
+      opacity: 0; pointer-events: none;
+    }
+    .dx[data-act="3"] .dx-note { animation: dxnote 2.3s var(--ease) 0.9s both; }
+    @keyframes dxnote { 0% { opacity: 0; transform: translateX(6px); } 18%, 82% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+    /* which act is on, under the scene; a click goes to one */
+    .dx-acts { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 16px auto 0; padding: 0; max-width: 560px; }
+    .dx-acts li {
+      font-size: 0.74rem; padding: 5px 11px; border-radius: 999px; cursor: pointer; user-select: none;
+      color: var(--faint); border: 1px solid var(--line); background: transparent;
+      transition: color 0.3s var(--ease), background 0.3s var(--ease), border-color 0.3s var(--ease);
+    }
+    .dx-acts li:hover { color: var(--ink); }
+    .dx-acts li.on { color: var(--cream); background: var(--ink); border-color: var(--ink); }
+
     /* IX: an app's window, with something in it to press */
     .d10-app { right: 330px; animation: d10app 16s var(--ease) infinite; }
     @keyframes d10app { 0%, 66% { filter: none; } 70%, 92% { filter: saturate(0.5) brightness(0.97); } 97%, 100% { filter: none; } }
@@ -2027,6 +2136,9 @@
       .d1-pg2, .d1-pg3, .d5-click, .d5-flash, .d3-ripple { opacity: 0 !important; }
       .d9-panel, .d9-sa, .dq-step, .dq-ans, .dq-foot, .d10-panel, .d10-using { opacity: 1 !important; transform: none !important; }
       .d9-q span { clip-path: none !important; }
+      .dx-panel, .dx-sa, .dx-in { opacity: 1 !important; transform: none !important; animation: none !important; }
+      .dx-q span { clip-path: none !important; animation: none !important; }
+      .dx-other, .dx-note { display: none !important; }
       .d9-other, .d10-ring, .d10-pw, .d10-stop, .d10-ask, .d10-btns { display: none !important; }
       .d3-sheet { transform: translateY(106%) !important; }
       .kb-mover { transform: translate(calc(100% + 18px), 50px) !important; }
@@ -3203,9 +3315,9 @@
       </div>
       <div class="pane-wrap" data-rv style="--d:.15s">
         <div class="pane" style="--bobd:11s; --bobo:-2s">
-          <div class="scaler"><div class="mini scene">
+          <div class="scaler"><div class="mini scene dx" data-act="0">
             <div class="d7-desk">
-            <div class="dq-win d9-other">
+            <div class="dq-win dx-other">
             <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">invoice.tsx &mdash; editor</span></div>
             <div class="dq-code">
             <span class="ln dk" style="width:38%"></span><span class="ln" style="width:64%"></span><span class="ln" style="width:52%"></span><span class="ln" style="width:70%"></span>
@@ -3214,38 +3326,83 @@
             <span class="ln" style="width:55%"></span><span class="ln" style="width:33%"></span>
             </div>
             </div>
-            <div class="dq-win d9-sa">
+            <div class="dq-win dx-sa">
             <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Superagent</span></div>
             <div class="d9-body">
             <div class="d9-side">
             <div class="d9-grp">Projects</div>
             <div class="d9-row proj">wepush</div>
-            <div class="d9-row sub on">e2e test and harness</div>
+            <div class="d9-row sub dx-r-e2e">e2e test and harness</div>
             <div class="d9-row sub">Slow loads on the feed</div>
             <div class="d9-row proj">wepush-portal</div>
+            <div class="d9-row sub dx-r-new"><i></i>Fix the header</div>
             <div class="d9-row sub">Pricing page copy</div>
-            <div class="d9-row proj">landing-page</div>
+            <div class="d9-row proj dx-r-land">landing-page</div>
             </div>
-            <div class="d9-chat">
+            <div class="d9-chat dx-view dx-v-e2e">
             <div class="d9-ttl">e2e test and harness<small>wepush &middot; 2 days ago</small></div>
             <div class="d9-msg">Add a harness so the checkout flow runs headless.</div>
             <div class="d9-reply">Done. <code>npm run e2e</code> now boots the app with a seeded shop and runs 14 flows; 13 pass, and the refund one is flaky on slow CI.</div>
             </div>
+            <div class="d9-chat dx-view dx-v-new">
+            <div class="d9-ttl">Fix the header<small>wepush-portal &middot; just now &middot; on its own branch</small></div>
+            <div class="d9-msg">Fix the header: it collapses below 400 points.</div>
+            <div class="d9-reply dx-working"><i></i>Reading <code>Header.tsx</code>&hellip;</div>
+            </div>
+            <div class="d9-chat dx-view dx-v-land">
+            <div class="d9-ttl">landing-page<small>3 conversations &middot; main</small></div>
+            <div class="d9-msg">Make the headline shorter, keep the tone.</div>
+            <div class="d9-reply">Two lines instead of three. I cut &ldquo;for teams of any size&rdquo;: it was doing nothing.</div>
             </div>
             </div>
-            <div class="dq-panel d9-panel">
+            </div>
+            <div class="dq-panel dx-panel">
             <div class="dq-in">In <span class="dq-chip">Computer &#9662;</span></div>
-            <div class="d9-q"><span>go to the wepush chat about e2e testing</span></div>
-            <div class="dq-step d9-s1"><i></i>Looking for the chat &middot; e2e testing wepush</div>
-            <div class="dq-step d9-s2"><i></i>Opening it</div>
-            <div class="dq-ans d9-ans">You&rsquo;re now in <b>e2e test and harness</b>, in wepush.</div>
-            <div class="dq-foot d9-foot"><span>Open in Superagent &#8599;</span><span>Clear</span></div>
+            <div class="dx-act" data-a="0">
+              <div class="d9-q dx-q"><span>go to the wepush chat about e2e testing</span></div>
+              <div class="dq-step dx-in" style="--at:2.1s"><i></i>Looking for the chat &middot; e2e testing wepush</div>
+              <div class="dq-step dx-in" style="--at:2.6s"><i></i>Opening it</div>
+              <div class="dq-ans dx-in" style="--at:3.1s">You&rsquo;re now in <b>e2e test and harness</b>, in wepush.</div>
             </div>
-            <div class="dq-tile d9-tile"><i></i></div>
+            <div class="dx-act" data-a="1">
+              <div class="d9-q dx-q" style="--n:15; --dur:0.8s"><span>what&rsquo;s running?</span></div>
+              <div class="dx-list">
+                <div class="dx-li dx-in" style="--at:1.6s"><i class="w"></i><b>wepush</b> e2e test and harness<em>working</em></div>
+                <div class="dx-li dx-in" style="--at:1.9s"><i class="w"></i><b>portal</b> Pricing page copy<em>working</em></div>
+                <div class="dx-li dx-in" style="--at:2.2s"><i class="k"></i><b>landing</b> Hero copy<em>waiting for you</em></div>
+              </div>
+              <div class="dq-ans dx-in" style="--at:2.7s">Two working. <b>One is waiting for your answer.</b></div>
+            </div>
+            <div class="dx-act" data-a="2">
+              <div class="d9-q dx-q" style="--n:42; --dur:1.5s"><span>start a chat in the portal to fix the header</span></div>
+              <div class="dq-step dx-in" style="--at:2.2s"><i></i>New chat in wepush-portal, on its own branch</div>
+              <div class="dq-ans dx-in" style="--at:2.8s">On it: <b>Fix the header</b>. I&rsquo;ll tell you when it&rsquo;s done.</div>
+            </div>
+            <div class="dx-act" data-a="3">
+              <div class="dx-done dx-in" style="--at:3.3s"><i></i><div><b>Fix the header</b> is done.<small>3 files changed &middot; tests pass &middot; wepush-portal</small></div></div>
+              <div class="dq-foot dx-in" style="--at:3.6s"><span>Open in Superagent &#8599;</span><span>Clear</span></div>
+            </div>
+            <div class="dx-act" data-a="4">
+              <div class="dx-find">Find a project&hellip;</div>
+              <div class="dx-proj"><span class="gl"></span>wepush</div>
+              <div class="dx-proj"><span class="gl"></span>wepush-portal</div>
+              <div class="dx-proj dx-pick"><span class="gl"></span>landing-page<em>&#8599;</em></div>
+              <div class="dx-keys"><span>&#8617; ask in it</span><span>&#8984;&#8617; open it in Superagent</span></div>
+            </div>
+            </div>
+            <div class="dq-tile dx-tile"><i></i><b></b></div>
+            <div class="dx-note">The window is closed. It is still working.</div>
             </div>
           </div></div>
-          <p class="pane-cap">A tile in the corner. Ask, and it goes there for you.</p>
-          <ul class="spec"><li>Typed or spoken</li><li>Any project, or the Mac itself</li><li>Stays out of screen shares</li></ul>
+          <ol class="dx-acts" aria-label="What the dot can do">
+            <li class="on">Go to a chat</li>
+            <li>Ask what&rsquo;s running</li>
+            <li>Hand over a job</li>
+            <li>Close the window</li>
+            <li>Jump to a project</li>
+          </ol>
+          <p class="pane-cap">A tile in the corner. It is there when you call it, and gone when you don&rsquo;t.</p>
+          <ul class="spec"><li>Typed or spoken</li><li>Any project, or the Mac itself</li><li>Works with the window closed</li></ul>
         </div>
       </div>
     </div>
@@ -3612,6 +3769,32 @@
         });
       }, { threshold: 0.15, rootMargin: "0px 0px -5% 0px" });
       sections.forEach(function (el) { io.observe(el); });
+
+      // The dot's demonstration: five acts, moved along while it is on screen.
+      (function () {
+        var scene = document.querySelector('.dx');
+        if (!scene) return;
+        var section = scene.closest('.io');
+        var acts = [].slice.call(scene.querySelectorAll('.dx-act'));
+        var chips = [].slice.call(document.querySelectorAll('.dx-acts li'));
+        var LONG = [5600, 4600, 5400, 6000, 5200];
+        var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var at = 0, spent = 0;
+        function show(n) {
+          at = n; spent = 0;
+          scene.setAttribute('data-act', String(n));
+          acts.forEach(function (el) { el.classList.toggle('on', el.getAttribute('data-a') === String(n)); });
+          chips.forEach(function (el, i) { el.classList.toggle('on', i === n); });
+        }
+        chips.forEach(function (el, i) { el.addEventListener('click', function () { show(i); }); });
+        show(0);
+        if (still) return;
+        setInterval(function () {
+          if (!section || !section.classList.contains('play')) return;
+          spent += 200;
+          if (spent >= LONG[at]) show((at + 1) % acts.length);
+        }, 200);
+      })();
 
       // Rail: light the dot for whichever stage is crossing the middle.
       var links = [].slice.call(document.querySelectorAll('.rail a'));
