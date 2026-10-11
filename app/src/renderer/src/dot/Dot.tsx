@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Markdown } from '../components/Markdown'
+import { useArrivingText } from '../lib/use-arriving-text'
 import { splitAssistant, type ChoiceSpec } from '../components/assistantSegments'
 import { ProjectIcon } from '../components/ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
@@ -484,21 +485,12 @@ export function Dot(): React.JSX.Element {
                   )}
                   {(task.answer || task.live) && (
                     <div className="dot-answer">
-                      {splitAssistant(task.live || task.answer).map((seg, i) =>
-                        'md' in seg ? (
-                          <Markdown key={i} text={seg.md} streaming={task.status === 'working'} />
-                        ) : (
-                          // The agent asking you to choose: buttons, as in the
-                          // chat, not the block of JSON it is written as. A
-                          // pick is your next message in the conversation.
-                          <Choices
-                            key={i}
-                            spec={seg.ask}
-                            disabled={task.status === 'working' || sending}
-                            onPick={(said) => void ask(said)}
-                          />
-                        )
-                      )}
+                      <DotAnswer
+                        text={task.live || task.answer}
+                        working={task.status === 'working'}
+                        disabled={task.status === 'working' || sending}
+                        onPick={(said) => void ask(said)}
+                      />
                     </div>
                   )}
                   {task.status === 'failed' && <div className="dot-error">{task.error}</div>}
@@ -657,5 +649,37 @@ export function Dot(): React.JSX.Element {
         <span className="dot-core" />
       </button>
     </div>
+  )
+}
+
+/**
+ * The answer in the panel, arriving the way a reply does in the chat: at an
+ * even pace, each new word coming in (lib/stream-words.ts).
+ */
+function DotAnswer({
+  text,
+  working,
+  disabled,
+  onPick
+}: {
+  text: string
+  working: boolean
+  disabled: boolean
+  onPick: (said: string) => void
+}): React.JSX.Element {
+  const { text: said, arriving } = useArrivingText(text, working)
+  return (
+    <>
+      {splitAssistant(said).map((seg, i) =>
+        'md' in seg ? (
+          <Markdown key={i} text={seg.md} streaming={working || arriving} arriving={arriving} />
+        ) : (
+          // The agent asking you to choose: buttons, as in the chat, not the
+          // block of JSON it is written as. A pick is your next message in
+          // the conversation.
+          <Choices key={i} spec={seg.ask} disabled={disabled} onPick={onPick} />
+        )
+      )}
+    </>
   )
 }
