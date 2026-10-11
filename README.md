@@ -216,7 +216,9 @@ when they are ready, and may change before then.
   and ask: a question, a job, or the app itself. "Go to the wepush chat about
   e2e testing." "What's running?" "Start a chat in the portal to fix the
   header." It finds a conversation from how you describe it and brings the
-  window back on it. `⌃⌥ S` brings Superagent forward from anywhere.
+  window back on it. Its project list is a switcher too: find a project, `⌘↩`,
+  and you are there. It tells you when a job is done, window or no window.
+  `⌃⌥ S` brings Superagent forward from anywhere.
 - **Computer use, off until you turn it on.** An agent can see the screen, read
   an app's controls by name, and press, fill, click and type in other apps,
   for the things that have no command line.
@@ -236,7 +238,12 @@ when they are ready, and may change before then.
     proof: an agent also has a shell of its own, and the guard on that is a
     list of known ways round. Start with "Ask before each step" on.
 - **Replies that arrive.** A reply comes in a word at a time, each word out of
-  a blur into focus, at an even pace however unevenly the agent sends it.
+  a blur into focus, at an even pace however unevenly the agent sends it, and
+  never half a word. In the chat, in the dot, and on the phone.
+- **Quieter loops.** A round of `/loop` shows as a small note marked Loop,
+  with what you asked and none of the instructions the agent gets with it.
+- **A name you gave a chat stays.** Neither the first message nor the agent's
+  own summary renames a conversation you named.
 - **A tour of how it works** when you set up, and again any time from
   Settings → About.
 - **Chat pictures, kept.** Every picture sent in a conversation in one place,
@@ -273,6 +280,9 @@ when they are ready, and may change before then.
   agents, their background tasks, and routine runs.
 - **Light when idle.** The pulsing status dots no longer redraw the window
   every frame, so an idle window uses much less CPU.
+- **Logs you can clear.** They are the app's own notes for finding a fault,
+  nothing of yours; Settings → Advanced → Storage clears them, and a memory
+  snapshot from a crash is removed after a week.
 - **See what's using the space.** Settings breaks storage down by project, so
   clearing an old conversation's history is a click, not a guess.
 - **Updates itself.** Signed, notarized, delivered in the background — restart
