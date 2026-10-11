@@ -228,6 +228,10 @@ when they are ready, and may change before then.
   own summary renames a conversation you named.
 - **A tour of how it works** when you set up, and again any time from
   Settings → About.
+- **Setting up asks how it should behave.** Four decisions, once: what happens
+  when an account runs out (ask, or switch on its own), whether agents keep
+  working with the lid closed, the dot, and computer use. Left untouched,
+  nothing changes; all of it is in Settings afterwards.
 - **Chat pictures, kept.** Every picture sent in a conversation in one place,
   by day, each one a click from the message it came with and a click from your
   Downloads.
