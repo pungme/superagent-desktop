@@ -63,7 +63,7 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
     ['Every chat on one rail', false, 5],
     ['It sees what it builds', false, 6.6],
     ['It knocks. It never barges in', false, 2.5],
-    ['Ask from anywhere', true, 10],
+    ['The best agent is the one that disappears', true, 10],
     ['It can use your Mac, when you let it', true, 6.3]
   ]
   for (const [i, [title, beta, moment]] of slides.entries()) {
@@ -99,7 +99,7 @@ test('the keys work, the dot can be turned off on its own slide, and Esc leaves'
   await window.keyboard.press('ArrowRight')
   await window.keyboard.press('ArrowRight')
   await window.keyboard.press('ArrowRight')
-  await expect(tour.getByRole('heading', { name: 'Ask from anywhere' })).toBeVisible()
+  await expect(tour.getByRole('heading', { name: 'The best agent is the one that disappears' })).toBeVisible()
   // Only this slide has the switch, and it says what the app has.
   const keep = tour.getByLabel('Show the dot on my screen')
   await expect(keep).toBeChecked()

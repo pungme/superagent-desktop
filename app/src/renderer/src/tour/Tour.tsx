@@ -384,12 +384,12 @@ const TOUR_SLIDES: Slide[] = [
     id: 'dot',
     kicker: 'The dot',
     beta: true,
-    title: 'Ask from anywhere',
+    title: 'The best agent is the one that disappears',
     text: (
       <>
-        A small tile in the corner of your screen, over every app. Press <kbd>⌥ Space</kbd>, or{' '}
-        <kbd>⌃⌥ V</kbd> to say it out loud: a question, a job, or the app itself. “Go to the wepush
-        chat about e2e testing.”
+        Close the window and Superagent goes on working. What is left is a small tile in the corner
+        of your screen, over every app. Press <kbd>⌥ Space</kbd>, or <kbd>⌃⌥ V</kbd> to say it out
+        loud: a question, a job, or the app itself. “Go to the wepush chat about e2e testing.”
       </>
     ),
     scene: DotScene
