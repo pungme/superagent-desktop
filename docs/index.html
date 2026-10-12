@@ -1637,6 +1637,9 @@
     .dq-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 0.54rem; color: rgba(255, 255, 255, 0.5); opacity: 0; }
     .dq-foot span:last-child { background: rgba(255, 255, 255, 0.1); color: #fff; padding: 4px 9px; border-radius: 7px; font-weight: 600; }
 
+    .dot-copy-only { max-width: 850px; text-align: center; }
+    .dot-copy-only .feat-copy { max-width: 760px; margin: 0 auto; }
+
     .d9-panel { opacity: 0; animation: d9panel 16s var(--ease) infinite; }
     @keyframes d9panel {
       0%, 6% { opacity: 0; transform: translateY(8px) scale(0.96); }
@@ -2860,8 +2863,6 @@
     <a href="#notifications"><span>Notifications</span><i></i></a>
     <a href="#phone"><span>The phone</span><i></i></a>
     <a href="#dot"><span>The dot</span><i></i></a>
-    <a href="#computer"><span>Computer use</span><i></i></a>
-    <a href="#try"><span>Try it</span><i></i></a>
     <a href="#desk"><span>The desk</span><i></i></a>
     <a href="#who"><span>vs. the rest</span><i></i></a>
   </nav>
@@ -3547,260 +3548,15 @@
     </div>
   </section>
 
-  <!-- 8 · the dot: ask from anywhere -->
+  <!-- 8 · the dot: one small way to ask from anywhere -->
   <section class="feature io demo" id="dot">
-    <div class="wrap feat-grid">
+    <div class="wrap dot-copy-only">
       <div class="feat-copy" data-rv>
         <span class="kicker"><span class="num">VIII.</span>The dot<span class="jp">点</span><span class="beta">Beta</span></span>
-        <h2>The best agent is the one that <em>disappears.</em></h2>
-        <p>Close the window. Superagent goes on working, and what is left of it is a small tile in the corner of your screen, over every app. Press <b>&#8997; Space</b>, or <b>&#8963;&#8997; V</b> to say it out loud, and ask: a question, a job, or the app itself. &ldquo;Go to the wepush chat about e2e testing.&rdquo; &ldquo;What&rsquo;s running?&rdquo; &ldquo;Start a chat in the portal to fix the header.&rdquo;</p>
-        <p>It finds the conversation from how you describe it and brings the window back on it, and you can send it away again. Every request is an ordinary chat you can open afterwards.</p>
-        <p class="beta-note">In the 2.0 beta now. Turn on Beta updates in Settings to try it, then the dot itself in Settings &rarr; General; it reaches everyone when it is ready.</p>
-      </div>
-      <div class="pane-wrap" data-rv style="--d:.15s">
-        <div class="pane" style="--bobd:11s; --bobo:-2s">
-          <div class="scaler"><div class="mini scene dx" data-act="0">
-            <div class="d7-desk">
-            <div class="dq-win dx-other">
-            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">invoice.tsx &mdash; editor</span></div>
-            <div class="dq-code">
-            <span class="ln dk" style="width:38%"></span><span class="ln" style="width:64%"></span><span class="ln" style="width:52%"></span><span class="ln" style="width:70%"></span>
-            <span class="ln dk" style="width:30%"></span><span class="ln" style="width:58%"></span><span class="ln" style="width:44%"></span><span class="ln" style="width:66%"></span>
-            <span class="ln" style="width:36%"></span><span class="ln dk" style="width:48%"></span><span class="ln" style="width:61%"></span><span class="ln" style="width:40%"></span>
-            <span class="ln" style="width:55%"></span><span class="ln" style="width:33%"></span>
-            </div>
-            </div>
-            <div class="dq-win dx-sa">
-            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Superagent</span></div>
-            <div class="d9-body">
-            <div class="d9-side">
-            <div class="d9-grp">Projects</div>
-            <div class="d9-row proj">wepush</div>
-            <div class="d9-row sub dx-r-e2e">e2e test and harness</div>
-            <div class="d9-row sub">Slow loads on the feed</div>
-            <div class="d9-row proj">wepush-portal</div>
-            <div class="d9-row sub dx-r-new"><i></i>Fix the header</div>
-            <div class="d9-row sub">Pricing page copy</div>
-            <div class="d9-row proj dx-r-land">landing-page</div>
-            </div>
-            <div class="d9-chat dx-view dx-v-e2e">
-            <div class="d9-ttl">e2e test and harness<small>wepush &middot; 2 days ago</small></div>
-            <div class="d9-msg">Add a harness so the checkout flow runs headless.</div>
-            <div class="d9-reply">Done. <code>npm run e2e</code> now boots the app with a seeded shop and runs 14 flows; 13 pass, and the refund one is flaky on slow CI.</div>
-            </div>
-            <div class="d9-chat dx-view dx-v-new">
-            <div class="d9-ttl">Fix the header<small>wepush-portal &middot; just now &middot; on its own branch</small></div>
-            <div class="d9-msg">Fix the header: it collapses below 400 points.</div>
-            <div class="d9-reply dx-working"><i></i>Reading <code>Header.tsx</code>&hellip;</div>
-            </div>
-            <div class="d9-chat dx-view dx-v-land">
-            <div class="d9-ttl">landing-page<small>3 conversations &middot; main</small></div>
-            <div class="d9-msg">Make the headline shorter, keep the tone.</div>
-            <div class="d9-reply">Two lines instead of three. I cut &ldquo;for teams of any size&rdquo;: it was doing nothing.</div>
-            </div>
-            </div>
-            </div>
-            <div class="dq-panel dx-panel">
-            <div class="dq-in">In <span class="dq-chip">Computer &#9662;</span></div>
-            <div class="dx-act" data-a="0">
-              <div class="d9-q dx-q"><span>go to the wepush chat about e2e testing</span></div>
-              <div class="dq-step dx-in" style="--at:2.1s"><i></i>Looking for the chat &middot; e2e testing wepush</div>
-              <div class="dq-step dx-in" style="--at:2.6s"><i></i>Opening it</div>
-              <div class="dq-ans dx-in" style="--at:3.1s">You&rsquo;re now in <b>e2e test and harness</b>, in wepush.</div>
-            </div>
-            <div class="dx-act" data-a="1">
-              <div class="d9-q dx-q" style="--n:15; --dur:0.8s"><span>what&rsquo;s running?</span></div>
-              <div class="dx-list">
-                <div class="dx-li dx-in" style="--at:1.6s"><i class="w"></i><b>wepush</b> e2e test and harness<em>working</em></div>
-                <div class="dx-li dx-in" style="--at:1.9s"><i class="w"></i><b>portal</b> Pricing page copy<em>working</em></div>
-                <div class="dx-li dx-in" style="--at:2.2s"><i class="k"></i><b>landing</b> Hero copy<em>waiting for you</em></div>
-              </div>
-              <div class="dq-ans dx-in" style="--at:2.7s">Two working. <b>One is waiting for your answer.</b></div>
-            </div>
-            <div class="dx-act" data-a="2">
-              <div class="d9-q dx-q" style="--n:42; --dur:1.5s"><span>start a chat in the portal to fix the header</span></div>
-              <div class="dq-step dx-in" style="--at:2.2s"><i></i>New chat in wepush-portal, on its own branch</div>
-              <div class="dq-ans dx-in" style="--at:2.8s">On it: <b>Fix the header</b>. I&rsquo;ll tell you when it&rsquo;s done.</div>
-            </div>
-            <div class="dx-act" data-a="3">
-              <div class="dx-done dx-in" style="--at:3.3s"><i></i><div><b>Fix the header</b> is done.<small>3 files changed &middot; tests pass &middot; wepush-portal</small></div></div>
-              <div class="dq-foot dx-in" style="--at:3.6s"><span>Open in Superagent &#8599;</span><span>Clear</span></div>
-            </div>
-            <div class="dx-act" data-a="4">
-              <div class="dx-find">Find a project&hellip;</div>
-              <div class="dx-proj"><span class="gl"></span>wepush</div>
-              <div class="dx-proj"><span class="gl"></span>wepush-portal</div>
-              <div class="dx-proj dx-pick"><span class="gl"></span>landing-page<em>&#8599;</em></div>
-              <div class="dx-keys"><span>&#8617; ask in it</span><span>&#8984;&#8617; open it in Superagent</span></div>
-            </div>
-            </div>
-            <div class="dq-tile dx-tile"><i></i><b></b></div>
-            <div class="dx-note">The window is closed. It is still working.</div>
-            </div>
-          </div></div>
-          <ol class="dx-acts" aria-label="What the dot can do">
-            <li class="on">Go to a chat</li>
-            <li>Ask what&rsquo;s running</li>
-            <li>Hand over a job</li>
-            <li>Close the window</li>
-            <li>Jump to a project</li>
-          </ol>
-          <p class="pane-cap">A tile in the corner. It is there when you call it, and gone when you don&rsquo;t.</p>
-          <ul class="spec"><li>Typed or spoken</li><li>Any project, or the Mac itself</li><li>Works with the window closed</li></ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 9 · computer use: the Mac itself, when you let it -->
-  <section class="feature flip io demo" id="computer">
-    <div class="wrap feat-grid">
-      <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">IX.</span>Computer use<span class="jp">操作</span><span class="beta">Beta</span></span>
-        <h2>It can use your Mac. <em>When you let it.</em></h2>
-        <p>Off until you say yes to its first request, or turn it on in Settings. Then an agent can see the screen, read an app&rsquo;s controls by name, and press, fill and click in any app, for what only an app&rsquo;s own window can do. A ring shows where it is about to act.</p>
-        <p>It asks first: for the Mac, again for each app unless you turn that off, and every time before anything named Quit, Delete or Send. Password managers, password prompts and the lock screen are out of bounds, and so is any app you add. <b>&#8997; Esc</b> stops it from wherever you are.</p>
-        <p>Want to see every move coming? Turn on <b>Ask before each step</b>, and each click, keystroke and piece of typing is put to you in words first.</p>
-        <p class="beta-note">In the 2.0 beta now. Turn on Beta updates in Settings to try it; it reaches everyone when it is ready.</p>
-      </div>
-      <div class="pane-wrap" data-rv style="--d:.15s">
-        <div class="pane" style="--bobd:10s; --bobo:-4s">
-          <div class="scaler"><div class="mini scene cx" data-act="0">
-            <div class="d7-desk">
-            <div class="dq-win cx-w cx-w0">
-            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Invoices &mdash; October</span></div>
-            <div class="d10-bar"><span class="d10-btn">Filter</span><span class="d10-btn">Share</span><span class="d10-btn cx-go">Export&hellip;</span></div>
-            <div class="d10-table"><div class="d10-tr hd"><span class="ln dk" style="width:40%"></span><span class="ln dk" style="width:50%"></span><span class="ln dk" style="width:60%"></span></div><div class="d10-tr"><span class="ln" style="width:72%"></span><span class="ln" style="width:58%"></span><span class="ln dk" style="width:70%"></span></div><div class="d10-tr"><span class="ln" style="width:55%"></span><span class="ln" style="width:66%"></span><span class="ln dk" style="width:52%"></span></div><div class="d10-tr"><span class="ln" style="width:80%"></span><span class="ln" style="width:44%"></span><span class="ln dk" style="width:64%"></span></div><div class="d10-tr"><span class="ln" style="width:62%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:48%"></span></div><div class="d10-tr"><span class="ln" style="width:48%"></span><span class="ln" style="width:52%"></span><span class="ln dk" style="width:72%"></span></div></div>
-            <div class="cx-sheet"><i></i>Exported invoices-october.pdf</div>
-            <div class="cx-ring" data-l="Press" style="right:10px; top:34px; --at:4.0s"></div>
-            </div>
-            <div class="dq-win cx-w cx-w1">
-            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">System Settings</span></div>
-            <div class="cx-set">
-              <div class="cx-set-side"><span>Wi-Fi</span><span>Bluetooth</span><span>Notifications</span><span class="on">Appearance</span><span>Displays</span><span>Keyboard</span></div>
-              <div class="cx-set-main">
-                <b>Appearance</b>
-                <div class="cx-pills"><span class="cx-pill cx-light"><i></i>Light</span><span class="cx-pill cx-dark"><i></i>Dark</span><span class="cx-pill"><i></i>Auto</span></div>
-                <span class="ln" style="width:62%"></span><span class="ln" style="width:48%"></span><span class="ln" style="width:70%"></span>
-              </div>
-            </div>
-            <div class="cx-ring" data-l="Press" style="left:250px; top:80px; --at:3.7s"></div>
-            </div>
-            <div class="dq-win cx-w cx-w2">
-            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Expenses &mdash; New claim</span></div>
-            <div class="cx-form">
-              <label>Merchant<span class="cx-field"><em style="opacity:1">City Cab</em></span></label>
-              <label>Amount<span class="cx-field"><em style="--at:2.1s">42.50</em></span></label>
-              <label>Date<span class="cx-field"><em style="--at:2.7s">11 Oct 2026</em></span></label>
-              <label>Category<span class="cx-field"><em style="--at:3.3s">Travel</em></span></label>
-              <div class="cx-form-foot"><span class="d10-btn">Save draft</span><span class="d10-btn cx-submit">Submit</span></div>
-            </div>
-            </div>
-            <div class="dq-win cx-w cx-w3">
-            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Screenshots</span></div>
-            <div class="cx-files">
-              <div class="cx-file" style="--at:2.9s"><i></i><span class="was">Screenshot 2026-10-11 at 09.14.02.png</span><span class="now">checkout-empty-cart.png</span><small>1.2 MB</small></div>
-              <div class="cx-file" style="--at:3.2s"><i></i><span class="was">Screenshot 2026-10-11 at 09.14.40.png</span><span class="now">checkout-card-declined.png</span><small>980 KB</small></div>
-              <div class="cx-file" style="--at:3.5s"><i></i><span class="was">Screenshot 2026-10-11 at 09.21.17.png</span><span class="now">header-collapsed-390.png</span><small>640 KB</small></div>
-              <div class="cx-file" style="--at:3.8s"><i></i><span class="was">Screenshot 2026-10-11 at 09.30.55.png</span><span class="now">pricing-three-tiers.png</span><small>1.5 MB</small></div>
-            </div>
-            </div>
-            <div class="dq-win cx-w cx-w4">
-            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Invoices &mdash; October</span></div>
-            <div class="d10-bar"><span class="d10-btn">Filter</span><span class="d10-btn">Share</span><span class="d10-btn cx-go">Export&hellip;</span></div>
-            <div class="d10-table"><div class="d10-tr hd"><span class="ln dk" style="width:40%"></span><span class="ln dk" style="width:50%"></span><span class="ln dk" style="width:60%"></span></div><div class="d10-tr"><span class="ln" style="width:72%"></span><span class="ln" style="width:58%"></span><span class="ln dk" style="width:70%"></span></div><div class="d10-tr"><span class="ln" style="width:55%"></span><span class="ln" style="width:66%"></span><span class="ln dk" style="width:52%"></span></div><div class="d10-tr"><span class="ln" style="width:80%"></span><span class="ln" style="width:44%"></span><span class="ln dk" style="width:64%"></span></div><div class="d10-tr"><span class="ln" style="width:62%"></span><span class="ln" style="width:70%"></span><span class="ln dk" style="width:48%"></span></div><div class="d10-tr"><span class="ln" style="width:48%"></span><span class="ln" style="width:52%"></span><span class="ln dk" style="width:72%"></span></div></div>
-            </div>
-            <div class="cx-pw">
-            <div class="dq-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Passwords</span></div>
-            <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
-            <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
-            <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
-            <div class="d10-pwrow"><b></b><span class="ln"></span><span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
-            </div>
-            <div class="dq-panel cx-panel">
-            <div class="dq-in">In <span class="dq-chip">Computer &#9662;</span></div>
-            <div class="cx-act" data-a="0">
-              <div class="d9-q dx-q" style="--n:30; --dur:1s"><span>export this month&rsquo;s invoices</span></div>
-              <div class="cx-askbox" style="--at:1.7s; --gone:3.0s"><div class="cx-ask">Use this Mac: see the screen, click and type in your apps, for this task.<small>&#8997; Esc stops it at any time.</small></div><div class="cx-btns"><span>Not now</span><span class="yes" style="--at:2.7s">Allow</span></div></div>
-              <div class="cx-using cx-in" style="--at:3.1s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
-              <div class="dq-step cx-in" style="--at:3.4s"><i></i>Reading the controls &middot; Invoices</div>
-              <div class="dq-step cx-in" style="--at:3.9s"><i></i>Pressing &ldquo;Export&hellip;&rdquo;</div>
-              <div class="dq-ans cx-in" style="--at:5.2s">Exported <b>invoices-october.pdf</b> to your Desktop.</div>
-            </div>
-            <div class="cx-act" data-a="1">
-              <div class="d9-q dx-q" style="--n:26; --dur:0.9s"><span>switch my Mac to dark mode</span></div>
-              <div class="cx-askbox" style="--at:1.5s; --gone:2.8s"><div class="cx-ask">Work in <b>System Settings</b>: click and type in its windows, for this task.<small>It asks once for each app.</small></div><div class="cx-btns"><span>Not now</span><span class="yes" style="--at:2.5s">Allow</span></div></div>
-              <div class="cx-using cx-in" style="--at:2.9s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
-              <div class="dq-step cx-in" style="--at:3.1s"><i></i>Opening System Settings &middot; Appearance</div>
-              <div class="dq-step cx-in" style="--at:3.6s"><i></i>Pressing &ldquo;Dark&rdquo;</div>
-              <div class="dq-ans cx-in" style="--at:4.8s">Dark mode is on.</div>
-            </div>
-            <div class="cx-act" data-a="2">
-              <div class="d9-q dx-q" style="--n:34; --dur:1.1s"><span>file the taxi receipt as an expense</span></div>
-              <div class="cx-using cx-in" style="--at:1.8s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
-              <div class="dq-step cx-in" style="--at:2.0s"><i></i>Filling &ldquo;Amount&rdquo;, &ldquo;Date&rdquo;, &ldquo;Category&rdquo; by name</div>
-              <div class="cx-askbox stay" style="--at:3.9s"><div class="cx-ask">Press <b>&ldquo;Submit&rdquo;</b>: it sends something.<small>Asked every time, whatever you allowed before.</small></div><div class="cx-btns"><span>Not now</span><span class="yes">Allow</span></div></div>
-            </div>
-            <div class="cx-act" data-a="3">
-              <div class="d9-q dx-q" style="--n:40; --dur:1.2s"><span>name today&rsquo;s screenshots by what they show</span></div>
-              <div class="cx-using cx-in" style="--at:1.9s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
-              <div class="dq-step cx-in" style="--at:2.1s"><i></i>Looking at 4 screenshots in Finder</div>
-              <div class="dq-step cx-in" style="--at:2.8s"><i></i>Renaming each one</div>
-              <div class="dq-ans cx-in" style="--at:4.3s">Four renamed. Nothing moved or deleted.</div>
-            </div>
-            <div class="cx-act" data-a="4">
-              <div class="cx-using cx-in" style="--at:0s"><span>Using your Mac</span><kbd>&#8997; Esc &middot; Stop</kbd></div>
-              <div class="dq-step cx-in" style="--at:0s"><i></i>Reading the controls &middot; Invoices</div>
-              <div class="cx-stop cx-in" style="--at:1.5s"><b>Stopped.</b> Passwords is on screen, and it does not look at that.</div>
-              <div class="cx-stop2 cx-in" style="--at:2.6s">Password managers, password prompts, the lock screen, and any app you list. And <b>&#8997; Esc</b> stops it yourself, from anywhere.</div>
-            </div>
-            </div>
-            <div class="dq-tile cx-tile"><i></i></div>
-            </div>
-          </div></div>
-          <ol class="dx-acts" aria-label="What computer use is good for">
-            <li class="on">Export from an app</li>
-            <li>Change a setting</li>
-            <li>Fill in a form</li>
-            <li>Tidy up files</li>
-            <li>Knows where to stop</li>
-          </ol>
-          <p class="pane-cap">For what only an app&rsquo;s own window can do. It asks, shows where it will press, and stops at your secrets.</p>
-          <ul class="spec"><li>Off until you turn it on</li><li>Asks per app</li><li>&#8997; Esc stops it</li></ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- X · try it: the dot on this page, driving this page -->
-  <section class="feature io demo try-sec" id="try">
-    <div class="wrap feat-grid">
-      <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">X.</span>Try it<span class="jp">試す</span><span class="beta">Live</span></span>
-        <h2>The dot, <em>on this page.</em></h2>
-        <p>The tile in the corner is the real thing in miniature. It looks, it does one step at a time, it says what it is doing, and it asks before anything named Submit. Give it a job and watch it work this page; <kbd>&#8997;</kbd> <kbd>Space</kbd> opens it anywhere here.</p>
-      </div>
-      <div class="pane-wrap try-wrap" data-rv style="--d:.15s">
-        <div class="try-jobs" aria-label="Things to ask the dot">
-          <button type="button" data-live-run="form"><b>Fill in the form</b><span>Five fields, typed; it asks before Submit.</span></button>
-          <button type="button" data-live-run="tidy"><b>Tidy the small things</b><span>Drags two cards to the top. Real cards.</span></button>
-          <button type="button" data-live-run="dark"><b>Make the page dark</b><span>Twelve colour variables, switched.</span></button>
-        </div>
-        <form class="try-form" id="try-form" autocomplete="off" aria-label="A form for the dot to fill">
-          <div class="try-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Expenses &mdash; New claim</span></div>
-          <div class="try-fields">
-            <label>Merchant<input name="merchant" type="text" placeholder="Who you paid" /></label>
-            <label>Amount<input name="amount" type="text" inputmode="decimal" placeholder="0.00" /></label>
-            <label>Date<input name="date" type="text" placeholder="Today" /></label>
-            <label>Category<input name="category" type="text" placeholder="Travel, meals…" /></label>
-            <label class="try-check"><input name="receipt" type="checkbox" /><span>I have the receipt</span></label>
-          </div>
-          <div class="try-foot">
-            <span class="try-state" aria-live="polite"></span>
-            <button type="button" class="try-draft">Save draft</button>
-            <button type="submit" class="try-submit">Submit</button>
-          </div>
-        </form>
+        <h2>Ask without <em>opening the app.</em></h2>
+        <p>The dot stays ready without recording your screen. Press <b>&#8997; Space</b> and ask: it takes a fresh snapshot of exactly what you are seeing, understands it, and acts from there.</p>
+        <p>The answer appears beside the dot, and the conversation is saved in Superagent if you want to open it later.</p>
+        <p class="beta-note">Available in the 2.0 beta. Turn on the dot in Settings &rarr; General.</p>
       </div>
     </div>
   </section>
@@ -3808,7 +3564,7 @@
   <section class="feature desk-sec io demo" id="desk">
     <div class="wrap feat-grid">
       <div class="desk-head feat-copy" data-rv>
-        <span class="kicker"><span class="num">XI.</span>The finale<span class="jp">机</span></span>
+        <span class="kicker"><span class="num">IX.</span>The finale<span class="jp">机</span></span>
         <h2>The computer <em>inside</em> Superagent.</h2>
         <p>A desktop, not a slot. Windows you can move, a dock, and more than one agent working at the same time.</p>
       </div>
@@ -3917,7 +3673,7 @@
   <section class="who io" id="who">
     <div class="wrap">
       <div class="who-head" data-rv>
-        <span class="kicker"><span class="num">IX.</span>Who it's for<span class="jp">誰のために</span></span>
+        <span class="kicker"><span class="num">X.</span>Who it's for<span class="jp">誰のために</span></span>
         <h2>Designed the <em>other way round.</em></h2>
         <p class="jp lede" style="letter-spacing:.24em;font-size:.82rem;color:var(--faint);margin-top:10px">コードは、二番目。</p>
         <p class="lede">
@@ -4001,7 +3757,7 @@
   <section class="open io">
     <div class="wrap">
       <div class="open-head" data-rv>
-        <span class="kicker"><span class="num">X.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
+        <span class="kicker"><span class="num">XI.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
         <h2>Don't trust. <em>Verify.</em></h2>
         <p>An agent with a browser is an agent with your logins. Don't take our word for
           what it does with them &mdash; every line of code is public, so you can read it,
@@ -4113,38 +3869,6 @@
         });
       }, { threshold: 0.15, rootMargin: "0px 0px -5% 0px" });
       sections.forEach(function (el) { io.observe(el); });
-
-      // The demonstrations that go through several acts (the dot, computer
-      // use): moved along while their section is on screen; a chip goes to one.
-      function acts(sceneSel, actSel, LONG) {
-        var scene = document.querySelector(sceneSel);
-        if (!scene) return;
-        var section = scene.closest('.io');
-        var list = [].slice.call(scene.querySelectorAll(actSel));
-        var chips = [].slice.call(scene.closest('.pane').querySelectorAll('.dx-acts li'));
-        var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        var at = 0, spent = 0;
-        function show(n) {
-          at = n; spent = 0;
-          // Off and on again, so an act asked for twice plays from its start.
-          scene.removeAttribute('data-act');
-          list.forEach(function (el) { el.classList.remove('on'); });
-          void scene.offsetWidth;
-          scene.setAttribute('data-act', String(n));
-          list.forEach(function (el) { el.classList.toggle('on', el.getAttribute('data-a') === String(n)); });
-          chips.forEach(function (el, i) { el.classList.toggle('on', i === n); });
-        }
-        chips.forEach(function (el, i) { el.addEventListener('click', function () { show(i); }); });
-        show(0);
-        if (still) return;
-        setInterval(function () {
-          if (!section || !section.classList.contains('play')) return;
-          spent += 200;
-          if (spent >= LONG[at]) show((at + 1) % list.length);
-        }, 200);
-      }
-      acts('.dx', '.dx-act', [5600, 4600, 5400, 6000, 5200]);
-      acts('.cx', '.cx-act', [7000, 6400, 6600, 6000, 5600]);
 
       // Rail: light the dot for whichever stage is crossing the middle.
       var links = [].slice.call(document.querySelectorAll('.rail a'));
@@ -4321,276 +4045,108 @@
     })();
   </script>
 
-  <!-- the dot, for real: ask it something and it drives this page -->
+  <!-- The real floating dot: quietly demonstrates a fresh look at the current screen. -->
   <div class="live" id="live" hidden>
     <div class="live-flash" aria-hidden="true"></div>
-    <div class="live-ring" aria-hidden="true"></div>
-    <div class="live-cur" aria-hidden="true"><svg viewBox="0 0 22 26"><path d="M3 2.5 L3 20.5 L7.6 16.2 L10.8 23.4 L14.1 22 L10.9 14.9 L17.4 14.5 Z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
-    <div class="live-panel" role="dialog" aria-label="Ask Superagent">
-      <div class="live-where"><span>In</span><b>This page</b><i>superagent.computer</i></div>
-      <div class="live-ask"><span class="live-typed live-ph">Ask, or pick one below…</span><i class="live-caret"></i></div>
-      <div class="live-chips">
-        <button data-run="form">Fill in the form</button>
-        <button data-run="tidy">Tidy the small things</button>
-        <button data-run="dark">Make the page dark</button>
-      </div>
+    <div class="live-panel" role="status" aria-live="polite" aria-label="Superagent dot">
+      <div class="live-where"><span>In</span><b>Computer</b></div>
+      <div class="live-ask"><span class="live-typed live-ph">Ready when you are</span></div>
       <div class="live-steps"></div>
-      <div class="live-done"><p></p><div class="row"><button class="live-undo">Put it back</button><button class="live-again primary">Ask another</button></div></div>
+      <div class="live-done"><p></p><div class="row"><button class="live-again primary">Close</button></div></div>
     </div>
-    <button class="live-tile" type="button" aria-label="Ask Superagent"><span class="live-core"></span><em class="live-hint">Try the dot<kbd>⌥ Space</kbd></em></button>
+    <button class="live-tile" type="button" aria-label="Ask Superagent"><span class="live-core"></span><em class="live-hint">Ask about this screen<kbd>⌥ Space</kbd></em></button>
   </div>
   <script>
     (function () {
-      // The dot, for real: the same tile, on this page, with this page as the
-      // thing it drives. Nothing is simulated in the panel: the cursor you see
-      // moves to real controls, the rail scrolls the page, the scene plays, the
-      // cards are reordered in the DOM, the colours are the page's own variables.
       var live = document.getElementById('live');
       if (!live || window.matchMedia('(max-width: 860px)').matches) return;
       var root = document.documentElement;
       var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      var tile = live.querySelector('.live-tile'), panel = live.querySelector('.live-panel');
-      var typed = live.querySelector('.live-typed'), chips = live.querySelector('.live-chips');
-      var steps = live.querySelector('.live-steps'), done = live.querySelector('.live-done');
-      var cur = live.querySelector('.live-cur'), ring = live.querySelector('.live-ring'), flash = live.querySelector('.live-flash');
-      var open = false, running = false, undo = null, curX = window.innerWidth - 47, curY = window.innerHeight - 47;
-      var $ = function (sel, from) { return (from || document).querySelector(sel); };
-      var wait = function (ms) { return new Promise(function (r) { setTimeout(r, reduce ? Math.min(ms, 120) : ms); }); };
+      var tile = live.querySelector('.live-tile');
+      var typed = live.querySelector('.live-typed');
+      var steps = live.querySelector('.live-steps');
+      var done = live.querySelector('.live-done');
+      var flash = live.querySelector('.live-flash');
+      var open = false, running = false;
+      var wait = function (ms) { return new Promise(function (resolve) { setTimeout(resolve, reduce ? Math.min(ms, 120) : ms); }); };
 
+      function setOpen(value) {
+        open = value;
+        live.classList.toggle('live-open', value);
+        tile.classList.remove('news');
+        // Opening it again should look like asking afresh, not like reading a
+        // reply that has been sitting there.
+        if (!value && !running) {
+          live.classList.remove('live-running', 'live-done-on');
+          steps.innerHTML = '';
+          typed.textContent = 'Ready when you are';
+          typed.classList.add('live-ph');
+        }
+      }
+      function currentScreen() {
+        var point = document.elementFromPoint(Math.round(window.innerWidth * 0.5), Math.round(window.innerHeight * 0.48));
+        var section = point && point.closest('section, header');
+        var heading = section && section.querySelector('h1, h2');
+        return heading ? heading.textContent.replace(/\s+/g, ' ').trim() : 'this page';
+      }
+      function step(text) {
+        var previous = steps.querySelector('.on');
+        if (previous) previous.classList.remove('on');
+        var row = document.createElement('div');
+        row.className = 'live-step on';
+        row.innerHTML = '<i></i><span></span>';
+        row.querySelector('span').textContent = text;
+        steps.appendChild(row);
+      }
+      async function demonstrate() {
+        if (running) return;
+        running = true;
+        setOpen(true);
+        tile.classList.add('busy');
+        live.classList.add('live-running');
+        typed.classList.remove('live-ph');
+        typed.textContent = 'What am I looking at?';
+        await wait(500);
+        step('Taking a fresh snapshot of what is on screen');
+        flash.classList.remove('go');
+        void flash.offsetWidth;
+        flash.classList.add('go');
+        await wait(800);
+        var visible = currentScreen();
+        step('Understanding the visible app and content');
+        await wait(900);
+        var active = steps.querySelector('.on');
+        if (active) active.classList.remove('on');
+        live.classList.remove('live-running');
+        live.classList.add('live-done-on');
+        done.querySelector('p').textContent = 'You’re looking at “' + visible + '”. I used a fresh snapshot—not a continuous recording.';
+        running = false;
+        tile.classList.remove('busy');
+        tile.classList.add('news');
+        // Said its piece, then out of the way: the point is a dot that does not
+        // sit on top of the page waiting to be dismissed.
+        setTimeout(function () { if (!running && open) setOpen(false); }, reduce ? 2000 : 7000);
+      }
       function show() {
         live.hidden = false;
-        // A knock once, a little after arriving, so it is noticed; not every visit.
-        if (!sessionStorage.getItem('live-knocked')) setTimeout(function () {
-          tile.classList.add('knock'); sessionStorage.setItem('live-knocked', '1');
-          setTimeout(function () { tile.classList.remove('knock'); }, 2400);
-        }, 2200);
+        setTimeout(demonstrate, reduce ? 250 : 1200);
       }
-      // After the intro has gone, not under it.
-      if (!root.classList.contains('intro')) setTimeout(show, 900);
+      if (!root.classList.contains('intro')) setTimeout(show, 700);
       else {
-        var mo = new MutationObserver(function () { if (!root.classList.contains('intro')) { mo.disconnect(); setTimeout(show, 700); } });
-        mo.observe(root, { attributes: true, attributeFilter: ['class'] });
-      }
-
-      function setOpen(v) {
-        open = v; live.classList.toggle('live-open', v); tile.classList.remove('news');
-        if (!v && !running) reset();
-      }
-      tile.addEventListener('click', function () { if (running) return; setOpen(!open); });
-      window.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && open && !running) setOpen(false);
-        if (e.altKey && (e.code === 'Space') && !running) { e.preventDefault(); setOpen(!open); }
-      });
-      function reset() {
-        live.classList.remove('live-running', 'live-done-on', 'live-typing');
-        typed.textContent = 'Ask, or pick one below…'; typed.classList.add('live-ph');
-        steps.innerHTML = ''; curHide(); ringHide();
-      }
-
-      // ---- the panel ----
-      function type(text) {
-        typed.classList.remove('live-ph'); typed.textContent = ''; live.classList.add('live-typing');
-        var i = 0;
-        return new Promise(function (r) {
-          (function tick() {
-            typed.textContent = text.slice(0, ++i);
-            if (i < text.length) setTimeout(tick, reduce ? 4 : 28 + Math.random() * 40); else { live.classList.remove('live-typing'); r(); }
-          })();
-        });
-      }
-      var current = null;
-      function step(text) {
-        if (current) current.classList.remove('on');
-        current = document.createElement('div'); current.className = 'live-step on';
-        current.innerHTML = '<i></i><span></span><span class="live-stop">⌥ Esc · Stop</span>';
-        current.querySelector('span').textContent = text; steps.appendChild(current);
-        steps.scrollTop = steps.scrollHeight;
-      }
-      function finish(text, undoFn) {
-        if (current) current.classList.remove('on'); current = null;
-        live.classList.remove('live-running'); live.classList.add('live-done-on');
-        done.querySelector('p').textContent = text; undo = undoFn || null;
-        done.querySelector('.live-undo').style.display = undo ? '' : 'none';
-        running = false; tile.classList.remove('busy'); tile.classList.add('news'); curHide(); ringHide();
-      }
-      done.querySelector('.live-undo').addEventListener('click', function () { if (undo) { var u = undo; undo = null; u(); } done.querySelector('.live-undo').style.display = 'none'; });
-      done.querySelector('.live-again').addEventListener('click', function () { reset(); });
-
-      // ---- the cursor ----
-      function curPlace(x, y, ms) {
-        curX = x; curY = y;
-        cur.style.transition = ms ? 'transform ' + ms + 'ms cubic-bezier(0.3, 0.7, 0.2, 1), opacity 0.25s' : 'opacity 0.25s';
-        cur.style.transform = 'translate(' + (x - 4) + 'px,' + (y - 3) + 'px)';
-      }
-      function curShow() { if (!cur.classList.contains('on')) { curPlace(curX, curY, 0); cur.classList.add('on'); } }
-      function curHide() { cur.classList.remove('on'); }
-      function centre(el, fx, fy) {
-        var r = el.getBoundingClientRect();
-        return { x: r.left + r.width * (fx == null ? 0.5 : fx), y: r.top + r.height * (fy == null ? 0.5 : fy) };
-      }
-      function moveTo(el, fx, fy) {
-        curShow();
-        var p = centre(el, fx, fy), d = Math.hypot(p.x - curX, p.y - curY);
-        var ms = reduce ? 0 : Math.min(1100, 260 + d * 0.9);
-        curPlace(p.x, p.y, ms);
-        return wait(ms + 60);
-      }
-      function ripple() {
-        var r = document.createElement('div'); r.className = 'live-ripple';
-        r.style.left = curX + 'px'; r.style.top = curY + 'px'; live.appendChild(r);
-        setTimeout(function () { r.remove(); }, 600);
-        cur.style.transform += ' scale(0.9)';
-        setTimeout(function () { curPlace(curX, curY, 120); }, 110);
-      }
-      function ringAt(el) {
-        var r = el.getBoundingClientRect();
-        ring.style.left = (r.left - 5) + 'px'; ring.style.top = (r.top - 5) + 'px';
-        ring.style.width = (r.width + 10) + 'px'; ring.style.height = (r.height + 10) + 'px';
-        ring.classList.add('on');
-      }
-      function ringHide() { ring.classList.remove('on'); }
-      function look() { flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go'); return wait(650); }
-      function scrollTo(el, offset) {
-        var y = el.getBoundingClientRect().top + window.scrollY - (offset == null ? 80 : offset);
-        window.scrollTo({ top: y, behavior: reduce ? 'auto' : 'smooth' });
-        return new Promise(function (r) {
-          var last = -1, n = 0;
-          (function check() { var s = window.scrollY; if (Math.abs(s - last) < 1 || ++n > 40) return r(); last = s; setTimeout(check, 60); })();
-        });
-      }
-
-      // ---- what it can be asked ----
-      var runs = {
-        form: {
-          ask: 'Fill in the expense claim for the cab: 42.50, today, travel',
-          go: async function () {
-            var form = $('#try-form');
-            if (!form) return finish('There is no form on this page to fill.');
-            var f = function (n) { return form.querySelector('[name="' + n + '"]'); };
-            var state = form.querySelector('.try-state'), submit = form.querySelector('.try-submit');
-            var was = { merchant: f('merchant').value, amount: f('amount').value, date: f('date').value, category: f('category').value, receipt: f('receipt').checked };
-            step('Looking at the page'); await look(); await wait(400);
-            step('Scrolling to · Expenses — New claim'); await scrollTo(form, 140); await wait(350);
-            step('Reading the controls · 5 fields, 2 buttons'); await wait(800);
-            async function fill(name, label, text) {
-              var el = f(name);
-              step('Typing · ' + label); await moveTo(el, 0.2, 0.5); ringAt(el); await wait(120); ripple(); el.focus(); await wait(180);
-              el.value = '';
-              for (var i = 0; i < text.length; i++) { el.value = text.slice(0, i + 1); el.dispatchEvent(new Event('input', { bubbles: true })); await wait(reduce ? 5 : 45 + Math.random() * 50); }
-              await wait(200); ringHide(); el.blur();
-            }
-            var today = new Date(), months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            await fill('merchant', 'Merchant', 'City Cab');
-            await fill('amount', 'Amount', '42.50');
-            await fill('date', 'Date', today.getDate() + ' ' + months[today.getMonth()] + ' ' + today.getFullYear());
-            await fill('category', 'Category', 'Travel');
-            var box = f('receipt');
-            step('Ticking · I have the receipt'); await moveTo(box); ringAt(box); await wait(150); ripple(); box.checked = true; await wait(350); ringHide();
-            step('Submit is named Submit: asking you first'); await moveTo(submit, 0.5, 0.5); ringAt(submit); submit.classList.add('live-asking');
-            await wait(1800);
-            step('You said yes · Pressing · Submit'); ripple(); submit.classList.remove('live-asking'); await wait(150);
-            form.classList.add('sent'); state.textContent = 'Submitted · claim #4821'; submit.textContent = 'Submitted ✓'; await wait(500); ringHide();
-            finish('Filled in and sent. Every character went into the real fields; the one thing named Submit waited for a yes.', function () {
-              f('merchant').value = was.merchant; f('amount').value = was.amount; f('date').value = was.date; f('category').value = was.category; f('receipt').checked = was.receipt;
-              form.classList.remove('sent'); state.textContent = ''; submit.textContent = 'Submit';
-            });
+        var observer = new MutationObserver(function () {
+          if (!root.classList.contains('intro')) {
+            observer.disconnect();
+            setTimeout(show, 700);
           }
-        },
-        tidy: {
-          ask: 'Tidy the small things: put updates and the shortcut up top',
-          go: async function () {
-            var grid = $('.det-grid');
-            if (!grid) return finish('There is nothing here to tidy.');
-            var order = [].slice.call(grid.children);
-            step('Looking at the page'); await look(); await wait(400);
-            step('Scrolling to · The small things'); await scrollTo(grid, 110); await wait(400);
-            grid.classList.add('live-sort');
-            async function drag(fromEl, beforeEl, label) {
-              step('Dragging · ' + label);
-              await moveTo(fromEl, 0.5, 0.35); await wait(150);
-              fromEl.classList.add('live-lift'); await wait(250);
-              var before = [].slice.call(grid.children).map(function (el) { return { el: el, r: el.getBoundingClientRect() }; });
-              var ghost = fromEl.cloneNode(true); ghost.classList.remove('live-lift'); ghost.classList.add('live-ghost');
-              // The page reveals cards only inside a section that has come into view; a clone outside one stays hidden.
-              ghost.removeAttribute('data-rv'); ghost.removeAttribute('style');
-              var fr = fromEl.getBoundingClientRect();
-              ghost.style.left = fr.left + 'px'; ghost.style.top = fr.top + 'px'; ghost.style.width = fr.width + 'px';
-              live.appendChild(ghost); fromEl.style.opacity = '0.25';
-              var to = centre(beforeEl, 0.5, 0.35), ms = reduce ? 0 : 900;
-              curPlace(to.x, to.y, ms);
-              ghost.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.3, 0.7, 0.2, 1)';
-              var tr = beforeEl.getBoundingClientRect();
-              ghost.style.transform = 'translate(' + (tr.left - fr.left) + 'px,' + (tr.top - fr.top) + 'px) rotate(-2deg) scale(1.03)';
-              await wait(ms + 80);
-              grid.insertBefore(fromEl, beforeEl);
-              fromEl.classList.remove('live-lift'); fromEl.style.opacity = ''; ghost.remove();
-              // FLIP: every card slides from where it was to where it is now.
-              before.forEach(function (b) {
-                var n = b.el.getBoundingClientRect(), dx = b.r.left - n.left, dy = b.r.top - n.top;
-                if (!dx && !dy) return;
-                b.el.style.transition = 'none'; b.el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-                requestAnimationFrame(function () { b.el.style.transition = ''; b.el.style.transform = ''; });
-              });
-              await wait(600);
-            }
-            var f = order.find(function (el) { return /Updates itself/.test(el.textContent); });
-            var m = order.find(function (el) { return /One key away/.test(el.textContent); });
-            if (f) await drag(f, grid.children[0], 'f. Updates itself → first');
-            if (m) await drag(m, grid.children[1], 'm. One key away → second');
-            finish('Moved "Updates itself" and "One key away" to the top. Real cards, really moved: scroll and see.', function () {
-              var before = [].slice.call(grid.children).map(function (el) { return { el: el, r: el.getBoundingClientRect() }; });
-              order.forEach(function (el) { grid.appendChild(el); });
-              before.forEach(function (b) {
-                var n = b.el.getBoundingClientRect(), dx = b.r.left - n.left, dy = b.r.top - n.top;
-                if (!dx && !dy) return;
-                b.el.style.transition = 'none'; b.el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-                requestAnimationFrame(function () { b.el.style.transition = ''; b.el.style.transform = ''; });
-              });
-              setTimeout(function () { grid.classList.remove('live-sort'); }, 700);
-            });
-          }
-        },
-        dark: {
-          ask: 'Make this page dark',
-          go: async function () {
-            step('Looking at the page'); await look(); await wait(400);
-            step("Reading the page's colours · 12 variables"); var logo = $('.nav-logo');
-            if (logo) { await moveTo(logo, 0.3, 0.5); ringAt(logo); await wait(900); ringHide(); }
-            step('Switching every colour to its dark value');
-            root.classList.add('live-switch'); await wait(50); root.classList.add('live-dark'); await wait(900);
-            setTimeout(function () { root.classList.remove('live-switch'); }, 300);
-            finish('Dark. Every colour on this page is a variable, so it was twelve changes, not a redesign.', function () {
-              root.classList.add('live-switch'); root.classList.remove('live-dark');
-              setTimeout(function () { root.classList.remove('live-switch'); }, 900);
-            });
-          }
-        }
-      };
-      async function start(name) {
-        var run = runs[name]; if (!run || running) return;
-        if (!open) setOpen(true);
-        running = true; tile.classList.add('busy'); live.classList.add('live-running'); live.classList.remove('live-done-on');
-        steps.innerHTML = ''; current = null; curX = window.innerWidth - 47; curY = window.innerHeight - 47;
-        await type(run.ask); await wait(350);
-        try { await run.go(); } catch (err) { finish('Something on the page moved while I was at it. Try again.'); }
-      }
-      chips.addEventListener('click', function (e) {
-        var b = e.target.closest('button[data-run]'); if (b) start(b.getAttribute('data-run'));
-      });
-      // The jobs in the Try it section are the same asks, from the page itself.
-      document.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-live-run]'); if (!b) return;
-        e.preventDefault(); if (running) return;
-        reset(); start(b.getAttribute('data-live-run'));
-      });
-      var tryForm = document.getElementById('try-form');
-      if (tryForm) {
-        tryForm.addEventListener('submit', function (e) {
-          e.preventDefault();
-          tryForm.classList.add('sent'); tryForm.querySelector('.try-state').textContent = 'Submitted · by you'; tryForm.querySelector('.try-submit').textContent = 'Submitted ✓';
         });
-        tryForm.querySelector('.try-draft').addEventListener('click', function () { tryForm.querySelector('.try-state').textContent = 'Draft saved'; });
+        observer.observe(root, { attributes: true, attributeFilter: ['class'] });
       }
+      tile.addEventListener('click', function () { if (!running) setOpen(!open); });
+      done.querySelector('.live-again').addEventListener('click', function () { setOpen(false); });
+      window.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && open && !running) setOpen(false);
+        if (event.altKey && event.code === 'Space' && !running) { event.preventDefault(); setOpen(!open); }
+      });
     })();
   </script>
 </body>
