@@ -6773,6 +6773,19 @@ button {
   background: rgba(255, 255, 255, 0.22);
 }
 
+/* A restart queued behind active work is informational, not a warning. The
+   blue dot distinguishes the armed state from both ready (green) and the
+   destructive immediate-restart confirmation (amber). */
+.update-banner-waiting {
+  padding-right: 12px;
+}
+.update-banner-dot-waiting {
+  background: #60a5fa;
+}
+.update-banner-dot-waiting::before {
+  background: #60a5fa;
+}
+
 /* ---- launch intro / splash ---- */
 .intro {
   position: fixed;

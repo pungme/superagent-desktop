@@ -31,10 +31,9 @@ export function betaUpdatesEnabled(): boolean {
  * Developer ID for the update to actually apply (an unsigned/dev-cert build will
  * download but fail to swap itself in) — see the notarization notes.
  */
-// Whether a downloaded update is waiting to install. The window-all-closed
-// handler quits (and thus installs) when this is set — on macOS, closing the
-// last window otherwise leaves the OLD version running headless, and the user
-// meets the same "restart to update" pill forever.
+// Whether the updater has a package ready. Used by the explicit install path to
+// decide whether it can hand off to ShipIt; merely closing a macOS window must
+// never use it as a reason to quit and kill active agents.
 let updateDownloaded = false
 let installer: (() => void) | null = null
 /** Quit and relaunch into the downloaded update, now (nothing before startAutoUpdate). */

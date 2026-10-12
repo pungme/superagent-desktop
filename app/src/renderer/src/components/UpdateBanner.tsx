@@ -18,6 +18,7 @@ export function UpdateBanner(): React.JSX.Element | null {
   const [version, setVersion] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [restartWhenIdle, setRestartWhenIdle] = useState(false)
   const [installing, setInstalling] = useState(false)
   // "What's new": notes are fetched lazily the first time you hover/click, and
   // cached in main. undefined = not loaded yet; null = fetched but none/failed.
@@ -50,12 +51,31 @@ export function UpdateBanner(): React.JSX.Element | null {
   }, [notesOpen, enterOverlay, exitOverlay])
 
   const progress = useStore((s) => s.updateProgress)
+  const entries = Object.values(busy)
+  const workingChats = entries.filter((b) => b.generating).length
+  const backgroundTasks = entries.reduce((n, b) => n + b.background, 0)
+  const inFlight = workingChats > 0 || backgroundTasks > 0
+
+  // A queued restart follows the same app-wide busy state as the warning. Keep
+  // it in the renderer so cancelling is immediate and a new downloaded version
+  // cannot inherit an old schedule. As soon as the final chat/task settles,
+  // hand off to the updater exactly as an immediate restart would.
+  useEffect(() => {
+    if (!restartWhenIdle || inFlight || !version || installing) return
+    const timer = window.setTimeout(() => {
+      setRestartWhenIdle(false)
+      setInstalling(true)
+      window.cove.installUpdate()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [restartWhenIdle, inFlight, version, installing])
 
   useEffect(() => {
     const offReady = window.cove.onUpdateReady((v) => {
       setVersion(v)
       setDismissed(false)
       setConfirming(false)
+      setRestartWhenIdle(false)
       useStore.setState({ updateProgress: null }) // downloading is over
     })
     const offProgress = window.cove.onUpdateProgress((p) => {
@@ -90,15 +110,11 @@ export function UpdateBanner(): React.JSX.Element | null {
 
   if (!version || dismissed) return null
 
-  const entries = Object.values(busy)
-  const workingChats = entries.filter((b) => b.generating).length
-  const backgroundTasks = entries.reduce((n, b) => n + b.background, 0)
-  const inFlight = workingChats > 0 || backgroundTasks > 0
-
   const install = (): void => {
     // The app takes a second or two to go down and hand over to the installer.
     // Without this the click looks like it did nothing — the exact complaint
     // that turned out to be a real failure underneath.
+    setRestartWhenIdle(false)
     setInstalling(true)
     window.cove.installUpdate()
   }
@@ -143,6 +159,13 @@ export function UpdateBanner(): React.JSX.Element | null {
       `${backgroundTasks} background ${backgroundTasks === 1 ? 'task is' : 'tasks are'} running`
     )
   }
+  const waitingParts: string[] = []
+  if (workingChats > 0) {
+    waitingParts.push(`${workingChats} active ${workingChats === 1 ? 'chat' : 'chats'}`)
+  }
+  if (backgroundTasks > 0) {
+    waitingParts.push(`${backgroundTasks} background ${backgroundTasks === 1 ? 'task' : 'tasks'}`)
+  }
 
   if (confirming) {
     // What exactly would be stopped, chat by chat, so the choice is an
@@ -179,6 +202,16 @@ export function UpdateBanner(): React.JSX.Element | null {
         </span>
         <button className="update-banner-action" onClick={install}>
           Restart anyway
+        </button>
+        <button
+          className="update-banner-secondary"
+          onClick={() => {
+            setConfirming(false)
+            setRestartWhenIdle(true)
+          }}
+          title="Restart automatically after every active chat and background task finishes"
+        >
+          Restart when finished
         </button>
         <button
           className="update-banner-secondary"
@@ -222,6 +255,20 @@ export function UpdateBanner(): React.JSX.Element | null {
             </li>
           ))}
         </ul>
+      </div>
+    )
+  }
+
+  if (restartWhenIdle) {
+    return (
+      <div className="update-banner update-banner-waiting" role="status">
+        <span className="update-banner-dot update-banner-dot-waiting" />
+        <span className="update-banner-text">
+          Waiting for {waitingParts.join(' and ')}. Restarting automatically when finished.
+        </span>
+        <button className="update-banner-secondary" onClick={() => setRestartWhenIdle(false)}>
+          Cancel
+        </button>
       </div>
     )
   }
