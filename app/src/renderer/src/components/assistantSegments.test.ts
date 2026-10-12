@@ -35,6 +35,33 @@ describe('splitAssistant', () => {
     expect(segs.map((s) => ('md' in s ? s.md : '')).join('')).toContain('not json')
   })
 
+  it('repairs an ask payload missing its final object brace', () => {
+    const truncated =
+      '```ask\n' +
+      '{"question":"Was that the right episode?","multiple":false,"options":[' +
+      '{"label":"Yes, S1E2"},{"label":"I meant S2E2"}]\n```'
+    expect(splitAssistant(truncated)).toEqual([
+      {
+        ask: {
+          question: 'Was that the right episode?',
+          multiple: false,
+          options: [{ label: 'Yes, S1E2' }, { label: 'I meant S2E2' }]
+        }
+      }
+    ])
+  })
+
+  it('does not repair mismatched delimiters or an unterminated string', () => {
+    const malformed = [
+      '```ask\n{"options":[{"label":"Dark"}]}]\n```',
+      '```ask\n{"options":[{"label":"Dark}]\n```'
+    ]
+    for (const block of malformed) {
+      const segs = splitAssistant(block)
+      expect(segs.every((s) => 'md' in s)).toBe(true)
+    }
+  })
+
   it('handles more than one block in a single message', () => {
     const segs = splitAssistant(`${ask(spec)}mid${ask(spec)}`)
     expect(segs.filter((s) => 'ask' in s)).toHaveLength(2)

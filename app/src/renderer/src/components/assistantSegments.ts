@@ -6,6 +6,53 @@ export interface ChoiceSpec {
 
 const ASK_RE = /```ask\s*\n([\s\S]*?)```/g
 
+/**
+ * Models occasionally finish an otherwise valid ask payload one or two closing
+ * delimiters early. Repair only that EOF truncation: mismatched delimiters,
+ * unterminated strings, and every other syntax error still fail normally.
+ */
+function closeTruncatedJson(source: string): string | null {
+  const stack: ('}' | ']')[] = []
+  let inString = false
+  let escaped = false
+
+  for (const char of source) {
+    if (inString) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') inString = true
+    else if (char === '{') stack.push('}')
+    else if (char === '[') stack.push(']')
+    else if (char === '}' || char === ']') {
+      if (stack.pop() !== char) return null
+    }
+  }
+
+  if (inString || escaped || stack.length === 0) return null
+  return source + stack.reverse().join('')
+}
+
+function parseChoiceSpec(source: string): ChoiceSpec | null {
+  const trimmed = source.trim()
+  const candidates = [trimmed, closeTruncatedJson(trimmed)].filter(
+    (candidate): candidate is string => candidate !== null
+  )
+  for (const candidate of candidates) {
+    try {
+      const value = JSON.parse(candidate)
+      if (value && Array.isArray(value.options) && value.options.length) {
+        return value as ChoiceSpec
+      }
+    } catch {
+      // Try the narrowly repaired candidate, if one exists.
+    }
+  }
+  return null
+}
+
 /** One segment of an assistant message: prose (markdown) or a choices block. */
 export type AssistantSegment = { md: string } | { ask: ChoiceSpec }
 
@@ -20,13 +67,7 @@ export function splitAssistant(text: string): AssistantSegment[] {
   let m: RegExpExecArray | null
   ASK_RE.lastIndex = 0
   while ((m = ASK_RE.exec(text))) {
-    let spec: ChoiceSpec | null = null
-    try {
-      const o = JSON.parse(m[1].trim())
-      if (o && Array.isArray(o.options) && o.options.length) spec = o as ChoiceSpec
-    } catch {
-      spec = null
-    }
+    const spec = parseChoiceSpec(m[1])
     if (!spec) continue // leave malformed blocks in the surrounding prose
     if (m.index > last) out.push({ md: text.slice(last, m.index) })
     out.push({ ask: spec })
