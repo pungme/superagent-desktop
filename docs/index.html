@@ -2643,6 +2643,101 @@
       .cmp .no { color: var(--faint); }
     }
   </style>
+
+  <style>
+    /* ============ the dot, for real: on this page, driving this page ============ */
+    .live { position: fixed; inset: 0; z-index: 90; pointer-events: none; font-family: var(--sans); }
+    .live[hidden] { display: none; }
+    .live-tile {
+      position: fixed; right: 22px; bottom: 22px; width: 50px; height: 50px; padding: 0; border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 16px; background: linear-gradient(#2a2b31, #121317); cursor: pointer; pointer-events: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.38), 0 0 0 1px rgba(0,0,0,0.3); display: grid; place-items: center;
+      transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2), box-shadow 0.2s ease;
+      animation: liveArrive 0.6s var(--ease) both;
+    }
+    @keyframes liveArrive { from { transform: translateY(24px) scale(0.6); opacity: 0; } }
+    .live-tile:hover { transform: scale(1.06); }
+    .live-tile:active { transform: scale(0.96); }
+    .live-core { width: 15px; height: 15px; border-radius: 4px; background: #fff; box-shadow: 0 0 0 0 rgba(255,255,255,0.35); transition: border-radius 0.3s; }
+    .live-tile.knock { animation: liveKnock 0.9s var(--ease); }
+    @keyframes liveKnock { 0%,100% { transform: none; } 20% { transform: translateY(-8px) rotate(-6deg); } 45% { transform: translateY(0) rotate(4deg); } 65% { transform: translateY(-3px) rotate(-2deg); } }
+    .live-tile.busy .live-core { animation: liveTurn 1.4s linear infinite; }
+    @keyframes liveTurn { 0% { transform: none; border-radius: 4px; } 50% { border-radius: 50%; } 100% { transform: rotate(180deg); border-radius: 4px; } }
+    .live-tile.news .live-core { background: #5fce7b; }
+    .live-hint {
+      position: absolute; right: 60px; top: 50%; transform: translateY(-50%) translateX(6px); white-space: nowrap; font-style: normal; font-size: 12.5px;
+      color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px; box-shadow: var(--shadow);
+      opacity: 0; transition: opacity 0.2s, transform 0.25s var(--ease); pointer-events: none;
+    }
+    .live-hint kbd { font-family: var(--sans); font-size: 11px; color: var(--muted); margin-left: 6px; padding: 1px 5px; border: 1px solid var(--line); border-radius: 5px; }
+    .live-tile:hover .live-hint, .live-tile.knock .live-hint, .live-tile.say .live-hint { opacity: 1; transform: translateY(-50%); }
+    .live-open .live-hint { opacity: 0 !important; }
+
+    .live-panel {
+      position: fixed; right: 22px; bottom: 84px; width: 330px; max-width: calc(100vw - 44px); pointer-events: auto;
+      background: #1c1d22; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 14px 14px 12px;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.3); transform-origin: 100% 100%;
+      opacity: 0; transform: translateY(8px) scale(0.96); transition: opacity 0.22s var(--ease), transform 0.26s var(--ease); visibility: hidden;
+    }
+    .live-open .live-panel { opacity: 1; transform: none; visibility: visible; }
+    .live-where { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: rgba(255,255,255,0.45); margin-bottom: 10px; }
+    .live-where b { font-weight: 600; color: #fff; background: rgba(255,255,255,0.1); border-radius: 999px; padding: 3px 9px; }
+    .live-where i { margin-left: auto; font-style: normal; font-size: 10.5px; color: rgba(255,255,255,0.35); }
+    .live-ask { display: flex; align-items: center; min-height: 36px; padding: 8px 11px; border-radius: 11px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); font-size: 13.5px; line-height: 1.35; }
+    .live-ask .live-ph { color: rgba(255,255,255,0.35); }
+    .live-caret { display: inline-block; width: 1.5px; height: 15px; background: #fff; margin-left: 2px; vertical-align: -3px; animation: liveBlink 1s steps(2) infinite; }
+    .live-typing .live-caret { animation: none; opacity: 1; }
+    @keyframes liveBlink { 50% { opacity: 0; } }
+    .live-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .live-chips button {
+      font: inherit; font-size: 12px; color: #fff; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px; padding: 6px 11px; cursor: pointer; transition: background 0.15s;
+    }
+    .live-chips button:hover { background: rgba(255,255,255,0.16); }
+    .live-running .live-chips, .live-done-on .live-chips { display: none; }
+    .live-steps { display: none; flex-direction: column; gap: 5px; margin-top: 10px; }
+    .live-running .live-steps, .live-done-on .live-steps { display: flex; }
+    .live-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,0.78); animation: liveIn 0.25s var(--ease) both; }
+    @keyframes liveIn { from { opacity: 0; transform: translateY(4px); } }
+    .live-step i { width: 7px; height: 7px; border-radius: 50%; background: #5fce7b; flex: none; }
+    .live-step.on i { background: #86a6c6; animation: livePulse 1s ease-in-out infinite; }
+    .live-step.on { color: #fff; }
+    @keyframes livePulse { 50% { transform: scale(1.5); opacity: 0.6; } }
+    .live-stop { margin-left: auto; font-size: 10.5px; color: rgba(255,255,255,0.4); }
+    .live-done { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); }
+    .live-done-on .live-done { display: block; animation: liveIn 0.3s var(--ease) both; }
+    .live-done p { margin: 0 0 8px; font-size: 13px; line-height: 1.45; }
+    .live-done .row { display: flex; gap: 6px; }
+    .live-done button { font: inherit; font-size: 12px; cursor: pointer; border-radius: 999px; padding: 6px 11px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.08); color: #fff; }
+    .live-done button.primary { background: #fff; color: #111; border-color: #fff; }
+    .live-done button:hover { filter: brightness(1.1); }
+    .live-cur { position: fixed; left: 0; top: 0; width: 22px; height: 26px; z-index: 92; pointer-events: none; opacity: 0; transition: opacity 0.25s; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35)); will-change: transform; }
+    .live-cur.on { opacity: 1; }
+    .live-cur svg { display: block; width: 100%; height: 100%; }
+    .live-cur.press { transform-origin: 20% 15%; }
+    .live-ripple { position: fixed; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 2px solid var(--blue); pointer-events: none; z-index: 91; animation: liveRipple 0.55s var(--ease) both; }
+    @keyframes liveRipple { from { transform: scale(0.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+    .live-ring { position: fixed; z-index: 89; pointer-events: none; border: 2px solid var(--blue); border-radius: 12px; box-shadow: 0 0 0 4px rgba(134,166,198,0.25); opacity: 0; transition: all 0.35s var(--ease); }
+    .live-ring.on { opacity: 1; }
+    .live-flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 88; }
+    .live-flash.go { animation: liveFlash 0.5s ease-out both; }
+    @keyframes liveFlash { 0% { opacity: 0; } 12% { opacity: 0.55; } 100% { opacity: 0; } }
+    .live-lift { position: relative; z-index: 5; box-shadow: 0 18px 44px -10px rgba(0,0,0,0.35) !important; transform: scale(1.04) rotate(-1deg); transition: transform 0.2s var(--ease), box-shadow 0.2s; }
+    .live-ghost { position: fixed; z-index: 1; pointer-events: none; opacity: 0.95 !important; transform: rotate(-2deg) scale(1.03); box-shadow: 0 26px 60px -14px rgba(0,0,0,0.45); border-radius: 14px; }
+    .live-flip { transition: transform 0.5s var(--ease); }
+    .live-sort .det { transition: transform 0.5s var(--ease); }
+    /* the page in the dark, as the dot can switch it (every colour is a variable) */
+    html.live-dark {
+      --cream: #141619; --ink: #ecebe6; --muted: #aab0a2; --faint: #7d8378; --line: rgba(255,255,255,0.1);
+      --glass: rgba(26,28,32,0.76); --glass-edge: rgba(255,255,255,0.08); --card: #1f2126; --skel: #2c2f35; --skel2: #3b3f47; --paper: #141619;
+    }
+    html.live-dark, html.live-dark body { background: var(--cream); color: var(--ink); }
+    html.live-dark .btn:not(.alt), html.live-dark .nav-btn { color: #141619; }
+    html.live-dark .hero-shot img, html.live-dark .pane { filter: none; }
+    html.live-switch, html.live-switch * { transition: background-color 0.6s ease, color 0.6s ease, border-color 0.6s ease !important; }
+    @media (max-width: 860px) { .live { display: none !important; } }
+    @media (prefers-reduced-motion: reduce) { .live-cur, .live-flip, .live-sort .det, .live-panel { transition: none !important; } .live-tile.knock, .live-core { animation: none !important; } }
+  </style>
 </head>
 <body>
   <div id="intro" aria-hidden="true">
@@ -4153,6 +4248,247 @@
       }
       intro.addEventListener("click", leave);
       window.addEventListener("keydown", leave, { once: true });
+    })();
+  </script>
+
+  <!-- the dot, for real: ask it something and it drives this page -->
+  <div class="live" id="live" hidden>
+    <div class="live-flash" aria-hidden="true"></div>
+    <div class="live-ring" aria-hidden="true"></div>
+    <div class="live-cur" aria-hidden="true"><svg viewBox="0 0 22 26"><path d="M3 2.5 L3 20.5 L7.6 16.2 L10.8 23.4 L14.1 22 L10.9 14.9 L17.4 14.5 Z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+    <div class="live-panel" role="dialog" aria-label="Ask Superagent">
+      <div class="live-where"><span>In</span><b>This page</b><i>superagent.computer</i></div>
+      <div class="live-ask"><span class="live-typed live-ph">Ask, or pick one below…</span><i class="live-caret"></i></div>
+      <div class="live-chips">
+        <button data-run="tour">Show me computer use</button>
+        <button data-run="tidy">Tidy the small things</button>
+        <button data-run="dark">Make the page dark</button>
+      </div>
+      <div class="live-steps"></div>
+      <div class="live-done"><p></p><div class="row"><button class="live-undo">Put it back</button><button class="live-again primary">Ask another</button></div></div>
+    </div>
+    <button class="live-tile" type="button" aria-label="Ask Superagent"><span class="live-core"></span><em class="live-hint">Try the dot<kbd>⌥ Space</kbd></em></button>
+  </div>
+  <script>
+    (function () {
+      // The dot, for real: the same tile, on this page, with this page as the
+      // thing it drives. Nothing is simulated in the panel: the cursor you see
+      // moves to real controls, the rail scrolls the page, the scene plays, the
+      // cards are reordered in the DOM, the colours are the page's own variables.
+      var live = document.getElementById('live');
+      if (!live || window.matchMedia('(max-width: 860px)').matches) return;
+      var root = document.documentElement;
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var tile = live.querySelector('.live-tile'), panel = live.querySelector('.live-panel');
+      var typed = live.querySelector('.live-typed'), chips = live.querySelector('.live-chips');
+      var steps = live.querySelector('.live-steps'), done = live.querySelector('.live-done');
+      var cur = live.querySelector('.live-cur'), ring = live.querySelector('.live-ring'), flash = live.querySelector('.live-flash');
+      var open = false, running = false, undo = null, curX = window.innerWidth - 47, curY = window.innerHeight - 47;
+      var $ = function (sel, from) { return (from || document).querySelector(sel); };
+      var wait = function (ms) { return new Promise(function (r) { setTimeout(r, reduce ? Math.min(ms, 120) : ms); }); };
+
+      function show() {
+        live.hidden = false;
+        // A knock once, a little after arriving, so it is noticed; not every visit.
+        if (!sessionStorage.getItem('live-knocked')) setTimeout(function () {
+          tile.classList.add('knock'); sessionStorage.setItem('live-knocked', '1');
+          setTimeout(function () { tile.classList.remove('knock'); }, 2400);
+        }, 2200);
+      }
+      // After the intro has gone, not under it.
+      if (!root.classList.contains('intro')) setTimeout(show, 900);
+      else {
+        var mo = new MutationObserver(function () { if (!root.classList.contains('intro')) { mo.disconnect(); setTimeout(show, 700); } });
+        mo.observe(root, { attributes: true, attributeFilter: ['class'] });
+      }
+
+      function setOpen(v) {
+        open = v; live.classList.toggle('live-open', v); tile.classList.remove('news');
+        if (!v && !running) reset();
+      }
+      tile.addEventListener('click', function () { if (running) return; setOpen(!open); });
+      window.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && open && !running) setOpen(false);
+        if (e.altKey && (e.code === 'Space') && !running) { e.preventDefault(); setOpen(!open); }
+      });
+      function reset() {
+        live.classList.remove('live-running', 'live-done-on', 'live-typing');
+        typed.textContent = 'Ask, or pick one below…'; typed.classList.add('live-ph');
+        steps.innerHTML = ''; curHide(); ringHide();
+      }
+
+      // ---- the panel ----
+      function type(text) {
+        typed.classList.remove('live-ph'); typed.textContent = ''; live.classList.add('live-typing');
+        var i = 0;
+        return new Promise(function (r) {
+          (function tick() {
+            typed.textContent = text.slice(0, ++i);
+            if (i < text.length) setTimeout(tick, reduce ? 4 : 28 + Math.random() * 40); else { live.classList.remove('live-typing'); r(); }
+          })();
+        });
+      }
+      var current = null;
+      function step(text) {
+        if (current) current.classList.remove('on');
+        current = document.createElement('div'); current.className = 'live-step on';
+        current.innerHTML = '<i></i><span></span><span class="live-stop">⌥ Esc · Stop</span>';
+        current.querySelector('span').textContent = text; steps.appendChild(current);
+      }
+      function finish(text, undoFn) {
+        if (current) current.classList.remove('on'); current = null;
+        live.classList.remove('live-running'); live.classList.add('live-done-on');
+        done.querySelector('p').textContent = text; undo = undoFn || null;
+        done.querySelector('.live-undo').style.display = undo ? '' : 'none';
+        running = false; tile.classList.remove('busy'); tile.classList.add('news'); curHide(); ringHide();
+      }
+      done.querySelector('.live-undo').addEventListener('click', function () { if (undo) { var u = undo; undo = null; u(); } done.querySelector('.live-undo').style.display = 'none'; });
+      done.querySelector('.live-again').addEventListener('click', function () { reset(); });
+
+      // ---- the cursor ----
+      function curPlace(x, y, ms) {
+        curX = x; curY = y;
+        cur.style.transition = ms ? 'transform ' + ms + 'ms cubic-bezier(0.3, 0.7, 0.2, 1), opacity 0.25s' : 'opacity 0.25s';
+        cur.style.transform = 'translate(' + (x - 4) + 'px,' + (y - 3) + 'px)';
+      }
+      function curShow() { if (!cur.classList.contains('on')) { curPlace(curX, curY, 0); cur.classList.add('on'); } }
+      function curHide() { cur.classList.remove('on'); }
+      function centre(el, fx, fy) {
+        var r = el.getBoundingClientRect();
+        return { x: r.left + r.width * (fx == null ? 0.5 : fx), y: r.top + r.height * (fy == null ? 0.5 : fy) };
+      }
+      function moveTo(el, fx, fy) {
+        curShow();
+        var p = centre(el, fx, fy), d = Math.hypot(p.x - curX, p.y - curY);
+        var ms = reduce ? 0 : Math.min(1100, 260 + d * 0.9);
+        curPlace(p.x, p.y, ms);
+        return wait(ms + 60);
+      }
+      function ripple() {
+        var r = document.createElement('div'); r.className = 'live-ripple';
+        r.style.left = curX + 'px'; r.style.top = curY + 'px'; live.appendChild(r);
+        setTimeout(function () { r.remove(); }, 600);
+        cur.style.transform += ' scale(0.9)';
+        setTimeout(function () { curPlace(curX, curY, 120); }, 110);
+      }
+      function ringAt(el) {
+        var r = el.getBoundingClientRect();
+        ring.style.left = (r.left - 5) + 'px'; ring.style.top = (r.top - 5) + 'px';
+        ring.style.width = (r.width + 10) + 'px'; ring.style.height = (r.height + 10) + 'px';
+        ring.classList.add('on');
+      }
+      function ringHide() { ring.classList.remove('on'); }
+      function look() { flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go'); return wait(650); }
+      function scrollTo(el, offset) {
+        var y = el.getBoundingClientRect().top + window.scrollY - (offset == null ? 80 : offset);
+        window.scrollTo({ top: y, behavior: reduce ? 'auto' : 'smooth' });
+        return new Promise(function (r) {
+          var last = -1, n = 0;
+          (function check() { var s = window.scrollY; if (Math.abs(s - last) < 1 || ++n > 40) return r(); last = s; setTimeout(check, 60); })();
+        });
+      }
+
+      // ---- what it can be asked ----
+      var runs = {
+        tour: {
+          ask: 'Show me what computer use can do on this page',
+          go: async function () {
+            step('Looking at the page'); await look(); await wait(500);
+            var rail = $('.rail a[href="#computer"]'), sec = $('#computer');
+            step('Reading the controls · 14 on screen'); await wait(900);
+            if (rail && sec) {
+              step('Clicking · Computer use, on the rail'); await moveTo(rail, 0.85, 0.5); ringAt(rail); await wait(250); ripple();
+              await wait(200); ringHide(); await scrollTo(sec, 40); await wait(500);
+            }
+            var chip = sec && sec.querySelector('.dx-acts li:nth-child(3)');
+            if (chip) {
+              step('Playing · "Fill in a form"'); await moveTo(chip); ringAt(chip); await wait(200); ripple(); chip.click(); await wait(300); ringHide(); await wait(3200);
+            }
+            var dl = $('.nav-btn');
+            if (dl) {
+              step('Found the download. Not clicking it: that is yours.'); await moveTo(dl, 0.5, 0.55); ringAt(dl); await wait(1400); ringHide();
+            }
+            finish('That is the loop: look, one step, look again. It asked before the first step, showed each one before pressing, and left the download to you.', function () { scrollTo(document.body, 0); });
+          }
+        },
+        tidy: {
+          ask: 'Tidy the small things: put updates and the shortcut up top',
+          go: async function () {
+            var grid = $('.det-grid');
+            if (!grid) return finish('There is nothing here to tidy.');
+            var order = [].slice.call(grid.children);
+            step('Looking at the page'); await look(); await wait(400);
+            step('Scrolling to · The small things'); await scrollTo(grid, 110); await wait(400);
+            grid.classList.add('live-sort');
+            async function drag(fromEl, beforeEl, label) {
+              step('Dragging · ' + label);
+              await moveTo(fromEl, 0.5, 0.35); await wait(150);
+              fromEl.classList.add('live-lift'); await wait(250);
+              var before = [].slice.call(grid.children).map(function (el) { return { el: el, r: el.getBoundingClientRect() }; });
+              var ghost = fromEl.cloneNode(true); ghost.classList.remove('live-lift'); ghost.classList.add('live-ghost');
+              // The page reveals cards only inside a section that has come into view; a clone outside one stays hidden.
+              ghost.removeAttribute('data-rv'); ghost.removeAttribute('style');
+              var fr = fromEl.getBoundingClientRect();
+              ghost.style.left = fr.left + 'px'; ghost.style.top = fr.top + 'px'; ghost.style.width = fr.width + 'px';
+              live.appendChild(ghost); fromEl.style.opacity = '0.25';
+              var to = centre(beforeEl, 0.5, 0.35), ms = reduce ? 0 : 900;
+              curPlace(to.x, to.y, ms);
+              ghost.style.transition = 'transform ' + ms + 'ms cubic-bezier(0.3, 0.7, 0.2, 1)';
+              var tr = beforeEl.getBoundingClientRect();
+              ghost.style.transform = 'translate(' + (tr.left - fr.left) + 'px,' + (tr.top - fr.top) + 'px) rotate(-2deg) scale(1.03)';
+              await wait(ms + 80);
+              grid.insertBefore(fromEl, beforeEl);
+              fromEl.classList.remove('live-lift'); fromEl.style.opacity = ''; ghost.remove();
+              // FLIP: every card slides from where it was to where it is now.
+              before.forEach(function (b) {
+                var n = b.el.getBoundingClientRect(), dx = b.r.left - n.left, dy = b.r.top - n.top;
+                if (!dx && !dy) return;
+                b.el.style.transition = 'none'; b.el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+                requestAnimationFrame(function () { b.el.style.transition = ''; b.el.style.transform = ''; });
+              });
+              await wait(600);
+            }
+            var f = order.find(function (el) { return /Updates itself/.test(el.textContent); });
+            var m = order.find(function (el) { return /One key away/.test(el.textContent); });
+            if (f) await drag(f, grid.children[0], 'f. Updates itself → first');
+            if (m) await drag(m, grid.children[1], 'm. One key away → second');
+            finish('Moved "Updates itself" and "One key away" to the top. Real cards, really moved: scroll and see.', function () {
+              var before = [].slice.call(grid.children).map(function (el) { return { el: el, r: el.getBoundingClientRect() }; });
+              order.forEach(function (el) { grid.appendChild(el); });
+              before.forEach(function (b) {
+                var n = b.el.getBoundingClientRect(), dx = b.r.left - n.left, dy = b.r.top - n.top;
+                if (!dx && !dy) return;
+                b.el.style.transition = 'none'; b.el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+                requestAnimationFrame(function () { b.el.style.transition = ''; b.el.style.transform = ''; });
+              });
+              setTimeout(function () { grid.classList.remove('live-sort'); }, 700);
+            });
+          }
+        },
+        dark: {
+          ask: 'Make this page dark',
+          go: async function () {
+            step('Looking at the page'); await look(); await wait(400);
+            step("Reading the page's colours · 12 variables"); var logo = $('.nav-logo');
+            if (logo) { await moveTo(logo, 0.3, 0.5); ringAt(logo); await wait(900); ringHide(); }
+            step('Switching every colour to its dark value');
+            root.classList.add('live-switch'); await wait(50); root.classList.add('live-dark'); await wait(900);
+            setTimeout(function () { root.classList.remove('live-switch'); }, 300);
+            finish('Dark. Every colour on this page is a variable, so it was twelve changes, not a redesign.', function () {
+              root.classList.add('live-switch'); root.classList.remove('live-dark');
+              setTimeout(function () { root.classList.remove('live-switch'); }, 900);
+            });
+          }
+        }
+      };
+      chips.addEventListener('click', async function (e) {
+        var b = e.target.closest('button[data-run]'); if (!b || running) return;
+        var run = runs[b.getAttribute('data-run')]; if (!run) return;
+        running = true; tile.classList.add('busy'); live.classList.add('live-running'); live.classList.remove('live-done-on');
+        steps.innerHTML = ''; current = null; curX = window.innerWidth - 47; curY = window.innerHeight - 47;
+        await type(run.ask); await wait(350);
+        try { await run.go(); } catch (err) { finish('Something on the page moved while I was at it. Try again.'); }
+      });
     })();
   </script>
 </body>
