@@ -87,7 +87,7 @@ import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
 import { chatToken } from './mcp-token'
 import { appendChatEvent } from './store'
-import { appHotkey, registerAppHotkey } from './app-hotkey'
+import { appHotkey, bringAppForward, registerAppHotkey } from './app-hotkey'
 import { registerOpenRequests } from './open-request'
 import {
   dotCovers,
@@ -762,6 +762,12 @@ app.whenReady().then(async () => {
     // The dot is a window too, and is not the app's window: with only it left,
     // a Dock click still has to bring the app back.
     if (BrowserWindow.getAllWindows().every((w) => isDotWindow(w))) createWindow()
+    // And with the app's window there but minimised, hidden or behind: macOS
+    // brings an app's window back on a Dock click only when it has none
+    // showing, and the dot is one showing. So the click did nothing at all
+    // ("I cannot open the app from the Dock, the dot prevents it"). Asked for
+    // by name, the window comes forward whatever the dot is doing.
+    else if (process.env.COVE_E2E_QUIET !== '1') bringAppForward()
   })
 })
 
