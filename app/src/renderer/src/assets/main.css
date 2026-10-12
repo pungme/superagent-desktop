@@ -6735,6 +6735,13 @@ button {
   flex-direction: column;
   gap: 2px;
 }
+.update-banner-running-go {
+  cursor: pointer;
+  border-radius: 6px;
+}
+.update-banner-running-go:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
 .update-banner-running-chat {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.55);

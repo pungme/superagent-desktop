@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useStore } from '../state'
+import { useOverlayLock, useStore } from '../state'
 import { Markdown } from './Markdown'
 
 /**
@@ -27,6 +27,11 @@ export function UpdateBanner(): React.JSX.Element | null {
   const [notesLoading, setNotesLoading] = useState(false)
   const closeTimer = useRef<number | null>(null)
   const busy = useStore((s) => s.busy)
+  // The warning reaches down over the pane, and the pane is a native view
+  // that paints above every bit of HTML: without this the choice sat behind a
+  // PDF, its buttons out of reach. An overlay, like the lightbox and the
+  // palette: the pane shows a still of itself and gets out of the way.
+  useOverlayLock(confirming)
   const chats = useStore((s) => s.chats)
   const tree = useStore((s) => s.tree)
   const projectNames = new Map(tree.flatMap((g) => g.workspaces).map((w) => [w.id, w.name]))
@@ -153,8 +158,9 @@ export function UpdateBanner(): React.JSX.Element | null {
         return {
           chatId,
           title: [project, chat?.title ?? 'New chat'].filter(Boolean).join(' · '),
+          workspaceId: chat?.workspaceId,
           items: [
-            ...(b.generating ? ['The agent is replying'] : []),
+            ...(b.generating ? [b.doing ?? 'The agent is replying'] : []),
             ...(b.what ?? []),
             // Counted but not named (an older view): still say it is there.
             ...Array.from(
@@ -188,7 +194,25 @@ export function UpdateBanner(): React.JSX.Element | null {
         </button>
         <ul className="update-banner-running">
           {running.map((r) => (
-            <li key={r.chatId}>
+            <li
+              key={r.chatId}
+              // A row is the way to the conversation: see for yourself before
+              // deciding. The pill stays, with the restart still a click away.
+              role={r.workspaceId ? 'button' : undefined}
+              tabIndex={r.workspaceId ? 0 : undefined}
+              className={r.workspaceId ? 'update-banner-running-go' : undefined}
+              title={r.workspaceId ? 'Open this conversation' : undefined}
+              onClick={() => {
+                if (!r.workspaceId) return
+                const st = useStore.getState()
+                st.setActive(r.workspaceId)
+                st.selectChat(r.workspaceId, r.chatId)
+                setConfirming(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') (e.currentTarget as HTMLElement).click()
+              }}
+            >
               <span className="update-banner-running-chat">{r.title}</span>
               {r.items.map((it, i) => (
                 <span key={i} className="update-banner-running-item">

@@ -134,14 +134,17 @@ export function startOverlayGuard(heldLock: () => boolean): () => void {
 }
 
 /**
- * The floating things that open and close by themselves: tooltips, the menus
+ * The floating things that open and close by CSS alone: tooltips, the menus
  * under the message box, the usage list. Each of them can reach over a browser
- * pane — a 300px tooltip in a 280px chat column does — and none of them is a
- * component with a moment to take the lock in: a tooltip is one CSS :hover.
+ * pane — a 300px tooltip in a 280px chat column does — and a :hover tooltip
+ * is no element arriving, so the watch below would not see it come; these are
+ * looked for by name on every pointer move. Everything else is found as it
+ * arrives (stacked, below).
  *
- * Only what comes and goes. Something that stays up (a banner, a toast) would
- * hold the lock for as long as it showed, and the page behind a held lock is a
- * photograph: it must not be here.
+ * Something that stays up over a pane (a banner, a toast) holds the lock for
+ * as long as it shows, and the page behind it is a photograph for that long:
+ * lay such a thing out beside the pane, not over it. The development guard
+ * names it.
  */
 const FLOATING = [
   '.easy-ctx-tip',
@@ -167,6 +170,43 @@ function shown(el: HTMLElement): boolean {
   return r.width > MIN_OVERLAP && r.height > MIN_OVERLAP
 }
 
+/**
+ * Anything else stacked over a pane, found as it arrives. The list above is
+ * the things that come and go by CSS alone; this is every other element that
+ * is positioned, stacked above the page and over a live pane — a dialog, a
+ * warning, whatever the next one is. Each new one was a report ("the popup is
+ * behind the browser": the permission prompt, the branch menu, the intro, the
+ * restart warning) until it was added to a list, so no list: the DOM is
+ * watched, and the offenders() rule the development guard warns with is the
+ * rule that takes the lock. Elements are kept, not re-found: a mutation scans
+ * only what changed, and a tick looks again at the ones already known.
+ */
+const stacked = new Set<HTMLElement>()
+
+function noteStacked(root: Element): void {
+  const hosts = paneHosts()
+  if (hosts.length === 0) return
+  for (const el of offenders(root, hosts)) stacked.add(el)
+}
+
+function stackedOverPane(): boolean {
+  if (stacked.size === 0) return false
+  const hosts = paneHosts()
+  for (const el of stacked) {
+    if (!el.isConnected) {
+      stacked.delete(el)
+      continue
+    }
+    if (hosts.length === 0 || !shown(el)) continue
+    const style = getComputedStyle(el)
+    if (style.position !== 'fixed' && style.position !== 'absolute') continue
+    const rect = el.getBoundingClientRect()
+    if (hosts.some((h) => !belongsToPane(el, h) && overlaps(rect, h.getBoundingClientRect())))
+      return true
+  }
+  return false
+}
+
 /** Whether a floating element is, right now, reaching over a live pane. */
 export function floatingOverPane(): boolean {
   const hosts = paneHosts()
@@ -177,7 +217,7 @@ export function floatingOverPane(): boolean {
     if (hosts.some((h) => !belongsToPane(el, h) && overlaps(rect, h.getBoundingClientRect())))
       return true
   }
-  return false
+  return stackedOverPane()
 }
 
 /**
@@ -213,13 +253,28 @@ export function startAutoOverlayLock(enter: () => void, exit: () => void): () =>
     }, 200)
   }
 
-  const observer = new MutationObserver(schedule)
-  observer.observe(document.body, { childList: true, subtree: true })
+  const observer = new MutationObserver((records) => {
+    // What arrived, and what changed its look (a class or style flip is how a
+    // dialog kept in the tree is shown): the only places a new overlay can be.
+    for (const r of records) {
+      if (r.type === 'attributes' && r.target instanceof Element) noteStacked(r.target)
+      for (const node of r.addedNodes) if (node instanceof Element) noteStacked(node)
+    }
+    schedule()
+  })
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'hidden', 'open']
+  })
+  noteStacked(document.body)
   const events = ['pointerover', 'pointerout', 'focusin', 'focusout', 'resize'] as const
   for (const e of events) window.addEventListener(e, schedule, true)
-  // Never leave the page a photograph: whatever was missed, look again.
+  // Never leave the page a photograph, and never leave one behind a dialog
+  // that moved: whatever was missed, look again.
   const safety = setInterval(() => {
-    if (held) schedule()
+    if (held || stacked.size > 0) schedule()
   }, 500)
 
   return () => {

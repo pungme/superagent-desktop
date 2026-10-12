@@ -489,6 +489,8 @@ interface CoveState {
       background: number
       /** What the background work is, in the words its pills use. */
       what?: string[]
+      /** What the agent is at right now, in a line: its current step, or the reply so far. */
+      doing?: string
     }
   >
   /**
@@ -508,7 +510,7 @@ interface CoveState {
   markRead: (chatId: string) => void
   setBusy: (
     chatId: string,
-    state: { generating: boolean; background: number; what?: string[] }
+    state: { generating: boolean; background: number; what?: string[]; doing?: string }
   ) => void
   clearBusy: (chatId: string) => void
 
@@ -1498,7 +1500,8 @@ export const useStore = create<CoveState>((set, get) => ({
         prev &&
         prev.generating === state.generating &&
         prev.background === state.background &&
-        (prev.what ?? []).join('\n') === (state.what ?? []).join('\n')
+        (prev.what ?? []).join('\n') === (state.what ?? []).join('\n') &&
+        (prev.doing ?? '') === (state.doing ?? '')
       ) {
         return s
       }

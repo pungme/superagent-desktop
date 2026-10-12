@@ -73,6 +73,44 @@ test('a menu that reaches over the browser gets the page out of its way', async 
     await w.locator('.sidebar-settings[title="Settings"]').hover()
     await w.waitForTimeout(600)
     expect(await nativeViews()).toBe(1)
+
+    // Something nobody listed: any element stacked over the pane, as it
+    // arrives (the restart warning was one, and sat behind a PDF).
+    await w.evaluate(() => {
+      const el = document.createElement('div')
+      el.id = 'e2e-stacked'
+      el.setAttribute('role', 'alertdialog')
+      el.style.cssText =
+        'position:fixed;top:60px;left:50%;width:420px;height:80px;z-index:60;background:#222'
+      el.textContent = 'A dialog that forgot the lock'
+      document.body.appendChild(el)
+    })
+    await expect(w.locator('.browser-frozen')).toHaveCount(1)
+    await expect.poll(nativeViews).toBe(0)
+    // Hidden by a class or style change, not removed: noticed the same.
+    await w.evaluate(() => {
+      document.getElementById('e2e-stacked')!.style.display = 'none'
+    })
+    await expect.poll(nativeViews, { timeout: 5_000 }).toBe(1)
+    await expect(w.locator('.browser-frozen')).toHaveCount(0)
+    await w.evaluate(() => {
+      document.getElementById('e2e-stacked')!.style.display = 'block'
+    })
+    await expect.poll(nativeViews, { timeout: 5_000 }).toBe(0)
+    // Gone for good: the page is back.
+    await w.evaluate(() => document.getElementById('e2e-stacked')!.remove())
+    await expect.poll(nativeViews, { timeout: 5_000 }).toBe(1)
+    await expect(w.locator('.browser-frozen')).toHaveCount(0)
+    // Something positioned but beside the pane, not over it, changes nothing.
+    await w.evaluate(() => {
+      const el = document.createElement('div')
+      el.id = 'e2e-beside'
+      el.style.cssText = 'position:fixed;top:200px;left:4px;width:60px;height:60px;z-index:60'
+      document.body.appendChild(el)
+    })
+    await w.waitForTimeout(700)
+    expect(await nativeViews()).toBe(1)
+    await w.evaluate(() => document.getElementById('e2e-beside')!.remove())
   } finally {
     await app.close()
     for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })

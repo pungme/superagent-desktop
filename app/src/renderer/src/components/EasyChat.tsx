@@ -3887,12 +3887,36 @@ export function EasyChat({
   // update quits the app, which kills every agent) can warn before discarding it.
   const setBusy = useStore((s) => s.setBusy)
   const clearBusy = useStore((s) => s.clearBusy)
+  // What this chat is at, in a line, for a warning that names what a restart
+  // would stop: the step under way, or the reply as far as it has got, rather
+  // than "the agent is replying" three times over.
+  const doing = useMemo((): string | undefined => {
+    if (!(generating || thinking)) return undefined
+    for (let i = items.length - 1; i >= 0 && i >= items.length - 6; i--) {
+      const it = items[i]
+      if (it.kind === 'tool') {
+        const { verb } = toolLabel(it.tool.name)
+        return `${verb}${it.tool.detail ? ` · ${it.tool.detail}` : ''}`.slice(0, 90)
+      }
+      if (it.kind === 'msg' && it.msg.role === 'assistant' && !it.msg.system && it.msg.text) {
+        const line = it.msg.text.trim().split('\n').filter(Boolean).pop() ?? ''
+        return line ? `“${line.length > 80 ? line.slice(0, 79) + '…' : line}”` : undefined
+      }
+      if (it.kind === 'thinking' && it.text) {
+        const line = it.text.trim().split('\n').filter(Boolean).pop() ?? ''
+        return line ? `Thinking: ${line.length > 70 ? line.slice(0, 69) + '…' : line}` : undefined
+      }
+      if (it.kind === 'msg' && it.msg.role === 'user') return 'Thinking about what you asked'
+    }
+    return undefined
+  }, [items, generating, thinking])
   useEffect(() => {
     bgTasksRef.current = bgTasks
     // Background sub-agents count as background work too: this number is what
     // keeps a hidden chat mounted, and unmounting it stops its process.
     setBusy(chatId, {
       generating: generating || thinking,
+      doing,
       background: bgTasks.length + bgAgents,
       // Named, so a warning that restarting stops them can say what they are.
       what: [
@@ -3901,7 +3925,7 @@ export function EasyChat({
       ]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId, generating, thinking, bgWhat, bgAgents, setBusy])
+  }, [chatId, generating, thinking, doing, bgWhat, bgAgents, setBusy])
   useEffect(() => () => clearBusy(chatId), [chatId, clearBusy])
 
   // A loop round main wants sent from here, as if typed: this view owns the
