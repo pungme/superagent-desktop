@@ -37,6 +37,7 @@ import {
 } from './computer-use'
 import { hooksIntact, requestApproval } from './hooks'
 import { noteComputer } from './computer-log'
+import { within } from './promise-timeout'
 import {
   appCaution,
   COMPUTER_STOP_HOTKEY,
@@ -207,7 +208,11 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
 
   /** The screen as it is now, with what the agent needs to know to point at it. */
   const look = async (note: string, display?: number): Promise<Result> => {
-    const s = await takeScreenshot(owner, display)
+    const s = await within(
+      takeScreenshot(owner, display),
+      15_000,
+      'Taking the screenshot timed out. Try computer_read_ui to inspect the controls without a picture, or try the screenshot again.'
+    )
     const others = s.displays.filter((d) => !d.current)
     return {
       content: [

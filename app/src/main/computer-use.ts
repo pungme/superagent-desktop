@@ -18,6 +18,7 @@ import { getChat } from './store'
 import { settingGet, settingSet } from './computer-settings'
 import { recentComputerLog } from './computer-log'
 import { broadcastToWindows } from './util'
+import { within } from './promise-timeout'
 import {
   appFrom,
   ringLabel,
@@ -375,7 +376,11 @@ async function capture(
   size: { width: number; height: number }
 ): Promise<{ image: Electron.NativeImage; via: 'capturer' | 'screencapture' }> {
   try {
-    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: size })
+    const sources = await within(
+      desktopCapturer.getSources({ types: ['screen'], thumbnailSize: size }),
+      5_000,
+      'Electron screen capture timed out.'
+    )
     const source = sources.find((s) => s.display_id === displayId) ?? sources[0]
     if (source && !source.thumbnail.isEmpty()) return { image: source.thumbnail, via: 'capturer' }
   } catch {
