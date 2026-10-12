@@ -15,7 +15,12 @@ import { parseWorktreeList } from './files'
 describe('parseWorktreeList', () => {
   it('reads the main worktree and marks it', () => {
     const out = parseWorktreeList('worktree /p/app\nHEAD abc123\nbranch refs/heads/main\n')
-    expect(out).toEqual([{ path: '/p/app', branch: 'main', main: true }])
+    expect(out).toEqual([{ path: '/p/app', branch: 'main', main: true, head: 'abc123' }])
+  })
+
+  it('says where each is, short: what a worktree on no branch is called by', () => {
+    const out = parseWorktreeList('worktree /p/app\nHEAD c37e2eafb1d24e0b9f6a\ndetached\n')
+    expect(out[0].head).toBe('c37e2ea')
   })
 
   it('marks only the FIRST as main — it is the folder the user opened', () => {
@@ -34,7 +39,7 @@ describe('parseWorktreeList', () => {
         'worktree /p/app/.worktrees/wt-1\nHEAD b2\ndetached\n'
     )
     expect(out).toHaveLength(2)
-    expect(out[1]).toEqual({ path: '/p/app/.worktrees/wt-1', branch: null, main: false })
+    expect(out[1]).toMatchObject({ path: '/p/app/.worktrees/wt-1', branch: null, main: false })
   })
 
   it('skips a bare repo — nobody can work in one', () => {
@@ -44,7 +49,7 @@ describe('parseWorktreeList', () => {
     )
     // The bare stanza is dropped, so the real worktree becomes the first —
     // and is therefore treated as main. Nothing is silently unreachable.
-    expect(out).toEqual([{ path: '/p/app/.worktrees/wt-1', branch: 'feature1', main: true }])
+    expect(out).toMatchObject([{ path: '/p/app/.worktrees/wt-1', branch: 'feature1', main: true }])
   })
 
   it('survives a branch name with slashes', () => {

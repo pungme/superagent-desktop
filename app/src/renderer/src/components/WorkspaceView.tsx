@@ -752,6 +752,9 @@ export function WorkspaceView({
           </button>
         )}
         <div className="workspace-toolbar-spacer" />
+        {/* What the conversation on screen puts up here: its Images button
+            (EasyChat fills this through a portal). */}
+        <div className="toolbar-chat-slot" data-chat-slot={ws.id} />
         {/* ✂ Snip lives ON the pane now (browser omnibar / simulator chrome), not
             here — closer to what you're snipping and more intuitive. */}
         {/* A code project's preview reveals itself when the agent navigates, and

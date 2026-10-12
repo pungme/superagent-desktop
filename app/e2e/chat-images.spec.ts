@@ -180,14 +180,15 @@ test('a picture can be downloaded where it sits in the conversation, without ope
 })
 
 test('Images lists every picture in the chat, newest first, and opens one large', async () => {
-  // Top right of the conversation, not among the composer's settings.
+  // In the project's toolbar, at its right end: not among the composer's
+  // settings, and not floating over the conversation.
   await expect(window.locator('.easy-control-btn:visible', { hasText: 'Images' })).toHaveCount(0)
-  const pill = window.locator('.easy-images-btn:visible')
+  await expect(window.locator('.easy-images-btn:visible')).toHaveCount(0)
+  const pill = window.locator('.workspace-toolbar:visible .toolbar-images')
   await expect(pill).toContainText('3')
   const box = (await pill.boundingBox())!
-  const chat = (await window.locator('.easy-transcript:visible').boundingBox())!
-  expect(box.y - chat.y).toBeLessThan(40)
-  expect(chat.x + chat.width - (box.x + box.width)).toBeLessThan(220)
+  const bar = (await window.locator('.workspace-toolbar:visible').boundingBox())!
+  expect(bar.x + bar.width - (box.x + box.width)).toBeLessThan(40)
   await pill.click()
   const view = window.getByRole('dialog', { name: 'Images in this chat' })
   await expect(view).toBeVisible()
@@ -228,7 +229,7 @@ test('a picture can be downloaded straight from the list', async () => {
 })
 
 test('a picture leads back to the message it came from', async () => {
-  await window.locator('.easy-images-btn:visible').click()
+  await window.locator('.workspace-toolbar:visible .toolbar-images').click()
   const view = window.getByRole('dialog', { name: 'Images in this chat' })
   // The agent's picture, the newest: back to its reply.
   const tile = view.locator('.chat-images-tile').first()

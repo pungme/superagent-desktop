@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { branchLabel, cleanUpQuestion, otherBranchesLabel } from '../../../shared/other-branches'
 import { createPortal } from 'react-dom'
 import {
   DndContext,
@@ -276,7 +277,8 @@ function BranchRow({
   onOpen,
   onMenu,
   onRemove,
-  orphanHint
+  orphanHint,
+  note
 }: {
   branch: string
   chat: Chat | undefined
@@ -289,6 +291,8 @@ function BranchRow({
   onRemove?: () => void
   /** What a row with no conversation is, when it is not a stray git worktree. */
   orphanHint?: string
+  /** Said after a chatless branch's name: "merged". */
+  note?: string
 }): React.JSX.Element {
   const renameChat = useStore((s) => s.renameChat)
   const running = useStore((st) => Boolean(chat && st.busy[chat.id]?.generating))
@@ -326,6 +330,7 @@ function BranchRow({
           on the left, so the branch takes that place instead of leaving a gap. */}
       {!chat && <span className="sidebar-branch-glyph">⎇</span>}
       {!chat && <span className="sidebar-branch-name">{branch}</span>}
+      {!chat && note && <span className="sidebar-branch-note">{note}</span>}
       {editing && chat ? (
         <input
           className="sidebar-item-rename chat-tree-rename"
@@ -642,8 +647,31 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
    * one is most likely to have appeared or gone.
    */
   const [worktrees, setWorktrees] = useState<
-    { path: string; branch: string | null; main: boolean; base: string | null }[]
+    {
+      path: string
+      branch: string | null
+      main: boolean
+      base: string | null
+      head?: string | null
+    }[]
   >([])
+  // Branches with no conversation fold into one line (shared/other-branches.ts):
+  // closed until asked for, and remembered per project.
+  const [othersOpen, setOthersOpen] = useState(
+    () => localStorage.getItem(`otherBranches:${ws.id}`) === '1'
+  )
+  /** Of those, the ones Clean up may remove; asked for when the line is opened. */
+  const [cleanablePaths, setCleanablePaths] = useState<string[]>([])
+  useEffect(() => {
+    if (!othersOpen || ws.kind === 'browser') return
+    let alive = true
+    void window.cove.worktreeCleanable?.(ws.path).then((list) => {
+      if (alive) setCleanablePaths(list ?? [])
+    })
+    return () => {
+      alive = false
+    }
+  }, [othersOpen, ws.path, ws.kind, worktrees])
   /**
    * A folder of repos has no worktrees of its own — it is not a repo — but its
    * chats each have a copy of every repo in it (one folder, one branch name).
@@ -1204,6 +1232,7 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             chat: Chat | undefined,
             opts: {
               main?: boolean
+              note?: string
               onOpen: () => void
               onMenu?: () => void
               onRemove?: () => void
@@ -1215,75 +1244,136 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
               chat={chat}
               workspaceId={ws.id}
               nested={!opts.main}
+              note={opts.note}
               active={Boolean(active && chat && chat.id === activeChatId)}
               onOpen={opts.onOpen}
               onMenu={opts.onMenu ?? ((): void => undefined)}
               onRemove={opts.onRemove}
             />
           )
+          const branches = worktrees.filter((wt) => !wt.main)
+          // The ones somebody is talking to are rows; the rest are one line.
+          const others = branches.filter((wt) => !chatOn(wt.path))
+          const mayClean = others.filter((wt) => cleanablePaths.includes(wt.path))
+          const fold =
+            others.length > 0 ? (
+              <div
+                key="other-branches"
+                className={`sidebar-otherbranches${othersOpen ? ' open' : ''}`}
+                role="button"
+                tabIndex={0}
+                aria-expanded={othersOpen}
+                title="Branches with no conversation: git worktrees made outside Superagent, or left behind by an agent."
+                onClick={() => {
+                  const next = !othersOpen
+                  localStorage.setItem(`otherBranches:${ws.id}`, next ? '1' : '0')
+                  setOthersOpen(next)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click()
+                }}
+              >
+                <span className="sidebar-otherbranches-caret">{othersOpen ? '▾' : '▸'}</span>
+                <span className="sidebar-otherbranches-label">
+                  {otherBranchesLabel(others.length)}
+                </span>
+                {othersOpen && mayClean.length > 0 && (
+                  <button
+                    className="sidebar-otherbranches-clean"
+                    title="Remove the ones already merged into the main line, with nothing uncommitted. You are shown the list first."
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!window.confirm(cleanUpQuestion(mayClean.map((w) => branchLabel(w)))))
+                        return
+                      void Promise.all(
+                        mayClean.map((w) => window.cove.worktreeRemove(ws.path, w.path))
+                      ).then(() => {
+                        window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+                      })
+                    }}
+                  >
+                    Clean up {mayClean.length}
+                  </button>
+                )}
+              </div>
+            ) : null
           return (
             <div className="routine-tree">
-              {worktrees
-                .filter((wt) => !wt.main)
-                .map((wt) => {
+              {[...branches.filter((wt) => chatOn(wt.path)), ...(othersOpen ? others : [])].map(
+                (wt, i, all) => {
                   const cwd = wt.main ? null : wt.path
                   const chat = chatOn(cwd)
-                  return row(wt.path, wt.branch ?? 'detached', chat, {
-                    main: wt.main,
-                    onOpen: () => {
-                      if (chat) {
-                        setActive(ws.id)
-                        selectChat(ws.id, chat.id)
-                        return
-                      }
-                      // A branch with no conversation — usually one an agent
-                      // made for itself. Opening it used to create a session
-                      // without a word, so a click to see what the row was left
-                      // a "New chat" behind: a session nobody started. Ask.
-                      const what = wt.branch ?? 'this branch'
-                      if (
-                        !window.confirm(
-                          `"${what}" has no conversation yet.\n\n` +
-                            'It is a git worktree made outside Superagent ' +
-                            `(${wt.path}). Start a conversation on it?`
-                        )
-                      )
-                        return
-                      openBranch(ws.id, cwd)
-                    },
-                    // A chatless worktree — a branch you have not opened yet, or a
-                    // stray one an agent left behind (a detached /tmp PR checkout,
-                    // say) — is removable too. Without this its row had no ✕ and
-                    // could only be deleted through a right-click nobody finds.
-                    onRemove: chat
-                      ? () => void removeChatFn(ws.id, chat.id)
-                      : () => {
-                          const what = wt.branch ?? 'this worktree'
-                          if (
-                            !window.confirm(
-                              `Remove "${what}" and its checkout?\n\nThis cannot be undone.`
-                            )
+                  const el = row(
+                    wt.path,
+                    chat ? (wt.branch ?? 'no branch') : branchLabel(wt),
+                    chat,
+                    {
+                      note: chat
+                        ? undefined
+                        : cleanablePaths.includes(wt.path)
+                          ? 'merged'
+                          : undefined,
+                      main: wt.main,
+                      onOpen: () => {
+                        if (chat) {
+                          setActive(ws.id)
+                          selectChat(ws.id, chat.id)
+                          return
+                        }
+                        // A branch with no conversation — usually one an agent
+                        // made for itself. Opening it used to create a session
+                        // without a word, so a click to see what the row was left
+                        // a "New chat" behind: a session nobody started. Ask.
+                        const what = wt.branch ?? 'this branch'
+                        if (
+                          !window.confirm(
+                            `"${what}" has no conversation yet.\n\n` +
+                              'It is a git worktree made outside Superagent ' +
+                              `(${wt.path}). Start a conversation on it?`
                           )
-                            return
-                          void window.cove.worktreeRemove(ws.path, wt.path).then(() => {
-                            window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
-                          })
-                        },
-                    onMenu: () => {
-                      if (wt.main) return
-                      if (chat) {
-                        window.cove.chatMenu(chat.id, ws.id, chat.cwd, chatIsUnread(chat))
-                        return
+                        )
+                          return
+                        openBranch(ws.id, cwd)
+                      },
+                      // A chatless worktree — a branch you have not opened yet, or a
+                      // stray one an agent left behind (a detached /tmp PR checkout,
+                      // say) — is removable too. Without this its row had no ✕ and
+                      // could only be deleted through a right-click nobody finds.
+                      onRemove: chat
+                        ? () => void removeChatFn(ws.id, chat.id)
+                        : () => {
+                            const what = wt.branch ?? 'this worktree'
+                            if (
+                              !window.confirm(
+                                `Remove "${what}" and its checkout?\n\nThis cannot be undone.`
+                              )
+                            )
+                              return
+                            void window.cove.worktreeRemove(ws.path, wt.path).then(() => {
+                              window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
+                            })
+                          },
+                      onMenu: () => {
+                        if (wt.main) return
+                        if (chat) {
+                          window.cove.chatMenu(chat.id, ws.id, chat.cwd, chatIsUnread(chat))
+                          return
+                        }
+                        window.cove.worktreeMenu({
+                          projectPath: ws.path,
+                          wtPath: wt.path,
+                          branch: wt.branch,
+                          base: wt.base
+                        })
                       }
-                      window.cove.worktreeMenu({
-                        projectPath: ws.path,
-                        wtPath: wt.path,
-                        branch: wt.branch,
-                        base: wt.base
-                      })
                     }
-                  })
-                })}
+                  )
+                  // The line sits where the chatless ones begin.
+                  const firstOther = !chat && (i === 0 || !!chatOn(all[i - 1].path))
+                  return firstOther ? [fold, el] : el
+                }
+              )}
+              {!othersOpen && fold}
               {/* Chats whose copy is gone — merged and reaped, or removed by
                   hand. They match no worktree and are not pending, so without a
                   row of their own they vanished from the sidebar entirely,

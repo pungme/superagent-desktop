@@ -1,4 +1,5 @@
 import { answerNeedsQuestion } from '../../../shared/answer-context'
+import { createPortal } from 'react-dom'
 import { resetLabel } from '../../../shared/usage-reset'
 import {
   Fragment,
@@ -1478,6 +1479,28 @@ function usageLine(a: Account | null | undefined): string | null {
     .join(' · ')
 }
 
+const IMAGES_GLYPH = (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+    <rect
+      x="1.75"
+      y="2.75"
+      width="12.5"
+      height="10.5"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth="1.3"
+    />
+    <circle cx="5.4" cy="6.2" r="1.1" fill="currentColor" />
+    <path
+      d="M2.5 11.5l3.3-3 2.4 2 2.3-2.4 3 3.2"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 export function EasyChat({
   cwd,
   workspaceId,
@@ -1874,6 +1897,18 @@ export function EasyChat({
   // Every picture in the conversation, for its Images view. Worked out when a
   // message is added or a turn ends, not on every word of a streaming reply.
   const [imagesOpen, setImagesOpen] = useState(false)
+  // The project's toolbar keeps a place for the chat's own buttons
+  // (WorkspaceView); a chat shown without one (Chats, the Computer) has none.
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setToolbarSlot(
+      document.querySelector<HTMLElement>(`[data-chat-slot="${CSS.escape(workspaceId)}"]`)
+    )
+  }, [workspaceId, visible])
+  const openImages = (): void => {
+    setControlMenu(null)
+    setImagesOpen(true)
+  }
   const itemsForImages = useRef(items)
   itemsForImages.current = items
   const imageRefs = useMemo(
@@ -5138,47 +5173,41 @@ export function EasyChat({
         )}
         <TasksPanel chatId={chatId} workspaceId={workspaceId} />
       </div>
+      {/* Top right of the project's toolbar: about the chat, out of the
+          conversation's way. Only the chat on screen puts its button there. */}
+      {toolbarSlot &&
+        visible &&
+        imageRefs.length > 0 &&
+        createPortal(
+          <button
+            className="toolbar-btn toolbar-images"
+            onClick={openImages}
+            title="Every picture in this chat"
+            aria-label={`Images in this chat: ${imageRefs.length}`}
+          >
+            {IMAGES_GLYPH}
+            <span>Images</span>
+            <em>{imageRefs.length}</em>
+          </button>,
+          toolbarSlot
+        )}
       <div className="easy-transcript">
         <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
-          {items.length > 0 && (!hideNewChat || imageRefs.length > 0) && (
+          {items.length > 0 && (!hideNewChat || (imageRefs.length > 0 && !toolbarSlot)) && (
             <div className="easy-newchat-group">
-              {/* Every picture in this chat: top right of the conversation,
-                  where it is about the chat, not one of the composer's
-                  settings below. */}
-              {imageRefs.length > 0 && (
+              {/* Every picture in this chat. In the project's toolbar when
+                  there is one (see below); here only where there is none. */}
+              {imageRefs.length > 0 && !toolbarSlot && (
                 <button
                   className="easy-newchat easy-images-btn"
-                  onClick={() => {
-                    setControlMenu(null)
-                    setImagesOpen(true)
-                  }}
+                  onClick={openImages}
                   data-tip="Every picture in this chat"
                   aria-label={`Images in this chat: ${imageRefs.length}`}
                 >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
-                    <rect
-                      x="1.75"
-                      y="2.75"
-                      width="12.5"
-                      height="10.5"
-                      rx="2"
-                      stroke="currentColor"
-                      strokeWidth="1.3"
-                    />
-                    <circle cx="5.4" cy="6.2" r="1.1" fill="currentColor" />
-                    <path
-                      d="M2.5 11.5l3.3-3 2.4 2 2.3-2.4 3 3.2"
-                      stroke="currentColor"
-                      strokeWidth="1.3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  {IMAGES_GLYPH}
                   Images {imageRefs.length}
                 </button>
               )}
-              {/* This chat's changes live in its own copy of the project until
-                  the user decides. Shown only when there IS something unkept. */}
               {!hideNewChat && isWorktreeChat && wtChanges && (
                 <>
                   <button

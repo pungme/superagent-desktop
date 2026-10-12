@@ -345,9 +345,17 @@ export interface CoveApi {
   /** Every worktree git knows about, main folder first. The branch list the user sees. */
   /** Cut this chat its own copy of the project, named from the first message. */
   chatEnsureBranch: (chatId: string, projectPath: string, hint: string) => Promise<string | null>
-  worktreeList: (
-    projectPath: string
-  ) => Promise<{ path: string; branch: string | null; main: boolean; base: string | null }[]>
+  worktreeList: (projectPath: string) => Promise<
+    {
+      path: string
+      branch: string | null
+      main: boolean
+      base: string | null
+      head?: string | null
+    }[]
+  >
+  /** The worktrees that Clean up may remove: merged into the main line, nothing uncommitted. */
+  worktreeCleanable: (projectPath: string) => Promise<string[]>
   /** Right-click a branch row. Native menu; the chosen verb comes back on onWorktreeMenuAction. */
   worktreeMenu: (p: {
     projectPath: string
@@ -1161,6 +1169,7 @@ const cove: CoveApi = {
   chatEnsureBranch: (chatId, projectPath, hint) =>
     ipcRenderer.invoke('chat:ensure-branch', chatId, projectPath, hint),
   worktreeList: (projectPath) => ipcRenderer.invoke('worktree:list', projectPath),
+  worktreeCleanable: (projectPath) => ipcRenderer.invoke('worktree:cleanable', projectPath),
   worktreeMenu: (p) => ipcRenderer.send('worktree:menu', p),
   onWorktreeMenuAction: (cb) => {
     const h = (_e: unknown, p: Parameters<typeof cb>[0]): void => cb(p)

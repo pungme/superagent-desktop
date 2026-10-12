@@ -1,4 +1,5 @@
 import { ipcMain, shell, nativeImage, BrowserWindow } from 'electron'
+import { cleanable, isHomeBranch } from '../shared/other-branches'
 import { execFile, execFileSync } from 'child_process'
 import {
   readdirSync,
@@ -177,6 +178,8 @@ export interface WorktreeEntry {
   path: string
   branch: string | null
   main: boolean
+  /** The commit it is at, short. */
+  head: string | null
 }
 
 /**
@@ -192,7 +195,8 @@ export function parseWorktreeList(stdout: string): WorktreeEntry[] {
     const path = /^worktree (.+)$/m.exec(stanza)?.[1]
     if (!path || /^bare$/m.test(stanza)) continue
     const branch = /^branch refs\/heads\/(.+)$/m.exec(stanza)?.[1] ?? null
-    out.push({ path, branch, main: out.length === 0 })
+    const head = /^HEAD ([0-9a-f]{4,})/m.exec(stanza)?.[1].slice(0, 7) ?? null
+    out.push({ path, branch, main: out.length === 0, head })
   }
   return out
 }
@@ -391,6 +395,7 @@ export interface WorktreeRow {
   branch: string | null
   main: boolean
   base: string | null
+  head: string | null
 }
 
 /**
@@ -701,7 +706,9 @@ export function removeWorktree(projectPath: string, wtPath: string): Promise<boo
     execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: wtPath }, (headErr, headOut) => {
       const branch = headErr ? '' : headOut.trim()
       execFile('git', ['worktree', 'remove', '--force', wtPath], { cwd: projectPath }, (err) => {
-        if (err || !branch || branch === 'HEAD') return resolve(!err)
+        // Never the main line: a second checkout of `main` going must not
+        // take the branch `main` with it.
+        if (err || !branch || branch === 'HEAD' || isHomeBranch(branch)) return resolve(!err)
         // Best effort: a branch that is merged, or shared with another worktree,
         // may refuse — the folder is already gone either way.
         execFile('git', ['branch', '-D', branch], { cwd: projectPath }, () => resolve(true))
@@ -738,6 +745,35 @@ export function listWorktrees(projectPath: string): Promise<WorktreeRow[]> {
       }
     )
   })
+}
+
+/**
+ * The worktrees Clean up may remove (shared/other-branches.ts): every commit
+ * of theirs is in the project's main line already and nothing in them is
+ * uncommitted. The main line is the remote's default branch when it says, else
+ * main or master, else wherever the project folder itself is.
+ */
+export async function cleanableWorktrees(projectPath: string): Promise<string[]> {
+  const rows = (await listWorktrees(projectPath)).filter((w) => !w.main)
+  if (rows.length === 0) return []
+  let home = 'HEAD'
+  let homeBranch: string | null = null
+  for (const ref of ['origin/HEAD', 'main', 'master']) {
+    if ((await git(['rev-parse', '--verify', '-q', ref], projectPath)).code === 0) {
+      home = ref
+      homeBranch = ref === 'origin/HEAD' ? null : ref
+      break
+    }
+  }
+  const out: string[] = []
+  for (const w of rows) {
+    const merged = (await git(['merge-base', '--is-ancestor', 'HEAD', home], w.path)).code === 0
+    if (!merged) continue
+    const status = await git(['status', '--porcelain'], w.path)
+    const dirty = status.code !== 0 || status.out.trim() !== ''
+    if (cleanable({ ...w, merged, dirty }, homeBranch)) out.push(w.path)
+  }
+  return out
 }
 
 /** One git command, never throwing: the exit code and everything it printed. */
@@ -1097,6 +1133,9 @@ export function registerFilesIpc(): void {
    * Git is the source of truth; ask it rather than keeping a second list.
    */
   ipcMain.handle('worktree:list', (_e, projectPath: string) => listWorktrees(projectPath))
+  ipcMain.handle('worktree:cleanable', (_e, projectPath: string) =>
+    cleanableWorktrees(String(projectPath))
+  )
   // Local branches, with the current one flagged and any already checked out in a
   // worktree marked (git won't check the same branch out twice). Powers the
   // branch picker + the toolbar switcher.

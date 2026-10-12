@@ -1153,6 +1153,56 @@ button {
   text-align: left;
   position: relative;
 }
+.sidebar-otherbranches {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 14px;
+  padding: 3px 8px 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-size: 11.5px;
+}
+.sidebar-otherbranches:hover {
+  background: var(--hover);
+  color: var(--text-secondary);
+}
+.sidebar-otherbranches-caret {
+  flex: none;
+  width: 10px;
+  font-size: 10px;
+}
+.sidebar-otherbranches-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-otherbranches-clean {
+  flex: none;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  padding: 1px 8px;
+}
+.sidebar-otherbranches-clean:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.sidebar-branch-note {
+  flex: none;
+  font-size: 10px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--hover);
+}
+
 .sidebar-branch:hover {
   background: var(--hover);
   color: var(--text-primary);
@@ -1904,6 +1954,25 @@ button {
   /* The project's own row ran straight into whatever the pane put beneath it —
      an omnibar, a file tree header — so the two read as one crowded band. */
   border-bottom: 1px solid var(--border);
+}
+
+.toolbar-chat-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.toolbar-chat-slot:empty {
+  display: none;
+}
+.toolbar-images {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.toolbar-images em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
 }
 
 .workspace-toolbar button {
