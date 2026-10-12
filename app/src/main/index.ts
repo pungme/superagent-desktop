@@ -31,7 +31,8 @@ import {
   noteUserLeftApp,
   attachPanesOnReturn,
   watchWindowGeometry,
-  allowUserFocus
+  allowUserFocus,
+  wireAppContextMenu
 } from './browser'
 import { startMcpServer } from './mcp'
 import {
@@ -233,6 +234,9 @@ function createWindow(): BrowserWindow {
     mainWindow.maximize()
     mainWindow.show()
   })
+
+  // Right-click in the app itself: images copied or saved, text cut and pasted.
+  wireAppContextMenu(mainWindow)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

@@ -324,6 +324,70 @@ async function saveImageAs(
 }
 
 /**
+ * The app's own window has no right-click menu either (Electron gives a
+ * window none), so an image in a conversation or the picture viewer could be
+ * neither copied nor saved: "why can't I right-click the image in the modal".
+ * The same items as the page's, for what applies in the app: an image, a
+ * link, a text field, a selection. Nothing when none applies, rather than a
+ * menu of greyed-out page things. The template is built apart from the popup
+ * so a test can see it without a native menu appearing.
+ */
+export function appContextTemplate(
+  wc: Pick<Electron.WebContents, 'copyImageAt' | 'cut' | 'copy' | 'paste' | 'selectAll'>,
+  params: Pick<
+    Electron.ContextMenuParams,
+    'linkURL' | 'mediaType' | 'srcURL' | 'x' | 'y' | 'isEditable' | 'editFlags' | 'selectionText'
+  >,
+  saveImage: (url: string) => void
+): Electron.MenuItemConstructorOptions[] {
+  const template: Electron.MenuItemConstructorOptions[] = []
+  const sep = (): void => {
+    if (template.length) template.push({ type: 'separator' })
+  }
+  if (params.linkURL && /^https?:/i.test(params.linkURL)) {
+    template.push({ label: 'Copy Link', click: () => clipboard.writeText(params.linkURL) })
+  }
+  if (params.mediaType === 'image' && params.srcURL) {
+    sep()
+    template.push(
+      { label: 'Save Image As…', click: () => saveImage(params.srcURL) },
+      { label: 'Copy Image', click: () => wc.copyImageAt(params.x, params.y) }
+    )
+    // A picture pasted into a chat is its bytes, not an address worth copying.
+    if (/^https?:/i.test(params.srcURL))
+      template.push({
+        label: 'Copy Image Address',
+        click: () => clipboard.writeText(params.srcURL)
+      })
+  }
+  if (params.isEditable) {
+    sep()
+    const { editFlags } = params
+    template.push(
+      { label: 'Cut', enabled: editFlags.canCut, click: () => wc.cut() },
+      { label: 'Copy', enabled: editFlags.canCopy, click: () => wc.copy() },
+      { label: 'Paste', enabled: editFlags.canPaste, click: () => wc.paste() },
+      { type: 'separator' },
+      { label: 'Select All', enabled: editFlags.canSelectAll, click: () => wc.selectAll() }
+    )
+  } else if (params.selectionText) {
+    sep()
+    template.push({ label: 'Copy', click: () => wc.copy() })
+  }
+  return template
+}
+
+export function wireAppContextMenu(window: BrowserWindow): void {
+  const wc = window.webContents
+  wc.on('context-menu', (_e, params) => {
+    const template = appContextTemplate(wc, params, (url) => {
+      void saveImageAs(window, wc, url, params.suggestedFilename)
+    })
+    if (template.length) Menu.buildFromTemplate(template).popup({ window })
+  })
+}
+
+/**
  * The page's own right-click menu. A WebContentsView gets none of Chromium's
  * built-in one — that belongs to a top-level browser window, which this isn't —
  * so without this, right-clicking the pane did nothing at all. Built from the

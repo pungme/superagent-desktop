@@ -84,6 +84,27 @@ export function CommandPalette({
 }): React.JSX.Element | null {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
+  // The pointer is a vote only once it has moved. A palette opens under
+  // wherever the pointer happens to rest, and the row under it was taken for
+  // a hover: the first result lost its highlight before a key was pressed.
+  // Until the pointer actually moves the keyboard has it; from then on the
+  // pointer does, as in any menu.
+  const [pointerLive, setPointerLive] = useState(false)
+  // Where the pointer was last seen. Seeded by the enter event the palette
+  // gets for opening under a still pointer; a move to the same place (Chromium
+  // sends one when content scrolls under the pointer, as the highlighted row
+  // does) is no vote, a move anywhere else is.
+  const pointerAt = useRef<{ x: number; y: number } | null>(null)
+  useEffect(() => {
+    if (open) pointerAt.current = null
+  }, [open])
+  const pointerSeen = (e: React.MouseEvent): boolean => {
+    const last = pointerAt.current
+    pointerAt.current = { x: e.clientX, y: e.clientY }
+    if (!last || (last.x === e.clientX && last.y === e.clientY)) return false
+    if (!pointerLive) setPointerLive(true)
+    return true
+  }
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -104,6 +125,7 @@ export function CommandPalette({
     if (open) {
       setQuery('')
       setSelected(0)
+      setPointerLive(false)
     }
   }
 
@@ -357,7 +379,13 @@ export function CommandPalette({
                     type="button"
                     data-idx={idx}
                     className={`cmdk-item${idx === activeIndex ? ' active' : ''}`}
-                    onMouseEnter={() => setSelected(idx)}
+                    onMouseEnter={(e) => {
+                      if (pointerLive) setSelected(idx)
+                      else pointerAt.current = { x: e.clientX, y: e.clientY }
+                    }}
+                    onMouseMove={(e) => {
+                      if (pointerSeen(e) || pointerLive) setSelected(idx)
+                    }}
                     onClick={() => run(item)}
                   >
                     {item.workspace && <PaletteIcon ws={item.workspace} />}

@@ -137,6 +137,32 @@ test('arrow keys move the highlighted result', async () => {
   await window.keyboard.press('Escape')
 })
 
+test('a pointer already resting over the list does not take the highlight; moving it does', async () => {
+  // Open once to learn where the third row is, then close.
+  await openPalette()
+  const third = window.locator('.cmdk-item').nth(2)
+  const box = (await third.boundingBox())!
+  await window.keyboard.press('Escape')
+  await expect(window.locator('.cmdk-panel')).toHaveCount(0)
+  // The pointer rests there before the palette opens under it (the page's
+  // synthetic pointer: nothing reaches the Mac).
+  await window.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await openPalette()
+  await window.waitForTimeout(150)
+  // The keyboard has it: the first result, not the row under the pointer.
+  await expect(window.locator('.cmdk-item').first()).toHaveClass(/active/)
+  await window.keyboard.press('ArrowDown')
+  await expect(window.locator('.cmdk-item').nth(1)).toHaveClass(/active/)
+  // The pointer moves: now it votes, and the row under it is the one.
+  await window.mouse.move(box.x + box.width / 2 + 6, box.y + box.height / 2 + 2)
+  await expect(window.locator('.cmdk-item').nth(2)).toHaveClass(/active/)
+  // Still after that, the keyboard has it again until the pointer moves.
+  await window.keyboard.press('ArrowUp')
+  await expect(window.locator('.cmdk-item').nth(1)).toHaveClass(/active/)
+  await window.keyboard.press('Escape')
+  await expect(window.locator('.cmdk-panel')).toHaveCount(0)
+})
+
 test('clicking the backdrop closes it without picking anything', async () => {
   await openPalette()
   await window.click('.cmdk-backdrop', { position: { x: 5, y: 5 } })
