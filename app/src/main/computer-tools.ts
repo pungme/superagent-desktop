@@ -29,7 +29,11 @@ import {
   takeScreenshot,
   touchConsent,
   type ComputerAction,
-  enableComputerUse
+  enableComputerUse,
+  permissionsMissing,
+  requestPermission,
+  awaitReady,
+  relaunchApp
 } from './computer-use'
 import { hooksIntact, requestApproval } from './hooks'
 import { noteComputer } from './computer-log'
@@ -110,6 +114,22 @@ export const ENABLE_PREVIEW =
   'Computer use is off. Turn it on, and use this Mac for this: see the screen, move the pointer, click and type in your apps.\n' +
   `It asks again for each app, and after ten minutes idle; Settings → Computer use turns it off. ${COMPUTER_STOP_HOTKEY.replace('Alt', '⌥').replace('+Escape', 'Esc')} stops it at any time.`
 
+/** The ask for the Mac's own permissions, and the wait while they are given. */
+export function grantPreview(missing: ('screen' | 'accessibility')[]): string {
+  const names = missing.map((m) =>
+    m === 'screen' ? 'Screen Recording (to see the screen)' : 'Accessibility (to click and type)'
+  )
+  return (
+    `Superagent needs macOS permission: ${names.join(' and ')}.\n` +
+    'Open System Settings to allow it? Superagent waits while you do, then carries on.'
+  )
+}
+export const RESTART_PREVIEW =
+  'Allowed. macOS applies Screen Recording once Superagent is opened again. Restart Superagent now?\n' +
+  'This conversation is here when it is back; ask again then.'
+/** How long the user is given to find the switch. */
+const GRANT_WAIT_MS = 180_000
+
 export function registerComputerTools(server: McpServer, ctx: ComputerContext): void {
   // Registered whether or not computer use is on: off, the first call asks the
   // user to turn it on (the gate below), which is the one way anyone finds
@@ -131,7 +151,37 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       enableComputerUse()
       grantConsent(owner)
     }
-    const missing = notReady()
+    let missing = notReady()
+    // The Mac's own permissions not given yet: the user is walked through them
+    // from here, wherever here is (the dot, the phone), instead of being sent
+    // to find Settings; the call waits for the switch and then goes ahead.
+    const toGrant = missing ? permissionsMissing() : []
+    if (missing && toGrant.length > 0) {
+      const guide = await requestApproval(
+        ctx.workspaceId,
+        ctx.sessionId,
+        'mcp__cove-browser__computer_use',
+        grantPreview(toGrant),
+        'permission'
+      )
+      if (!guide) return missing
+      for (const which of toGrant) await requestPermission(which)
+      const got = await awaitReady(GRANT_WAIT_MS)
+      if (got === 'restart') {
+        const again = await requestApproval(
+          ctx.workspaceId,
+          ctx.sessionId,
+          'mcp__cove-browser__computer_use',
+          RESTART_PREVIEW,
+          'permission'
+        )
+        if (again) relaunchApp()
+        return 'The permission is allowed, and macOS applies it once Superagent is opened again. Tell the user to restart Superagent (Settings → About, or quit and open it) and ask you again after.'
+      }
+      if (got === 'timeout')
+        return `The permissions were not given in time. ${notReady() ?? ''} Ask the user whether to try again.`
+      missing = notReady()
+    }
     if (missing) return missing
     // The guards on the agent's own shell live in the hooks. Gone, and they
     // cannot be put back: no hands on the Mac until they are.

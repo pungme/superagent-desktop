@@ -253,6 +253,9 @@ export function notReady(s: ComputerStatus = computerStatus()): string | null {
   if (!s.supported) return 'Computer use needs a Mac.'
   if (!s.enabled)
     return 'Computer use is turned off. The user can turn it on in Settings → General → Computer use.'
+  // A test run that must not disturb whoever is using the Mac never looks at
+  // their screen, whatever macOS has granted the test's Electron.
+  if (process.env.COVE_E2E_QUIET === '1') return 'A quiet test run never looks at the screen.'
   if (!s.helper) return 'The computer-use helper is missing from this build.'
   const missing = [
     s.screen ? null : 'Screen Recording (to see the screen)',
@@ -261,6 +264,77 @@ export function notReady(s: ComputerStatus = computerStatus()): string | null {
   return missing.length
     ? `Superagent does not have ${missing.join(' or ')}. The user grants ${missing.length > 1 ? 'them' : 'it'} in System Settings → Privacy & Security; Settings → General → Computer use has buttons that open the right page. macOS may ask for Superagent to be restarted afterwards.`
     : null
+}
+
+/** The macOS permissions still to be given, in the order to ask for them. */
+export function permissionsMissing(
+  s: ComputerStatus = computerStatus()
+): ('screen' | 'accessibility')[] {
+  if (!s.supported || !s.enabled || !s.helper) return []
+  return [
+    ...(s.screen ? [] : ['screen' as const]),
+    ...(s.accessibility ? [] : ['accessibility' as const])
+  ]
+}
+
+/**
+ * Ask macOS for a permission: its own prompt comes up the first time (which
+ * is also what lists Superagent under that permission), and System Settings
+ * is opened at the right pane for the switch. The same as the buttons in
+ * Settings → Computer use, from wherever the asking happens.
+ */
+export async function requestPermission(which: 'screen' | 'accessibility'): Promise<void> {
+  if (process.platform !== 'darwin') return
+  if (which === 'accessibility') systemPreferences.isTrustedAccessibilityClient(true)
+  else
+    await desktopCapturer
+      .getSources({ types: ['screen'], thumbnailSize: { width: 16, height: 16 } })
+      .catch(() => [])
+  await shell.openExternal(
+    `x-apple.systempreferences:com.apple.preference.security?${
+      which === 'screen' ? 'Privacy_ScreenCapture' : 'Privacy_Accessibility'
+    }`
+  )
+}
+
+/**
+ * Wait for the permissions to be given, really: a picture is tried and the
+ * helper asked, since what macOS reports can run ahead of what works. 'restart'
+ * when macOS says yes but a picture still fails, which is Screen Recording
+ * needing the app opened again; 'timeout' when the user did not get to it.
+ */
+export async function awaitReady(
+  ms: number,
+  every = 1500,
+  tick: (left: ('screen' | 'accessibility')[]) => void = () => undefined
+): Promise<'ready' | 'restart' | 'timeout'> {
+  const until = Date.now() + ms
+  let saidYesButFails = 0
+  while (Date.now() < until) {
+    const left = permissionsMissing()
+    tick(left)
+    if (left.length === 0) {
+      let sees = false
+      try {
+        await takeScreenshot('__check__')
+        sees = true
+      } catch {
+        sees = false
+      }
+      lastShot.delete('__check__')
+      const t = await cuse(['trusted'])
+      if (sees && t.out.trusted === true) return 'ready'
+      if (++saidYesButFails >= 3) return 'restart'
+    }
+    await new Promise((r) => setTimeout(r, every))
+  }
+  return 'timeout'
+}
+
+/** Open again, for a permission macOS applies only to a fresh process. */
+export function relaunchApp(): void {
+  app.relaunch()
+  app.exit(0)
 }
 
 // --- seeing ---------------------------------------------------------------

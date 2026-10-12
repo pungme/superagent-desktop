@@ -26,7 +26,12 @@ const state = vi.hoisted(() => ({
   under: '',
   wrote: null as string | null,
   /** Something that happens while the user is looking at a question. */
-  whileAsked: null as (() => void) | null
+  whileAsked: null as (() => void) | null,
+  /** The Mac's own permissions still to give, and how the wait for them ends. */
+  toGrant: [] as ('screen' | 'accessibility')[],
+  requested: [] as string[],
+  after: 'ready' as 'ready' | 'restart' | 'timeout',
+  relaunched: false
 }))
 vi.mock('./computer-use', () => ({
   computerUseEnabled: () => state.enabled,
@@ -34,6 +39,17 @@ vi.mock('./computer-use', () => ({
     state.enabled = true
   },
   notReady: () => state.missing,
+  permissionsMissing: () => state.toGrant,
+  requestPermission: async (which: string) => {
+    state.requested.push(which)
+  },
+  awaitReady: async () => {
+    state.missing = state.after === 'ready' ? null : state.missing
+    return state.after
+  },
+  relaunchApp: () => {
+    state.relaunched = true
+  },
   hasConsent: () => state.consent,
   grantConsent: () => {
     state.consent = true
@@ -147,7 +163,11 @@ beforeEach(() => {
     steps: false,
     under: '',
     wrote: null,
-    whileAsked: null
+    whileAsked: null,
+    toGrant: [],
+    requested: [],
+    after: 'ready',
+    relaunched: false
   })
 })
 
@@ -167,6 +187,49 @@ describe("the agent's tools for using the Mac", () => {
       await call(c, 'computer_screenshot')
       expect(state.enabled).toBe(true)
       expect(state.shots).toBe(1)
+    })
+  })
+
+  it("walk the user through the Mac's permissions from wherever they ask, then go ahead", async () => {
+    state.missing = 'Superagent does not have Screen Recording.'
+    state.toGrant = ['screen', 'accessibility']
+    await withClient(async (c) => {
+      // No: the plain reason, as before.
+      state.answer = false
+      expect(text(await call(c, 'computer_screenshot'))).toContain('does not have Screen Recording')
+      expect(state.asked[0]).toContain(
+        'Screen Recording (to see the screen) and Accessibility (to click and type)'
+      )
+      expect(state.requested).toEqual([])
+      // Yes: macOS is asked, System Settings opened, and once given the call goes on.
+      state.answer = true
+      state.after = 'ready'
+      await call(c, 'computer_screenshot')
+      expect(state.requested).toEqual(['screen', 'accessibility'])
+      expect(state.shots).toBe(1)
+    })
+  })
+
+  it('offers a restart when macOS says yes but a picture still fails', async () => {
+    state.missing = 'Superagent does not have Screen Recording.'
+    state.toGrant = ['screen']
+    state.after = 'restart'
+    await withClient(async (c) => {
+      const said = text(await call(c, 'computer_screenshot'))
+      expect(said).toContain('opened again')
+      expect(state.asked[1]).toContain('Restart Superagent now?')
+      expect(state.relaunched).toBe(true)
+      expect(state.shots).toBe(0)
+    })
+  })
+
+  it('says so when the permissions were not given in time', async () => {
+    state.missing = 'Superagent does not have Accessibility.'
+    state.toGrant = ['accessibility']
+    state.after = 'timeout'
+    await withClient(async (c) => {
+      expect(text(await call(c, 'computer_screenshot'))).toContain('not given in time')
+      expect(state.shots).toBe(0)
     })
   })
 

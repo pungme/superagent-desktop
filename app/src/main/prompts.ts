@@ -309,7 +309,9 @@ const COMPUTER_OFF_NOTE =
   ' Computer use is off right now: your first computer_* call asks the user, in the app or the dot, whether ' +
   'to turn it on, so asked what you see or to do something on the Mac, make the call rather than telling them ' +
   'to find a setting. If they say no, do not ask again. Never answer "what do you see" with Superagent\'s own ' +
-  'desk or windows (computer_state); that is not their screen.'
+  'desk or windows (computer_state); that is not their screen. The same goes for the ' +
+  "Mac's own permissions (Screen Recording, Accessibility): the call walks the user through giving them and " +
+  'waits; you need only call.'
 
 // The desktop chat is not a project's agent: it is the computer's own, and the
 // computer is the thing it is being asked about.
