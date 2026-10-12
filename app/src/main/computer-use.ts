@@ -128,6 +128,24 @@ export function focusedView(): boolean {
   return focusedNow
 }
 
+const ASK_APPS_KEY = 'computer.askApps'
+let askAppsNow: boolean | null = null
+/**
+ * Whether each app is put to the user the first time a conversation works in
+ * it. On unless turned off: off, any app that is not out of bounds may be
+ * worked in straight away, which is what "use anything on my computer" asks
+ * for. Password managers, the lock screen and the user's own list stay out
+ * whatever this says (offLimitsMessage).
+ */
+export function askBeforeApps(): boolean {
+  if (askAppsNow === null) {
+    const v = settingGet(ASK_APPS_KEY)
+    if (v === undefined) return true
+    askAppsNow = v !== '0'
+  }
+  return askAppsNow
+}
+
 const STEPS_KEY = 'computer.steps'
 let stepsNow: boolean | null = null
 /** Whether each step is asked about before it is taken. Off unless turned on. */
@@ -223,6 +241,8 @@ export interface ComputerStatus {
   focused: boolean
   /** Each click, keystroke and typed text is asked about before it happens. */
   steps: boolean
+  /** Each app is asked about the first time a conversation works in it. */
+  askApps: boolean
   /** Apps it never works in: the built-in ones by name, and the user's own. */
   builtInDenied: string[]
   denied: AppRef[]
@@ -242,6 +262,7 @@ export function computerStatus(): ComputerStatus {
     ring: ringEnabled(),
     focused: focusedView(),
     steps: stepByStep(),
+    askApps: askBeforeApps(),
     builtInDenied: OFF_LIMITS_NAMES,
     denied: deniedApps(),
     rules: appRules()
@@ -1181,8 +1202,10 @@ export function offLimitsFor(app: AppRef): string | null {
 
 /** Whether this conversation has been allowed to work in an app. */
 export function appApproved(owner: string, id: string): boolean {
-  // Said yes to in this conversation, or allowed for good in Settings.
-  return !!approved.get(owner)?.has(id.toLowerCase()) || appRule(id) === 'allow'
+  // Said yes to in this conversation, allowed for good in Settings, or every
+  // app allowed by the switch there. Out of bounds is checked elsewhere and
+  // comes first: this is never a way into a password manager.
+  return !!approved.get(owner)?.has(id.toLowerCase()) || appRule(id) === 'allow' || !askBeforeApps()
 }
 
 /** What is on the clipboard, as text. It is the user's, and often a password: asked about every time. */
@@ -1423,6 +1446,11 @@ export function registerComputerUseIpc(): void {
   ipcMain.handle('computer:set-ring', (_e, on: boolean) => {
     ringNow = !!on
     settingSet(RING_KEY, on ? '1' : '0')
+    return computerStatus()
+  })
+  ipcMain.handle('computer:set-ask-apps', (_e, on: boolean) => {
+    askAppsNow = !!on
+    settingSet(ASK_APPS_KEY, on ? '1' : '0')
     return computerStatus()
   })
   ipcMain.handle('computer:set-steps', (_e, on: boolean) => {

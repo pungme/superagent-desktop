@@ -177,6 +177,7 @@ describe('what is missing, in words for the user', () => {
     ring: true,
     focused: false,
     steps: false,
+    askApps: true,
     rules: [],
     builtInDenied: [],
     denied: []

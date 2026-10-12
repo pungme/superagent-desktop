@@ -1183,6 +1183,17 @@ export function Settings({
               )}
               {computer.enabled && (
                 <Row
+                  title="Ask before the first time in each app"
+                  desc="Each app is put to you the first time a conversation works in it, with Always allow for the ones you trust. Off, it may work in any app straight away. Password managers, the lock screen and the apps you list below stay out either way."
+                >
+                  <Toggle
+                    checked={computer.askApps !== false}
+                    onChange={(v) => void window.cove.setComputerAskApps(v).then(setComputer)}
+                  />
+                </Row>
+              )}
+              {computer.enabled && (
+                <Row
                   title="Ask before each step"
                   desc="Every click, keystroke and piece of typing is put to you first, in words, and happens only if you allow it. Slower, and nothing happens that you did not see coming. Looking, scrolling and moving the pointer are not asked about."
                 >

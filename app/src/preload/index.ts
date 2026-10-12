@@ -94,6 +94,7 @@ export interface ComputerStatus {
   ring?: boolean
   focused?: boolean
   steps?: boolean
+  askApps?: boolean
   /** Standing answers: apps it may always work in ('allow') or only look at ('look'). */
   rules?: { id: string; name: string; level: 'allow' | 'look' }[]
   /** Apps it never works in: the built-in ones by name, and the user's own. */
@@ -874,6 +875,7 @@ export interface CoveApi {
   setComputerRing: (on: boolean) => Promise<ComputerStatus>
   setComputerFocused: (on: boolean) => Promise<ComputerStatus>
   setComputerSteps: (on: boolean) => Promise<ComputerStatus>
+  setComputerAskApps: (on: boolean) => Promise<ComputerStatus>
   /** What agents have done with the Mac lately, newest first. */
   computerLog: () => Promise<
     { at: number; owner: string; chat: string; what: string; app?: string; kind?: string }[]
@@ -1429,6 +1431,7 @@ const cove: CoveApi = {
   setComputerRing: (on) => ipcRenderer.invoke('computer:set-ring', on),
   setComputerFocused: (on) => ipcRenderer.invoke('computer:set-focused', on),
   setComputerSteps: (on) => ipcRenderer.invoke('computer:set-steps', on),
+  setComputerAskApps: (on) => ipcRenderer.invoke('computer:set-ask-apps', on),
   computerLog: () => ipcRenderer.invoke('computer:log'),
   computerRulePick: (level) => ipcRenderer.invoke('computer:rule-pick', level),
   computerRule: (app, level) => ipcRenderer.invoke('computer:rule', app, level),
