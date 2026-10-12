@@ -45,7 +45,6 @@ import {
  */
 
 const ENABLED_KEY = 'dot.enabled'
-const POS_KEY = 'dot.position'
 
 let win: BrowserWindow | null = null
 /** Chats the dot started: only their events are passed on to it. */
@@ -72,6 +71,30 @@ export function switchDotProject(workspaceId: string): boolean {
   if (!dotProjects().some((p) => p.id === workspaceId)) return false
   send('dot:switch-project', workspaceId)
   return true
+}
+
+/**
+ * Left out of the picture while an agent photographs the screen to see it: it
+ * should see what is under the tile, not the tile. Only for that moment; the
+ * rest of the time the dot is in your own screenshots like anything else (it
+ * was out of every capture before, which made it impossible to show anyone).
+ */
+let curtains = 0
+const CURTAIN_MS = 120
+export async function outOfShot<T>(take: () => Promise<T>): Promise<T> {
+  if (!win || win.isDestroyed() || !win.isVisible()) return take()
+  curtains += 1
+  if (curtains === 1) {
+    win.setContentProtection(true)
+    // The window server takes a moment to leave it out.
+    await new Promise((r) => setTimeout(r, CURTAIN_MS))
+  }
+  try {
+    return await take()
+  } finally {
+    curtains -= 1
+    if (curtains === 0 && win && !win.isDestroyed()) win.setContentProtection(false)
+  }
 }
 
 /** One of the app's own windows, as against the dot: the window in question. */
@@ -118,20 +141,13 @@ export function dotEnabled(): boolean {
   return v !== '0' && process.env.COVE_E2E_DOT === '1'
 }
 
-function savedPosition(): { x: number; y: number } | null {
-  try {
-    const p = JSON.parse(kvGet(POS_KEY) ?? 'null') as { x?: unknown; y?: unknown } | null
-    return p && typeof p.x === 'number' && typeof p.y === 'number' ? { x: p.x, y: p.y } : null
-  } catch {
-    return null
-  }
-}
-
 function place(): void {
   if (!win || win.isDestroyed()) return
   win.setBounds(
+    // Always its corner: it is not dragged about, and one left somewhere by
+    // an earlier version comes home.
     dotBounds(
-      savedPosition(),
+      null,
       screen.getAllDisplays().map((d) => d.workArea),
       screen.getPrimaryDisplay().workArea
     )
@@ -187,10 +203,6 @@ function createDot(): void {
     }
   })
   win.setAlwaysOnTop(true, 'floating')
-  // Left out of screen captures: an agent using the Mac photographs the screen
-  // to see it, and should see what is under the tile, not the tile. (It also
-  // keeps the tile out of a screen share.)
-  win.setContentProtection(true)
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   // Everything is see-through and click-through until the page says otherwise.
   win.setIgnoreMouseEvents(true, { forward: true })
@@ -353,18 +365,6 @@ export function registerDot(): void {
       win.focus()
     } else win.blur()
   })
-  /** Dragged by its tile. */
-  ipcMain.on('dot:move', (_e, dx: number, dy: number) => {
-    if (!win || win.isDestroyed()) return
-    const b = win.getBounds()
-    win.setBounds({ x: b.x + Math.round(dx), y: b.y + Math.round(dy), width: W, height: H })
-  })
-  ipcMain.on('dot:moved', () => {
-    if (!win || win.isDestroyed()) return
-    const b = win.getBounds()
-    kvSet(POS_KEY, JSON.stringify({ x: b.x, y: b.y }))
-  })
-
   /** A request: a new chat in the chosen project, sent like a phone sends one. */
   ipcMain.handle('dot:ask', async (_e, workspaceId: string, text: string, into?: string) => {
     const said = String(text ?? '').trim()

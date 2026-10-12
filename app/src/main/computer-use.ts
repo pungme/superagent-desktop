@@ -624,7 +624,7 @@ export async function takeZoom(
     height: Math.round(display.bounds.height * scale)
   }
   const before = await layoutBefore(owner)
-  const picture = await capture(all.indexOf(display), String(display.id), full)
+  const picture = await aroundShot(() => capture(all.indexOf(display), String(display.id), full))
   const got = picture.image.getSize()
   const k = got.width / shot.width
   const cut = (await onlyAllowed(owner, picture.image, display.bounds, before)).image.crop({
@@ -666,7 +666,7 @@ export async function takeScreenshot(owner: string, display?: number): Promise<S
   else pointerLeftAt.delete(owner)
   const size = shotSize(chosen.bounds)
   const before = await layoutBefore(owner)
-  const picture = await capture(all.indexOf(chosen), String(chosen.id), size)
+  const picture = await aroundShot(() => capture(all.indexOf(chosen), String(chosen.id), size))
   const got = picture.image.getSize()
   const shot: Shot = { width: got.width, height: got.height, area: chosen.bounds }
   const seen = await onlyAllowed(owner, picture.image, chosen.bounds, before)
@@ -764,6 +764,15 @@ export function touchConsent(owner: string, now = Date.now()): void {
  * index.ts, to keep this module free of the windows.
  */
 let onOwnSurface: (x: number, y: number) => boolean = () => false
+
+/**
+ * Something to do around a picture of the screen being taken: the dot steps
+ * out of it for that moment (dot.ts). Set by index.ts, as above.
+ */
+let aroundShot: <T>(take: () => Promise<T>) => Promise<T> = (take) => take()
+export function setShotCurtain(fn: <T>(take: () => Promise<T>) => Promise<T>): void {
+  aroundShot = fn
+}
 export function setOwnSurfaceProbe(fn: (x: number, y: number) => boolean): void {
   onOwnSurface = fn
 }

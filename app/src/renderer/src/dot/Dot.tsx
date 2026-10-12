@@ -326,31 +326,6 @@ export function Dot(): React.JSX.Element {
   })
   useEffect(() => window.cove.onDotTalk?.(() => talkRef.current()), [])
 
-  // The tile is a button and a handle: a press that moves is a drag.
-  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
-  const onTileDown = (e: React.PointerEvent): void => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { x: e.screenX, y: e.screenY, moved: false }
-  }
-  const onTileMove = (e: React.PointerEvent): void => {
-    const d = drag.current
-    if (!d) return
-    const dx = e.screenX - d.x
-    const dy = e.screenY - d.y
-    if (!d.moved && Math.hypot(dx, dy) < 5) return
-    d.moved = true
-    d.x = e.screenX
-    d.y = e.screenY
-    window.cove.dotMove(dx, dy)
-  }
-  const onTileUp = (): void => {
-    const d = drag.current
-    drag.current = null
-    if (d?.moved) window.cove.dotMoved()
-    else if (open) hide()
-    else show()
-  }
-
   const listening = dictation.state === 'recording'
   const state = controlling
     ? 'controlling'
@@ -705,10 +680,8 @@ export function Dot(): React.JSX.Element {
         data-solid
         aria-label="Superagent"
         title={open ? 'Close' : `Ask Superagent${hotkey ? `  ${hotkey}` : ''}`}
-        onPointerDown={onTileDown}
-        onPointerMove={onTileMove}
-        onPointerUp={onTileUp}
-        onPointerCancel={() => (drag.current = null)}
+        // A button and nothing else: it stays in its corner, not dragged about.
+        onClick={() => (open ? hide() : show())}
       >
         <span className="dot-core" />
       </button>

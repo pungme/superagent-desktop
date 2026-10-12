@@ -148,7 +148,7 @@ test('its window floats over everything, in the corner, and lets clicks through'
     .toEqual([true, false])
 })
 
-test('dragging the tile moves it, and it stays where it was left', async () => {
+test('it stays in its corner: a drag on the tile moves nothing', async () => {
   const where = (): Promise<{ x: number; y: number }> =>
     app.evaluate(({ BrowserWindow }) => {
       // A window on its way out answers nothing; it is not one of ours to count.
@@ -175,15 +175,23 @@ test('dragging the tile moves it, and it stays where it was left', async () => {
   await dot.mouse.down()
   await dot.mouse.move(cx - 60, cy - 40, { steps: 6 })
   await dot.mouse.up()
-  const after = await where()
-  expect(after.x).toBeLessThan(before.x)
-  expect(after.y).toBeLessThan(before.y)
-  // A drag is not a click: the panel did not open.
+  expect(await where()).toEqual(before)
   await expect(dot.locator('.dot-panel')).toHaveCount(0)
-  // Remembered for the next launch.
-  await expect
-    .poll(() => main.evaluate(() => window.cove.kvAll().then((k) => k['dot.position'] ?? '')))
-    .toContain(`"x":${after.x}`)
+  // And it is in your own screenshots: not kept out of every capture.
+  expect(
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((x) => {
+        try {
+          return x.webContents.getURL().endsWith('#dot')
+        } catch {
+          return false
+        }
+      })!
+      return (
+        (w as unknown as { isContentProtected?: () => boolean }).isContentProtected?.() ?? false
+      )
+    })
+  ).toBe(false)
 })
 
 test('a click opens the panel on the Computer, with things to ask', async () => {

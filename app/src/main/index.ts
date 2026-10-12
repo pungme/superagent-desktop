@@ -89,13 +89,22 @@ import { chatToken } from './mcp-token'
 import { appendChatEvent } from './store'
 import { appHotkey, registerAppHotkey } from './app-hotkey'
 import { registerOpenRequests } from './open-request'
-import { dotCovers, dotEnabled, dotHotkey, isDotWindow, registerDot, talkHotkey } from './dot'
+import {
+  dotCovers,
+  dotEnabled,
+  dotHotkey,
+  isDotWindow,
+  outOfShot,
+  registerDot,
+  talkHotkey
+} from './dot'
 import {
   computerUseEnabled,
   registerComputerUseIpc,
   setComputerStop,
   setOwnProbe,
-  setOwnSurfaceProbe
+  setOwnSurfaceProbe,
+  setShotCurtain
 } from './computer-use'
 import { setComputerUseProbe } from './prompts'
 import { stopFromDot } from './companion/rpc'
@@ -324,6 +333,7 @@ app.whenReady().then(async () => {
   registerComputerUseIpc()
   setComputerUseProbe(computerUseEnabled)
   setOwnSurfaceProbe(dotCovers)
+  setShotCurtain(outOfShot)
   setOwnProbe({
     focused: () => BrowserWindow.getFocusedWindow() !== null,
     shortcuts: () =>

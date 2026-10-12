@@ -926,8 +926,6 @@ export interface CoveApi {
   /** Whether the pointer is over something drawn (true) or see-through (false). */
   dotSolid: (solid: boolean) => void
   dotFocus: (want: boolean) => void
-  dotMove: (dx: number, dy: number) => void
-  dotMoved: () => void
   onDotSummon: (cb: () => void) => () => void
   /** Hidden because Superagent's own window is in front: the panel closes. */
   onDotAway: (cb: () => void) => () => void
@@ -1447,8 +1445,6 @@ const cove: CoveApi = {
   dotOpenProject: (workspaceId) => ipcRenderer.send('dot:open-project', workspaceId),
   dotSolid: (solid) => ipcRenderer.send('dot:solid', solid),
   dotFocus: (want) => ipcRenderer.send('dot:focus', want),
-  dotMove: (dx, dy) => ipcRenderer.send('dot:move', dx, dy),
-  dotMoved: () => ipcRenderer.send('dot:moved'),
   onDotSummon: (cb) => subscribe('dot:summon', () => cb()),
   onDotAway: (cb) => subscribe('dot:away', () => cb()),
   dotAway: () => ipcRenderer.invoke('dot:away'),
