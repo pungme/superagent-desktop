@@ -450,6 +450,33 @@ export function zoomRect(
   return width >= 20 && height >= 20 ? { x, y, width, height } : null
 }
 
+/**
+ * Whether a question typed at the dot may carry one picture of the screen as
+ * it was at that moment (`glanceForDot` in main/computer-use.ts).
+ *
+ * The question itself is the asking — there is no agent running yet to put a
+ * yes to — so the only things that can stop it are standing ones: computer use
+ * off, this turned off on its own, macOS not giving Screen Recording, or a
+ * password manager, Keychain or the lock screen showing on the display being
+ * pictured. The last two are the whole reason this is a function and not an
+ * `&&`: they are what must never be photographed by a path that does not ask.
+ */
+export function mayGlance(now: {
+  /** Computer use is on at all. */
+  enabled: boolean
+  /** The dot's glance is on (it can be turned off on its own). */
+  glance: boolean
+  /** macOS has granted Screen Recording. */
+  screen: boolean
+  /** The app in front is one it stays out of. */
+  frontOffLimits: boolean
+  /** An app it stays out of has a window on the display being pictured. */
+  secretOnDisplay: boolean
+}): boolean {
+  if (!now.enabled || !now.glance || !now.screen) return false
+  return !now.frontOffLimits && !now.secretOnDisplay
+}
+
 /** Whether two rectangles on the desktop share any area. */
 export function overlaps(a: ScreenArea, b: ScreenArea): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height

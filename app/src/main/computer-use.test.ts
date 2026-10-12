@@ -175,6 +175,7 @@ describe('what is missing, in words for the user', () => {
     helper: true,
     stopKeyRefused: false,
     ring: true,
+    glance: true,
     focused: false,
     steps: false,
     askApps: true,

@@ -510,6 +510,36 @@ export function replyPrefix(reply: { role: 'user' | 'assistant'; text: string })
   return `> Replying to ${reply.role === 'user' ? 'my' : 'your'} earlier message:\n> "${quoted}"\n\n`
 }
 
+/**
+ * What the agent is told about the pictures travelling with a message.
+ *
+ * The inline images are the fast path, but they do NOT survive a mid-turn
+ * message or a resumed session (see saveImageForAgent) — which is when the
+ * model would otherwise say "the image didn't come through". So the saved copy
+ * is authoritative: instruct a Read, not a maybe-read.
+ *
+ * A glance is the dot's own picture of the whole screen, taken as the question
+ * was typed rather than chosen by the user. It is said differently because the
+ * agent must not read it as permission: the picture arrived without anyone
+ * being asked, and acting in an app still goes through the computer_* tools.
+ */
+export function imageNote(paths: string[], glance: boolean): string {
+  if (glance)
+    return (
+      `[Attached: the user's whole screen as it was the moment they asked, taken for them by ` +
+      `Superagent. Answer from it — "this", "here" and "that error" mean what is in it. It is a ` +
+      `look and nothing more: the user has allowed nothing, so to do anything in an app, ask ` +
+      `through the computer_* tools as usual. If you cannot see it inline, Read this path now — ` +
+      `do not say the image didn't come through:\n${paths.join('\n')}]`
+    )
+  const many = paths.length > 1
+  return (
+    `[The user attached ${many ? 'images' : 'an image'}, saved to disk. If you cannot see ` +
+    `${many ? 'them' : 'it'} inline, Read ${many ? 'these paths' : 'this path'} now to see what ` +
+    `the user is referring to — do not say the image didn't come through:\n${paths.join('\n')}]`
+  )
+}
+
 export function sendToAgent(
   id: string,
   text: string,
@@ -521,6 +551,12 @@ export function sendToAgent(
     replyTo?: { role: 'user' | 'assistant'; text: string }
     /** Not typed in the window that owns the session (a /loop round): show it there too. */
     notifyOwner?: boolean
+    /**
+     * The attached image is the screen as it was when the question was asked
+     * at the dot, not something the user picked out and attached. Changes what
+     * the agent is told about it: it is a look, and nothing has been allowed.
+     */
+    glance?: boolean
   } = { from: 'desktop' }
 ): boolean {
   const session = sessions.get(id)
@@ -561,15 +597,11 @@ export function sendToAgent(
   if (images.length > 0) {
     paths = images.map((im) => saveImageForAgent(im)).filter((p): p is string => !!p)
     if (paths.length > 0) {
-      const many = paths.length > 1
       // The inline image below is the fast path, but it does NOT survive a
       // mid-turn message or a resumed session (see saveImageForAgent) — which is
       // when the model would otherwise say "the image didn't come through". So
       // the saved copy is authoritative: instruct a Read, not a maybe-read.
-      text =
-        `${text}${text ? '\n\n' : ''}[The user attached ${many ? 'images' : 'an image'}, ` +
-        `saved to disk. If you cannot see ${many ? 'them' : 'it'} inline, Read ${many ? 'these paths' : 'this path'} ` +
-        `now to see what the user is referring to — do not say the image didn't come through:\n${paths.join('\n')}]`
+      text = `${text}${text ? '\n\n' : ''}${imageNote(paths, !!origin.glance)}`
     }
   }
   return session.backend.send(text, images, paths)

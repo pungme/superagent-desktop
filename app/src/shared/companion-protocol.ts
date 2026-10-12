@@ -403,6 +403,8 @@ export interface ChatSendParams {
   chatId: string
   text: string
   images?: { mediaType: string; data: string }[]
+  /** The image is the screen as it was when this was asked at the dot, not an attachment. */
+  glance?: boolean
   /** Client-generated id, echoed in the resulting `user` event for dedupe. */
   localId?: string
   /** Per-chat overrides; a running agent is restarted (resumed) if they differ. */

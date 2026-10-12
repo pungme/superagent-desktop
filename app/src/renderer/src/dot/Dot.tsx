@@ -263,8 +263,8 @@ export function Dot(): React.JSX.Element {
     localStorage.setItem(LAST_PROJECT, project.id)
     setTask((t) =>
       t && t.chatId === res.chatId
-        ? followUp(t, q, Date.now())
-        : newTask(res.chatId, res.workspaceId, q, Date.now())
+        ? followUp(t, q, Date.now(), res.saw)
+        : newTask(res.chatId, res.workspaceId, q, Date.now(), res.saw)
     )
     setNow(Date.now())
     setText('')
@@ -466,6 +466,7 @@ export function Dot(): React.JSX.Element {
           {task && !picking && (
             <div className={`dot-task dot-task-${task.status}`}>
               <div className="dot-you">{task.question}</div>
+              {task.saw && <div className="dot-saw">Looked at your screen as you asked</div>}
               {task.status === 'needs' && task.approval ? (
                 <>
                   <div className="dot-approval">

@@ -1183,6 +1183,17 @@ export function Settings({
               )}
               {computer.enabled && (
                 <Row
+                  title="Let the dot see the screen when you ask"
+                  desc="A question typed at the dot carries one picture of the screen as it was the moment you asked, so “what is this error?” is about what you were actually looking at. One picture per question, never between them, and it is looking only — pressing and typing in an app is still asked about."
+                >
+                  <Toggle
+                    checked={computer.glance !== false}
+                    onChange={(v) => void window.cove.setComputerGlance(v).then(setComputer)}
+                  />
+                </Row>
+              )}
+              {computer.enabled && (
+                <Row
                   title="Ask before the first time in each app"
                   desc="Each app is put to you the first time a conversation works in it, with Always allow for the ones you trust. Off, it may work in any app straight away. Password managers, the lock screen and the apps you list below stay out either way."
                 >

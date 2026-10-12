@@ -19,10 +19,12 @@ import { settingGet, settingSet } from './computer-settings'
 import { recentComputerLog } from './computer-log'
 import { broadcastToWindows } from './util'
 import { within } from './promise-timeout'
+import type { AgentImage } from './agent-backend'
 import {
   appFrom,
   ringLabel,
   overlaps,
+  mayGlance,
   coverOthers,
   type LaidWindow,
   type ScreenArea,
@@ -115,6 +117,22 @@ export function ringEnabled(): boolean {
     ringNow = v !== '0'
   }
   return ringNow
+}
+
+const GLANCE_KEY = 'computer.glance'
+let glanceNow: boolean | null = null
+/**
+ * Whether a question asked at the dot carries a picture of the screen as it
+ * was at that moment (glanceForDot). On unless turned off, and only ever while
+ * computer use itself is on.
+ */
+export function dotGlance(): boolean {
+  if (glanceNow === null) {
+    const v = settingGet(GLANCE_KEY)
+    if (v === undefined) return true
+    glanceNow = v !== '0'
+  }
+  return glanceNow
 }
 
 const FOCUSED_KEY = 'computer.focused'
@@ -238,6 +256,8 @@ export interface ComputerStatus {
   stopKeyRefused: boolean
   /** A ring is shown where an action is about to happen. */
   ring: boolean
+  /** A question asked at the dot carries a picture of the screen as it was then. */
+  glance: boolean
   /** A picture shows only the apps the user allowed; the rest is covered. */
   focused: boolean
   /** Each click, keystroke and typed text is asked about before it happens. */
@@ -261,6 +281,7 @@ export function computerStatus(): ComputerStatus {
     helper: cusePath() !== null,
     stopKeyRefused: stopRefused,
     ring: ringEnabled(),
+    glance: dotGlance(),
     focused: focusedView(),
     steps: stepByStep(),
     askApps: askBeforeApps(),
@@ -749,6 +770,57 @@ export async function takeZoom(
   const out = size.width > SHOT_MAX_WIDTH ? cut.resize({ width: SHOT_MAX_WIDTH }) : cut
   allowed.set(owner, Date.now())
   return { jpeg: out.toJPEG(85), ...out.getSize() }
+}
+
+/**
+ * One picture of the screen to go with a question asked at the dot, taken at
+ * the moment of asking.
+ *
+ * It does not ask first, and that is the point: pressing the hotkey and typing
+ * a question about what is in front of you IS the request to look. There is no
+ * agent running yet to put a yes to, and by the time one has started, asked,
+ * and been allowed, the window the question was about may be gone — which is
+ * why asking "what is this error?" used to answer about the wrong screen.
+ *
+ * It looks and nothing else. No consent is recorded, so the first time the
+ * conversation wants to press, type or click it still has to ask in the
+ * ordinary way. Every other guard holds: computer use must be on, the user can
+ * turn this off on its own, the dot leaves the picture, a password manager or
+ * the lock screen anywhere on this display stops it dead, and focused view
+ * covers what the conversation has not been allowed to see.
+ *
+ * Null rather than a throw, always: a question must still be sendable when the
+ * screen cannot be pictured.
+ */
+export async function glanceForDot(owner: string): Promise<AgentImage | null> {
+  // mayGlance below is the rule; this is the same answer reached without
+  // asking macOS what is in front, which costs a subprocess on every question.
+  if (process.platform !== 'darwin' || !computerUseEnabled() || !dotGlance()) return null
+  try {
+    const all = screen.getAllDisplays()
+    // Where the person is looking: the display their pointer is on.
+    const chosen = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    const allowed = mayGlance({
+      enabled: computerUseEnabled(),
+      glance: dotGlance(),
+      screen: systemPreferences.getMediaAccessStatus('screen') === 'granted',
+      frontOffLimits: !!offLimitsMessage(await frontApp()),
+      secretOnDisplay: (await windowsOnScreen()).some(
+        (w) => overlaps(w.frame, chosen.bounds) && offLimitsMessage(w.app)
+      )
+    })
+    if (!allowed) return null
+    const before = await layoutBefore(owner)
+    const picture = await within(
+      aroundShot(() => capture(all.indexOf(chosen), String(chosen.id), shotSize(chosen.bounds))),
+      8_000,
+      'The glance timed out.'
+    )
+    const seen = await onlyAllowed(owner, picture.image, chosen.bounds, before)
+    return { mediaType: 'image/jpeg', data: seen.image.toJPEG(72).toString('base64') }
+  } catch {
+    return null
+  }
 }
 
 /** The apps with a window on screen, and which is in front. */
@@ -1451,6 +1523,11 @@ export function registerComputerUseIpc(): void {
   ipcMain.handle('computer:set-ring', (_e, on: boolean) => {
     ringNow = !!on
     settingSet(RING_KEY, on ? '1' : '0')
+    return computerStatus()
+  })
+  ipcMain.handle('computer:set-glance', (_e, on: boolean) => {
+    glanceNow = !!on
+    settingSet(GLANCE_KEY, on ? '1' : '0')
     return computerStatus()
   })
   ipcMain.handle('computer:set-ask-apps', (_e, on: boolean) => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CONSENT_IDLE_MS,
   consentStands,
+  mayGlance,
   appCaution,
   describeControls,
   riskyControl,
@@ -362,5 +363,29 @@ describe('the word under the ring', () => {
     expect(ringLabel({ type: 'scroll' })).toBe('Scroll')
     expect(ringLabel({ type: 'type' })).toBe('')
     expect(ringLabel({ type: 'move' })).toBe('')
+  })
+})
+
+describe("the dot's glance at the screen as you ask", () => {
+  const on = {
+    enabled: true,
+    glance: true,
+    screen: true,
+    frontOffLimits: false,
+    secretOnDisplay: false
+  }
+  it('goes with the question when computer use is on and nothing secret is showing', () => {
+    expect(mayGlance(on)).toBe(true)
+  })
+  it('does not happen with computer use off, or with it turned off on its own', () => {
+    expect(mayGlance({ ...on, enabled: false })).toBe(false)
+    expect(mayGlance({ ...on, glance: false })).toBe(false)
+  })
+  it('does not happen without Screen Recording', () => {
+    expect(mayGlance({ ...on, screen: false })).toBe(false)
+  })
+  it('never photographs a password manager or the lock screen, in front or beside', () => {
+    expect(mayGlance({ ...on, frontOffLimits: true })).toBe(false)
+    expect(mayGlance({ ...on, secretOnDisplay: true })).toBe(false)
   })
 })

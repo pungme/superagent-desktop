@@ -404,6 +404,11 @@ html.dot-window #root {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+.dot-saw {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 11px;
+  margin-top: -2px;
+}
 .dot-step {
   display: flex;
   align-items: center;

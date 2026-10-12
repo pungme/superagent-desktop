@@ -21,6 +21,8 @@ export interface DotTask {
   chatId: string
   workspaceId: string
   question: string
+  /** A picture of the screen went with the question (computer use, glance on). */
+  saw: boolean
   startedAt: number
   status: DotStatus
   /** What it has done so far, newest last; the last is what it is doing now. */
@@ -38,12 +40,14 @@ export function newTask(
   chatId: string,
   workspaceId: string,
   question: string,
-  now: number
+  now: number,
+  saw = false
 ): DotTask {
   return {
     chatId,
     workspaceId,
     question,
+    saw,
     startedAt: now,
     status: 'working',
     steps: [],
@@ -58,10 +62,11 @@ export function newTask(
  * A second question in the same conversation: what is shown starts over for
  * it, but it is the same chat, and it keeps an approval that is still waiting.
  */
-export function followUp(task: DotTask, question: string, now: number): DotTask {
+export function followUp(task: DotTask, question: string, now: number, saw = false): DotTask {
   return {
     ...task,
     question,
+    saw,
     startedAt: now,
     status: task.approval ? 'needs' : 'working',
     steps: [],

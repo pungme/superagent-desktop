@@ -1253,7 +1253,8 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
   const sent = sendToAgent(session.id, p.text, p.images ?? [], {
     from: 'ios',
     localId: p.localId,
-    replyTo: p.replyTo
+    replyTo: p.replyTo,
+    glance: p.glance
   })
   // Only a message that actually reached the agent counts as seen — recording a
   // failed send would make the legitimate retry look like a duplicate and eat it.
@@ -1289,9 +1290,10 @@ export async function deleteChatFully(chatId: string, why: string): Promise<bool
 
 export async function askFromDot(
   chatId: string,
-  text: string
+  text: string,
+  images: { mediaType: string; data: string }[] = []
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const r = await sendToChat({ chatId, text })
+  const r = await sendToChat({ chatId, text, images, glance: images.length > 0 })
   return r.ok ? { ok: true } : { ok: false, error: r.error.message }
 }
 

@@ -19,6 +19,7 @@ import { logBus } from './companion/log'
 import { askFromDot, stopFromDot } from './companion/rpc'
 import { resolveGate } from './hooks'
 import { dotProjects } from './dot-projects'
+import { glanceForDot } from './computer-use'
 import { dotBounds, DOT_H as H, DOT_W as W, pointOnDot } from './dot-bounds'
 import { QUIET, showInactiveForReal } from './quiet'
 import {
@@ -400,13 +401,19 @@ export function registerDot(): void {
   ipcMain.handle('dot:ask', async (_e, workspaceId: string, text: string, into?: string) => {
     const said = String(text ?? '').trim()
     if (!said) return { ok: false as const, error: 'Nothing to send.' }
+    // What was on screen when the question was asked — taken now, before
+    // anything slow (cutting a branch, starting an agent) has had time to
+    // change it. A question about "this error" is about the screen of the
+    // moment it was typed, not the one three seconds later.
+    const prior = into && watched.has(into) ? getChat(into) : undefined
+    const seen = await glanceForDot(prior?.id ?? 'dot')
+    const shot = seen ? [seen] : []
     // A follow-up: the same conversation, so it knows what was just said. Sent
     // the way a phone's next message is, which waits its turn if one is running.
-    const prior = into && watched.has(into) ? getChat(into) : undefined
     if (prior) {
-      const sent = await askFromDot(prior.id, said)
+      const sent = await askFromDot(prior.id, said, shot)
       return sent.ok
-        ? { ok: true as const, chatId: prior.id, workspaceId: prior.workspaceId }
+        ? { ok: true as const, chatId: prior.id, workspaceId: prior.workspaceId, saw: !!seen }
         : { ok: false as const, error: sent.error }
     }
     const wsId =
@@ -417,12 +424,12 @@ export function registerDot(): void {
     if (wsId !== DESKTOP_WORKSPACE_ID) markPendingBranch(chatId)
     watched.add(chatId)
     broadcastToWindows('projects:changed', {})
-    const sent = await askFromDot(chatId, said)
+    const sent = await askFromDot(chatId, said, shot)
     if (!sent.ok) {
       watched.delete(chatId)
       return { ok: false as const, error: sent.error }
     }
-    return { ok: true as const, chatId, workspaceId: wsId }
+    return { ok: true as const, chatId, workspaceId: wsId, saw: !!seen }
   })
   /** A project picked in the dot's list to go to, rather than to ask in. */
   ipcMain.on('dot:open-project', (_e, workspaceId: string) => {

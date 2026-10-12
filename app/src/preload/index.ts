@@ -92,6 +92,8 @@ export interface ComputerStatus {
   stopKeyRefused?: boolean
   /** A ring is shown where an action is about to happen. */
   ring?: boolean
+  /** A question asked at the dot carries a picture of the screen as it was then. */
+  glance?: boolean
   focused?: boolean
   steps?: boolean
   askApps?: boolean
@@ -873,6 +875,7 @@ export interface CoveApi {
   computerDenyPick: () => Promise<ComputerStatus>
   computerUndeny: (id: string) => Promise<ComputerStatus>
   setComputerRing: (on: boolean) => Promise<ComputerStatus>
+  setComputerGlance: (on: boolean) => Promise<ComputerStatus>
   setComputerFocused: (on: boolean) => Promise<ComputerStatus>
   setComputerSteps: (on: boolean) => Promise<ComputerStatus>
   setComputerAskApps: (on: boolean) => Promise<ComputerStatus>
@@ -926,7 +929,16 @@ export interface CoveApi {
     text: string,
     /** A chat the dot already started, to carry on in rather than start another. */
     into?: string
-  ) => Promise<{ ok: true; chatId: string; workspaceId: string } | { ok: false; error: string }>
+  ) => Promise<
+    | {
+        ok: true
+        chatId: string
+        workspaceId: string
+        /** A picture of the screen went with it (computer use, glance on). */
+        saw: boolean
+      }
+    | { ok: false; error: string }
+  >
   dotStop: (chatId: string) => Promise<boolean>
   dotAnswer: (approvalId: string, approve: boolean) => Promise<boolean>
   /** Bring the main window up on this conversation. */
@@ -1429,6 +1441,7 @@ const cove: CoveApi = {
   computerDenyPick: () => ipcRenderer.invoke('computer:deny-pick'),
   computerUndeny: (id) => ipcRenderer.invoke('computer:undeny', id),
   setComputerRing: (on) => ipcRenderer.invoke('computer:set-ring', on),
+  setComputerGlance: (on) => ipcRenderer.invoke('computer:set-glance', on),
   setComputerFocused: (on) => ipcRenderer.invoke('computer:set-focused', on),
   setComputerSteps: (on) => ipcRenderer.invoke('computer:set-steps', on),
   setComputerAskApps: (on) => ipcRenderer.invoke('computer:set-ask-apps', on),
