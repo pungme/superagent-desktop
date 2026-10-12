@@ -4045,16 +4045,18 @@
     })();
   </script>
 
-  <!-- The real floating dot: quietly demonstrates a fresh look at the current screen. -->
+  <!-- The real floating dot. It asks itself a question a visitor actually has
+       and answers it off this page, pointing at the real button. -->
   <div class="live" id="live" hidden>
     <div class="live-flash" aria-hidden="true"></div>
+    <div class="live-ring" aria-hidden="true"></div>
     <div class="live-panel" role="status" aria-live="polite" aria-label="Superagent dot">
       <div class="live-where"><span>In</span><b>Computer</b></div>
       <div class="live-ask"><span class="live-typed live-ph">Ready when you are</span></div>
       <div class="live-steps"></div>
       <div class="live-done"><p></p><div class="row"><button class="live-again primary">Close</button></div></div>
     </div>
-    <button class="live-tile" type="button" aria-label="Ask Superagent"><span class="live-core"></span><em class="live-hint">Ask about this screen<kbd>⌥ Space</kbd></em></button>
+    <button class="live-tile" type="button" aria-label="Ask Superagent"><span class="live-core"></span><em class="live-hint">See it again<kbd>⌥ Space</kbd></em></button>
   </div>
   <script>
     (function () {
@@ -4067,6 +4069,7 @@
       var steps = live.querySelector('.live-steps');
       var done = live.querySelector('.live-done');
       var flash = live.querySelector('.live-flash');
+      var ring = live.querySelector('.live-ring');
       var open = false, running = false;
       var wait = function (ms) { return new Promise(function (resolve) { setTimeout(resolve, reduce ? Math.min(ms, 120) : ms); }); };
 
@@ -4077,18 +4080,23 @@
         // Opening it again should look like asking afresh, not like reading a
         // reply that has been sitting there.
         if (!value && !running) {
+          ringOff();
           live.classList.remove('live-running', 'live-done-on');
           steps.innerHTML = '';
           typed.textContent = 'Ready when you are';
           typed.classList.add('live-ph');
         }
       }
-      function currentScreen() {
-        var point = document.elementFromPoint(Math.round(window.innerWidth * 0.5), Math.round(window.innerHeight * 0.48));
-        var section = point && point.closest('section, header');
-        var heading = section && section.querySelector('h1, h2');
-        return heading ? heading.textContent.replace(/\s+/g, ' ').trim() : 'this page';
+      function ringAt(el) {
+        if (!el) return;
+        var box = el.getBoundingClientRect();
+        ring.style.left = (box.left - 6) + 'px';
+        ring.style.top = (box.top - 6) + 'px';
+        ring.style.width = (box.width + 12) + 'px';
+        ring.style.height = (box.height + 12) + 'px';
+        ring.classList.add('on');
       }
+      function ringOff() { ring.classList.remove('on'); }
       function step(text) {
         var previous = steps.querySelector('.on');
         if (previous) previous.classList.remove('on');
@@ -4105,27 +4113,27 @@
         tile.classList.add('busy');
         live.classList.add('live-running');
         typed.classList.remove('live-ph');
-        typed.textContent = 'What am I looking at?';
-        await wait(500);
-        step('Taking a fresh snapshot of what is on screen');
+        typed.textContent = 'How do I get this?';
+        await wait(600);
+        step('Looking at the page');
         flash.classList.remove('go');
         void flash.offsetWidth;
         flash.classList.add('go');
-        await wait(800);
-        var visible = currentScreen();
-        step('Understanding the visible app and content');
         await wait(900);
+        step('Found the download');
+        ringAt(document.querySelector('.nav-btn[href*="SuperAgent.dmg"]'));
+        await wait(1400);
         var active = steps.querySelector('.on');
         if (active) active.classList.remove('on');
         live.classList.remove('live-running');
         live.classList.add('live-done-on');
-        done.querySelector('p').textContent = 'You’re looking at “' + visible + '”. I used a fresh snapshot—not a continuous recording.';
+        done.querySelector('p').textContent = 'Download, top right. It is free and open source, and it updates itself after that.';
         running = false;
         tile.classList.remove('busy');
         tile.classList.add('news');
         // Said its piece, then out of the way: the point is a dot that does not
         // sit on top of the page waiting to be dismissed.
-        setTimeout(function () { if (!running && open) setOpen(false); }, reduce ? 2000 : 7000);
+        setTimeout(function () { ringOff(); if (!running && open) setOpen(false); }, reduce ? 2000 : 6000);
       }
       function show() {
         live.hidden = false;
@@ -4141,11 +4149,17 @@
         });
         observer.observe(root, { attributes: true, attributeFilter: ['class'] });
       }
-      tile.addEventListener('click', function () { if (!running) setOpen(!open); });
+      tile.addEventListener('click', function () {
+        if (running) return;
+        if (open) setOpen(false); else void demonstrate();
+      });
       done.querySelector('.live-again').addEventListener('click', function () { setOpen(false); });
       window.addEventListener('keydown', function (event) {
         if (event.key === 'Escape' && open && !running) setOpen(false);
-        if (event.altKey && event.code === 'Space' && !running) { event.preventDefault(); setOpen(!open); }
+        if (event.altKey && event.code === 'Space' && !running) {
+          event.preventDefault();
+          if (open) setOpen(false); else void demonstrate();
+        }
       });
     })();
   </script>
