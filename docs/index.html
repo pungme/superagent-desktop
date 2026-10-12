@@ -2695,7 +2695,8 @@
     }
     .live-chips button:hover { background: rgba(255,255,255,0.16); }
     .live-running .live-chips, .live-done-on .live-chips { display: none; }
-    .live-steps { display: none; flex-direction: column; gap: 5px; margin-top: 10px; }
+    .live-steps { display: none; flex-direction: column; gap: 5px; margin-top: 10px; max-height: 164px; overflow-y: auto; scrollbar-width: none; }
+    .live-steps::-webkit-scrollbar { display: none; }
     .live-running .live-steps, .live-done-on .live-steps { display: flex; }
     .live-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,0.78); animation: liveIn 0.25s var(--ease) both; }
     @keyframes liveIn { from { opacity: 0; transform: translateY(4px); } }
@@ -2735,6 +2736,41 @@
     html.live-dark .btn:not(.alt), html.live-dark .nav-btn { color: #141619; }
     html.live-dark .hero-shot img, html.live-dark .pane { filter: none; }
     html.live-switch, html.live-switch * { transition: background-color 0.6s ease, color 0.6s ease, border-color 0.6s ease !important; }
+
+    /* ---- X · try it ---- */
+    .try-wrap { display: grid; grid-template-columns: 1.25fr 1fr; gap: 22px; align-items: start; text-align: left; max-width: 900px; }
+    /* The form on the left, clear of the dot's panel in the bottom right. */
+    .try-form { order: 0; } .try-jobs { order: 1; }
+    .try-jobs { display: flex; flex-direction: column; gap: 10px; }
+    .try-jobs button {
+      font: inherit; text-align: left; cursor: pointer; padding: 13px 15px; border-radius: 14px;
+      background: var(--card); border: 1px solid var(--line); color: var(--ink);
+      box-shadow: 0 1px 2px rgba(49,52,45,0.05); transition: transform 0.18s var(--ease), box-shadow 0.2s, border-color 0.2s;
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .try-jobs button b { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; }
+    .try-jobs button span { font-size: 0.8rem; color: var(--muted); }
+    .try-jobs button:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: rgba(49,52,45,0.2); }
+    .try-jobs button.on { border-color: var(--deep); box-shadow: 0 0 0 3px rgba(92,122,134,0.18); }
+    .try-form { border-radius: 14px; background: var(--card); border: 1px solid rgba(49,52,45,0.13); box-shadow: 0 1px 2px rgba(49,52,45,0.05), 0 18px 36px -22px rgba(56,72,84,0.42); overflow: hidden; }
+    .try-top { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: rgba(49,52,45,0.03); }
+    .try-top .chrome-title { margin-left: 8px; font-size: 0.76rem; color: var(--muted); }
+    .try-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; padding: 16px; }
+    .try-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.02em; }
+    .try-fields label:first-child { grid-column: 1 / -1; }
+    .try-fields input[type="text"] { font: inherit; font-size: 0.9rem; color: var(--ink); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--cream); outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    .try-fields input[type="text"]:focus { border-color: var(--deep); box-shadow: 0 0 0 3px rgba(92,122,134,0.18); }
+    .try-check { grid-column: 1 / -1; flex-direction: row !important; align-items: center; font-size: 0.85rem !important; color: var(--ink) !important; }
+    .try-check input { width: 16px; height: 16px; accent-color: var(--deep); }
+    .try-foot { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+    .try-state { margin-right: auto; font-size: 0.8rem; color: var(--sage); font-weight: 600; }
+    .try-foot button { font: inherit; font-size: 0.85rem; padding: 7px 13px; border-radius: 999px; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+    .try-foot .try-submit { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+    .try-form.sent .try-submit { background: var(--sage); border-color: var(--sage); }
+    .live-ask-ring { animation: liveAsk 0.6s var(--ease) both; }
+    @keyframes liveAsk { from { box-shadow: 0 0 0 0 rgba(224,174,176,0.0); } to { box-shadow: 0 0 0 5px rgba(224,174,176,0.45); } }
+    .live-asking { border-color: var(--blush) !important; }
+    @media (max-width: 760px) { .try-wrap { grid-template-columns: 1fr; } }
     @media (max-width: 860px) { .live { display: none !important; } }
     @media (prefers-reduced-motion: reduce) { .live-cur, .live-flip, .live-sort .det, .live-panel { transition: none !important; } .live-tile.knock, .live-core { animation: none !important; } }
   </style>
@@ -2825,6 +2861,7 @@
     <a href="#phone"><span>The phone</span><i></i></a>
     <a href="#dot"><span>The dot</span><i></i></a>
     <a href="#computer"><span>Computer use</span><i></i></a>
+    <a href="#try"><span>Try it</span><i></i></a>
     <a href="#desk"><span>The desk</span><i></i></a>
     <a href="#who"><span>vs. the rest</span><i></i></a>
   </nav>
@@ -3735,10 +3772,43 @@
     </div>
   </section>
 
+  <!-- X · try it: the dot on this page, driving this page -->
+  <section class="feature io demo try-sec" id="try">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">X.</span>Try it<span class="jp">試す</span><span class="beta">Live</span></span>
+        <h2>The dot, <em>on this page.</em></h2>
+        <p>The tile in the corner is the real thing in miniature. It looks, it does one step at a time, it says what it is doing, and it asks before anything named Submit. Give it a job and watch it work this page; <kbd>&#8997;</kbd> <kbd>Space</kbd> opens it anywhere here.</p>
+      </div>
+      <div class="pane-wrap try-wrap" data-rv style="--d:.15s">
+        <div class="try-jobs" aria-label="Things to ask the dot">
+          <button type="button" data-live-run="form"><b>Fill in the form</b><span>Five fields, typed; it asks before Submit.</span></button>
+          <button type="button" data-live-run="tidy"><b>Tidy the small things</b><span>Drags two cards to the top. Real cards.</span></button>
+          <button type="button" data-live-run="dark"><b>Make the page dark</b><span>Twelve colour variables, switched.</span></button>
+        </div>
+        <form class="try-form" id="try-form" autocomplete="off" aria-label="A form for the dot to fill">
+          <div class="try-top"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="chrome-title">Expenses &mdash; New claim</span></div>
+          <div class="try-fields">
+            <label>Merchant<input name="merchant" type="text" placeholder="Who you paid" /></label>
+            <label>Amount<input name="amount" type="text" inputmode="decimal" placeholder="0.00" /></label>
+            <label>Date<input name="date" type="text" placeholder="Today" /></label>
+            <label>Category<input name="category" type="text" placeholder="Travel, meals…" /></label>
+            <label class="try-check"><input name="receipt" type="checkbox" /><span>I have the receipt</span></label>
+          </div>
+          <div class="try-foot">
+            <span class="try-state" aria-live="polite"></span>
+            <button type="button" class="try-draft">Save draft</button>
+            <button type="submit" class="try-submit">Submit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
   <section class="feature desk-sec io demo" id="desk">
     <div class="wrap feat-grid">
       <div class="desk-head feat-copy" data-rv>
-        <span class="kicker"><span class="num">X.</span>The finale<span class="jp">机</span></span>
+        <span class="kicker"><span class="num">XI.</span>The finale<span class="jp">机</span></span>
         <h2>The computer <em>inside</em> Superagent.</h2>
         <p>A desktop, not a slot. Windows you can move, a dock, and more than one agent working at the same time.</p>
       </div>
@@ -4260,7 +4330,7 @@
       <div class="live-where"><span>In</span><b>This page</b><i>superagent.computer</i></div>
       <div class="live-ask"><span class="live-typed live-ph">Ask, or pick one below…</span><i class="live-caret"></i></div>
       <div class="live-chips">
-        <button data-run="tour">Show me computer use</button>
+        <button data-run="form">Fill in the form</button>
         <button data-run="tidy">Tidy the small things</button>
         <button data-run="dark">Make the page dark</button>
       </div>
@@ -4334,6 +4404,7 @@
         current = document.createElement('div'); current.className = 'live-step on';
         current.innerHTML = '<i></i><span></span><span class="live-stop">⌥ Esc · Stop</span>';
         current.querySelector('span').textContent = text; steps.appendChild(current);
+        steps.scrollTop = steps.scrollHeight;
       }
       function finish(text, undoFn) {
         if (current) current.classList.remove('on'); current = null;
@@ -4390,25 +4461,39 @@
 
       // ---- what it can be asked ----
       var runs = {
-        tour: {
-          ask: 'Show me what computer use can do on this page',
+        form: {
+          ask: 'Fill in the expense claim for the cab: 42.50, today, travel',
           go: async function () {
-            step('Looking at the page'); await look(); await wait(500);
-            var rail = $('.rail a[href="#computer"]'), sec = $('#computer');
-            step('Reading the controls · 14 on screen'); await wait(900);
-            if (rail && sec) {
-              step('Clicking · Computer use, on the rail'); await moveTo(rail, 0.85, 0.5); ringAt(rail); await wait(250); ripple();
-              await wait(200); ringHide(); await scrollTo(sec, 40); await wait(500);
+            var form = $('#try-form');
+            if (!form) return finish('There is no form on this page to fill.');
+            var f = function (n) { return form.querySelector('[name="' + n + '"]'); };
+            var state = form.querySelector('.try-state'), submit = form.querySelector('.try-submit');
+            var was = { merchant: f('merchant').value, amount: f('amount').value, date: f('date').value, category: f('category').value, receipt: f('receipt').checked };
+            step('Looking at the page'); await look(); await wait(400);
+            step('Scrolling to · Expenses — New claim'); await scrollTo(form, 140); await wait(350);
+            step('Reading the controls · 5 fields, 2 buttons'); await wait(800);
+            async function fill(name, label, text) {
+              var el = f(name);
+              step('Typing · ' + label); await moveTo(el, 0.2, 0.5); ringAt(el); await wait(120); ripple(); el.focus(); await wait(180);
+              el.value = '';
+              for (var i = 0; i < text.length; i++) { el.value = text.slice(0, i + 1); el.dispatchEvent(new Event('input', { bubbles: true })); await wait(reduce ? 5 : 45 + Math.random() * 50); }
+              await wait(200); ringHide(); el.blur();
             }
-            var chip = sec && sec.querySelector('.dx-acts li:nth-child(3)');
-            if (chip) {
-              step('Playing · "Fill in a form"'); await moveTo(chip); ringAt(chip); await wait(200); ripple(); chip.click(); await wait(300); ringHide(); await wait(3200);
-            }
-            var dl = $('.nav-btn');
-            if (dl) {
-              step('Found the download. Not clicking it: that is yours.'); await moveTo(dl, 0.5, 0.55); ringAt(dl); await wait(1400); ringHide();
-            }
-            finish('That is the loop: look, one step, look again. It asked before the first step, showed each one before pressing, and left the download to you.', function () { scrollTo(document.body, 0); });
+            var today = new Date(), months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            await fill('merchant', 'Merchant', 'City Cab');
+            await fill('amount', 'Amount', '42.50');
+            await fill('date', 'Date', today.getDate() + ' ' + months[today.getMonth()] + ' ' + today.getFullYear());
+            await fill('category', 'Category', 'Travel');
+            var box = f('receipt');
+            step('Ticking · I have the receipt'); await moveTo(box); ringAt(box); await wait(150); ripple(); box.checked = true; await wait(350); ringHide();
+            step('Submit is named Submit: asking you first'); await moveTo(submit, 0.5, 0.5); ringAt(submit); submit.classList.add('live-asking');
+            await wait(1800);
+            step('You said yes · Pressing · Submit'); ripple(); submit.classList.remove('live-asking'); await wait(150);
+            form.classList.add('sent'); state.textContent = 'Submitted · claim #4821'; submit.textContent = 'Submitted ✓'; await wait(500); ringHide();
+            finish('Filled in and sent. Every character went into the real fields; the one thing named Submit waited for a yes.', function () {
+              f('merchant').value = was.merchant; f('amount').value = was.amount; f('date').value = was.date; f('category').value = was.category; f('receipt').checked = was.receipt;
+              form.classList.remove('sent'); state.textContent = ''; submit.textContent = 'Submit';
+            });
           }
         },
         tidy: {
@@ -4481,14 +4566,31 @@
           }
         }
       };
-      chips.addEventListener('click', async function (e) {
-        var b = e.target.closest('button[data-run]'); if (!b || running) return;
-        var run = runs[b.getAttribute('data-run')]; if (!run) return;
+      async function start(name) {
+        var run = runs[name]; if (!run || running) return;
+        if (!open) setOpen(true);
         running = true; tile.classList.add('busy'); live.classList.add('live-running'); live.classList.remove('live-done-on');
         steps.innerHTML = ''; current = null; curX = window.innerWidth - 47; curY = window.innerHeight - 47;
         await type(run.ask); await wait(350);
         try { await run.go(); } catch (err) { finish('Something on the page moved while I was at it. Try again.'); }
+      }
+      chips.addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-run]'); if (b) start(b.getAttribute('data-run'));
       });
+      // The jobs in the Try it section are the same asks, from the page itself.
+      document.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-live-run]'); if (!b) return;
+        e.preventDefault(); if (running) return;
+        reset(); start(b.getAttribute('data-live-run'));
+      });
+      var tryForm = document.getElementById('try-form');
+      if (tryForm) {
+        tryForm.addEventListener('submit', function (e) {
+          e.preventDefault();
+          tryForm.classList.add('sent'); tryForm.querySelector('.try-state').textContent = 'Submitted · by you'; tryForm.querySelector('.try-submit').textContent = 'Submitted ✓';
+        });
+        tryForm.querySelector('.try-draft').addEventListener('click', function () { tryForm.querySelector('.try-state').textContent = 'Draft saved'; });
+      }
     })();
   </script>
 </body>
