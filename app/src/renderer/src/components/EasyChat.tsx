@@ -1298,7 +1298,8 @@ const MessageRow = memo(function MessageRow({
     [isAssistant, said, answersTo]
   )
   const segments = useMemo(
-    () => (isAssistant ? splitAssistant(withoutAgentNudge(answering ? answering.rest : said)) : null),
+    () =>
+      isAssistant ? splitAssistant(withoutAgentNudge(answering ? answering.rest : said)) : null,
     [isAssistant, said, answering]
   )
   // The /loop skill appends a mechanical reminder ("run sleep as your last
@@ -4452,9 +4453,7 @@ export function EasyChat({
     // Also when the user has written since, or a turn is running: the answer
     // then arrives out of place, and has to say what it answers.
     const said = itemsRef.current.flatMap((it) =>
-      it.kind === 'msg' && !it.msg.system
-        ? [{ id: it.msg.id, role: it.msg.role }]
-        : []
+      it.kind === 'msg' && !it.msg.system ? [{ id: it.msg.id, role: it.msg.role }] : []
     )
     const older = answerNeedsQuestion(said, from.id, generatingRef.current)
     rowFnsRef.current.submit(a, [], {
@@ -5141,11 +5140,46 @@ export function EasyChat({
       </div>
       <div className="easy-transcript">
         <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
-          {items.length > 0 && !hideNewChat && (
+          {items.length > 0 && (!hideNewChat || imageRefs.length > 0) && (
             <div className="easy-newchat-group">
+              {/* Every picture in this chat: top right of the conversation,
+                  where it is about the chat, not one of the composer's
+                  settings below. */}
+              {imageRefs.length > 0 && (
+                <button
+                  className="easy-newchat easy-images-btn"
+                  onClick={() => {
+                    setControlMenu(null)
+                    setImagesOpen(true)
+                  }}
+                  data-tip="Every picture in this chat"
+                  aria-label={`Images in this chat: ${imageRefs.length}`}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
+                    <rect
+                      x="1.75"
+                      y="2.75"
+                      width="12.5"
+                      height="10.5"
+                      rx="2"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                    />
+                    <circle cx="5.4" cy="6.2" r="1.1" fill="currentColor" />
+                    <path
+                      d="M2.5 11.5l3.3-3 2.4 2 2.3-2.4 3 3.2"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Images {imageRefs.length}
+                </button>
+              )}
               {/* This chat's changes live in its own copy of the project until
                   the user decides. Shown only when there IS something unkept. */}
-              {isWorktreeChat && wtChanges && (
+              {!hideNewChat && isWorktreeChat && wtChanges && (
                 <>
                   <button
                     className="easy-newchat easy-keep"
@@ -5178,13 +5212,15 @@ export function EasyChat({
                   </button>
                 </>
               )}
-              <button
-                className="easy-newchat"
-                onClick={newChat}
-                data-tip="Starts a new conversation. On a git project it gets its own copy of the project."
-              >
-                ✎ New chat
-              </button>
+              {!hideNewChat && (
+                <button
+                  className="easy-newchat"
+                  onClick={newChat}
+                  data-tip="Starts a new conversation. On a git project it gets its own copy of the project."
+                >
+                  ✎ New chat
+                </button>
+              )}
               {/* One button. A new chat on a repo IS its own checkout now (the
                   store isolates it automatically), so the separate ⎇ New
                   worktree pill and its branch picker are gone. */}
@@ -6074,21 +6110,6 @@ export function EasyChat({
             onToggle={() => setControlMenu((m) => (m === 'browser' ? null : 'browser'))}
             onPicked={() => setControlMenu(null)}
           />
-        )}
-        {imageRefs.length > 0 && (
-          <div className="easy-control">
-            <button
-              className="easy-control-btn"
-              onClick={() => {
-                setControlMenu(null)
-                setImagesOpen(true)
-              }}
-              title="Every picture in this chat"
-            >
-              <span className="easy-control-key">Images</span>
-              <span className="easy-control-val">{imageRefs.length}</span>
-            </button>
-          </div>
         )}
         <WorktreePill
           chatId={chatId}

@@ -3910,6 +3910,13 @@ button {
   box-shadow: 0 4px 14px var(--shadow);
 }
 
+.easy-images-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
 .easy-scrolldown:hover {
   background: var(--active);
 }

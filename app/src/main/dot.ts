@@ -141,17 +141,37 @@ export function dotEnabled(): boolean {
   return v !== '0' && process.env.COVE_E2E_DOT === '1'
 }
 
+/**
+ * The screen the dot is on: the one you are on, which is where the pointer is.
+ * It follows you there (see follow) rather than waiting on the main screen for
+ * someone working on the other one.
+ */
+let onDisplay: number | null = null
+
 function place(): void {
   if (!win || win.isDestroyed()) return
+  // A test run keeps to the main screen: where the pointer of whoever is
+  // using the Mac happens to be is not its business.
+  const here = process.env.COVE_USER_DATA
+    ? screen.getPrimaryDisplay()
+    : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  onDisplay = here.id
+  // Always that screen's corner: it is not dragged about.
   win.setBounds(
-    // Always its corner: it is not dragged about, and one left somewhere by
-    // an earlier version comes home.
     dotBounds(
       null,
       screen.getAllDisplays().map((d) => d.workArea),
-      screen.getPrimaryDisplay().workArea
+      here.workArea
     )
   )
+}
+
+/** Move to the screen the pointer went to. Not with the panel open: it would jump mid-sentence. */
+function follow(): void {
+  if (!win || win.isDestroyed() || panelOpen || process.env.COVE_USER_DATA) return
+  if (screen.getAllDisplays().length < 2) return
+  const here = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  if (here.id !== onDisplay) place()
 }
 
 function send(channel: string, payload?: unknown): void {
@@ -251,6 +271,7 @@ function registerHotkey(): void {
   try {
     hotkeyOk = globalShortcut.register(want, () => {
       if (!win || win.isDestroyed()) createDot()
+      else if (!panelOpen) place()
       win?.show()
       win?.focus()
       send('dot:summon')
@@ -430,6 +451,9 @@ export function registerDot(): void {
     if (dotEnabled()) createDot()
     registerHotkey()
     registerTalkHotkey()
+    // No event says the pointer changed screens; a look twice a second is
+    // nothing, and only with a second screen is there anything to do.
+    setInterval(follow, 500).unref()
     screen.on('display-removed', place)
     screen.on('display-metrics-changed', place)
   })
