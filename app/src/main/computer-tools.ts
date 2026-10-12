@@ -28,7 +28,8 @@ import {
   settle,
   takeScreenshot,
   touchConsent,
-  type ComputerAction
+  type ComputerAction,
+  enableComputerUse
 } from './computer-use'
 import { hooksIntact, requestApproval } from './hooks'
 import { noteComputer } from './computer-log'
@@ -105,12 +106,31 @@ export function setShellGapProbe(fn: typeof shellGap): void {
   shellGap = fn
 }
 
+export const ENABLE_PREVIEW =
+  'Computer use is off. Turn it on, and use this Mac for this: see the screen, move the pointer, click and type in your apps.\n' +
+  `It asks again for each app, and after ten minutes idle; Settings → Computer use turns it off. ${COMPUTER_STOP_HOTKEY.replace('Alt', '⌥').replace('+Escape', 'Esc')} stops it at any time.`
+
 export function registerComputerTools(server: McpServer, ctx: ComputerContext): void {
-  if (!computerUseEnabled()) return
+  // Registered whether or not computer use is on: off, the first call asks the
+  // user to turn it on (the gate below), which is the one way anyone finds
+  // the switch when they ask the dot what it sees.
   const owner = ctx.sessionId
 
   /** Ready, and allowed by the user for this conversation; else what to say. */
   const gate = async (): Promise<string | null> => {
+    if (!computerUseEnabled()) {
+      const on = await requestApproval(
+        ctx.workspaceId,
+        ctx.sessionId,
+        'mcp__cove-browser__computer_use',
+        ENABLE_PREVIEW,
+        'permission'
+      )
+      if (!on)
+        return 'The user did not turn computer use on. Do not ask again this conversation; say what you would have done, or do it another way.'
+      enableComputerUse()
+      grantConsent(owner)
+    }
     const missing = notReady()
     if (missing) return missing
     // The guards on the agent's own shell live in the hooks. Gone, and they

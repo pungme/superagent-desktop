@@ -397,6 +397,53 @@ test("the Computer chat's tools still start when computer use is on", async () =
   await window.evaluate(() => window.cove.setComputerUse(false))
 })
 
+test('with computer use off, the first use asks to turn it on; a yes turns it on', async () => {
+  await window.evaluate(() => window.cove.setComputerUse(false))
+  expect((await window.evaluate(() => window.cove.computerStatus())).enabled).toBe(false)
+  const token = await app.evaluate(
+    (_e, [ws, chat]) =>
+      (globalThis as unknown as { __mcpToken: (ws: string, chat: string) => string }).__mcpToken(
+        ws,
+        chat
+      ),
+    [wsId, chatId]
+  )
+  // The tools are there to call; the question comes when one is.
+  const listed = await rpc('tools/list', {}, wsId, chatId, token)
+  expect((listed.result as { tools: { name: string }[] }).tools.map((t) => t.name)).toContain(
+    'computer_screenshot'
+  )
+  // The window is asked, as for any permission; the dot would be too.
+  await window.evaluate(() => {
+    const g = window as unknown as { asks: { requestId: string; preview: string }[] }
+    g.asks = []
+    window.cove.onGuardrailAsk((a) => g.asks.push({ requestId: a.requestId, preview: a.preview }))
+  })
+  const asks = (): Promise<{ requestId: string; preview: string }[]> =>
+    window.evaluate(
+      () => (window as unknown as { asks: { requestId: string; preview: string }[] }).asks
+    )
+
+  // No: it stays off, and the agent is told not to ask again.
+  let call = rpc('tools/call', { name: 'computer_screenshot', arguments: {} }, wsId, chatId, token)
+  await expect.poll(async () => (await asks()).length).toBe(1)
+  expect((await asks())[0].preview).toContain('Computer use is off. Turn it on')
+  await window.evaluate((id) => window.cove.dotAnswer(id, false), (await asks())[0].requestId)
+  let said = (await call).result as { content: { text?: string }[] }
+  expect(said.content[0].text).toContain('did not turn computer use on')
+  expect((await window.evaluate(() => window.cove.computerStatus())).enabled).toBe(false)
+
+  // Yes: on, from then on. (What comes next here is the Mac's own permissions,
+  // which a test run has not got; the switch is what this is about.)
+  call = rpc('tools/call', { name: 'computer_screenshot', arguments: {} }, wsId, chatId, token)
+  await expect.poll(async () => (await asks()).length).toBe(2)
+  await window.evaluate((id) => window.cove.dotAnswer(id, true), (await asks())[1].requestId)
+  said = (await call).result as { content: { text?: string }[] }
+  expect(said.content[0].text ?? '').not.toContain('did not turn computer use on')
+  expect((await window.evaluate(() => window.cove.computerStatus())).enabled).toBe(true)
+  await window.evaluate(() => window.cove.setComputerUse(false))
+})
+
 // Last: it closes the window.
 test('asked for a conversation with the window closed, a new window opens on it', async () => {
   // Two named conversations, the first of them on screen.

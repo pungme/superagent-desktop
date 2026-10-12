@@ -82,12 +82,21 @@ describe('Mail briefing', () => {
 })
 
 describe('the computer-use briefing', () => {
-  it('is only there when the user has turned computer use on', () => {
-    expect(buildAppendedPrompt({ provider: 'claude' })).not.toContain('computer_screenshot')
+  it('with computer use off, the tools are still described and the first call asks to turn it on', () => {
+    const prompt = buildAppendedPrompt({ provider: 'claude' })
+    expect(prompt).toContain('computer_screenshot')
+    expect(prompt).toContain(
+      'Computer use is off right now: your first computer_* call asks the user'
+    )
+    expect(prompt).toContain('Never answer "what do you see" with Superagent\'s own desk')
+  })
+  it('is the briefing alone when the user has turned computer use on', () => {
+    expect(buildAppendedPrompt({ provider: 'claude' })).toContain('Computer use is off right now')
     setComputerUseProbe(() => true)
     const prompt = buildAppendedPrompt({ provider: 'claude' })
     setComputerUseProbe(() => false)
     expect(prompt).toContain('computer_screenshot')
+    expect(prompt).not.toContain('Computer use is off right now')
     // The rules that matter on a real computer are spelled out.
     expect(prompt).toContain('Never type a password')
     expect(prompt).toContain('Reach for it last')

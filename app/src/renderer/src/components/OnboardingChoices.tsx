@@ -135,7 +135,8 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
               </b>
               <span>
                 A small tile in the corner of your screen, over every app. Press ⌥ Space and ask,
-                with Superagent&rsquo;s window open or closed. Off unless you turn it on.
+                with Superagent&rsquo;s window open or closed. Off until you turn it on here, or say
+                yes the first time an agent asks.
               </span>
             </div>
             <label className="switch">
@@ -161,7 +162,8 @@ export function ChoicesStep({ onDone }: { onDone: () => void }): React.JSX.Eleme
                 <span>
                   Lets an agent see the screen and click and type in your other apps. It asks before
                   the first time, again for each app, and ⌥ Esc stops it. macOS will ask for two
-                  permissions when it is first used. Off unless you turn it on.
+                  permissions when it is first used. Off until you turn it on here, or say yes the
+                  first time an agent asks.
                 </span>
               </div>
               <label className="switch">

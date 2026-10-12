@@ -75,6 +75,18 @@ const KEY = 'computer.enabled'
 let enabledNow: boolean | null = null
 let deniedNow: AppRef[] | null = null
 
+/**
+ * Turned on by a yes to the first request (computer-tools.ts), the same way
+ * Settings turns it on: it was off by default and the only way on was a
+ * switch nobody was told about, so "what do you see?" got "I cannot see".
+ * The switch in Settings still turns it off.
+ */
+export function enableComputerUse(): void {
+  enabledNow = true
+  settingSet(KEY, '1')
+  broadcastToWindows('computer:changed')
+}
+
 export function computerUseEnabled(): boolean {
   if (enabledNow === null) {
     const v = settingGet(KEY)

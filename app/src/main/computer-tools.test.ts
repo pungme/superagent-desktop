@@ -30,6 +30,9 @@ const state = vi.hoisted(() => ({
 }))
 vi.mock('./computer-use', () => ({
   computerUseEnabled: () => state.enabled,
+  enableComputerUse: () => {
+    state.enabled = true
+  },
   notReady: () => state.missing,
   hasConsent: () => state.consent,
   grantConsent: () => {
@@ -149,10 +152,21 @@ beforeEach(() => {
 })
 
 describe("the agent's tools for using the Mac", () => {
-  it('do not exist while computer use is turned off', async () => {
+  it('are there while computer use is off: the first call asks to turn it on', async () => {
     state.enabled = false
     await withClient(async (c) => {
-      expect(c.getServerCapabilities()?.tools).toBeUndefined()
+      expect(c.getServerCapabilities()?.tools).toBeDefined()
+      // No: off it stays, and the agent is told not to ask again.
+      state.answer = false
+      expect(text(await call(c, 'computer_screenshot'))).toContain('did not turn computer use on')
+      expect(state.asked[0]).toContain('Computer use is off. Turn it on')
+      expect(state.enabled).toBe(false)
+      expect(state.shots).toBe(0)
+      // Yes: on, allowed for this conversation, and the call goes ahead.
+      state.answer = true
+      await call(c, 'computer_screenshot')
+      expect(state.enabled).toBe(true)
+      expect(state.shots).toBe(1)
     })
   })
 

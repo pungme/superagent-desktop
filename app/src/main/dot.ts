@@ -356,6 +356,16 @@ export function registerDot(): void {
     w.on('closed', left)
   })
   ipcMain.handle('dot:away', () => awayForApp)
+  // Events are the quick way; this is the sure way. Whatever focus event went
+  // missing (the app switcher, a Space change, a window closing as another
+  // opened), within a moment the dot is where it should be: hidden while one
+  // of the app's windows is in front, on screen otherwise. The first version
+  // trusted the events alone and the dot stayed gone.
+  setInterval(() => {
+    if (!win || win.isDestroyed() || !dotEnabled() || QUIET) return
+    const front = appInFrontNow()
+    if (front !== awayForApp || front === win.isVisible()) appInFront(front)
+  }, 600).unref()
   // A hidden test run stands in for the agent, and so for dot:ask; this is how
   // it says a conversation is the dot's.
   if (process.env.COVE_E2E_DOT === '1')
