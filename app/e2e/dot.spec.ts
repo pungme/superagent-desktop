@@ -921,12 +921,13 @@ async function toolFrom(
   ws: string,
   chat: string,
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  token = ''
 ): Promise<{ text: string; isError: boolean }> {
   const urlFile = join(data, 'mcp-url.txt')
   await expect.poll(() => existsSync(urlFile)).toBe(true)
   const res = await fetch(
-    `${readFileSync(urlFile, 'utf8')}?ws=${encodeURIComponent(ws)}&chat=${encodeURIComponent(chat)}`,
+    `${readFileSync(urlFile, 'utf8')}?ws=${encodeURIComponent(ws)}&chat=${encodeURIComponent(chat)}${token ? `&k=${token}` : ''}`,
     {
       method: 'POST',
       headers: {
@@ -995,6 +996,73 @@ test('asked from the dot to switch project, the dot switches and the window stay
   const other = await toolFrom(ws, 'someone-else', 'app_open_project', { name: 'e2e-project' })
   expect(other.text).toBe('Superagent is now showing e2e-project.')
   await expect(main.locator('.settings-row')).toHaveCount(0, { timeout: 10_000 })
+})
+
+test('asked to use the Mac with computer use off, the dot shows the question, and Allow turns it on', async () => {
+  // A real conversation of the dot's: the question is recorded under its id.
+  const { ws, chatId } = await main.evaluate(async () => {
+    const tree = await window.cove.storeTree()
+    const w = tree.flatMap((g) => g.workspaces).find((x) => x.name === 'e2e-project')!
+    await window.cove.setComputerUse(false)
+    return { ws: w.id, chatId: await window.cove.chatCreate(w.id) }
+  })
+  await app.evaluate(({ ipcMain }, id) => {
+    const g = globalThis as unknown as { dotOwn: (id: string) => void; asked: unknown[] }
+    g.dotOwn(id)
+    ipcMain.removeHandler('dot:ask')
+    ipcMain.handle('dot:ask', (_e, workspaceId: string, text: string) => {
+      g.asked.push({ workspaceId, text, into: null })
+      return { ok: true, chatId: id, workspaceId }
+    })
+  }, chatId)
+  const dot = app.windows().find((p) => p.url().endsWith('#dot'))!
+  const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
+  if (!(await panel.isVisible())) await dot.locator('.dot-tile').click()
+  await panel.locator('.dot-chip').click()
+  await panel
+    .getByRole('listbox', { name: 'Projects' })
+    .locator('.dot-item', { hasText: 'e2e-project' })
+    .click()
+  await panel.getByRole('textbox').fill('what are you seeing?')
+  await panel.getByRole('textbox').press('Enter')
+
+  // What the agent does: the screenshot tool, from that conversation.
+  const token = await app.evaluate(
+    (_e, [w, c]) =>
+      (globalThis as unknown as { __mcpToken: (ws: string, chat: string) => string }).__mcpToken(
+        w,
+        c
+      ),
+    [ws, chatId]
+  )
+  const call = toolFrom(ws, chatId, 'computer_screenshot', {}, token)
+  // The question is in the dot, with the yes: not only in a window that may be closed.
+  await expect(panel.locator('.dot-approval')).toContainText('Computer use is off. Turn it on', {
+    timeout: 10_000
+  })
+  // Allow in the dot. This run stands in for dot:answer (it only records the
+  // click, see beforeAll), so the yes it recorded is given to the gate by the
+  // same channel the dot's real handler uses.
+  await panel.getByRole('button', { name: 'Allow' }).click()
+  const answered = await app.evaluate(
+    () => (globalThis as unknown as { answered: { id: string; approve: boolean }[] }).answered
+  )
+  expect(answered[answered.length - 1]).toMatchObject({ approve: true })
+  await main.evaluate(
+    (id) => window.cove.guardrailResolve(id, true, false),
+    answered[answered.length - 1].id
+  )
+  const said = await call
+  expect(said.text).not.toContain('did not turn computer use on')
+  await expect(panel.locator('.dot-approval')).toHaveCount(0)
+  // On, for real (an earlier test here stands in for computer:status, so the
+  // tool is the witness): asked again, no question this time, straight to the
+  // look, which a quiet run declines.
+  const again = await toolFrom(ws, chatId, 'computer_screenshot', {}, token)
+  expect(again.text).toContain('A quiet test run never looks at the screen')
+  await expect(panel.locator('.dot-approval')).toHaveCount(0)
+  await main.evaluate(() => window.cove.setComputerUse(false))
+  await panel.getByRole('textbox').press('Escape')
 })
 
 test("while Superagent's own window is in front the dot is hidden, and back when you leave", async () => {

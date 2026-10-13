@@ -30,13 +30,7 @@ import {
 } from './pairing'
 import { watchStatuses, effectiveStatus } from './status'
 import { startReaper } from './reaper'
-import {
-  composePush,
-  macOnlyPushDue,
-  pushTargets,
-  testPushTarget,
-  type PushKind
-} from './push'
+import { composePush, macOnlyPushDue, pushTargets, testPushTarget, type PushKind } from './push'
 import { prettyHostname } from './pairing'
 import { EventEmitter } from 'events'
 import { loadedMachineId } from './identity'
@@ -290,6 +284,12 @@ export function stopCompanion(): void {
 function chatForSession(sessionId: string): string | undefined {
   const byRow = getChatIdBySession(sessionId)
   if (byRow) return byRow
+  // The computer tools ask under the chat's own id, not an agent session's
+  // (mcp.ts gives them `chatId ?? paneId`). Taken as it is, or the question
+  // never became a log event: the dot and the phone never saw it, and a
+  // request made from the dot sat on "Looking at the screen" until it timed
+  // out, with the Allow only in a window that was closed.
+  if (getChat(sessionId)) return sessionId
   // A brand-new session hasn't been written to its chat row yet — but the
   // session/init event already went into the log, so the chat is findable.
   for (const s of listSessions()) {

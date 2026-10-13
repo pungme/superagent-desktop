@@ -497,6 +497,26 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     expect(frames.find((f) => f.t === 'event')).toMatchObject({
       event: { data: { kind: 'approval_end', outcome: 'approved', by: 'ios' } }
     })
+    // The computer tools ask under the chat's own id, not a session's: seen all the same.
+    h.gates.set('gate-8', true)
+    h.hookBus.emit('approval', {
+      requestId: 'gate-8',
+      workspaceId: 'w1',
+      sessionId: 'c1',
+      toolName: 'mcp__cove-browser__computer_use',
+      preview: 'Computer use is off. Turn it on?',
+      kind: 'permission',
+      macOnly: true,
+      expiresAt: Date.now() + 120000
+    })
+    expect(await phone.next()).toMatchObject({
+      t: 'event',
+      event: { data: { kind: 'approval', id: 'gate-8', approvalKind: 'permission' } }
+    })
+    h.hookBus.emit('approval-end', { requestId: 'gate-8', outcome: 'approved', by: 'desktop' })
+    expect(await phone.next()).toMatchObject({
+      event: { data: { kind: 'approval_end', id: 'gate-8', outcome: 'approved' } }
+    })
     // Answering twice reports "gone".
     phone.send({
       t: 'req',
