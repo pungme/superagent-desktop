@@ -382,15 +382,92 @@ describe('keep', () => {
     expect(subjects(api)).toEqual(['Keep', 'first'])
     expect(readFileSync(join(web, 'scratch.txt'), 'utf8')).toBe('mine')
 
+    // Unsaved work in the project that this chat did not touch: the merge
+    // goes round it, and it is still there, unsaved, afterwards.
     const dir2 = (await createWorktreeSet(root, { newBranch: 'y', autoName: true }))!.path
     await change(dir2, 'web')
     writeFileSync(join(dir2, 'web', 'b.txt'), 'change')
-    expect(await mergeCopy(root, dir2, 'Keep')).toMatchObject({
+    expect((await mergeCopy(root, dir2, 'Keep')).ok).toBe(true)
+    expect(subjects(web)).toEqual(['Keep', 'first'])
+    expect(readFileSync(join(web, 'scratch.txt'), 'utf8')).toBe('mine')
+    expect(readFileSync(join(web, 'b.txt'), 'utf8')).toBe('change')
+    expect(
+      execFileSync('git', ['status', '--porcelain'], { cwd: web, encoding: 'utf8' })
+    ).toContain('scratch.txt')
+
+    // The same file edited, unsaved, in the project, on other lines: both
+    // are kept. The chat's change is committed; the user's is still unsaved.
+    writeFileSync(join(web, 'c.txt'), 'one\ntwo\nthree\nfour\nfive\n')
+    execFileSync('git', ['add', 'c.txt'], { cwd: web })
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'c'], {
+      cwd: web
+    })
+    const dir3 = (await createWorktreeSet(root, { newBranch: 'z', autoName: true }))!.path
+    await change(dir3, 'web')
+    writeFileSync(join(dir3, 'web', 'c.txt'), 'one\ntwo\nthree\nfour\nFIVE by the chat\n')
+    writeFileSync(join(web, 'c.txt'), 'ONE by me\ntwo\nthree\nfour\nfive\n')
+    expect((await mergeCopy(root, dir3, 'Keep 3')).ok).toBe(true)
+    expect(readFileSync(join(web, 'c.txt'), 'utf8')).toBe(
+      'ONE by me\ntwo\nthree\nfour\nFIVE by the chat\n'
+    )
+    expect(subjects(web)[0]).toBe('Keep 3')
+    const after = execFileSync('git', ['status', '--porcelain'], { cwd: web, encoding: 'utf8' })
+    expect(after).toContain(' M c.txt')
+    expect(after).toContain('scratch.txt')
+    // Nothing left set aside once it is back.
+    expect(
+      execFileSync('git', ['for-each-ref', 'refs/superagent'], { cwd: web, encoding: 'utf8' })
+    ).toBe('')
+
+    // The same lines, changed both ways: the Keep is taken back whole. The
+    // folder is exactly as it was, the chat's copy is still there, and the
+    // file is named.
+    const dir4 = (await createWorktreeSet(root, { newBranch: 'w', autoName: true }))!.path
+    await change(dir4, 'web')
+    writeFileSync(join(dir4, 'web', 'c.txt'), 'theirs\ntwo\nthree\nfour\nFIVE by the chat\n')
+    const mine = readFileSync(join(web, 'c.txt'), 'utf8')
+    const headBefore = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: web, encoding: 'utf8' })
+    expect(await mergeCopy(root, dir4, 'Keep 4')).toMatchObject({
       ok: false,
       reason: 'base-dirty',
-      repo: 'web'
+      repo: 'web',
+      detail: 'c.txt'
     })
-    expect(subjects(web)).toEqual(['first'])
+    expect(readFileSync(join(web, 'c.txt'), 'utf8')).toBe(mine)
+    expect(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: web, encoding: 'utf8' })).toBe(
+      headBefore
+    )
+    expect(readFileSync(join(web, 'scratch.txt'), 'utf8')).toBe('mine')
+    expect(existsSync(join(dir4, 'web', 'c.txt'))).toBe(true)
+
+    // Staged work is kept staged, and is not swept into the chat's commit.
+    execFileSync('git', ['checkout', '--', 'c.txt'], { cwd: web })
+    writeFileSync(join(web, 'staged.txt'), 'staged by me')
+    execFileSync('git', ['add', 'staged.txt'], { cwd: web })
+    writeFileSync(join(dir4, 'web', 'c.txt'), 'one\ntwo\nthree\nfour\nFIVE again\n')
+    expect((await mergeCopy(root, dir4, 'Keep 5')).ok).toBe(true)
+    expect(
+      execFileSync('git', ['show', '--name-only', '--format=', 'HEAD'], {
+        cwd: web,
+        encoding: 'utf8'
+      })
+    ).not.toContain('staged.txt')
+    expect(
+      execFileSync('git', ['status', '--porcelain'], { cwd: web, encoding: 'utf8' })
+    ).toContain('A  staged.txt')
+
+    // A new file of the user's where the chat adds one of the same name:
+    // refused, and theirs is untouched.
+    const dir5 = (await createWorktreeSet(root, { newBranch: 'v', autoName: true }))!.path
+    await change(dir5, 'web')
+    writeFileSync(join(dir5, 'web', 'new.txt'), 'the chat')
+    writeFileSync(join(web, 'new.txt'), 'mine, never added')
+    expect(await mergeCopy(root, dir5, 'Keep 6')).toMatchObject({
+      ok: false,
+      reason: 'base-dirty',
+      detail: 'new.txt'
+    })
+    expect(readFileSync(join(web, 'new.txt'), 'utf8')).toBe('mine, never added')
   })
 
   it('lands on the branch each copy was cut from, even when the project has moved off it', async () => {

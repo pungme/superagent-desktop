@@ -593,3 +593,41 @@ test('an unread branch row carries one mark, at the end of its name', async () =
   await expect(r.locator('.sidebar-branch-chat .wt-name')).toHaveCount(1)
   await mark(false)
 })
+
+test('a pinned chat is marked under its project, and comes first there', async () => {
+  const rows = window.locator('.sidebar-branch[data-chat-id]')
+  await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThan(1)
+  await expect(window.locator('.sidebar-branch .chat-tree-pinned')).toHaveCount(0)
+  // The last one that has a branch of its own (chats still waiting for one, or
+  // whose copy has gone, are listed after those), so that coming first is a move.
+  const withBranch = (): Promise<string[]> =>
+    rows.evaluateAll((els) =>
+      els
+        .filter((el) => {
+          const name = el.querySelector('.wt-name')?.textContent ?? ''
+          return name && name !== 'no branch yet' && name !== 'copy gone'
+        })
+        .map((el) => el.getAttribute('data-chat-id')!)
+    )
+  const before = await withBranch()
+  expect(before.length).toBeGreaterThan(1)
+  const id = before[before.length - 1]
+  // Pinning is the chat menu's, which is native; this is what it writes.
+  execFileSync('sqlite3', [
+    join(userDataDir, 'cove.db'),
+    `UPDATE chats SET pinned = 1, pinnedAt = ${Date.now()} WHERE id = '${id}'`
+  ])
+  await window.reload()
+  await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  const pinned = window.locator(`.sidebar-branch[data-chat-id="${id}"]`)
+  await expect(pinned.locator('.chat-tree-pinned')).toBeVisible({ timeout: 20_000 })
+  await expect(window.locator('.sidebar-branch .chat-tree-pinned')).toHaveCount(1)
+  expect((await withBranch())[0]).toBe(id)
+  // The mark sits with the name, inside the row.
+  const [mark, row] = await Promise.all([
+    pinned.locator('.chat-tree-pinned').boundingBox(),
+    pinned.boundingBox()
+  ])
+  expect(mark!.x + mark!.width).toBeLessThanOrEqual(row!.x + row!.width)
+  if (process.env.SHOT) await window.screenshot({ path: '/tmp/sa-pinned-branch.png' })
+})

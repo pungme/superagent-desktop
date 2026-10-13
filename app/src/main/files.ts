@@ -875,6 +875,23 @@ export async function worktreeStatus(
   }
 }
 
+/** Where unsaved work set aside for a Keep is held until it is back in place. */
+const KEEP_BACKUP_REF = 'refs/superagent/keep-backup'
+
+/** The paths `git status --porcelain` names: a rename's new name, not its old. */
+export function statusPaths(porcelain: string): Set<string> {
+  const out = new Set<string>()
+  for (const line of porcelain.split('\n')) {
+    if (line.length < 4) continue
+    let p = line.slice(3)
+    const arrow = p.indexOf(' -> ')
+    if (arrow !== -1) p = p.slice(arrow + 4)
+    if (p.startsWith('"') && p.endsWith('"')) p = p.slice(1, -1)
+    out.add(p.replace(/\/$/, ''))
+  }
+  return out
+}
+
 export type MergeResult =
   | { ok: true; committed: boolean }
   | {
@@ -997,11 +1014,64 @@ export async function mergeWorktree(
   }
 
   // Base IS the checked-out branch: merge into the working tree as before —
-  // the user sees the change appear in their folder. Refuse if that tree is
-  // dirty; mixing their in-progress edits with the merge loses work.
+  // the user sees the change appear in their folder. Work in progress there
+  // never stops a Keep by being there (it used to: "save or discard them
+  // first"), and is never lost to one:
+  //  - edits to files this chat did not touch are simply left where they are;
+  //    git does not overwrite an uncommitted file, and the merge goes round;
+  //  - edits to a file this chat also changed, or anything staged, are set
+  //    aside for the merge and put back on top of it, the way `git pull
+  //    --autostash` does. If they do not go back cleanly the whole Keep is
+  //    undone and the folder is exactly as it was, with the file named.
+  // The one thing still refused outright is an untracked file where the chat
+  // adds one of the same name: there is no merging a file git has never seen.
   const baseStatus = await git(['status', '--porcelain'], projectPath)
+  const origHead = (await git(['rev-parse', 'HEAD'], projectPath)).out.trim()
+  let setAside = ''
+  let overlap: string[] = []
   if (baseStatus.out.trim()) {
-    return { ok: false, reason: 'base-dirty' } as R
+    const dirty = statusPaths(baseStatus.out)
+    const untracked = statusPaths(
+      baseStatus.out
+        .split('\n')
+        .filter((l) => l.startsWith('??'))
+        .join('\n')
+    )
+    const changed = await git(['diff', '--name-only', `${base}...${branch}`], projectPath)
+    overlap = changed.out
+      .split('\n')
+      .map((f) => f.trim())
+      .filter((f) => f && dirty.has(f))
+    const blocked = overlap.filter((f) => untracked.has(f))
+    if (blocked.length) return { ok: false, reason: 'base-dirty', detail: blocked.join(', ') } as R
+    const staged = (await git(['diff', '--cached', '--quiet'], projectPath)).code !== 0
+    if ((overlap.length || staged) && !opts.dryRun) {
+      // A commit of the unsaved work that touches neither the folder nor the
+      // stash list (other chats share that list), kept under a ref of its own
+      // until it is safely back, so nothing here can ever be collected.
+      const made = await git(['stash', 'create', 'Superagent: set aside for Keep'], projectPath)
+      setAside = made.code === 0 ? made.out.trim() : ''
+      if (!setAside) return { ok: false, reason: 'base-dirty', detail: overlap.join(', ') } as R
+      await git(['update-ref', KEEP_BACKUP_REF, setAside], projectPath)
+      const cleared = await git(['reset', '--hard', 'HEAD'], projectPath)
+      if (cleared.code !== 0) {
+        await git(['stash', 'apply', '--index', setAside], projectPath)
+        return { ok: false, reason: 'error', detail: cleared.out.trim() } as R
+      }
+    }
+  }
+  // Undo a merge that did not go through. With work set aside: back to where
+  // the folder was, and the work put back, which cannot clash with the commit
+  // it was made on. Without: `reset --merge` puts back what the merge touched
+  // and leaves the unsaved edits to other files alone.
+  const undo = async (): Promise<void> => {
+    if (setAside) {
+      await git(['reset', '--hard', origHead], projectPath)
+      await git(['stash', 'apply', '--index', setAside], projectPath)
+      return
+    }
+    const r = await git(['reset', '--merge'], projectPath)
+    if (r.code !== 0) await git(['reset', '--hard', 'HEAD'], projectPath)
   }
 
   if (opts.dryRun) {
@@ -1020,7 +1090,7 @@ export async function mergeWorktree(
   // leave everything — including the worktree — untouched to resolve by hand.
   const sq = await git(['merge', '--squash', branch], projectPath)
   if (sq.code !== 0) {
-    await git(['reset', '--hard', 'HEAD'], projectPath)
+    await undo()
     return { ok: false, reason: 'conflict', detail: sq.out.trim().slice(0, 300) } as R
   }
   const commit = await git(['commit', '-m', message || `Merge ${branch}`], projectPath)
@@ -1030,10 +1100,22 @@ export async function mergeWorktree(
     // otherwise a hook rejection reads as the misleading "nothing to merge".
     // `diff --cached --quiet` exits non-zero when there ARE staged changes.
     const hadStaged = (await git(['diff', '--cached', '--quiet'], projectPath)).code !== 0
-    await git(['reset', '--hard', 'HEAD'], projectPath)
+    await undo()
     return hadStaged
       ? ({ ok: false, reason: 'error', detail: commit.out.trim() } as R)
       : ({ ok: false, reason: 'nothing', detail: commit.out.trim() } as R)
+  }
+
+  // The unsaved work goes back on top of what was kept. If it does not fit
+  // (the same lines, changed both ways), the Keep is taken back whole: the
+  // folder as it was, the chat's copy untouched, and the file named.
+  if (setAside) {
+    const back = await git(['stash', 'apply', '--index', setAside], projectPath)
+    if (back.code !== 0) {
+      await undo()
+      return { ok: false, reason: 'base-dirty', detail: overlap.join(', ') } as R
+    }
+    await git(['update-ref', '-d', KEEP_BACKUP_REF], projectPath)
   }
 
   // Merged — now tidy up. Best-effort: the merge already succeeded, so even

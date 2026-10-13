@@ -248,9 +248,10 @@ export function keepErrorText(
   // them — so name it, or the user is left to go and look in each.
   const place = where.repo ?? 'the project'
   const map: Record<string, string> = {
-    'base-dirty': where.repo
-      ? `${where.repo} has changes that aren't saved yet. Save or discard them there first, then keep.`
-      : "The project has changes that aren't saved yet. Save or discard them in the project first, then keep.",
+    // Only when the unsaved work cannot be kept as well: the same lines
+    // changed both ways, or a new file of yours where the chat adds one.
+    // Nothing was changed; the file is named so there is somewhere to look.
+    'base-dirty': `Your unsaved edits to ${detail || 'a file'} in ${place} clash with what this chat changed there. Nothing was changed. Save or set aside those edits, or ask the agent in this chat to take them into account, then keep again.`,
     conflict: `These changes clash with something already in ${place}. Ask the agent in this chat to resolve it, then keep again. Nothing was changed.`,
     nothing: "Nothing to keep — this chat didn't change anything.",
     'not-worktree': "This chat doesn't have its own copy of the project.",

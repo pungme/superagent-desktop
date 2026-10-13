@@ -362,6 +362,13 @@ function BranchRow({
             <span className="sidebar-branch-text">
               <span className="chat-tree-line">
                 <span className="sidebar-branch-label">{label}</span>
+                {/* Pinned shows here too, not only in the Pinned list above: a
+                    pinned chat under its project looked like any other. */}
+                {Boolean(chat.pinned) && (
+                  <span className="chat-tree-pinned" title="Pinned">
+                    <PinGlyph />
+                  </span>
+                )}
                 {running && <span className="chat-tree-spinner" title="Working…" />}
                 {unread && !running && <span className="sidebar-unread" />}
               </span>
@@ -1252,6 +1259,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             />
           )
           const branches = worktrees.filter((wt) => !wt.main)
+          // 0 for a pinned chat, 1 for the rest: a stable sort keeps each
+          // group in the order it had.
+          const pinRank = (c: Chat | undefined): number => (c?.pinned ? 0 : 1)
           // The ones somebody is talking to are rows; the rest are one line.
           const others = branches.filter((wt) => !chatOn(wt.path))
           const mayClean = others.filter((wt) => cleanablePaths.includes(wt.path))
@@ -1299,80 +1309,75 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             ) : null
           return (
             <div className="routine-tree">
-              {[...branches.filter((wt) => chatOn(wt.path)), ...(othersOpen ? others : [])].map(
-                (wt, i, all) => {
-                  const cwd = wt.main ? null : wt.path
-                  const chat = chatOn(cwd)
-                  const el = row(
-                    wt.path,
-                    chat ? (wt.branch ?? 'no branch') : branchLabel(wt),
-                    chat,
-                    {
-                      note: chat
-                        ? undefined
-                        : cleanablePaths.includes(wt.path)
-                          ? 'merged'
-                          : undefined,
-                      main: wt.main,
-                      onOpen: () => {
-                        if (chat) {
-                          setActive(ws.id)
-                          selectChat(ws.id, chat.id)
-                          return
-                        }
-                        // A branch with no conversation — usually one an agent
-                        // made for itself. Opening it used to create a session
-                        // without a word, so a click to see what the row was left
-                        // a "New chat" behind: a session nobody started. Ask.
-                        const what = wt.branch ?? 'this branch'
+              {[
+                // Pinned ones first, in the order they hold in the Pinned list.
+                ...branches
+                  .filter((wt) => chatOn(wt.path))
+                  .sort((a, b) => pinRank(chatOn(a.path)) - pinRank(chatOn(b.path))),
+                ...(othersOpen ? others : [])
+              ].map((wt, i, all) => {
+                const cwd = wt.main ? null : wt.path
+                const chat = chatOn(cwd)
+                const el = row(wt.path, chat ? (wt.branch ?? 'no branch') : branchLabel(wt), chat, {
+                  note: chat ? undefined : cleanablePaths.includes(wt.path) ? 'merged' : undefined,
+                  main: wt.main,
+                  onOpen: () => {
+                    if (chat) {
+                      setActive(ws.id)
+                      selectChat(ws.id, chat.id)
+                      return
+                    }
+                    // A branch with no conversation — usually one an agent
+                    // made for itself. Opening it used to create a session
+                    // without a word, so a click to see what the row was left
+                    // a "New chat" behind: a session nobody started. Ask.
+                    const what = wt.branch ?? 'this branch'
+                    if (
+                      !window.confirm(
+                        `"${what}" has no conversation yet.\n\n` +
+                          'It is a git worktree made outside Superagent ' +
+                          `(${wt.path}). Start a conversation on it?`
+                      )
+                    )
+                      return
+                    openBranch(ws.id, cwd)
+                  },
+                  // A chatless worktree — a branch you have not opened yet, or a
+                  // stray one an agent left behind (a detached /tmp PR checkout,
+                  // say) — is removable too. Without this its row had no ✕ and
+                  // could only be deleted through a right-click nobody finds.
+                  onRemove: chat
+                    ? () => void removeChatFn(ws.id, chat.id)
+                    : () => {
+                        const what = wt.branch ?? 'this worktree'
                         if (
                           !window.confirm(
-                            `"${what}" has no conversation yet.\n\n` +
-                              'It is a git worktree made outside Superagent ' +
-                              `(${wt.path}). Start a conversation on it?`
+                            `Remove "${what}" and its checkout?\n\nThis cannot be undone.`
                           )
                         )
                           return
-                        openBranch(ws.id, cwd)
-                      },
-                      // A chatless worktree — a branch you have not opened yet, or a
-                      // stray one an agent left behind (a detached /tmp PR checkout,
-                      // say) — is removable too. Without this its row had no ✕ and
-                      // could only be deleted through a right-click nobody finds.
-                      onRemove: chat
-                        ? () => void removeChatFn(ws.id, chat.id)
-                        : () => {
-                            const what = wt.branch ?? 'this worktree'
-                            if (
-                              !window.confirm(
-                                `Remove "${what}" and its checkout?\n\nThis cannot be undone.`
-                              )
-                            )
-                              return
-                            void window.cove.worktreeRemove(ws.path, wt.path).then(() => {
-                              window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
-                            })
-                          },
-                      onMenu: () => {
-                        if (wt.main) return
-                        if (chat) {
-                          window.cove.chatMenu(chat.id, ws.id, chat.cwd, chatIsUnread(chat))
-                          return
-                        }
-                        window.cove.worktreeMenu({
-                          projectPath: ws.path,
-                          wtPath: wt.path,
-                          branch: wt.branch,
-                          base: wt.base
+                        void window.cove.worktreeRemove(ws.path, wt.path).then(() => {
+                          window.dispatchEvent(new CustomEvent('cove:workspace-idle'))
                         })
-                      }
+                      },
+                  onMenu: () => {
+                    if (wt.main) return
+                    if (chat) {
+                      window.cove.chatMenu(chat.id, ws.id, chat.cwd, chatIsUnread(chat))
+                      return
                     }
-                  )
-                  // The line sits where the chatless ones begin.
-                  const firstOther = !chat && (i === 0 || !!chatOn(all[i - 1].path))
-                  return firstOther ? [fold, el] : el
-                }
-              )}
+                    window.cove.worktreeMenu({
+                      projectPath: ws.path,
+                      wtPath: wt.path,
+                      branch: wt.branch,
+                      base: wt.base
+                    })
+                  }
+                })
+                // The line sits where the chatless ones begin.
+                const firstOther = !chat && (i === 0 || !!chatOn(all[i - 1].path))
+                return firstOther ? [fold, el] : el
+              })}
               {!othersOpen && fold}
               {/* Chats whose copy is gone — merged and reaped, or removed by
                   hand. They match no worktree and are not pending, so without a
