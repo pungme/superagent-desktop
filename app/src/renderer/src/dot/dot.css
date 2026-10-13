@@ -660,3 +660,6 @@ html.dot-window #root {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.14);
 }
+
+/* the way out of a microphone that macOS has off, beside the word of it */
+.dot-error .dot-error-fix { margin-left: 8px; font-size: 11px; padding: 3px 8px; }

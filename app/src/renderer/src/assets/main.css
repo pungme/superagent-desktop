@@ -12768,12 +12768,23 @@ button {
   cursor: zoom-in;
   vertical-align: top;
 }
+.md-img-wrap {
+  max-width: 100%;
+}
+.md-img-thumb {
+  /* The cap is on the frame, and the picture fills it: the frame shrinks to
+     its picture, and neither is ever wider than the bubble (a picture wider
+     than a narrow column stood out past its edge). A length on the picture
+     alone could not do that: a percentage of a frame sized by its picture
+     is nothing while the frame is sized. */
+  max-width: min(280px, 100%);
+}
 .md-img-thumb img {
   display: block;
   /* A length, not a percentage: the frame is as wide as its picture, and a
      percentage of the frame cannot be known while sizing the frame, so a wide
      picture left the frame at its full width with the picture small inside. */
-  max-width: 280px;
+  max-width: 100%;
   max-height: 180px;
   width: auto;
   height: auto;

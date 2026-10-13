@@ -624,6 +624,14 @@ export function Dot(): React.JSX.Element {
               {(error || dictation.error) && (
                 <div className="dot-error" role="alert">
                   {error || dictation.error}
+                  {dictation.micDenied && (
+                    <button
+                      className="dot-btn dot-error-fix"
+                      onClick={() => void window.cove.micOpenSettings()}
+                    >
+                      Open System Settings
+                    </button>
+                  )}
                 </div>
               )}
               {!task && !text && (

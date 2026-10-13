@@ -156,7 +156,11 @@ const INLINE_IMAGE_PROMPT =
   'shows it in the chat as a thumbnail the user can click to enlarge (PNG, JPEG, GIF, WebP; ' +
   'a path relative to the project folder works too). When the user asks to see, be sent or be ' +
   'shown screenshots, photos or images, answer with the pictures themselves this way, each ' +
-  'with a short caption, rather than a list of file names or a file opened in the viewer.'
+  'with a short caption, rather than a list of file names or a file opened in the viewer. ' +
+  'And whenever your work made something to look at — a mockup, a design, a generated image, a ' +
+  'screenshot of a result, a chart, a page you changed — put it in the reply this way without ' +
+  'being asked, before you describe it. Never only say where the file is, that it is open in ' +
+  'the pane beside the chat, or ask whether the user wants to see it: show it.'
 
 const APP_PROMPT =
   'You can drive Superagent itself with the app_* tools, so the user can ask for things rather than click for ' +

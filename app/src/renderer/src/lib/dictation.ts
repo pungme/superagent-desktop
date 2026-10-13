@@ -72,8 +72,14 @@ async function toSamples(blob: Blob): Promise<Float32Array> {
   }
 }
 
+/** Said when macOS has the microphone off for Superagent. */
+export const MIC_OFF =
+  'Superagent is not allowed to use the microphone. Allow it in System Settings → Privacy & Security → Microphone.'
+
 interface Dictation {
   state: DictationState
+  /** macOS has the microphone off for Superagent: System Settings is the fix. */
+  micDenied: boolean
   /** 0–1 while the model downloads the first time. */
   progress: number
   /** Live input level, 0–1, while recording — so the button can show it's hearing you. */
@@ -90,6 +96,7 @@ export function useDictation(): Dictation {
   const [state, setState] = useState<DictationState>('idle')
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [micDenied, setMicDenied] = useState(false)
   const [level, setLevel] = useState(0)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -143,6 +150,19 @@ export function useDictation(): Dictation {
   const start = useCallback(async (): Promise<void> => {
     if (recorderRef.current) return
     setError(null)
+    setMicDenied(false)
+    // The app asks macOS for the microphone first: from the dot, a panel that
+    // is never the active app, Chromium's own asking shows nothing and fails.
+    try {
+      const access = await window.cove.micAccess?.()
+      if (access === 'denied' || access === 'restricted') {
+        setMicDenied(true)
+        setError(MIC_OFF)
+        return
+      }
+    } catch {
+      /* no answer is not a no: the page's own request below still decides */
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -179,7 +199,11 @@ export function useDictation(): Dictation {
       void getPipeline(setProgress).catch(() => {})
     } catch (e) {
       setState('idle')
-      setError(e instanceof Error ? e.message : 'Could not access the microphone')
+      const name = e instanceof Error ? e.name : ''
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setMicDenied(true)
+        setError(MIC_OFF)
+      } else setError(e instanceof Error ? e.message : 'Could not access the microphone')
     }
   }, [])
 
@@ -205,5 +229,5 @@ export function useDictation(): Dictation {
     setProgress(0)
   }, [teardownMeter])
 
-  return { state, progress, level, error, start, stop, cancel }
+  return { state, progress, level, error, micDenied, start, stop, cancel }
 }

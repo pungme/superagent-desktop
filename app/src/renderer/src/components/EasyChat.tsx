@@ -5343,6 +5343,11 @@ export function EasyChat({
       {dictation.error && (
         <div className="easy-dictation-error" role="status">
           Dictation failed: {dictation.error}
+          {dictation.micDenied && (
+            <button className="easy-link-btn" onClick={() => void window.cove.micOpenSettings()}>
+              Open System Settings
+            </button>
+          )}
         </div>
       )}
       {/* A pending permission/guardrail ask for THIS chat, prominent right above

@@ -920,6 +920,10 @@ export interface CoveApi {
   setTalkHotkey: (accelerator: string) => Promise<{ hotkey: string; ok: boolean }>
   onTalkHotkey: (cb: (s: { hotkey: string; ok: boolean }) => void) => () => void
   onDotTalk: (cb: () => void) => () => void
+  /** Whether Superagent may use the microphone; asks macOS the first time. */
+  micAccess: () => Promise<'granted' | 'denied' | 'restricted' | 'not-determined' | 'unknown'>
+  /** System Settings, at the Microphone switch. */
+  micOpenSettings: () => Promise<void>
   dotProjects: () => Promise<
     { id: string; name: string; kind: string; path: string; usedAt: number; pinned: boolean }[]
   >
@@ -1479,6 +1483,8 @@ const cove: CoveApi = {
   onTalkHotkey: (cb) =>
     subscribe('dot:talk-hotkey', (s) => cb(s as { hotkey: string; ok: boolean })),
   onDotTalk: (cb) => subscribe('dot:talk', () => cb()),
+  micAccess: () => ipcRenderer.invoke('mic:access'),
+  micOpenSettings: () => ipcRenderer.invoke('mic:open-settings'),
   onDotEvent: (cb) =>
     subscribe('dot:event', (p) => cb(p as { chatId: string; data: Record<string, unknown> })),
   onDotDelta: (cb) => subscribe('dot:delta', (p) => cb(p as { chatId: string; text: string })),

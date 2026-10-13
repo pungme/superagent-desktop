@@ -1,5 +1,6 @@
 // Before everything: what the released app will not be started with.
 import './harden'
+import { registerMicIpc } from './mic'
 import { afterLastWindow } from '../shared/last-window'
 import { registerMailIpc } from './mail'
 import { registerLidAwakeIpc, releaseLidAwake } from './lid-awake'
@@ -328,6 +329,7 @@ app.whenReady().then(async () => {
   registerEnvironmentIpc()
   registerOpenRequests()
   registerDot()
+  registerMicIpc()
   registerAppHotkey({
     window: () =>
       BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && !isDotWindow(w)) ?? null,

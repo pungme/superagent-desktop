@@ -156,6 +156,38 @@ test('a picture the agent showed is saved as the file itself, never over one alr
   expect(saved().filter((n) => n.startsWith('header'))).toEqual(['header 2.png', 'header.png'])
 })
 
+test('a picture wider than its bubble is scaled to fit, not left standing out of it', async () => {
+  // The window narrow, so the bubble is narrower than a picture's natural size.
+  const size = await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows()[0]
+    const was = w.getSize()
+    w.setSize(760, 700)
+    return was
+  })
+  await window.waitForTimeout(400)
+  const fits = await window
+    .locator('.md-img-thumb:visible')
+    .first()
+    .evaluate((el) => {
+      const frame = el.getBoundingClientRect()
+      // The bubble: the nearest block that holds the markdown.
+      const bubble =
+        el.closest('.easy-md, .md, .easy-msg-text, .easy-bubble') ??
+        el.parentElement!.parentElement!
+      const box = bubble.getBoundingClientRect()
+      return {
+        ok: frame.right <= box.right + 1 && frame.left >= box.left - 1,
+        frame: frame.width,
+        box: box.width
+      }
+    })
+  expect(fits.ok, `picture ${fits.frame}px wide in a box ${fits.box}px wide`).toBe(true)
+  await app.evaluate(
+    ({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0].setSize(w, h),
+    size
+  )
+})
+
 test('a picture can be downloaded where it sits in the conversation, without opening it', async () => {
   const before = saved().length
   // One you attached: the corner button shows on hover and saves at once.

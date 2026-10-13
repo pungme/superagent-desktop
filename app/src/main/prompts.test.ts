@@ -81,6 +81,14 @@ describe('Mail briefing', () => {
   })
 })
 
+describe('pictures in a reply', () => {
+  it('tells the agent to show what it made, in the message, unasked', () => {
+    const prompt = buildAppendedPrompt({ provider: 'claude' })
+    expect(prompt).toContain('put it in the reply this way without being asked')
+    expect(prompt).toContain('Never only say where the file is')
+  })
+})
+
 describe('the computer-use briefing', () => {
   it('with computer use off, the tools are still described and the first call asks to turn it on', () => {
     const prompt = buildAppendedPrompt({ provider: 'claude' })
