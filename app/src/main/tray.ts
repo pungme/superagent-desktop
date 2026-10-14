@@ -3,6 +3,11 @@ import { hookBus } from './hooks'
 import { companionState } from './companion'
 import { listDevices } from './companion/devices'
 import { broadcastToWindows } from './util'
+import { listAllChats, DESKTOP_WORKSPACE_ID, ensureDesktopWorkspace } from './store'
+import { isGenerating } from './companion/log'
+import { dotProjects } from './dot-projects'
+import { askToOpen } from './open-request'
+import { bringAppForward } from './app-hotkey'
 
 /**
  * A menu-bar presence for when a phone is watching this Mac. Closing the
@@ -41,6 +46,53 @@ function showWindow(): void {
   }
 }
 
+/**
+ * The chats to offer: the ones working now, then the latest used. A click on
+ * the menu bar is a look at what is going on, and a way straight to it.
+ */
+function chatItems(): Electron.MenuItemConstructorOptions[] {
+  const names = new Map(dotProjects().map((p) => [p.id, p.name]))
+  const home = ensureDesktopWorkspace().workspaceId
+  const chats = listAllChats()
+    .filter((c) => c.title)
+    .map((c) => ({
+      ...c,
+      project:
+        c.workspaceId === home || c.workspaceId === DESKTOP_WORKSPACE_ID
+          ? 'Computer'
+          : (names.get(c.workspaceId) ?? ''),
+      running: isGenerating(c.id)
+    }))
+    .filter((c) => c.project)
+  const item = (c: (typeof chats)[number]): Electron.MenuItemConstructorOptions => ({
+    label: `${c.running ? '● ' : ''}${short(c.title ?? 'New chat')} — ${c.project}`,
+    click: () => {
+      bringAppForward()
+      askToOpen(c.workspaceId, c.id)
+    }
+  })
+  const running = chats.filter((c) => c.running).sort((a, b) => b.updatedAt - a.updatedAt)
+  const recent = chats
+    .filter((c) => !c.running)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 5)
+  const out: Electron.MenuItemConstructorOptions[] = []
+  if (running.length) {
+    out.push({ label: 'Working now', enabled: false }, ...running.slice(0, 8).map(item))
+    out.push({ type: 'separator' })
+  }
+  if (recent.length) {
+    out.push({ label: 'Latest', enabled: false }, ...recent.map(item))
+    out.push({ type: 'separator' })
+  }
+  return out
+}
+
+const short = (t: string): string => {
+  const one = t.replace(/\s+/g, ' ').trim()
+  return one.length > 48 ? `${one.slice(0, 47)}…` : one
+}
+
 function rebuild(): void {
   if (!tray) return
   const s = companionState()
@@ -59,6 +111,7 @@ function rebuild(): void {
         enabled: false
       },
       { type: 'separator' },
+      ...chatItems(),
       { label: 'Open Superagent', click: showWindow },
       {
         label: 'Pair a phone…',
@@ -79,6 +132,9 @@ export function syncTray(): void {
   if (want && !tray) {
     tray = new Tray(icon('idle', false))
     tray.on('click', showWindow)
+    // What is working changes all the time: read it again as the pointer
+    // arrives, so the menu that opens is the one true now.
+    tray.on('mouse-enter', rebuild)
   } else if (!want && tray) {
     tray.destroy()
     tray = null
