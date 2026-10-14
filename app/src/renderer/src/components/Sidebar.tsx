@@ -250,6 +250,20 @@ function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
       >
         ▶
       </button>
+      {/* Deleting was only in Computer → Routines, where nobody looked for it. */}
+      <button
+        className="routine-tree-run chat-tree-remove"
+        title="Delete this routine"
+        onClick={(e) => {
+          e.stopPropagation()
+          if (!window.confirm(`Delete this routine?\n\n${routine.prompt.slice(0, 140)}`)) return
+          void window.cove
+            .routinesDelete(routine.id)
+            .then(() => useStore.getState().refreshRoutines())
+        }}
+      >
+        ×
+      </button>
     </div>
   )
 }
