@@ -2373,6 +2373,26 @@ export function EasyChat({
     // attachImage only closes over stable setState, so re-subscribing per render is unnecessary.
   }, [isActive, visible])
 
+  // ⌘⇧A attaches the screenshots on offer, ⌘⇧D attaches them and trashes the
+  // files: the same two buttons, without reaching for the mouse mid-sentence.
+  const attachShotsRef = useRef(attachShots)
+  attachShotsRef.current = attachShots
+  const shotsRef = useRef(shots)
+  shotsRef.current = shots
+  useEffect(() => {
+    if (!isActive || !visible || shots.length === 0) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (!e.metaKey || !e.shiftKey || e.altKey || e.ctrlKey) return
+      if (e.code !== 'KeyA' && e.code !== 'KeyD') return
+      if (shotsRef.current.length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      attachShotsRef.current(shotsRef.current, e.code === 'KeyD')
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [isActive, visible, shots.length])
+
   // A crop from the snip tool (WorkspaceView) lands here — attach it like a
   // pasted image and drop the cursor in the box so you can describe the problem
   // right away. Only the on-screen chat reacts (busy siblings stay hidden).
@@ -4097,7 +4117,11 @@ export function EasyChat({
       const typed = text
       setInput('')
       void window.cove.loopCommand(chatId, typed).then((said) => {
-        if (!said) return
+        // A loop that started says so twice already: its first round lands
+        // straight away as a bubble with the prompt, and the loop bar holds it
+        // on top. A third copy as a line here was the one too many. Stop,
+        // pause and usage still answer here; the phone still gets the line.
+        if (!said || said.startsWith('🔁')) return
         setItems((prev) => [
           ...prev,
           {
@@ -5534,19 +5558,27 @@ export function EasyChat({
               <span className="easy-shots-text">
                 {shots.length === 1 ? 'Screenshot just taken' : `${shots.length} screenshots`}
               </span>
-              <button className="easy-shots-attach" onClick={() => attachShots(shots)}>
+              <button
+                className="easy-shots-attach"
+                title="⌘⇧A"
+                aria-label={shots.length === 1 ? 'Attach' : 'Attach all'}
+                onClick={() => attachShots(shots)}
+              >
                 {shots.length === 1 ? 'Attach' : 'Attach all'}
+                <kbd className="easy-shots-key">⌘⇧A</kbd>
               </button>
               <button
                 className="easy-shots-attach-delete"
+                aria-label={shots.length === 1 ? 'Attach & delete' : 'Attach all & delete'}
                 title={
                   shots.length === 1
-                    ? 'Attach it, and move the file to the Trash'
-                    : 'Attach them, and move the files to the Trash'
+                    ? 'Attach it, and move the file to the Trash (⌘⇧D)'
+                    : 'Attach them, and move the files to the Trash (⌘⇧D)'
                 }
                 onClick={() => attachShots(shots, true)}
               >
                 {shots.length === 1 ? 'Attach & delete' : 'Attach all & delete'}
+                <kbd className="easy-shots-key">⌘⇧D</kbd>
               </button>
               <button
                 className="easy-shots-dismiss"

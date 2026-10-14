@@ -13502,6 +13502,13 @@ button {
   white-space: nowrap;
   cursor: pointer;
 }
+/* The shortcut, quietly, so it is found without a manual. */
+.easy-shots-key {
+  margin-left: 6px;
+  font: inherit;
+  font-size: 11px;
+  opacity: 0.55;
+}
 .easy-shots-attach-delete:hover {
   color: var(--text-primary);
   background: var(--bg-elevated);
