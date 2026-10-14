@@ -3157,6 +3157,19 @@ button {
   white-space: nowrap;
   color: var(--text-primary);
 }
+.easy-queued-thumbs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+.easy-queued-thumbs img {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
+}
 .easy-queued-when {
   flex: 0 0 auto;
   color: var(--text-tertiary);

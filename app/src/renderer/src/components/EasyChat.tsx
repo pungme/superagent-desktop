@@ -5609,6 +5609,24 @@ export function EasyChat({
                           .trim()
                           .slice(0, 200)}
                   </span>
+                  {/* What it sends with it: the text alone read as if the
+                      picture had been lost. Click one to see it full size. */}
+                  {m.images.length > 0 && (
+                    <span className="easy-queued-thumbs">
+                      {m.images.map((img, i) => (
+                        <img
+                          key={i}
+                          src={img.url}
+                          alt="attached"
+                          title="Click to see it"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setLightbox(img.url)
+                          }}
+                        />
+                      ))}
+                    </span>
+                  )}
                   <span className="easy-queued-when">sends when done</span>
                   <button
                     className="easy-queued-cancel"
