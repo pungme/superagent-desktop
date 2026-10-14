@@ -1361,7 +1361,12 @@ export const useStore = create<CoveState>((set, get) => ({
     const projectPath = chat.cwd.split('/.worktrees/')[0]
     const title = chat.title?.trim()
     const message = title && title !== 'New chat' ? title : 'Keep chat changes'
-    const res = await window.cove.worktreeMerge(projectPath, chat.cwd, message)
+    let res = await window.cove.worktreeMerge(projectPath, chat.cwd, message)
+    // Nothing to land is a branch whose work is already in the base (its
+    // commits squashed in, or taken from main) — the delete guard still counts
+    // those commits as unkept. Keep then refused and the chat stayed, though
+    // there was nothing to lose by closing it. Close it.
+    if (!res.ok && res.reason === 'nothing') res = { ok: true, committed: false }
     if (res.ok) {
       window.dispatchEvent(new CustomEvent('cove:workspace-idle', { detail: { workspaceId } }))
       // The merge already removed the worktree; force skips the unkept-guard.
