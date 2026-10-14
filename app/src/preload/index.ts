@@ -846,7 +846,8 @@ export interface CoveApi {
     cb: (s: { path: string; name: string; mediaType: string; data: string; at: number }) => void
   ) => () => void
   /** Move attached screenshots' files to the Trash, by file name. */
-  trashScreenshots: (names: string[]) => Promise<void>
+  /** The ones that stayed where they were, and why. */
+  trashScreenshots: (names: string[]) => Promise<{ name: string; error: string }[]>
   onModelLimit: (
     cb: (n: { chatId: string; model: string; fallback: string; until: number }) => void
   ) => () => void

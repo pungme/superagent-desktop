@@ -2347,7 +2347,15 @@ export function EasyChat({
     ])
     dropShots(which.map((s) => s.name))
     // The picture is held here now; the file it came from goes to the Trash.
-    if (thenDelete) void window.cove.trashScreenshots?.(which.map((s) => s.name))
+    if (thenDelete)
+      void window.cove.trashScreenshots?.(which.map((s) => s.name)).then((failed) => {
+        // Said, not swallowed: a file left on the Desktop with no word was the bug.
+        if (failed?.length)
+          window.alert(
+            `Attached, but ${failed.length === 1 ? 'the file' : `${failed.length} files`} could not be moved to the Trash:\n\n` +
+              failed.map((f) => `${f.name}: ${f.error}`).join('\n')
+          )
+      })
     inputRef.current?.focus()
   }
 

@@ -1,7 +1,16 @@
-import { ipcMain, nativeImage, shell } from 'electron'
+import { app, ipcMain, nativeImage, shell } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { existsSync, FSWatcher, readFileSync, rmSync, statSync, watch } from 'fs'
+import {
+  appendFileSync,
+  existsSync,
+  FSWatcher,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  watch
+} from 'fs'
 import os from 'os'
 import { basename, join } from 'path'
 import { broadcastToWindows } from './util'
@@ -72,19 +81,58 @@ function load(path: string): { mediaType: string; data: string } | null {
  * Desktop is clutter. To the Trash, not gone — and only ever a screenshot in
  * the screenshot folder, whatever name the window sends.
  */
-export async function trashScreenshots(names: string[]): Promise<void> {
+export async function trashScreenshots(
+  names: string[]
+): Promise<{ name: string; error: string }[]> {
   const dir = await screenshotDir()
+  const failed: { name: string; error: string }[] = []
   for (const raw of names) {
     const name = basename(String(raw))
     if (!looksLikeScreenshot(name)) continue
     const path = join(dir, name)
-    try {
-      // The e2e folder is a temp one: nothing of the user's Trash to fill.
-      if (process.env.COVE_E2E_SCREENSHOT_DIR) rmSync(path, { force: true })
-      else await shell.trashItem(path)
-    } catch {
-      // already moved or deleted: nothing left to tidy
+    if (!existsSync(path)) continue // already moved or deleted: nothing left to tidy
+    // The e2e folder is a temp one: nothing of the user's Trash to fill.
+    if (process.env.COVE_E2E_SCREENSHOT_DIR) {
+      rmSync(path, { force: true })
+      continue
     }
+    let error = ''
+    try {
+      await shell.trashItem(path)
+    } catch (err) {
+      error = String((err as Error)?.message ?? err)
+    }
+    // It said yes and the file is still there, or it said no: move it into the
+    // Trash folder ourselves. Swallowing this is what left screenshots on the
+    // Desktop with nobody able to say why.
+    if (existsSync(path)) {
+      try {
+        const trash = join(os.homedir(), '.Trash')
+        let target = join(trash, name)
+        for (let n = 2; existsSync(target); n++)
+          target = join(trash, name.replace(/(\.\w+)$/, ` ${n}$1`))
+        renameSync(path, target)
+      } catch (err) {
+        error = `${error ? `${error}; ` : ''}${String((err as Error)?.message ?? err)}`
+      }
+    }
+    if (existsSync(path)) {
+      failed.push({ name, error: error || 'it is still there' })
+      logShot(`could not trash ${path}: ${error || 'still there after trashItem'}`)
+    }
+  }
+  return failed
+}
+
+/** Why a screenshot stayed put, kept where it can be read afterwards. */
+function logShot(line: string): void {
+  try {
+    appendFileSync(
+      join(app.getPath('userData'), 'screenshots.log'),
+      `${new Date().toISOString()} ${line}\n`
+    )
+  } catch {
+    // nowhere to write: the window still hears of it
   }
 }
 
