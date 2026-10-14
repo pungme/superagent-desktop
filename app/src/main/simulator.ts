@@ -1,3 +1,5 @@
+import { hidReady, sendHid, siminputPath, stopAllHid } from './sim-hid'
+import { detachAllSimViews, isViewing, registerSimViewIpc } from './sim-view'
 import { agentIsDriving } from './browser'
 import { app, ipcMain, BrowserWindow, nativeImage, systemPreferences, shell } from 'electron'
 import { execFile, spawn, ChildProcessWithoutNullStreams, ChildProcessByStdio } from 'child_process'
@@ -311,6 +313,8 @@ function endInputSession(udid: string): void {
 
 export function stopAllSimInput(): void {
   for (const udid of [...inputSessions.keys()]) endInputSession(udid)
+  stopAllHid()
+  detachAllSimViews()
   // Never leave Apple's Simulator pinned above every other window once we are
   // gone — we set that, so we take it back.
   void unpinSimulator()
@@ -550,7 +554,7 @@ export function simulatorsByChat(): ReadonlyMap<string, string> {
 
 /** True while frames for this device are going to the pane — they can see it. */
 export function isMirroring(udid: string): boolean {
-  return nativeStreams.has(udid) || streams.has(udid)
+  return nativeStreams.has(udid) || streams.has(udid) || isViewing(udid)
 }
 
 /**
@@ -1306,6 +1310,8 @@ async function moveSimulatorWindow(rect: {
 }
 
 export function registerSimulatorIpc(): void {
+  // The embedded screen (sim-view.ts): a native layer, not a stream.
+  registerSimViewIpc(toPoints, noteSimulatorClosed)
   // The pane tells us which device it is on, so the agent's tools can aim at
   // the same one.
   // The window's own pane announcing what it shows, so the phone can mirror a
@@ -1538,11 +1544,12 @@ export function registerSimulatorIpc(): void {
 
   ipcMain.handle('sim:input', (_e, udid: string, action: SimAction) => sendSimInput(udid, action))
 
-  ipcMain.handle('sim:has-input', async () => !!(await findBaguette()))
+  ipcMain.handle('sim:has-input', async () => !!siminputPath() || !!(await findBaguette()))
+  ipcMain.handle('sim:hid-ready', (_e, udid: string) => hidReady(String(udid)))
 }
 
 export interface SimAction {
-  type: 'tap' | 'swipe' | 'press' | 'text' | 'key' | 'orientation'
+  type: 'tap' | 'swipe' | 'press' | 'text' | 'key' | 'orientation' | 'touch'
   [k: string]: unknown
 }
 
@@ -1593,6 +1600,16 @@ export async function sendSimInput(
   action: SimAction,
   options: SimInputOptions = {}
 ): Promise<SimInputResult> {
+  // Xcode 27 first: through dtuhidd, the only input it still acts on (see
+  // sim-hid.ts). Null means that path does not apply here, and baguette does.
+  const viaHid = await sendHid(udid, action)
+  if (viaHid) {
+    if (viaHid.ok) nudge(udid)
+    return viaHid
+  }
+  // A finger held down and moved is dtuhidd's alone; the pane falls back to
+  // whole swipes when this says no.
+  if (action.type === 'touch') return { ok: false, error: 'no-touch' }
   const bin = await findBaguette()
   if (!bin) return { ok: false, error: 'baguette-not-installed' }
 

@@ -14138,3 +14138,19 @@ button {
   flex: none;
   margin-top: 2px;
 }
+
+/* The embedded simulator screen (main/sim-view.ts) is drawn by macOS over this
+   box. The box is clear: it only takes the pointer and the keys, and gives the
+   layout a size, since it has no pixels of its own to size itself from. */
+.sim-screen.sim-native {
+  flex: 0 0 auto;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  outline: none;
+  touch-action: none;
+}
+.sim-busy-note {
+  text-align: center;
+}

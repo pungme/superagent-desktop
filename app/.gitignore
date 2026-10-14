@@ -17,6 +17,8 @@ src/renderer/public/ort/
 
 # compiled by native/build.sh
 native/simfb
+native/siminput
+native/simview.node
 
 # fetched by scripts/fetch-baguette.mjs (pinned upstream release)
 native/baguette

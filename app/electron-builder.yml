@@ -25,6 +25,13 @@ extraResources:
   # outside the asar to be spawnable.
   - from: native/simfb
     to: simfb
+  # The simulator's screen in the window (a Node-API module), and its input
+  # through Xcode 27's dtuhidd. Both optional: without them the pane streams
+  # and baguette taps.
+  - from: native/simview.node
+    to: simview.node
+  - from: native/siminput
+    to: siminput
   - from: native/cuse
     to: cuse
   - from: native/ring

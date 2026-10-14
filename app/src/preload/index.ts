@@ -529,6 +529,24 @@ export interface CoveApi {
   simNoteOpen: (chatId: string, udid: string) => Promise<boolean>
   simNoteClosed: (chatId: string) => Promise<boolean>
   simStreamStop: (udid: string) => void
+  /** The screen embedded as a native layer (sim-view.ts); the size is in points. */
+  simViewAttach: (
+    udid: string
+  ) => Promise<
+    | { ok: true; width: number; height: number; screens: number; device: string }
+    | { ok: false; error: string }
+  >
+  simViewBounds: (
+    udid: string,
+    rect: { x: number; y: number; width: number; height: number },
+    radius: number,
+    rotation: number
+  ) => void
+  simViewVisible: (udid: string, on: boolean) => void
+  simViewDetach: (udid: string) => void
+  /** True when the device takes live touches (Xcode 27's input service). */
+  simHidReady: (udid: string) => Promise<boolean>
+  onSimViewSize: (udid: string, cb: (s: { width: number; height: number }) => void) => () => void
   simInput: (
     udid: string,
     action: Record<string, unknown>
@@ -1243,6 +1261,14 @@ const cove: CoveApi = {
   simNoteOpen: (chatId, udid) => ipcRenderer.invoke('sim:note-open', chatId, udid),
   simNoteClosed: (chatId) => ipcRenderer.invoke('sim:note-closed', chatId),
   simStreamStop: (udid) => ipcRenderer.send('sim:stream-stop', udid),
+  simViewAttach: (udid) => ipcRenderer.invoke('sim:view-attach', udid),
+  simViewBounds: (udid, rect, radius, rotation) =>
+    ipcRenderer.send('sim:view-bounds', udid, rect, radius, rotation),
+  simViewVisible: (udid, on) => ipcRenderer.send('sim:view-visible', udid, on),
+  simViewDetach: (udid) => ipcRenderer.send('sim:view-detach', udid),
+  simHidReady: (udid) => ipcRenderer.invoke('sim:hid-ready', udid),
+  onSimViewSize: (udid, cb) =>
+    subscribe(`sim:view-size:${udid}`, (s) => cb(s as { width: number; height: number })),
   simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),
   simScreenshot: (udid) => ipcRenderer.invoke('sim:screenshot', udid),

@@ -82,6 +82,19 @@ export function SimulatorPane({
   const [devices, setDevices] = useState<Device[]>([])
   const [udid, setUdid] = useState<string | null>(null)
   const [frame, setFrame] = useState<Frame | null>(null)
+  /**
+   * The screen is embedded rather than streamed: a native layer showing the
+   * device's own framebuffer, placed over this pane (main/sim-view.ts). `frame`
+   * then carries only the size, in points, which is all the gestures need.
+   */
+  const [native, setNative] = useState(false)
+  const nativeRef = useRef(false)
+  /**
+   * The device takes live touches (Xcode 27's input service): a finger goes
+   * down, moves and lifts as it happens, instead of being replayed as swipes.
+   */
+  const liveTouchRef = useRef(false)
+  const touchBusyRef = useRef(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [gone, setGone] = useState(false)
   /**
@@ -111,7 +124,8 @@ export function SimulatorPane({
    */
   const [ripple, setRipple] = useState<{ x: number; y: number; id: number } | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
-  const shotRef = useRef<HTMLImageElement>(null)
+  /** The picture (an img when streamed) or the box the native screen sits over. */
+  const shotRef = useRef<HTMLElement | null>(null)
 
   // --- In-place snip ----------------------------------------------------------
   // The same construction as the browser's: the picture freezes where it is
@@ -191,16 +205,23 @@ export function SimulatorPane({
     const onStart = (e: Event): void => {
       const d = (e as CustomEvent<{ workspaceId?: string; source: string }>).detail
       if (d?.source !== 'sim' || d.workspaceId !== workspaceId) return
-      if (!udid || !frameUrlRef.current) return
+      if (!udid || (!frameUrlRef.current && !nativeRef.current)) return
       const seq = ++snipSeq.current
       // Keys go to the device while the picture has focus; not during a snip.
       shotRef.current?.blur()
-      setSnipStill(frameUrlRef.current)
-      setSnipRect(null)
-      snipStartRef.current = null
-      setSnipping(true)
+      const begin = (still: string): void => {
+        setSnipStill(still)
+        setSnipRect(null)
+        snipStartRef.current = null
+        setSnipping(true)
+      }
+      // Streamed: freeze on the frame showing now. Embedded there is no frame
+      // in the page to freeze on, so the snip starts once the still is here.
+      if (frameUrlRef.current) begin(frameUrlRef.current)
       void window.cove.simScreenshot(udid).then((url) => {
-        if (url && seq === snipSeq.current) setSnipStill(url)
+        if (!url || seq !== snipSeq.current) return
+        if (frameUrlRef.current) setSnipStill(url)
+        else begin(url)
       })
     }
     window.addEventListener('cove:start-snip', onStart)
@@ -420,19 +441,61 @@ export function SimulatorPane({
 
   // Frames only while this pane is on screen — a background stream would keep
   // shelling out to simctl for a picture nobody is looking at.
+  //
+  // Embedded first: the device's own framebuffer as a native layer, nothing
+  // encoded or sent. The stream is the fallback for a Mac where that cannot
+  // load (an Xcode whose private frameworks moved).
   useEffect(() => {
     if (!udid || !visible) return
     setGone(false)
-    const offFrame = window.cove.onSimFrame(udid, (f) => {
-      setFrame(f)
-      setGone(false)
+    let alive = true
+    let streaming = false
+    let offFrame: (() => void) | null = null
+    let offSize: (() => void) | null = null
+    const offGone = window.cove.onSimGone(udid, () => {
+      nativeRef.current = false
+      setNative(false)
+      setGone(true)
     })
-    const offGone = window.cove.onSimGone(udid, () => setGone(true))
-    window.cove.simStreamStart(udid, 2)
+    const stream = (): void => {
+      streaming = true
+      offFrame = window.cove.onSimFrame(udid, (f) => {
+        setFrame(f)
+        setGone(false)
+      })
+      window.cove.simStreamStart(udid, 2)
+    }
+    void window.cove.simViewAttach(udid).then((r) => {
+      if (!alive) {
+        if (r.ok) window.cove.simViewDetach(udid)
+        return
+      }
+      if (!r.ok) {
+        console.warn('[sim] embedding the screen failed, streaming instead:', r.error)
+        stream()
+        return
+      }
+      nativeRef.current = true
+      setNative(true)
+      setFrame({ url: '', width: r.width, height: r.height })
+      // A foldable switching screens changes the size the gestures map onto.
+      offSize = window.cove.onSimViewSize(udid, (sz) =>
+        setFrame({ url: '', width: sz.width, height: sz.height })
+      )
+    })
+    void window.cove.simHidReady(udid).then((ok) => {
+      if (alive) liveTouchRef.current = ok
+    })
     return () => {
-      window.cove.simStreamStop(udid)
-      offFrame()
+      alive = false
       offGone()
+      offFrame?.()
+      offSize?.()
+      if (streaming) window.cove.simStreamStop(udid)
+      window.cove.simViewDetach(udid)
+      nativeRef.current = false
+      liveTouchRef.current = false
+      setNative(false)
     }
   }, [udid, visible, reload])
 
@@ -468,8 +531,45 @@ export function SimulatorPane({
     }
   }
 
+  /** Carry a held finger to wherever the pointer has got to, one move at a time. */
+  const pumpTouch = useCallback(async (): Promise<void> => {
+    if (touchBusyRef.current || !udid) return
+    touchBusyRef.current = true
+    try {
+      for (;;) {
+        const from = sentRef.current
+        const to = latestRef.current
+        // Lifted: the end has been sent, and nothing may follow it.
+        if (!dragRef.current || !from || !to || (to.x === from.x && to.y === from.y)) break
+        sentRef.current = { x: to.x, y: to.y }
+        await window.cove.simInput(udid, {
+          type: 'touch',
+          phase: 'move',
+          x: to.x,
+          y: to.y,
+          width: to.w,
+          height: to.h
+        })
+      }
+    } finally {
+      touchBusyRef.current = false
+    }
+  }, [udid])
+
   const onDown = (e: React.PointerEvent): void => {
     const p = toDevice(e)
+    // A real finger: down now, moved as the pointer moves, up when it lifts —
+    // so a hold is a hold and a drag follows the hand, with no replaying.
+    if (p && liveTouchRef.current && udid && tappable) {
+      void window.cove.simInput(udid, {
+        type: 'touch',
+        phase: 'start',
+        x: p.x,
+        y: p.y,
+        width: p.w,
+        height: p.h
+      })
+    }
     if (p) {
       dragRef.current = { x: p.x, y: p.y, at: Date.now() }
       sentRef.current = { x: p.x, y: p.y }
@@ -536,12 +636,32 @@ export function SimulatorPane({
     const p = toDevice(e)
     if (!p) return
     latestRef.current = p
+    if (liveTouchRef.current) {
+      void pumpTouch()
+      return
+    }
     const start = dragRef.current
     if (!movedRef.current && Math.hypot(p.x - start.x, p.y - start.y) > 12) movedRef.current = true
     if (movedRef.current) void pumpDrag()
   }
 
   const onUp = (e: React.PointerEvent): void => {
+    if (liveTouchRef.current) {
+      const p = toDevice(e) ?? latestRef.current
+      const began = dragRef.current
+      dragRef.current = null
+      movedRef.current = false
+      if (!began || !p || !udid || !tappable) return
+      void window.cove.simInput(udid, {
+        type: 'touch',
+        phase: 'end',
+        x: p.x,
+        y: p.y,
+        width: p.w,
+        height: p.h
+      })
+      return
+    }
     const start = dragRef.current
     const p = toDevice(e)
     dragRef.current = null
@@ -783,6 +903,73 @@ export function SimulatorPane({
     if (!(s > 0)) return null
     return { width: Math.round(frame.width * s), height: Math.round(frame.height * s) }
   })()
+  /**
+   * How big to draw the embedded screen upright. An img sizes itself from its
+   * pixels; the box the native layer sits over has none, so it is fitted to the
+   * stage here (the stage's padding is 10px each side and 18px under).
+   */
+  const fitSize = ((): { width: number; height: number } | null => {
+    if (!frame || !stageBox || !stageBox.w || !stageBox.h) return null
+    const s = Math.min((stageBox.w - 20) / frame.width, (stageBox.h - 28) / frame.height)
+    if (!(s > 0)) return null
+    return { width: Math.round(frame.width * s), height: Math.round(frame.height * s) }
+  })()
+
+  // Anything HTML that has to be seen over the screen. A native layer is drawn
+  // above the whole page, so it steps aside for these, as the browser's does.
+  const overlayOpen = useStore((s) => s.overlayCount > 0)
+  const nativeShown = native && visible && !overlayOpen && !snipStill && !picking && !gone
+
+  /** Put the native screen exactly over its box, turned the way the box is. */
+  const lastBounds = useRef('')
+  const syncNative = useCallback((): void => {
+    const el = shotRef.current
+    if (!udid || !nativeRef.current || !el || !frame) return
+    const r = el.getBoundingClientRect()
+    if (!r.width || !r.height) return
+    const rotation = orientation === 'left' ? 90 : orientation === 'right' ? -90 : 0
+    // The corner is a share of the upright width: on its side that is the box's height.
+    const radius = cornerShareOfWidth(frame.width, frame.height) * (rotation ? r.height : r.width)
+    const key = `${r.left},${r.top},${r.width},${r.height},${radius},${rotation}`
+    if (key === lastBounds.current) return
+    lastBounds.current = key
+    window.cove.simViewBounds(
+      udid,
+      { x: r.left, y: r.top, width: r.width, height: r.height },
+      radius,
+      rotation
+    )
+  }, [udid, frame, orientation])
+  useEffect(() => {
+    if (!native || !udid) return
+    lastBounds.current = ''
+    syncNative()
+    // Layout settles over a frame or two; and a pane can MOVE without resizing
+    // (the desk divider, a panel opening beside it), which no observer reports.
+    // A cheap check twice a second catches what the rest miss.
+    const raf = requestAnimationFrame(() => requestAnimationFrame(syncNative))
+    const ro = new ResizeObserver(syncNative)
+    if (stageRef.current) ro.observe(stageRef.current)
+    if (shotRef.current) ro.observe(shotRef.current)
+    window.addEventListener('resize', syncNative)
+    const t = setInterval(syncNative, 500)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+      window.removeEventListener('resize', syncNative)
+      clearInterval(t)
+    }
+  }, [native, udid, syncNative, fitSize?.width, fitSize?.height, turnedSize?.width])
+  useEffect(() => {
+    if (!native || !udid) return
+    // Placed before it shows, so it never flashes at an old spot.
+    if (nativeShown) {
+      lastBounds.current = ''
+      syncNative()
+    }
+    window.cove.simViewVisible(udid, nativeShown)
+  }, [native, udid, nativeShown, syncNative])
+
   const turn = (next: 'portrait' | 'left' | 'right'): void => {
     if (!udid) return
     // Turned at once for the feel of it, except on an unfolded foldable, which
@@ -997,9 +1184,36 @@ export function SimulatorPane({
       </div>
 
       <div className={`sim-stage ${landscape ? 'sim-turned' : ''}`} ref={stageRef}>
-        {frame ? (
+        {frame && native && !snipStill ? (
+          // The embedded screen is drawn by macOS over this box; the box itself
+          // is clear and takes the pointer and the keys, as the picture did.
+          <div
+            ref={shotRef as React.RefObject<HTMLDivElement>}
+            className={`sim-screen sim-native ${tappable ? 'live' : ''}`}
+            style={{
+              borderRadius: screenRadius,
+              ...(landscape && turnedSize
+                ? {
+                    transform: `rotate(${orientation === 'left' ? 90 : -90}deg)`,
+                    width: turnedSize.width,
+                    height: turnedSize.height
+                  }
+                : fitSize
+                  ? { width: fitSize.width, height: fitSize.height }
+                  : {})
+            }}
+            role="img"
+            aria-label={`${device?.name ?? 'iOS Simulator'} screen`}
+            tabIndex={0}
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerCancel={onUp}
+            onKeyDown={onKeyDown}
+          />
+        ) : frame && (frame.url || snipStill) ? (
           <img
-            ref={shotRef}
+            ref={shotRef as React.RefObject<HTMLImageElement>}
             className={`sim-screen ${tappable ? 'live' : ''}`}
             style={{
               borderRadius: screenRadius,
@@ -1019,7 +1233,11 @@ export function SimulatorPane({
               // Pinned to its measured size while snipping, so swapping in the
               // native-resolution still cannot resize the picture under the
               // selection layer.
-              ...(snipping && snipBox ? { width: snipBox.width, height: snipBox.height } : {})
+              ...(snipping && snipBox ? { width: snipBox.width, height: snipBox.height } : {}),
+              // Embedded, the still stands in at the size the screen was drawn.
+              ...(native && !landscape && fitSize && !(snipping && snipBox)
+                ? { width: fitSize.width, height: fitSize.height }
+                : {})
             }}
             src={snipStill ?? frame.url}
             alt={`${device?.name ?? 'iOS Simulator'} screen`}
@@ -1035,7 +1253,10 @@ export function SimulatorPane({
           <div className="sim-empty">
             {busy ??
               (udid ? (
-                'Waiting for the first frame…'
+                // Gone: the banner below says so; nothing is on its way.
+                gone ? null : (
+                  'Waiting for the first frame…'
+                )
               ) : (
                 // The picker is the only thing to do from here, so say it once
                 // and make the words themselves open it.
@@ -1080,8 +1301,10 @@ export function SimulatorPane({
             </button>
           </div>
         )}
-        {busy && frame && <div className="sim-status">{busy}</div>}
-        {ripple && (
+        {busy && frame && !native && <div className="sim-status">{busy}</div>}
+        {/* The ripple marks a touch while the next streamed frame is on its way;
+            the embedded screen answers at once and needs none. */}
+        {ripple && !native && (
           <span
             key={ripple.id}
             className="sim-ripple"
@@ -1109,6 +1332,8 @@ export function SimulatorPane({
         )}
       </div>
 
+      {/* Over the stage nothing HTML would show: the embedded screen is on top. */}
+      {busy && frame && native && <div className="sim-note sim-busy-note">{busy}</div>}
       {/* The app ships its own baguette, so this only shows when that copy
           failed to start (a build made without it, or not an arm64 Mac). */}
       {!canInput && (
