@@ -108,6 +108,17 @@ test('Attach & delete attaches it and removes the file', async () => {
   expect(existsSync(join(shotsDir, kept))).toBe(true)
 })
 
+test('Delete trashes the file without attaching it', async () => {
+  const name = 'Screenshot 2026-09-29 at 20.14.00.png'
+  shoot(name)
+  await expect(window.locator('.easy-shot')).toHaveCount(1, { timeout: 10_000 })
+  const before = await window.locator('.easy-attachment img').count()
+  await window.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(window.locator('.easy-shots')).toHaveCount(0)
+  await expect(window.locator('.easy-attachment img')).toHaveCount(before)
+  await expect.poll(() => existsSync(join(shotsDir, name))).toBe(false)
+})
+
 test('a shot taken in one chat is offered in the chat you switch to', async () => {
   // A second project, and its chat open, as if the wrong one were on screen.
   const other = mkdtempSync(join(tmpdir(), 'cove-shots-other-'))

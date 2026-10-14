@@ -2347,16 +2347,25 @@ export function EasyChat({
     ])
     dropShots(which.map((s) => s.name))
     // The picture is held here now; the file it came from goes to the Trash.
-    if (thenDelete)
-      void window.cove.trashScreenshots?.(which.map((s) => s.name)).then((failed) => {
-        // Said, not swallowed: a file left on the Desktop with no word was the bug.
-        if (failed?.length)
-          window.alert(
-            `Attached, but ${failed.length === 1 ? 'the file' : `${failed.length} files`} could not be moved to the Trash:\n\n` +
-              failed.map((f) => `${f.name}: ${f.error}`).join('\n')
-          )
-      })
+    if (thenDelete) trashShotFiles(which, 'Attached, but')
     inputRef.current?.focus()
+  }
+
+  /** Delete: a screenshot that was a mistake goes to the Trash, attached to nothing. */
+  const deleteShots = (which: typeof shots): void => {
+    dropShots(which.map((s) => s.name))
+    trashShotFiles(which, 'Not deleted:')
+  }
+
+  const trashShotFiles = (which: typeof shots, lead: string): void => {
+    void window.cove.trashScreenshots?.(which.map((s) => s.name)).then((failed) => {
+      // Said, not swallowed: a file left on the Desktop with no word was the bug.
+      if (failed?.length)
+        window.alert(
+          `${lead} ${failed.length === 1 ? 'the file' : `${failed.length} files`} could not be moved to the Trash:\n\n` +
+            failed.map((f) => `${f.name}: ${f.error}`).join('\n')
+        )
+    })
   }
 
   // Cmd+V an image anywhere in the active chat (not only when the input is
@@ -5587,6 +5596,18 @@ export function EasyChat({
               >
                 {shots.length === 1 ? 'Attach & delete' : 'Attach all & delete'}
                 <kbd className="easy-shots-key">⌘⇧D</kbd>
+              </button>
+              <button
+                className="easy-shots-attach-delete"
+                aria-label="Delete"
+                title={
+                  shots.length === 1
+                    ? 'Move the file to the Trash, without attaching it'
+                    : 'Move the files to the Trash, without attaching them'
+                }
+                onClick={() => deleteShots(shots)}
+              >
+                {shots.length === 1 ? 'Delete' : 'Delete all'}
               </button>
               <button
                 className="easy-shots-dismiss"
