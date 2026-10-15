@@ -222,7 +222,29 @@ runLoud('npm', ['run', 'build:native'])
 runLoud('npm', ['run', 'copy-ort'])
 runLoud('npx', ['electron-vite', 'build'])
 assertSpeechEngine()
-runLoud('npx', ['electron-builder', '--mac', '--publish', 'never'])
+/**
+ * electron-builder, tried up to three times.
+ *
+ * Its last step staples the notarization ticket, which means fetching it from
+ * Apple's CloudKit — and that fetch dropped ("The network connection was
+ * lost", stapler code 68) on four releases in two days, each time after the
+ * app had notarized fine, each time stopping the release until someone pressed
+ * re-run, which then went through. A run that fails for a real reason fails the
+ * same way three times, so this only costs time when something is broken.
+ */
+function buildApp() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      runLoud('npx', ['electron-builder', '--mac', '--publish', 'never'])
+      return
+    } catch (err) {
+      if (attempt === 3) throw err
+      console.error(`\n  electron-builder failed (attempt ${attempt} of 3) — trying again in 30s`)
+      spawnSync('sleep', ['30'])
+    }
+  }
+}
+buildApp()
 
 step('Verifying the app was really notarized')
 assertNotarized(join(DIST, 'mac-arm64', 'SuperAgent.app'))
