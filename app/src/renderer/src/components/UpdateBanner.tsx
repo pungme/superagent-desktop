@@ -194,67 +194,102 @@ export function UpdateBanner(): React.JSX.Element | null {
         }
       })
     return (
-      <div className="update-banner update-banner-warn update-banner-listed" role="alertdialog">
-        <span className="update-banner-dot update-banner-dot-warn" />
-        <span className="update-banner-text">
-          {parts.join(' and ')}. Restarting stops{' '}
-          {workingChats + backgroundTasks === 1 ? 'it' : 'them'}.
-        </span>
-        <button className="update-banner-action" onClick={install}>
-          Restart anyway
-        </button>
-        <button
-          className="update-banner-secondary"
-          onClick={() => {
-            setConfirming(false)
-            setRestartWhenIdle(true)
-          }}
-          title="Restart automatically after every active chat and background task finishes"
-        >
-          Restart when finished
-        </button>
-        <button
-          className="update-banner-secondary"
-          // "Keep working" means "leave me alone", not "show me the other pill
-          // again" — dismiss entirely; the update still installs on next quit.
-          onClick={() => {
-            setConfirming(false)
-            setDismissed(true)
-          }}
-          title="Hide — the update installs on your next quit"
-        >
-          Keep working
-        </button>
-        <ul className="update-banner-running">
-          {running.map((r) => (
-            <li
-              key={r.chatId}
-              // A row is the way to the conversation: see for yourself before
-              // deciding. The pill stays, with the restart still a click away.
-              role={r.workspaceId ? 'button' : undefined}
-              tabIndex={r.workspaceId ? 0 : undefined}
-              className={r.workspaceId ? 'update-banner-running-go' : undefined}
-              title={r.workspaceId ? 'Open this conversation' : undefined}
-              onClick={() => {
-                if (!r.workspaceId) return
-                const st = useStore.getState()
-                st.setActive(r.workspaceId)
-                st.selectChat(r.workspaceId, r.chatId)
-                setConfirming(false)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') (e.currentTarget as HTMLElement).click()
-              }}
-            >
-              <span className="update-banner-running-chat">{r.title}</span>
-              {r.items.map((it, i) => (
-                <span key={i} className="update-banner-running-item">
-                  {it}
+      <div
+        className="update-banner update-banner-warn update-banner-listed"
+        role="alertdialog"
+        aria-labelledby="update-confirm-title"
+      >
+        <div className="update-confirm-head">
+          <span className="update-banner-dot update-banner-dot-warn" />
+          <div className="update-confirm-words">
+            <span id="update-confirm-title" className="update-confirm-title">
+              {parts.join(' and ')}
+            </span>
+            <span className="update-confirm-sub">
+              Restarting stops {workingChats + backgroundTasks === 1 ? 'it' : 'them'}.
+            </span>
+          </div>
+        </div>
+        {running.length > 0 && (
+          <ul className="update-banner-running">
+            {running.map((r) => (
+              <li
+                key={r.chatId}
+                // A row is the way to the conversation: see for yourself before
+                // deciding. The card goes; the update waits.
+                role={r.workspaceId ? 'button' : undefined}
+                tabIndex={r.workspaceId ? 0 : undefined}
+                className={r.workspaceId ? 'update-banner-running-go' : undefined}
+                title={r.workspaceId ? 'Open this conversation' : undefined}
+                onClick={() => {
+                  if (!r.workspaceId) return
+                  const st = useStore.getState()
+                  st.setActive(r.workspaceId)
+                  st.selectChat(r.workspaceId, r.chatId)
+                  setConfirming(false)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') (e.currentTarget as HTMLElement).click()
+                }}
+              >
+                <span className="update-banner-running-head">
+                  <span className="update-banner-running-chat">{r.title}</span>
+                  {r.workspaceId && <span className="update-banner-running-open">Open ›</span>}
                 </span>
-              ))}
-            </li>
-          ))}
-        </ul>
+                {r.items.map((it, i) => {
+                  // "Terminal · cd …": the kind as a small tag, the rest as it is.
+                  const cut = it.indexOf(' · ')
+                  const kind = cut > 0 && cut <= 16 ? it.slice(0, cut) : null
+                  const what = kind ? it.slice(cut + 3) : it
+                  return (
+                    <span key={i} className="update-banner-running-item">
+                      {kind && (
+                        <>
+                          <span className="update-banner-running-kind">{kind}</span>
+                          {/* Read as one line, "Editing · src/server.ts". */}
+                          <span className="visually-hidden"> · </span>
+                        </>
+                      )}
+                      <span
+                        className={`update-banner-running-what ${kind === 'Terminal' ? 'mono' : ''}`}
+                      >
+                        {what.replace(/\s+/g, ' ')}
+                      </span>
+                    </span>
+                  )
+                })}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="update-confirm-actions">
+          <button
+            className="update-banner-ghost"
+            // "Keep working" means "leave me alone", not "show me the other pill
+            // again" — dismiss entirely; the update still installs on next quit.
+            onClick={() => {
+              setConfirming(false)
+              setDismissed(true)
+            }}
+            title="Hide — the update installs on your next quit"
+          >
+            Keep working
+          </button>
+          <span className="update-confirm-spacer" />
+          <button
+            className="update-banner-secondary"
+            onClick={() => {
+              setConfirming(false)
+              setRestartWhenIdle(true)
+            }}
+            title="Restart automatically after every active chat and background task finishes"
+          >
+            Restart when finished
+          </button>
+          <button className="update-banner-action update-banner-action-warn" onClick={install}>
+            Restart anyway
+          </button>
+        </div>
       </div>
     )
   }
