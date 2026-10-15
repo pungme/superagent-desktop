@@ -276,8 +276,15 @@ export function UpdateBanner(): React.JSX.Element | null {
             Keep working
           </button>
           <span className="update-confirm-spacer" />
+          {/* Stopping the work is the exception, so it is the quieter button;
+              waiting for it to finish is the one to reach for, and comes last,
+              where macOS puts the default. */}
+          <button className="update-banner-secondary update-banner-warn-text" onClick={install}>
+            Restart anyway
+          </button>
           <button
-            className="update-banner-secondary"
+            className="update-banner-action"
+            autoFocus
             onClick={() => {
               setConfirming(false)
               setRestartWhenIdle(true)
@@ -285,9 +292,6 @@ export function UpdateBanner(): React.JSX.Element | null {
             title="Restart automatically after every active chat and background task finishes"
           >
             Restart when finished
-          </button>
-          <button className="update-banner-action update-banner-action-warn" onClick={install}>
-            Restart anyway
           </button>
         </div>
       </div>

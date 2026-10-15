@@ -6855,14 +6855,10 @@ button {
   color: #fff;
   background: rgba(255, 255, 255, 0.08);
 }
-/* The choice that stops work: amber, like the dot, so it reads as a warning
-   without shouting like an error. */
-.update-banner-action-warn {
-  background: #fbbf24;
-  color: #1c1405;
-}
-.update-banner-action-warn:hover {
-  background: #fcd34d;
+/* The choice that stops work: amber text, like the dot, so it reads as the
+   one with a cost without competing with the default beside it. */
+.update-banner-secondary.update-banner-warn-text {
+  color: #fbbf24;
 }
 .update-banner-dot-warn {
   background: #fbbf24;
