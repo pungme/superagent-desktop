@@ -1,5 +1,7 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron'
 import { hookBus } from './hooks'
+import { GLYPH_SIZE, trayGlyph, type TrayState } from './tray-glyph'
+import { workspaceStatuses } from './companion/status'
 import { companionState } from './companion'
 import { listDevices } from './companion/devices'
 import { broadcastToWindows } from './util'
@@ -15,24 +17,46 @@ import { bringAppForward } from './app-hotkey'
  * shows whether the relay link is up, and is a one-click way back.
  */
 let tray: Tray | null = null
-let status: 'idle' | 'working' | 'needs-you' = 'idle'
 
-function icon(state: 'idle' | 'working' | 'needs-you', linked: boolean): Electron.NativeImage {
-  // A 16pt template glyph drawn as SVG: a phone outline with a status dot.
-  const dot =
-    state === 'working' ? '#3ecf8e' : state === 'needs-you' ? '#f0b429' : linked ? '#000' : '#999'
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <rect x="9" y="3" width="14" height="26" rx="3" fill="none" stroke="#000" stroke-width="2.5"/>
-    <rect x="13" y="24" width="6" height="2" rx="1" fill="#000"/>
-    <circle cx="25" cy="7" r="5" fill="${dot}" stroke="#fff" stroke-width="1.5"/>
-  </svg>`
-  const img = nativeImage.createFromDataURL(
-    `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
-  )
-  const sized = img.resize({ width: 16, height: 16 })
-  // Only the plain (no colored dot) glyph can be a template image.
-  sized.setTemplateImage(state === 'idle' && linked)
-  return sized
+/**
+ * The icon for a state. Drawn as pixels (tray-glyph.ts): nativeImage cannot
+ * read SVG, which is why the icon used to be an empty, invisible gap.
+ */
+function icon(state: TrayState, linked: boolean, frame = 0): Electron.NativeImage {
+  const img = nativeImage.createFromBitmap(trayGlyph(state, linked, frame), {
+    width: GLYPH_SIZE,
+    height: GLYPH_SIZE,
+    scaleFactor: 2
+  })
+  // Template: macOS tints it to suit the menu bar, light or dark.
+  img.setTemplateImage(true)
+  return img
+}
+
+/**
+ * What the icon says, from what is actually happening: a chat waiting on you
+ * first, then any chat working. The last hook event from any chat, which this
+ * used to follow, said "idle" the moment one of two working chats finished.
+ */
+function currentState(): TrayState {
+  const statuses = [...workspaceStatuses().values()]
+  if (statuses.includes('needs-you')) return 'needs-you'
+  if (statuses.includes('working')) return 'working'
+  return listAllChats().some((c) => isGenerating(c.id)) ? 'working' : 'idle'
+}
+
+let shown = ''
+let frame = 0
+/** Put the right picture up; while working, step the breathing dot. */
+function paint(): void {
+  if (!tray) return
+  const state = currentState()
+  const linked = companionState().relay.state === 'connected'
+  if (state === 'working') frame++
+  const key = `${state}:${linked}:${state === 'working' ? frame % 2 : 0}`
+  if (key === shown) return
+  shown = key
+  tray.setImage(icon(state, linked, frame))
 }
 
 function showWindow(): void {
@@ -97,7 +121,7 @@ function rebuild(): void {
   if (!tray) return
   const s = companionState()
   const linked = s.relay.state === 'connected'
-  tray.setImage(icon(status, linked))
+  paint()
   const phones = s.devices.length
   tray.setToolTip(
     `Superagent — ${linked ? 'reachable by your phone' : 'not connected to the relay'}`
@@ -126,10 +150,13 @@ function rebuild(): void {
   )
 }
 
+let beat: ReturnType<typeof setInterval> | null = null
+
 /** Show the tray while at least one phone is paired; hide it otherwise. */
 export function syncTray(): void {
   const want = listDevices().length > 0
   if (want && !tray) {
+    shown = ''
     tray = new Tray(icon('idle', false))
     tray.on('click', showWindow)
     // What is working changes all the time: read it again as the pointer
@@ -139,16 +166,19 @@ export function syncTray(): void {
     tray.destroy()
     tray = null
   }
+  // A slow beat: steps the working dot and notices a chat starting or finishing.
+  if (tray && !beat) beat = setInterval(paint, 700)
+  if (!tray && beat) {
+    clearInterval(beat)
+    beat = null
+  }
   rebuild()
 }
 
 export function startTray(): void {
   syncTray()
-  hookBus.on('event', (e: { status?: typeof status }) => {
-    if (e.status) {
-      status = e.status
-      rebuild()
-    }
+  hookBus.on('event', (e: { status?: TrayState }) => {
+    if (e.status) rebuild()
   })
 }
 
