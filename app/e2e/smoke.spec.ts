@@ -303,7 +303,11 @@ test('Chats lines up with Projects, and folds away with a click on its header', 
 })
 
 test('the model menu keeps older versions behind a fold', async () => {
-  const pill = window.locator('.easy-control-btn:has(.easy-control-key:text-is("Model"))').first()
+  // The one on screen: a reload now comes back to the view it left (Chats, by
+  // this point), and the project's composer is mounted behind it.
+  const pill = window
+    .locator('.easy-control-btn:has(.easy-control-key:text-is("Model")):visible')
+    .first()
   await pill.click()
   const menu = window.locator('.easy-control-menu')
   await expect(menu).toBeVisible()

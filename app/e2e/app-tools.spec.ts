@@ -476,11 +476,16 @@ test('asked for a conversation with the window closed, a new window opens on it'
       timeout: 15_000
     }
   )
-  // Once: loaded again, it starts where a window starts, not sent there a
-  // second time by an old request.
+  // Once: having moved on and loaded again, it comes back where you were —
+  // not sent to the asked-for chat a second time by the old request.
+  await tool('app_open_chat', { chatId: ids[0] })
+  await expect(again.locator('.chat-tree-row.selected, .sidebar-branch.on')).toContainText(
+    'Left open',
+    { timeout: 15_000 }
+  )
   await again.reload()
   await again.waitForSelector('.sidebar', { timeout: 20_000 })
   const row = again.locator('.chat-tree-row.selected, .sidebar-branch.on')
   await expect(row).toBeVisible({ timeout: 15_000 })
-  await expect(row).not.toContainText('Asked for from the dot')
+  await expect(row).toContainText('Left open')
 })

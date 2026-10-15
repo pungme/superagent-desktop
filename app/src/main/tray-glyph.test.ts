@@ -27,29 +27,29 @@ describe('trayGlyph', () => {
     for (let i = 0; i < g.length; i += 4) expect(g[i] + g[i + 1] + g[i + 2]).toBe(0)
   })
 
-  it('has the phone’s outline down its left side', () => {
-    expect(alpha(trayGlyph('idle', true), 9, 16)).toBeGreaterThan(200)
+  it('has the mark’s outline down its left side, and its solid middle', () => {
+    expect(alpha(trayGlyph('idle', true), 3, 16)).toBeGreaterThan(200)
+    expect(alpha(trayGlyph('idle', true), 16, 16)).toBeGreaterThan(200)
+    // Between the two: clear.
+    expect(alpha(trayGlyph('idle', true), 8, 16)).toBe(0)
   })
 
-  it('shows a dot only when something is going on', () => {
-    // Up and right of the phone's corner: only the dot is ever drawn here.
-    expect(alpha(trayGlyph('idle', true), 27, 5)).toBe(0)
-    expect(alpha(trayGlyph('working', true), 27, 5)).toBeGreaterThan(200)
+  it('breathes while working: the middle square changes size between frames', () => {
+    const a = trayGlyph('working', true, 0)
+    const b = trayGlyph('working', true, 1)
+    expect(a.equals(b)).toBe(false)
+    expect(alpha(a, 11, 16)).toBeGreaterThan(alpha(b, 11, 16))
   })
 
-  it('breathes while working: the two frames differ', () => {
-    expect(trayGlyph('working', true, 0).equals(trayGlyph('working', true, 1))).toBe(false)
+  it('shows a dot in the corner only when a chat needs you', () => {
+    expect(alpha(trayGlyph('idle', true), 26, 6)).toBe(0)
+    expect(alpha(trayGlyph('working', true), 26, 6)).toBe(0)
+    expect(alpha(trayGlyph('needs-you', true), 26, 6)).toBeGreaterThan(200)
   })
 
-  it('rings the dot when it needs you, so it is not the working dot', () => {
-    const g = trayGlyph('needs-you', true)
-    expect(alpha(g, 24, 8)).toBe(0) // the hole
-    expect(alpha(g, 28, 8)).toBeGreaterThan(200) // the ring
-  })
-
-  it('fades the phone when the relay is not connected', () => {
-    expect(alpha(trayGlyph('idle', false), 9, 16)).toBeLessThan(
-      alpha(trayGlyph('idle', true), 9, 16)
+  it('fades the mark when the relay is not connected', () => {
+    expect(alpha(trayGlyph('idle', false), 3, 16)).toBeLessThan(
+      alpha(trayGlyph('idle', true), 3, 16)
     )
   })
 })

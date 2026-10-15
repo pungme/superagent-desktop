@@ -704,6 +704,16 @@ export interface Shot {
 export const SHOT_TTL_MS = 5 * 60_000
 const SHOTS_MAX = 6
 
+/** The full-window view open when the app last ran, if any. */
+function savedOverlay(): 'computer' | 'chats' | null {
+  try {
+    const o = localStorage.getItem('cove.overlay')
+    return o === 'computer' || o === 'chats' ? o : null
+  } catch {
+    return null
+  }
+}
+
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
@@ -715,7 +725,9 @@ export const useStore = create<CoveState>((set, get) => ({
   simOpen: {},
   setSimOpen: (workspaceId, open) =>
     set((s) => ({ simOpen: { ...s.simOpen, [workspaceId]: open } })),
-  overlay: null,
+  // Where you were: Chats and Computer cover the projects, and a restart (an
+  // update, most often) should land you back in the one you were reading.
+  overlay: savedOverlay(),
   setOverlay: (o) => set({ overlay: o }),
   routines: {},
   openRoutineRunId: null,
@@ -882,8 +894,13 @@ export const useStore = create<CoveState>((set, get) => ({
     set((s) => {
       const active = { ...s.activeChatId }
       for (const [wsId, list] of Object.entries(byWs)) {
-        // Keep the open conversation selected; otherwise fall to the newest.
-        if (!list.some((c) => c.id === active[wsId])) active[wsId] = list[list.length - 1].id
+        // Keep the open conversation selected. Failing that, the one that was
+        // on screen when the app last ran — this runs first at start, and
+        // falling straight to the newest here is what reopened every project
+        // on its latest chat after an update, not the one you were reading.
+        if (list.some((c) => c.id === active[wsId])) continue
+        const saved = localStorage.getItem(`activeChat:${wsId}`)
+        active[wsId] = saved && list.some((c) => c.id === saved) ? saved : list[list.length - 1].id
       }
       return { chats: byWs, activeChatId: active }
     })
@@ -1784,3 +1801,14 @@ export async function keepChatChanges(workspaceId: string, chatId: string): Prom
 // (a chat with background work, say). Off unless a test asks for it.
 if (typeof localStorage !== 'undefined' && localStorage.getItem('cove.e2e') === '1')
   (window as unknown as { __store?: typeof useStore }).__store = useStore
+
+// Remember the full-window view as it changes, however it changed (a click, a
+// shortcut, opening a project), for the next start to come back to.
+useStore.subscribe((st, prev) => {
+  if (st.overlay === prev.overlay) return
+  try {
+    localStorage.setItem('cove.overlay', st.overlay ?? '')
+  } catch {
+    /* storage unavailable: nothing to remember with */
+  }
+})
