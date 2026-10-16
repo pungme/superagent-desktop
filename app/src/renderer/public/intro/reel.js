@@ -97,7 +97,7 @@ const CODEX = 'M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.
 const APPLE = 'M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z'
 const claudeSvg = (s, st = '') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}"><path fill="#D97757" d="${CLAUDE}"/></svg>`
 const codexSvg = (s, col = 'currentColor', st = '') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}"><path fill="${col}" fill-rule="evenodd" clip-rule="evenodd" d="${CODEX}"/></svg>`
-const GEMINI = 'M12 0C12 6.63 17.37 12 24 12 17.37 12 12 17.37 12 24 12 17.37 6.63 12 0 12 6.63 12 12 6.63 12 0Z'
+const GEMINI = 'M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z' // Antigravity's mark
 let gemN = 0
 const geminiSvg = (s, st = '') => { const id = `gem${gemN++}`; return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}"><defs><linearGradient id="${id}" x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285F4"/><stop offset=".55" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient></defs><path fill="url(#${id})" d="${GEMINI}"/></svg>` }
 const appleSvg = (s, col = '#fff') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path fill="${col}" d="${APPLE}"/></svg>`
@@ -647,7 +647,7 @@ const segAt = (i) => (PORTRAIT ? `left:10px;top:${i * 150}px` : `left:${[10, 435
 const toggle = h(`<div class="toggle" style="${PORTRAIT ? '' : 'width:1300px;margin-left:-650px'}"><div class="knob"></div>
   <div class="seg" style="${segAt(0)}"><span class="lg">${claudeSvg(62)}</span><span class="t1">Claude Code</span></div>
   <div class="seg" style="${segAt(1)}"><span class="lg lx">${codexSvg(62, 'currentColor')}</span><span class="t2">Codex</span></div>
-  <div class="seg" style="${segAt(2)}"><span class="lg">${geminiSvg(62)}</span><span class="t3">Gemini</span></div></div>`)
+  <div class="seg" style="${segAt(2)}"><span class="lg">${geminiSvg(62)}</span><span class="t3">Antigravity</span></div></div>`)
 sBr.append(toggle)
 const knob = $('.knob', toggle), segs = $$('.seg', toggle), seg1 = segs[0]
 const knobAt = (i) => (PORTRAIT ? { y: i * 150 } : { x: [0, 425, 850][i] })
@@ -685,35 +685,83 @@ tl.to(knob, { scale: 26, duration: 0.5, ease: 'expo.in' }, T(13) - 0.5)
 tl.to(segs, { opacity: 0, duration: 0.2, ease: 'none' }, T(13) - 0.45)
 cue('whoosh', T(13) - 0.03, { len: 0.8, vel: 0.9 })
 
+// ---------------------------------------------------------------- SCENE 6½: the dot
+// The window is gone; what is left is a small tile in the corner, over every
+// app. ⌥ Space, a question, and the answer comes back beside it.
+const sDot = h(`<div class="scene" id="sDot"></div>`); cam.append(sDot)
+const ghostWin = (x, y, w, hh) => h(`<div style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${hh}px;border-radius:22px;background:rgba(255,255,255,.045);box-shadow:0 0 0 1px rgba(255,255,255,.07) inset"><div style="position:absolute;left:18px;top:16px;display:flex;gap:8px">${'<i style="width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.12)"></i>'.repeat(3)}</div></div>`)
+const ghosts = [ghostWin(240, 120, 760, 520), ghostWin(1010, 200, 680, 470), ghostWin(470, 560, 640, 400)]
+// wide, it is all set larger: there is room, and it is far from the eye
+const dk = PORTRAIT ? 1 : 1.4, px = (v) => Math.round(v * dk) + 'px'
+const dotHead = h(`<div style="position:absolute;left:960px;top:${PORTRAIT ? 70 : 92}px;transform:translateX(-50%);text-align:center;white-space:nowrap">
+  <div style="font-size:${PORTRAIT ? 21 : 15}px;font-weight:600;letter-spacing:.26em;color:#8b8e84;margin-bottom:${PORTRAIT ? 22 : 16}px"><span class="mask"><span class="wi">VII. THE DOT<span class="jp" style="letter-spacing:.1em;margin-left:.6em;color:#b9bbb3">ドット</span></span></span></div>
+  <div style="font-size:${PORTRAIT ? 92 : 84}px;font-weight:660;letter-spacing:-0.035em;line-height:1.08;color:#f4f3ef">${maskWords('Ask from anywhere.')}${PORTRAIT ? '<br>' : ' '}<span style="color:#8f9289">${maskWords('Over every app.')}</span></div>
+</div>`)
+const dotPanel = h(`<div style="position:absolute;left:${960 - 300 * dk}px;top:${PORTRAIT ? 470 : 360}px;width:${px(600)};border-radius:${px(30)};background:#fbfbf8;box-shadow:0 0 0 1px rgba(255,255,255,.2),0 60px 120px -30px rgba(0,0,0,.7);padding:${px(28)} ${px(30)} ${px(22)};transform-origin:100% 100%">
+  <div style="display:flex;align-items:center;gap:${px(16)};padding-bottom:${px(20)};border-bottom:1px solid rgba(0,0,0,.08)">
+    <div style="width:${px(38)};height:${px(38)};border-radius:${px(10)};background:linear-gradient(180deg,#34353b,#131417);display:flex;align-items:center;justify-content:center"><i style="width:${px(13)};height:${px(13)};border-radius:${px(4)};background:#f4f4f6"></i></div>
+    <div class="dq" style="font-size:${px(31)};font-weight:560;letter-spacing:-0.02em;color:#23241f;white-space:pre">${charSpans("What's running?")}</div>
+    <i class="dcar" style="width:${px(3)};height:${px(34)};background:#23241f;border-radius:2px"></i>
+  </div>
+  <div class="drow" style="display:flex;align-items:center;gap:${px(16)};padding-top:${px(20)};font-size:${px(25)};color:#23241f"><div class="spinner" style="width:${px(22)};height:${px(22)};border-width:${px(3)}"></div><b style="font-weight:620">wepush</b><span style="color:#7c7f76">running the e2e tests</span></div>
+  <div class="drow" style="display:flex;align-items:center;gap:${px(16)};padding-top:${px(16)};font-size:${px(25)};color:#23241f"><div style="width:${px(24)};height:${px(24)};border-radius:50%;background:#93b087;color:#fff;display:flex;align-items:center;justify-content:center;font-size:${px(14)}">${I('check')}</div><b style="font-weight:620">portal</b><span style="color:#7c7f76">header fixed, ready to look</span></div>
+</div>`)
+const dotTile = makeLogo()
+const keys = h(`<div style="position:absolute;left:0;top:0;display:flex;gap:12px">${['⌥', 'Space'].map((k) => `<div style="height:64px;min-width:64px;padding:0 18px;border-radius:14px;background:linear-gradient(180deg,#3a3b41,#24252a);box-shadow:0 2px 0 #0b0c0e,0 0 0 1px rgba(255,255,255,.1) inset;color:#f4f3ef;font-size:28px;font-weight:600;display:flex;align-items:center;justify-content:center">${k}</div>`).join('')}</div>`)
+sDot.append(...ghosts, dotHead, dotPanel, dotTile, keys)
+show(sDot, T(13)); hide(sDot, T(14))
+// the corner of what is on screen: the frame's own, or upright, the phone's
+const corner = PORTRAIT ? [1420, 1420] : [1800, 975]
+gsap.set(dotTile, { xPercent: -50, yPercent: -50, x: corner[0], y: corner[1], scale: 0.27 })
+gsap.set(keys, { x: corner[0] - 250, y: corner[1] - 150, opacity: 0 })
+ghosts.forEach((g, i) => tl.fromTo(g, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: 'expo.out' }, T(13) + i * 0.05))
+tl.fromTo(dotTile, { scale: 0 }, { scale: 0.27, duration: 0.5, ease: 'back.out(3)' }, T(13, 1.25))
+cue('pop', T(13, 1.25), { midi: 84, vel: 0.5 })
+tl.fromTo(keys, { opacity: 0, y: corner[1] - 120 }, { opacity: 1, y: corner[1] - 150, duration: 0.25, ease: 'back.out(3)' }, T(13, 2))
+tl.to(keys, { opacity: 0, duration: 0.15 }, T(13, 2.9))
+cue('click', T(13, 2), { vel: 0.7 })
+// the panel opens out of the tile
+const pr = { x: 960 + 300 * dk, y: (PORTRAIT ? 470 : 360) + 330 * dk }
+tl.fromTo(dotPanel, { opacity: 0, scale: 0.08, x: corner[0] - pr.x, y: corner[1] - pr.y }, { opacity: 1, scale: 1, x: 0, y: 0, duration: 0.5, ease: 'expo.out' }, T(13, 2.5))
+const dq = $$('.c', dotPanel)
+gsap.set(dq, { opacity: 0 })
+dq.forEach((c, i) => tl.set(c, { opacity: 1 }, T(13, 2.8) + i * 0.022))
+tl.set($('.dcar', dotPanel), { opacity: 0 }, T(13, 4))
+$$('.drow', dotPanel).forEach((r, i) => tl.fromTo(r, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35, ease: 'expo.out' }, T(13, 3.6) + i * 0.12))
+tl.to(dotTile, { x: pr.x + 10, y: pr.y + 46, duration: 0.45, ease: 'expo.inOut' }, T(13, 2.5))
+tl.fromTo($$('.wi', dotHead), { yPercent: 115 }, { yPercent: 0, duration: 0.6, ease: 'expo.out', stagger: 0.04 }, T(13, 1))
+tl.to($$('.wi', dotHead), { yPercent: -115, duration: 0.25, ease: 'power3.in', stagger: 0.015 }, T(14) - 0.3)
+tl.to([dotPanel, dotTile, ...ghosts], { opacity: 0, scale: '-=0.04', duration: 0.25, ease: 'power3.in' }, T(14) - 0.25)
+
 // ---------------------------------------------------------------- SCENE 7: montage
 const sMon = h(`<div class="scene" id="sMon" style="background:${PORTRAIT ? 'none' : '#0c0d10'}"></div>`); cam.append(sMon)
 const warp = h(`<canvas id="warp" width="1920" height="1080"></canvas>`)
 const bigk = h(`<div class="bigkana">コードは、二番目。コードは、二番目。</div>`)
 sMon.append(warp, bigk)
 // upright, the stars are a backdrop like the others: behind the scenes, filling the frame
-if (PORTRAIT) { stageEl.before(warp); show(warp, T(13)); hide(warp, T(14, 4.5)) }
-const shotsDef = ['shot-build.jpg', 'shot-hero.jpg', 'shot-browser-view.jpg', 'shot-phone.jpg', 'shot-chat.jpg', 'shot-2-sidebar-and-phone.jpg', 'shot-3-cmdk.jpg', 'shot-5-iphone.jpg', 'shot-4b-agent-mobile-fixed.jpg', 'shot-build.jpg', 'shot-hero.jpg', 'shot-browser-view.jpg']
+if (PORTRAIT) { stageEl.before(warp); show(warp, T(14)); hide(warp, T(14, 4.5)) }
+const shotsDef = ['shot-4b-agent-mobile-fixed.jpg', 'shot-build.jpg', 'shot-5-iphone.jpg', 'shot-browser-view.jpg']
 const shotLayer = h(`<div class="full" style="transform-style:preserve-3d"></div>`); sMon.append(shotLayer)
 const shotEls = shotsDef.map((f, i) => { const tall = /phone|iphone/.test(f); const s = h(`<div class="shot" style="width:${tall ? 300 : 620}px"><img src="assets/${f}"></div>`); shotLayer.append(s); return s })
 await Promise.all($$('img', sMon).map((i) => i.decode().catch(() => {})))
-const slams = ['Open source.', 'No API key.', 'No telemetry.', 'Just your Mac.'].map((s) => { const e = h(`<div class="slam">${PORTRAIT ? s.replace(/ (?=\S+$)/, '<br>') : s}</div>`); sMon.append(e); return e })
+const slams = ['No API key.', 'Just your Mac.'].map((s) => { const e = h(`<div class="slam">${PORTRAIT ? s.replace(/ (?=\S+$)/, '<br>') : s}</div>`); sMon.append(e); return e })
 const strobeIcons = [claudeSvg(170), codexSvg(170, '#23241f'), I('globe', 'font-size:170px;stroke-width:1.6'), I('phone', 'font-size:170px;stroke-width:1.6'), I('branch', 'font-size:170px;stroke-width:1.6'), I('term', 'font-size:170px;stroke-width:1.8')]
 const strobes = strobeIcons.map((s) => { const e = h(`<div class="strobe">${s}</div>`); sMon.append(e); return e })
-show(sMon, T(13)); hide(sMon, T(14, 4.5))
-const t13 = T(13)
+show(sMon, T(14)); hide(sMon, T(14, 4.5))
+const t13 = T(14) // the montage has the one bar now; the dot has the bar before it
 gsap.set(slams, { xPercent: -50, yPercent: -50, opacity: 0 })
 gsap.set(bigk, { yPercent: -50 })
-tl.fromTo(bigk, { x: 0 }, { x: -1800, duration: BAR * 2, ease: 'power1.in' }, t13)
-const slamT = [T(13, 1), T(13, 3), T(14, 1), T(14, 2)]
+tl.fromTo(bigk, { x: -600 }, { x: -1800, duration: BAR, ease: 'power1.in' }, t13)
+const slamT = [T(14, 1), T(14, 2)]
 slams.forEach((s, i) => {
   tl.fromTo(s, { scale: 1.9, opacity: 0, filter: 'blur(24px)' }, { scale: 1, opacity: 1, filter: 'blur(0px)', duration: 0.3, ease: 'expo.out' }, slamT[i])
-  const end = i < 3 ? slamT[i + 1] : T(14, 3)
+  const end = i < slams.length - 1 ? slamT[i + 1] : T(14, 3)
   tl.to(s, { scale: 0.92, duration: end - slamT[i] - 0.08, ease: 'none' }, slamT[i] + 0.3)
   tl.to(s, { opacity: 0, scale: 0.7, filter: 'blur(10px)', duration: 0.08, ease: 'power2.in' }, end - 0.08)
 })
 // screenshots fly through a tunnel
 const R = mulberry(7)
-const shotT = [T(13, 1), T(13, 1.5), T(13, 2), T(13, 2.5), T(13, 3), T(13, 3.5), T(13, 4), T(13, 4.5), T(14, 1), T(14, 1.5), T(14, 2), T(14, 2.5)]
+const shotT = [T(14, 1), T(14, 1.5), T(14, 2), T(14, 2.5)]
 shotEls.forEach((s, i) => {
   const ang = i * 2.4 + R() * 0.6
   const ra = 780 + R() * 140, rb = 390 + R() * 60 // the tunnel is wide, or tall when upright
@@ -746,7 +794,7 @@ const tag2 = h(`<div class="tagline" style="font-size:${PORTRAIT ? 78 : 60}px">$
 const dl = h(`<div class="dl">${appleSvg(30)}<span>Download for Mac</span><div class="shine2"></div></div>`)
 const urlT = 'superagent.computer'
 const url2 = h(`<div class="urltxt">${charSpans(urlT)}<span class="uline" style="height:4px;bottom:-6px"></span></div>`)
-const small = h(`<div class="smallrow"><span>Free</span><span class="sep"></span><span>Open source</span><span class="sep"></span><span style="display:flex;gap:8px;align-items:center">Works with ${claudeSvg(24)} Claude Code, ${codexSvg(24, '#23241f')} Codex &amp; ${geminiSvg(24)} Gemini</span></div>`)
+const small = h(`<div class="smallrow"><span>Free</span><span class="sep"></span><span>Open source</span><span class="sep"></span><span style="display:flex;gap:8px;align-items:center">Works with ${claudeSvg(24)} Claude Code, ${codexSvg(24, '#23241f')} Codex &amp; ${geminiSvg(24)} Antigravity</span></div>`)
 const ring3 = h(`<div class="ring"></div>`), ring4 = h(`<div class="ring"></div>`)
 sEnd.append(ring3, ring4, logo2, word2, kana2, tag2, dl, url2, small)
 const w2W = word2.getBoundingClientRect().width
@@ -820,7 +868,7 @@ caption('II. THE BROWSER', 'ブラウザ', 'A real browser', 'it drives.', T(7, 
 caption('III. DUAL VIEW', '', 'One page,', 'seen twice.', T(9, 1.5), T(10) - 0.05)
 caption('IV. ON YOUR PHONE', 'ポケット', "Your Mac's agent,", 'in your pocket.', T(10, 1.5), T(11) - 0.1)
 caption('V. BRANCHES', '', 'Each chat,', 'its own branch.', T(11, 1.5), T(12) - 0.05)
-caption('VI. ANY AGENT', '', 'Claude Code, Codex or Gemini.', 'Per chat.', T(12, 1.25), T(13) - 0.15)
+caption('VI. ANY AGENT', '', 'Claude Code, Codex or Antigravity.', 'Per chat.', T(12, 1.25), T(13) - 0.15)
 
 // paper back on for the branch / end scenes, dark for montage
 tl.set('#paper', { visibility: 'visible' }, 0)
@@ -889,8 +937,8 @@ procs.push((t) => {
 const wctx = warp.getContext('2d')
 const stars = []; { const r = mulberry(99); for (let i = 0; i < 420; i++) stars.push({ x: (r() - 0.5) * 3000, y: (r() - 0.5) * 1800, z: r() }) }
 procs.push((t) => {
-  if (t < T(13) - 0.05 || t > T(14, 4.5)) return
-  const u = t - T(13)
+  if (t < T(14) - 0.05 || t > T(14, 4.5)) return
+  const u = t - T(14) + BAR * 0.6 // joins the old run part-way, already moving
   // distance travelled, accelerating into the drop
   const dist = (u) => 0.25 * u + 0.22 * u * u + 0.05 * u * u * u
   wctx.fillStyle = '#0c0d10'; wctx.fillRect(0, 0, 1920, 1080)
