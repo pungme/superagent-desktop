@@ -882,6 +882,41 @@ export async function foldSimulator(
   const before = await simulatorScreens(udid)
   if (before.length < 2)
     return { ok: false, error: 'This simulator has one screen: there is nothing to fold.' }
+  // Through dtuhidd first (siminput), the way Device Hub's own hinge slider
+  // does it: nothing compiled for the simulator, nothing spawned inside it.
+  // The spawned helper below failed from the installed app on an iPhone Duo
+  // ("Process spawn via launchd failed … Invalid or missing Program") while
+  // the very same command worked from a terminal; this path does not spawn.
+  const viaHid = await sendHid(udid, { type: 'hinge', angle })
+  if (!viaHid?.ok) {
+    if (viaHid) console.log(`[fold] dtuhidd refused (${viaHid.error}); trying the helper`)
+    const res = await foldWithHelper(udid, angle)
+    if (!res.ok) return res
+  }
+  // The screens swap a moment after the hinge moves.
+  let after = before
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, 300))
+    after = await simulatorScreens(udid)
+    const was = before.findIndex((s) => s.lit)
+    const now = after.findIndex((s) => s.lit)
+    if (now >= 0 && (now !== was || i >= 4)) break
+  }
+  const lit = after.find((s) => s.lit)
+  displayArgCache.delete(udid)
+  return {
+    ok: true,
+    angle,
+    screens: after.length,
+    lit: lit ? `${lit.width}×${lit.height}` : null
+  }
+}
+
+/** The older way: a simulator binary built on first use, spawned inside the device. */
+async function foldWithHelper(
+  udid: string,
+  angle: number
+): Promise<{ ok: true } | { ok: false; error: string }> {
   let bin: string
   try {
     bin = await ensureSimfold()
@@ -905,23 +940,7 @@ export async function foldSimulator(
         .slice(0, 300)
     }
   }
-  // The screens swap a moment after the hinge moves.
-  let after = before
-  for (let i = 0; i < 12; i++) {
-    await new Promise((r) => setTimeout(r, 300))
-    after = await simulatorScreens(udid)
-    const was = before.findIndex((s) => s.lit)
-    const now = after.findIndex((s) => s.lit)
-    if (now >= 0 && (now !== was || i >= 4)) break
-  }
-  const lit = after.find((s) => s.lit)
-  displayArgCache.delete(udid)
-  return {
-    ok: true,
-    angle,
-    screens: after.length,
-    lit: lit ? `${lit.width}×${lit.height}` : null
-  }
+  return { ok: true }
 }
 
 /**

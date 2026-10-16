@@ -219,6 +219,10 @@ export function hidCommand(a: HidAction): Record<string, unknown> | null {
     }
     case 'text':
       return { type: 'text', text: String(a.text ?? '') }
+    case 'hinge': {
+      const angle = Number(a.angle)
+      return angle >= 0 && angle <= 180 ? { type: 'hinge', angle } : null
+    }
     default:
       return null
   }

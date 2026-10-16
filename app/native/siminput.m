@@ -30,6 +30,7 @@
 //   {"type":"key","usage":40,"mods":[225]}   HID page-7 usages
 //   {"type":"text","text":"hello"}           ASCII; anything else is refused
 //   {"type":"button","page":12,"usage":64,"count":1}
+//   {"type":"hinge","angle":180}               an iPhone Duo: 0 folded, 180 open
 
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
@@ -39,6 +40,8 @@
 #import <xpc/xpc.h>
 
 static NSString *const kService = @"com.apple.coredevice.feature.remote.hid.digitizer";
+/// The vendor-defined service: what Device Hub's hinge slider talks to.
+static NSString *const kVendorService = @"com.apple.coredevice.feature.remote.hid.vendordefined";
 
 static void say(NSDictionary *obj) {
   NSData *d = [NSJSONSerialization dataWithJSONObject:obj options:0 error:nil];
@@ -101,7 +104,7 @@ typedef void (*EnableSim2Host)(xpc_connection_t);
 static xpc_connection_t gConn;
 static dispatch_queue_t gQueue;  // every send, in order
 
-static xpc_connection_t connectTo(id device) {
+static xpc_connection_t connectTo(id device, NSString *service) {
   EndpointFromPort endpointFromPort = (EndpointFromPort)dlsym(RTLD_DEFAULT, "xpc_endpoint_create_mach_port_4sim");
   ConnectionFromEndpoint fromEndpoint =
       (ConnectionFromEndpoint)dlsym(RTLD_DEFAULT, "xpc_connection_create_from_endpoint");
@@ -110,7 +113,7 @@ static xpc_connection_t connectTo(id device) {
   if (![device respondsToSelector:@selector(lookup:error:)]) fail(@"SimDevice has no lookup:error:");
   NSError *err = nil;
   mach_port_t port = ((mach_port_t(*)(id, SEL, id, NSError **))objc_msgSend)(
-      device, @selector(lookup:error:), kService, &err);
+      device, @selector(lookup:error:), service, &err);
   // 405: this runtime vends no dtuhidd (older than Xcode 27) — the old path is the right one there.
   if (port == MACH_PORT_NULL)
     fail([NSString stringWithFormat:@"no-dtuhid: %@", err.localizedDescription ?: @"lookup failed"]);
@@ -130,13 +133,17 @@ static xpc_connection_t connectTo(id device) {
   return conn;
 }
 
-static xpc_object_t message(const char *type, xpc_object_t payload, bool barrier) {
+static xpc_object_t messageFor(NSString *service, const char *type, xpc_object_t payload, bool barrier) {
   xpc_object_t m = xpc_dictionary_create(NULL, NULL, 0);
   xpc_dictionary_set_string(m, "messageType", type);
   xpc_dictionary_set_bool(m, "isBarrier", barrier);
-  xpc_dictionary_set_string(m, "featureIdentifier", kService.UTF8String);
+  xpc_dictionary_set_string(m, "featureIdentifier", service.UTF8String);
   xpc_dictionary_set_value(m, "payload", payload);
   return m;
+}
+
+static xpc_object_t message(const char *type, xpc_object_t payload, bool barrier) {
+  return messageFor(kService, type, payload, barrier);
 }
 
 static xpc_object_t keyPayload(uint64_t usage, uint64_t state) {
@@ -150,11 +157,13 @@ static xpc_object_t keyPayload(uint64_t usage, uint64_t state) {
  * Is anybody there? dtuhidd answers a barrier; a daemon that died during a slow
  * boot leaves a port that swallows everything, which only this tells apart.
  */
-static BOOL alive(xpc_connection_t conn, double seconds) {
+static BOOL aliveFor(xpc_connection_t conn, NSString *service, double seconds);
+static BOOL alive(xpc_connection_t conn, double seconds) { return aliveFor(conn, kService, seconds); }
+static BOOL aliveFor(xpc_connection_t conn, NSString *service, double seconds) {
   dispatch_semaphore_t sem = dispatch_semaphore_create(0);
   __block BOOL answered = NO;
   xpc_connection_send_message_with_reply(
-      conn, message("IndigoKeyboardButtonEvent", keyPayload(0, 2), true),
+      conn, messageFor(service, "IndigoKeyboardButtonEvent", keyPayload(0, 2), true),
       dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^(xpc_object_t reply) {
         answered = xpc_get_type(reply) != XPC_TYPE_ERROR;
         dispatch_semaphore_signal(sem);
@@ -206,6 +215,54 @@ static void button(uint64_t page, uint64_t usage) {
 
 static void sleepSeconds(double s) {
   if (s > 0) usleep((useconds_t)(s * 1e6));
+}
+
+// --- The hinge (iPhone Duo) ---------------------------------------------
+
+typedef CFDataRef (*IOCFSerializeFn)(CFTypeRef, CFOptionFlags);
+static xpc_connection_t gVendor;
+static id gDevice;
+
+/**
+ * Fold or unfold: the event Device Hub's hinge slider sends, an
+ * IndigoVendorDefinedEvent (usage page 0xFF61, usage 0x5B) whose report is a
+ * binary-serialized dictionary naming the angle — idb's virtualMachineControl.
+ * Through dtuhidd like every other input here, so nothing has to be compiled
+ * for the simulator or spawned inside it.
+ */
+static NSString *hinge(double angle) {
+  if (!(angle >= 0 && angle <= 180)) return @"the angle must be 0 to 180";
+  if (!gVendor) {
+    gVendor = connectTo(gDevice, kVendorService);
+    if (!aliveFor(gVendor, kVendorService, 4)) {
+      xpc_connection_cancel(gVendor);
+      gVendor = NULL;
+      return @"the simulator's hinge service did not answer";
+    }
+  }
+  void *iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW);
+  IOCFSerializeFn serialize = iokit ? (IOCFSerializeFn)dlsym(iokit, "IOCFSerialize") : NULL;
+  if (!serialize) return @"IOCFSerialize is missing";
+  NSDictionary *report = @{
+    @"provider" : @"com.apple.Virtualization.VirtualMachines",
+    @"source" : @"hinge-slider-control",
+    @"type" : @"range",
+    @"value" : @(angle)
+  };
+  CFDataRef data = serialize((__bridge CFTypeRef)report, 1 /* kIOCFSerializeToBinary */);
+  if (!data) return @"could not serialize the hinge report";
+  xpc_object_t p = xpc_dictionary_create(NULL, NULL, 0);
+  xpc_dictionary_set_uint64(p, "usagePage", 0xFF61);
+  xpc_dictionary_set_uint64(p, "usage", 0x5B);
+  xpc_dictionary_set_uint64(p, "version", 0);
+  xpc_dictionary_set_data(p, "data", CFDataGetBytePtr(data), (size_t)CFDataGetLength(data));
+  CFRelease(data);
+  xpc_connection_send_message(gVendor, messageFor(kVendorService, "IndigoVendorDefinedEvent", p, false));
+  dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+  xpc_connection_send_barrier(gVendor, ^{ dispatch_semaphore_signal(sem); });
+  dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+  usleep(80 * 1000);
+  return nil;
 }
 
 // --- Text -------------------------------------------------------------------
@@ -289,6 +346,10 @@ static NSString *run(NSDictionary *c) {
   } else if ([type isEqualToString:@"text"]) {
     NSString *why = typeAscii([c[@"text"] isKindOfClass:[NSString class]] ? c[@"text"] : @"");
     if (why) return why;
+  } else if ([type isEqualToString:@"hinge"]) {
+    NSString *why = hinge(num(c, @"angle", -1));
+    if (why) return why;
+    return nil;
   } else if ([type isEqualToString:@"button"]) {
     // count 2: the app switcher is Home pressed twice, quickly.
     int count = MAX(1, (int)num(c, @"count", 1));
@@ -312,6 +373,7 @@ int main(int argc, const char **argv) {
     if (!dev) fail(@"no developer directory (is Xcode installed?)");
     id device = findDevice(dev, udid);
     if (!device) fail(@"no booted simulator with that udid");
+    gDevice = device;
 
     // dtuhidd is started on demand and can die while the device is still
     // coming up, leaving a port that swallows everything for a few seconds
@@ -320,7 +382,7 @@ int main(int argc, const char **argv) {
     for (int attempt = 0; attempt < 4 && !ok; attempt++) {
       if (attempt) sleep(3);
       if (gConn) xpc_connection_cancel(gConn);
-      gConn = connectTo(device);
+      gConn = connectTo(device, kService);
       ok = alive(gConn, 4);
     }
     if (!ok) fail(@"dtuhidd did not answer");

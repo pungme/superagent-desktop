@@ -70,6 +70,13 @@ describe('hidCommand', () => {
     })
   })
 
+  it('folds an iPhone Duo by hinge angle, and refuses an angle off the hinge', () => {
+    expect(hidCommand({ type: 'hinge', angle: 0 })).toEqual({ type: 'hinge', angle: 0 })
+    expect(hidCommand({ type: 'hinge', angle: 180 })).toEqual({ type: 'hinge', angle: 180 })
+    expect(hidCommand({ type: 'hinge', angle: 270 })).toBeNull()
+    expect(hidCommand({ type: 'hinge' })).toBeNull()
+  })
+
   it('passes text through and leaves orientation to the old path', () => {
     expect(hidCommand({ type: 'text', text: 'Hi!' })).toEqual({ type: 'text', text: 'Hi!' })
     expect(hidCommand({ type: 'orientation', value: 'portrait' })).toBeNull()
