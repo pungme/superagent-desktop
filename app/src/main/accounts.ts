@@ -716,6 +716,18 @@ export function recordUsage(accountId: string, usage: Usage): void {
   const f = load()
   const before = f.usage[accountId]
   f.usage[accountId] = usage
+  // Fresh numbers with every allowance below its limit: whatever mark says the
+  // account is out is stale. A mark that outlived its reason (set to the
+  // weekly reset when only the 5-hour window had run out) kept the account
+  // unpickable for days with 0% of its 5-hour allowance used.
+  if (
+    f.limits[accountId] &&
+    usage.windows.length > 0 &&
+    usage.windows.every((w) => w.percent < 100)
+  ) {
+    delete f.limits[accountId]
+    broadcastToWindows('accounts:changed')
+  }
   save()
   const shown = (u: Usage | undefined): string =>
     JSON.stringify(u?.windows.map((w) => [w.label, w.percent, w.resetsAt]) ?? null)
@@ -931,6 +943,11 @@ export function registerAccountsIpc(): void {
   // pick is announced like any other change so every pill redraws.
   ipcMain.handle('accounts:pick', (_e, chatId: string, id: string) => {
     pinChatAccount(chatId, id)
+    // Picked by hand: the chat goes to it. A mark saying the account is out
+    // used to override the pick in silence (accountForChat skips a limited
+    // account), so the click did nothing. If it really is out, the CLI says
+    // so on the next turn and the usual move to another account follows.
+    clearLimit(id)
     broadcastToWindows('accounts:changed')
   })
 }

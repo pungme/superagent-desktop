@@ -323,3 +323,30 @@ describe('usage', () => {
     expect(listAccounts('claude')[0].usage).toBeNull()
   })
 })
+
+describe('a mark that outlived its reason', () => {
+  it('goes when fresh usage shows every allowance below its limit', () => {
+    const login = LOGIN_ID.claude
+    markLimited(login, Date.now() + 3 * 24 * 3600_000)
+    expect(listAccounts('claude')[0].limitedUntil).not.toBeNull()
+    // 0% of the 5-hour window and 85% of the week: not out at all.
+    recordUsage(login, {
+      windows: [
+        { label: '5-hour', percent: 0, resetsAt: Date.now() + 3600_000 },
+        { label: 'Weekly', percent: 85, resetsAt: Date.now() + 3 * 24 * 3600_000 }
+      ],
+      at: Date.now()
+    })
+    expect(listAccounts('claude')[0].limitedUntil).toBeNull()
+  })
+
+  it('stays while one allowance really is used up', () => {
+    const login = LOGIN_ID.claude
+    markLimited(login, Date.now() + 3600_000)
+    recordUsage(login, {
+      windows: [{ label: '5-hour', percent: 100, resetsAt: Date.now() + 3600_000 }],
+      at: Date.now()
+    })
+    expect(listAccounts('claude')[0].limitedUntil).not.toBeNull()
+  })
+})

@@ -6124,25 +6124,28 @@ export function EasyChat({
                       >
                         {a.needsAuth
                           ? 'Needs sign-in — see Settings → Agents'
-                          : a.usage
-                            ? // One line per limit, with when it starts over, in
-                              // the same columns as the sidebar's usage list.
-                              a.usage.windows.map((w) => {
-                                const now = Date.now()
-                                const over = !!w.resetsAt && w.resetsAt <= now
-                                return (
-                                  <span key={w.label} className="easy-account-window">
-                                    <span>{w.label}</span>
-                                    <b>{over ? 0 : w.percent}%</b>
-                                    <span>
-                                      {w.resetsAt && !over
-                                        ? `resets ${resetLabel(w.resetsAt, now)}`
-                                        : ''}
+                          : a.limitedUntil && a.limitedUntil > Date.now() && !a.usage
+                            ? // Said, not silent: picking it still works.
+                              `Hit its limit — back ${new Date(a.limitedUntil).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}. Pick it to try anyway.`
+                            : a.usage
+                              ? // One line per limit, with when it starts over, in
+                                // the same columns as the sidebar's usage list.
+                                a.usage.windows.map((w) => {
+                                  const now = Date.now()
+                                  const over = !!w.resetsAt && w.resetsAt <= now
+                                  return (
+                                    <span key={w.label} className="easy-account-window">
+                                      <span>{w.label}</span>
+                                      <b>{over ? 0 : w.percent}%</b>
+                                      <span>
+                                        {w.resetsAt && !over
+                                          ? `resets ${resetLabel(w.resetsAt, now)}`
+                                          : ''}
+                                      </span>
                                     </span>
-                                  </span>
-                                )
-                              })
-                            : a.detail || 'Usage not read yet'}
+                                  )
+                                })
+                              : a.detail || 'Usage not read yet'}
                       </span>
                     </span>
                   </button>
