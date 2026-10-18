@@ -31,7 +31,14 @@ test.beforeAll(async () => {
         'claude:login': {
           windows: [
             { label: '5-hour', percent: 48, resetsAt: soon },
-            { label: 'Weekly', percent: 92, resetsAt: soon + 3 * 86_400_000 }
+            { label: 'Weekly', percent: 92, resetsAt: soon + 3 * 86_400_000 },
+            // Fable's own week, used up: shown, but the account is not full.
+            {
+              label: 'Weekly Fable',
+              percent: 100,
+              resetsAt: soon + 3 * 86_400_000,
+              model: 'fable'
+            }
           ],
           at: Date.now()
         }
@@ -92,7 +99,8 @@ test('each account says how much of its allowance is used', async () => {
     .locator('.settings-account')
     .first()
   const windows = login.locator('.settings-usage-window')
-  await expect(windows).toHaveCount(2)
+  await expect(windows).toHaveCount(3)
+  await expect(windows.nth(2)).toContainText('Weekly Fable')
   await expect(windows.nth(0)).toContainText('5-hour')
   await expect(windows.nth(0)).toContainText('48%')
   await expect(windows.nth(0)).toContainText('resets')
@@ -203,7 +211,7 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   await pill.click()
   const login = window.locator('.easy-control-item:visible', { hasText: 'Your Claude login' })
   // Each limit on its own line, with when it starts over.
-  await expect(login.locator('.easy-account-window')).toHaveCount(2)
+  await expect(login.locator('.easy-account-window')).toHaveCount(3)
   await expect(login.locator('.easy-account-window').first()).toContainText('5-hour')
   await expect(login.locator('.easy-account-window').first()).toContainText('48%')
   await expect(login.locator('.easy-account-window').nth(1)).toContainText('92%')
@@ -244,6 +252,9 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   const footer = window.locator('.usage-footer-btn')
   await expect(footer).toContainText('92%')
   await footer.hover()
+  await expect(
+    window.locator('.usage-popover-window', { hasText: 'Weekly Fable' })
+  ).toContainText('100%')
   const work = window.locator('.usage-popover-row', { hasText: 'Work' })
   await expect(work).toBeEnabled()
   // The row the chat is on is filled and so is the one under the pointer: with

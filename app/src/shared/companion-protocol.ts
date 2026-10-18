@@ -564,7 +564,7 @@ export interface WireAccount {
   limitedUntil: number | null
   needsAuth: string | null
   usage: {
-    windows: { label: string; percent: number; resetsAt: number | null }[]
+    windows: { label: string; percent: number; resetsAt: number | null; model?: string }[]
     at: number
   } | null
 }

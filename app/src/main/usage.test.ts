@@ -74,6 +74,35 @@ describe('usageFromClaudeApi', () => {
     expect(usageFromClaudeApi({ error: 'nope' }, NOW)).toBeNull()
     expect(usageFromClaudeApi(null, NOW)).toBeNull()
   })
+
+  it('reads a model’s own week from `limits`, marked as that model’s', () => {
+    // As /api/oauth/usage answered a Max login on 2026-10-18.
+    const body = {
+      five_hour: { utilization: 27.0, resets_at: '2026-10-18T13:50:00+00:00' },
+      seven_day: { utilization: 89.0, resets_at: '2026-10-19T20:00:00+00:00' },
+      seven_day_opus: null,
+      limits: [
+        { kind: 'session', percent: 27, resets_at: '2026-10-18T13:50:00+00:00', scope: null },
+        { kind: 'weekly_all', percent: 89, resets_at: '2026-10-19T20:00:00+00:00', scope: null },
+        {
+          kind: 'weekly_scoped',
+          percent: 100,
+          resets_at: '2026-10-19T20:00:00+00:00',
+          scope: { model: { id: null, display_name: 'Fable' }, surface: null }
+        }
+      ]
+    }
+    expect(usageFromClaudeApi(body, NOW)?.windows).toEqual([
+      { label: '5-hour', percent: 27, resetsAt: Date.parse('2026-10-18T13:50:00Z') },
+      { label: 'Weekly', percent: 89, resetsAt: Date.parse('2026-10-19T20:00:00Z') },
+      {
+        label: 'Weekly Fable',
+        percent: 100,
+        resetsAt: Date.parse('2026-10-19T20:00:00Z'),
+        model: 'fable'
+      }
+    ])
+  })
 })
 
 describe('usageFromCodex', () => {
@@ -117,6 +146,23 @@ describe('usageFromClaudeHeaders', () => {
     })
     // An answer with no such headers (an API key, an error page) says nothing.
     expect(usageFromClaudeHeaders(() => null, NOW)).toBeNull()
+  })
+
+  it('reads Fable’s week off a Fable answer', () => {
+    // A Fable request with Fable's week used up: 429, and `7d_oi` beside the rest.
+    const headers: Record<string, string> = {
+      'anthropic-ratelimit-unified-5h-utilization': '0.26',
+      'anthropic-ratelimit-unified-5h-reset': '1792331400',
+      'anthropic-ratelimit-unified-7d-utilization': '0.89',
+      'anthropic-ratelimit-unified-7d-reset': '1792440000',
+      'anthropic-ratelimit-unified-7d_oi-utilization': '1.0',
+      'anthropic-ratelimit-unified-7d_oi-reset': '1792440000'
+    }
+    expect(usageFromClaudeHeaders((n) => headers[n], NOW)?.windows).toEqual([
+      { label: '5-hour', percent: 26, resetsAt: 1792331400_000 },
+      { label: 'Weekly', percent: 89, resetsAt: 1792440000_000 },
+      { label: 'Weekly Fable', percent: 100, resetsAt: 1792440000_000, model: 'fable' }
+    ])
   })
 })
 

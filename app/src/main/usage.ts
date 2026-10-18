@@ -23,6 +23,12 @@
 export interface UsageWindow {
   /** "5-hour", "Weekly", "Weekly Opus". */
   label: string
+  /**
+   * Set when the window is one model's own allowance ("fable"), not the
+   * account's: running it out moves a chat to the next model down, so it is
+   * shown but does not make the account full.
+   */
+  model?: string
   /** 0–100, rounded. */
   percent: number
   /** Epoch ms when the window starts over, if known. */
@@ -35,12 +41,23 @@ export interface Usage {
   at: number
 }
 
-const CLAUDE_WINDOWS: [key: string, label: string][] = [
+const CLAUDE_WINDOWS: [key: string, label: string, model?: string][] = [
   ['five_hour', '5-hour'],
   ['seven_day', 'Weekly'],
-  ['seven_day_opus', 'Weekly Opus'],
-  ['seven_day_sonnet', 'Weekly Sonnet']
+  ['seven_day_opus', 'Weekly Opus', 'opus'],
+  ['seven_day_sonnet', 'Weekly Sonnet', 'sonnet'],
+  // Fable's share of the week. Anthropic names it "overage included" (the
+  // headers say `7d_oi`); /api/oauth/usage names the model in `limits`.
+  ['seven_day_overage_included', 'Weekly Fable', 'fable']
 ]
+
+/** A Claude window, with its model when it is one model's own. */
+const claudeWindow = (
+  label: string,
+  model: string | undefined,
+  percent: number,
+  resetsAt: number | null
+): UsageWindow => ({ label, percent: clampPercent(percent), resetsAt, ...(model ? { model } : {}) })
 
 /** Seconds, milliseconds or an ISO date → epoch ms. */
 function resetTime(value: unknown): number | null {
@@ -71,24 +88,18 @@ export function usageFromClaudeEvent(
     | undefined
   if (!info) return null
   const windows: UsageWindow[] = []
-  for (const [key, label] of CLAUDE_WINDOWS) {
+  for (const [key, label, model] of CLAUDE_WINDOWS) {
     const w = info.unifiedWindows?.[key]
     if (w && typeof w.utilization === 'number')
-      windows.push({
-        label,
-        percent: clampPercent(w.utilization * 100),
-        resetsAt: resetTime(w.resetsAt)
-      })
+      windows.push(claudeWindow(label, model, w.utilization * 100, resetTime(w.resetsAt)))
   }
   // An older CLI names only the window it is warning about.
   if (!windows.length && typeof info.utilization === 'number') {
-    const label = CLAUDE_WINDOWS.find(([k]) => k === info.rateLimitType)?.[1]
-    if (label)
-      windows.push({
-        label,
-        percent: clampPercent(info.utilization * 100),
-        resetsAt: resetTime(info.resetsAt)
-      })
+    const known = CLAUDE_WINDOWS.find(([k]) => k === info.rateLimitType)
+    if (known)
+      windows.push(
+        claudeWindow(known[1], known[2], info.utilization * 100, resetTime(info.resetsAt))
+      )
   }
   return windows.length ? { windows, at: now } : null
 }
@@ -101,15 +112,26 @@ export function usageFromClaudeApi(body: unknown, now = Date.now()): Usage | nul
     { utilization?: number | null; resets_at?: string | null } | null
   >
   const windows: UsageWindow[] = []
-  for (const [key, label] of CLAUDE_WINDOWS) {
+  for (const [key, label, model] of CLAUDE_WINDOWS) {
     const w = b[key]
     if (w && typeof w.utilization === 'number')
-      windows.push({
-        label,
-        percent: clampPercent(w.utilization),
-        resetsAt: resetTime(w.resets_at)
-      })
+      windows.push(claudeWindow(label, model, w.utilization, resetTime(w.resets_at)))
   }
+  // A model's own week (Fable's, October 2026) is only in `limits`.
+  const limits = (body as { limits?: unknown }).limits
+  if (Array.isArray(limits))
+    for (const l of limits as {
+      kind?: string
+      percent?: number
+      resets_at?: string | null
+      scope?: { model?: { display_name?: string | null } | null } | null
+    }[]) {
+      const name = l?.scope?.model?.display_name
+      if (l?.kind !== 'weekly_scoped' || !name || typeof l.percent !== 'number') continue
+      const label = `Weekly ${name}`
+      if (windows.some((w) => w.label === label)) continue
+      windows.push(claudeWindow(label, name.toLowerCase(), l.percent, resetTime(l.resets_at)))
+    }
   return windows.length ? { windows, at: now } : null
 }
 
@@ -124,18 +146,24 @@ export function usageFromClaudeHeaders(
   now = Date.now()
 ): Usage | null {
   const windows: UsageWindow[] = []
-  for (const [key, label] of [
+  // `7d_oi` only comes back on a Fable request.
+  const keys: [key: string, label: string, model?: string][] = [
     ['5h', '5-hour'],
-    ['7d', 'Weekly']
-  ] as const) {
+    ['7d', 'Weekly'],
+    ['7d_oi', 'Weekly Fable', 'fable']
+  ]
+  for (const [key, label, model] of keys) {
     const used = Number(header(`anthropic-ratelimit-unified-${key}-utilization`))
     if (!header(`anthropic-ratelimit-unified-${key}-utilization`) || !Number.isFinite(used))
       continue
-    windows.push({
-      label,
-      percent: clampPercent(used * 100),
-      resetsAt: resetTime(Number(header(`anthropic-ratelimit-unified-${key}-reset`)))
-    })
+    windows.push(
+      claudeWindow(
+        label,
+        model,
+        used * 100,
+        resetTime(Number(header(`anthropic-ratelimit-unified-${key}-reset`)))
+      )
+    )
   }
   return windows.length ? { windows, at: now } : null
 }

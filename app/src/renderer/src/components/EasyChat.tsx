@@ -2522,7 +2522,6 @@ export function EasyChat({
   // nothing, so its box is fitted again the moment it is shown.
   useEffect(() => {
     if (visible) autoResize()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
 
   // What is typed and not sent is kept by the app, not by this component: it
@@ -4931,7 +4930,9 @@ export function EasyChat({
   /** The fullest window of an account's allowance, for the pill: 0–100, or null. */
   const fullest = (a: Account | null): number | null => {
     const now = Date.now()
-    const live = (a?.usage?.windows ?? []).filter((w) => !w.resetsAt || w.resetsAt > now)
+    const live = (a?.usage?.windows ?? []).filter(
+      (w) => !w.model && (!w.resetsAt || w.resetsAt > now)
+    )
     return live.length ? Math.max(...live.map((w) => w.percent)) : null
   }
   const applyRespawnRef = useRef<() => void>(() => {})

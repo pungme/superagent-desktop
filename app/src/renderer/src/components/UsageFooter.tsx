@@ -18,7 +18,11 @@ function fullest(a: Account | undefined): number | null {
 /** Which window that is, so the foot can say whether it is the 5-hour or the week. */
 function fullestWindow(a: Account | undefined): { label: string; percent: number } | null {
   const now = Date.now()
-  const live = (a?.usage?.windows ?? []).filter((w) => !w.resetsAt || w.resetsAt > now)
+  // One model's own week (Fable's) is listed, but running it out only moves a
+  // chat to the next model, so it does not make the account look full.
+  const live = (a?.usage?.windows ?? []).filter(
+    (w) => !w.model && (!w.resetsAt || w.resetsAt > now)
+  )
   if (!live.length) return null
   return live.reduce((m, w) => (w.percent > m.percent ? w : m))
 }

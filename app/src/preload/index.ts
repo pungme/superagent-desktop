@@ -13,7 +13,7 @@ export interface Account {
   needsAuth: string | null
   /** How much of its allowance is used, as last read (main/usage.ts). */
   usage: {
-    windows: { label: string; percent: number; resetsAt: number | null }[]
+    windows: { label: string; percent: number; resetsAt: number | null; model?: string }[]
     at: number
   } | null
 }

@@ -373,7 +373,8 @@ export interface Limit {
 
 const MODEL_LIMIT_TYPES: Record<string, string> = {
   seven_day_opus: 'opus',
-  seven_day_sonnet: 'sonnet'
+  seven_day_sonnet: 'sonnet',
+  seven_day_overage_included: 'fable'
 }
 
 export function limitFromEvent(event: Record<string, unknown>): Limit | null {
@@ -715,16 +716,24 @@ export function probeLogins(force = false): Promise<void> {
 export function recordUsage(accountId: string, usage: Usage): void {
   const f = load()
   const before = f.usage[accountId]
+  // A model's own window is only reported on a turn of that model (Fable's
+  // comes back on a Fable request), so a turn on another model would wipe it.
+  // Keep it until it starts over or is read again.
+  const kept = (before?.windows ?? []).filter(
+    (w) =>
+      w.model &&
+      (!w.resetsAt || w.resetsAt > usage.at) &&
+      !usage.windows.some((n) => n.label === w.label)
+  )
+  if (kept.length) usage = { ...usage, windows: [...usage.windows, ...kept] }
   f.usage[accountId] = usage
   // Fresh numbers with every allowance below its limit: whatever mark says the
   // account is out is stale. A mark that outlived its reason (set to the
   // weekly reset when only the 5-hour window had run out) kept the account
-  // unpickable for days with 0% of its 5-hour allowance used.
-  if (
-    f.limits[accountId] &&
-    usage.windows.length > 0 &&
-    usage.windows.every((w) => w.percent < 100)
-  ) {
+  // unpickable for days with 0% of its 5-hour allowance used. A model's own
+  // week does not count: running that out moves a chat to another model.
+  const counted = usage.windows.filter((w) => !w.model)
+  if (f.limits[accountId] && counted.length > 0 && counted.every((w) => w.percent < 100)) {
     delete f.limits[accountId]
     broadcastToWindows('accounts:changed')
   }
@@ -785,11 +794,21 @@ const PROBE_EVERY_MS = 10 * 60_000
 /**
  * A token from `claude setup-token` may run the model and nothing else, so it
  * cannot be asked for its usage — but every answer says it in its headers. One
- * message, one token out, on the smallest model: a few dozen tokens of the
+ * message, one token out: a few dozen tokens of the
  * account's allowance, which is why it is only done when the numbers are
  * missing or old. An account that is out answers 429 with the same headers.
  */
 async function claudeUsageByMessage(token: string): Promise<Usage | null> {
+  // Asked on Fable first: its answer carries Fable's own week as well as the
+  // account's. A plan without Fable, or an answer with no numbers, asks Haiku.
+  for (const model of ['claude-fable-5-1', 'claude-haiku-4-5-20251001']) {
+    const u = await claudeUsageAsking(token, model)
+    if (u) return u
+  }
+  return null
+}
+
+async function claudeUsageAsking(token: string, model: string): Promise<Usage | null> {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages?beta=true', {
       method: 'POST',
@@ -800,7 +819,7 @@ async function claudeUsageByMessage(token: string): Promise<Usage | null> {
         'content-type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model,
         max_tokens: 1,
         // What a subscription token is for; without it the request is refused.
         system: [

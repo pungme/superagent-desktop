@@ -349,4 +349,45 @@ describe('a mark that outlived its reason', () => {
     })
     expect(listAccounts('claude')[0].limitedUntil).not.toBeNull()
   })
+
+  it('goes even with Fable’s own week used up, which only moves a chat to the next model', () => {
+    const login = LOGIN_ID.claude
+    markLimited(login, Date.now() + 3600_000)
+    recordUsage(login, {
+      windows: [
+        { label: '5-hour', percent: 20, resetsAt: Date.now() + 3600_000 },
+        { label: 'Weekly', percent: 89, resetsAt: Date.now() + 24 * 3600_000 },
+        {
+          label: 'Weekly Fable',
+          percent: 100,
+          resetsAt: Date.now() + 24 * 3600_000,
+          model: 'fable'
+        }
+      ],
+      at: Date.now()
+    })
+    expect(listAccounts('claude')[0].limitedUntil).toBeNull()
+  })
+})
+
+describe('a model’s own week', () => {
+  it('outlasts a turn on another model, which does not report it', () => {
+    const login = LOGIN_ID.claude
+    const week = Date.now() + 24 * 3600_000
+    recordUsage(login, {
+      windows: [
+        { label: 'Weekly', percent: 80, resetsAt: week },
+        { label: 'Weekly Fable', percent: 60, resetsAt: week, model: 'fable' }
+      ],
+      at: Date.now()
+    })
+    recordUsage(login, {
+      windows: [{ label: 'Weekly', percent: 81, resetsAt: week }],
+      at: Date.now()
+    })
+    expect(listAccounts('claude')[0].usage?.windows).toEqual([
+      { label: 'Weekly', percent: 81, resetsAt: week },
+      { label: 'Weekly Fable', percent: 60, resetsAt: week, model: 'fable' }
+    ])
+  })
 })
