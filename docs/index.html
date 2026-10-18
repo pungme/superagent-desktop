@@ -13,9 +13,9 @@
   <script>
     if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
       document.documentElement.classList.add("intro");
-      // the page opens on the short logo splash. The 30-second film is switched
-      // off for now; ?reel still plays it.
-      if (/[?&](reel|live)\b/.test(location.search)) document.documentElement.classList.add("reel");
+      // the page opens on the 30-second film, every visit. ?splash gives the
+      // short logo splash instead.
+      if (!/[?&]splash\b/.test(location.search)) document.documentElement.classList.add("reel");
       // ?live draws the film in the page instead of playing the video
       if (/[?&]live\b/.test(location.search)) document.documentElement.classList.add("reel-live");
       if ("scrollRestoration" in history) history.scrollRestoration = "manual";
@@ -2412,19 +2412,11 @@
     /* the bars around the picture take the colour of the scene, so on a phone
        held upright it reads as one screen rather than a strip on black */
     #reel.paper { background: #d3d2d0; }
-    #reel video { display: block; width: 100%; height: 100%; object-fit: contain; }
+    /* the film fills the screen: it is rendered tall for phones and 16:10 for
+       everything else, with room round the picture, so cover crops only backdrop */
+    #reel video { display: block; width: 100%; height: 100%; object-fit: cover; }
     #reel iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; }
     html.reel-live #reel video { display: none; }
-    /* upright phone: its own cut of the film, staged for a tall screen. Phones
-       are taller than 9:16, so a little is left over above and below; the
-       picture's edges dissolve into bars of the scene's colour. */
-    @media (max-aspect-ratio: 3/4) {
-      #reel video {
-        flex: none; width: min(100vw, 100vh * 9 / 16); width: min(100vw, 100dvh * 9 / 16); height: auto; aspect-ratio: 9 / 16;
-        -webkit-mask-image: linear-gradient(to bottom, transparent, #000 3%, #000 97%, transparent);
-        mask-image: linear-gradient(to bottom, transparent, #000 3%, #000 97%, transparent);
-      }
-    }
     /* shown only while the film has nothing to play: a slow start, or a stall */
     .reel-load {
       position: absolute; left: 50%; top: 50%; width: 132px; height: 3px; margin: -1px 0 0 -66px; border-radius: 2px;
@@ -2799,8 +2791,7 @@
     // Which cut this screen gets. ?v= changes whenever the files do, so nobody
     // plays a cached older one.
     function reelSrc() {
-      return (matchMedia("(max-aspect-ratio: 3/4)").matches ? "reel-portrait.mp4"
-        : matchMedia("(max-width: 760px)").matches ? "reel-720.mp4" : "reel.mp4") + "?v=4";
+      return (matchMedia("(max-aspect-ratio: 3/4)").matches ? "reel-phone.mp4" : "reel-desktop.mp4") + "?v=5";
     }
     // The film is the first thing shown, so it starts downloading here,
     // before the rest of the page has been read.
