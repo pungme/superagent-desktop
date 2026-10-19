@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOverlayLock } from '../state'
 import { imagesByDay, type ChatImageRef } from '../../../shared/chat-images'
 
@@ -6,10 +6,38 @@ import { imagesByDay, type ChatImageRef } from '../../../shared/chat-images'
 export interface Shown {
   src: string
   origin?: string
+  /** Which of the conversation's pictures this is (ChatImageRef.key), when known. */
+  key?: string
 }
 
 /** A picture the window can load by itself, rather than a file to ask the Mac for. */
 const WEB = /^(https?|data|blob):/i
+
+/** A picture's bytes, wherever it lives; null when it is gone. */
+function loadImage(image: ChatImageRef, cwd?: string): Promise<string | null> {
+  if (image.kind === 'data' || (image.kind === 'path' && WEB.test(image.src)))
+    return Promise.resolve(image.src)
+  const got = (r: { mediaType: string; data: string } | null): string | null =>
+    r ? `data:${r.mediaType};base64,${r.data}` : null
+  const asked =
+    image.kind === 'remote'
+      ? window.cove.chatImage(image.id, image.index)
+      : window.cove.fileThumbnail(image.src, { base: cwd, width: 1600 })
+  return asked.then(got, () => null)
+}
+
+/** Where the open picture sits among the conversation's, or -1 when it is not one of them. */
+function placeIn(gallery: ChatImageRef[], image: Shown): number {
+  if (image.key) {
+    const i = gallery.findIndex((g) => g.key === image.key)
+    if (i >= 0) return i
+  }
+  return gallery.findIndex(
+    (g) =>
+      (g.kind === 'data' && g.src === image.src) ||
+      (g.kind === 'path' && (g.src === image.origin || g.src === image.src))
+  )
+}
 
 const DownloadIcon = (): React.JSX.Element => (
   <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
@@ -84,20 +112,98 @@ export function SaveCorner({ image, cwd }: { image: Shown; cwd?: string }): Reac
   )
 }
 
-/** A picture, full size, over the chat: click outside or Esc to close, and a way to keep it. */
+/**
+ * A picture, full size, over the chat: click outside or Esc to close, and a way
+ * to keep it. Given the conversation's pictures, ← and → step through them.
+ */
 export function Lightbox({
-  image,
+  image: opened,
+  gallery = [],
   cwd,
   onClose
 }: {
   image: Shown
+  gallery?: ChatImageRef[]
   cwd?: string
   onClose: () => void
 }): React.JSX.Element {
+  const [image, setImage] = useState(opened)
+  const [at, setAt] = useState(() => placeIn(gallery, opened))
+  useEffect(() => {
+    setImage(opened)
+    setAt(placeIn(gallery, opened))
+    // Only a newly opened picture starts over; the gallery growing does not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened])
   const { saving, saved, error, save } = useSave(image, cwd)
+  // Step to the next picture that still exists, skipping any whose file is gone.
+  const step = useRef(0)
+  const go = useCallback(
+    (by: 1 | -1): void => {
+      if (at < 0) return
+      const ticket = ++step.current
+      void (async () => {
+        for (let i = at + by; i >= 0 && i < gallery.length; i += by) {
+          const src = await loadImage(gallery[i], cwd)
+          if (ticket !== step.current) return
+          if (!src) continue
+          const g = gallery[i]
+          setImage({ src, origin: g.kind === 'path' ? g.src : undefined, key: g.key })
+          setAt(i)
+          return
+        }
+      })()
+    },
+    [at, gallery, cwd]
+  )
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      // Caught before the composer, where the arrows would move its cursor.
+      e.preventDefault()
+      e.stopPropagation()
+      go(e.key === 'ArrowLeft' ? -1 : 1)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [go])
+  const many = at >= 0 && gallery.length > 1
   return (
     <div className="easy-lightbox" onClick={onClose}>
+      {many && (
+        <>
+          <button
+            className="easy-lightbox-nav prev"
+            onClick={(e) => {
+              e.stopPropagation()
+              go(-1)
+            }}
+            disabled={at === 0}
+            aria-label="Previous picture"
+            title="Previous (←)"
+          >
+            ‹
+          </button>
+          <button
+            className="easy-lightbox-nav next"
+            onClick={(e) => {
+              e.stopPropagation()
+              go(1)
+            }}
+            disabled={at === gallery.length - 1}
+            aria-label="Next picture"
+            title="Next (→)"
+          >
+            ›
+          </button>
+        </>
+      )}
       <div className="easy-lightbox-bar" onClick={(e) => e.stopPropagation()}>
+        {many && (
+          <span className="easy-lightbox-count">
+            {at + 1} of {gallery.length}
+          </span>
+        )}
         {saved ? (
           <span className="easy-lightbox-note" role="status">
             Saved to Downloads as {saved.name}
@@ -150,21 +256,15 @@ function Tile({
   useEffect(() => {
     if (ready !== undefined) return
     let alive = true
-    const got = (r: { mediaType: string; data: string } | null): void => {
-      if (alive) setSrc(r ? `data:${r.mediaType};base64,${r.data}` : null)
-    }
-    if (image.kind === 'remote')
-      void window.cove.chatImage(image.id, image.index).then(got, () => got(null))
-    else if (image.kind === 'path')
-      void window.cove
-        .fileThumbnail(image.src, { base: cwd, width: 1600 })
-        .then(got, () => got(null))
+    void loadImage(image, cwd).then((got) => {
+      if (alive) setSrc(got)
+    })
     return () => {
       alive = false
     }
   }, [image, cwd, ready])
   const shown: Shown | null = src
-    ? { src, origin: image.kind === 'path' ? image.src : undefined }
+    ? { src, origin: image.kind === 'path' ? image.src : undefined, key: image.key }
     : null
   const { saving, saved, save } = useSave(shown, cwd)
   // A picture whose file has since been deleted is left out rather than shown broken.

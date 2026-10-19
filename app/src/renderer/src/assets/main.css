@@ -14304,3 +14304,28 @@ button {
 .onboarding-approval p { line-height: 1.5; }
 .onboarding-approval code { display: block; overflow-wrap: anywhere; font-size: 12px; }
 .onboarding-approval .onboarding-actions { gap: 12px; margin-top: 24px; }
+
+.easy-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 56px;
+  margin-top: -28px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(30, 31, 36, 0.86);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+.easy-lightbox-nav.prev { left: 16px; }
+.easy-lightbox-nav.next { right: 16px; }
+.easy-lightbox-nav:hover:not(:disabled) { background: rgba(52, 54, 62, 0.95); }
+.easy-lightbox-nav:disabled { opacity: 0.3; cursor: default; }
+.easy-lightbox-count {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}

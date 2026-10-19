@@ -274,3 +274,29 @@ test('a picture leads back to the message it came from', async () => {
   // And the light goes out by itself.
   await expect(lit).toHaveCount(0, { timeout: 5000 })
 })
+
+test('← and → step through the conversation’s pictures in the enlarged view', async () => {
+  const key = (k: string): Promise<void> => window.keyboard.press(k)
+  await window.locator('.easy-msg-images img:visible').first().click()
+  const box = window.locator('.easy-lightbox')
+  const count = box.locator('.easy-lightbox-count')
+  await expect(count).toHaveText('1 of 3')
+  const first = await box.locator('img').getAttribute('src')
+  await key('ArrowRight')
+  await expect(count).toHaveText('2 of 3')
+  await key('ArrowRight')
+  await expect(count).toHaveText('3 of 3')
+  // The agent's picture, loaded from its file, not the attachment again.
+  await expect.poll(() => box.locator('img').getAttribute('src')).not.toBe(first)
+  // At the end it stays put.
+  await key('ArrowRight')
+  await expect(count).toHaveText('3 of 3')
+  await box.getByRole('button', { name: 'Previous picture' }).click()
+  await expect(count).toHaveText('2 of 3')
+  await key('ArrowLeft')
+  await expect(count).toHaveText('1 of 3')
+  await expect(box.locator('img')).toHaveAttribute('src', first!)
+  if (process.env.SHOT) await window.screenshot({ path: '/tmp/sa-lightbox-nav.png' })
+  await key('Escape')
+  await expect(box).toHaveCount(0)
+})
