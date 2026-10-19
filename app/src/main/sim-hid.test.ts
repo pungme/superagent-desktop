@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { hidCommand, modifierUsages, normalise } from './sim-hid'
+import { hidCommand, modifierUsages, normalise } from './sim-hid-core'
 
 /**
  * What the pane and the agent's tools ask for, as siminput takes it. Getting a

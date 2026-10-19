@@ -6,6 +6,12 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
+        // index: the app. sim-input-worker: the simulator's input, in a process
+        // of its own so a finger on it never waits behind main.
+        input: {
+          index: resolve('src/main/index.ts'),
+          'sim-input-worker': resolve('src/main/sim-input-worker.ts')
+        },
         // ws is a runtime dependency (shipped in node_modules); its optional native
         // accelerators must not be resolved at bundle time.
         external: ['ws', 'bufferutil', 'utf-8-validate']

@@ -551,6 +551,15 @@ export interface CoveApi {
     udid: string,
     action: Record<string, unknown>
   ) => Promise<{ ok: boolean; error?: string }>
+  /**
+   * The same, straight to the simulator-input process rather than through
+   * main, so a finger never waits behind it. Null when that line is not up
+   * (yet) or the action is not one it takes: send it with simInput then.
+   */
+  simInputDirect: (
+    udid: string,
+    action: Record<string, unknown>
+  ) => Promise<{ ok: boolean; error?: string } | null>
   simHasInput: () => Promise<boolean>
   /** A single still of the simulator device, as a data URL — for the snip tool. */
   simScreenshot: (udid: string) => Promise<string | null>
@@ -1149,6 +1158,46 @@ function subscribe(channel: string, cb: (...args: unknown[]) => void): () => voi
   return () => ipcRenderer.removeListener(channel, listener)
 }
 
+/**
+ * The pane's own line to the simulator-input process (see main/sim-hid.ts).
+ * Asked for on first use; until it arrives, callers go the old way.
+ */
+let simPort: MessagePort | null = null
+let simPortAsked = false
+let simSeq = 1
+const simWaiting = new Map<number, (r: { ok: boolean; error?: string } | null) => void>()
+ipcRenderer.on('sim:input-port', (e) => {
+  const port = e.ports[0]
+  if (!port) return
+  port.onmessage = (
+    m: MessageEvent<{ id: number; result: { ok: boolean; error?: string } | null }>
+  ) => {
+    const done = simWaiting.get(m.data.id)
+    simWaiting.delete(m.data.id)
+    done?.(m.data.result ?? null)
+  }
+  port.start()
+  simPort = port
+})
+function simDirect(
+  udid: string,
+  action: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string } | null> {
+  if (!simPort) {
+    if (!simPortAsked) {
+      simPortAsked = true
+      ipcRenderer.send('sim:input-port')
+    }
+    return Promise.resolve(null)
+  }
+  const port = simPort
+  return new Promise((resolve) => {
+    const id = simSeq++
+    simWaiting.set(id, resolve)
+    port.postMessage({ op: 'send', id, udid, action })
+  })
+}
+
 const cove: CoveApi = {
   browserCreate: (id, partition) => ipcRenderer.invoke('browser:create', id, partition),
   browserSetBounds: (id, b) => ipcRenderer.send('browser:set-bounds', id, b),
@@ -1270,6 +1319,7 @@ const cove: CoveApi = {
   onSimViewSize: (udid, cb) =>
     subscribe(`sim:view-size:${udid}`, (s) => cb(s as { width: number; height: number })),
   simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
+  simInputDirect: (udid, action) => simDirect(udid, action),
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),
   simScreenshot: (udid) => ipcRenderer.invoke('sim:screenshot', udid),
   onSimFrame: (udid, cb) =>

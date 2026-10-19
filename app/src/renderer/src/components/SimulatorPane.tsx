@@ -498,6 +498,8 @@ export function SimulatorPane({
     }
     const embedded = (r: { width: number; height: number }): void => {
       nativeRef.current = true
+      // Open the direct line now, so the first touch already uses it.
+      void window.cove.simInputDirect?.(udid, { type: 'hello' })
       setNative(true)
       setFrame({ url: '', width: r.width, height: r.height })
       // A foldable switching screens changes the size the gestures map onto.
@@ -555,6 +557,23 @@ export function SimulatorPane({
     }
   }
 
+  /**
+   * Input for the device. With the screen embedded, straight to the
+   * simulator-input process, so a finger never waits behind main; otherwise
+   * (or before that line is up) through main as before.
+   */
+  const simInput = useCallback(
+    async (action: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> => {
+      if (!udid) return { ok: false, error: 'no device' }
+      if (nativeRef.current) {
+        const direct = await window.cove.simInputDirect?.(udid, action)
+        if (direct) return direct
+      }
+      return window.cove.simInput(udid, action)
+    },
+    [udid]
+  )
+
   /** Carry a held finger to wherever the pointer has got to, one move at a time. */
   const pumpTouch = useCallback(async (): Promise<void> => {
     if (touchBusyRef.current || !udid) return
@@ -566,7 +585,7 @@ export function SimulatorPane({
         // Lifted: the end has been sent, and nothing may follow it.
         if (!dragRef.current || !from || !to || (to.x === from.x && to.y === from.y)) break
         sentRef.current = { x: to.x, y: to.y }
-        await window.cove.simInput(udid, {
+        await simInput({
           type: 'touch',
           phase: 'move',
           x: to.x,
@@ -585,7 +604,7 @@ export function SimulatorPane({
     // A real finger: down now, moved as the pointer moves, up when it lifts —
     // so a hold is a hold and a drag follows the hand, with no replaying.
     if (p && liveTouchRef.current && udid && tappable) {
-      void window.cove.simInput(udid, {
+      void simInput({
         type: 'touch',
         phase: 'start',
         x: p.x,
@@ -637,7 +656,7 @@ export function SimulatorPane({
         // Below a few points it is a tremor, not a drag.
         if (Math.hypot(to.x - from.x, to.y - from.y) < 6) break
         sentRef.current = { x: to.x, y: to.y }
-        await window.cove.simInput(udid, {
+        await simInput({
           type: 'swipe',
           x: from.x,
           y: from.y,
@@ -676,7 +695,7 @@ export function SimulatorPane({
       dragRef.current = null
       movedRef.current = false
       if (!began || !p || !udid || !tappable) return
-      void window.cove.simInput(udid, {
+      void simInput({
         type: 'touch',
         phase: 'end',
         x: p.x,
@@ -700,7 +719,7 @@ export function SimulatorPane({
       void pumpDrag()
       return
     }
-    void window.cove.simInput(udid, {
+    void simInput({
       type: 'tap',
       x: start.x,
       y: start.y,
@@ -719,7 +738,7 @@ export function SimulatorPane({
   const flushTyping = useCallback((): void => {
     const { text } = typeBuf.current
     typeBuf.current = { text: '', timer: null }
-    if (text && udid) void window.cove.simInput(udid, { type: 'text', text })
+    if (text && udid) void simInput({ type: 'text', text })
   }, [udid])
 
   const onKeyDown = (e: React.KeyboardEvent): void => {
@@ -730,7 +749,7 @@ export function SimulatorPane({
       e.preventDefault()
       flushTyping()
       void navigator.clipboard.readText().then((text) => {
-        if (text && udid) window.cove.simInput(udid, { type: 'text', text })
+        if (text && udid) simInput({ type: 'text', text })
       })
       return
     }
@@ -748,7 +767,7 @@ export function SimulatorPane({
     if (named[e.key]) {
       e.preventDefault()
       flushTyping()
-      void window.cove.simInput(udid, { type: 'key', code: named[e.key] })
+      void simInput({ type: 'key', code: named[e.key] })
       return
     }
     if (e.key.length !== 1) return
@@ -1004,30 +1023,28 @@ export function SimulatorPane({
       localStorage.setItem(`cove.simOrientation:${udid}`, next)
     }
     const asked = udid
-    void window.cove
-      .simInput(udid, {
-        type: 'orientation',
-        value:
-          next === 'portrait' ? 'portrait' : next === 'left' ? 'landscape-left' : 'landscape-right'
-      })
-      .then(async () => {
-        // Not every device turns when asked: an unfolded iPhone Duo stays as it
-        // is, and the app on screen may not allow it. The picture was turned on
-        // the strength of the request, so ask the device which way it really
-        // is, soon, instead of drawing it on its side until the next routine
-        // check eight seconds later.
-        for (const wait of [700, 1500]) {
-          await new Promise((r) => setTimeout(r, wait))
-          if (udidRef.current !== asked) return
-          const real = await window.cove.simOrientation?.(asked)
-          if (!real || udidRef.current !== asked) continue
-          setOrientation(real)
-          localStorage.setItem(`cove.simOrientation:${asked}`, real)
-          if (real === next || (real !== 'portrait' && next !== 'portrait')) return
-        }
-        setBusy(`${device?.name ?? 'This simulator'} did not turn. It stays this way round here.`)
-        setTimeout(() => setBusy(null), 5000)
-      })
+    void simInput({
+      type: 'orientation',
+      value:
+        next === 'portrait' ? 'portrait' : next === 'left' ? 'landscape-left' : 'landscape-right'
+    }).then(async () => {
+      // Not every device turns when asked: an unfolded iPhone Duo stays as it
+      // is, and the app on screen may not allow it. The picture was turned on
+      // the strength of the request, so ask the device which way it really
+      // is, soon, instead of drawing it on its side until the next routine
+      // check eight seconds later.
+      for (const wait of [700, 1500]) {
+        await new Promise((r) => setTimeout(r, wait))
+        if (udidRef.current !== asked) return
+        const real = await window.cove.simOrientation?.(asked)
+        if (!real || udidRef.current !== asked) continue
+        setOrientation(real)
+        localStorage.setItem(`cove.simOrientation:${asked}`, real)
+        if (real === next || (real !== 'portrait' && next !== 'portrait')) return
+      }
+      setBusy(`${device?.name ?? 'This simulator'} did not turn. It stays this way round here.`)
+      setTimeout(() => setBusy(null), 5000)
+    })
   }
 
   const hardware = (button: string, title: string, glyph: string): React.JSX.Element => (
@@ -1035,7 +1052,7 @@ export function SimulatorPane({
       className="sim-btn"
       title={title}
       disabled={!udid || !tappable}
-      onClick={() => udid && void window.cove.simInput(udid, { type: 'press', button })}
+      onClick={() => udid && void simInput({ type: 'press', button })}
     >
       {glyph}
     </button>

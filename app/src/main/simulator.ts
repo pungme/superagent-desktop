@@ -1,4 +1,4 @@
-import { hidReady, sendHid, siminputPath, stopAllHid } from './sim-hid'
+import { hidReady, registerSimInputPort, sendHid, siminputPath, stopAllHid } from './sim-hid'
 import { detachAllSimViews, isViewing, registerSimViewIpc } from './sim-view'
 import { agentIsDriving } from './browser'
 import { app, ipcMain, BrowserWindow, nativeImage, systemPreferences, shell } from 'electron'
@@ -1347,6 +1347,7 @@ async function moveSimulatorWindow(rect: {
 export function registerSimulatorIpc(): void {
   // The embedded screen (sim-view.ts): a native layer, not a stream.
   registerSimViewIpc(toPoints, noteSimulatorClosed)
+  registerSimInputPort()
   // The pane tells us which device it is on, so the agent's tools can aim at
   // the same one.
   // The window's own pane announcing what it shows, so the phone can mirror a
