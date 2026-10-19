@@ -310,7 +310,8 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
    * `like` asks for that particular device, or its twin when it is taken.
    */
   const ownSim = async (
-    like?: string
+    like?: string,
+    family?: 'iphone' | 'ipad'
   ): Promise<{ udid: string; note?: string } | { error: string }> => {
     const mine = simulatorsByChat().get(CHAT_ID ?? '')
     if (mine && !like && !chatAheadOnSimulator(mine, CHAT_ID)) return { udid: mine }
@@ -325,7 +326,7 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
     const devices: SimDevice[] = Object.entries(data.devices).flatMap(([runtime, list]) =>
       list.map((d) => ({ ...d, runtime }))
     )
-    const choice = chooseSimulator(CHAT_ID, devices, { like })
+    const choice = chooseSimulator(CHAT_ID, devices, { like, family })
     if (!choice)
       return {
         error: devices.some((d) => d.state === 'Booted')
@@ -367,6 +368,12 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
     })
     noteSimulatorOpen(CHAT_ID, udid)
     if (isMirroring(udid)) keepSimulatorHidden(udid)
+    const guessed = 'use' in choice ? choice.guessedOver : undefined
+    if (guessed)
+      return {
+        udid,
+        note: `Several simulators are booted, so this conversation now has "${name}" (${udid}). If you meant another — ${guessed.map((d) => `${d.name} (${d.udid})`).join(', ') || 'none free'} — call sim_boot with its UDID.`
+      }
     return {
       udid,
       note: other
@@ -539,6 +546,26 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
     }
   )
 
+  /** An iPad-only app goes on an iPad; anything else on an iPhone. */
+  const appFamily = async (appPath: string): Promise<'iphone' | 'ipad' | undefined> => {
+    try {
+      const out = await new Promise<string>((resolve, reject) =>
+        execFile(
+          '/usr/bin/plutil',
+          ['-extract', 'UIDeviceFamily', 'json', '-o', '-', `${appPath}/Info.plist`],
+          { timeout: 5000 },
+          (err, stdout) => (err ? reject(err) : resolve(stdout))
+        )
+      )
+      const fam = JSON.parse(out) as number[]
+      return Array.isArray(fam) && fam.length && !fam.includes(1) && fam.includes(2)
+        ? 'ipad'
+        : 'iphone'
+    } catch {
+      return undefined
+    }
+  }
+
   server.registerTool(
     'sim_install_and_launch',
     {
@@ -547,7 +574,7 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
       inputSchema: { appPath: z.string(), bundleId: z.string() }
     },
     async ({ appPath, bundleId }) => {
-      const own = await ownSim()
+      const own = await ownSim(undefined, await appFamily(appPath))
       if ('error' in own) return { isError: true, content: [{ type: 'text', text: own.error }] }
       await simctl(['install', simTarget(CHAT_ID), appPath])
       const out = await simctl(['launch', simTarget(CHAT_ID), bundleId])
@@ -681,9 +708,9 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
       description:
         'Tap the simulator at a point, in the pixel coordinates of sim_screen. Give a duration (seconds) for a long press — how you get context menus, app wobble, or a held control.',
       inputSchema: {
-        x: z.number().describe('X in screen pixels (from sim_screen)'),
-        y: z.number().describe('Y in screen pixels'),
-        duration: z.number().optional().describe('Seconds to hold, for a long press')
+        x: z.coerce.number().describe('X in screen pixels (from sim_screen)'),
+        y: z.coerce.number().describe('Y in screen pixels'),
+        duration: z.coerce.number().optional().describe('Seconds to hold, for a long press')
       }
     },
     async ({ x, y, duration }) => {
@@ -722,14 +749,37 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
       description:
         'Swipe or drag on the simulator, from one point to another in sim_screen pixels. Use it to scroll (swipe up/down), page (left/right), or drag something — a longer duration is a slow drag, a short one is a flick.',
       inputSchema: {
-        x: z.number(),
-        y: z.number(),
-        toX: z.number(),
-        toY: z.number(),
-        duration: z.number().optional().describe('Seconds; short = flick, longer = slow drag')
+        x: z.coerce.number().optional().describe('Start X in screen pixels'),
+        y: z.coerce.number().optional().describe('Start Y'),
+        toX: z.coerce.number().optional().describe('End X'),
+        toY: z.coerce.number().optional().describe('End Y'),
+        // The names agents reach for first; taken rather than refused.
+        x1: z.coerce.number().optional().describe('Same as x'),
+        y1: z.coerce.number().optional().describe('Same as y'),
+        x2: z.coerce.number().optional().describe('Same as toX'),
+        y2: z.coerce.number().optional().describe('Same as toY'),
+        duration: z.coerce
+          .number()
+          .optional()
+          .describe('Seconds; short = flick, longer = slow drag')
       }
     },
-    async ({ x, y, toX, toY, duration }) => {
+    async (a) => {
+      const x = a.x ?? a.x1
+      const y = a.y ?? a.y1
+      const toX = a.toX ?? a.x2
+      const toY = a.toY ?? a.y2
+      const duration = a.duration
+      if (x === undefined || y === undefined || toX === undefined || toY === undefined)
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Give the start (x, y) and the end (toX, toY) of the swipe.'
+            }
+          ]
+        }
       const tgt = await inputTarget()
       if ('error' in tgt) return { content: [{ type: 'text', text: tgt.error }] }
       const { w, h } = await sizeFor()
@@ -830,7 +880,7 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
       description:
         'Wait until the simulator screen stops changing — a load or an animation has settled — then return. Use it after a tap that starts something, so the next step is not a race. There is no text-matching wait here (the screen is pixels, not a DOM); when it returns, take a sim_screen and read what is there.',
       inputSchema: {
-        timeoutMs: z.number().optional().describe('Give up after this long (default 8000)')
+        timeoutMs: z.coerce.number().optional().describe('Give up after this long (default 8000)')
       }
     },
     async ({ timeoutMs }) => {

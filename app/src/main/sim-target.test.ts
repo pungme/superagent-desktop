@@ -207,22 +207,26 @@ describe('giving each conversation a simulator of its own', () => {
     })
   })
 
-  /** An iPad is not a stand-in for an iPhone. */
-  it('does not guess between several free booted devices', () => {
+  /**
+   * Several free devices of different kinds: stopping to ask was a dead end
+   * agents hit again and again. It picks an iPhone, says which, and names the
+   * others so the agent can move.
+   */
+  it('picks an iPhone among several free booted devices, and says what else there was', () => {
     const got = chooseSimulator(A, [
-      dev(IPHONE, 'iPhone 17e', 'Booted'),
-      dev(IPAD, 'iPad Pro', 'Booted', 'ipad')
+      dev(IPAD, 'iPad Pro', 'Booted', 'ipad'),
+      dev(IPHONE, 'iPhone 17e', 'Booted')
     ])
-    expect(got).toMatchObject({ ambiguous: [{ udid: IPHONE }, { udid: IPAD }] })
+    expect(got).toMatchObject({ use: { udid: IPHONE }, guessedOver: [{ udid: IPAD }] })
   })
 
-  it('does not assume the free one is the model wanted when another is taken', () => {
-    noteSimulatorOpen(A, IPHONE)
-    const got = chooseSimulator(B, [
-      dev(IPHONE, 'iPhone 17e', 'Booted'),
-      dev(IPAD, 'iPad Pro', 'Booted', 'ipad')
-    ])
-    expect(got).toMatchObject({ ambiguous: [{ udid: IPAD }] })
+  it('picks the iPad for an app that only runs on one', () => {
+    const got = chooseSimulator(
+      A,
+      [dev(IPHONE, 'iPhone 17e', 'Booted'), dev(IPAD, 'iPad Pro', 'Booted', 'ipad')],
+      { family: 'ipad' }
+    )
+    expect(got).toMatchObject({ use: { udid: IPAD } })
   })
 
   it('has nothing to offer when nothing is booted', () => {

@@ -603,11 +603,18 @@ export interface SimDevice {
 }
 
 export type SimChoice =
-  | { use: SimDevice; insteadOf?: SimDevice }
+  /** `guessedOver`: several were free and this one was picked; the others. */
+  | { use: SimDevice; insteadOf?: SimDevice; guessedOver?: SimDevice[] }
   | { create: { name: string; deviceType: string; runtime: string }; insteadOf: SimDevice }
   /** Several are booted and free, and nothing says which this one wants. */
   | { ambiguous: SimDevice[] }
   | null
+
+/** Whether a device is an iPad or an iPhone (or something else). */
+export function simFamily(d: SimDevice): 'iphone' | 'ipad' | 'other' {
+  const id = `${d.deviceTypeIdentifier ?? ''} ${d.name}`
+  return /ipad/i.test(id) ? 'ipad' : /iphone/i.test(id) ? 'iphone' : 'other'
+}
 
 /**
  * The device a conversation should drive, so that two conversations never
@@ -619,7 +626,7 @@ export type SimChoice =
 export function chooseSimulator(
   chatId: string | null | undefined,
   devices: SimDevice[],
-  opts: { like?: string } = {}
+  opts: { like?: string; family?: 'iphone' | 'ipad' } = {}
 ): SimChoice {
   const taken = new Set<string>()
   for (const [other, id] of simByChat) if (other !== chatId) taken.add(id)
@@ -637,8 +644,17 @@ export function chooseSimulator(
     const models = new Set(booted.map((d) => d.deviceTypeIdentifier ?? d.udid))
     if (models.size === 1 && free.length) return { use: free[0] }
     // More than one model is running and nothing says which this conversation
-    // wants: an iPad is not a stand-in for an iPhone. The agent says which.
-    if (models.size > 1 && !own) return { ambiguous: free }
+    // wants. Stopping to ask was a dead end agents hit over and over; pick the
+    // likely one (the app's own kind of device, else an iPhone) and say so, so
+    // the agent can move to another with sim_boot.
+    if (models.size > 1 && !own && free.length) {
+      const want = opts.family ?? 'iphone'
+      const pick =
+        free.find((d) => simFamily(d) === want) ??
+        free.find((d) => simFamily(d) === 'iphone') ??
+        free[0]
+      return { use: pick, guessedOver: free.filter((d) => d !== pick) }
+    }
   }
   // The one running is someone else's: a second one of the same model.
   const ref = asked ?? own ?? devices.find((d) => d.state === 'Booted' && taken.has(d.udid))
