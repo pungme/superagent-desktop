@@ -1213,6 +1213,28 @@ export function SimulatorPane({
         {hardware('home', 'Home', '○')}
         {hardware('lock', 'Lock', '⏻')}
         {hardware('app-switcher', 'App switcher', '▤')}
+        {/* What Simulator.app's Features and Device menus do: appearance, text
+            size, location, Face ID, shake, screenshot, recording. A real menu,
+            so it draws over the embedded screen. */}
+        <button
+          className="sim-btn"
+          title="Device: appearance, location, Face ID, recording…"
+          aria-label="Device menu"
+          disabled={!udid || !tappable}
+          onClick={(e) => {
+            if (!udid) return
+            const r = e.currentTarget.getBoundingClientRect()
+            void window.cove
+              .simDeviceMenu(udid, device?.name ?? '', { x: r.left, y: r.bottom + 4 })
+              .then((res) => {
+                if (res.ok) return
+                setBusy(res.error ?? 'That did not work on this simulator.')
+                setTimeout(() => setBusy(null), 6000)
+              })
+          }}
+        >
+          ⋯
+        </button>
         {/* Turn the device. Which way is read off the frame the stream already
             reports, so the button is always the orientation you are not in. */}
         <button

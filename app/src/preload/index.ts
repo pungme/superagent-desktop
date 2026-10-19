@@ -561,6 +561,12 @@ export interface CoveApi {
     action: Record<string, unknown>
   ) => Promise<{ ok: boolean; error?: string } | null>
   simHasInput: () => Promise<boolean>
+  /** The pane's Device menu (appearance, location, Face ID, recording…), as a real menu at a point. */
+  simDeviceMenu: (
+    udid: string,
+    name: string,
+    at: { x: number; y: number }
+  ) => Promise<{ ok: boolean; error?: string }>
   /** A single still of the simulator device, as a data URL — for the snip tool. */
   simScreenshot: (udid: string) => Promise<string | null>
   onSimFrame: (
@@ -1320,6 +1326,7 @@ const cove: CoveApi = {
     subscribe(`sim:view-size:${udid}`, (s) => cb(s as { width: number; height: number })),
   simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
   simInputDirect: (udid, action) => simDirect(udid, action),
+  simDeviceMenu: (udid, name, at) => ipcRenderer.invoke('sim:device-menu', udid, name, at),
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),
   simScreenshot: (udid) => ipcRenderer.invoke('sim:screenshot', udid),
   onSimFrame: (udid, cb) =>

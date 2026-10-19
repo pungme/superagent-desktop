@@ -1,5 +1,6 @@
 import { hidReady, registerSimInputPort, sendHid, siminputPath, stopAllHid } from './sim-hid'
 import { detachAllSimViews, isViewing, registerSimViewIpc } from './sim-view'
+import { registerSimDeviceMenu, stopAllRecordings } from './sim-device-menu'
 import { agentIsDriving } from './browser'
 import { app, ipcMain, BrowserWindow, nativeImage, systemPreferences, shell } from 'electron'
 import { execFile, spawn, ChildProcessWithoutNullStreams, ChildProcessByStdio } from 'child_process'
@@ -314,6 +315,7 @@ function endInputSession(udid: string): void {
 export function stopAllSimInput(): void {
   for (const udid of [...inputSessions.keys()]) endInputSession(udid)
   stopAllHid()
+  stopAllRecordings()
   detachAllSimViews()
   // Never leave Apple's Simulator pinned above every other window once we are
   // gone — we set that, so we take it back.
@@ -1348,6 +1350,7 @@ export function registerSimulatorIpc(): void {
   // The embedded screen (sim-view.ts): a native layer, not a stream.
   registerSimViewIpc(toPoints, noteSimulatorClosed)
   registerSimInputPort()
+  registerSimDeviceMenu()
   // The pane tells us which device it is on, so the agent's tools can aim at
   // the same one.
   // The window's own pane announcing what it shows, so the phone can mirror a
