@@ -1286,8 +1286,9 @@ export function appApproved(owner: string, id: string): boolean {
 }
 
 /** What is on the clipboard, as text. It is the user's, and often a password: asked about every time. */
-export function readClipboard(): string {
-  return clipboard.readText()
+export async function readClipboard(): Promise<string> {
+  // Electron 44 reads the clipboard asynchronously.
+  return await clipboard.readText()
 }
 
 /** Put text on the clipboard, to paste with ⌘V: surer than typing a long piece key by key. */
@@ -1304,9 +1305,9 @@ const lastWritten = new Map<string, string>()
  * Pasting that shows the agent nothing new; pasting anything else is a way to
  * read what the user copied, and is asked about like reading it.
  */
-export function clipboardIsOwn(owner: string): boolean {
+export async function clipboardIsOwn(owner: string): Promise<boolean> {
   const mine = lastWritten.get(owner)
-  return mine !== undefined && clipboard.readText() === mine
+  return mine !== undefined && (await clipboard.readText()) === mine
 }
 
 // --- one app at a time, asked about ---------------------------------------

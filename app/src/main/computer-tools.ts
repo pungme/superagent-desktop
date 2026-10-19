@@ -261,7 +261,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
    * there itself.
    */
   const mayPaste = async (): Promise<string | null> => {
-    if (clipboardIsOwn(owner)) return null
+    if (await clipboardIsOwn(owner)) return null
     const yes = await requestApproval(
       ctx.workspaceId,
       ctx.sessionId,
@@ -839,7 +839,7 @@ export function registerComputerTools(server: McpServer, ctx: ComputerContext): 
       if (!yes)
         return failed('The user did not allow reading the clipboard. Do not try another way.')
       if (!hasConsent(owner)) return failed(STOPPED_MEANWHILE)
-      const text = readClipboard()
+      const text = await readClipboard()
       note('Read the clipboard', 'looked')
       touchConsent(owner)
       return {
