@@ -3866,6 +3866,32 @@ button {
   max-height: 140px;
   overflow-y: auto;
 }
+.easy-thought.full {
+  max-height: none;
+  overflow: visible;
+}
+.easy-thought-wrap {
+  align-self: flex-start;
+  max-width: 85%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.easy-thought-wrap .easy-thought {
+  max-width: 100%;
+}
+.easy-thought-more {
+  margin: 2px 0 0 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.easy-thought-more:hover {
+  color: var(--text-secondary);
+}
 
 .easy-thinking {
   align-self: flex-start;

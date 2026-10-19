@@ -79,6 +79,52 @@ interface ChatMessage {
  * Copy on a reply. It says so for a moment afterwards: a button that does its
  * work silently reads as one that did nothing, and gets pressed again.
  */
+/** Whether thinking opens in full; the last choice made on any block. */
+const THOUGHT_FULL_KEY = 'cove.thoughtFull'
+
+/**
+ * Claude's thinking. Kept to a short box so a long stretch does not push the
+ * reply off screen, following the newest line while it is being written; one
+ * too tall for the box can be shown in full, and that choice sticks.
+ */
+function Thought({ text, live }: { text: string; live: boolean }): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  const [full, setFull] = useState(() => localStorage.getItem(THOUGHT_FULL_KEY) === '1')
+  const [tall, setTall] = useState(false)
+  // Scrolled up to read: stop pulling the box down to the newest line.
+  const heldRef = useRef(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    setTall(full ? el.scrollHeight > 160 : el.scrollHeight > el.clientHeight + 1)
+    if (live && !full && !heldRef.current) el.scrollTop = el.scrollHeight
+  }, [text, live, full])
+  const toggle = (): void => {
+    const next = !full
+    setFull(next)
+    localStorage.setItem(THOUGHT_FULL_KEY, next ? '1' : '0')
+  }
+  return (
+    <div className="easy-thought-wrap">
+      <div
+        ref={ref}
+        className={`easy-thought${full ? ' full' : ''}`}
+        onScroll={(e) => {
+          const el = e.currentTarget
+          heldRef.current = el.scrollTop + el.clientHeight < el.scrollHeight - 8
+        }}
+      >
+        {text}
+      </div>
+      {tall && (
+        <button className="easy-thought-more" onClick={toggle} aria-expanded={full}>
+          {full ? 'Show less' : 'Show all'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function CopyReply({ text }: { text: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
   useEffect(() => {
@@ -4753,7 +4799,7 @@ export function EasyChat({
       )
     }
     if (row.kind === 'thinking') {
-      return <div className="easy-thought">{row.text}</div>
+      return <Thought text={row.text} live={row.id === thinkingIdRef.current} />
     }
     if (row.kind === 'quiet') {
       return (
