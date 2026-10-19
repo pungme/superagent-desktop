@@ -28,6 +28,7 @@ const TABLES = [
   'cards',
   'routines',
   'calendar_events',
+  'chat_data',
   'chats',
   'workspaces',
   'groups'

@@ -290,6 +290,22 @@ export function initStore(): void {
     db.exec('UPDATE chats SET pinnedAt = updatedAt WHERE pinned = 1')
   }
 
+  // A conversation's transcript lives in a table of its own. In `chats` it sat
+  // in the middle of every row, megabytes of it, and reading any column after
+  // it (cwd, pinned, pinnedAt — added later, so stored after) walked all of
+  // it: listing 76 chats read 345 MB and took 74 ms, on the main thread, every
+  // 700 ms from the menu bar alone. Moved once; `chats.data` stays, empty.
+  db.exec('CREATE TABLE IF NOT EXISTS chat_data (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
+  if (!db.prepare("SELECT 1 FROM kv WHERE key = 'migrated.chat_data'").get()) {
+    db.transaction(() => {
+      db.exec(
+        "INSERT OR REPLACE INTO chat_data (id, data) SELECT id, data FROM chats WHERE data NOT IN ('', '[]')"
+      )
+      db.exec("UPDATE chats SET data = '' WHERE data NOT IN ('', '[]')")
+      db.prepare('INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)').run('migrated.chat_data', '1')
+    })()
+  }
+
   // First run starts flat: projects with no group over them. A group is made
   // when the user asks for one (see FLAT_GROUP).
   const count = (db.prepare('SELECT COUNT(*) AS n FROM groups').get() as { n: number }).n
@@ -438,6 +454,9 @@ export function createBrowserWorkspace(groupId: string, name: string, url?: stri
 
 export function deleteWorkspace(id: string): void {
   db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
+  db.prepare('DELETE FROM chat_data WHERE id IN (SELECT id FROM chats WHERE workspaceId = ?)').run(
+    id
+  )
   db.prepare('DELETE FROM chats WHERE workspaceId = ?').run(id)
   // Routines have no FK cascade, so a deleted project used to leave its routines
   // behind — orphans that kept running hourly, invisible in the UI (no project
@@ -590,13 +609,45 @@ export function lastChatEventSeq(chatId: string): number {
   ).s
 }
 
+/**
+ * A chat's saved transcript as stored: its own table, or (for a chat with
+ * nothing saved yet) the '[]' its row was made with. Null for no such chat.
+ */
+export function chatData(chatId: string): string | null {
+  const own = db.prepare('SELECT data FROM chat_data WHERE id = ?').get(chatId) as
+    | { data: string }
+    | undefined
+  if (own) return own.data
+  const row = db.prepare('SELECT data FROM chats WHERE id = ?').get(chatId) as
+    | { data: string }
+    | undefined
+  return row ? row.data || '[]' : null
+}
+
+/**
+ * Whether this is what is stored already. By size first: a long chat's
+ * transcript runs to tens of megabytes, and reading it back on every save to
+ * compare was main-thread time the window (and the simulator) waited on.
+ */
+function sameChatData(chatId: string, data: string): boolean {
+  const row = db
+    .prepare('SELECT octet_length(data) AS n FROM chat_data WHERE id = ?')
+    .get(chatId) as { n: number } | undefined
+  if (!row) return chatData(chatId) === data
+  if (row.n !== Buffer.byteLength(data)) return false
+  return chatData(chatId) === data
+}
+
+function setChatData(chatId: string, data: string): void {
+  db.prepare('INSERT OR REPLACE INTO chat_data (id, data) VALUES (?, ?)').run(chatId, data)
+}
+
 /** The renderer's saved transcript, parsed. [] when missing or unreadable. */
 export function loadChatItems(chatId: string): unknown[] {
-  const row = db.prepare('SELECT data FROM chats WHERE id = ?').get(chatId) as
-    { data: string } | undefined
-  if (!row) return []
+  const data = chatData(chatId)
+  if (data === null) return []
   try {
-    const parsed = JSON.parse(row.data)
+    const parsed = JSON.parse(data)
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
@@ -611,11 +662,10 @@ export function appendChatItems(chatId: string, items: unknown[]): void {
   if (!items.length) return
   const run = db.transaction(() => {
     const current = loadChatItems(chatId)
-    db.prepare('UPDATE chats SET data = ?, updatedAt = ? WHERE id = ?').run(
-      JSON.stringify([...current, ...items]),
-      Date.now(),
-      chatId
-    )
+    const changed = db
+      .prepare('UPDATE chats SET updatedAt = ? WHERE id = ?')
+      .run(Date.now(), chatId).changes
+    if (changed) setChatData(chatId, JSON.stringify([...current, ...items]))
   })
   run()
 }
@@ -887,6 +937,7 @@ export function clearChat(chatId: string): void {
   const now = Date.now()
   db.transaction(() => {
     db.prepare('DELETE FROM chat_events WHERE chatId = ?').run(chatId)
+    db.prepare('DELETE FROM chat_data WHERE id = ?').run(chatId)
     db.prepare(
       "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE id = ?"
     ).run(now, chatId)
@@ -905,6 +956,9 @@ export function clearWorkspaceChats(workspaceId: string): string[] {
   db.transaction(() => {
     db.prepare(
       'DELETE FROM chat_events WHERE chatId IN (SELECT id FROM chats WHERE workspaceId = ?)'
+    ).run(workspaceId)
+    db.prepare(
+      'DELETE FROM chat_data WHERE id IN (SELECT id FROM chats WHERE workspaceId = ?)'
     ).run(workspaceId)
     db.prepare(
       "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE workspaceId = ?"
@@ -930,8 +984,9 @@ export function storageByProject(): {
   const chatRows = db
     .prepare(
       `SELECT c.workspaceId AS workspaceId, w.name AS name, COUNT(*) AS chatCount,
-              COALESCE(SUM(LENGTH(c.data)), 0) AS bytes
+              COALESCE(SUM(LENGTH(d.data)), 0) AS bytes
          FROM chats c JOIN workspaces w ON w.id = c.workspaceId
+         LEFT JOIN chat_data d ON d.id = c.id
         GROUP BY c.workspaceId`
     )
     .all() as { workspaceId: string; name: string; chatCount: number; bytes: number }[]
@@ -1000,6 +1055,7 @@ export function moveChatToWorkspace(chatId: string, toWorkspaceId: string): bool
 
 export function deleteChat(chatId: string): void {
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId)
+  db.prepare('DELETE FROM chat_data WHERE id = ?').run(chatId)
   kvDel(pendingKey(chatId))
 }
 
@@ -1231,7 +1287,9 @@ export function getDashboard(rangeDays = 14): unknown {
   // Backfill from transcripts: every saved assistant message is one turn.
   const msgEntries: Entry[] = []
   let totalMessages = 0
-  const chatRows = db.prepare('SELECT workspaceId, data FROM chats').all() as {
+  const chatRows = db
+    .prepare('SELECT c.workspaceId, d.data FROM chat_data d JOIN chats c ON c.id = d.id')
+    .all() as {
     workspaceId: string
     data: string
   }[]
@@ -2231,11 +2289,7 @@ function registerStoreIpcTail(): void {
     setChatModel(chatId, model)
   })
   ipcMain.handle('chat:get-model', (_e, chatId: string) => getChatModel(chatId))
-  ipcMain.handle('chat:load', (_e, chatId: string) => {
-    const row = db.prepare('SELECT data FROM chats WHERE id = ?').get(chatId) as
-      { data: string } | undefined
-    return row?.data ?? null
-  })
+  ipcMain.handle('chat:load', (_e, chatId: string) => chatData(chatId))
   ipcMain.on('chat:save', (_e, chatId: string, data: string) => {
     // UPDATE (never INSERT) and only for a real id: a save for an unknown chat is
     // a caller bug, and must not be able to invent a row or clobber another's.
@@ -2249,12 +2303,12 @@ function registerStoreIpcTail(): void {
     // reload, and whenever a chat is merely kept alive in the background. So a
     // conversation from three weeks ago that nobody touched would jump to the
     // top of the list and grow an unread dot, for no reason anyone could see.
-    db.prepare(
-      `UPDATE chats
-          SET data = @data,
-              updatedAt = CASE WHEN data = @data THEN updatedAt ELSE @now END
-        WHERE id = @id`
-    ).run({ data, now: Date.now(), id: chatId })
+    db.transaction(() => {
+      if (!db.prepare('SELECT 1 FROM chats WHERE id = ?').get(chatId)) return
+      if (sameChatData(chatId, data)) return
+      setChatData(chatId, data)
+      db.prepare('UPDATE chats SET updatedAt = ? WHERE id = ?').run(Date.now(), chatId)
+    })()
   })
   // Wipes one chat's transcript in place (used by Retry-style resets), which is
   // no longer how "New chat" works — that creates a sibling instead.

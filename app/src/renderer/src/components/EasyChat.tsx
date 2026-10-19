@@ -2375,7 +2375,12 @@ export function EasyChat({
    */
   useEffect(() => {
     if (!generating || !chatId) return
-    const iv = setInterval(saveTranscript, 5000)
+    // A long chat with pictures in it runs to tens of megabytes, and each
+    // checkpoint turned all of it into text here and rewrote it in main: a
+    // stall every five seconds while the agent worked. Such a chat checks in
+    // less often; the end of the turn saves it either way.
+    const every = lastSavedRef.current.length > 5_000_000 ? 30_000 : 5000
+    const iv = setInterval(saveTranscript, every)
     return () => {
       clearInterval(iv)
       saveTranscript()
