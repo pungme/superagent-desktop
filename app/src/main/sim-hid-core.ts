@@ -159,6 +159,14 @@ export function modifierUsages(mods: unknown): number[] {
     .filter((u): u is number => typeof u === 'number')
 }
 
+/** The pane's and the tools' names for which way up, as UIDeviceOrientation. */
+const ORIENTATIONS: Record<string, number> = {
+  portrait: 1,
+  'portrait-upside-down': 2,
+  'landscape-right': 3,
+  'landscape-left': 4
+}
+
 /** Points in a width×height space → the 0…1 the digitizer takes. */
 export function normalise(
   x: unknown,
@@ -207,6 +215,11 @@ export function hidCommand(a: HidAction): Record<string, unknown> | null {
     }
     case 'text':
       return { type: 'text', text: String(a.text ?? '') }
+    case 'orientation': {
+      // UIDeviceOrientation, as the GSEvent carries it (see siminput.m).
+      const value = ORIENTATIONS[String(a.value)]
+      return value ? { type: 'orientation', value } : null
+    }
     case 'hinge': {
       const angle = Number(a.angle)
       return angle >= 0 && angle <= 180 ? { type: 'hinge', angle } : null

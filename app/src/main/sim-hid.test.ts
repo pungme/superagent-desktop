@@ -77,9 +77,18 @@ describe('hidCommand', () => {
     expect(hidCommand({ type: 'hinge' })).toBeNull()
   })
 
-  it('passes text through and leaves orientation to the old path', () => {
+  it('passes text through', () => {
     expect(hidCommand({ type: 'text', text: 'Hi!' })).toEqual({ type: 'text', text: 'Hi!' })
-    expect(hidCommand({ type: 'orientation', value: 'portrait' })).toBeNull()
+  })
+
+  it('turns the device by UIDeviceOrientation, and refuses a way up it does not know', () => {
+    expect(hidCommand({ type: 'orientation', value: 'portrait' })).toEqual({
+      type: 'orientation',
+      value: 1
+    })
+    expect(hidCommand({ type: 'orientation', value: 'landscape-left' })).toMatchObject({ value: 4 })
+    expect(hidCommand({ type: 'orientation', value: 'landscape-right' })).toMatchObject({ value: 3 })
+    expect(hidCommand({ type: 'orientation', value: 'sideways' })).toBeNull()
   })
 })
 

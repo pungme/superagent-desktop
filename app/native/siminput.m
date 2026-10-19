@@ -31,6 +31,7 @@
 //   {"type":"text","text":"hello"}           ASCII; anything else is refused
 //   {"type":"button","page":12,"usage":64,"count":1}
 //   {"type":"hinge","angle":180}               an iPhone Duo: 0 folded, 180 open
+//   {"type":"orientation","value":4}           1 portrait, 2 upside down, 3 landscape right, 4 left
 
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
@@ -306,6 +307,38 @@ static NSString *typeAscii(NSString *text) {
 
 // --- Commands ---------------------------------------------------------------
 
+// Turning the device. Not dtuhidd's: orientation is still a GSEvent ("purple"
+// event) to SpringBoard's PurpleWorkspacePort, sent from the host the way
+// Simulator.app's sendPurpleEvent: does and idb 1.6.x documents
+// (PrivateHeaders/SimulatorApp/GSEvent.h, SimulatorPurpleHID.swift, MIT):
+//   0x00 mach_msg_header_t   bits 0x13 (COPY_SEND), size 108, id 0x7B
+//   0x18 type                50 (DeviceOrientationChanged) | 0x20000 (from the host)
+//   0x48 record_info_size    4
+//   0x4C orientation         UIDeviceOrientation: 1 portrait, 2 upside down,
+//                            3 landscape right, 4 landscape left
+static NSString *orientation(int value) {
+  if (value < 1 || value > 4) return @"orientation is 1–4 (portrait, upside down, landscape right, landscape left)";
+  NSError *err = nil;
+  mach_port_t port = ((mach_port_t(*)(id, SEL, id, NSError **))objc_msgSend)(
+      gDevice, @selector(lookup:error:), @"PurpleWorkspacePort", &err);
+  if (port == MACH_PORT_NULL)
+    return [NSString stringWithFormat:@"no PurpleWorkspacePort: %@", err.localizedDescription ?: @"lookup failed"];
+  uint8_t buf[112] = {0};
+  uint32_t v;
+  v = 0x13; memcpy(buf + 0x00, &v, 4);
+  v = 108; memcpy(buf + 0x04, &v, 4);
+  memcpy(buf + 0x08, &port, 4);
+  v = 0x7B; memcpy(buf + 0x14, &v, 4);
+  v = 50 | 0x20000; memcpy(buf + 0x18, &v, 4);
+  v = 4; memcpy(buf + 0x48, &v, 4);
+  v = (uint32_t)value; memcpy(buf + 0x4C, &v, 4);
+  mach_msg_header_t *h = (mach_msg_header_t *)buf;
+  kern_return_t kr = mach_msg(h, MACH_SEND_MSG | MACH_SEND_TIMEOUT, h->msgh_size, 0, MACH_PORT_NULL, 2000,
+                              MACH_PORT_NULL);
+  if (kr != KERN_SUCCESS) return [NSString stringWithFormat:@"orientation not sent: %s", mach_error_string(kr)];
+  return nil;
+}
+
 static double num(NSDictionary *c, NSString *k, double fallback) {
   id v = c[k];
   return [v isKindOfClass:[NSNumber class]] ? [v doubleValue] : fallback;
@@ -350,6 +383,8 @@ static NSString *run(NSDictionary *c) {
     NSString *why = hinge(num(c, @"angle", -1));
     if (why) return why;
     return nil;
+  } else if ([type isEqualToString:@"orientation"]) {
+    return orientation((int)num(c, @"value", 0));
   } else if ([type isEqualToString:@"button"]) {
     // count 2: the app switcher is Home pressed twice, quickly.
     int count = MAX(1, (int)num(c, @"count", 1));
