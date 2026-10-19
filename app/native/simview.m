@@ -189,9 +189,18 @@ static id litPort(id device) {
 @property(nonatomic) double rotation;
 @property(nonatomic, strong) id device;
 @property(nonatomic, strong) id port;
-@property(nonatomic, strong) NSUUID *callbackUUID;
+@property(atomic, strong) NSUUID *callbackUUID;
 @property(nonatomic, strong) NSTimer *tick;
 @property(nonatomic) IOSurfaceRef surface;
+/** A frame is queued to be shown; later damage before it runs is the same frame. */
+@property(atomic) BOOL pending;
+/** Torn down: a frame still queued has nothing to draw into. */
+@property(atomic) BOOL dead;
+/** For stats(): frames the device drew, frames put on screen, longest gap (ms). */
+@property(atomic) NSInteger damaged;
+@property(atomic) NSInteger shown;
+@property(atomic) double lastShownAt;
+@property(atomic) double longestGap;
 @property(nonatomic) NSInteger darkTicks;
 @property(nonatomic) NSInteger id;
 @property(nonatomic, strong) NSString *udid;
@@ -202,15 +211,62 @@ static id litPort(id device) {
 static NSMutableDictionary<NSNumber *, SimAttachment *> *gAttachments;
 static NSInteger gNextId = 1;
 
+/**
+ * Frames are put on screen from a queue of their own, not the main thread.
+ * The main thread is Electron's: every file it saves and every line an agent
+ * prints runs there, and a frame queued behind that waited, then several came
+ * at once. That was the simulator's jank. Simulator.app's main thread has
+ * nothing else to do; ours does.
+ *
+ * The surface is only ever swapped on the main thread, inside a dispatch_sync
+ * onto this queue, so a frame being drawn never sees it released.
+ */
+static dispatch_queue_t presentQueue(void) {
+  static dispatch_queue_t q;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    q = dispatch_queue_create(
+        "superagent.simview.present",
+        dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
+  });
+  return q;
+}
+
 /** Show whatever is on the surface now: CA only re-reads an IOSurface when told. */
-static void present(SimAttachment *a) {
-  if (!a.surface) return;
+static void presentNow(SimAttachment *a) {
+  if (a.dead || !a.surface) return;
   CALayer *layer = a.screen;
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
   layer.contents = nil;
   layer.contents = (__bridge id)a.surface;
   [CATransaction commit];
+  // Off the main thread there is no run loop to commit for us.
+  [CATransaction flush];
+  double now = CACurrentMediaTime() * 1000;
+  if (a.lastShownAt > 0 && now - a.lastShownAt > a.longestGap) a.longestGap = now - a.lastShownAt;
+  a.lastShownAt = now;
+  a.shown += 1;
+}
+
+static void present(SimAttachment *a) {
+  if (a.pending) return;
+  a.pending = YES;
+  __weak SimAttachment *weak = a;
+  dispatch_async(presentQueue(), ^{
+    SimAttachment *strong = weak;
+    if (!strong) return;
+    strong.pending = NO;
+    presentNow(strong);
+  });
+}
+
+/** Swap the surface where no frame is being drawn from it. */
+static void setSurface(SimAttachment *a, IOSurfaceRef s) {
+  dispatch_sync(presentQueue(), ^{
+    if (a.surface) CFRelease(a.surface);
+    a.surface = s ? (IOSurfaceRef)CFRetain(s) : NULL;
+  });
 }
 
 static void unregisterDamage(SimAttachment *a) {
@@ -227,17 +283,17 @@ static BOOL usePort(SimAttachment *a, id port) {
   IOSurfaceRef s = surfaceOf(port);
   if (!s) return NO;
   unregisterDamage(a);
-  if (a.surface) CFRelease(a.surface);
-  a.surface = (IOSurfaceRef)CFRetain(s);
+  setSurface(a, s);
   a.port = port;
   __weak SimAttachment *weak = a;
   NSUUID *uuid = [NSUUID UUID];
   void (^damage)(id) = ^(id rects) {
     (void)rects;
-    dispatch_async(dispatch_get_main_queue(), ^{
-      SimAttachment *strong = weak;
-      if (strong && strong.callbackUUID == uuid) present(strong);
-    });
+    SimAttachment *strong = weak;
+    if (strong && strong.callbackUUID == uuid) {
+      strong.damaged += 1;
+      present(strong);
+    }
   };
   @try {
     ((void (*)(id, SEL, id, id))objc_msgSend)(
@@ -473,8 +529,27 @@ static void teardown(SimAttachment *a) {
   a.tick = nil;
   unregisterDamage(a);
   [a.view removeFromSuperview];
-  if (a.surface) CFRelease(a.surface);
-  a.surface = NULL;
+  a.dead = YES;
+  setSurface(a, NULL);
+}
+
+/** stats(id) -> { damaged, shown, longestGapMs }, and starts counting again. */
+static napi_value Stats(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  napi_value out;
+  napi_create_object(env, &out);
+  SimAttachment *a = attachmentArg(env, argv[0]);
+  if (!a) return out;
+  setNum(env, out, "damaged", a.damaged);
+  setNum(env, out, "shown", a.shown);
+  setNum(env, out, "longestGapMs", a.longestGap);
+  a.damaged = 0;
+  a.shown = 0;
+  a.longestGap = 0;
+  a.lastShownAt = 0;
+  return out;
 }
 
 static napi_value Detach(napi_env env, napi_callback_info info) {
@@ -521,7 +596,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     napi_callback fn;
   } fns[] = {
       {"attach", Attach},         {"size", SizeOf},     {"setBounds", SetBounds},
-      {"setVisible", SetVisible}, {"detach", Detach}, {"screens", Screens},
+      {"setVisible", SetVisible}, {"detach", Detach}, {"screens", Screens}, {"stats", Stats},
   };
   for (size_t i = 0; i < sizeof(fns) / sizeof(fns[0]); i++) {
     napi_value fn;
