@@ -1,3 +1,5 @@
+const transcriptFlushers = new Set<() => Promise<void>>()
+import type { TranscriptPatch, TranscriptSnapshot, TranscriptAck } from '../shared/transcript'
 import type { MailConnectionStatus } from '../shared/mail'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
@@ -756,6 +758,9 @@ export interface CoveApi {
       onlyIfTitle: string | null
     }>
   ) => Promise<boolean>
+  registerTranscriptFlusher: (flush: () => Promise<void>) => () => void
+  chatLoadSnapshot: (chatId: string) => Promise<TranscriptSnapshot>
+  chatSavePatch: (chatId: string, patch: TranscriptPatch) => Promise<TranscriptAck>
   chatLoad: (chatId: string) => Promise<string | null>
   /** The model THIS conversation runs on; null/'' means the app's default. */
   chatSetModel: (chatId: string, model: string | null) => Promise<void>
@@ -805,9 +810,27 @@ export interface CoveApi {
   mailDisconnect: () => Promise<MailConnectionStatus>
   mailPermissions: () => Promise<void>
   envDetect: () => Promise<{
-    claude: { installed: boolean; version: string | null; loggedIn: boolean }
-    codex: { installed: boolean; version: string | null; loggedIn: boolean }
-    antigravity: { installed: boolean; version: string | null; loggedIn: boolean }
+    claude: {
+      installed: boolean
+      version: string | null
+      loggedIn: boolean
+      issue?: string
+      setupBlocked?: boolean
+    }
+    codex: {
+      installed: boolean
+      version: string | null
+      loggedIn: boolean
+      issue?: string
+      setupBlocked?: boolean
+    }
+    antigravity: {
+      installed: boolean
+      version: string | null
+      loggedIn: boolean
+      issue?: string
+      setupBlocked?: boolean
+    }
     claudeInstalled: boolean
     claudeVersion: string | null
     loggedIn: boolean
@@ -1422,6 +1445,9 @@ const cove: CoveApi = {
   onDesktopCommand: (cb) => subscribe('desktop:command', (c) => cb(c as Parameters<typeof cb>[0])),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
+  registerTranscriptFlusher: (flush) => { transcriptFlushers.add(flush); return () => { transcriptFlushers.delete(flush) } },
+  chatLoadSnapshot: (chatId) => ipcRenderer.invoke('chat:load-snapshot', chatId),
+  chatSavePatch: (chatId, patch) => ipcRenderer.invoke('chat:save-patch', chatId, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
   chatSetModel: (chatId, model) => ipcRenderer.invoke('chat:set-model', chatId, model),
   chatGetModel: (chatId) => ipcRenderer.invoke('chat:get-model', chatId),
@@ -1681,3 +1707,8 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.cove = cove
 }
+
+ipcRenderer.on('transcripts:flush', () => {
+  void Promise.all([...transcriptFlushers].map(flush => flush())).then(() => ipcRenderer.send('transcripts:flushed')).catch(error => ipcRenderer.send('transcripts:flushed', error.message))
+})
+ipcRenderer.send('transcripts:ready')

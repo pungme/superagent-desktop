@@ -10,6 +10,7 @@ vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() }
 }))
 vi.mock('./store', () => ({ getDb: () => h.db }))
+vi.mock('./transcripts', () => ({ resetTranscripts: vi.fn(async () => undefined) }))
 vi.mock('./agent', () => ({ killAllAgents: vi.fn() }))
 vi.mock('./loops', () => ({ _resetLoopsForTests: vi.fn() }))
 vi.mock('./external-browser', () => ({ closeExternalBrowsers: vi.fn() }))
@@ -17,7 +18,7 @@ vi.mock('./external-browser', () => ({ closeExternalBrowsers: vi.fn() }))
 import { wipeAppData } from './reset'
 
 describe('Reset Superagent', () => {
-  it('clears the work, keeps phones, browser logins, beta choice and every file', () => {
+  it('clears the work, keeps phones, browser logins, beta choice and every file', async () => {
     h.db = new Database(':memory:')
     for (const t of [
       'groups',
@@ -48,7 +49,7 @@ describe('Reset Superagent', () => {
     writeFileSync(join(data, 'companion', 'identity.bin'), 'x')
     mkdirSync(join(data, 'browser-projects', 'w1'), { recursive: true })
 
-    wipeAppData(data)
+    await wipeAppData(data)
 
     const count = (t: string): number =>
       (h.db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get() as { n: number }).n

@@ -1,3 +1,4 @@
+import { TranscriptWriter } from '../../../shared/transcript-writer'
 import { answerNeedsQuestion } from '../../../shared/answer-context'
 import { createPortal } from 'react-dom'
 import { resetLabel } from '../../../shared/usage-reset'
@@ -2279,21 +2280,24 @@ export function EasyChat({
   // Restore the persisted transcript on mount, then save it (debounced) as it
   // changes — so the conversation is still here after Superagent is reopened.
   const hydratedRef = useRef(false)
+  const transcriptWriter = useRef<TranscriptWriter<Item> | null>(null)
+  const [persistenceError, setPersistenceError] = useState('')
+  const makeWriter = (saved: Item[], revision: number): TranscriptWriter<Item> => new TranscriptWriter(
+    saved, revision,
+    it => JSON.stringify(it.kind === 'msg' && it.msg.streaming ? { ...it, msg: { ...it.msg, streaming: false } } : it),
+    patch => window.cove.chatSavePatch(chatId, patch)
+  )
   useEffect(() => {
     let alive = true
     // Saving stays blocked until this chat's own transcript has landed, so an
     // empty first render can never be written over real data.
     hydratedRef.current = false
-    window.cove.chatLoad(chatId).then((json) => {
+    window.cove.chatLoadSnapshot(chatId).then(({ json, revision }) => {
       if (!alive) return
-      if (json) {
-        try {
-          const saved = JSON.parse(json) as Item[]
-          if (saved.length) setItems(saved)
-        } catch {
-          // Ignore a corrupt blob — start fresh.
-        }
-      }
+      const saved = JSON.parse(json || '[]') as Item[]
+      if (!Array.isArray(saved)) throw new Error('Saved transcript is unreadable; original retained.')
+      transcriptWriter.current = makeWriter(saved, revision)
+      setItems(saved)
       // This chat wanted its own checkout but git refused (no commits yet, or
       // an index it won't branch from). Say so once, inline — a small system
       // line beats an alert() the user has to dismiss.
@@ -2314,27 +2318,23 @@ export function EasyChat({
         ])
       }
       hydratedRef.current = true
-    })
+      setPersistenceError('')
+    }).catch(error => { if (alive) setPersistenceError(`Could not load conversation: ${error.message}`) })
     return () => {
       alive = false
     }
   }, [chatId])
 
-  /** Last payload actually written, so an unchanged transcript is never rewritten. */
-  const lastSavedRef = useRef('')
   const saveTranscript = useCallback((): void => {
-    // Never write without a chat to write to, and never before this chat's own
-    // transcript has loaded — either would persist an empty list over real data.
-    if (!chatId || !hydratedRef.current) return
-    // Persist a clean copy — no mid-stream flags to reanimate on reload.
-    const clean = itemsRef.current.map((it) =>
-      it.kind === 'msg' && it.msg.streaming ? { ...it, msg: { ...it.msg, streaming: false } } : it
-    )
-    const json = JSON.stringify(clean)
-    if (json === lastSavedRef.current) return
-    lastSavedRef.current = json
-    window.cove.chatSave(chatId, json)
+    if (!chatId || !hydratedRef.current || !transcriptWriter.current) return
+    void transcriptWriter.current.save(() => itemsRef.current)
+      .then(() => setPersistenceError(''))
+      .catch(error => setPersistenceError(`Conversation not saved: ${error.message}`))
   }, [chatId])
+
+  useEffect(() => window.cove.registerTranscriptFlusher(async () => {
+    if (hydratedRef.current && transcriptWriter.current) await transcriptWriter.current.save(() => itemsRef.current)
+  }), [chatId])
 
   /**
    * The phone can drive this chat while this window sits here with an older
@@ -2345,12 +2345,12 @@ export function EasyChat({
   useEffect(() => {
     return window.cove.onChatAppended?.(({ chatId: id }) => {
       if (id !== chatId || !hydratedRef.current || turnInFlightRef.current) return
-      void window.cove.chatLoad(chatId).then((json) => {
+      void window.cove.chatLoadSnapshot(chatId).then(({ json, revision }) => {
         if (!json) return
         try {
           const saved = JSON.parse(json) as Item[]
           if (!saved.length) return
-          lastSavedRef.current = json
+          transcriptWriter.current = makeWriter(saved, revision)
           setItems(saved)
         } catch {
           // Ignore a corrupt blob — keep what's on screen.
@@ -2366,26 +2366,14 @@ export function EasyChat({
     return () => clearTimeout(t)
   }, [items, chatId, generating, saveTranscript])
 
-  /**
-   * Streaming rewrote the WHOLE transcript every 400ms — with a long chat that
-   * is megabytes of JSON.stringify on the main thread, several times a second:
-   * 2.4 GB of disk writes in four hours (macOS filed a diagnostic) and a UI that
-   * stutters while the agent types. A checkpoint every few seconds loses nothing
-   * that matters — the final save lands the moment the turn ends.
-   */
+  // A bounded checkpoint window during streaming, independent of history size.
+  // Only changed items cross IPC; the worker acknowledges a durable commit.
   useEffect(() => {
-    if (!generating || !chatId) return
-    // A long chat with pictures in it runs to tens of megabytes, and each
-    // checkpoint turned all of it into text here and rewrote it in main: a
-    // stall every five seconds while the agent worked. Such a chat checks in
-    // less often; the end of the turn saves it either way.
-    const every = lastSavedRef.current.length > 5_000_000 ? 30_000 : 5000
-    const iv = setInterval(saveTranscript, every)
-    return () => {
-      clearInterval(iv)
-      saveTranscript()
-    }
-  }, [generating, chatId, saveTranscript])
+    if (!chatId) return
+    const iv = setInterval(saveTranscript, 1000)
+    return () => { clearInterval(iv); saveTranscript() }
+  }, [chatId, saveTranscript])
+  useEffect(() => { if (!generating) saveTranscript() }, [generating, saveTranscript])
 
   // Paste a screenshot/image into the composer.
   const attachImage = (file: File): void => {
@@ -4123,7 +4111,13 @@ export function EasyChat({
         agentIdRef.current = null
       }
       stopLoop()
+      hydratedRef.current = false
+      transcriptWriter.current = null
       setItems([])
+      void window.cove.chatLoadSnapshot(chatId).then(({ revision }) => {
+        transcriptWriter.current = makeWriter([], revision)
+        hydratedRef.current = true
+      }).catch(error => setPersistenceError(error.message))
       tasks.current.clear()
       useStore.getState().clearTodos(chatId)
       resumeIdRef.current = null
@@ -5250,6 +5244,7 @@ export function EasyChat({
       }}
       onDrop={onDrop}
     >
+      {persistenceError && <div role="alert" className="easy-error"><span>{persistenceError}</span><button onClick={saveTranscript}>Retry save</button></div>}
       {dragOver && <div className="easy-drop-hint">Drop a file to add it</div>}
       {agentFailed && (
         <div className="easy-error">

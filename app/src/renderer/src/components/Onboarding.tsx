@@ -22,7 +22,13 @@ interface OnboardingProps {
   onDone: () => void
 }
 
-type ProviderStatus = { installed: boolean; version: string | null; loggedIn: boolean }
+type ProviderStatus = {
+  installed: boolean
+  version: string | null
+  loggedIn: boolean
+  issue?: string
+  setupBlocked?: boolean
+}
 type EnvStatus = {
   claude: ProviderStatus
   codex: ProviderStatus
@@ -62,6 +68,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
   const [env, setEnv] = useState<EnvStatus | null>(null)
   const [checking, setChecking] = useState(true)
   const [busy, setBusy] = useState<Busy | null>(null)
+  const [approval, setApproval] = useState<AgentProvider | null>(null)
   const [failed, setFailed] = useState<{ provider: AgentProvider; message: string } | null>(null)
   const setProvider = useStore((s) => s.setProvider)
 
@@ -80,9 +87,7 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
     }
   }
 
-  // The one button on a row: install it if it is missing, then sign in, all
-  // here. Signing in opens a Superagent window on the agent's own sign-in
-  // page; nothing is handed to Terminal or the browser.
+  // Run only the step the user approved. Re-check before offering the next step.
   const connect = async (provider: AgentProvider): Promise<void> => {
     setFailed(null)
     try {
@@ -102,6 +107,8 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
           setFailed({ provider, message: 'Installed, but Superagent cannot find it yet.' })
           return
         }
+        // Installing does not authorize a separate sign-in flow.
+        return
       }
       if (!status.loggedIn) {
         setBusy({ provider, what: 'signin', line: 'Waiting for you to sign in…' })
@@ -110,9 +117,8 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
           if (!res.cancelled) setFailed({ provider, message: res.error })
           return
         }
-        // Signed in: say so now, and let the slower check confirm it.
-        setEnv((e) => (e ? { ...e, [provider]: { ...e[provider], loggedIn: true } } : e))
-        void check()
+        // Confirm the result before calling this connection ready.
+        await check()
       }
     } catch (e) {
       setFailed({ provider, message: e instanceof Error ? e.message : 'Something went wrong.' })
@@ -229,7 +235,18 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
                       {mine.what === 'install' ? `Installing… ${mine.line}` : mine.line}
                     </span>
                   ) : (
-                    <span className="onboarding-agent-plan">{COPY[provider].plan}</span>
+                    <span className="onboarding-agent-plan">
+                      {COPY[provider].plan}
+                      <br />
+                      {status?.issue ||
+                        (!status
+                          ? 'Could not check this agent.'
+                          : connected
+                            ? `Ready · ${status.version || 'Installed'}`
+                            : status.installed
+                              ? 'Installed · Sign-in required'
+                              : 'Not installed')}
+                    </span>
                   )}
                 </span>
                 {connected ? (
@@ -256,12 +273,58 @@ export function Onboarding({ onDone }: OnboardingProps): React.JSX.Element | nul
                 ) : (
                   <button
                     className="onboarding-agent-btn"
-                    onClick={() => void connect(provider)}
-                    disabled={!!busy}
+                    onClick={() => setApproval(provider)}
+                    disabled={!!busy || checking || !status || status.setupBlocked}
                   >
-                    {status?.installed ? 'Sign in' : 'Install'}
+                    {status?.setupBlocked
+                      ? 'Needs attention'
+                      : status?.installed
+                        ? 'Sign in'
+                        : 'Install'}
                   </button>
                 )}
+        {approval === provider && (
+          <section
+            role="region"
+            aria-label="Approve agent setup"
+            className="onboarding-approval"
+          >
+            <h2>
+              {env?.[approval].installed
+                ? 'Allow sign-in?'
+                : `Install ${PROVIDER_PRODUCT[approval]}?`}
+            </h2>
+            <p>
+              {env?.[approval].installed
+                ? `Superagent will start ${PROVIDER_PRODUCT[approval]}'s sign-in flow. You will sign in yourself in the window that opens.`
+                : `Superagent will download and install ${PROVIDER_PRODUCT[approval]} on this Mac. Sign-in is a separate step.`}
+            </p>
+            <code>
+              {env?.[approval].installed
+                ? approval === 'codex'
+                  ? 'codex app-server → account/login/start'
+                  : approval === 'claude'
+                    ? 'claude auth login'
+                    : 'agy models'
+                : COPY[approval].manual}
+            </code>
+            <div className="onboarding-actions">
+              <button className="onboarding-agent-btn quiet" onClick={() => setApproval(null)}>
+                Cancel
+              </button>
+              <button
+                className="onboarding-agent-btn"
+                onClick={() => {
+                  const provider = approval
+                  setApproval(null)
+                  void connect(provider)
+                }}
+              >
+                {env?.[approval].installed ? 'Allow sign-in' : 'Allow install'}
+              </button>
+            </div>
+          </section>
+        )}
                 {error && (
                   <span role="alert" className="onboarding-agent-error">
                     {error}

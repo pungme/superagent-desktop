@@ -43,8 +43,10 @@ vi.mock('../store', () => ({
   onChatsCleared: (cb: (ids: string[]) => void) => cleared.push(cb),
   loadChatItems: (chatId: string) => mem.items.get(chatId) ?? [],
   setChatSession: () => undefined,
-  appendChatItems: (chatId: string, items: unknown[]) =>
+  appendChatItems: (chatId: string, items: unknown[]) => {
     mem.items.set(chatId, [...(mem.items.get(chatId) ?? []), ...items])
+    return Promise.resolve()
+  }
 }))
 
 vi.mock('../agent', () => ({

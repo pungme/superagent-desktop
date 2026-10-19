@@ -306,7 +306,7 @@ app.whenReady().then(async () => {
   })
 
   registerBrowserIpc()
-  registerStoreIpc()
+  await registerStoreIpc()
   registerDesktopIpc()
   registerChatBrowserTabsIpc()
   registerDeskIpc()

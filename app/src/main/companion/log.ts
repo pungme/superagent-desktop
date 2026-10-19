@@ -3,7 +3,6 @@ import { fallbackNotice } from '../../shared/model-fallback'
 import { basename, extname, isAbsolute, relative } from 'path'
 import { statSync } from 'fs'
 import { agentBus, listSessions, getSessionOpts } from '../agent'
-import { broadcastToWindows } from '../util'
 import { keepThumbnails } from './attachments'
 import { getWorkspacePath, chatCwd } from '../store'
 import { discoverSkills } from '../skills'
@@ -298,13 +297,13 @@ export function startCompanionLog(): void {
       // and remember the session so it can be resumed later — with the backend
       // that issued it, since only that one can resume it.
       if (!isOwned(id, owned)) {
-        appendChatItems(chatId, toLegacyItems(stored.map((e) => e.data)))
+        void appendChatItems(chatId, toLegacyItems(stored.map((e) => e.data))).catch(console.error)
         for (const e of stored)
           if (e.data.kind === 'session')
             setChatSession(chatId, e.data.claudeSessionId, getSessionOpts(id)?.provider)
         // A window may be sitting on this chat with an older copy in memory,
         // which it would write back over what the phone just added.
-        broadcastToWindows('chat:appended', { chatId })
+        // appendChatItems broadcasts only after the durable commit.
       }
     }
   )
@@ -349,8 +348,8 @@ export function startCompanionLog(): void {
       // that did not send this message can still show its pictures.
       if (raw?.length) keepThumbnails(data.id, raw)
       if (!isOwned(id, owned)) {
-        appendChatItems(chatId, toLegacyItems([ev.data]))
-        broadcastToWindows('chat:appended', { chatId })
+        void appendChatItems(chatId, toLegacyItems([ev.data])).catch(console.error)
+        // appendChatItems broadcasts only after the durable commit.
       }
     }
   )

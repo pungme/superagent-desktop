@@ -1,4 +1,4 @@
-import { execSync, exec } from 'child_process'
+import { execFileSync, execFile } from 'child_process'
 import { dirname } from 'path'
 import type { AgentProvider } from '../shared/agent-provider'
 
@@ -23,13 +23,11 @@ function loginShell(): string {
  * whole answer to stderr, so discarding it reads as "not signed in" forever.
  */
 export function loginShellExec(cmd: string, timeoutMs = 8000, keepStderr = false): string {
-  return execSync(
-    `${loginShell()} -lic ${JSON.stringify(cmd)} ${keepStderr ? '2>&1' : '2>/dev/null'}`,
-    {
-      encoding: 'utf8',
-      timeout: timeoutMs
-    }
-  ).trim()
+  return execFileSync(loginShell(), ['-lic', keepStderr ? `{ ${cmd}\n} 2>&1` : cmd], {
+    encoding: 'utf8',
+    timeout: timeoutMs,
+    stdio: ['ignore', 'pipe', 'pipe']
+  }).trim()
 }
 
 /**
@@ -45,8 +43,9 @@ export function loginShellExecAsync(
   keepStderr = false
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    exec(
-      `${loginShell()} -lic ${JSON.stringify(cmd)} ${keepStderr ? '2>&1' : '2>/dev/null'}`,
+    execFile(
+      loginShell(),
+      ['-lic', keepStderr ? `{ ${cmd}\n} 2>&1` : cmd],
       { encoding: 'utf8', timeout: timeoutMs },
       (err, stdout) => (err ? reject(err) : resolve(stdout.trim()))
     )

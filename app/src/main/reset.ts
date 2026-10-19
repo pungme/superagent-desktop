@@ -1,3 +1,4 @@
+import { resetTranscripts } from './transcripts'
 import { app, ipcMain } from 'electron'
 import { readdirSync, rmSync } from 'fs'
 import { join } from 'path'
@@ -37,7 +38,7 @@ const TABLES = [
 /** kv keys that survive: a setting, and a one-time migration marker. */
 const KEEP_KV = ['cove.betaUpdates', 'cove.partitions-merged']
 
-export function wipeAppData(userData = app.getPath('userData')): void {
+export async function wipeAppData(userData = app.getPath('userData')): Promise<void> {
   stopAllLoops()
   killAllAgents()
   closeExternalBrowsers()
@@ -53,6 +54,7 @@ export function wipeAppData(userData = app.getPath('userData')): void {
       ...KEEP_KV
     )
   })()
+  await resetTranscripts()
   // Pictures sent in chats, and the per-chat tool configs (rewritten on the next start).
   rmSync(join(userData, 'attachments'), { recursive: true, force: true })
   for (const f of readdirSync(userData))
@@ -60,8 +62,8 @@ export function wipeAppData(userData = app.getPath('userData')): void {
 }
 
 export function registerResetIpc(): void {
-  ipcMain.handle('app:reset', () => {
-    wipeAppData()
+  ipcMain.handle('app:reset', async () => {
+    await wipeAppData()
     // Tests reload the window in place; everyone else gets a fresh start.
     if (process.env.COVE_E2E_NO_RELAUNCH === '1') return { ok: true }
     app.relaunch()

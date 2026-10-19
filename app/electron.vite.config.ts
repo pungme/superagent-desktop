@@ -10,6 +10,7 @@ export default defineConfig({
         // of its own so a finger on it never waits behind main.
         input: {
           index: resolve('src/main/index.ts'),
+          'transcript-worker': resolve('src/main/transcript-worker.ts'),
           'sim-input-worker': resolve('src/main/sim-input-worker.ts')
         },
         // ws is a runtime dependency (shipped in node_modules); its optional native

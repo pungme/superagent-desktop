@@ -21,7 +21,7 @@ async function passTour(p: import('@playwright/test').Page): Promise<void> {
     await p.getByRole('button', { name: 'Continue', exact: true }).click()
 }
 
-test('one button installs an agent and signs it in, here', async () => {
+test('setup explains missing agents and asks separately before installing and signing in', async () => {
   const data = mkdtempSync(join(tmpdir(), 'cove-onb-data-'))
   const proj = mkdtempSync(join(tmpdir(), 'cove-onb-proj-'))
   writeFileSync(join(proj, 'README.md'), '# x\n')
@@ -73,6 +73,7 @@ test('one button installs an agent and signs it in, here', async () => {
     const rows = page.locator('.onboarding-agent')
     await expect(rows).toHaveCount(3)
     await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeDisabled()
+    await expect(rows.nth(0)).toContainText('Not installed')
     // Nothing on the page sends you to Terminal or a browser.
     await expect(page.locator('.onboarding')).not.toContainText(/Terminal/i)
     await expect(page.locator('.onboarding a[href]')).toHaveCount(0)
@@ -81,6 +82,19 @@ test('one button installs an agent and signs it in, here', async () => {
     // now offers Sign in: the install is done.
     const claude = rows.nth(0)
     await claude.getByRole('button', { name: 'Install', exact: true }).click()
+    const approval = page.getByRole('region', { name: 'Approve agent setup' })
+    await expect(approval).toContainText('curl -fsSL https://claude.ai/install.sh | bash')
+    await page.screenshot({ path: 'onboarding-approval.png' })
+    expect(await app.evaluate(() => (globalThis as any).sa.installed.size)).toBe(0)
+    await approval.getByRole('button', { name: 'Cancel', exact: true }).click()
+    expect(await app.evaluate(() => (globalThis as any).sa.installed.size)).toBe(0)
+    await page.screenshot({ path: 'onboarding-diagnostics.png' })
+    await claude.getByRole('button', { name: 'Install', exact: true }).click()
+    await approval.getByRole('button', { name: 'Allow install', exact: true }).click()
+    await expect(claude).toContainText('Installed · Sign-in required')
+    expect(await app.evaluate(() => (globalThis as any).sa.signIns)).toEqual([])
+    await claude.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await approval.getByRole('button', { name: 'Allow sign-in', exact: true }).click()
     await expect(claude.getByRole('alert')).toContainText('That account has no plan.')
     await expect(rows.nth(1).getByRole('alert')).toHaveCount(0)
     await expect(claude.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
@@ -90,6 +104,7 @@ test('one button installs an agent and signs it in, here', async () => {
       ;(globalThis as unknown as { sa: { refuse: boolean } }).sa.refuse = false
     })
     await claude.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await approval.getByRole('button', { name: 'Allow sign-in', exact: true }).click()
     await expect(claude).toContainText('Connected')
     await expect(claude.getByRole('alert')).toHaveCount(0)
     expect(

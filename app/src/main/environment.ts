@@ -18,6 +18,8 @@ export interface ProviderStatus {
   installed: boolean
   version: string | null
   loggedIn: boolean
+  issue?: string
+  setupBlocked?: boolean
 }
 
 export interface EnvStatus {
@@ -134,6 +136,14 @@ export function detectVersion(): Record<
   return found
 }
 
+function probeError(error: unknown): string {
+  const e = error as { stderr?: string; stdout?: string; message?: string; killed?: boolean }
+  if (e?.killed) return 'The check timed out. Choose Check again to retry.'
+  return String(e?.stderr || e?.stdout || e?.message || 'Unknown error')
+    .trim()
+    .slice(-500)
+}
+
 /**
  * The full picture, sign-in included.
  *
@@ -142,12 +152,41 @@ export function detectVersion(): Record<
  * while someone waits on a first-run screen.
  */
 export async function detectEnvironment(): Promise<EnvStatus> {
+  // Re-check missing or repaired installations, including changes made outside the app.
+  versionCache = null
   const versions = await detectVersionAsync()
   const statuses = {} as Record<AgentProvider, ProviderStatus>
   await Promise.all(
     AGENT_PROVIDERS.map(async (provider) => {
       const { installed, version } = versions[provider]
       let loggedIn = false
+      let issue: string | undefined
+      let setupBlocked = false
+      if (!installed) {
+        try {
+          await loginShellExecAsync(`command -v ${provider === 'antigravity' ? 'agy' : provider}`)
+          issue = 'Installed, but could not start. Check the error details below.'
+          setupBlocked = true
+          try {
+            await loginShellExecAsync(PROBES[provider].version, 8000, true)
+          } catch (error) {
+            issue = `Installed, but could not start: ${probeError(error)}`
+          }
+        } catch {
+          // A missing CLI can be installed, provided its installer can run.
+        }
+        if (provider === 'codex') {
+          for (const dependency of ['node', 'npm']) {
+            try {
+              await loginShellExecAsync(`${dependency} --version`)
+            } catch {
+              issue = `${dependency === 'node' ? 'Node.js' : 'npm'} is missing or cannot run. Install Node.js with npm, then choose Check again.`
+              setupBlocked = true
+              break
+            }
+          }
+        }
+      }
       if (installed) {
         try {
           const out = await loginShellExecAsync(
@@ -156,11 +195,24 @@ export async function detectEnvironment(): Promise<EnvStatus> {
             PROBES[provider].loginOnStderr
           )
           loggedIn = PROBES[provider].loginCheck(out)
-        } catch {
-          loggedIn = false
+          if (
+            !loggedIn &&
+            !/not logged in|"loggedIn"\s*:\s*false|sign in|not authenticated/i.test(out)
+          ) {
+            issue = 'Could not confirm sign-in. Choose Check again to retry.'
+            setupBlocked = true
+          }
+        } catch (error) {
+          const detail = probeError(error)
+          if (
+            !/not logged in|"loggedIn"\s*:\s*false|please sign in|not authenticated/i.test(detail)
+          ) {
+            issue = `Could not check sign-in: ${detail}`
+            setupBlocked = true
+          }
         }
       }
-      statuses[provider] = { installed, version, loggedIn }
+      statuses[provider] = { installed, version, loggedIn, issue, setupBlocked }
     })
   )
   const env: EnvStatus = {
@@ -195,7 +247,7 @@ export function installProvider(
 ): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
     const shell = process.env.SHELL || '/bin/zsh'
-    const proc = spawn(shell, ['-lc', INSTALL_COMMAND[provider]], { env: process.env })
+    const proc = spawn(shell, ['-lic', INSTALL_COMMAND[provider]], { env: process.env })
     let err = ''
     proc.stdout.on('data', (d) => onLine(d.toString()))
     proc.stderr.on('data', (d) => {

@@ -1,3 +1,5 @@
+import { initTranscripts, loadTranscript, readTranscript, saveTranscriptPatch, transcriptRequest } from './transcripts'
+import type { TranscriptPatch } from '../shared/transcript'
 import { app, ipcMain } from 'electron'
 import { join, sep } from 'path'
 import {
@@ -296,15 +298,8 @@ export function initStore(): void {
   // it: listing 76 chats read 345 MB and took 74 ms, on the main thread, every
   // 700 ms from the menu bar alone. Moved once; `chats.data` stays, empty.
   db.exec('CREATE TABLE IF NOT EXISTS chat_data (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
-  if (!db.prepare("SELECT 1 FROM kv WHERE key = 'migrated.chat_data'").get()) {
-    db.transaction(() => {
-      db.exec(
-        "INSERT OR REPLACE INTO chat_data (id, data) SELECT id, data FROM chats WHERE data NOT IN ('', '[]')"
-      )
-      db.exec("UPDATE chats SET data = '' WHERE data NOT IN ('', '[]')")
-      db.prepare('INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)').run('migrated.chat_data', '1')
-    })()
-  }
+  // Legacy blobs are retained; the worker migrates each chat atomically on first load.
+  initTranscripts(app.getPath('userData'))
 
   // First run starts flat: projects with no group over them. A group is made
   // when the user asks for one (see FLAT_GROUP).
@@ -453,6 +448,8 @@ export function createBrowserWorkspace(groupId: string, name: string, url?: stri
 }
 
 export function deleteWorkspace(id: string): void {
+  for (const row of db.prepare('SELECT id FROM chats WHERE workspaceId=?').all(id) as {id:string}[])
+    void transcriptRequest('clear', row.id).catch(console.error)
   db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
   db.prepare('DELETE FROM chat_data WHERE id IN (SELECT id FROM chats WHERE workspaceId = ?)').run(
     id
@@ -614,6 +611,8 @@ export function lastChatEventSeq(chatId: string): number {
  * nothing saved yet) the '[]' its row was made with. Null for no such chat.
  */
 export function chatData(chatId: string): string | null {
+  const incremental = readTranscript(chatId)
+  if (incremental !== undefined) return incremental
   const own = db.prepare('SELECT data FROM chat_data WHERE id = ?').get(chatId) as
     | { data: string }
     | undefined
@@ -622,24 +621,6 @@ export function chatData(chatId: string): string | null {
     | { data: string }
     | undefined
   return row ? row.data || '[]' : null
-}
-
-/**
- * Whether this is what is stored already. By size first: a long chat's
- * transcript runs to tens of megabytes, and reading it back on every save to
- * compare was main-thread time the window (and the simulator) waited on.
- */
-function sameChatData(chatId: string, data: string): boolean {
-  const row = db
-    .prepare('SELECT octet_length(data) AS n FROM chat_data WHERE id = ?')
-    .get(chatId) as { n: number } | undefined
-  if (!row) return chatData(chatId) === data
-  if (row.n !== Buffer.byteLength(data)) return false
-  return chatData(chatId) === data
-}
-
-function setChatData(chatId: string, data: string): void {
-  db.prepare('INSERT OR REPLACE INTO chat_data (id, data) VALUES (?, ?)').run(chatId, data)
 }
 
 /** The renderer's saved transcript, parsed. [] when missing or unreadable. */
@@ -658,16 +639,12 @@ export function loadChatItems(chatId: string): unknown[] {
  * Append renderer-shaped items to a saved transcript. Used for turns that ran
  * with no window open, so the desktop still shows them when it comes back.
  */
-export function appendChatItems(chatId: string, items: unknown[]): void {
-  if (!items.length) return
-  const run = db.transaction(() => {
-    const current = loadChatItems(chatId)
-    const changed = db
-      .prepare('UPDATE chats SET updatedAt = ? WHERE id = ?')
-      .run(Date.now(), chatId).changes
-    if (changed) setChatData(chatId, JSON.stringify([...current, ...items]))
-  })
-  run()
+export function appendChatItems(chatId: string, items: unknown[]): Promise<void> {
+  if (!items.length) return Promise.resolve()
+  return transcriptRequest('append', chatId, items).then(() => {
+    db.prepare('UPDATE chats SET updatedAt=? WHERE id=?').run(Date.now(), chatId)
+    broadcastToWindows('chat:appended', { chatId })
+  }).catch(error => { console.error('Transcript append failed', error); throw error })
 }
 
 export interface ChatRow {
@@ -934,6 +911,7 @@ export function lastChatPreview(chatId: string): string | null {
  * not a reason to move the conversation to a different agent.)
  */
 export function clearChat(chatId: string): void {
+  void transcriptRequest('clear', chatId).catch(console.error)
   const now = Date.now()
   db.transaction(() => {
     db.prepare('DELETE FROM chat_events WHERE chatId = ?').run(chatId)
@@ -964,6 +942,7 @@ export function clearWorkspaceChats(workspaceId: string): string[] {
       "UPDATE chats SET data = '[]', claudeSessionId = NULL, updatedAt = ? WHERE workspaceId = ?"
     ).run(now, workspaceId)
   })()
+  for (const id of ids) void transcriptRequest('clear', id).catch(console.error)
   tellCleared(ids)
   return ids
 }
@@ -1054,6 +1033,7 @@ export function moveChatToWorkspace(chatId: string, toWorkspaceId: string): bool
 }
 
 export function deleteChat(chatId: string): void {
+  void transcriptRequest('clear', chatId).catch(console.error)
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId)
   db.prepare('DELETE FROM chat_data WHERE id = ?').run(chatId)
   kvDel(pendingKey(chatId))
@@ -1907,8 +1887,9 @@ export function removeCalendarEvent(id: string): void {
   db.prepare('DELETE FROM calendar_events WHERE id = ?').run(id)
 }
 
-export function registerStoreIpc(): void {
+export async function registerStoreIpc(): Promise<void> {
   initStore()
+  await transcriptRequest('barrier')
 
   // Ensuring the ungrouped section here means the sidebar always has somewhere
   // to draw a project with no group — including installs made before there
@@ -2289,26 +2270,17 @@ function registerStoreIpcTail(): void {
     setChatModel(chatId, model)
   })
   ipcMain.handle('chat:get-model', (_e, chatId: string) => getChatModel(chatId))
-  ipcMain.handle('chat:load', (_e, chatId: string) => chatData(chatId))
+  ipcMain.handle('chat:load', async (_e, chatId: string) => (await loadTranscript(chatId)).json)
+  ipcMain.handle('chat:load-snapshot', (_e, chatId: string) => loadTranscript(chatId))
+  ipcMain.handle('chat:save-patch', async (_e, chatId: string, patch: TranscriptPatch) => {
+    const ack = await saveTranscriptPatch(chatId, patch)
+    db.prepare('UPDATE chats SET updatedAt=? WHERE id=?').run(Date.now(), chatId)
+    return ack
+  })
+  // Compatibility for old callers; no renderer autosave sends a complete blob anymore.
   ipcMain.on('chat:save', (_e, chatId: string, data: string) => {
-    // UPDATE (never INSERT) and only for a real id: a save for an unknown chat is
-    // a caller bug, and must not be able to invent a row or clobber another's.
     if (!chatId) return
-    // Only move the clock when the transcript actually changed.
-    //
-    // updatedAt is read as "when something was last said here" — the sidebar
-    // sorts by it, Activity orders by it, and the unread dot compares it with
-    // when you last had the conversation open. But this handler bumped it on
-    // every save, and the window saves its transcript back on mount, after a
-    // reload, and whenever a chat is merely kept alive in the background. So a
-    // conversation from three weeks ago that nobody touched would jump to the
-    // top of the list and grow an unread dot, for no reason anyone could see.
-    db.transaction(() => {
-      if (!db.prepare('SELECT 1 FROM chats WHERE id = ?').get(chatId)) return
-      if (sameChatData(chatId, data)) return
-      setChatData(chatId, data)
-      db.prepare('UPDATE chats SET updatedAt = ? WHERE id = ?').run(Date.now(), chatId)
-    })()
+    void transcriptRequest('replace', chatId, data).catch(error => console.error('Transcript save failed', error))
   })
   // Wipes one chat's transcript in place (used by Retry-style resets), which is
   // no longer how "New chat" works — that creates a sibling instead.

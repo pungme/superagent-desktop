@@ -164,8 +164,10 @@ vi.mock('../store', () => ({
     return true
   },
   loadChatItems: (chatId: string) => h.items.get(chatId) ?? [],
-  appendChatItems: (chatId: string, items: unknown[]) =>
+  appendChatItems: (chatId: string, items: unknown[]) => {
     h.items.set(chatId, [...(h.items.get(chatId) ?? []), ...items])
+    return Promise.resolve()
+  }
 }))
 
 vi.mock('./devices', async () => {
