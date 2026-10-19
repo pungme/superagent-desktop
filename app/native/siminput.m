@@ -24,7 +24,7 @@
 // Protocol: started with --udid. Prints {"type":"ready"} or {"type":"error",
 // "error":…} and exits non-zero. Then reads JSON lines on stdin, each with an
 // "id", and answers {"id":…,"ok":true} or {"id":…,"ok":false,"error":…}:
-//   {"type":"touch","phase":"start|move|end","x":0.5,"y":0.5}
+//   {"type":"touch","phase":"start|move|end","x":0.5,"y":0.5}  (+ "x2","y2": a second finger)
 //   {"type":"tap","x":…,"y":…,"hold":0.05}
 //   {"type":"swipe","x":…,"y":…,"toX":…,"toY":…,"duration":0.25}
 //   {"type":"key","usage":40,"mods":[225]}   HID page-7 usages
@@ -187,12 +187,27 @@ static void drain(void) {
 
 static double clamp01(double v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
-static void touch(uint64_t phase, double x, double y) {
+static xpc_object_t point(double x, double y) {
   xpc_object_t pt = xpc_dictionary_create(NULL, NULL, 0);
   xpc_dictionary_set_double(pt, "x", clamp01(x));
   xpc_dictionary_set_double(pt, "y", clamp01(y));
+  return pt;
+}
+
+/** One finger, or two (x2/y2 ≥ 0): a pinch or a two-finger turn. */
+static void touch2(uint64_t phase, double x, double y, double x2, double y2) {
   xpc_object_t p = xpc_dictionary_create(NULL, NULL, 0);
-  xpc_dictionary_set_value(p, "pointOne", pt);
+  xpc_dictionary_set_value(p, "pointOne", point(x, y));
+  if (x2 >= 0 && y2 >= 0) xpc_dictionary_set_value(p, "pointTwo", point(x2, y2));
+  xpc_dictionary_set_uint64(p, "eventType", phase);
+  xpc_dictionary_set_uint64(p, "edge", 0);
+  xpc_dictionary_set_uint64(p, "target", 0);
+  send(message("IndigoDigitizerEvent", p, false));
+}
+
+static void touch(uint64_t phase, double x, double y) {
+  xpc_object_t p = xpc_dictionary_create(NULL, NULL, 0);
+  xpc_dictionary_set_value(p, "pointOne", point(x, y));
   xpc_dictionary_set_uint64(p, "eventType", phase);
   xpc_dictionary_set_uint64(p, "edge", 0);
   xpc_dictionary_set_uint64(p, "target", 0);
@@ -349,7 +364,7 @@ static NSString *run(NSDictionary *c) {
   if ([type isEqualToString:@"touch"]) {
     NSString *phase = c[@"phase"];
     uint64_t p = [phase isEqualToString:@"start"] ? 0 : [phase isEqualToString:@"end"] ? 2 : 1;
-    touch(p, num(c, @"x", 0), num(c, @"y", 0));
+    touch2(p, num(c, @"x", 0), num(c, @"y", 0), num(c, @"x2", -1), num(c, @"y2", -1));
   } else if ([type isEqualToString:@"tap"]) {
     double x = num(c, @"x", 0), y = num(c, @"y", 0);
     touch(0, x, y);

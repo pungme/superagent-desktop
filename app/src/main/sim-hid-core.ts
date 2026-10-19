@@ -138,7 +138,28 @@ export const KEY_USAGES: Record<string, number> = {
   ArrowRight: 0x4f,
   ArrowLeft: 0x50,
   ArrowDown: 0x51,
-  ArrowUp: 0x52
+  ArrowUp: 0x52,
+  Home: 0x4a,
+  End: 0x4d,
+  PageUp: 0x4b,
+  PageDown: 0x4e,
+  // Physical keys by KeyboardEvent.code, for shortcuts held with a modifier.
+  ...Object.fromEntries(
+    Array.from({ length: 26 }, (_, i) => [`Key${String.fromCharCode(65 + i)}`, 0x04 + i])
+  ),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`Digit${(i + 1) % 10}`, 0x1e + i])),
+  ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, 0x3a + i])),
+  Minus: 0x2d,
+  Equal: 0x2e,
+  BracketLeft: 0x2f,
+  BracketRight: 0x30,
+  Backslash: 0x31,
+  Semicolon: 0x33,
+  Quote: 0x34,
+  Backquote: 0x35,
+  Comma: 0x36,
+  Period: 0x37,
+  Slash: 0x38
 }
 const MODIFIER_USAGES: Record<string, number> = {
   control: 0xe0,
@@ -191,7 +212,10 @@ export function hidCommand(a: HidAction): Record<string, unknown> | null {
     }
     case 'touch': {
       const p = normalise(a.x, a.y, a.width, a.height)
-      return { type: 'touch', phase: a.phase, ...p }
+      if (a.x2 === undefined || a.y2 === undefined) return { type: 'touch', phase: a.phase, ...p }
+      // A second finger: a pinch, or two fingers turning.
+      const q = normalise(a.x2, a.y2, a.width, a.height)
+      return { type: 'touch', phase: a.phase, ...p, x2: q.x, y2: q.y }
     }
     case 'swipe': {
       const from = normalise(a.x, a.y, a.width, a.height)

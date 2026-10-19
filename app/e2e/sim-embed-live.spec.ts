@@ -133,3 +133,50 @@ test('input reaches the device through dtuhidd: Home, then a held finger opens S
   })
   expect(front).toContain('com.apple.Preferences')
 })
+
+test('a trackpad pinch on the pane pinches the device', async () => {
+  test.setTimeout(60_000)
+  // A fresh page each time, at its own zoom.
+  execFileSync('xcrun', ['simctl', 'terminate', UDID!, 'com.apple.mobilesafari'], {
+    stdio: 'ignore'
+  })
+  execFileSync('xcrun', ['simctl', 'openurl', UDID!, 'https://example.com'], { stdio: 'ignore' })
+  await window.waitForTimeout(3500)
+  // The page only, below the status bar and above Safari's bar: the clock
+  // changing is not a zoom.
+  const page = (): Promise<Buffer> => sharpCrop(shot())
+  const before = await page()
+  const box = window.locator('.sim-screen.sim-native')
+  await expect(box).toBeVisible({ timeout: 20_000 })
+  const r = (await box.boundingBox())!
+  // As Chromium reports a trackpad pinch: wheel events with Ctrl held, a few
+  // tens of milliseconds apart.
+  for (let i = 0; i < 20; i++) {
+    await box.evaluate(
+      (el, at) =>
+        el.dispatchEvent(
+          new WheelEvent('wheel', {
+            ctrlKey: true,
+            deltaY: -12,
+            clientX: at.x,
+            clientY: at.y,
+            bubbles: true,
+            cancelable: true
+          })
+        ),
+      { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    )
+    await window.waitForTimeout(25)
+  }
+  await window.waitForTimeout(1500)
+  expect((await page()).equals(before)).toBe(false)
+})
+
+/** The middle of a screenshot (PNG), as raw pixels to compare. */
+async function sharpCrop(png: Buffer): Promise<Buffer> {
+  const { PNG } = await import('pngjs')
+  const img = PNG.sync.read(png)
+  const top = Math.round(img.height * 0.2)
+  const bottom = Math.round(img.height * 0.8)
+  return img.data.subarray(top * img.width * 4, bottom * img.width * 4)
+}

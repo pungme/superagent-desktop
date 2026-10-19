@@ -30,6 +30,21 @@ describe('hidCommand', () => {
     ).toEqual({ type: 'touch', phase: 'move', x: 0.25, y: 0.25 })
   })
 
+  it('carries a second finger, for a pinch', () => {
+    expect(
+      hidCommand({
+        type: 'touch',
+        phase: 'start',
+        x: 100,
+        y: 400,
+        x2: 300,
+        y2: 400,
+        width: 400,
+        height: 800
+      })
+    ).toEqual({ type: 'touch', phase: 'start', x: 0.25, y: 0.5, x2: 0.75, y2: 0.5 })
+  })
+
   it('normalises both ends of a swipe against the same space', () => {
     expect(
       hidCommand({ type: 'swipe', x: 0, y: 800, toX: 400, toY: 0, width: 400, height: 800 })
@@ -51,6 +66,17 @@ describe('hidCommand', () => {
       usage: 0x50,
       mods: [0xe1]
     })
+  })
+
+  it('takes physical keys by KeyboardEvent.code, for shortcuts', () => {
+    expect(hidCommand({ type: 'key', code: 'KeyA', modifiers: ['control'] })).toEqual({
+      type: 'key',
+      usage: 0x04,
+      mods: [0xe0]
+    })
+    expect(hidCommand({ type: 'key', code: 'Digit0' })).toMatchObject({ usage: 0x27 })
+    expect(hidCommand({ type: 'key', code: 'Digit1' })).toMatchObject({ usage: 0x1e })
+    expect(hidCommand({ type: 'key', code: 'Slash' })).toMatchObject({ usage: 0x38 })
   })
 
   it('leaves a key it does not know to the old path', () => {

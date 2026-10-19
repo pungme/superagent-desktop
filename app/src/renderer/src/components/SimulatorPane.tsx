@@ -159,6 +159,11 @@ export function SimulatorPane({
   /** Where the device has been dragged to so far, and where the pointer is now. */
   const sentRef = useRef<{ x: number; y: number } | null>(null)
   const latestRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  /**
+   * ⌥-drag is a pinch, as in Simulator.app: a second finger mirrors yours
+   * about the middle of the screen. Set while such a drag is down.
+   */
+  const pinchRef = useRef(false)
   /** A segment is in flight; the next one waits for its ack rather than piling up. */
   const draggingRef = useRef(false)
   const movedRef = useRef(false)
@@ -532,9 +537,10 @@ export function SimulatorPane({
   const tappable = canInput
 
   /** Rendered position → device points, which is what the injector expects. */
-  const toDevice = (
-    e: React.PointerEvent
-  ): { x: number; y: number; w: number; h: number } | null => {
+  const toDevice = (e: {
+    clientX: number
+    clientY: number
+  }): { x: number; y: number; w: number; h: number } | null => {
     const box = shotRef.current
     const size = frame
     if (!box || !size) return null
@@ -574,6 +580,14 @@ export function SimulatorPane({
     [udid]
   )
 
+  /** The second finger of a ⌥-drag pinch: yours, mirrored about the middle. */
+  const mirrored = (p: {
+    x: number
+    y: number
+    w: number
+    h: number
+  }): { x2: number; y2: number } => ({ x2: p.w - p.x, y2: p.h - p.y })
+
   /** Carry a held finger to wherever the pointer has got to, one move at a time. */
   const pumpTouch = useCallback(async (): Promise<void> => {
     if (touchBusyRef.current || !udid) return
@@ -590,6 +604,7 @@ export function SimulatorPane({
           phase: 'move',
           x: to.x,
           y: to.y,
+          ...(pinchRef.current ? mirrored(to) : {}),
           width: to.w,
           height: to.h
         })
@@ -599,16 +614,63 @@ export function SimulatorPane({
     }
   }, [udid])
 
+  /**
+   * A pinch on the trackpad is a pinch on the device. Chromium reports one as
+   * wheel events with Ctrl held; each changes the spread between two fingers
+   * either side of the pointer, and they lift once the pinch stops.
+   */
+  const pinchGesture = useRef<{
+    at: { x: number; y: number; w: number; h: number }
+    spread: number
+    end: ReturnType<typeof setTimeout> | null
+  } | null>(null)
+  useEffect(() => {
+    const el = shotRef.current
+    if (!el || !udid) return
+    const fingers = (g: NonNullable<typeof pinchGesture.current>): Record<string, number> => ({
+      x: g.at.x - g.spread,
+      y: g.at.y,
+      x2: g.at.x + g.spread,
+      y2: g.at.y,
+      width: g.at.w,
+      height: g.at.h
+    })
+    const onWheel = (e: WheelEvent): void => {
+      if (!e.ctrlKey || !liveTouchRef.current || !tappable) return
+      e.preventDefault()
+      let g = pinchGesture.current
+      if (!g) {
+        const at = toDevice(e)
+        if (!at) return
+        g = { at, spread: at.w * 0.12, end: null }
+        pinchGesture.current = g
+        void simInput({ type: 'touch', phase: 'start', ...fingers(g) })
+      }
+      g.spread = Math.max(8, Math.min(g.at.w * 0.48, g.spread * Math.exp(-e.deltaY * 0.01)))
+      void simInput({ type: 'touch', phase: 'move', ...fingers(g) })
+      if (g.end) clearTimeout(g.end)
+      const done = g
+      g.end = setTimeout(() => {
+        pinchGesture.current = null
+        void simInput({ type: 'touch', phase: 'end', ...fingers(done) })
+      }, 160)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  })
+
   const onDown = (e: React.PointerEvent): void => {
     const p = toDevice(e)
     // A real finger: down now, moved as the pointer moves, up when it lifts —
     // so a hold is a hold and a drag follows the hand, with no replaying.
+    pinchRef.current = !!p && liveTouchRef.current && e.altKey
     if (p && liveTouchRef.current && udid && tappable) {
       void simInput({
         type: 'touch',
         phase: 'start',
         x: p.x,
         y: p.y,
+        ...(pinchRef.current ? mirrored(p) : {}),
         width: p.w,
         height: p.h
       })
@@ -694,12 +756,15 @@ export function SimulatorPane({
       const began = dragRef.current
       dragRef.current = null
       movedRef.current = false
+      const pinch = pinchRef.current
+      pinchRef.current = false
       if (!began || !p || !udid || !tappable) return
       void simInput({
         type: 'touch',
         phase: 'end',
         x: p.x,
         y: p.y,
+        ...(pinch ? mirrored(p) : {}),
         width: p.w,
         height: p.h
       })
@@ -753,7 +818,39 @@ export function SimulatorPane({
       })
       return
     }
-    if (e.metaKey || e.ctrlKey) return // leave other app shortcuts alone
+    // Simulator.app's own: ⌘⇧H Home, ⌘L lock, ⌘← / ⌘→ turn the device.
+    if (e.metaKey && !e.ctrlKey && !e.altKey) {
+      const k = e.key.toLowerCase()
+      const turnTo =
+        e.key === 'ArrowLeft'
+          ? orientation === 'right'
+            ? 'portrait'
+            : 'left'
+          : e.key === 'ArrowRight'
+            ? orientation === 'left'
+              ? 'portrait'
+              : 'right'
+            : null
+      if (e.shiftKey && k === 'h') {
+        e.preventDefault()
+        void simInput({ type: 'press', button: 'home' })
+        return
+      }
+      if (!e.shiftKey && k === 'l') {
+        e.preventDefault()
+        void simInput({ type: 'press', button: 'lock' })
+        return
+      }
+      if (turnTo && !e.shiftKey) {
+        e.preventDefault()
+        turn(turnTo)
+        return
+      }
+      return // the rest are Superagent's (⌘K, ⌘W…)
+    }
+    const mods = [e.ctrlKey && 'control', e.altKey && 'option', e.shiftKey && 'shift'].filter(
+      Boolean
+    ) as string[]
     const named: Record<string, string> = {
       Enter: 'Enter',
       Backspace: 'Backspace',
@@ -762,14 +859,34 @@ export function SimulatorPane({
       ArrowUp: 'ArrowUp',
       ArrowDown: 'ArrowDown',
       ArrowLeft: 'ArrowLeft',
-      ArrowRight: 'ArrowRight'
+      ArrowRight: 'ArrowRight',
+      Delete: 'Delete',
+      Home: 'Home',
+      End: 'End',
+      PageUp: 'PageUp',
+      PageDown: 'PageDown'
     }
     if (named[e.key]) {
       e.preventDefault()
       flushTyping()
-      void simInput({ type: 'key', code: named[e.key] })
+      // With Shift, Option or Control held: selecting, jumping by word…
+      void simInput({ type: 'key', code: named[e.key], modifiers: mods })
       return
     }
+    // ⌃ or ⌥ with a key is a shortcut, not a character: the key itself, held.
+    // (⌥ alone types accented characters on a Mac; those come through as text.)
+    if (
+      e.ctrlKey &&
+      /^(Key|Digit)|^(Minus|Equal|Bracket|Backslash|Semicolon|Quote|Backquote|Comma|Period|Slash)/.test(
+        e.code
+      )
+    ) {
+      e.preventDefault()
+      flushTyping()
+      void simInput({ type: 'key', code: e.code, modifiers: mods })
+      return
+    }
+    if (e.ctrlKey) return
     if (e.key.length !== 1) return
     e.preventDefault()
     setTyping(true)
