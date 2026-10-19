@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import os from 'os'
 import { join } from 'path'
 import { applyBrowserIdentity } from './browser'
-import { findAgy, findClaude, findCodex } from './claude-cli'
+import { agentEnv, findAgy, findClaude, findCodex } from './claude-cli'
 import { PROVIDER_PRODUCT, type AgentProvider } from '../shared/agent-provider'
 
 /**
@@ -151,7 +151,9 @@ export function signInAgent(
 
     const env = {
       ...process.env,
-      PATH: `${dir}:${process.env.PATH ?? ''}`,
+      // Our `open` first, to catch the sign-in link; then what the CLI needs to
+      // run (node, for one installed with npm).
+      PATH: `${dir}:${agentEnv(provider === 'codex' ? findCodex() : provider === 'antigravity' ? findAgy() : findClaude()).PATH ?? ''}`,
       BROWSER: join(dir, 'open'),
       SUPERAGENT_LINK_FILE: file
     }

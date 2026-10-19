@@ -1,4 +1,5 @@
 import { execSync, exec } from 'child_process'
+import { dirname } from 'path'
 import type { AgentProvider } from '../shared/agent-provider'
 
 /**
@@ -71,6 +72,38 @@ export function findBinary(name: string): string {
     // fall through to the un-cached fallback
   }
   return name
+}
+
+let shellPath: string | null | undefined
+
+/** The user's PATH as their login shell has it (nvm, Homebrew, ~/.local/bin). Asked once. */
+export function userShellPath(): string | null {
+  if (shellPath !== undefined) return shellPath
+  try {
+    shellPath = loginShellExec('printf %s "$PATH"').split('\n').pop() || null
+  } catch {
+    shellPath = null
+  }
+  return shellPath
+}
+
+/**
+ * An environment an agent's CLI can start in. Found through the login shell,
+ * it was then started with the app's own PATH — which, launched from the Dock,
+ * is /usr/bin:/bin and little else. A CLI installed with npm is a
+ * `#!/usr/bin/env node` script, so it died at once ("env: node: No such file
+ * or directory") and the chat said to make sure Codex was installed and signed
+ * in, while Settings — which asks through the shell — said Connected. So: the
+ * CLI's own folder first (nvm keeps node beside it), then the shell's PATH.
+ */
+export function agentEnv(bin: string, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const seen = new Set<string>()
+  const path = [bin.includes('/') ? dirname(bin) : '', userShellPath() ?? '', env.PATH ?? '']
+    .join(':')
+    .split(':')
+    .filter((p) => p && !seen.has(p) && (seen.add(p), true))
+    .join(':')
+  return { ...env, PATH: path }
 }
 
 /** Absolute path to `claude`. */

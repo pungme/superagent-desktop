@@ -1,6 +1,6 @@
 import { spawn, execFile } from 'child_process'
 import os from 'os'
-import { findAgy } from '../claude-cli'
+import { agentEnv, findAgy } from '../claude-cli'
 import { killProcessTree, trackOneShot, DETACH_FOR_TREE_KILL } from '../kill-tree'
 import {
   AntigravityTranslator,
@@ -68,9 +68,10 @@ export function agyRunArgs(opts: AgyRunOptions): string[] {
 
 export function agyRun(prompt: string, opts: AgyRunOptions = {}): Promise<AgyRunResult> {
   return new Promise((resolve) => {
-    const proc = spawn(findAgy(), agyRunArgs(opts), {
+    const bin = findAgy()
+    const proc = spawn(bin, agyRunArgs(opts), {
       cwd: opts.cwd || os.homedir(),
-      env: { ...process.env, ...opts.env },
+      env: agentEnv(bin, { ...process.env, ...opts.env }),
       shell: false,
       detached: DETACH_FOR_TREE_KILL
     })

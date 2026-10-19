@@ -12,7 +12,7 @@ import {
 } from 'fs'
 import os from 'os'
 import { join } from 'path'
-import { findAgy, findClaude, findCodex } from './claude-cli'
+import { agentEnv, findAgy, findClaude, findCodex } from './claude-cli'
 import { CodexClient } from './codex/client'
 import { broadcastToWindows } from './util'
 import {
@@ -514,7 +514,7 @@ export function addCodexAccount(name: string): Promise<Account> {
   linkCodexHome(home)
   return new Promise((resolve, reject) => {
     const proc = spawn(findCodex(), ['login'], {
-      env: { ...process.env, CODEX_HOME: home },
+      env: agentEnv(findCodex(), { ...process.env, CODEX_HOME: home }),
       cwd: os.homedir(),
       shell: false
     })
@@ -623,7 +623,11 @@ function probeCodexLogin(): Promise<LoginState | null> {
     let out = ''
     let proc: ReturnType<typeof spawn>
     try {
-      proc = spawn(findCodex(), ['login', 'status'], { cwd: os.homedir(), shell: false })
+      proc = spawn(findCodex(), ['login', 'status'], {
+        cwd: os.homedir(),
+        env: agentEnv(findCodex()),
+        shell: false
+      })
     } catch {
       return resolve(null)
     }
@@ -655,7 +659,11 @@ function probeAntigravityLogin(): Promise<LoginState | null> {
     let err = ''
     let proc: ReturnType<typeof spawn>
     try {
-      proc = spawn(findAgy(), ['models'], { cwd: os.homedir(), shell: false })
+      proc = spawn(findAgy(), ['models'], {
+        cwd: os.homedir(),
+        env: agentEnv(findAgy()),
+        shell: false
+      })
     } catch {
       return resolve(null)
     }
@@ -843,6 +851,7 @@ function antigravityUsage(): Promise<Usage | null> {
     try {
       proc = spawn(findAgy(), ['-p', '/usage', '--output-format', 'json'], {
         cwd: os.homedir(),
+        env: agentEnv(findAgy()),
         shell: false
       })
     } catch {

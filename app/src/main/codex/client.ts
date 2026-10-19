@@ -1,6 +1,6 @@
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process'
 import { EventEmitter } from 'events'
-import { findCodex } from '../claude-cli'
+import { agentEnv, findCodex } from '../claude-cli'
 import { killProcessTree, DETACH_FOR_TREE_KILL } from '../kill-tree'
 
 /**
@@ -67,8 +67,9 @@ export class CodexClient extends EventEmitter {
 
   /** Spawn the server and complete the initialize handshake. */
   async start(clientVersion: string): Promise<void> {
-    const proc = spawn(findCodex(), ['app-server', '--stdio'], {
-      env: this.env,
+    const bin = findCodex()
+    const proc = spawn(bin, ['app-server', '--stdio'], {
+      env: agentEnv(bin, this.env),
       shell: false,
       // Its own process group, so stop() can reach a tool call's own
       // children (an xcodebuild, a dev server) — not just this process.

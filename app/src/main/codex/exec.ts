@@ -1,6 +1,6 @@
 import { spawn } from 'child_process'
 import os from 'os'
-import { findCodex } from '../claude-cli'
+import { agentEnv, findCodex } from '../claude-cli'
 import { killProcessTree, trackOneShot, DETACH_FOR_TREE_KILL } from '../kill-tree'
 
 /**
@@ -55,9 +55,10 @@ export function codexExec(prompt: string, opts: CodexExecOptions = {}): Promise<
       // Read the prompt from stdin.
       '-'
     ]
-    const proc = spawn(findCodex(), args, {
+    const bin = findCodex()
+    const proc = spawn(bin, args, {
       cwd: opts.cwd || os.homedir(),
-      env: process.env,
+      env: agentEnv(bin),
       shell: false,
       // Own process group: see trackOneShot — quitting the app stops it.
       detached: DETACH_FOR_TREE_KILL
