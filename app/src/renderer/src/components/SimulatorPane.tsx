@@ -457,7 +457,9 @@ export function SimulatorPane({
       setNative(false)
       setGone(true)
     })
+    let retry: ReturnType<typeof setTimeout> | null = null
     const stream = (): void => {
+      if (streaming) return
       streaming = true
       offFrame = window.cove.onSimFrame(udid, (f) => {
         setFrame(f)
@@ -465,16 +467,36 @@ export function SimulatorPane({
       })
       window.cove.simStreamStart(udid, 2)
     }
-    void window.cove.simViewAttach(udid).then((r) => {
-      if (!alive) {
-        if (r.ok) window.cove.simViewDetach(udid)
-        return
-      }
-      if (!r.ok) {
-        console.warn('[sim] embedding the screen failed, streaming instead:', r.error)
-        stream()
-        return
-      }
+    const unstream = (): void => {
+      if (!streaming) return
+      streaming = false
+      offFrame?.()
+      offFrame = null
+      window.cove.simStreamStop(udid)
+    }
+    // A device still booting has no screen to embed yet, and that one failure
+    // used to leave the pane on the stream for good. Stream meanwhile, and keep
+    // trying to embed: the moment it works, the stream stops.
+    let tries = 0
+    const attach = (): void => {
+      void window.cove.simViewAttach(udid).then((r) => {
+        if (!alive) {
+          if (r.ok) window.cove.simViewDetach(udid)
+          return
+        }
+        if (!r.ok) {
+          if (tries === 0)
+            console.warn('[sim] embedding the screen failed, streaming meanwhile:', r.error)
+          stream()
+          if (r.error !== 'simview is not available' && ++tries < 60)
+            retry = setTimeout(attach, tries < 10 ? 1000 : 3000)
+          return
+        }
+        unstream()
+        embedded(r)
+      })
+    }
+    const embedded = (r: { width: number; height: number }): void => {
       nativeRef.current = true
       setNative(true)
       setFrame({ url: '', width: r.width, height: r.height })
@@ -482,12 +504,14 @@ export function SimulatorPane({
       offSize = window.cove.onSimViewSize(udid, (sz) =>
         setFrame({ url: '', width: sz.width, height: sz.height })
       )
-    })
+    }
+    attach()
     void window.cove.simHidReady(udid).then((ok) => {
       if (alive) liveTouchRef.current = ok
     })
     return () => {
       alive = false
+      if (retry) clearTimeout(retry)
       offGone()
       offFrame?.()
       offSize?.()
