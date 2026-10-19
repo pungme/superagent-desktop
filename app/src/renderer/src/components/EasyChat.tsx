@@ -2096,6 +2096,13 @@ export function EasyChat({
     replyTo?: { role: 'user' | 'assistant'; text: string }
   } | null>(null)
   const retriedEmptyTurnRef = useRef(false)
+  /**
+   * The process's `duration_api_ms` at its last result. The CLI keeps it as a
+   * running total, so a result that leaves it unchanged is a turn that never
+   * reached the model: a queued notice (a background task stopped while the
+   * chat slept) that the CLI handled ahead of the message that woke it.
+   */
+  const apiMsRef = useRef(0)
   // Keep the synchronous turn-in-flight ref in step with the real state: a turn
   // ending (result), being stopped, or crashing all flip `generating` to false,
   // and this clears the ref so the next message is a fresh turn, not a phantom
@@ -3383,6 +3390,19 @@ export function EasyChat({
       }
 
       if (type === 'result') {
+        // Not the turn we are waiting for, and nothing to show: the message in
+        // flight has not been tried yet. Taking this for its empty answer sent
+        // it a second time ("That message came through twice").
+        const apiMs = event.duration_api_ms
+        const neverAsked = typeof apiMs === 'number' && apiMs === apiMsRef.current
+        if (typeof apiMs === 'number') apiMsRef.current = apiMs
+        if (
+          neverAsked &&
+          !streamedThisTurnRef.current &&
+          !event.is_error &&
+          !interruptedRef.current
+        )
+          return
         const u = (event as { usage?: Record<string, number> }).usage
         if (u) {
           // Everything this turn processed — the dashboard's chart, not the meter.
@@ -3612,6 +3632,7 @@ export function EasyChat({
             return
           }
           agentIdRef.current = id
+          apiMsRef.current = 0
           registerAgent(workspaceId, id)
           // A new process for this chat: whatever the last one did is history.
           setAgentFailed(false)
