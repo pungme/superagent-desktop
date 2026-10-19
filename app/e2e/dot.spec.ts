@@ -1065,6 +1065,24 @@ test('asked to use the Mac with computer use off, the dot shows the question, an
   await panel.getByRole('textbox').press('Escape')
 })
 
+test('a dot window that is up with the setting off is taken down by itself', async () => {
+  // The setting flipped behind the module's back, as if by a path that forgot
+  // to take the window down: within a moment there is no dot window.
+  await expect.poll(() => app.windows().some((p) => p.url().endsWith('#dot'))).toBe(true)
+  await main.evaluate(() => window.cove.kvSet?.('dot.enabled', '0'))
+  await expect
+    .poll(() => app.windows().some((p) => p.url().endsWith('#dot')), { timeout: 5000 })
+    .toBe(false)
+  expect(await main.evaluate(() => window.cove.dotEnabled())).toBe(false)
+  // Back on, for the tests that follow.
+  await main.evaluate(() => window.cove.setDotEnabled(true))
+  await expect
+    .poll(() => app.windows().some((p) => p.url().endsWith('#dot')), { timeout: 10_000 })
+    .toBe(true)
+  const dot = app.windows().find((p) => p.url().endsWith('#dot'))!
+  await dot.waitForSelector('.dot-tile', { timeout: 20_000 })
+})
+
 test("while Superagent's own window is in front the dot is hidden, and back when you leave", async () => {
   const dot = app.windows().find((p) => p.url().endsWith('#dot'))!
   const panel = dot.getByRole('dialog', { name: 'Ask Superagent' })
