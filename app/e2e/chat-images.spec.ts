@@ -300,3 +300,13 @@ test('← and → step through the conversation’s pictures in the enlarged vie
   await key('Escape')
   await expect(box).toHaveCount(0)
 })
+
+test('a picture the agent showed is still there after its file is gone', async () => {
+  // Agents draw into /tmp, which macOS empties on restart: the reply keeps only the path.
+  rmSync(join(proj, 'my shots', 'header.png'))
+  await window.reload()
+  await window.waitForSelector('.sidebar', { timeout: 20_000 })
+  await window.click('.sidebar-item:has-text("e2e-project")')
+  await expect(window.locator('.md-img-thumb img:visible')).toBeVisible({ timeout: 15_000 })
+  await expect(window.locator('.md-img-missing')).toHaveCount(0)
+})

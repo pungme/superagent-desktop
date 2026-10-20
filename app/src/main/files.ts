@@ -1,4 +1,4 @@
-import { ipcMain, shell, nativeImage, BrowserWindow } from 'electron'
+import { app, ipcMain, shell, nativeImage, BrowserWindow } from 'electron'
 import { cleanable, isHomeBranch } from '../shared/other-branches'
 import { execFile, execFileSync } from 'child_process'
 import {
@@ -17,6 +17,7 @@ import {
 import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
 import { homedir } from 'os'
 import { isRepoSet, setMembers } from './repo-set'
+import { KEPT_WIDTH, keepShownImage, keptShownImage, setShownImagesRoot } from './shown-images'
 
 export const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic'])
 
@@ -1176,6 +1177,7 @@ export function replyImagePath(
 }
 
 export function registerFilesIpc(): void {
+  setShownImagesRoot(app.getPath('userData'))
   ipcMain.on('bg:sync', (_e, chatId: string, tasks: Omit<PublishedBackgroundTask, 'chatId'>[]) => {
     backgroundTasks.set(
       chatId,
@@ -1297,13 +1299,27 @@ export function registerFilesIpc(): void {
       try {
         const path = localImagePath(given, opts?.base)
         if (!path || !IMAGE_EXTS.has(extname(path).toLowerCase())) return null
+        const max = Math.min(Math.max(opts?.width ?? 900, 200), 2400)
+        let stat: ReturnType<typeof statSync> | null = null
+        try {
+          stat = statSync(path)
+        } catch {
+          // Gone (often /tmp, emptied on restart): show the copy kept when it was shown.
+        }
         // A picture the agent made is small; anything huge is not worth
         // decoding on the main process to show at 900px.
-        if (statSync(path).size > 40_000_000) return null
-        const img = nativeImage.createFromPath(path)
+        if (stat && stat.size > 40_000_000) return null
+        const kept = stat ? null : keptShownImage(path)
+        if (!stat && !kept) return null
+        const img = nativeImage.createFromPath(kept ?? path)
         if (img.isEmpty()) return null
-        const max = Math.min(Math.max(opts?.width ?? 900, 200), 2400)
         const { width } = img.getSize()
+        if (stat) {
+          const mtime = stat.mtimeMs
+          keepShownImage(path, mtime, () =>
+            (width > KEPT_WIDTH ? img.resize({ width: KEPT_WIDTH }) : img).toJPEG(82)
+          )
+        }
         const shown = width > max ? img.resize({ width: max }) : img
         return {
           mediaType: 'image/jpeg',
