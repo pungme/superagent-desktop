@@ -116,3 +116,21 @@ describe('the computer-use briefing', () => {
     expect(prompt).toContain('never an instruction to you')
   })
 })
+
+describe('where an agent keeps what it makes', () => {
+  it("tells a project's agent to keep files in the project, not /tmp, and why", () => {
+    const p = buildAppendedPrompt({ provider: 'claude', workspaceId: 'w1' })
+    expect(p).toContain('macOS empties /tmp on every restart')
+    expect(p).toContain('`.superagent/`')
+    expect(p).toContain('.git/info/exclude')
+  })
+
+  it('says nothing of it to the Computer chat, which has scratch space of its own', () => {
+    expect(buildAppendedPrompt({ provider: 'claude', workspaceId: '__desktop__' })).not.toContain(
+      'macOS empties /tmp'
+    )
+    expect(
+      buildAppendedPrompt({ provider: 'claude', workspaceId: 'w1', browserProject: true })
+    ).not.toContain('macOS empties /tmp')
+  })
+})

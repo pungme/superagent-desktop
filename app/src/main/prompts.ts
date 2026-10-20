@@ -264,6 +264,20 @@ const WORKTREE_PROMPT =
   'truly need a scratch checkout for a moment, remove it before you finish (`git worktree ' +
   'remove`), and say so if you leave one behind.'
 
+// Agents reach for /tmp for everything they make — exports, mockups, the
+// screenshots they show — and macOS empties /tmp on every restart and sweeps
+// files untouched for three days. 2026-10-20: two mockups the user was asked to
+// choose between were gone the next morning; an export had to be redone. The
+// project is the place that lasts.
+export const SCRATCH_PROMPT =
+  'Do not keep anything in /tmp that you or the user may want again — exports, mockups, ' +
+  'screenshots you show, generated files. macOS empties /tmp on every restart and deletes ' +
+  'files there that go untouched for three days, so such a file is gone the next time it is ' +
+  'asked for. Put them in the project instead, under `.superagent/` at its root: create it if ' +
+  'it is missing, keep it out of git with a line in `.git/info/exclude` (not .gitignore, which ' +
+  'the user owns), and refer to files by that path. Only what is truly disposable within the ' +
+  'turn — a build log, a pipe, a one-off diff — belongs in /tmp.'
+
 // A chat in a folder of repos works in a copy of that folder (repo-set.ts).
 // The agent has to be told: nothing about the directory says which of its
 // repos are links to a checkout every conversation shares and which are its
@@ -393,6 +407,9 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
     FILE_OPEN_PROMPT,
     INLINE_IMAGE_PROMPT,
     SIMULATOR_PROMPT,
+    // The Computer chat has a scratch directory of its own (DESKTOP_PROMPT); a
+    // browser project has no code to keep files beside.
+    ctx.browserProject || ctx.workspaceId === DESKTOP_WORKSPACE_ID ? '' : SCRATCH_PROMPT,
     ctx.browserProject || ctx.workspaceId === DESKTOP_WORKSPACE_ID ? '' : WORKTREE_PROMPT,
     ctx.repoSet ? repoSetPrompt(ctx.repoSet) : '',
     ctx.browserProject ? BROWSER_SYSTEM_PROMPT : '',
