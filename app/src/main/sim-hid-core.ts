@@ -32,8 +32,12 @@ interface Session {
 const sessions = new Map<string, Session>()
 /** Devices where siminput said no: an older Xcode, or dtuhidd never answered. */
 const refused = new Map<string, number>()
-/** How long a refusal stands before trying again (a device still booting comes good). */
-const REFUSAL_MS = 60_000
+/**
+ * How long a refusal stands before trying again. A device still booting comes
+ * good within seconds of its home screen; a minute here was most of the time
+ * a freshly booted device spent on the slow input path.
+ */
+const REFUSAL_MS = 10_000
 let nextId = 1
 
 function session(bin: string | null, udid: string): Session | null {

@@ -519,12 +519,26 @@ export function SimulatorPane({
       )
     }
     attach()
-    void window.cove.simHidReady(udid).then((ok) => {
-      if (alive) liveTouchRef.current = ok
-    })
+    // Live touch — a finger down, moved and lifted as it happens — needs the
+    // device's input daemon, which says no for a while on a device still
+    // booting. This used to be asked once, as the pane mounted: a pane opened
+    // the moment an agent booted the device stayed on whole swipes and
+    // tap-on-release for the rest of the session, and every drag lagged a
+    // segment behind the hand. Ask again until it says yes.
+    let hidTimer: ReturnType<typeof setTimeout> | null = null
+    let hidTries = 0
+    const askHid = (): void => {
+      void window.cove.simHidReady(udid).then((ok) => {
+        if (!alive) return
+        liveTouchRef.current = ok
+        if (!ok && ++hidTries < 120) hidTimer = setTimeout(askHid, hidTries < 15 ? 1000 : 3000)
+      })
+    }
+    askHid()
     return () => {
       alive = false
       if (retry) clearTimeout(retry)
+      if (hidTimer) clearTimeout(hidTimer)
       offGone()
       offFrame?.()
       offSize?.()
