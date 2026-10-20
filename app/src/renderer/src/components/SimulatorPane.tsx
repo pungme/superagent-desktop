@@ -88,6 +88,10 @@ export function SimulatorPane({
    * then carries only the size, in points, which is all the gestures need.
    */
   const [native, setNative] = useState(false)
+  // Why the screen is streamed rather than embedded, while it is: the pane says
+  // so, because a streamed picture looks the same and feels worse, and nobody
+  // should have to guess which one they are looking at.
+  const [streamWhy, setStreamWhy] = useState<{ why: string; retrying: boolean } | null>(null)
   const nativeRef = useRef(false)
   /**
    * The device takes live touches (Xcode 27's input service): a finger goes
@@ -493,10 +497,12 @@ export function SimulatorPane({
           if (tries === 0)
             console.warn('[sim] embedding the screen failed, streaming meanwhile:', r.error)
           stream()
-          if (r.error !== 'simview is not available' && ++tries < 60)
-            retry = setTimeout(attach, tries < 10 ? 1000 : 3000)
+          const again = r.error !== 'simview is not available' && ++tries < 60
+          setStreamWhy({ why: r.error, retrying: again })
+          if (again) retry = setTimeout(attach, tries < 10 ? 1000 : 3000)
           return
         }
+        setStreamWhy(null)
         unstream()
         embedded(r)
       })
@@ -527,6 +533,7 @@ export function SimulatorPane({
       nativeRef.current = false
       liveTouchRef.current = false
       setNative(false)
+      setStreamWhy(null)
     }
   }, [udid, visible, reload])
 
@@ -1482,6 +1489,16 @@ export function SimulatorPane({
           </div>
         )}
         {busy && frame && !native && <div className="sim-status">{busy}</div>}
+        {frame && !native && !gone && streamWhy && (
+          <div
+            className="sim-streaming"
+            role="status"
+            title={`Could not embed the simulator's screen: ${streamWhy.why}`}
+          >
+            <span className="sim-streaming-dot" aria-hidden="true" />
+            {streamWhy.retrying ? 'Streaming · embedding…' : `Streaming — ${streamWhy.why}`}
+          </div>
+        )}
         {/* The ripple marks a touch while the next streamed frame is on its way;
             the embedded screen answers at once and needs none. */}
         {ripple && !native && (

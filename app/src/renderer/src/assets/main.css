@@ -14346,3 +14346,37 @@ button {
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
+
+/* The streamed picture, labelled as such, top-left of the stage. */
+.sim-streaming {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 20px);
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px var(--shadow);
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+  z-index: 3;
+}
+.sim-streaming-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f0a020;
+  animation: sim-streaming-pulse 1.6s ease-in-out infinite;
+}
+@keyframes sim-streaming-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
