@@ -243,8 +243,16 @@ function createDot(): void {
 }
 
 function destroyDot(): void {
-  if (win && !win.isDestroyed()) win.destroy()
+  // The reference goes first: a destroy that throws must not leave a window
+  // the rest of this module still thinks is the dot, showing it again.
+  const w = win
   win = null
+  awayForApp = false
+  try {
+    if (w && !w.isDestroyed()) w.destroy()
+  } catch (e) {
+    console.error('[dot] destroy failed', e)
+  }
 }
 
 const HOTKEY_KEY = 'dot.hotkey'
@@ -363,7 +371,16 @@ export function registerDot(): void {
   // of the app's windows is in front, on screen otherwise. The first version
   // trusted the events alone and the dot stayed gone.
   setInterval(() => {
-    if (!win || win.isDestroyed() || !dotEnabled() || QUIET) return
+    if (!win || win.isDestroyed()) return
+    // Off means no dot, whatever put one up: a window still here with the
+    // setting off (the user turned it off and it was back) is taken down,
+    // not reasoned about.
+    if (!dotEnabled()) {
+      console.error('[dot] a dot window with the setting off; taking it down')
+      destroyDot()
+      return
+    }
+    if (QUIET) return
     const front = appInFrontNow()
     if (front !== awayForApp || front === win.isVisible()) appInFront(front)
   }, 600).unref()
