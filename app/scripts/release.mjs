@@ -321,7 +321,25 @@ function notarizeDmg() {
   }
 }
 notarizeDmg()
-runLoud('xcrun', ['stapler', 'staple', dmg])
+/**
+ * Stapling fetches the ticket from the same Apple service validation asks, and
+ * the runner's connection to it drops the same way (code 68, "The network
+ * connection was lost"): beta.68's third run died exactly here, after the app
+ * itself had notarized and stapled fine.
+ */
+function stapleDmg() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      runLoud('xcrun', ['stapler', 'staple', dmg])
+      return
+    } catch (err) {
+      if (attempt === 3) throw err
+      console.error(`  stapler staple failed (attempt ${attempt} of 3) — trying again in 30s`)
+      spawnSync('sleep', ['30'])
+    }
+  }
+}
+stapleDmg()
 assertNotarized(dmg)
 console.log('  dmg: stapled ✓')
 
