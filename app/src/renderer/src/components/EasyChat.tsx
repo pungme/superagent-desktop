@@ -5494,6 +5494,10 @@ export function EasyChat({
               Open System Settings
             </button>
           )}
+          {/* A line with no way off the screen is a defect of its own. */}
+          <button className="easy-link-btn" onClick={dictation.dismiss} aria-label="Dismiss">
+            Dismiss
+          </button>
         </div>
       )}
       {/* A pending permission/guardrail ask for THIS chat, prominent right above

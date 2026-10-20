@@ -10,5 +10,10 @@
     <true/>
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
+    <!-- Dictation. Under the hardened runtime macOS refuses the microphone to an
+         app without this: no prompt, no entry under Privacy & Security →
+         Microphone, just "not allowed" — which is what 2.0.0-beta.64 shipped. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
   </dict>
 </plist>

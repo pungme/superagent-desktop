@@ -90,6 +90,8 @@ interface Dictation {
   stop: () => Promise<string>
   /** Throw the recording away and close the mic — the way out of a stuck hold. */
   cancel: () => void
+  /** Take the error line down. It also goes by itself on the next attempt. */
+  dismiss: () => void
 }
 
 export function useDictation(): Dictation {
@@ -229,5 +231,10 @@ export function useDictation(): Dictation {
     setProgress(0)
   }, [teardownMeter])
 
-  return { state, progress, level, error, micDenied, start, stop, cancel }
+  const dismiss = useCallback((): void => {
+    setError(null)
+    setMicDenied(false)
+  }, [])
+
+  return { state, progress, level, error, micDenied, start, stop, cancel, dismiss }
 }
