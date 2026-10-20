@@ -52,7 +52,11 @@ function loadEnv() {
   if (!existsSync(file)) {
     // CI has no .env: the same credentials arrive as repo secrets, already in
     // the environment. Only a machine with neither is actually stuck.
-    if (process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID)
+    if (
+      process.env.APPLE_ID &&
+      process.env.APPLE_APP_SPECIFIC_PASSWORD &&
+      process.env.APPLE_TEAM_ID
+    )
       return
     die('app/.env is missing.', 'copy app/.env.example to app/.env and fill it in')
   }
@@ -64,7 +68,8 @@ function loadEnv() {
 
 function checkCredentials() {
   const { APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID } = process.env
-  if (!APPLE_ID) die('APPLE_ID is not set (app/.env, or the APPLE_ID secret in CI).', 'your Apple ID email')
+  if (!APPLE_ID)
+    die('APPLE_ID is not set (app/.env, or the APPLE_ID secret in CI).', 'your Apple ID email')
   if (!APPLE_APP_SPECIFIC_PASSWORD)
     die(
       'APPLE_APP_SPECIFIC_PASSWORD is not set (app/.env, or the secret of that name in CI).',
@@ -138,9 +143,23 @@ const sha512 = (file) =>
  * what a silently skipped notarization leaves behind.
  */
 function assertNotarized(target) {
-  try {
-    run('xcrun', ['stapler', 'validate', target])
-  } catch {
+  // `stapler validate` confirms the ticket with Apple over the network, and that
+  // lookup drops now and then: 2.0.0-beta.63 and beta.68 both died here a
+  // moment after "The staple and validate action worked!", and the re-run
+  // passed. A missing ticket fails the same way three times.
+  let validated = false
+  for (let attempt = 1; attempt <= 3 && !validated; attempt++) {
+    try {
+      run('xcrun', ['stapler', 'validate', target])
+      validated = true
+    } catch {
+      if (attempt < 3) {
+        console.error(`  stapler validate failed (attempt ${attempt} of 3) — trying again in 15s`)
+        spawnSync('sleep', ['15'])
+      }
+    }
+  }
+  if (!validated) {
     die(
       `${target} has no stapled notarization ticket.\n  electron-builder logged success but did not notarize.`,
       'check the credentials in app/.env'
@@ -172,14 +191,17 @@ function assertNotarized(target) {
  */
 async function rewriteLatestYml(version) {
   const yml = join(DIST, 'latest-mac.yml')
-  if (!existsSync(yml)) die('dist/latest-mac.yml is missing — the build did not produce an update feed.')
+  if (!existsSync(yml))
+    die('dist/latest-mac.yml is missing — the build did not produce an update feed.')
   let text = readFileSync(yml, 'utf8')
   for (const name of [`SuperAgent-${version}-arm64-mac.zip`, 'SuperAgent.dmg']) {
     const file = join(DIST, name)
     if (!existsSync(file)) die(`dist/${name} is missing.`)
     const hash = await sha512(file)
     const size = statSync(file).size
-    const block = new RegExp(`(- url: ${name.replace(/\./g, '\\.')}\\n\\s+sha512: )[^\\n]+(\\n\\s+size: )\\d+`)
+    const block = new RegExp(
+      `(- url: ${name.replace(/\./g, '\\.')}\\n\\s+sha512: )[^\\n]+(\\n\\s+size: )\\d+`
+    )
     if (!block.test(text)) die(`could not find ${name} in latest-mac.yml to update its hash.`)
     text = text.replace(block, `$1${hash}$2${size}`)
     // The top-level sha512/path point at the zip, which is what MacUpdater installs.
@@ -269,11 +291,18 @@ function notarizeDmg() {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const r = spawnSync(
       'xcrun',
-      ['notarytool', 'submit', dmg,
-       '--apple-id', process.env.APPLE_ID,
-       '--password', process.env.APPLE_APP_SPECIFIC_PASSWORD,
-       '--team-id', process.env.APPLE_TEAM_ID,
-       '--wait'],
+      [
+        'notarytool',
+        'submit',
+        dmg,
+        '--apple-id',
+        process.env.APPLE_ID,
+        '--password',
+        process.env.APPLE_APP_SPECIFIC_PASSWORD,
+        '--team-id',
+        process.env.APPLE_TEAM_ID,
+        '--wait'
+      ],
       { cwd: APP, encoding: 'utf8' }
     )
     const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
@@ -314,13 +343,18 @@ const assets = [
   join(DIST, 'SuperAgent.dmg.blockmap')
 ]
 runLoud('gh', [
-  'release', 'create', `v${version}`,
+  'release',
+  'create',
+  `v${version}`,
   ...assets,
-  '--title', `Superagent ${version}`,
-  '--notes-file', join(APP, `notes-${version}.md`),
+  '--title',
+  `Superagent ${version}`,
+  '--notes-file',
+  join(APP, `notes-${version}.md`),
   // The commit that was built, whichever branch it is on: left to itself gh
   // tags the default branch's tip, which is not what a release branch built.
-  '--target', run('git', ['rev-parse', 'HEAD']).trim(),
+  '--target',
+  run('git', ['rev-parse', 'HEAD']).trim(),
   // A beta is --prerelease (never latest). A stable release must be --latest,
   // or the updater asks GitHub for the latest release, is told an older tag,
   // and reaches nobody — how 1.7.23 and 1.7.24 shipped to no one.
@@ -340,15 +374,26 @@ if (JSON.stringify(uploadedAssets) !== JSON.stringify(expectedAssets)) {
 // gh's `release view --json isLatest` field doesn't exist on older gh builds;
 // ask the API which release GitHub actually serves as latest instead.
 step('Confirming the release is served correctly')
-const latestTag = run('gh', ['api', 'repos/{owner}/{repo}/releases/latest', '-q', '.tag_name']).trim()
+const latestTag = run('gh', [
+  'api',
+  'repos/{owner}/{repo}/releases/latest',
+  '-q',
+  '.tag_name'
+]).trim()
 if (isPrerelease) {
   if (latestTag === `v${version}`)
-    die(`v${version} is a beta but GitHub marked it latest — stable users would be pushed a prerelease.`,
-        `gh release edit v${version} --prerelease --latest=false`)
-  console.log(`\n  Released ${version} to the beta channel (prerelease). Latest is still ${latestTag}.\n`)
+    die(
+      `v${version} is a beta but GitHub marked it latest — stable users would be pushed a prerelease.`,
+      `gh release edit v${version} --prerelease --latest=false`
+    )
+  console.log(
+    `\n  Released ${version} to the beta channel (prerelease). Latest is still ${latestTag}.\n`
+  )
 } else {
   if (latestTag !== `v${version}`)
-    die(`v${version} was uploaded but GitHub did not mark it latest (latest=${latestTag}) — users will not be offered it.`,
-        `gh release edit v${version} --latest`)
+    die(
+      `v${version} was uploaded but GitHub did not mark it latest (latest=${latestTag}) — users will not be offered it.`,
+      `gh release edit v${version} --latest`
+    )
   console.log(`\n  Released ${version}, notarized and flagged latest.\n`)
 }
