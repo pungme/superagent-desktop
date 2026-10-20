@@ -189,7 +189,8 @@ async function snapshot(why: string): Promise<void> {
   const ours = descendants(rows, process.pid)
   const ourPids = new Set(ours.map((r) => r.pid))
   ourPids.add(process.pid)
-  const spawned = ours.filter((r) => !/^(SuperAgent|Electron)/.test(r.name))
+  // Not our Electron helpers, and not the ps/sysctl this very line is made from.
+  const spawned = ours.filter((r) => !/^(SuperAgent|Electron|ps|sysctl)$/.test(r.name))
   healthLog(
     `${why} free=${gb(s.freeKB)}/${gb(s.totalKB)} swap=${gb(s.swapUsedKB)} ` +
       `load=${s.load1.toFixed(1)}/${s.cpuCount} ` +
