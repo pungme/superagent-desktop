@@ -1221,6 +1221,19 @@ function toRows(items: Item[]): Row[] {
  * Its bytes went to the agent, not into the log, so the only copy left is the
  * thumbnail the Mac kept beside it. Fetched once, when the row first draws.
  */
+/** Pictures already fetched for a message id, newest kept; see RemoteImages. */
+const remoteImageCache = new Map<string, { src: string; index: number }[]>()
+const REMOTE_IMAGE_CACHE_MAX = 150
+function rememberRemoteImages(id: string, urls: { src: string; index: number }[]): void {
+  remoteImageCache.delete(id)
+  remoteImageCache.set(id, urls)
+  while (remoteImageCache.size > REMOTE_IMAGE_CACHE_MAX) {
+    const oldest = remoteImageCache.keys().next().value
+    if (oldest === undefined) break
+    remoteImageCache.delete(oldest)
+  }
+}
+
 function RemoteImages({
   id,
   count,
@@ -1230,8 +1243,20 @@ function RemoteImages({
   count: number
   onLightbox: (src: string, origin?: string, key?: string) => void
 }): React.JSX.Element | null {
-  const [urls, setUrls] = useState<{ src: string; index: number }[]>([])
+  const [urls, setUrls] = useState<{ src: string; index: number }[]>(
+    () => remoteImageCache.get(id) ?? []
+  )
   useEffect(() => {
+    // Fetched once per message, not once per mount: the transcript is
+    // virtualized, so a row with pictures mounts again every time it scrolls
+    // back into view, and each mount used to read the files in main, ship the
+    // bytes over IPC and decode them again. The same data URL string also lets
+    // Chromium reuse its decoded image.
+    const cached = remoteImageCache.get(id)
+    if (cached) {
+      setUrls(cached)
+      return
+    }
     let alive = true
     void (async () => {
       const found: { src: string; index: number }[] = []
@@ -1240,6 +1265,7 @@ function RemoteImages({
         if (!alive) return
         if (im) found.push({ src: `data:${im.mediaType};base64,${im.data}`, index: i })
       }
+      if (found.length) rememberRemoteImages(id, found)
       if (alive && found.length) setUrls(found)
     })()
     return () => {
@@ -2058,7 +2084,9 @@ export function EasyChat({
   useLayoutEffect(() => {
     visibleRef.current = visible
   }, [visible])
+  const lastFlushRef = useRef(0)
   const flushStream = useCallback(() => {
+    lastFlushRef.current = performance.now()
     flushRafRef.current = null
     if (flushTimerRef.current !== null) {
       clearTimeout(flushTimerRef.current)
@@ -2098,10 +2126,30 @@ export function EasyChat({
       })
     )
   }, [])
+  /**
+   * How often a streaming reply is put on screen. A frame per token was a full
+   * render of this component — hundreds of hooks, a 7,800-row transcript, an
+   * autoscroll measurement — thirty to sixty times a second per streaming
+   * chat: profiled 2026-10-21 at 41% of a core for one chat at 30 tokens/s,
+   * and the window at 150% with three. Twelve updates a second reads as the
+   * same smooth stream (the words animate in anyway) at a fraction of the cost.
+   */
+  const FLUSH_EVERY_MS = 80
   const scheduleFlush = useCallback(() => {
     if (flushRafRef.current !== null || flushTimerRef.current !== null) return
-    if (visibleRef.current) flushRafRef.current = requestAnimationFrame(flushStream)
-    else flushTimerRef.current = window.setTimeout(flushStream, 1000)
+    if (!visibleRef.current) {
+      flushTimerRef.current = window.setTimeout(flushStream, 1000)
+      return
+    }
+    const wait = FLUSH_EVERY_MS - (performance.now() - lastFlushRef.current)
+    if (wait > 4) {
+      flushTimerRef.current = window.setTimeout(() => {
+        flushTimerRef.current = null
+        flushRafRef.current = requestAnimationFrame(flushStream)
+      }, wait)
+      return
+    }
+    flushRafRef.current = requestAnimationFrame(flushStream)
   }, [flushStream])
   // Flush synchronously NOW (used at block boundaries, before streamTextRef /
   // streamingIdRef are reset for the next block — a buffered tail must land on the
@@ -4806,9 +4854,16 @@ export function EasyChat({
   }, [visible, vrows.length > 0])
 
   // Kept beside the rows rather than passed as a value: see MessageRow.
+  // Recomputed when a message is added, not on every streamed token: this scan
+  // of every item ran per render and was 4% of a streaming chat's CPU alone.
   const userTextsRef = useRef<string[]>([])
-  userTextsRef.current = items.flatMap((it) =>
-    it.kind === 'msg' && it.msg.role === 'user' && !it.msg.system ? [it.msg.text] : []
+  userTextsRef.current = useMemo(
+    () =>
+      items.flatMap((it) =>
+        it.kind === 'msg' && it.msg.role === 'user' && !it.msg.system ? [it.msg.text] : []
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items.length, lastUserId]
   )
   const answersTo = useCallback((text: string) => replyingTo(text, userTextsRef.current), [])
   const renderRow = (row: Row): React.JSX.Element => {

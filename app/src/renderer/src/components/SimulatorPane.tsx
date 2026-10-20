@@ -483,9 +483,13 @@ export function SimulatorPane({
       offFrame = null
       window.cove.simStreamStop(udid)
     }
-    // A device still booting has no screen to embed yet, and that one failure
-    // used to leave the pane on the stream for good. Stream meanwhile, and keep
-    // trying to embed: the moment it works, the stream stops.
+    // A device still booting has no screen to embed yet. Stream meanwhile and
+    // keep trying to embed — for as long as the pane is open. This used to give
+    // up after sixty tries (about two and a half minutes), which an agent's
+    // build-and-install on a fresh device regularly outlasts, and then streamed
+    // for the rest of the session. The embed is the product; the stream is the
+    // wait. Even a module that would not load is asked again, slowly: an Xcode
+    // update mid-session can fix it.
     let tries = 0
     const attach = (): void => {
       void window.cove.simViewAttach(udid).then((r) => {
@@ -497,9 +501,17 @@ export function SimulatorPane({
           if (tries === 0)
             console.warn('[sim] embedding the screen failed, streaming meanwhile:', r.error)
           stream()
-          const again = r.error !== 'simview is not available' && ++tries < 60
-          setStreamWhy({ why: r.error, retrying: again })
-          if (again) retry = setTimeout(attach, tries < 10 ? 1000 : 3000)
+          tries += 1
+          setStreamWhy({ why: r.error, retrying: true })
+          const wait =
+            r.error === 'simview is not available'
+              ? 10_000
+              : tries < 10
+                ? 1000
+                : tries < 60
+                  ? 3000
+                  : 5000
+          retry = setTimeout(attach, wait)
           return
         }
         setStreamWhy(null)

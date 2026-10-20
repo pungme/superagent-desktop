@@ -757,7 +757,12 @@ export function BrowserPane({
       if (alive && c) setCornerFill(c)
     }
     void tick()
-    const t = window.setInterval(() => void tick(), 1200)
+    // Each sample is a full capture of the page (main crops a thumbnail; the
+    // rect capture is unreliable on zoomed views) — a GPU readback of a Retina
+    // pane. Every 1.2 s per visible pane, that was a steady cost for a colour
+    // that changes on navigation and theme flips, both covered by the burst
+    // below. Five seconds is a safety net, not the mechanism.
+    const t = window.setInterval(() => void tick(), 5000)
     // Navigations shouldn't wait for the next lazy tick — burst a few quick
     // samples so the corners match the new page almost immediately.
     const offState = window.cove.onBrowserState?.(paneId, () => {

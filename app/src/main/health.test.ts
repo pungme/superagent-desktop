@@ -10,6 +10,8 @@ import {
   topLine,
   metricsLine,
   parseSwapUsage,
+  hotRenderer,
+  profileSummary,
   SWAPPING_KB,
   STALL_MS
 } from './health'
@@ -95,5 +97,40 @@ describe('parseSwapUsage', () => {
     expect(parseSwapUsage('total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)')).toBe(0)
     expect(parseSwapUsage('total = 8.00G  used = 6.50G  free = 1.50G')).toBe(6815744)
     expect(parseSwapUsage('nonsense')).toBe(0)
+  })
+})
+
+describe('a hot window', () => {
+  const m = (pid: number, cpu: number, type = 'Tab') => ({
+    type,
+    pid,
+    cpu: { percentCPUUsage: cpu }
+  })
+  it('is profiled only when hot twice running, and the hottest one first', () => {
+    expect(hotRenderer([m(1, 150), m(2, 130)], new Set())).toBeNull()
+    expect(hotRenderer([m(1, 150), m(2, 130)], new Set([1, 2]))).toBe(1)
+    expect(hotRenderer([m(1, 90), m(2, 130)], new Set([1, 2]))).toBe(2)
+    // The main process or the GPU getting hot is not a window to profile.
+    expect(hotRenderer([m(3, 200, 'Browser'), m(4, 200, 'GPU')], new Set([3, 4]))).toBeNull()
+  })
+
+  it('summarises a profile by self time, leaving idle out', () => {
+    const profile = {
+      nodes: [
+        {
+          id: 1,
+          callFrame: { functionName: '(root)', url: '', lineNumber: 0 },
+          children: [2, 3, 4]
+        },
+        { id: 2, callFrame: { functionName: '(idle)', url: '', lineNumber: 0 } },
+        { id: 3, callFrame: { functionName: 'EasyChat', url: '/x/App-abc.js', lineNumber: 9415 } },
+        { id: 4, callFrame: { functionName: '', url: '/x/App-abc.js', lineNumber: 11 } }
+      ],
+      samples: [2, 2, 3, 3, 3, 4],
+      timeDeltas: [1000, 1000, 1000, 1000, 1000, 1000]
+    }
+    expect(profileSummary(profile)).toBe(
+      'busy 67% of 6ms: EasyChat App-abc.js:9416=3ms (anon) App-abc.js:12=1ms'
+    )
   })
 })

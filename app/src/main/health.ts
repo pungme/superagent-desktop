@@ -1,6 +1,6 @@
-import { app, powerMonitor } from 'electron'
+import { app, powerMonitor, webContents } from 'electron'
 import { execFile } from 'child_process'
-import { appendFileSync } from 'fs'
+import { appendFileSync, mkdirSync, writeFileSync } from 'fs'
 import { cpus, loadavg } from 'os'
 import { basename, join } from 'path'
 
@@ -101,6 +101,67 @@ export function descendants(rows: Proc[], root: number): Proc[] {
   return out
 }
 
+/** A window process this busy, twice in a row, is worth a look inside. */
+export const HOT_RENDERER_PERCENT = 120
+/** The bar in use: a test lowers it, since a test page cannot burn more than one core. */
+const hotPercent = (): number =>
+  Number(process.env.COVE_HOT_RENDERER_PERCENT) || HOT_RENDERER_PERCENT
+
+/**
+ * The renderer worth profiling, if any: the hottest one, when it was hot on the
+ * previous sample too. Pure, so the rule can be tested.
+ */
+export function hotRenderer(
+  metrics: { type: string; pid: number; cpu: { percentCPUUsage: number } }[],
+  previousHot: Set<number>,
+  bar = HOT_RENDERER_PERCENT
+): number | null {
+  const tabs = metrics
+    .filter((m) => m.type === 'Tab' && m.cpu.percentCPUUsage >= bar)
+    .sort((a, b) => b.cpu.percentCPUUsage - a.cpu.percentCPUUsage)
+  const again = tabs.find((m) => previousHot.has(m.pid))
+  return again ? again.pid : null
+}
+
+interface CpuProfile {
+  nodes: {
+    id: number
+    callFrame: { functionName: string; url: string; lineNumber: number }
+    children?: number[]
+  }[]
+  samples: number[]
+  timeDeltas: number[]
+}
+
+/** The functions a CPU profile spent its own time in, one line. Pure. */
+export function profileSummary(p: CpuProfile, top = 8): string {
+  const byId = new Map(p.nodes.map((n) => [n.id, n]))
+  const self = new Map<string, number>()
+  let total = 0
+  let idle = 0
+  for (let i = 0; i < p.samples.length; i++) {
+    const n = byId.get(p.samples[i])
+    const dt = p.timeDeltas[i] || 0
+    total += dt
+    if (!n) continue
+    const f = n.callFrame
+    if (f.functionName === '(idle)') {
+      idle += dt
+      continue
+    }
+    const file = (f.url || '').split('/').pop() || ''
+    const key = `${f.functionName || '(anon)'}${file ? ` ${file}:${f.lineNumber + 1}` : ''}`
+    self.set(key, (self.get(key) || 0) + dt)
+  }
+  const ms = (us: number): string => `${Math.round(us / 1000)}ms`
+  const list = [...self]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, top)
+    .map(([k, v]) => `${k}=${ms(v)}`)
+    .join(' ')
+  return `busy ${total ? Math.round(((total - idle) / total) * 100) : 0}% of ${ms(total)}: ${list}`
+}
+
 const mb = (kb: number): string => `${Math.round(kb / 1024)}M`
 const gb = (kb: number): string => `${(kb / 1048576).toFixed(1)}G`
 
@@ -182,10 +243,38 @@ function ps(): Promise<Proc[]> {
   })
 }
 
+/** %CPU of these processes as ps reports it (100 = one core). */
+function cpuOf(pids: number[]): Promise<Map<number, number>> {
+  if (!pids.length) return Promise.resolve(new Map())
+  return new Promise((resolve) => {
+    execFile(
+      '/bin/ps',
+      ['-o', 'pid=,pcpu=', '-p', pids.join(',')],
+      { timeout: 5000 },
+      (err, out) => {
+        const m = new Map<number, number>()
+        if (!err)
+          for (const line of out.split('\n')) {
+            const [pid, cpu] = line.trim().split(/\s+/)
+            if (pid) m.set(Number(pid), Number(cpu))
+          }
+        resolve(m)
+      }
+    )
+  })
+}
+
 /** One full picture: the machine, our processes, and what the agents spawned. */
 async function snapshot(why: string): Promise<void> {
   const s = await sample()
   const rows = await ps()
+  // Electron's own CPU figures are divided by the core count; ps is the scale
+  // Activity Monitor shows, so the line reads the way the user reads it.
+  const cpuByPid = new Map(rows.map((r) => [r.pid, r.cpu]))
+  const electron = app.getAppMetrics().map((m) => ({
+    ...m,
+    cpu: { ...m.cpu, percentCPUUsage: cpuByPid.get(m.pid) ?? m.cpu.percentCPUUsage }
+  }))
   const ours = descendants(rows, process.pid)
   const ourPids = new Set(ours.map((r) => r.pid))
   ourPids.add(process.pid)
@@ -194,11 +283,51 @@ async function snapshot(why: string): Promise<void> {
   healthLog(
     `${why} free=${gb(s.freeKB)}/${gb(s.totalKB)} swap=${gb(s.swapUsedKB)} ` +
       `load=${s.load1.toFixed(1)}/${s.cpuCount} ` +
-      `electron[${metricsLine(app.getAppMetrics())}] ` +
+      `electron[${metricsLine(electron)}] ` +
       `spawned=${spawned.length}×${mb(spawned.reduce((n, r) => n + r.rssKB, 0))} ` +
       `top[${topLine(rows, ourPids)}]`
   )
 }
+
+/**
+ * Look inside a window that stays hot: attach to it, sample its JavaScript for
+ * five seconds, keep the profile and log the hottest functions. 2026-10-20 the
+ * window sat at 150% of a core for an hour and nothing on the Mac could say in
+ * what; a profile of a copy of the data on another build said one thing, and
+ * the real answer was wanted from the real window.
+ */
+async function profileRenderer(pid: number): Promise<void> {
+  const wc = webContents.getAllWebContents().find((w) => w.getOSProcessId() === pid)
+  if (!wc || wc.isDestroyed()) return
+  const dbg = wc.debugger
+  if (dbg.isAttached()) return
+  try {
+    dbg.attach('1.3')
+    await dbg.sendCommand('Profiler.enable')
+    await dbg.sendCommand('Profiler.setSamplingInterval', { interval: 1000 })
+    await dbg.sendCommand('Profiler.start')
+    await new Promise((r) => setTimeout(r, 5000))
+    const { profile } = (await dbg.sendCommand('Profiler.stop')) as { profile: CpuProfile }
+    const dir = join(app.getPath('userData'), 'diagnostics')
+    mkdirSync(dir, { recursive: true })
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    writeFileSync(join(dir, `renderer-${pid}-${stamp}.cpuprofile`), JSON.stringify(profile))
+    healthLog(
+      `profile pid=${pid} url=${wc.getURL().split('#')[1] ?? 'app'} ${profileSummary(profile)}`
+    )
+  } catch (err) {
+    healthLog(`profile pid=${pid} failed: ${String((err as Error)?.message ?? err)}`)
+  } finally {
+    try {
+      if (dbg.isAttached()) dbg.detach()
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
+/** One profile per window this often at most: it is a look, not a watch. */
+const PROFILE_EVERY_MS = 10 * 60_000
 
 /** A quiet line this often. */
 const EVERY_MS = 5 * 60_000
@@ -219,10 +348,33 @@ export function startHealthWatch(): void {
   }
 
   // The periodic picture, and the pressure check that rides on it.
+  let hot = new Set<number>()
+  const profiledAt = new Map<number, number>()
   setInterval(() => {
     void sample().then((s) => {
       const p = pressureVerdict(s)
       if (p !== 'ok') alarm(`pressure ${p}`)
+    })
+    // A window burning more than a core, two samples running: profile it.
+    // Measured with ps, the scale Activity Monitor uses (100 = one core):
+    // Electron's own percentCPUUsage comes back divided by the core count
+    // (measured 2026-10-21: 5.1% for a window ps put at 90.7%, on 18 cores),
+    // so no bar on it could ever trip.
+    const tabs = app.getAppMetrics().filter((m) => m.type === 'Tab')
+    void cpuOf(tabs.map((m) => m.pid)).then((cpu) => {
+      const metrics = tabs.map((m) => ({
+        type: m.type,
+        pid: m.pid,
+        cpu: { percentCPUUsage: cpu.get(m.pid) ?? 0 }
+      }))
+      const pid = hotRenderer(metrics, hot, hotPercent())
+      hot = new Set(metrics.filter((m) => m.cpu.percentCPUUsage >= hotPercent()).map((m) => m.pid))
+      if (pid !== null && Date.now() - (profiledAt.get(pid) ?? 0) > PROFILE_EVERY_MS) {
+        profiledAt.set(pid, Date.now())
+        const at = Math.round(metrics.find((m) => m.pid === pid)!.cpu.percentCPUUsage)
+        alarm(`hot renderer pid=${pid} cpu=${at}%`)
+        void profileRenderer(pid)
+      }
     })
   }, 15_000).unref()
   setInterval(() => void snapshot('sys'), EVERY_MS).unref()
