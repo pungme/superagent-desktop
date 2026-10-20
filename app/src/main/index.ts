@@ -85,6 +85,7 @@ import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simu
 import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded, installUpdateNow } from './updater'
 import { startMemoryWatch } from './memory-watch'
+import { startHealthWatch } from './health'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
 import { chatToken } from './mcp-token'
@@ -320,6 +321,7 @@ app.whenReady().then(async () => {
   )
   registerAgentIpc()
   startMemoryWatch()
+  startHealthWatch()
   startCrashRelaunch()
   registerLoops()
   // Must attach before any session starts: it is what the phone reads from.

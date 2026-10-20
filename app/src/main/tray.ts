@@ -53,17 +53,22 @@ function currentState(): TrayState {
 }
 
 let shown = ''
-let frame = 0
-/** Put the right picture up; while working, step the breathing dot. */
+/**
+ * Put the right picture up — only when it changes. The working state used to
+ * breathe (two frames, every 700 ms, for as long as any chat had an agent on
+ * it — on a busy Mac, always). Each frame was a menu-bar redraw through
+ * WindowServer, 86 a minute, and WindowServer logged two errors for every one
+ * of them during the 2026-10-20 freeze investigation. A still mark says
+ * "working" just as well.
+ */
 function paint(): void {
   if (!tray) return
   const state = currentState()
   const linked = companionState().relay.state === 'connected'
-  if (state === 'working') frame++
-  const key = `${state}:${linked}:${state === 'working' ? frame % 2 : 0}`
+  const key = `${state}:${linked}`
   if (key === shown) return
   shown = key
-  tray.setImage(icon(state, linked, frame))
+  tray.setImage(icon(state, linked))
 }
 
 function showWindow(): void {
@@ -260,8 +265,9 @@ export function syncTray(): void {
     tray.destroy()
     tray = null
   }
-  // A slow beat: steps the working dot and notices a chat starting or finishing.
-  if (tray && !beat) beat = setInterval(paint, 700)
+  // A slow beat that notices a chat starting or finishing; paint only redraws
+  // when the state is different.
+  if (tray && !beat) beat = setInterval(paint, 2000)
   if (!tray && beat) {
     clearInterval(beat)
     beat = null
