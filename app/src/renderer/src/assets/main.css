@@ -1991,6 +1991,23 @@ button {
   flex-shrink: 1;
 }
 
+.workspace-crumb {
+  color: var(--text-tertiary);
+  margin: 0 -2px;
+}
+
+.workspace-chat {
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 40ch;
+  /* Gives way after the path, before the project name. */
+  flex-shrink: 1;
+}
+
 .workspace-path {
   font-size: 11px;
   color: var(--text-tertiary);

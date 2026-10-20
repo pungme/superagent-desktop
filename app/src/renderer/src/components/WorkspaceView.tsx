@@ -296,6 +296,7 @@ export function WorkspaceView({
   // The on-screen chat, the last few you were in, and any still busy stay
   // mounted — unmounting one stops its agent. See useMountedChats.
   const mountedChats = useMountedChats(chats, activeChatId)
+  const activeChat = chats?.find((c) => c.id === activeChatId)
   useEffect(() => {
     loadChats(ws.id)
   }, [ws.id, loadChats])
@@ -664,7 +665,21 @@ export function WorkspaceView({
         ) : (
           <>
             <span className="workspace-title">{ws.name}</span>
-            <span className="workspace-path">{ws.path}</span>
+            {/* Which conversation is on screen, so a glance at the top says
+                where you are, not only which project. */}
+            {activeChat && (
+              <>
+                <span className="workspace-crumb" aria-hidden="true">
+                  ›
+                </span>
+                <span className="workspace-chat" title={activeChat.title || 'New chat'}>
+                  {activeChat.title || 'New chat'}
+                </span>
+              </>
+            )}
+            <span className="workspace-path" title={ws.path}>
+              {ws.path}
+            </span>
             {branch && (
               <span className="workspace-branch-wrap">
                 <button
