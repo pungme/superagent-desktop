@@ -171,6 +171,17 @@ export function SimulatorPane({
   /** A segment is in flight; the next one waits for its ack rather than piling up. */
   const draggingRef = useRef(false)
   const movedRef = useRef(false)
+  // A finger that is down on the device right now: the device it went to, the
+  // last point it was at, and whether it is a pinch. A touch:start sets it; the
+  // matching touch:end MUST always follow, to THAT device, whatever has changed
+  // in between — or the finger stays down and every tap after it is read as a
+  // second finger (zoom, nothing, chaos). This record is how the end is
+  // guaranteed; it is never gated behind the live conditions the start was.
+  const fingerRef = useRef<{
+    udid: string
+    pinch: boolean
+    at: { x: number; y: number; w: number; h: number }
+  } | null>(null)
   const typeBuf = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({
     text: '',
     timer: null
@@ -647,6 +658,36 @@ export function SimulatorPane({
     [udid]
   )
 
+  /** Send to a NAMED device, not necessarily the one on screen: a finger put
+   *  down on device A must be lifted from device A even if the pane has since
+   *  followed the agent to device B. */
+  const sendTo = useCallback((toUdid: string, action: Record<string, unknown>): void => {
+    void (async () => {
+      const direct = await window.cove.simInputDirect?.(toUdid, action)
+      if (!direct) await window.cove.simInput(toUdid, action)
+    })().catch(() => {})
+  }, [])
+
+  /** Lift the finger if one is down. Exactly one end per start, always. */
+  const liftFinger = useCallback((): void => {
+    const f = fingerRef.current
+    if (!f) return
+    fingerRef.current = null
+    sendTo(f.udid, {
+      type: 'touch',
+      phase: 'end',
+      x: f.at.x,
+      y: f.at.y,
+      ...(f.pinch ? mirrored(f.at) : {}),
+      width: f.at.w,
+      height: f.at.h
+    })
+  }, [sendTo])
+
+  // If the pane goes away, or follows the agent to another device, with a
+  // finger still down, lift it from the device it is on. Never leave one stuck.
+  useEffect(() => liftFinger, [udid, liftFinger])
+
   /** The second finger of a ⌥-drag pinch: yours, mirrored about the middle. */
   const mirrored = (p: {
     x: number
@@ -666,6 +707,7 @@ export function SimulatorPane({
         // Lifted: the end has been sent, and nothing may follow it.
         if (!dragRef.current || !from || !to || (to.x === from.x && to.y === from.y)) break
         sentRef.current = { x: to.x, y: to.y }
+        if (fingerRef.current) fingerRef.current.at = to
         await simInput({
           type: 'touch',
           phase: 'move',
@@ -732,6 +774,10 @@ export function SimulatorPane({
     // so a hold is a hold and a drag follows the hand, with no replaying.
     pinchRef.current = !!p && liveTouchRef.current && e.altKey
     if (p && liveTouchRef.current && udid && tappable) {
+      // A finger still down from a previous gesture whose up was missed: lift
+      // it before this one goes down, so the device never sees two at once.
+      if (fingerRef.current) liftFinger()
+      fingerRef.current = { udid, pinch: pinchRef.current, at: p }
       void simInput({
         type: 'touch',
         phase: 'start',
@@ -818,23 +864,15 @@ export function SimulatorPane({
   }
 
   const onUp = (e: React.PointerEvent): void => {
-    if (liveTouchRef.current) {
+    if (liveTouchRef.current || fingerRef.current) {
+      // Record where it lifted, then lift — always, whatever tappable/udid/the
+      // frame are doing now. A dropped end is a stuck finger.
       const p = toDevice(e) ?? latestRef.current
-      const began = dragRef.current
+      if (p && fingerRef.current) fingerRef.current.at = p
       dragRef.current = null
       movedRef.current = false
-      const pinch = pinchRef.current
       pinchRef.current = false
-      if (!began || !p || !udid || !tappable) return
-      void simInput({
-        type: 'touch',
-        phase: 'end',
-        x: p.x,
-        y: p.y,
-        ...(pinch ? mirrored(p) : {}),
-        width: p.w,
-        height: p.h
-      })
+      liftFinger()
       return
     }
     const start = dragRef.current
