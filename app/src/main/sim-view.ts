@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import { healthLog } from './health'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { scaleToWindowPixels } from './browser'
@@ -99,9 +100,31 @@ export function detachAllSimViews(): void {
 }
 
 export function registerSimViewIpc(toPoints: ToPoints, onGone: (udid: string) => void): void {
+  // Why a pane streamed, and for how long, in memory.log: one line per device
+  // per reason, and one when the screen embeds. "Why is it streaming?" has an
+  // answer on the user's Mac, not only in a guess.
+  const refusedSince = new Map<string, { at: number; why: string }>()
+  const note = (udid: string, why: string | null): void => {
+    const prev = refusedSince.get(udid)
+    if (why === null) {
+      if (prev) {
+        healthLog(
+          `simview ${udid.slice(0, 8)} embedded after ${Math.round((Date.now() - prev.at) / 1000)}s (was: ${prev.why})`
+        )
+        refusedSince.delete(udid)
+      }
+      return
+    }
+    if (!prev) refusedSince.set(udid, { at: Date.now(), why })
+    if (!prev || prev.why !== why) healthLog(`simview ${udid.slice(0, 8)} not embedded: ${why}`)
+    if (prev && prev.why !== why) prev.why = why
+  }
   ipcMain.handle('sim:view-attach', (e, udid: string) => {
     const m = load()
-    if (!m) return { ok: false, error: 'simview is not available' }
+    if (!m) {
+      note(udid, 'simview is not available')
+      return { ok: false, error: 'simview is not available' }
+    }
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return { ok: false, error: 'no window' }
     // A remount for the same device (the pane re-rendered, a chat switch) takes
@@ -143,9 +166,12 @@ export function registerSimViewIpc(toPoints: ToPoints, onGone: (udid: string) =>
       attached.set(udid, { id: info.id, win, pxWidth: info.width, pxHeight: info.height, timer })
       win.once('closed', () => detach(udid))
       const pt = toPoints(info.width, info.height, name)
+      note(udid, null)
       return { ok: true, width: pt.width, height: pt.height, screens: info.screens, device: name }
     } catch (err) {
-      return { ok: false, error: String((err as Error)?.message ?? err) }
+      const why = String((err as Error)?.message ?? err)
+      note(udid, why)
+      return { ok: false, error: why }
     }
   })
 

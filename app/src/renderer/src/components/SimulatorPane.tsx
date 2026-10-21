@@ -470,9 +470,17 @@ export function SimulatorPane({
     const stream = (): void => {
       if (streaming) return
       streaming = true
+      let framed = false
       offFrame = window.cove.onSimFrame(udid, (f) => {
         setFrame(f)
         setGone(false)
+        // The first frame is proof the screen exists: embed now, not when the
+        // retry timer next comes round. Most "streaming" was this gap.
+        if (!framed) {
+          framed = true
+          if (retry) clearTimeout(retry)
+          retry = setTimeout(attach, 50)
+        }
       })
       window.cove.simStreamStart(udid, 2)
     }
@@ -1515,14 +1523,18 @@ export function SimulatorPane({
           </div>
         )}
         {busy && frame && !native && <div className="sim-status">{busy}</div>}
-        {frame && !native && !gone && streamWhy && (
+        {!native && !gone && streamWhy && (
           <div
             className="sim-streaming"
             role="status"
             title={`Could not embed the simulator's screen: ${streamWhy.why}`}
           >
             <span className="sim-streaming-dot" aria-hidden="true" />
-            {streamWhy.retrying ? 'Streaming · embedding…' : `Streaming — ${streamWhy.why}`}
+            {!frame?.url
+              ? 'Starting the device…'
+              : streamWhy.retrying
+                ? 'Streaming · embedding…'
+                : `Streaming — ${streamWhy.why}`}
           </div>
         )}
         {/* The ripple marks a touch while the next streamed frame is on its way;
