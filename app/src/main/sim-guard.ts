@@ -1,5 +1,5 @@
 import { getChat } from './store'
-import { chatHoldingSimulator, simulatorsByChat } from './simulator'
+import { chatHoldingSimulator, knownDeviceNames, simulatorsByChat } from './simulator'
 
 /**
  * Keeps a conversation's shell off another conversation's simulator.
@@ -24,6 +24,8 @@ export interface SimHolders {
   mine: string | null
   /** The title of the other conversation on a device, or null when it is free. */
   takenBy: (udid: string) => string | null
+  /** Device names as simctl knows them (lower-cased) → UDID. simctl takes names too. */
+  names?: ReadonlyMap<string, string>
 }
 
 export function simShellVerdict(command: string, who: SimHolders): string | null {
@@ -54,6 +56,28 @@ export function simShellVerdict(command: string, who: SimHolders): string | null
       if (READS.test(m[1]) || !/(^|\s)booted(\s|$)/.test(m[2])) continue
       return `Not run: \`booted\` is whichever simulator happens to be running, which may be another conversation's. ${own}`
     }
+    // simctl takes a device NAME where it takes a UDID, and "iPhone 17" is as
+    // likely another conversation's "iPhone 17" as this one's "iPhone 17 (2)".
+    // Longest names first, so "iPhone 17 (2)" is not taken for "iPhone 17".
+    const names = [...(who.names ?? [])].sort((a, b) => b[0].length - a[0].length)
+    if (names.length) {
+      for (const m of command.matchAll(/\bsimctl\s+([a-z_]+)\b([^\n;|&]*)/g)) {
+        if (READS.test(m[1])) continue
+        const args = m[2].toLowerCase()
+        const hit = names.find(([n]) =>
+          new RegExp(`(^|[\\s"'=])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s"'])`).test(
+            args
+          )
+        )
+        if (!hit) continue
+        const [name, udid] = hit
+        if (who.mine && udid.toUpperCase() === who.mine.toUpperCase()) continue
+        const other = who.takenBy(udid.toUpperCase()) ?? who.takenBy(udid)
+        return other
+          ? `Not run: "${name}" is the simulator of "${other}", and this would change what that conversation is running. ${own}`
+          : `Not run: a simulator by name ("${name}") may be another conversation's; simctl takes the UDID in its place. ${own}`
+      }
+    }
   }
 
   if (xcodebuild) {
@@ -79,6 +103,7 @@ export function simulatorBeforeShell(
   if (typeof command !== 'string' || !command) return null
   return simShellVerdict(command, {
     mine: simulatorsByChat().get(chatId) ?? null,
+    names: knownDeviceNames(),
     takenBy: (udid) => {
       const holder = chatHoldingSimulator(udid, chatId)
       return holder ? getChat(holder)?.title || 'another conversation' : null

@@ -4,7 +4,8 @@ import { vi } from 'vitest'
 vi.mock('./store', () => ({ getChat: () => null }))
 vi.mock('./simulator', () => ({
   chatHoldingSimulator: () => null,
-  simulatorsByChat: () => new Map()
+  simulatorsByChat: () => new Map(),
+  knownDeviceNames: () => new Map()
 }))
 const { simShellVerdict } = await import('./sim-guard')
 
@@ -87,5 +88,33 @@ describe("a conversation's shell and the simulators", () => {
     expect(
       simShellVerdict("xcodebuild test -scheme App -destination 'platform=macOS'", who)
     ).toBeNull()
+  })
+})
+
+describe('a device named, not identified', () => {
+  const named = {
+    ...who,
+    names: new Map([
+      ['iphone 17', THEIRS],
+      ['iphone 17 (2)', MINE],
+      ['iphone 18 pro', 'AAAAAAAA-0000-0000-0000-000000000009']
+    ])
+  }
+  it("stops simctl aimed at another conversation's simulator by its name", () => {
+    expect(simShellVerdict('xcrun simctl install "iPhone 17" build/App.app', named)).toMatch(
+      /"iPhone 17" is the simulator of "Fix the login page"/i
+    )
+    expect(simShellVerdict("xcrun simctl launch 'iPhone 17' com.x.app", named)).toMatch(
+      /Fix the login page/
+    )
+  })
+  it('lets its own simulator by name through, and tells "iPhone 17 (2)" from "iPhone 17"', () => {
+    expect(simShellVerdict('xcrun simctl install "iPhone 17 (2)" build/App.app', named)).toBeNull()
+  })
+  it('asks for the UDID when the named simulator is free, since a name is ambiguous', () => {
+    expect(simShellVerdict('xcrun simctl boot "iPhone 18 Pro"', named)).toMatch(/by name.*UDID/i)
+  })
+  it('does not mind a name in a command that only looks', () => {
+    expect(simShellVerdict('xcrun simctl list devices "iPhone 17"', named)).toBeNull()
   })
 })

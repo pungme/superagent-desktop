@@ -379,7 +379,17 @@ async function findBaguette(): Promise<string | null> {
   return null
 }
 
+/** The devices seen last, by name: the shell guard's answer to "iPhone 17". */
+let lastDevices: SimDevice[] = []
+export function knownDeviceNames(): Map<string, string> {
+  return new Map(lastDevices.map((d) => [d.name.toLowerCase(), d.udid]))
+}
 export async function listDevices(): Promise<SimDevice[]> {
+  const list = await listDevicesUncached()
+  lastDevices = list
+  return list
+}
+async function listDevicesUncached(): Promise<SimDevice[]> {
   try {
     const { stdout } = await run('xcrun', ['simctl', 'list', 'devices', 'available', '--json'], {
       timeout: 20_000,
