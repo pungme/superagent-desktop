@@ -938,7 +938,13 @@ process.on('uncaughtException', (err) => {
   paneLog('uncaught-exception', 'main', `${err.message}\n${err.stack ?? ''}`)
 })
 
-app.on('before-quit', () => {
+// will-quit, not before-quit: before-quit runs even when the quit is then
+// called off (the save guard in transcripts.ts keeps the app open when a window
+// has not saved), and this used to run anyway — the app stayed open with the
+// phone's relay link closed, agents killed and routines stopped, and the phone
+// said "Mac asleep" until the next restart (2026-10-20 and 21). will-quit fires
+// only once every before-quit handler has let the quit go ahead.
+app.on('will-quit', () => {
   // Sleep is the Mac's again once Superagent is gone (lid-awake.ts).
   releaseLidAwake()
   stopCompanion()

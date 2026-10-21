@@ -102,16 +102,18 @@ export function initTranscripts(root: string): void {
         // Not a dead end: say which window, say what is at stake (a second of
         // typing at most — autosave runs every second), and let the user go.
         const choice =
-          process.env.COVE_E2E_QUIT_ANYWAY === '1'
-            ? 0
-            : dialog.showMessageBoxSync({
-                type: 'warning',
-                buttons: ['Quit anyway', 'Keep open'],
-                defaultId: 0,
-                cancelId: 1,
-                message: 'A window did not finish saving',
-                detail: `${stragglers.join('\n')}\n\nConversations save as they go, so quitting now loses at most the last moment of that window. Keep open to try again.`
-              })
+          process.env.COVE_E2E_QUIT_ANSWER === 'keep'
+            ? 1
+            : process.env.COVE_E2E_QUIT_ANYWAY === '1'
+              ? 0
+              : dialog.showMessageBoxSync({
+                  type: 'warning',
+                  buttons: ['Quit anyway', 'Keep open'],
+                  defaultId: 0,
+                  cancelId: 1,
+                  message: 'A window did not finish saving',
+                  detail: `${stragglers.join('\n')}\n\nConversations save as they go, so quitting now loses at most the last moment of that window. Keep open to try again.`
+                })
         if (choice === 0) {
           quitting = true
           app.quit()

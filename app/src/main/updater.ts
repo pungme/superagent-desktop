@@ -142,22 +142,6 @@ export function startAutoUpdate(): void {
     return on
   })
 
-  if (is.dev) return
-
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
-  // electron-updater documents this as true by default, but Squirrel's staged
-  // state has repeatedly ended up with launchAfterInstallation=false on real
-  // installs. Set it explicitly so "Restart to update" really restarts.
-  autoUpdater.autoRunAppAfterInstall = true
-  // Only pre-releases when the user asked for them; false is the default and
-  // keeps a stable install on the "Latest" line.
-  autoUpdater.allowPrerelease = betaUpdatesEnabled()
-  // Silence was the problem: "Restart to update" doing nothing left no trace at
-  // all, so the same report came back release after release with nothing to go
-  // on. Log to userData/updater.log — small, local, and the first thing to read
-  // next time an install doesn't take.
-  const logFile = join(app.getPath('userData'), 'updater.log')
   const logLine = (level: string, ...args: unknown[]): void => {
     try {
       appendFileSync(
@@ -170,62 +154,16 @@ export function startAutoUpdate(): void {
       /* logging must never break the updater */
     }
   }
-  autoUpdater.logger = {
-    info: (...a: unknown[]) => logLine('info', ...a),
-    warn: (...a: unknown[]) => logLine('warn', ...a),
-    error: (...a: unknown[]) => logLine('error', ...a),
-    debug: (...a: unknown[]) => logLine('debug', ...a)
-  }
-  logLine('info', 'updater started', {
-    version: app.getVersion(),
-    appPath: app.getAppPath(),
-    packaged: app.isPackaged
-  })
 
-  // Progress for the UI: version first (percent 0), then percent as it moves.
-  // Without this the stretch between "downloading" and the restart pill is a
-  // silent minute-plus for a ~220MB DMG.
-  let pendingVersion: string | null = null
   const broadcast = (channel: string, payload: unknown): void => {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) win.webContents.send(channel, payload)
     }
   }
-  autoUpdater.on('update-available', (info) => {
-    pendingVersion = info.version
-    broadcast('update:progress', { version: info.version, percent: 0 })
-  })
-  autoUpdater.on('download-progress', (p) => {
-    broadcast('update:progress', { version: pendingVersion, percent: p.percent })
-  })
 
-  autoUpdater.on('update-downloaded', (info) => {
-    updateDownloaded = true
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.isDestroyed()) win.webContents.send('update:ready', info.version)
-    }
-    if (Notification.isSupported()) {
-      new Notification({
-        title: 'Superagent update ready',
-        body: `Version ${info.version} will install the next time you quit — or restart now.`
-      }).show()
-    }
-  })
-
-  autoUpdater.on('error', (err) => {
-    const msg = String(err?.message ?? err)
-    console.error('[updater]', msg)
-    logLine('error', msg)
-    // Offline / DNS hiccup on a routine background check: log it, but don't paint
-    // a red "Update failed" banner the user can't act on — it retries on its own,
-    // and a manual "Check for updates" still reports the friendly version.
-    if (isOfflineError(msg)) return
-    // A real failure (download/signature/install) looks like "downloading forever"
-    // otherwise — the restart pill never arrives and nothing says why. Surface it
-    // so Settings can show it and the check button becomes the retry.
-    broadcast('update:error', msg.slice(0, 200))
-  })
-
+  // Registered before the dev bail-out, like update:check: Restart to update
+  // must exist in every build so the path that ends the process can be tested
+  // — the one that could not (beta.64–71) cost the user a day.
   // Renderer can trigger the install immediately (quit + relaunch into the update).
   // Quit and relaunch into the downloaded update, now. Also what closing the
   // last window does with the dot on and an update waiting (index.ts).
@@ -263,20 +201,28 @@ export function startAutoUpdate(): void {
         // app.quit(). Keep the assignment next to the action too, so no future
         // preference or updater refactor can silently turn Restart into Quit.
         autoUpdater.autoRunAppAfterInstall = true
-        autoUpdater.quitAndInstall()
+        // The way out is armed BEFORE the install call, not after: if
+        // quitAndInstall throws, or the quit it starts is vetoed, this still
+        // fires. 2026-10-21 the user sat on a window-less, un-quittable
+        // beta.71 for six hours because the fallback never ran.
         setTimeout(() => {
           // Only when Squirrel really has an update staged this session —
           // otherwise a forced exit would just close the app for nothing.
-          if (!updateDownloaded) {
+          if (!updateDownloaded && process.env.COVE_E2E_FAKE_STAGED !== '1') {
             logLine('warn', 'no staged update; not forcing exit')
             return
           }
           logLine('warn', 'still running after quitAndInstall — forcing exit so ShipIt can install')
           // app.exit skips the quit handlers, so run the same cleanup they do
           // (killing agent processes, stopping routines) before going.
-          app.emit('before-quit')
+          try {
+            app.emit('will-quit', { preventDefault: () => {} })
+          } catch (err) {
+            logLine('warn', `cleanup threw on forced exit: ${String(err)}`)
+          }
           app.exit(0)
         }, 1200)
+        autoUpdater.quitAndInstall()
       } catch (err) {
         logLine('error', `quitAndInstall failed: ${String(err)}`)
         broadcast('update:error', `Restart failed: ${String((err as Error)?.message ?? err)}`)
@@ -285,6 +231,74 @@ export function startAutoUpdate(): void {
   }
   installer = install
   ipcMain.on('update:install', install)
+
+  if (is.dev) return
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+  // electron-updater documents this as true by default, but Squirrel's staged
+  // state has repeatedly ended up with launchAfterInstallation=false on real
+  // installs. Set it explicitly so "Restart to update" really restarts.
+  autoUpdater.autoRunAppAfterInstall = true
+  // Only pre-releases when the user asked for them; false is the default and
+  // keeps a stable install on the "Latest" line.
+  autoUpdater.allowPrerelease = betaUpdatesEnabled()
+  // Silence was the problem: "Restart to update" doing nothing left no trace at
+  // all, so the same report came back release after release with nothing to go
+  // on. Log to userData/updater.log — small, local, and the first thing to read
+  // next time an install doesn't take.
+  const logFile = join(app.getPath('userData'), 'updater.log')
+  autoUpdater.logger = {
+    info: (...a: unknown[]) => logLine('info', ...a),
+    warn: (...a: unknown[]) => logLine('warn', ...a),
+    error: (...a: unknown[]) => logLine('error', ...a),
+    debug: (...a: unknown[]) => logLine('debug', ...a)
+  }
+  logLine('info', 'updater started', {
+    version: app.getVersion(),
+    appPath: app.getAppPath(),
+    packaged: app.isPackaged
+  })
+
+  // Progress for the UI: version first (percent 0), then percent as it moves.
+  // Without this the stretch between "downloading" and the restart pill is a
+  // silent minute-plus for a ~220MB DMG.
+  let pendingVersion: string | null = null
+  autoUpdater.on('update-available', (info) => {
+    pendingVersion = info.version
+    broadcast('update:progress', { version: info.version, percent: 0 })
+  })
+  autoUpdater.on('download-progress', (p) => {
+    broadcast('update:progress', { version: pendingVersion, percent: p.percent })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    updateDownloaded = true
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send('update:ready', info.version)
+    }
+    if (Notification.isSupported()) {
+      new Notification({
+        title: 'Superagent update ready',
+        body: `Version ${info.version} will install the next time you quit — or restart now.`
+      }).show()
+    }
+  })
+
+  autoUpdater.on('error', (err) => {
+    const msg = String(err?.message ?? err)
+    console.error('[updater]', msg)
+    logLine('error', msg)
+    // Offline / DNS hiccup on a routine background check: log it, but don't paint
+    // a red "Update failed" banner the user can't act on — it retries on its own,
+    // and a manual "Check for updates" still reports the friendly version.
+    if (isOfflineError(msg)) return
+    // A real failure (download/signature/install) looks like "downloading forever"
+    // otherwise — the restart pill never arrives and nothing says why. Surface it
+    // so Settings can show it and the check button becomes the retry.
+    broadcast('update:error', msg.slice(0, 200))
+  })
+
   // "What's new" for the update banner. The auto-update feed (latest-mac.yml)
   // carries no release notes, so fetch the release body from the GitHub Releases
   // API on demand — public repo, no auth needed. Cached per version so hovering
