@@ -224,6 +224,14 @@ export async function watchScreenshots(): Promise<void> {
   // Desktop all day and offered nothing, while a fresh launch offered a shot
   // within four seconds. A scan of a folder of a few hundred names costs
   // nothing and cannot die quietly.
+  // What is there now is not new, whatever its dates say: only names that
+  // appear from here on are candidates. (The watch path still checks the
+  // birth time, because a rename of an old screenshot fires it too.)
+  try {
+    for (const name of readdirSync(dir)) seen.add(name)
+  } catch (err) {
+    return again(`cannot list the folder: ${String((err as Error)?.message ?? err)}`)
+  }
   if (scan) clearInterval(scan)
   scan = setInterval(() => {
     try {
