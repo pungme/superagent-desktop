@@ -6,6 +6,7 @@ import {
   existsSync,
   FSWatcher,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   statSync,
@@ -138,6 +139,7 @@ function logShot(line: string): void {
 }
 
 let watcher: FSWatcher | null = null
+let scan: ReturnType<typeof setInterval> | null = null
 let retry: ReturnType<typeof setTimeout> | null = null
 
 /**
@@ -164,56 +166,80 @@ export async function watchScreenshots(): Promise<void> {
   if (!existsSync(dir)) return again('folder does not exist')
   const startedAt = Date.now()
   const seen = new Set<string>()
-  try {
-    watcher = watch(dir, (_event, file) => {
-      const name = file?.toString()
-      if (!name || seen.has(name) || !looksLikeScreenshot(name)) return
-      const path = join(dir, name)
-      // macOS writes the file after its own floating thumbnail goes away, and
-      // may still be writing it: wait for it to settle before reading.
-      let lastSize = -1
-      let tries = 0
-      let lastErr = ''
-      const check = (): void => {
-        tries++
-        let size = -1
-        let born = 0
-        try {
-          const st = statSync(path)
-          size = st.size
-          born = st.birthtimeMs || st.mtimeMs
-        } catch (err) {
-          // renamed away, not there yet — or not ours to read.
-          lastErr = String((err as NodeJS.ErrnoException)?.code ?? err)
-        }
-        // Only new ones: renaming or tidying old screenshots also fires here.
-        if (size > 0 && born < startedAt - 1000) return
-        if (size > 0 && size === lastSize) {
-          if (seen.has(name)) return
-          seen.add(name)
-          const img = load(path)
-          if (!img) {
-            logShot(`could not read ${path}`)
-            healthLog(`screenshots: could not read ${name}`)
-            return
-          }
-          const shot: NewScreenshot = { path, name, ...img, at: Date.now() }
-          broadcastToWindows('screenshots:new', shot)
+  // One file: wait for macOS to finish writing it, then hand it over.
+  const consider = (name: string): void => {
+    if (!name || seen.has(name) || !looksLikeScreenshot(name)) return
+    const path = join(dir, name)
+    // macOS writes the file after its own floating thumbnail goes away, and
+    // may still be writing it: wait for it to settle before reading.
+    let lastSize = -1
+    let tries = 0
+    let lastErr = ''
+    const check = (): void => {
+      tries++
+      let size = -1
+      let born = 0
+      try {
+        const st = statSync(path)
+        size = st.size
+        born = st.birthtimeMs || st.mtimeMs
+      } catch (err) {
+        // renamed away, not there yet — or not ours to read.
+        lastErr = String((err as NodeJS.ErrnoException)?.code ?? err)
+      }
+      // Only new ones: renaming or tidying old screenshots also fires here.
+      if (size > 0 && born < startedAt - 1000) {
+        seen.add(name)
+        return
+      }
+      if (size > 0 && size === lastSize) {
+        if (seen.has(name)) return
+        seen.add(name)
+        const img = load(path)
+        if (!img) {
+          logShot(`could not read ${path}`)
+          healthLog(`screenshots: could not read ${name}`)
           return
         }
-        lastSize = size
-        if (tries < 20) setTimeout(check, 300)
-        else {
-          const denied = lastErr === 'EPERM' || lastErr === 'EACCES'
-          const why = denied
-            ? 'macOS is not letting Superagent read the Desktop (System Settings → Privacy & Security → Files and Folders)'
-            : `never settled (${lastErr || 'size ' + size})`
-          logShot(`gave up on ${path}: ${why}`)
-          healthLog(`screenshots: gave up on ${name}: ${why}`)
-        }
+        const shot: NewScreenshot = { path, name, ...img, at: Date.now() }
+        broadcastToWindows('screenshots:new', shot)
+        return
       }
-      setTimeout(check, 200)
-    })
+      lastSize = size
+      if (tries < 20) setTimeout(check, 300)
+      else {
+        const denied = lastErr === 'EPERM' || lastErr === 'EACCES'
+        const why = denied
+          ? 'macOS is not letting Superagent read the Desktop (System Settings → Privacy & Security → Files and Folders)'
+          : `never settled (${lastErr || 'size ' + size})`
+        logShot(`gave up on ${path}: ${why}`)
+        healthLog(`screenshots: gave up on ${name}: ${why}`)
+      }
+    }
+    setTimeout(check, 200)
+  }
+  // The folder, scanned every few seconds as well. fs.watch is an FSEvents
+  // stream, and a stream in a process that has been up for hours can go quiet
+  // with no error and no way to tell: on 2026-10-21 the app had watched the
+  // Desktop all day and offered nothing, while a fresh launch offered a shot
+  // within four seconds. A scan of a folder of a few hundred names costs
+  // nothing and cannot die quietly.
+  if (scan) clearInterval(scan)
+  scan = setInterval(() => {
+    try {
+      for (const name of readdirSync(dir)) if (!seen.has(name)) consider(name)
+    } catch (err) {
+      logShot(`scan failed: ${String((err as Error)?.message ?? err)}`)
+    }
+  }, 3000)
+  scan.unref()
+  if (process.env.COVE_E2E_NO_FSWATCH === '1') {
+    logShot(`watching ${dir} (scan only)`)
+    healthLog(`screenshots: watching ${dir} (scan only)`)
+    return
+  }
+  try {
+    watcher = watch(dir, (_event, file) => consider(file?.toString() ?? ''))
     watcher.on('error', (err) => {
       watcher?.close()
       watcher = null
