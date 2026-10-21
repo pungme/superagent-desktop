@@ -68,6 +68,8 @@ interface ChatMessage {
   imageCount?: number
   replyTo?: { role: 'user' | 'assistant'; text: string } // WhatsApp-style quoted message
   system?: boolean // app-generated notice (e.g. a failed/empty turn), not from Claude
+  /** Kept at the top of the conversation until unpinned. Saved with the message. */
+  pinned?: boolean
   at?: number // when it arrived, for the hover timestamp (absent on older saved chats)
   /** Everything the turn that produced this reply processed (input+cache+output). */
   tokens?: number
@@ -1331,12 +1333,27 @@ function PastedText({ text }: { text: string }): React.JSX.Element {
   )
 }
 
+/** A pin, drawn: the emoji is a different colour on every Mac and font. */
+const PIN_GLYPH = (
+  <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+    <path
+      d="M9.5 1.5 14.5 6.5 12 7l-2.5 2.5.5 3.5-1.5 1.5L5 11 1.5 14.5M5 11l3.5-3.5L8 4l1.5-2.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 const MessageRow = memo(function MessageRow({
   msg,
   showEdit,
   showTime,
   onWheelMsg,
   onReply,
+  onPin,
   onEdit,
   onAnswer,
   onLightbox,
@@ -1358,6 +1375,7 @@ const MessageRow = memo(function MessageRow({
   showTime: boolean
   onWheelMsg: (e: React.WheelEvent<HTMLDivElement>, msg: ChatMessage) => void
   onReply: (msg: ChatMessage) => void
+  onPin: (msg: ChatMessage) => void
   onEdit: (msg: ChatMessage) => void
   /** `from`: the message the choice was in, and what it asked. */
   onAnswer: (a: string, from: { id: string; question: string }) => void
@@ -1477,6 +1495,17 @@ const MessageRow = memo(function MessageRow({
           onClick={() => onReply(msg)}
         >
           ↩
+        </button>
+      )}
+      {!msg.streaming && msg.text && (
+        <button
+          className={`easy-msg-pin ${msg.pinned ? 'pinned' : ''}`}
+          title={msg.pinned ? 'Unpin' : 'Pin to the top of this conversation'}
+          aria-label={msg.pinned ? 'Unpin message' : 'Pin message'}
+          aria-pressed={!!msg.pinned}
+          onClick={() => onPin(msg)}
+        >
+          {PIN_GLYPH}
         </button>
       )}
       {isAssistant && !msg.streaming && msg.text && <CopyReply text={msg.text} />}
@@ -4679,15 +4708,26 @@ export function EasyChat({
   // STABLE row handlers: MessageRow is memoized, and a fresh arrow prop per
   // render would defeat that. The identities below never change; they read the
   // live closures through a ref updated each render-commit.
-  const rowFnsRef = useRef({ onMsgWheel, beginReply, editMessage, submit, setLightbox })
+  /** Pin or unpin: saved with the message, so it is pinned on every device and after a restart. */
+  const togglePin = (msg: ChatMessage): void => {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.kind === 'msg' && it.msg.id === msg.id
+          ? { ...it, msg: { ...it.msg, pinned: !it.msg.pinned } }
+          : it
+      )
+    )
+  }
+  const rowFnsRef = useRef({ onMsgWheel, beginReply, editMessage, submit, setLightbox, togglePin })
   useEffect(() => {
-    rowFnsRef.current = { onMsgWheel, beginReply, editMessage, submit, setLightbox }
+    rowFnsRef.current = { onMsgWheel, beginReply, editMessage, submit, setLightbox, togglePin }
   })
   const onRowWheel = useCallback(
     (e: React.WheelEvent<HTMLDivElement>, m: ChatMessage) => rowFnsRef.current.onMsgWheel(e, m),
     []
   )
   const onRowReply = useCallback((m: ChatMessage) => rowFnsRef.current.beginReply(m), [])
+  const onRowPin = useCallback((m: ChatMessage) => rowFnsRef.current.togglePin(m), [])
   const onRowEdit = useCallback((m: ChatMessage) => rowFnsRef.current.editMessage(m), [])
   // A choice picked in an older message goes with that message's question
   // quoted, the way Reply sends one. Sent bare, "Push and cut beta.15" read
@@ -4792,18 +4832,35 @@ export function EasyChat({
   // "Show in chat" from the Images view: the row a picture came from is
   // scrolled into the middle and lit for a moment, so it can be picked out.
   const [flashRow, setFlashRow] = useState<number | null>(null)
-  const showInChat = (image: ChatImageRef): void => {
-    const id = image.kind === 'remote' ? image.id : image.key.split(':')[0]
-    const index = vrows.findIndex((r) =>
-      r.kind === 'msg'
-        ? r.msg.id === id
-        : r.kind === 'activity' && r.entries.some((e) => e.kind === 'tool' && e.tool.id === id)
-    )
+  const revealRow = (index: number): void => {
     if (index < 0) return
     virtualizer.scrollToIndex(index, { align: 'center' })
     setFlashRow(index)
     setTimeout(() => setFlashRow((cur) => (cur === index ? null : cur)), 1800)
   }
+  /** A message by id, scrolled to the middle and lit for a moment. */
+  const revealMessage = (id: string): void =>
+    revealRow(vrows.findIndex((r) => r.kind === 'msg' && r.msg.id === id))
+  const showInChat = (image: ChatImageRef): void => {
+    const id = image.kind === 'remote' ? image.id : image.key.split(':')[0]
+    revealRow(
+      vrows.findIndex((r) =>
+        r.kind === 'msg'
+          ? r.msg.id === id
+          : r.kind === 'activity' && r.entries.some((e) => e.kind === 'tool' && e.tool.id === id)
+      )
+    )
+  }
+  // The pinned strip: what is pinned, in conversation order, and which one it
+  // shows. A click shows that message and moves on to the next pin, so several
+  // pins can be walked through from the strip without a list.
+  const pins = useMemo(
+    () => items.flatMap((it) => (it.kind === 'msg' && it.msg.pinned ? [it.msg] : [])),
+    [items]
+  )
+  const [pinCursor, setPinCursor] = useState(0)
+  const pinAt = pins.length ? ((pinCursor % pins.length) + pins.length) % pins.length : 0
+  const shownPin = pins.length ? pins[pinAt] : null
 
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current
@@ -4876,6 +4933,7 @@ export function EasyChat({
           showTime={timeIds.has(row.msg.id)}
           onWheelMsg={onRowWheel}
           onReply={onRowReply}
+          onPin={onRowPin}
           onEdit={onRowEdit}
           onAnswer={onRowAnswer}
           onLightbox={onRowLightbox}
@@ -5417,6 +5475,34 @@ export function EasyChat({
           toolbarSlot
         )}
       <div className="easy-transcript">
+        {shownPin && (
+          <div className="easy-pins" role="region" aria-label="Pinned messages">
+            <button
+              className="easy-pins-jump"
+              title={pins.length > 1 ? 'Show this pin, then the next' : 'Show the pinned message'}
+              onClick={() => {
+                revealMessage(shownPin.id)
+                if (pins.length > 1) setPinCursor((c) => c + 1)
+              }}
+            >
+              <span className="easy-pins-mark" aria-hidden="true">
+                {PIN_GLYPH}
+              </span>
+              <span className="easy-pins-label">
+                Pinned{pins.length > 1 ? ` ${pinAt + 1} of ${pins.length}` : ''}
+              </span>
+              <span className="easy-pins-text">{shownPin.text.replace(/\s+/g, ' ').trim()}</span>
+            </button>
+            <button
+              className="easy-pins-unpin"
+              title="Unpin"
+              aria-label="Unpin this message"
+              onClick={() => togglePin(shownPin)}
+            >
+              ×
+            </button>
+          </div>
+        )}
         <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
           {items.length > 0 && (!hideNewChat || (imageRefs.length > 0 && !toolbarSlot)) && (
             <div className="easy-newchat-group">

@@ -14380,3 +14380,118 @@ button {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
+
+/* ── Pinned messages ───────────────────────────────────────────────────── */
+/* The pin sits on the outside rail with Reply, one slot above it; once a
+   message is pinned the pin stays visible, so a pinned message can be told
+   from across the room. */
+.easy-msg-pin {
+  position: absolute;
+  top: calc(50% - 30px);
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  box-shadow: 0 1px 3px var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease;
+}
+.easy-user .easy-msg-pin {
+  left: -34px;
+}
+.easy-assistant .easy-msg-pin {
+  right: -34px;
+}
+.easy-chat.narrow .easy-assistant .easy-msg-pin {
+  top: 4px;
+  right: 92px;
+  transform: none;
+}
+.easy-chat.narrow .easy-user .easy-msg-pin {
+  top: 4px;
+  left: 36px;
+  transform: none;
+}
+.easy-msg:hover .easy-msg-pin,
+.easy-msg-pin.pinned {
+  opacity: 1;
+}
+.easy-msg-pin:hover {
+  color: var(--text-primary);
+}
+.easy-msg-pin.pinned {
+  color: var(--accent, #4f7cff);
+}
+
+/* The strip over the transcript: one line, the message it shows, a way off. */
+.easy-pins {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 12px;
+  padding: 0 4px 0 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-content);
+  flex-shrink: 0;
+}
+.easy-pins-jump {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: none;
+  border-left: 2px solid var(--accent, #4f7cff);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.easy-pins-jump:hover {
+  background: var(--bg-hover, rgba(127, 127, 127, 0.08));
+}
+.easy-pins-mark {
+  display: inline-flex;
+  color: var(--accent, #4f7cff);
+}
+.easy-pins-label {
+  flex-shrink: 0;
+  color: var(--accent, #4f7cff);
+  font-weight: 600;
+  font-size: 11.5px;
+}
+.easy-pins-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.easy-pins-unpin {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.easy-pins-unpin:hover {
+  background: var(--bg-hover, rgba(127, 127, 127, 0.08));
+  color: var(--text-primary);
+}

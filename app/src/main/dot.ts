@@ -22,6 +22,7 @@ import { dotProjects } from './dot-projects'
 import { glanceForDot } from './computer-use'
 import { dotBounds, DOT_H as H, DOT_W as W, pointOnDot } from './dot-bounds'
 import { QUIET, showInactiveForReal } from './quiet'
+import { healthLog } from './health'
 import {
   dotHotkeyFrom,
   NO_DOT_HOTKEY,
@@ -197,6 +198,9 @@ export function isDotWindow(w: BrowserWindow | null | undefined): boolean {
 }
 
 function createDot(): void {
+  healthLog(
+    `dot window created (setting ${kvGet(ENABLED_KEY) ?? 'unset'}, ${new Error().stack?.split('\n')[2]?.trim() ?? ''})`
+  )
   if (win && !win.isDestroyed()) return
   win = new BrowserWindow({
     width: W,
@@ -335,7 +339,10 @@ export function setDotHotkey(accelerator: string): DotHotkeyState {
   return state
 }
 
-export function setDotEnabled(on: boolean): boolean {
+export function setDotEnabled(on: boolean, by = 'main'): boolean {
+  // Every change, with who asked: the dot came back on three times in two
+  // days and each time nothing on the Mac could say what had turned it on.
+  healthLog(`dot ${on ? 'on' : 'off'} by ${by} (was ${kvGet(ENABLED_KEY) ?? 'unset'})`)
   kvSet(ENABLED_KEY, on ? '1' : '0')
   if (on) createDot()
   else destroyDot()
@@ -391,7 +398,9 @@ export function registerDot(): void {
       watched.add(id)
     }
   ipcMain.handle('dot:enabled', () => dotEnabled())
-  ipcMain.handle('dot:set-enabled', (_e, on: boolean) => setDotEnabled(!!on))
+  ipcMain.handle('dot:set-enabled', (e, on: boolean) =>
+    setDotEnabled(!!on, `window ${e.sender.id} ${e.sender.getURL().split('/').pop() ?? ''}`)
+  )
   ipcMain.handle('dot:projects', () => dotProjects())
   ipcMain.handle('dot:hotkey', () => dotHotkey())
   ipcMain.handle('dot:talk-hotkey', () => talkHotkey())
