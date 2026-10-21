@@ -188,7 +188,7 @@ export function metricsLine(metrics: Electron.ProcessMetric[]): string {
   return [...by.entries()].map(([k, e]) => `${k}=${e.n}×${mb(e.kb)}/${e.cpu.toFixed(0)}%`).join(' ')
 }
 
-function healthLog(line: string): void {
+export function healthLog(line: string): void {
   try {
     appendFileSync(
       join(app.getPath('userData'), 'memory.log'),

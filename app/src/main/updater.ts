@@ -1,3 +1,4 @@
+import { allowQuit, flushAllTranscripts } from './transcripts'
 import { autoUpdater } from 'electron-updater'
 import { BrowserWindow, Notification, app, ipcMain, session } from 'electron'
 import { is } from '@electron-toolkit/utils'
@@ -230,7 +231,18 @@ export function startAutoUpdate(): void {
   // last window does with the dot on and an update waiting (index.ts).
   const install = (): void => {
     logLine('info', `install requested (downloaded=${updateDownloaded})`)
-    setImmediate(() => {
+    setImmediate(async () => {
+      // The windows are about to be destroyed, which no save survives: let
+      // every conversation land first (a few seconds at most), then tell the
+      // quit guard to stand aside — it has nothing left to wait for.
+      try {
+        const stragglers = await flushAllTranscripts(8000)
+        if (stragglers.length)
+          logLine('warn', `restart: did not finish saving: ${stragglers.join(' | ')}`)
+      } catch (err) {
+        logLine('warn', `restart: flush failed: ${String(err)}`)
+      }
+      allowQuit()
       try {
         // Squirrel's ShipIt installs only once THIS process is gone, and it
         // gives up if the app is still running when it goes to swap the bundle
