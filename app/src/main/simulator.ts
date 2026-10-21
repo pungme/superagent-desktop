@@ -1364,6 +1364,9 @@ export function registerSimulatorIpc(): void {
     noteSimulatorClosedForChat(String(chatId))
     return true
   })
+  // The device main holds for this conversation, if any: the pane asks before
+  // it falls back to anything it remembered itself.
+  ipcMain.handle('sim:for-chat', (_e, chatId: string) => simByChat.get(String(chatId)) ?? null)
   ipcMain.handle('sim:set-current', (_e, udid: string | null) => {
     currentUdid = udid && udid.length ? udid : null
     return true

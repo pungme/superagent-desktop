@@ -330,13 +330,23 @@ export function SimulatorPane({
       Number(b.state === 'Booted') - Number(a.state === 'Booted') || a.name.localeCompare(b.name)
   )
 
-  /** Remember the device for this project, and as the app-wide fallback. */
+  /**
+   * Where this pane remembers its device: per CONVERSATION. Devices belong to
+   * conversations (main hands each its own), and a claim kept per project let
+   * two conversations in one project share it — the pane in one showed the
+   * other's simulator, told main that was its device, and its agent then
+   * built onto someone else's phone. The project key is only for a pane
+   * without a conversation.
+   */
+  const claimKey = chatId
+    ? `cove.simDevice:${workspaceId}:${chatId}`
+    : `cove.simDevice:${workspaceId}`
   const rememberDevice = useCallback(
     (udid: string): void => {
-      if (workspaceId) localStorage.setItem(`cove.simDevice:${workspaceId}`, udid)
+      if (workspaceId) localStorage.setItem(claimKey, udid)
       localStorage.setItem('cove.simDevice', udid)
     },
-    [workspaceId]
+    [workspaceId, claimKey]
   )
 
   const refresh = useCallback(async (): Promise<Device[]> => {
@@ -346,23 +356,36 @@ export function SimulatorPane({
   }, [])
 
   useEffect(() => {
-    void refresh().then((list) => {
-      // Only a device THIS project has a claim to — one the agent used here, or
-      // one you picked here. (Never fall back to "whatever is booted": that showed
-      // the simulator from whatever OTHER session you were working in.)
-      const mine = localStorage.getItem(`cove.simDevice:${workspaceId}`)
-      // Show the claimed device while it's Booted OR still Booting — the agent
-      // may have just launched it and it isn't 'Booted' yet; the frame stream
-      // picks it up once it's up. Requiring 'Booted' exactly is what flashed the
-      // pane open then shut. A Shutdown device (a stale claim) still closes.
-      const claimed = mine
-        ? list.find((d) => d.udid === mine && (d.state === 'Booted' || d.state === 'Booting'))
-        : undefined
-      if (claimed) setUdid(claimed.udid)
-      else onNothingToShow?.()
-    })
+    // A different conversation: start over, so nothing of the last one's
+    // device carries across while this one's is found.
+    setUdid(null)
+    setFrame(null)
+    setGone(false)
+    let alive = true
+    void Promise.all([refresh(), chatId ? window.cove.simForChat?.(chatId) : null]).then(
+      ([list, held]) => {
+        if (!alive) return
+        // Only a device THIS conversation has a claim to: the one main holds for
+        // it, or one picked or used here. (Never "whatever is booted", and never
+        // another conversation's: that showed, and then drove, the wrong phone.)
+        const mine = held || localStorage.getItem(claimKey)
+        // Show the claimed device while it's Booted OR still Booting — the agent
+        // may have just launched it and it isn't 'Booted' yet; the frame stream
+        // picks it up once it's up. Requiring 'Booted' exactly is what flashed the
+        // pane open then shut. A Shutdown device (a stale claim) still closes.
+        const claimed = mine
+          ? list.find((d) => d.udid === mine && (d.state === 'Booted' || d.state === 'Booting'))
+          : undefined
+        if (claimed) setUdid(claimed.udid)
+        else onNothingToShow?.()
+      }
+    )
     void window.cove.simHasInput().then(setCanInput)
-  }, [refresh])
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh, chatId, claimKey])
 
   /**
    * A pane without a device keeps an eye out for its own. The claim can point
@@ -373,7 +396,7 @@ export function SimulatorPane({
   useEffect(() => {
     if (udid) return
     const t = setInterval(() => {
-      const mine = localStorage.getItem(`cove.simDevice:${workspaceId}`)
+      const mine = localStorage.getItem(claimKey)
       if (!mine) return
       void refresh().then((list) => {
         const back = list.find(
@@ -387,7 +410,7 @@ export function SimulatorPane({
       })
     }, 3000)
     return () => clearInterval(t)
-  }, [udid, workspaceId, refresh])
+  }, [udid, claimKey, refresh])
 
   /**
    * Follow the agent onto whatever device it just used.
@@ -402,13 +425,16 @@ export function SimulatorPane({
       // Only follow sim events for THIS workspace — a background project booting a
       // device must not swap the phone on the pane you're actually watching.
       if (p.workspaceId !== workspaceId) return
+      // And only this conversation's agent: another conversation in the same
+      // project booting its own device is not a reason to swap this pane.
+      if (chatId && p.chatId && p.chatId !== chatId) return
       if (!p.udid || p.udid === udid) return
       rememberDevice(p.udid)
       setFrame(null)
       setGone(false)
       setUdid(p.udid)
     })
-  }, [udid, workspaceId])
+  }, [udid, workspaceId, chatId, rememberDevice])
 
   /**
    * Tell the sidebar whether a simulator is really attached here.
@@ -980,7 +1006,7 @@ export function SimulatorPane({
     setUdid(next?.udid ?? null)
     if (next) rememberDevice(next.udid)
     else {
-      localStorage.removeItem(`cove.simDevice:${workspaceId}`)
+      localStorage.removeItem(claimKey)
       localStorage.removeItem('cove.simDevice')
       setPicking(true)
     }

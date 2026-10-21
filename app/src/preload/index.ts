@@ -467,6 +467,8 @@ export interface CoveApi {
   /** A line from Superagent itself to put in a chat. */
   onChatNotice: (cb: (p: { chatId: string; text: string }) => void) => () => void
   /** The agent booted or launched something on a simulator — reveal the pane. */
+  /** The simulator main holds for this conversation, or null. */
+  simForChat: (chatId: string) => Promise<string | null>
   onOpenSimulator: (
     cb: (p: { workspaceId: string; udid?: string; chatId?: string | null }) => void
   ) => () => void
@@ -1378,6 +1380,7 @@ const cove: CoveApi = {
   installUpdate: () => ipcRenderer.send('update:install'),
   updateNotes: (version) => ipcRenderer.invoke('update:notes', version),
   // The agent asked to open a file in-app (open_file tool) → {workspaceId, path}.
+  simForChat: (chatId) => ipcRenderer.invoke('sim:for-chat', chatId),
   onOpenSimulator: (cb) =>
     subscribe('app:open-simulator', (p) =>
       cb(p as { workspaceId: string; udid?: string; chatId?: string | null })
@@ -1445,7 +1448,12 @@ const cove: CoveApi = {
   onDesktopCommand: (cb) => subscribe('desktop:command', (c) => cb(c as Parameters<typeof cb>[0])),
   chatDelete: (id) => ipcRenderer.invoke('chat:delete', id),
   chatUpdate: (id, patch) => ipcRenderer.invoke('chat:update', id, patch),
-  registerTranscriptFlusher: (flush) => { transcriptFlushers.add(flush); return () => { transcriptFlushers.delete(flush) } },
+  registerTranscriptFlusher: (flush) => {
+    transcriptFlushers.add(flush)
+    return () => {
+      transcriptFlushers.delete(flush)
+    }
+  },
   chatLoadSnapshot: (chatId) => ipcRenderer.invoke('chat:load-snapshot', chatId),
   chatSavePatch: (chatId, patch) => ipcRenderer.invoke('chat:save-patch', chatId, patch),
   chatLoad: (chatId) => ipcRenderer.invoke('chat:load', chatId),
@@ -1709,6 +1717,8 @@ if (process.contextIsolated) {
 }
 
 ipcRenderer.on('transcripts:flush', () => {
-  void Promise.all([...transcriptFlushers].map(flush => flush())).then(() => ipcRenderer.send('transcripts:flushed')).catch(error => ipcRenderer.send('transcripts:flushed', error.message))
+  void Promise.all([...transcriptFlushers].map((flush) => flush()))
+    .then(() => ipcRenderer.send('transcripts:flushed'))
+    .catch((error) => ipcRenderer.send('transcripts:flushed', error.message))
 })
 ipcRenderer.send('transcripts:ready')

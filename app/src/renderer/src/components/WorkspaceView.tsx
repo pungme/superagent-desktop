@@ -256,9 +256,14 @@ export function WorkspaceView({
       // Claim the device the agent just launched onto BEFORE opening the pane.
       // SimulatorPane mounts in response to this open and only then subscribes to
       // onOpenSimulator — too late to catch this very event — so it relies on the
-      // stored claim. The claim stays workspace-scoped (the device is shared);
-      // SimulatorPane resolves it by workspace.
-      if (p.udid) localStorage.setItem(`cove.simDevice:${ws.id}`, p.udid)
+      // stored claim. Kept for the conversation that asked, the key the pane
+      // reads: a claim per project handed one conversation's simulator to every
+      // other conversation in the project.
+      if (p.udid)
+        localStorage.setItem(
+          p.chatId ? `cove.simDevice:${ws.id}:${p.chatId}` : `cove.simDevice:${ws.id}`,
+          p.udid
+        )
       localStorage.setItem(`simOpen:${targetDesk}`, '1')
       // Only flip the visible pane if the requesting chat is the one on screen;
       // otherwise it's persisted above and appears when you switch to that chat.
