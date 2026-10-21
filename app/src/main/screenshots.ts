@@ -14,6 +14,7 @@ import {
 import os from 'os'
 import { basename, join } from 'path'
 import { broadcastToWindows } from './util'
+import { healthLog } from './health'
 
 const run = promisify(execFile)
 
@@ -137,13 +138,30 @@ function logShot(line: string): void {
 }
 
 let watcher: FSWatcher | null = null
+let retry: ReturnType<typeof setTimeout> | null = null
 
+/**
+ * Start watching; say where, and say why not. The Desktop is a folder macOS
+ * guards: a watch refused at launch (permission not yet given, or taken away
+ * by an update) used to fail without a word and stay failed for the whole
+ * session — "the screenshot feature stopped working", 2026-10-21. Now a
+ * failure is logged and tried again every minute until it works.
+ */
 export async function watchScreenshots(): Promise<void> {
   if (watcher) return
   ipcMain.removeHandler('screenshots:trash')
   ipcMain.handle('screenshots:trash', (_e, names: string[]) => trashScreenshots(names))
   const dir = await screenshotDir()
-  if (!existsSync(dir)) return
+  const again = (why: string): void => {
+    logShot(`not watching ${dir}: ${why} — trying again in 60s`)
+    healthLog(`screenshots: not watching ${dir}: ${why}`)
+    if (retry) clearTimeout(retry)
+    retry = setTimeout(() => {
+      retry = null
+      void watchScreenshots()
+    }, 60_000)
+  }
+  if (!existsSync(dir)) return again('folder does not exist')
   const startedAt = Date.now()
   const seen = new Set<string>()
   try {
@@ -155,6 +173,7 @@ export async function watchScreenshots(): Promise<void> {
       // may still be writing it: wait for it to settle before reading.
       let lastSize = -1
       let tries = 0
+      let lastErr = ''
       const check = (): void => {
         tries++
         let size = -1
@@ -163,8 +182,9 @@ export async function watchScreenshots(): Promise<void> {
           const st = statSync(path)
           size = st.size
           born = st.birthtimeMs || st.mtimeMs
-        } catch {
-          // renamed away, or not there yet
+        } catch (err) {
+          // renamed away, not there yet — or not ours to read.
+          lastErr = String((err as NodeJS.ErrnoException)?.code ?? err)
         }
         // Only new ones: renaming or tidying old screenshots also fires here.
         if (size > 0 && born < startedAt - 1000) return
@@ -172,17 +192,37 @@ export async function watchScreenshots(): Promise<void> {
           if (seen.has(name)) return
           seen.add(name)
           const img = load(path)
-          if (!img) return
+          if (!img) {
+            logShot(`could not read ${path}`)
+            healthLog(`screenshots: could not read ${name}`)
+            return
+          }
           const shot: NewScreenshot = { path, name, ...img, at: Date.now() }
           broadcastToWindows('screenshots:new', shot)
           return
         }
         lastSize = size
         if (tries < 20) setTimeout(check, 300)
+        else {
+          const denied = lastErr === 'EPERM' || lastErr === 'EACCES'
+          const why = denied
+            ? 'macOS is not letting Superagent read the Desktop (System Settings → Privacy & Security → Files and Folders)'
+            : `never settled (${lastErr || 'size ' + size})`
+          logShot(`gave up on ${path}: ${why}`)
+          healthLog(`screenshots: gave up on ${name}: ${why}`)
+        }
       }
       setTimeout(check, 200)
     })
-  } catch {
+    watcher.on('error', (err) => {
+      watcher?.close()
+      watcher = null
+      again(`watch error: ${String((err as Error)?.message ?? err)}`)
+    })
+    logShot(`watching ${dir}`)
+    healthLog(`screenshots: watching ${dir}`)
+  } catch (err) {
     watcher = null
+    again(String((err as Error)?.message ?? err))
   }
 }
