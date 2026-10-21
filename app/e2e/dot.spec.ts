@@ -5,6 +5,7 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1069,7 +1070,12 @@ test('a dot window that is up with the setting off is taken down by itself', asy
   // The setting flipped behind the module's back, as if by a path that forgot
   // to take the window down: within a moment there is no dot window.
   await expect.poll(() => app.windows().some((p) => p.url().endsWith('#dot'))).toBe(true)
-  await main.evaluate(() => window.cove.kvSet?.('dot.enabled', '0'))
+  // Straight into the database: the window can no longer write main's settings
+  // (shared/kv-owned.ts), which is the point.
+  execFileSync('/usr/bin/sqlite3', [
+    join(data, 'cove.db'),
+    "UPDATE kv SET value='0' WHERE key='dot.enabled'"
+  ])
   await expect
     .poll(() => app.windows().some((p) => p.url().endsWith('#dot')), { timeout: 5000 })
     .toBe(false)

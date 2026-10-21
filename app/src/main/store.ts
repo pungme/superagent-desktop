@@ -1,5 +1,12 @@
-import { initTranscripts, loadTranscript, readTranscript, saveTranscriptPatch, transcriptRequest } from './transcripts'
+import {
+  initTranscripts,
+  loadTranscript,
+  readTranscript,
+  saveTranscriptPatch,
+  transcriptRequest
+} from './transcripts'
 import type { TranscriptPatch } from '../shared/transcript'
+import { isMainOwnedKey } from '../shared/kv-owned'
 import { app, ipcMain } from 'electron'
 import { join, sep } from 'path'
 import {
@@ -448,7 +455,9 @@ export function createBrowserWorkspace(groupId: string, name: string, url?: stri
 }
 
 export function deleteWorkspace(id: string): void {
-  for (const row of db.prepare('SELECT id FROM chats WHERE workspaceId=?').all(id) as {id:string}[])
+  for (const row of db.prepare('SELECT id FROM chats WHERE workspaceId=?').all(id) as {
+    id: string
+  }[])
     void transcriptRequest('clear', row.id).catch(console.error)
   db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
   db.prepare('DELETE FROM chat_data WHERE id IN (SELECT id FROM chats WHERE workspaceId = ?)').run(
@@ -614,12 +623,10 @@ export function chatData(chatId: string): string | null {
   const incremental = readTranscript(chatId)
   if (incremental !== undefined) return incremental
   const own = db.prepare('SELECT data FROM chat_data WHERE id = ?').get(chatId) as
-    | { data: string }
-    | undefined
+    { data: string } | undefined
   if (own) return own.data
   const row = db.prepare('SELECT data FROM chats WHERE id = ?').get(chatId) as
-    | { data: string }
-    | undefined
+    { data: string } | undefined
   return row ? row.data || '[]' : null
 }
 
@@ -641,10 +648,15 @@ export function loadChatItems(chatId: string): unknown[] {
  */
 export function appendChatItems(chatId: string, items: unknown[]): Promise<void> {
   if (!items.length) return Promise.resolve()
-  return transcriptRequest('append', chatId, items).then(() => {
-    db.prepare('UPDATE chats SET updatedAt=? WHERE id=?').run(Date.now(), chatId)
-    broadcastToWindows('chat:appended', { chatId })
-  }).catch(error => { console.error('Transcript append failed', error); throw error })
+  return transcriptRequest('append', chatId, items)
+    .then(() => {
+      db.prepare('UPDATE chats SET updatedAt=? WHERE id=?').run(Date.now(), chatId)
+      broadcastToWindows('chat:appended', { chatId })
+    })
+    .catch((error) => {
+      console.error('Transcript append failed', error)
+      throw error
+    })
 }
 
 export interface ChatRow {
@@ -2170,9 +2182,13 @@ function registerStoreIpcTail(): void {
       key: string
       value: string
     }[]
-    return Object.fromEntries(rows.map((r) => [r.key, r.value]))
+    // Main's own settings stay out of the window's copy (shared/kv-owned.ts).
+    return Object.fromEntries(
+      rows.filter((r) => !isMainOwnedKey(r.key)).map((r) => [r.key, r.value])
+    )
   })
   ipcMain.on('kv:set', (_e, key: string, value: string) => {
+    if (isMainOwnedKey(String(key))) return
     try {
       db.prepare(
         'INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value'
@@ -2182,6 +2198,7 @@ function registerStoreIpcTail(): void {
     }
   })
   ipcMain.on('kv:del', (_e, key: string) => {
+    if (isMainOwnedKey(String(key))) return
     try {
       db.prepare('DELETE FROM kv WHERE key = ?').run(String(key))
     } catch {
@@ -2280,7 +2297,9 @@ function registerStoreIpcTail(): void {
   // Compatibility for old callers; no renderer autosave sends a complete blob anymore.
   ipcMain.on('chat:save', (_e, chatId: string, data: string) => {
     if (!chatId) return
-    void transcriptRequest('replace', chatId, data).catch(error => console.error('Transcript save failed', error))
+    void transcriptRequest('replace', chatId, data).catch((error) =>
+      console.error('Transcript save failed', error)
+    )
   })
   // Wipes one chat's transcript in place (used by Retry-style resets), which is
   // no longer how "New chat" works — that creates a sibling instead.

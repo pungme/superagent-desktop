@@ -4,6 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { startOverlayGuard, startAutoOverlayLock } from './overlay-guard'
 import { useStore, applyAccent, applySavedIcon, type Accent } from './state'
+import { isMainOwnedKey } from '../../shared/kv-owned'
 
 /**
  * Durable UI state: localStorage is the fast synchronous layer the whole app
@@ -15,6 +16,12 @@ import { useStore, applyAccent, applySavedIcon, type Accent } from './state'
  */
 async function hydrateStorage(): Promise<void> {
   try {
+    // Copies of main's own settings left here by an older build are dropped:
+    // written back by the seeding below, they overrode what main had saved.
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i)
+      if (k && isMainOwnedKey(k)) localStorage.removeItem(k)
+    }
     const durable = await window.cove.kvAll()
     for (const [k, v] of Object.entries(durable)) {
       if (localStorage.getItem(k) === null) localStorage.setItem(k, v)
@@ -31,11 +38,11 @@ async function hydrateStorage(): Promise<void> {
   const origRemove = Storage.prototype.removeItem
   Storage.prototype.setItem = function (k: string, v: string) {
     origSet.call(this, k, v)
-    if (this === window.localStorage) window.cove.kvSet?.(k, v)
+    if (this === window.localStorage && !isMainOwnedKey(k)) window.cove.kvSet?.(k, v)
   }
   Storage.prototype.removeItem = function (k: string) {
     origRemove.call(this, k)
-    if (this === window.localStorage) window.cove.kvDel?.(k)
+    if (this === window.localStorage && !isMainOwnedKey(k)) window.cove.kvDel?.(k)
   }
 }
 
