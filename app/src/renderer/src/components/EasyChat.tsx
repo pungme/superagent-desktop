@@ -5973,6 +5973,22 @@ export function EasyChat({
           </div>
         )}
         <div className="easy-input-box">
+          {/* Narrow (a split window, a column beside a page): the chat's
+              settings are this logo at the front of the box, not a line of
+              their own under it. Pressing it lays them out below. */}
+          <button
+            type="button"
+            className={`easy-input-agent${ctxTokens !== null && ctxPercent >= 75 ? ' warm' : ''}${controlsOpen && !controlsFolding ? ' on' : ''}`}
+            aria-expanded={controlsOpen && !controlsFolding}
+            title={
+              controlsOpen
+                ? 'Hide the settings'
+                : `${[PROVIDER_PRODUCT[provider], modelLabel, modeLabel].filter(Boolean).join(' · ')}${ctxTokens !== null && ctxPercent >= 75 ? ` · Memory ${ctxPercent}%` : ''}`
+            }
+            onClick={toggleControls}
+          >
+            <ProviderLogo provider={provider} size={14} />
+          </button>
           <textarea
             ref={inputRef}
             className={`easy-input${pillRuns.some((r) => r.pill) ? ' has-pills' : ''}`}

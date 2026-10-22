@@ -200,7 +200,7 @@ test('a new chat cuts nothing until it changes a repo, then only that repo', asy
   await change(chat.cwd, 'backend', 'ios')
   // Said quietly, where it can be looked up: a pill with the count, and on a
   // click which repos, on which branch, and that the rest were not copied.
-  const summary = window.locator('.easy-controls:visible .easy-controls-summary').first()
+  const summary = window.locator('.easy-input-agent:visible').first()
   if ((await summary.isVisible()) && (await summary.getAttribute('aria-expanded')) !== 'true')
     await summary.click()
   await expect(pill).toContainText('2')

@@ -15266,3 +15266,60 @@ button {
 .tile-tools:has(.easy-more-btn.open) {
   opacity: 1;
 }
+
+/* Narrow, the chat's settings fold into the agent's logo at the front of the
+   message box (EasyChat's .easy-input-agent): no line of their own under it.
+   Measured on the whole chat, which holds both the box and the settings: 928
+   is the settings row's 900 plus its 14px sides. */
+.easy-chat {
+  container: easy-chat / inline-size;
+}
+.easy-input-agent {
+  display: none;
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.easy-input-agent:hover,
+.easy-input-agent.on {
+  background: var(--active);
+  opacity: 1;
+}
+/* Memory nearly full: the one thing from the settings that should not wait to
+   be looked for. */
+.easy-input-agent.warm::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning, #c98a1b);
+}
+@container easy-chat (max-width: 928px) {
+  .easy-input-agent {
+    display: grid;
+  }
+  .easy-input,
+  .easy-input-mirror,
+  .easy-input-box[data-tall] .easy-input,
+  .easy-input-box[data-tall] .easy-input-mirror {
+    padding-left: 38px;
+  }
+  .easy-controls:not(.unfolded) > .easy-controls-summary {
+    display: none;
+  }
+  .easy-controls:not(.unfolded) {
+    padding-bottom: 0;
+  }
+}

@@ -20,9 +20,9 @@ let app: ElectronApplication
 let window: Page
 
 /** With the browser pane open the chat is narrow, and its settings are folded
- *  into one line; open them so a pill can be reached. */
+ *  into the agent's logo in the message box; open them so a pill can be reached. */
 async function unfoldControls(): Promise<void> {
-  const summary = window.locator('.easy-controls:visible .easy-controls-summary').first()
+  const summary = window.locator('.easy-input-agent:visible').first()
   if ((await summary.isVisible()) && (await summary.getAttribute('aria-expanded')) !== 'true')
     await summary.click()
 }

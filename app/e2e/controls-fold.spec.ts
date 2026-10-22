@@ -5,10 +5,11 @@ import { join } from 'node:path'
 
 /**
  * The settings under the message box, in a narrow chat column: they fold into
- * one line and open as a list, where they used to wrap into four rows of
- * pills. Wide, the pills are as they were.
+ * the agent's logo at the front of the box and open as a list, where they used
+ * to wrap into four rows of pills (and then took a line of their own). Wide,
+ * the pills are as they were.
  */
-test('a narrow chat folds its settings into one line that opens as a list', async () => {
+test('a narrow chat folds its settings into the logo in the box, which opens them as a list', async () => {
   const data = mkdtempSync(join(tmpdir(), 'cove-fold-data-'))
   const proj = mkdtempSync(join(tmpdir(), 'cove-fold-proj-'))
   writeFileSync(join(proj, 'README.md'), '# x\n')
@@ -40,13 +41,16 @@ test('a narrow chat folds its settings into one line that opens as a list', asyn
       )
     })
     await w.click('.sidebar-item:has-text("e2e-project")')
-    const controls = w.locator('.easy-controls:visible').first()
+    // Not `:visible`: folded, the settings row has no height left at all.
+    const controls = w.locator('.workspace-view:visible .easy-controls').first()
     const summary = controls.locator('.easy-controls-summary')
+    const logo = w.locator('.easy-input-agent:visible').first()
     const model = controls.locator('.easy-control-btn', { hasText: 'Model' })
     await expect(model).toBeVisible({ timeout: 20_000 })
 
-    // Wide: pills, and no summary line.
+    // Wide: pills, and no summary line or logo.
     await expect(summary).toBeHidden()
+    await expect(w.locator('.easy-input-agent:visible')).toHaveCount(0)
     await expect(controls.locator('.easy-stats')).toBeVisible()
 
     // Narrow the chat column itself, as dragging the split or the window does.
@@ -54,17 +58,26 @@ test('a narrow chat folds its settings into one line that opens as a list', asyn
       const chat = document.querySelector('.easy-controls')!.closest('.easy-chat') as HTMLElement
       chat.style.maxWidth = '420px'
     })
-    await expect(summary).toBeVisible()
-    await expect(summary).toContainText('Claude Code')
+    // Folded: no line under the box at all, only the logo inside it, which
+    // says what the chat is set to when you point at it.
+    await expect(summary).toBeHidden()
+    await expect(logo).toBeVisible()
+    expect(await logo.getAttribute('title')).toContain('Claude Code')
     await expect(model).toBeHidden()
+    // The typing starts after the logo, not under it.
+    const input = w.locator('.easy-input:visible').first()
+    expect(
+      await input.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft))
+    ).toBeGreaterThanOrEqual(34)
     // Nothing else stays out: the token count is in the fold with the rest.
     const stats = controls.locator('.easy-stats')
     await expect(stats).toBeHidden()
-    const folded = (await controls.boundingBox())!.height
-    expect(folded).toBeLessThan(50)
+    const folded = await controls.evaluate((e) => (e as HTMLElement).offsetHeight)
+    expect(folded).toBeLessThan(4)
 
     // Open: a list, one setting to a row across the column.
-    await summary.click()
+    await logo.click()
+    await expect(summary).toBeVisible()
     await expect(model).toBeVisible()
     // The figures are the last row of the list, across the column like the others.
     await expect(stats).toBeVisible()
@@ -92,22 +105,27 @@ test('a narrow chat folds its settings into one line that opens as a list', asyn
     await model.click()
     await expect(controls.locator('.easy-control-menu')).toHaveCount(0)
 
-    // And folds away again: the rows close first, then go.
+    // And folds away again (from its header or the logo): the rows close
+    // first, then go.
     await summary.click()
     await expect(controls).toHaveClass(/folding/)
     await expect(model).toBeHidden()
     await expect(controls).not.toHaveClass(/folding|unfolded/)
     await expect(stats).toBeHidden()
-    expect((await controls.boundingBox())!.height).toBe(folded)
+    expect(await controls.evaluate((e) => (e as HTMLElement).offsetHeight)).toBe(folded)
     // Pressed again while it is closing, it opens straight back up.
-    await summary.click()
-    await summary.click()
-    await summary.click()
+    await logo.click()
+    await logo.click()
+    await logo.click()
     await expect(model).toBeVisible()
     await expect(controls).not.toHaveClass(/folding/)
-    await summary.click()
+    await logo.click()
     await expect(model).toBeHidden()
-    if (process.env.SHOT) await controls.screenshot({ path: '/tmp/sa-fold-line.png' })
+    if (process.env.SHOT)
+      await w
+        .locator('.easy-input-row:visible')
+        .first()
+        .screenshot({ path: '/tmp/sa-fold-logo.png' })
   } finally {
     await app.close()
     for (const d of [data, proj]) rmSync(d, { recursive: true, force: true })

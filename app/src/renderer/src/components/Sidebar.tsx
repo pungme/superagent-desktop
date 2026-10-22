@@ -11,7 +11,8 @@ import {
   useSensors,
   useDraggable,
   useDroppable,
-  useDndContext
+  useDndContext,
+  type Modifier
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -2143,7 +2144,8 @@ function PinnedShortcuts(): React.JSX.Element | null {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        autoScroll={{ canScroll: () => !useStore.getState().splitDrag }}
+        autoScroll={SIDEBAR_AUTOSCROLL}
+        modifiers={VERTICAL_ONLY}
         onDragStart={splitDrag.onDragStart}
         onDragCancel={splitDrag.onDragCancel}
         onDragEnd={(e) => {
@@ -2286,6 +2288,25 @@ function splitTileOf(el: Element | null): SplitTile | null {
  * the sidebar's drag contexts. The pointer is followed directly: the drag
  * library's offsets are its own.
  */
+/**
+ * While a row is dragged the list scrolls up and down to follow it, never
+ * sideways: the dragged row pokes past the edge, and the drag library would
+ * scroll the sidebar left and right after it (`overflow-x: hidden` still lets a
+ * script scroll). Nothing scrolls once the drag has left for the split.
+ */
+/**
+ * A row carried in the sidebar moves up and down only. Following the pointer
+ * sideways too, the row (and the list under it) slid left and right like a
+ * page scrolling. Carried out to a window, the pill follows the pointer instead.
+ */
+const VERTICAL_ONLY: Modifier[] = [({ transform }) => ({ ...transform, x: 0 })]
+
+const SIDEBAR_AUTOSCROLL = {
+  threshold: { x: 0, y: 0.2 },
+  canScroll: (el: Element): boolean =>
+    !useStore.getState().splitDrag && el.classList.contains('sidebar-scroll')
+}
+
 function useSplitDrag(): {
   onDragStart: (e: DragStartEvent) => void
   onDragCancel: () => void
@@ -2500,6 +2521,19 @@ export function Sidebar(): React.JSX.Element {
     aside.focus({ preventScroll: true })
   }
 
+  // The sidebar never sits scrolled sideways. Whatever tries it (a dragged
+  // row past the edge, a row scrolled into view), it snaps straight back.
+  useEffect(() => {
+    const aside = asideRef.current
+    if (!aside) return
+    const back = (e: Event): void => {
+      const el = e.target
+      if (el instanceof HTMLElement && el.scrollLeft !== 0) el.scrollLeft = 0
+    }
+    aside.addEventListener('scroll', back, true)
+    return () => aside.removeEventListener('scroll', back, true)
+  }, [])
+
   return (
     <aside
       className="sidebar"
@@ -2577,7 +2611,8 @@ export function Sidebar(): React.JSX.Element {
         // No scrolling the list while a chat is carried out into the window:
         // the pointer past the sidebar's edge read as "scroll", and the list
         // slid out of view under the drag.
-        autoScroll={{ canScroll: () => !useStore.getState().splitDrag }}
+        autoScroll={SIDEBAR_AUTOSCROLL}
+        modifiers={VERTICAL_ONLY}
         onDragStart={onDragStart}
         onDragCancel={onDragCancel}
         onDragEnd={onDragEnd}
