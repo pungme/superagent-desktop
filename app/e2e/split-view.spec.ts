@@ -306,6 +306,19 @@ test('split view: drag a chat from the sidebar onto the window, and a window by 
     ])
     expect(l2!.x).toBeLessThan(r2!.x)
 
+    // A drag released somewhere that is not a window (back over the sidebar)
+    // ends cleanly: no preview left on screen, nothing changed.
+    const grip2 = await desk(window, ids.two).locator('.tile-grip').boundingBox()
+    await window.mouse.move(grip2!.x + 4, grip2!.y + 8)
+    await window.mouse.down()
+    await window.mouse.move(grip2!.x + 60, grip2!.y + 60, { steps: 4 })
+    await expect(window.locator('.split-drop.on')).toHaveCount(1)
+    await window.mouse.move(60, 400, { steps: 8 })
+    await window.mouse.up()
+    await expect(window.locator('.split-drop.on')).toHaveCount(0)
+    await expect(window.locator('.split-pill')).toHaveCount(0)
+    await expect(desks(window)).toHaveCount(2)
+
     // Drag the gap between them: the left window grows.
     await settled(window)
     const before = (await desk(window, ids.two).boundingBox())!.width

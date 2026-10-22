@@ -2014,6 +2014,8 @@ export function EasyChat({
   // Every picture in the conversation, for its Images view. Worked out when a
   // message is added or a turn ends, not on every word of a streaming reply.
   const [imagesOpen, setImagesOpen] = useState(false)
+  // The corner's ⋯ menu (pictures, Keep / Throw away, New chat).
+  const [moreOpen, setMoreOpen] = useState(false)
   // The project's toolbar keeps a place for the chat's own buttons
   // (WorkspaceView); a chat shown without one (Chats, the Computer) has none.
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null)
@@ -5516,65 +5518,87 @@ export function EasyChat({
         )}
         <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
           {items.length > 0 && (!hideNewChat || (imageRefs.length > 0 && !toolbarSlot)) && (
-            <div className="easy-newchat-group">
-              {/* Every picture in this chat. In the project's toolbar when
-                  there is one (see below); here only where there is none. */}
-              {imageRefs.length > 0 && !toolbarSlot && (
-                <button
-                  className="easy-newchat easy-images-btn"
-                  onClick={openImages}
-                  data-tip="Every picture in this chat"
-                  aria-label={`Images in this chat: ${imageRefs.length}`}
-                >
-                  {IMAGES_GLYPH}
-                  Images {imageRefs.length}
-                </button>
-              )}
-              {!hideNewChat && isWorktreeChat && wtChanges && (
+            // One quiet "⋯" in the corner instead of a row of pills over the
+            // conversation: pictures, Keep / Throw away, New chat.
+            <div className="easy-more">
+              <button
+                className={`easy-more-btn ${moreOpen ? 'open' : ''}`}
+                aria-label="More"
+                aria-haspopup="menu"
+                aria-expanded={moreOpen}
+                title="More"
+                onClick={() => setMoreOpen((v) => !v)}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <circle cx="3.5" cy="8" r="1.3" />
+                  <circle cx="8" cy="8" r="1.3" />
+                  <circle cx="12.5" cy="8" r="1.3" />
+                </svg>
+              </button>
+              {moreOpen && (
                 <>
-                  <button
-                    className="easy-newchat easy-keep"
-                    data-tip={
-                      wtRepos.length > 0
-                        ? `Adds everything this chat changed to ${wtRepos.join(', ')} — one change in each, named after the chat — then closes the chat. Your other chats aren't touched.`
-                        : "Adds everything this chat changed to the project as one change, named after the chat, then closes the chat. Your other chats and your checkout aren't touched."
-                    }
-                    onClick={() =>
-                      window.cove.chatKeepRequest({
-                        chatId,
-                        workspaceId,
-                        projectPath: cwd.split('/.worktrees/')[0],
-                        wtPath: cwd
-                      })
-                    }
-                  >
-                    ✓ Keep
-                  </button>
-                  <button
-                    className="easy-newchat easy-throw"
-                    data-tip={
-                      wtRepos.length > 0
-                        ? `Deletes everything this chat changed in ${wtRepos.join(', ')} — its branches and its working copy. Can't be undone.`
-                        : "Deletes everything this chat changed — its branch and its working copy. Can't be undone."
-                    }
-                    onClick={() => window.cove.chatThrowRequest({ chatId, workspaceId })}
-                  >
-                    Throw away
-                  </button>
+                  <div className="easy-more-scrim" onClick={() => setMoreOpen(false)} />
+                  <div className="easy-more-menu" role="menu">
+                    {!hideNewChat && (
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          newChat()
+                        }}
+                      >
+                        New chat
+                      </button>
+                    )}
+                    {imageRefs.length > 0 && !toolbarSlot && (
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          openImages()
+                        }}
+                      >
+                        Images<span className="easy-more-count">{imageRefs.length}</span>
+                      </button>
+                    )}
+                    {!hideNewChat && isWorktreeChat && wtChanges && (
+                      <>
+                        <div className="easy-more-sep" />
+                        <button
+                          role="menuitem"
+                          title={
+                            wtRepos.length > 0
+                              ? `Adds everything this chat changed to ${wtRepos.join(', ')}, then closes the chat.`
+                              : 'Adds everything this chat changed to the project as one change, then closes the chat.'
+                          }
+                          onClick={() => {
+                            setMoreOpen(false)
+                            window.cove.chatKeepRequest({
+                              chatId,
+                              workspaceId,
+                              projectPath: cwd.split('/.worktrees/')[0],
+                              wtPath: cwd
+                            })
+                          }}
+                        >
+                          Keep changes
+                        </button>
+                        <button
+                          role="menuitem"
+                          className="danger"
+                          title="Deletes everything this chat changed — its branch and its working copy. Can't be undone."
+                          onClick={() => {
+                            setMoreOpen(false)
+                            window.cove.chatThrowRequest({ chatId, workspaceId })
+                          }}
+                        >
+                          Throw away changes…
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
-              {!hideNewChat && (
-                <button
-                  className="easy-newchat"
-                  onClick={newChat}
-                  data-tip="Starts a new conversation. On a git project it gets its own copy of the project."
-                >
-                  ✎ New chat
-                </button>
-              )}
-              {/* One button. A new chat on a repo IS its own checkout now (the
-                  store isolates it automatically), so the separate ⎇ New
-                  worktree pill and its branch picker are gone. */}
             </div>
           )}
           {items.length === 0 && (ready || suspended) && (

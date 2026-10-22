@@ -58,10 +58,15 @@ export function WorkspaceView({
     return (chats ?? []).filter((c) => keep.has(c.id))
   }, [chats, recent, tileOf])
 
-  if (tiles) {
-    return (
-      <>
-        {mounted.map((c) => {
+  // ONE shape whatever the mode: the keyed list, then the project desk slot.
+  // Two different returns (a bare list for a split, list + slot otherwise) are
+  // two different trees to React, and switching between them remounted every
+  // chat — stopping its agent — each time a split opened or closed (2026-10-22).
+  const shown = !tiles && mounted.some((c) => c.id === activeChatId)
+  return (
+    <>
+      {mounted.map((c) => {
+        if (tiles) {
           const t = tileOf.get(c.id)
           return (
             <ChatDesk
@@ -74,27 +79,23 @@ export function WorkspaceView({
               tile={t}
             />
           )
-        })}
-      </>
-    )
-  }
-
-  const shown = mounted.some((c) => c.id === activeChatId)
-  return (
-    <>
-      {mounted.map((c) => (
-        <ChatDesk
-          key={c.id}
-          ws={ws}
-          chatId={c.id}
-          visible={visible && c.id === activeChatId}
-          hidden={c.id !== activeChatId}
-        />
-      ))}
+        }
+        return (
+          <ChatDesk
+            key={c.id}
+            ws={ws}
+            chatId={c.id}
+            visible={visible && c.id === activeChatId}
+            hidden={c.id !== activeChatId}
+          />
+        )
+      })}
       {/* No conversation on screen yet (none chosen, none loaded, or a project
           without one): the desk still shows the toolbar, the browser of a
           browser project, and the way to start a chat. */}
-      {!shown && <ChatDesk key="__project" ws={ws} chatId={activeChatId} visible={visible} />}
+      {!tiles && !shown ? (
+        <ChatDesk key="__project" ws={ws} chatId={activeChatId} visible={visible} />
+      ) : null}
     </>
   )
 }

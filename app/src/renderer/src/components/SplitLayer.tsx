@@ -11,7 +11,13 @@ import {
   type Rect,
   type SplitTile
 } from '../lib/split'
-import { dropTarget, focusComposerSoon, planAt } from '../lib/split-drag'
+import {
+  cancelChatDrag,
+  dropTarget,
+  finishChatDrag,
+  focusComposerSoon,
+  planAt
+} from '../lib/split-drag'
 
 /**
  * What sits over the windows of a split: the gaps you drag to resize, the
@@ -47,7 +53,30 @@ export function SplitLayer({ canvas }: { canvas: Rect }): React.JSX.Element | nu
   useEffect(() => {
     if (!dragging) return
     enterOverlay()
-    return () => exitOverlay()
+    // A drag always ends. Whoever started it finishes it on release; if that
+    // release went somewhere nobody was listening (the preview stayed on
+    // screen, frozen pages and all — 2026-10-22), this ends it: a release
+    // anywhere lands it, Escape or leaving the app cancels it.
+    const release = (e: PointerEvent): void => {
+      const x = e.clientX
+      const y = e.clientY
+      setTimeout(() => {
+        if (useStore.getState().splitDrag) finishChatDrag(x, y)
+      }, 0)
+    }
+    const key = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') cancelChatDrag()
+    }
+    const away = (): void => cancelChatDrag()
+    window.addEventListener('pointerup', release, true)
+    window.addEventListener('keydown', key, true)
+    window.addEventListener('blur', away)
+    return () => {
+      exitOverlay()
+      window.removeEventListener('pointerup', release, true)
+      window.removeEventListener('keydown', key, true)
+      window.removeEventListener('blur', away)
+    }
   }, [dragging, enterOverlay, exitOverlay])
   useEffect(() => {
     dropTarget.rect = () => dropRef.current?.getBoundingClientRect() ?? null
