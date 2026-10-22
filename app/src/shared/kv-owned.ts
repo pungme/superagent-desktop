@@ -17,6 +17,7 @@ const OWNED = [
   'connections.',
   'power.',
   'migrated.',
+  'sim.',
   'cove.betaUpdates',
   'cove.partitions-merged'
 ]

@@ -4,6 +4,7 @@ import { vi } from 'vitest'
 vi.mock('./store', () => ({ getChat: () => null }))
 vi.mock('./simulator', () => ({
   chatHoldingSimulator: () => null,
+  noteSimulatorUsed: () => {},
   simulatorsByChat: () => new Map(),
   knownDeviceNames: () => new Map()
 }))
@@ -18,6 +19,18 @@ const who = {
 const nobody = { mine: null, takenBy: () => null }
 
 describe("a conversation's shell and the simulators", () => {
+  /** 2026-10-22: `./ios-run.sh <UDID>` installed onto another conversation's device. */
+  it("stops a script given another conversation's simulator, not only simctl", () => {
+    const why = simShellVerdict(`.agent-helpers/ios-run.sh ${THEIRS} testStart`, who)
+    expect(why).toContain('Fix the login page')
+    expect(simShellVerdict(`U=${THEIRS}; ./run.sh $U`, who)).toContain('Fix the login page')
+    // Its own device, or one nobody has, is fine.
+    expect(simShellVerdict(`.agent-helpers/ios-run.sh ${MINE} testStart`, who)).toBeNull()
+    expect(simShellVerdict(`./ios-run.sh ${THEIRS}`, nobody)).toBeNull()
+    // Only looking at someone else's is still allowed.
+    expect(simShellVerdict(`xcrun simctl io ${THEIRS} screenshot /tmp/x.png`, who)).toBeNull()
+  })
+
   it('leaves commands that have nothing to do with a simulator alone', () => {
     expect(simShellVerdict('npm test', who)).toBeNull()
     expect(simShellVerdict('xcodebuild -scheme App build', who)).toBeNull()

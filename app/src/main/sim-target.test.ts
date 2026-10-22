@@ -26,8 +26,14 @@ const {
   chatHoldingSimulator,
   chooseSimulator,
   chatAheadOnSimulator,
-  allowSharedSimulator
+  allowSharedSimulator,
+  simOwners
 } = await import('./simulator')
+
+/** Owners outlive a closed device by design; tests start from nobody owning anything. */
+const noOwners = (): void => {
+  for (const [udid] of simOwners.entries()) simOwners.forgetDevice(udid)
+}
 
 const A = 'chat-a'
 const B = 'chat-b'
@@ -38,6 +44,7 @@ describe('the simulator a conversation drives', () => {
   beforeEach(() => {
     noteSimulatorClosed(IPHONE)
     noteSimulatorClosed(IPAD)
+    noOwners()
   })
 
   /** Nothing chosen: fall back to whatever simctl would pick. */
@@ -51,13 +58,18 @@ describe('the simulator a conversation drives', () => {
     expect(simTarget(A)).toBe(IPHONE)
   })
 
-  /** The window's ✕ closes one chat's pane, not every chat showing that device. */
-  it("closing one chat's pane leaves another chat's claim on the same device", () => {
+  /**
+   * The window's ✕ closes one chat's pane, not every chat showing that device —
+   * and not the device's ownership: the agent may still be driving it from its
+   * shell (2026-10-22).
+   */
+  it("closing one chat's pane leaves another chat's pane, and the owner, alone", () => {
     noteSimulatorOpen(A, IPHONE)
     noteSimulatorOpen(B, IPHONE)
     noteSimulatorClosedForChat(A)
-    expect(simTarget(A)).toBe('booted')
+    expect(simTarget(A)).toBe(IPHONE)
     expect(simTarget(B)).toBe(IPHONE)
+    expect(chatAheadOnSimulator(IPHONE, B)).toBe(A)
   })
 
   /** The whole point: two conversations, two devices, at the same time. */
@@ -81,10 +93,15 @@ describe('the simulator a conversation drives', () => {
     expect(simTarget(A)).toBe(IPAD)
   })
 
-  it('lets go when the device closes', () => {
+  /**
+   * A device shutting down is not its conversation letting go: test runs reboot
+   * it constantly, and each reboot handed it to the next conversation to ask.
+   */
+  it('keeps it through a shutdown, and nobody else gets it meanwhile', () => {
     noteSimulatorOpen(A, IPHONE)
     noteSimulatorClosed(IPHONE)
-    expect(simTarget(A)).toBe('booted')
+    expect(simTarget(A)).toBe(IPHONE)
+    expect(chatHoldingSimulator(IPHONE, B)).toBe(A)
   })
 })
 
@@ -92,6 +109,7 @@ describe('knowing who else is on a device', () => {
   beforeEach(() => {
     noteSimulatorClosed(IPHONE)
     noteSimulatorClosed(IPAD)
+    noOwners()
   })
 
   it('names the other conversation holding it', () => {
@@ -124,6 +142,7 @@ describe('giving each conversation a simulator of its own', () => {
   const C = 'chat-c'
   beforeEach(() => {
     for (const u of [IPHONE, IPAD, TWIN]) noteSimulatorClosed(u)
+    noOwners()
   })
 
   it('takes the booted device when nobody has it', () => {

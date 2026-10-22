@@ -1,5 +1,10 @@
 import { getChat } from './store'
-import { chatHoldingSimulator, knownDeviceNames, simulatorsByChat } from './simulator'
+import {
+  chatHoldingSimulator,
+  knownDeviceNames,
+  noteSimulatorUsed,
+  simulatorsByChat
+} from './simulator'
 
 /**
  * Keeps a conversation's shell off another conversation's simulator.
@@ -31,7 +36,6 @@ export interface SimHolders {
 export function simShellVerdict(command: string, who: SimHolders): string | null {
   const simctl = /\bsimctl\b/.test(command)
   const xcodebuild = /\bxcodebuild\b/.test(command) && /-destination\b/.test(command)
-  if (!simctl && !xcodebuild) return null
 
   const own = who.mine
     ? `This conversation's simulator is ${who.mine}; use that UDID.`
@@ -43,12 +47,16 @@ export function simShellVerdict(command: string, who: SimHolders): string | null
     [...command.matchAll(/\bsimctl\s+([a-z_]+)\b([^\n;|&]*)/g)].every(
       (m) => READS.test(m[1]) || (m[1] === 'io' && /\b(screenshot|enumerate)\b/.test(m[2]))
     )
-  for (const udid of onlyLooks ? [] : (command.match(UDID) ?? [])) {
+  // Any command naming another conversation's device, not only simctl and
+  // xcodebuild: a helper script (`./ios-run.sh <UDID>`) calls them out of sight,
+  // and that is how one conversation kept installing over another's.
+  for (const udid of onlyLooks && simctl ? [] : (command.match(UDID) ?? [])) {
     if (who.mine && udid.toUpperCase() === who.mine.toUpperCase()) continue
     const other = who.takenBy(udid.toUpperCase()) ?? who.takenBy(udid)
     if (other)
       return `Not run: the simulator ${udid} is in use by "${other}", and this would change what that conversation is running. ${own}`
   }
+  if (!simctl && !xcodebuild) return null
 
   if (simctl) {
     // Every `simctl <verb> … booted` in the command, except the ones that only look.
@@ -101,7 +109,7 @@ export function simulatorBeforeShell(
   if (toolName !== 'Bash' || !chatId) return null
   const command = (input as { command?: unknown } | null)?.command
   if (typeof command !== 'string' || !command) return null
-  return simShellVerdict(command, {
+  const verdict = simShellVerdict(command, {
     mine: simulatorsByChat().get(chatId) ?? null,
     names: knownDeviceNames(),
     takenBy: (udid) => {
@@ -109,4 +117,7 @@ export function simulatorBeforeShell(
       return holder ? getChat(holder)?.title || 'another conversation' : null
     }
   })
+  // Let through: whatever free device it names is this conversation's now.
+  if (!verdict) for (const udid of command.match(UDID) ?? []) noteSimulatorUsed(chatId, udid)
+  return verdict
 }

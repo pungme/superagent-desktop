@@ -81,15 +81,20 @@ import { signInBus } from './google-signin'
 import { registerFilesIpc } from './files'
 import { registerImageSaveIpc } from './image-save'
 import { registerChatCopyIpc, copyStatus } from './chat-copy'
-import { registerSimulatorIpc, stopAllSimStreams, stopAllSimInput } from './simulator'
+import {
+  registerSimulatorIpc,
+  stopAllSimStreams,
+  stopAllSimInput,
+  attachSimOwners
+} from './simulator'
 import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded, installUpdateNow } from './updater'
 import { startMemoryWatch } from './memory-watch'
-import { startHealthWatch } from './health'
+import { startHealthWatch, healthLog } from './health'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
 import { chatToken } from './mcp-token'
-import { appendChatEvent } from './store'
+import { appendChatEvent, kvByPrefix } from './store'
 import { appHotkey, bringAppForward, registerAppHotkey } from './app-hotkey'
 import { registerOpenRequests } from './open-request'
 import {
@@ -370,6 +375,15 @@ app.whenReady().then(async () => {
   registerFilesIpc()
   registerChatCopyIpc()
   registerSimulatorIpc()
+  attachSimOwners(
+    {
+      load: () => kvGet('sim.owners'),
+      save: (json) => kvSet('sim.owners', json),
+      log: healthLog
+    },
+    (chatId) => !!getChat(chatId),
+    kvByPrefix('cove.simDevice:')
+  )
   buildMenu()
   startHookServer()
   startRoutines()

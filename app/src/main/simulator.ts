@@ -11,6 +11,7 @@ import { join } from 'path'
 import { readFileSync, unlinkSync, existsSync, mkdirSync, statSync } from 'fs'
 import { createHash } from 'crypto'
 import { EventEmitter } from 'events'
+import { SimOwners, type OwnerStore } from './sim-owners'
 
 const run = promisify(execFile)
 
@@ -387,6 +388,9 @@ export function knownDeviceNames(): Map<string, string> {
 export async function listDevices(): Promise<SimDevice[]> {
   const list = await listDevicesUncached()
   lastDevices = list
+  // A device that was deleted has no owner. Only from a list that came back:
+  // an empty one is far more likely simctl failing than every device gone.
+  if (list.length) simOwners.keepOnly(list.map((d) => d.udid))
   return list
 }
 async function listDevicesUncached(): Promise<SimDevice[]> {
@@ -529,6 +533,40 @@ const watched = new WeakSet<BrowserWindow>()
 let currentUdid: string | null = null
 
 /** The udid to aim simctl at, or 'booted' when we genuinely do not know. */
+/** Who owns which device, kept across restarts and reboots (sim-owners.ts). */
+export const simOwners = new SimOwners()
+
+/**
+ * Load the saved owners at startup, and take the window's own record of which
+ * device each conversation's pane showed (`cove.simDevice:<project>:<chat>`) for
+ * the devices nobody owns yet, so a restart does not hand them to someone else.
+ */
+export function attachSimOwners(
+  store: OwnerStore,
+  chatExists: (chatId: string) => boolean,
+  paneClaims: Map<string, string>
+): void {
+  simOwners.attach(store, chatExists)
+  for (const [key, udid] of paneClaims) {
+    const chatId = key.split(':')[2]
+    if (chatId && udid && chatExists(chatId) && !simOwners.ownerOf(udid))
+      simOwners.claim(chatId, udid)
+  }
+}
+
+/** The device this conversation drives: what its pane shows, else what it owns. */
+function mineOf(chatId: string): string | undefined {
+  return simByChat.get(chatId) ?? simOwners.latestOf(chatId) ?? undefined
+}
+
+/** Another conversation's, by pane or by ownership. */
+function heldByOther(udid: string, chatId: string | null | undefined): boolean {
+  const owner = simOwners.ownerOf(udid)
+  if (owner && owner !== chatId) return true
+  for (const [other, id] of simByChat) if (id === udid && other !== chatId) return true
+  return false
+}
+
 export function simTarget(chatId?: string | null): string {
   // A conversation that has opened a simulator drives THAT one, whatever else
   // is booted. Without this the target was global: one booted device was
@@ -539,8 +577,10 @@ export function simTarget(chatId?: string | null): string {
   // simByChat was already kept for phone mirroring; it just was not consulted
   // here.
   if (chatId) {
-    const mine = simByChat.get(chatId)
+    const mine = mineOf(chatId)
     if (mine) return mine
+    // The device on screen may be another conversation's; never aim there.
+    if (currentUdid && heldByOther(currentUdid, chatId)) return 'booted'
   }
   return currentUdid ?? 'booted'
 }
@@ -553,6 +593,8 @@ export function simTarget(chatId?: string | null): string {
  * replaced by someone else's build.
  */
 export function chatHoldingSimulator(udid: string, exceptChatId?: string | null): string | null {
+  const owner = simOwners.ownerOf(udid)
+  if (owner && owner !== exceptChatId) return owner
   for (const [chatId, id] of simByChat) {
     if (id === udid && chatId !== exceptChatId) return chatId
   }
@@ -561,7 +603,13 @@ export function chatHoldingSimulator(udid: string, exceptChatId?: string | null)
 
 /** Every device a conversation currently has, for listing and for cleanup. */
 export function simulatorsByChat(): ReadonlyMap<string, string> {
-  return simByChat
+  const out = new Map<string, string>()
+  for (const [udid, o] of simOwners.entries()) {
+    const latest = simOwners.latestOf(o.chatId)
+    if (latest === udid) out.set(o.chatId, udid)
+  }
+  for (const [chatId, udid] of simByChat) out.set(chatId, udid)
+  return out
 }
 
 /** True while frames for this device are going to the pane — they can see it. */
@@ -589,6 +637,16 @@ export function allowSharedSimulator(chatId: string | null | undefined): void {
 }
 
 /**
+ * A conversation's shell used this device (a UDID in a command the guard let
+ * through). A free device becomes its own, so a conversation that only ever
+ * drives simulators from its scripts is known to own one.
+ */
+export function noteSimulatorUsed(chatId: string, udid: string): void {
+  if (!lastDevices.some((d) => d.udid.toUpperCase() === udid.toUpperCase())) return
+  simOwners.claim(chatId, udid)
+}
+
+/**
  * Another conversation that had this device before this one did. A pane can
  * put a second conversation on a device that is already taken (it shows
  * whatever is booted); the one that was there first is the one that keeps it.
@@ -598,6 +656,10 @@ export function chatAheadOnSimulator(
   chatId: string | null | undefined
 ): string | null {
   if (chatId && simShared.has(chatId)) return null
+  // An owner was there first by definition: a claim only lands on a free device.
+  const owner = simOwners.ownerOf(udid)
+  if (owner && owner !== chatId) return owner
+  if (owner === chatId) return null
   const mine = chatId ? (simClaim.get(chatId) ?? Infinity) : Infinity
   for (const [other, id] of simByChat) {
     if (id === udid && other !== chatId && (simClaim.get(other) ?? 0) < mine) return other
@@ -642,7 +704,9 @@ export function chooseSimulator(
 ): SimChoice {
   const taken = new Set<string>()
   for (const [other, id] of simByChat) if (other !== chatId) taken.add(id)
-  const mine = chatId ? simByChat.get(chatId) : undefined
+  for (const id of simOwners.takenBy(chatId)) taken.add(id)
+  for (const d of devices) if (taken.has(d.udid.toUpperCase())) taken.add(d.udid)
+  const mine = chatId ? mineOf(chatId) : undefined
   const own = mine ? devices.find((d) => d.udid === mine) : undefined
   if (own && !opts.like && !chatAheadOnSimulator(own.udid, chatId)) return { use: own }
 
@@ -692,6 +756,8 @@ export function chooseSimulator(
 
 export function noteSimulatorOpen(chatId: string | null | undefined, udid: string): void {
   if (!chatId) return
+  // Opening it makes it this conversation's for good, if nobody owns it.
+  simOwners.claim(chatId, udid)
   if (simByChat.get(chatId) === udid) return
   simClaim.set(chatId, ++claimSeq)
   simByChat.set(chatId, udid)
@@ -1376,7 +1442,7 @@ export function registerSimulatorIpc(): void {
   })
   // The device main holds for this conversation, if any: the pane asks before
   // it falls back to anything it remembered itself.
-  ipcMain.handle('sim:for-chat', (_e, chatId: string) => simByChat.get(String(chatId)) ?? null)
+  ipcMain.handle('sim:for-chat', (_e, chatId: string) => mineOf(String(chatId)) ?? null)
   ipcMain.handle('sim:set-current', (_e, udid: string | null) => {
     currentUdid = udid && udid.length ? udid : null
     return true

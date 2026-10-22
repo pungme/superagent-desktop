@@ -1126,6 +1126,14 @@ export function kvGet(key: string): string | undefined {
   return row?.value
 }
 
+/** Every mirrored setting whose key starts with this, as key → value. */
+export function kvByPrefix(prefix: string): Map<string, string> {
+  const rows = db
+    .prepare('SELECT key, value FROM kv WHERE substr(key, 1, ?) = ?')
+    .all(prefix.length, prefix) as { key: string; value: string }[]
+  return new Map(rows.map((r) => [r.key, r.value]))
+}
+
 export function kvDel(key: string): void {
   db.prepare('DELETE FROM kv WHERE key = ?').run(key)
 }
