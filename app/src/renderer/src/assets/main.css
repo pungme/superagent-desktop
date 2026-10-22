@@ -14431,6 +14431,12 @@ button {
 .easy-msg-pin.pinned {
   color: var(--accent, #4f7cff);
 }
+/* A pinned message's pin is solid; so is the one in the strip. */
+.easy-msg-pin.pinned .pin-glyph path,
+.easy-pins-mark .pin-glyph path {
+  fill: currentColor;
+  fill-opacity: 0.18;
+}
 
 /* The strip over the transcript: one line, the message it shows, a way off. */
 .easy-pins {

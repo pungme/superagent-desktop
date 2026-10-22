@@ -1333,14 +1333,15 @@ function PastedText({ text }: { text: string }): React.JSX.Element {
   )
 }
 
-/** A pin, drawn: the emoji is a different colour on every Mac and font. */
+/** A pushpin, drawn upright: the emoji is a different colour on every Mac and
+ * font, and a tilted sketch reads as a scribble at 13px. Filled once pinned. */
 const PIN_GLYPH = (
-  <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" className="pin-glyph">
     <path
-      d="M9.5 1.5 14.5 6.5 12 7l-2.5 2.5.5 3.5-1.5 1.5L5 11 1.5 14.5M5 11l3.5-3.5L8 4l1.5-2.5"
+      d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.5"
+      strokeWidth="1.9"
       strokeLinecap="round"
       strokeLinejoin="round"
     />

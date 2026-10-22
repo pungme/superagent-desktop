@@ -67,6 +67,17 @@ test('a message can be pinned, found again from the strip, and unpinned', async 
     await expect(strip).toContainText('Pinned')
     await expect(strip).toContainText('The latest reply.')
     await expect(last.getByRole('button', { name: 'Unpin message' })).toBeVisible()
+    if (process.env.SHOT) {
+      await last
+        .getByRole('button', { name: 'Unpin message' })
+        .screenshot({ path: '/tmp/sa-pin-btn.png' })
+      await strip.screenshot({ path: '/tmp/sa-pin-strip.png' })
+      const prev = window.locator('.easy-msg:visible', { hasText: 'Reply number 39,' })
+      await prev.hover()
+      await prev
+        .getByRole('button', { name: 'Pin message' })
+        .screenshot({ path: '/tmp/sa-pin-hover.png' })
+    }
     // Pin an early one too: the strip counts, and walks.
     await window.evaluate(() => document.querySelector('.easy-scroll')!.scrollTo({ top: 0 }))
     const first = window.locator('.easy-msg:visible', { hasText: 'Reply number 0,' })
