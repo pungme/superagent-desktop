@@ -538,6 +538,8 @@ interface EasyChatProps {
    * the focused window's chat is this.
    */
   focused?: boolean
+  /** Changes when the header holding this chat's toolbar slot is a new one (split view). */
+  slotKey?: string
   /** Where the chat sits relative to the pane, and how to flip it. */
 }
 
@@ -1592,27 +1594,6 @@ function usageLine(a: Account | null | undefined): string | null {
     .join(' · ')
 }
 
-const IMAGES_GLYPH = (
-  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-    <rect
-      x="1.75"
-      y="2.75"
-      width="12.5"
-      height="10.5"
-      rx="2"
-      stroke="currentColor"
-      strokeWidth="1.3"
-    />
-    <circle cx="5.4" cy="6.2" r="1.1" fill="currentColor" />
-    <path
-      d="M2.5 11.5l3.3-3 2.4 2 2.3-2.4 3 3.2"
-      stroke="currentColor"
-      strokeWidth="1.3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-)
 
 export function EasyChat({
   cwd,
@@ -1622,7 +1603,8 @@ export function EasyChat({
   hideNewChat,
   browserProject,
   visible = true,
-  focused: focusedProp
+  focused: focusedProp,
+  slotKey
 }: EasyChatProps): React.JSX.Element {
   // Keys, paste, dictation and commands: the focused chat only (see the prop).
   const focused = focusedProp ?? visible
@@ -2024,7 +2006,7 @@ export function EasyChat({
       document.querySelector<HTMLElement>(`[data-chat-slot="${CSS.escape(chatId)}"]`) ??
         document.querySelector<HTMLElement>(`[data-chat-slot="${CSS.escape(workspaceId)}"]`)
     )
-  }, [workspaceId, chatId, visible])
+  }, [workspaceId, chatId, visible, slotKey])
   const openImages = (): void => {
     setControlMenu(null)
     setImagesOpen(true)
@@ -5390,6 +5372,92 @@ export function EasyChat({
   const sessionTokens = sessionUsage.added || sessionUsage.processed
   const modeLabel = MODE_OPTIONS.find((m) => m.value === permissionMode)?.label ?? 'Full'
 
+  // The chat's ⋯ menu: in the project's header when there is one (never over
+  // the conversation), in the transcript's corner only where there is none.
+  const renderMore = (inToolbar: boolean): React.JSX.Element => (
+    <div className={`easy-more${inToolbar ? ' in-toolbar' : ''}`}>
+      <button
+        className={`easy-more-btn ${moreOpen ? 'open' : ''}`}
+        aria-label="More"
+        aria-haspopup="menu"
+        aria-expanded={moreOpen}
+        title="More"
+        onClick={() => setMoreOpen((v) => !v)}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="3.5" cy="8" r="1.3" />
+          <circle cx="8" cy="8" r="1.3" />
+          <circle cx="12.5" cy="8" r="1.3" />
+        </svg>
+      </button>
+      {moreOpen && (
+        <>
+          <div className="easy-more-scrim" onClick={() => setMoreOpen(false)} />
+          <div className="easy-more-menu" role="menu">
+            {!hideNewChat && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setMoreOpen(false)
+                  newChat()
+                }}
+              >
+                New chat
+              </button>
+            )}
+            {imageRefs.length > 0 && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setMoreOpen(false)
+                  openImages()
+                }}
+              >
+                Images<span className="easy-more-count">{imageRefs.length}</span>
+              </button>
+            )}
+            {!hideNewChat && isWorktreeChat && wtChanges && (
+              <>
+                <div className="easy-more-sep" />
+                <button
+                  role="menuitem"
+                  title={
+                    wtRepos.length > 0
+                      ? `Adds everything this chat changed to ${wtRepos.join(', ')}, then closes the chat.`
+                      : 'Adds everything this chat changed to the project as one change, then closes the chat.'
+                  }
+                  onClick={() => {
+                    setMoreOpen(false)
+                    window.cove.chatKeepRequest({
+                      chatId,
+                      workspaceId,
+                      projectPath: cwd.split('/.worktrees/')[0],
+                      wtPath: cwd
+                    })
+                  }}
+                >
+                  Keep changes
+                </button>
+                <button
+                  role="menuitem"
+                  className="danger"
+                  title="Deletes everything this chat changed — its branch and its working copy. Can't be undone."
+                  onClick={() => {
+                    setMoreOpen(false)
+                    window.cove.chatThrowRequest({ chatId, workspaceId })
+                  }}
+                >
+                  Throw away changes…
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+  const showMore = items.length > 0 && (!hideNewChat || imageRefs.length > 0)
+
   return (
     <div
       ref={chatRef}
@@ -5471,22 +5539,7 @@ export function EasyChat({
       </div>
       {/* Top right of the project's toolbar: about the chat, out of the
           conversation's way. Only the chat on screen puts its button there. */}
-      {toolbarSlot &&
-        visible &&
-        imageRefs.length > 0 &&
-        createPortal(
-          <button
-            className="toolbar-btn toolbar-images"
-            onClick={openImages}
-            title="Every picture in this chat"
-            aria-label={`Images in this chat: ${imageRefs.length}`}
-          >
-            {IMAGES_GLYPH}
-            <span>Images</span>
-            <em>{imageRefs.length}</em>
-          </button>,
-          toolbarSlot
-        )}
+      {toolbarSlot && visible && showMore && createPortal(renderMore(true), toolbarSlot)}
       <div className="easy-transcript">
         {shownPin && (
           <div className="easy-pins" role="region" aria-label="Pinned messages">
@@ -5517,90 +5570,7 @@ export function EasyChat({
           </div>
         )}
         <div className="easy-scroll" ref={scrollRef} onScroll={onScroll}>
-          {items.length > 0 && (!hideNewChat || (imageRefs.length > 0 && !toolbarSlot)) && (
-            // One quiet "⋯" in the corner instead of a row of pills over the
-            // conversation: pictures, Keep / Throw away, New chat.
-            <div className="easy-more">
-              <button
-                className={`easy-more-btn ${moreOpen ? 'open' : ''}`}
-                aria-label="More"
-                aria-haspopup="menu"
-                aria-expanded={moreOpen}
-                title="More"
-                onClick={() => setMoreOpen((v) => !v)}
-              >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <circle cx="3.5" cy="8" r="1.3" />
-                  <circle cx="8" cy="8" r="1.3" />
-                  <circle cx="12.5" cy="8" r="1.3" />
-                </svg>
-              </button>
-              {moreOpen && (
-                <>
-                  <div className="easy-more-scrim" onClick={() => setMoreOpen(false)} />
-                  <div className="easy-more-menu" role="menu">
-                    {!hideNewChat && (
-                      <button
-                        role="menuitem"
-                        onClick={() => {
-                          setMoreOpen(false)
-                          newChat()
-                        }}
-                      >
-                        New chat
-                      </button>
-                    )}
-                    {imageRefs.length > 0 && !toolbarSlot && (
-                      <button
-                        role="menuitem"
-                        onClick={() => {
-                          setMoreOpen(false)
-                          openImages()
-                        }}
-                      >
-                        Images<span className="easy-more-count">{imageRefs.length}</span>
-                      </button>
-                    )}
-                    {!hideNewChat && isWorktreeChat && wtChanges && (
-                      <>
-                        <div className="easy-more-sep" />
-                        <button
-                          role="menuitem"
-                          title={
-                            wtRepos.length > 0
-                              ? `Adds everything this chat changed to ${wtRepos.join(', ')}, then closes the chat.`
-                              : 'Adds everything this chat changed to the project as one change, then closes the chat.'
-                          }
-                          onClick={() => {
-                            setMoreOpen(false)
-                            window.cove.chatKeepRequest({
-                              chatId,
-                              workspaceId,
-                              projectPath: cwd.split('/.worktrees/')[0],
-                              wtPath: cwd
-                            })
-                          }}
-                        >
-                          Keep changes
-                        </button>
-                        <button
-                          role="menuitem"
-                          className="danger"
-                          title="Deletes everything this chat changed — its branch and its working copy. Can't be undone."
-                          onClick={() => {
-                            setMoreOpen(false)
-                            window.cove.chatThrowRequest({ chatId, workspaceId })
-                          }}
-                        >
-                          Throw away changes…
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          {showMore && !(toolbarSlot && visible) && renderMore(false)}
           {items.length === 0 && (ready || suspended) && (
             <div className="easy-empty">
               <p>Tell {agentName} what you&rsquo;d like to build or change.</p>

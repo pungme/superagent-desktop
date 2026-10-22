@@ -15256,3 +15256,13 @@ button {
   margin: 4px 6px;
   background: var(--border);
 }
+.easy-more.in-toolbar {
+  position: relative;
+  top: auto;
+  height: auto;
+  margin: 0;
+  -webkit-app-region: no-drag;
+}
+.tile-tools:has(.easy-more-btn.open) {
+  opacity: 1;
+}

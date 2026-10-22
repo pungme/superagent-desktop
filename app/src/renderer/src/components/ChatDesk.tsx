@@ -697,6 +697,8 @@ export function ChatDesk({
             ⌘{tile.index + 1}
           </span>
           <span className="tile-tools">
+            {/* The chat's own ⋯ menu lands here (EasyChat, through a portal). */}
+            <span className="toolbar-chat-slot" data-chat-slot={chatId ?? ws.id} />
             {ws.kind !== 'browser' && (
               <button
                 className={`toolbar-btn toolbar-icon ${filesOpen ? 'on' : ''}`}
@@ -1068,6 +1070,7 @@ export function ChatDesk({
                   browserProject={ws.kind === 'browser'}
                   visible={visible}
                   focused={focused}
+                  slotKey={inSplit ? 'tile' : 'desk'}
                 />
               </div>
             )}
