@@ -571,8 +571,14 @@ export interface CoveApi {
   simDeviceMenu: (
     udid: string,
     name: string,
-    at: { x: number; y: number }
-  ) => Promise<{ ok: boolean; error?: string }>
+    at: { x: number; y: number },
+    /** A narrow pane: its own buttons head the menu, and the pick comes back. */
+    pane?: { landscape: boolean; foldable: boolean; folded: boolean }
+  ) => Promise<{
+    ok: boolean
+    error?: string
+    pick?: 'home' | 'lock' | 'app-switcher' | 'rotate' | 'fold' | 'open-app'
+  }>
   /** A single still of the simulator device, as a data URL — for the snip tool. */
   simScreenshot: (udid: string) => Promise<string | null>
   onSimFrame: (
@@ -1355,7 +1361,8 @@ const cove: CoveApi = {
     subscribe(`sim:view-size:${udid}`, (s) => cb(s as { width: number; height: number })),
   simInput: (udid, action) => ipcRenderer.invoke('sim:input', udid, action),
   simInputDirect: (udid, action) => simDirect(udid, action),
-  simDeviceMenu: (udid, name, at) => ipcRenderer.invoke('sim:device-menu', udid, name, at),
+  simDeviceMenu: (udid, name, at, pane) =>
+    ipcRenderer.invoke('sim:device-menu', udid, name, at, pane),
   simHasInput: () => ipcRenderer.invoke('sim:has-input'),
   simScreenshot: (udid) => ipcRenderer.invoke('sim:screenshot', udid),
   onSimFrame: (udid, cb) =>

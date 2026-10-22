@@ -15323,3 +15323,44 @@ button {
     padding-bottom: 0;
   }
 }
+
+/* Holding ⌘ in a split: the keys that move between windows, along the bottom. */
+.split-keys {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: none;
+  gap: 14px;
+  padding: 7px 14px;
+  border-radius: 9px;
+  background: rgba(23, 24, 29, 0.88);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.split-keys kbd {
+  font: inherit;
+  color: #fff;
+  font-weight: 600;
+}
+:root.split-numbers .split-keys {
+  display: flex;
+  animation: tile-hint-in-up 0.12s ease;
+}
+@keyframes tile-hint-in-up {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+}
+
+/* A narrow simulator pane (a window of a split): the device picker, ⋯ and
+   close. Home, Lock, rotate and the rest head the ⋯ menu instead. */
+@container sim-toolbar (max-width: 520px) {
+  .sim-hw {
+    display: none;
+  }
+}

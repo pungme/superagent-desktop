@@ -113,6 +113,12 @@ export function SplitLayer({ canvas }: { canvas: Rect }): React.JSX.Element | nu
       }
       if (e.ctrlKey && !e.metaKey && e.key === 'Tab')
         return go((sp.focus + (e.shiftKey ? n - 1 : 1)) % n)
+      // ⌘⇧] and ⌘⇧[: the next and previous window, as tabs in Safari or
+      // Chrome. Round the end back to the start.
+      if (e.metaKey && e.shiftKey && !e.altKey && !e.ctrlKey) {
+        if (e.code === 'BracketRight') return go((sp.focus + 1) % n)
+        if (e.code === 'BracketLeft') return go((sp.focus + n - 1) % n)
+      }
       if (e.metaKey && e.altKey && !e.shiftKey && e.key.startsWith('Arrow')) {
         const dir = e.key.slice(5)
         const rects = splitRects(sp, canvas.w, canvas.h)
@@ -140,27 +146,51 @@ export function SplitLayer({ canvas }: { canvas: Rect }): React.JSX.Element | nu
     if (!split) return
     let t: ReturnType<typeof setTimeout> | null = null
     const root = document.documentElement
+    // Only while ⌘ is really down. A screenshot (⌘⇧4) or anything else that
+    // takes the keys can swallow ⌘'s release, and the numbers stayed on for
+    // good (2026-10-22): so every key and pointer event that says ⌘ is not
+    // held puts them away, and so does a few seconds without one.
+    let cap: ReturnType<typeof setTimeout> | null = null
     const off = (): void => {
       if (t) clearTimeout(t)
+      if (cap) clearTimeout(cap)
       t = null
+      cap = null
       root.classList.remove('split-numbers')
     }
+    const show = (): void => {
+      root.classList.add('split-numbers')
+      cap = setTimeout(off, 4000)
+    }
     const down = (e: KeyboardEvent): void => {
-      if (e.key === 'Meta' && !e.repeat)
-        t = setTimeout(() => root.classList.add('split-numbers'), 350)
-      else off()
+      if (e.key === 'Meta' && !e.repeat && !e.shiftKey && !e.altKey && !e.ctrlKey) {
+        off()
+        t = setTimeout(show, 350)
+      } else if (e.key !== 'Meta') off()
     }
     const up = (e: KeyboardEvent): void => {
-      if (e.key === 'Meta') off()
+      if (e.key === 'Meta' || !e.metaKey) off()
     }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
+    const pointer = (e: PointerEvent): void => {
+      if (!e.metaKey && (t || root.classList.contains('split-numbers'))) off()
+    }
+    const hidden = (): void => {
+      if (document.hidden) off()
+    }
+    window.addEventListener('keydown', down, true)
+    window.addEventListener('keyup', up, true)
+    window.addEventListener('pointermove', pointer, true)
+    window.addEventListener('pointerdown', pointer, true)
     window.addEventListener('blur', off)
+    document.addEventListener('visibilitychange', hidden)
     return () => {
       off()
-      window.removeEventListener('keydown', down)
-      window.removeEventListener('keyup', up)
+      window.removeEventListener('keydown', down, true)
+      window.removeEventListener('keyup', up, true)
+      window.removeEventListener('pointermove', pointer, true)
+      window.removeEventListener('pointerdown', pointer, true)
       window.removeEventListener('blur', off)
+      document.removeEventListener('visibilitychange', hidden)
     }
   }, [split])
 
@@ -248,6 +278,24 @@ export function SplitLayer({ canvas }: { canvas: Rect }): React.JSX.Element | nu
           <div className="split-note">Eight is the most · close one first</div>
         )}
       </div>
+      {/* Holding ⌘ (the class on the root): every key that moves between
+          windows, read off the screen rather than remembered. */}
+      {split && (
+        <div className="split-keys" aria-hidden="true">
+          <span>
+            <kbd>⌘1</kbd>–<kbd>⌘{Math.min(split.tiles.length, 8)}</kbd> a window
+          </span>
+          <span>
+            <kbd>⌘⇧[</kbd> <kbd>⌘⇧]</kbd> previous, next
+          </span>
+          <span>
+            <kbd>⌘⌥</kbd>+arrows beside
+          </span>
+          <span>
+            <kbd>⌘⇧↩</kbd> {split.zoom === null ? 'fill' : 'back'}
+          </span>
+        </div>
+      )}
       {notice && (
         <div className="split-notice" role="status">
           {notice}

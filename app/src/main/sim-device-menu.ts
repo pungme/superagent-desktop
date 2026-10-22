@@ -180,13 +180,37 @@ async function build(
   ]
 }
 
+/**
+ * The pane's own buttons, when its toolbar is too narrow to show them (a
+ * window of a split): they head this menu instead. The pane does what was
+ * picked, as its button would have.
+ */
+export type PanePick = 'home' | 'lock' | 'app-switcher' | 'rotate' | 'fold' | 'open-app'
+type PaneButtons = { landscape: boolean; foldable: boolean; folded: boolean }
+
+function paneItems(
+  pane: PaneButtons,
+  pick: (p: PanePick) => () => void
+): MenuItemConstructorOptions[] {
+  return [
+    { label: 'Home', click: pick('home') },
+    { label: 'Lock', click: pick('lock') },
+    { label: 'App Switcher', click: pick('app-switcher') },
+    { type: 'separator' },
+    { label: pane.landscape ? 'Rotate to Portrait' : 'Rotate to Landscape', click: pick('rotate') },
+    ...(pane.foldable ? [{ label: pane.folded ? 'Unfold' : 'Fold', click: pick('fold') }] : []),
+    { label: "Open in Apple's Simulator", click: pick('open-app') },
+    { type: 'separator' }
+  ]
+}
+
 export function registerSimDeviceMenu(): void {
   ipcMain.handle(
     'sim:device-menu',
-    async (e, udid: string, name: string, at: { x: number; y: number }) => {
+    async (e, udid: string, name: string, at: { x: number; y: number }, pane?: PaneButtons) => {
       const win = BrowserWindow.fromWebContents(e.sender)
       if (!win || !udid) return { ok: false, error: 'no window' }
-      return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      return new Promise<{ ok: boolean; error?: string; pick?: PanePick }>((resolve) => {
         let settled = false
         const done = (error?: string): void => {
           if (settled) return
@@ -194,7 +218,14 @@ export function registerSimDeviceMenu(): void {
           resolve(error ? { ok: false, error } : { ok: true })
         }
         let chosen = false
+        const pick = (p: PanePick) => (): void => {
+          chosen = true
+          if (settled) return
+          settled = true
+          resolve({ ok: true, pick: p })
+        }
         void build(String(udid), String(name ?? ''), done, () => (chosen = true)).then((items) => {
+          if (pane) items = [...paneItems(pane, pick), ...items]
           Menu.buildFromTemplate(items).popup({
             window: win,
             x: Math.round(at?.x ?? 0),

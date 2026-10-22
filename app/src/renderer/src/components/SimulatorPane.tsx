@@ -1276,7 +1276,7 @@ export function SimulatorPane({
 
   const hardware = (button: string, title: string, glyph: string): React.JSX.Element => (
     <button
-      className="sim-btn"
+      className="sim-btn sim-hw"
       title={title}
       disabled={!udid || !tappable}
       onClick={() => udid && void simInput({ type: 'press', button })}
@@ -1334,9 +1334,23 @@ export function SimulatorPane({
           onClick={(e) => {
             if (!udid) return
             const r = e.currentTarget.getBoundingClientRect()
+            // A narrow pane hides its own buttons (.sim-hw); they head this
+            // menu instead, and the pick comes back to be done here.
+            const hw = e.currentTarget.parentElement?.querySelector<HTMLElement>('.sim-hw')
+            const narrow = !!hw && hw.offsetParent === null
             void window.cove
-              .simDeviceMenu(udid, device?.name ?? '', { x: r.left, y: r.bottom + 4 })
+              .simDeviceMenu(
+                udid,
+                device?.name ?? '',
+                { x: r.left, y: r.bottom + 4 },
+                narrow ? { landscape, foldable, folded } : undefined
+              )
               .then((res) => {
+                if (res.pick === 'home' || res.pick === 'lock' || res.pick === 'app-switcher')
+                  void simInput({ type: 'press', button: res.pick })
+                else if (res.pick === 'rotate') turn(landscape ? 'portrait' : 'left')
+                else if (res.pick === 'fold') void toggleFold()
+                else if (res.pick === 'open-app') void window.cove.simOpenApp?.(udid)
                 if (res.ok) return
                 setBusy(res.error ?? 'That did not work on this simulator.')
                 setTimeout(() => setBusy(null), 6000)
@@ -1348,7 +1362,7 @@ export function SimulatorPane({
         {/* Turn the device. Which way is read off the frame the stream already
             reports, so the button is always the orientation you are not in. */}
         <button
-          className="sim-btn"
+          className="sim-btn sim-hw"
           title={landscape ? 'Rotate to portrait' : 'Rotate to landscape'}
           disabled={!udid || !tappable}
           onClick={() => turn(landscape ? 'portrait' : 'left')}
@@ -1373,7 +1387,7 @@ export function SimulatorPane({
             hinge event. The picture follows by itself. */}
         {foldable && (
           <button
-            className="sim-btn sim-fold"
+            className="sim-btn sim-hw sim-fold"
             title={folded ? 'Unfold the device' : 'Fold the device'}
             aria-label={folded ? 'Unfold the device' : 'Fold the device'}
             disabled={!udid || folding}
@@ -1408,7 +1422,7 @@ export function SimulatorPane({
         {/* The escape hatch: Apple's own window, only when asked for. Until
             then it is kept out of sight, because a build opens it uninvited. */}
         <button
-          className="sim-btn sim-open-app"
+          className="sim-btn sim-hw sim-open-app"
           // No device chosen: it used to sit disabled and look broken. Pick one first.
           title={udid ? "Open this device in Apple's Simulator app" : 'Choose a simulator first'}
           onClick={() => (udid ? void window.cove.simOpenApp?.(udid) : setPicking(true))}

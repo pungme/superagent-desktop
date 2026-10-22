@@ -139,6 +139,31 @@ test('split view: open beside, move between windows, leave and come back, restar
     await expect(focused(window)).toHaveAttribute('data-desk', ids.b1)
     await window.keyboard.press('Meta+Alt+ArrowLeft')
     await expect(focused(window)).toHaveAttribute('data-desk', ids.a1)
+    // ⌘⇧] and ⌘⇧[ go round the windows, as tabs do in a browser.
+    await window.keyboard.press('Meta+Shift+BracketRight')
+    await expect(focused(window)).toHaveAttribute('data-desk', ids.b1)
+    await window.keyboard.press('Meta+Shift+BracketRight')
+    await expect(focused(window)).toHaveAttribute('data-desk', ids.a1)
+    await window.keyboard.press('Meta+Shift+BracketLeft')
+    await expect(focused(window)).toHaveAttribute('data-desk', ids.b1)
+    await window.keyboard.press('Meta+1')
+    // Holding ⌘ lists the keys.
+    await expect(window.locator('.split-keys')).toBeHidden()
+    await window.keyboard.down('Meta')
+    await expect(window.locator('.split-keys')).toBeVisible()
+    await expect(window.locator('.split-keys')).toContainText('previous, next')
+    if (shots) await window.screenshot({ path: shots('1b-keys') })
+    await window.keyboard.up('Meta')
+    await expect(window.locator('.split-keys')).toBeHidden()
+    // A screenshot (⌘⇧4) swallows ⌘'s release: the numbers must not stay on.
+    // The next pointer event, which says ⌘ is not held, puts them away.
+    await window.keyboard.down('Meta')
+    await expect(window.locator('.split-keys')).toBeVisible()
+    await window.evaluate(() =>
+      window.dispatchEvent(new PointerEvent('pointermove', { metaKey: false, bubbles: true }))
+    )
+    await expect(window.locator('.split-keys')).toBeHidden()
+    await window.keyboard.up('Meta')
     // A click in a window focuses it.
     await desk(window, ids.b1).locator('.easy-assistant').first().click()
     await expect(focused(window)).toHaveAttribute('data-desk', ids.b1)
