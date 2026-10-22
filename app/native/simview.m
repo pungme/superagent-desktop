@@ -187,11 +187,11 @@ static id litPort(id device) {
 /** The picture itself: a sublayer, so it can be turned for landscape inside the view. */
 @property(nonatomic, strong) CALayer *screen;
 @property(nonatomic) double rotation;
-@property(nonatomic, strong) id device;
-@property(nonatomic, strong) id port;
+@property(atomic, strong) id device;
+@property(atomic, strong) id port;
 @property(atomic, strong) NSUUID *callbackUUID;
-@property(nonatomic, strong) NSTimer *tick;
-@property(nonatomic) IOSurfaceRef surface;
+@property(nonatomic, strong) dispatch_source_t beat;
+@property(atomic) IOSurfaceRef surface;
 /** A frame is queued to be shown; later damage before it runs is the same frame. */
 @property(atomic) BOOL pending;
 /** Torn down: a frame still queued has nothing to draw into. */
@@ -202,6 +202,8 @@ static id litPort(id device) {
 @property(atomic) double lastShownAt;
 @property(atomic) double longestGap;
 @property(nonatomic) NSInteger darkTicks;
+/** Screens handing back a framebuffer at the last heartbeat; 0 once the device is down. */
+@property(atomic) NSInteger screens;
 @property(nonatomic) NSInteger id;
 @property(nonatomic, strong) NSString *udid;
 @end
@@ -228,6 +230,25 @@ static dispatch_queue_t presentQueue(void) {
     q = dispatch_queue_create(
         "superagent.simview.present",
         dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
+  });
+  return q;
+}
+
+/**
+ * The once-a-second check (heartbeat) runs here, never on the main thread.
+ * Every question it asks the device — still booted? which screens? how lit? —
+ * is a synchronous call into CoreSimulator, and while that service is busy (a
+ * build installing, another device booting) each one waits. On the main thread
+ * that wait froze the whole app: 62% of the main thread in a 5-second sample of
+ * the owner's Mac (2026-10-22), and main-thread stalls of seconds to minutes.
+ */
+static dispatch_queue_t heartbeatQueue(void) {
+  static dispatch_queue_t q;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    q = dispatch_queue_create(
+        "superagent.simview.heartbeat",
+        dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
   });
   return q;
 }
@@ -302,18 +323,27 @@ static BOOL usePort(SimAttachment *a, id port) {
   } @catch (NSException *e) {
     // No damage callback: the heartbeat below still refreshes the picture.
   }
+  // Torn down while this ran on the heartbeat queue: let go of what we took.
+  if (a.dead) {
+    unregisterDamage(a);
+    setSurface(a, NULL);
+    return NO;
+  }
   present(a);
   return YES;
 }
 
 /** Once a second: device gone, screen switched (foldable), or just quiet. */
 static void heartbeat(SimAttachment *a) {
+  if (a.dead) return;
   if ([[a.device valueForKey:@"state"] unsignedLongValue] != 3) {
+    a.screens = 0;
     // Shut down: leave the last picture; the app hears of it through simctl
     // and takes the view down. Nothing to refresh.
     return;
   }
   NSArray *ports = displayPorts(a.device);
+  a.screens = ports.count;
   if (ports.count > 1 && portBrightness(a.port) <= DARK) {
     id other = nil;
     for (id d in ports)
@@ -428,17 +458,21 @@ static napi_value Attach(napi_env env, napi_callback_info info) {
     [a.view removeFromSuperview];
     return throwErr(env, "framebuffer surface disappeared");
   }
+  a.screens = 1;
   a.id = gNextId++;
   if (!gAttachments) gAttachments = [NSMutableDictionary dictionary];
   gAttachments[@(a.id)] = a;
   __weak SimAttachment *weak = a;
-  a.tick = [NSTimer scheduledTimerWithTimeInterval:1.0
-                                           repeats:YES
-                                             block:^(NSTimer *t) {
-                                               (void)t;
-                                               SimAttachment *s = weak;
-                                               if (s) heartbeat(s);
-                                             }];
+  // Once a second, off the main thread (see heartbeatQueue).
+  dispatch_source_t beat = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, heartbeatQueue());
+  dispatch_source_set_timer(beat, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), NSEC_PER_SEC,
+                            NSEC_PER_SEC / 4);
+  dispatch_source_set_event_handler(beat, ^{
+    SimAttachment *s = weak;
+    if (s && !s.dead) heartbeat(s);
+  });
+  a.beat = beat;
+  dispatch_resume(beat);
 
   napi_value out;
   napi_create_object(env, &out);
@@ -525,11 +559,11 @@ static napi_value SetVisible(napi_env env, napi_callback_info info) {
 }
 
 static void teardown(SimAttachment *a) {
-  [a.tick invalidate];
-  a.tick = nil;
+  a.dead = YES;
+  if (a.beat) dispatch_source_cancel(a.beat);
+  a.beat = nil;
   unregisterDamage(a);
   [a.view removeFromSuperview];
-  a.dead = YES;
   setSurface(a, NULL);
 }
 
@@ -590,6 +624,26 @@ static napi_value Screens(napi_env env, napi_callback_info info) {
   return arr;
 }
 
+/**
+ * health(id) -> { screens, width, height }: what the heartbeat last saw. Read
+ * from memory, so the app can ask every second without a call into
+ * CoreSimulator on its main thread (screens() makes one; it waits when the
+ * service is busy).
+ */
+static napi_value Health(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  napi_value out;
+  napi_create_object(env, &out);
+  SimAttachment *a = argc ? attachmentArg(env, argv[0]) : nil;
+  IOSurfaceRef s = a ? a.surface : NULL;
+  setNum(env, out, "screens", a ? a.screens : 0);
+  setNum(env, out, "width", s ? IOSurfaceGetWidth(s) : 0);
+  setNum(env, out, "height", s ? IOSurfaceGetHeight(s) : 0);
+  return out;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
   struct {
     const char *name;
@@ -597,6 +651,7 @@ static napi_value Init(napi_env env, napi_value exports) {
   } fns[] = {
       {"attach", Attach},         {"size", SizeOf},     {"setBounds", SetBounds},
       {"setVisible", SetVisible}, {"detach", Detach}, {"screens", Screens}, {"stats", Stats},
+      {"health", Health},
   };
   for (size_t i = 0; i < sizeof(fns) / sizeof(fns[0]); i++) {
     napi_value fn;

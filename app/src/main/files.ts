@@ -14,7 +14,7 @@ import {
   readSync,
   closeSync
 } from 'fs'
-import { join, relative, basename, dirname, extname, resolve, sep } from 'path'
+import { join, relative, basename, dirname, extname, resolve, sep, isAbsolute } from 'path'
 import { homedir } from 'os'
 import { isRepoSet, setMembers } from './repo-set'
 import { KEPT_WIDTH, keepShownImage, keptShownImage, setShownImagesRoot } from './shown-images'
@@ -202,13 +202,32 @@ export function parseWorktreeList(stdout: string): WorktreeEntry[] {
   return out
 }
 
+/**
+ * A worktree's git folder without running git. A linked worktree's `.git` is a
+ * one-line file, `gitdir: <path>`; a main checkout's is the folder itself. This
+ * used to be `git rev-parse --git-dir`, synchronously, once per worktree on
+ * every worktree listing — and every sidebar row asked for a listing whenever
+ * any agent finished a turn, so the main process froze in bursts (2026-10-22).
+ * Falls back to git for anything unusual.
+ */
+export function gitDirFast(wtPath: string): string {
+  const dotGit = join(wtPath, '.git')
+  try {
+    const st = statSync(dotGit)
+    if (st.isDirectory()) return dotGit
+    const line = readFileSync(dotGit, 'utf8').trim()
+    const m = /^gitdir:\s*(.+)$/.exec(line)
+    if (m) return isAbsolute(m[1]) ? m[1] : resolve(wtPath, m[1])
+  } catch {
+    /* not there or unreadable: ask git */
+  }
+  return execFileSync('git', ['rev-parse', '--git-dir'], { cwd: wtPath, encoding: 'utf8' }).trim()
+}
+
 /** The branch a worktree was cut from, recorded in its own gitdir at creation. */
 function readBase(wtPath: string): string | null {
   try {
-    const gd = execFileSync('git', ['rev-parse', '--git-dir'], {
-      cwd: wtPath,
-      encoding: 'utf8'
-    }).trim()
+    const gd = gitDirFast(wtPath)
     const marker = join(gd, 'superagent-base')
     return existsSync(marker) ? readFileSync(marker, 'utf8').trim() || null : null
   } catch {
@@ -790,8 +809,7 @@ function git(args: string[], cwd: string): Promise<{ code: number; out: string }
 }
 
 /** A worktree's gitdir (<project>/.git/worktrees/<slug>), synchronously. */
-const gitDirOf = (wtPath: string): string =>
-  execFileSync('git', ['rev-parse', '--git-dir'], { cwd: wtPath, encoding: 'utf8' }).trim()
+const gitDirOf = (wtPath: string): string => gitDirFast(wtPath)
 
 /**
  * Read the base branch a worktree was created from (recorded by

@@ -1,7 +1,7 @@
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
 import { execFileSync } from 'child_process'
 import { join } from 'path'
-import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 
 /**
@@ -70,6 +70,38 @@ test('the screen embeds as a native layer, with no stream', async () => {
   await window.evaluate((u) => {
     window.cove.simViewBounds(u, { x: 40, y: 80, width: 430, height: 200 }, 24, 90)
     window.cove.simViewBounds(u, { x: 40, y: 80, width: 200, height: 430 }, 24, 0)
+    window.cove.simViewVisible(u, false)
+    window.cove.simViewDetach(u)
+  }, UDID!)
+})
+
+/**
+ * 2026-10-22: the embed's once-a-second heartbeat asked CoreSimulator about the
+ * device on Electron's main thread, and waited whenever that service was busy —
+ * 62% of the main thread in a sample of the owner's Mac, and stalls of seconds
+ * to minutes. It runs on a queue of its own now: sampling the main thread while
+ * a screen is embedded finds nothing of simview in it.
+ */
+test("the embed's heartbeat stays off the main thread", async () => {
+  test.setTimeout(60_000)
+  const r = await window.evaluate((u) => window.cove.simViewAttach(u), UDID!)
+  expect(r.ok, JSON.stringify(r)).toBe(true)
+  await window.evaluate((u) => {
+    window.cove.simViewBounds(u, { x: 40, y: 80, width: 200, height: 430 }, 24, 0)
+    window.cove.simViewVisible(u, true)
+  }, UDID!)
+  await window.waitForTimeout(1500)
+  const pid = app.process().pid!
+  const file = join(tmpdir(), `sim-embed-sample-${Date.now()}.txt`)
+  execFileSync('sample', [String(pid), '4', '-file', file], { stdio: 'ignore' })
+  const out = readFileSync(file, 'utf8')
+  const main =
+    out
+      .split(/\n\s+\d+ Thread_/)
+      .find((t) => /CrBrowserMain|com\.apple\.main-thread/.test(t.split('\n')[0])) ?? ''
+  expect(main.length).toBeGreaterThan(0)
+  expect(main).not.toMatch(/simview\.node/)
+  await window.evaluate((u) => {
     window.cove.simViewVisible(u, false)
     window.cove.simViewDetach(u)
   }, UDID!)

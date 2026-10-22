@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { idleFor } from '../lib/idle-for'
 
 export type ProjectIconState =
   | { source: 'app-icon' | 'favicon' | 'custom'; dataUri: string }
@@ -70,10 +71,11 @@ export function useProjectIcon(workspaceId: string, path: string, kind: string):
         .catch(() => {})
     }
     refresh()
-    window.addEventListener('cove:workspace-idle', refresh)
+    const onIdle = idleFor(workspaceId, refresh)
+    window.addEventListener('cove:workspace-idle', onIdle)
     return () => {
       alive = false
-      window.removeEventListener('cove:workspace-idle', refresh)
+      window.removeEventListener('cove:workspace-idle', onIdle)
     }
   }, [workspaceId, path, kind, key])
   return icon

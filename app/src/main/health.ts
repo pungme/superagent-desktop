@@ -1,4 +1,5 @@
 import { app, powerMonitor, webContents } from 'electron'
+import { Session } from 'node:inspector'
 import { execFile } from 'child_process'
 import { appendFileSync, mkdirSync, writeFileSync } from 'fs'
 import { cpus, loadavg } from 'os'
@@ -326,6 +327,41 @@ async function profileRenderer(pid: number): Promise<void> {
   }
 }
 
+/**
+ * The same look inside the main process, which is where the app freezes: a
+ * window can be slow, but main busy means every window, every agent's output
+ * and every click waits. Sampled in-process (the inspector fuses forbid
+ * attaching from outside, on purpose). 2026-10-22: main at 85–225% of a core
+ * with stalls of seconds, and no record of what it was doing.
+ */
+export const HOT_MAIN_PERCENT = 80
+async function profileMain(): Promise<void> {
+  const s = new Session()
+  const post = <T>(method: string, params: object = {}): Promise<T> =>
+    new Promise((res, rej) => s.post(method, params, (e, r) => (e ? rej(e) : res(r as T))))
+  try {
+    s.connect()
+    await post('Profiler.enable')
+    await post('Profiler.setSamplingInterval', { interval: 1000 })
+    await post('Profiler.start')
+    await new Promise((r) => setTimeout(r, 4000))
+    const { profile } = await post<{ profile: CpuProfile }>('Profiler.stop')
+    const dir = join(app.getPath('userData'), 'diagnostics')
+    mkdirSync(dir, { recursive: true })
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    writeFileSync(join(dir, `main-${stamp}.cpuprofile`), JSON.stringify(profile))
+    healthLog(`profile main ${profileSummary(profile)}`)
+  } catch (err) {
+    healthLog(`profile main failed: ${String((err as Error)?.message ?? err)}`)
+  } finally {
+    try {
+      s.disconnect()
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
 /** One profile per window this often at most: it is a look, not a watch. */
 const PROFILE_EVERY_MS = 10 * 60_000
 
@@ -350,6 +386,8 @@ export function startHealthWatch(): void {
   // The periodic picture, and the pressure check that rides on it.
   let hot = new Set<number>()
   const profiledAt = new Map<number, number>()
+  let mainHot = false
+  let mainProfiledAt = 0
   setInterval(() => {
     void sample().then((s) => {
       const p = pressureVerdict(s)
@@ -361,7 +399,16 @@ export function startHealthWatch(): void {
     // (measured 2026-10-21: 5.1% for a window ps put at 90.7%, on 18 cores),
     // so no bar on it could ever trip.
     const tabs = app.getAppMetrics().filter((m) => m.type === 'Tab')
-    void cpuOf(tabs.map((m) => m.pid)).then((cpu) => {
+    void cpuOf([process.pid, ...tabs.map((m) => m.pid)]).then((cpu) => {
+      // Main hot twice running: look inside it too.
+      const mainCpu = cpu.get(process.pid) ?? 0
+      const nowHot = mainCpu >= (Number(process.env.COVE_HOT_MAIN_PERCENT) || HOT_MAIN_PERCENT)
+      if (nowHot && mainHot && Date.now() - mainProfiledAt > PROFILE_EVERY_MS) {
+        mainProfiledAt = Date.now()
+        alarm(`hot main cpu=${Math.round(mainCpu)}%`)
+        void profileMain()
+      }
+      mainHot = nowHot
       const metrics = tabs.map((m) => ({
         type: m.type,
         pid: m.pid,

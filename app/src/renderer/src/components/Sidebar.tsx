@@ -30,6 +30,7 @@ import { UsageFooter } from './UsageFooter'
 import { SplitsSection } from './SplitsSection'
 import { cancelChatDrag, finishChatDrag, moveChatDrag } from '../lib/split-drag'
 import type { SplitTile } from '../lib/split'
+import { idleFor } from '../lib/idle-for'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -478,10 +479,11 @@ function ChatRow({
       })
     }
     refresh()
-    window.addEventListener('cove:workspace-idle', refresh)
+    const onIdle = idleFor(workspaceId, refresh)
+    window.addEventListener('cove:workspace-idle', onIdle)
     return () => {
       alive = false
-      window.removeEventListener('cove:workspace-idle', refresh)
+      window.removeEventListener('cove:workspace-idle', onIdle)
     }
   }, [chat.cwd])
 
@@ -722,10 +724,11 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       void useStore.getState().loadChats(ws.id)
     }
     refresh()
-    window.addEventListener('cove:workspace-idle', refresh)
+    const onIdle = idleFor(ws.id, refresh)
+    window.addEventListener('cove:workspace-idle', onIdle)
     return () => {
       alive = false
-      window.removeEventListener('cove:workspace-idle', refresh)
+      window.removeEventListener('cove:workspace-idle', onIdle)
     }
   }, [ws.path, ws.kind])
   const openBranch = useStore((s) => s.openBranch)
@@ -1936,10 +1939,11 @@ function PinnedRow({
       })
     }
     refresh()
-    window.addEventListener('cove:workspace-idle', refresh)
+    const onIdle = idleFor(chat.workspaceId, refresh)
+    window.addEventListener('cove:workspace-idle', onIdle)
     return () => {
       alive = false
-      window.removeEventListener('cove:workspace-idle', refresh)
+      window.removeEventListener('cove:workspace-idle', onIdle)
     }
   }, [chat.cwd, isRoot, projectPath])
 

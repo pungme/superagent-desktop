@@ -44,6 +44,8 @@ interface SimViewModule {
   setVisible(id: number, on: boolean): void
   detach(id: number): void
   screens(udid: string): { width: number; height: number; lit: boolean }[]
+  /** What the native heartbeat last saw, from memory (no CoreSimulator call). */
+  health?(id: number): { screens: number; width: number; height: number }
 }
 
 let mod: SimViewModule | null | undefined
@@ -139,9 +141,12 @@ export function registerSimViewIpc(toPoints: ToPoints, onGone: (udid: string) =>
       const timer = setInterval(() => {
         const a = attached.get(udid)
         if (!a || win.isDestroyed()) return detach(udid)
+        // What the native heartbeat last saw (off the main thread); screens()
+        // is a call into CoreSimulator here, which waits while it is busy and
+        // froze the app — kept only for an older module without health().
         let lit = false
         try {
-          lit = m.screens(udid).length > 0
+          lit = m.health ? m.health(a.id).screens > 0 : m.screens(udid).length > 0
         } catch {
           lit = false
         }
