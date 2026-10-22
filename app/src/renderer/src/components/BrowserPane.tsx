@@ -143,6 +143,9 @@ const PANE_RADIUS = 10
 /** Per pane, the previewSeq already navigated for — survives remounts. */
 const handledPreviewSeq = new Map<string, number>()
 
+/** The corner of a mini's page: the card's 12px less its 3px inset. */
+const MINI_PAGE_RADIUS = 9
+
 export function BrowserPane({
   paneId,
   workspaceId: workspaceIdProp,
@@ -613,7 +616,9 @@ export function BrowserPane({
       // The page fills the pane edge to edge: square (Electron can't reliably
       // round a WebContentsView's bottom) and to the full height — no radius, and
       // no bottom inset, which used to leave a strip of backdrop under the page.
-      window.cove.browserSetRadius?.(paneId, 0)
+      // A mini's page is inset inside its rounded card: round it to match, or
+      // its square corners paint over the card's edge (the native view sits above).
+      window.cove.browserSetRadius?.(paneId, miniRef.current ? MINI_PAGE_RADIUS : 0)
       emit({ x: x0, y: y0, width: W, height: H })
       return
     }

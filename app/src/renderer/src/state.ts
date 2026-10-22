@@ -328,6 +328,8 @@ interface CoveState {
   openSplit: (id: string) => void
   /** Undo a split: its chats are on their own again. */
   separateSplit: (id: string) => void
+  /** Name a split (empty clears the name). */
+  renameSplit: (id: string, name: string) => void
   /**
    * The full-window view sitting over the projects, if any — just Computer
    * now that Dashboard, Skills and Routines are applications inside it. The
@@ -814,7 +816,7 @@ export const useStore = create<CoveState>((set, get) => ({
     }
     const next = withTile(sp, { ws: workspaceId, chat: chatId }, at ?? sp.focus + 1)
     if (!next) {
-      set({ splitNotice: 'Four is the most · take one off screen first (⌘W)' })
+      set({ splitNotice: 'Eight is the most · take one off screen first (⌘W)' })
       return false
     }
     const splits = [next, ...s.splits.filter((x) => x.id !== next.id)]
@@ -881,7 +883,8 @@ export const useStore = create<CoveState>((set, get) => ({
         sp && sp.tiles.length === tiles.length && (orient ?? sp.orient) === sp.orient
           ? sp.fr
           : null,
-      zoom: null
+      zoom: null,
+      ...(sp?.name ? { name: sp.name } : {})
     }
     const splits = [next, ...s.splits.filter((x) => x.id !== next.id)]
     persistSplits(splits, next)
@@ -916,6 +919,21 @@ export const useStore = create<CoveState>((set, get) => ({
     if (!g) return
     set({ split: { ...g, zoom: null } })
     get().focusTile(g.focus)
+  },
+  renameSplit: (id, name) => {
+    const s = get()
+    const clean = name.trim().slice(0, 80)
+    const apply = (x: Split): Split => {
+      if (x.id !== id) return x
+      const next = { ...x }
+      if (clean) next.name = clean
+      else delete next.name
+      return next
+    }
+    const splits = s.splits.map(apply)
+    const split = s.split ? apply(s.split) : null
+    persistSplits(splits, split)
+    set({ splits, split })
   },
   separateSplit: (id) => {
     const s = get()

@@ -662,33 +662,120 @@ export function ChatDesk({
       }
       onPointerDownCapture={tile && !tile.focused ? () => focusTile(tile.index) : undefined}
     >
-      <div className="workspace-toolbar">
-        {/* In a split: a handle to move this window, and its number (⌘1–4). */}
-        {inSplit && tile && chatId && (
-          <>
-            <span
-              className="tile-grip"
-              title="Drag to move this window"
-              onPointerDown={(e) => onGripPointerDown(e, { ws: ws.id, chat: chatId })}
+      {inSplit && tile ? (
+        // A window of a split: minimal and unmistakable — its number, the
+        // project's logo, and the session's name as the headline. The tools
+        // show on hover (or while one is on), so four or eight windows read as
+        // four or eight conversations, not as rows of buttons.
+        <div className="workspace-toolbar tile-head">
+          <span
+            className="tile-grip"
+            title="Drag to move this window"
+            onPointerDown={(e) => chatId && onGripPointerDown(e, { ws: ws.id, chat: chatId })}
+          >
+            <svg viewBox="0 0 8 14" aria-hidden="true">
+              <circle cx="2" cy="2" r="1.1" />
+              <circle cx="6" cy="2" r="1.1" />
+              <circle cx="2" cy="7" r="1.1" />
+              <circle cx="6" cy="7" r="1.1" />
+              <circle cx="2" cy="12" r="1.1" />
+              <circle cx="6" cy="12" r="1.1" />
+            </svg>
+          </span>
+          <span className="tile-num" title={`⌘${tile.index + 1}`}>
+            {tile.index + 1}
+          </span>
+          <span className="tile-project-icon" title={ws.name}>
+            <ProjectIcon icon={projectIcon} kind={ws.kind} size={18} />
+          </span>
+          <span className="tile-name" title={`${ws.name} › ${activeChat?.title || 'New chat'}`}>
+            <span className="tile-chat">{activeChat?.title || 'New chat'}</span>
+            <span className="tile-project">{ws.name}</span>
+          </span>
+          {/* Holding ⌘: which key goes here. */}
+          <span className="tile-hint" aria-hidden="true">
+            ⌘{tile.index + 1}
+          </span>
+          <span className="tile-tools">
+            {ws.kind !== 'browser' && (
+              <button
+                className={`toolbar-btn toolbar-icon ${filesOpen ? 'on' : ''}`}
+                onClick={() => toggleFiles(ws.id, chatId)}
+                title="Files"
+                aria-label="Files"
+              >
+                <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.5H13c.7 0 1.2.5 1.2 1.2v6.1c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z" />
+                </svg>
+              </button>
+            )}
+            <button
+              className={`toolbar-btn toolbar-icon ${boardOpen ? 'on' : ''}`}
+              onClick={() =>
+                setBoardOpen((v) => {
+                  localStorage.setItem(`boardOpen:${deskKey}`, v ? '0' : '1')
+                  return !v
+                })
+              }
+              title="Todo"
+              aria-label="Todo"
             >
-              <svg viewBox="0 0 8 14" aria-hidden="true">
-                <circle cx="2" cy="2" r="1.1" />
-                <circle cx="6" cy="2" r="1.1" />
-                <circle cx="2" cy="7" r="1.1" />
-                <circle cx="6" cy="7" r="1.1" />
-                <circle cx="2" cy="12" r="1.1" />
-                <circle cx="6" cy="12" r="1.1" />
+              <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M2.2 4.3l1.3 1.3 2.2-2.4M8 4.5h5.8M2.2 10.3l1.3 1.3 2.2-2.4M8 10.5h5.8" />
               </svg>
-            </span>
-            <span className="tile-num" title={`⌘${tile.index + 1}`}>
-              {tile.index + 1}
-            </span>
-            {/* Whose window this is, at a glance — the project's own icon. */}
-            <span className="tile-project-icon" title={ws.name}>
-              <ProjectIcon icon={projectIcon} kind={ws.kind} size={16} />
-            </span>
-          </>
-        )}
+            </button>
+            <button
+              className={`toolbar-btn toolbar-icon ${browserOpen ? 'on' : ''}`}
+              onClick={() => toggleBrowser(ws.id, browserOpen, chatId)}
+              title={browserOpen ? 'Hide the browser' : 'Browser'}
+              aria-label="Browser"
+            >
+              <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" />
+                <path d="M1.8 8h12.4M8 1.8c1.8 1.7 2.7 3.8 2.7 6.2S9.8 12.5 8 14.2C6.2 12.5 5.3 10.4 5.3 8S6.2 3.5 8 1.8z" />
+              </svg>
+            </button>
+            {tile.count <= 3 && !tile.zoomed && (
+              <button
+                className="toolbar-btn toolbar-icon"
+                title={tile.orient === 'col' ? 'Side by side' : 'Stack'}
+                aria-label={tile.orient === 'col' ? 'Put the windows side by side' : 'Stack the windows'}
+                onClick={() => setSplitOrient(tile.orient === 'col' ? 'row' : 'col')}
+              >
+                <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                  <rect x="2" y="2.5" width="12" height="11" rx="1.6" />
+                  {tile.orient === 'col' ? <path d="M8 2.5v11" /> : <path d="M2 8h12" />}
+                </svg>
+              </button>
+            )}
+            <button
+              className="toolbar-btn toolbar-icon"
+              title={tile.zoomed ? 'Back to the split (⌘⇧↩)' : 'Full size (⌘⇧↩)'}
+              aria-label={tile.zoomed ? 'Back to the split' : 'Full size'}
+              onClick={() => zoomTile(tile.zoomed ? null : tile.index)}
+            >
+              <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+                {tile.zoomed ? (
+                  <path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4-4M6.5 9.5l-4 4" />
+                ) : (
+                  <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" />
+                )}
+              </svg>
+            </button>
+          </span>
+          <button
+            className="toolbar-btn toolbar-icon tile-close"
+            title="Take off screen (⌘W) — it keeps running"
+            aria-label="Take this window off screen"
+            onClick={() => closeTile(tile.index)}
+          >
+            <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+      <div className="workspace-toolbar">
         {/* Leads the toolbar because the pane it opens is the leftmost column. */}
         {ws.kind !== 'browser' && (
           <button
@@ -742,6 +829,10 @@ export function ChatDesk({
           </>
         ) : (
           <>
+            {/* Whose desk this is, at a glance — the project's own icon. */}
+            <span className="tile-project-icon" title={ws.name}>
+              <ProjectIcon icon={projectIcon} kind={ws.kind} size={18} />
+            </span>
             <span className="workspace-title">{ws.name}</span>
             {/* Which conversation is on screen, so a glance at the top says
                 where you are, not only which project. */}
@@ -885,50 +976,8 @@ export function ChatDesk({
             {layout === 'side' ? '⬓' : '◨'}
           </button>
         )}
-        {inSplit && tile && (
-          <span className="tile-actions">
-            {tile.count <= 3 && !tile.zoomed && (
-              <button
-                className="toolbar-btn toolbar-icon"
-                title={tile.orient === 'col' ? 'Side by side' : 'Stack'}
-                aria-label={
-                  tile.orient === 'col' ? 'Put the windows side by side' : 'Stack the windows'
-                }
-                onClick={() => setSplitOrient(tile.orient === 'col' ? 'row' : 'col')}
-              >
-                <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
-                  <rect x="2" y="2.5" width="12" height="11" rx="1.6" />
-                  {tile.orient === 'col' ? <path d="M8 2.5v11" /> : <path d="M2 8h12" />}
-                </svg>
-              </button>
-            )}
-            <button
-              className="toolbar-btn toolbar-icon"
-              title={tile.zoomed ? 'Back to the split (⌘⇧↩)' : 'Full size (⌘⇧↩)'}
-              aria-label={tile.zoomed ? 'Back to the split' : 'Full size'}
-              onClick={() => zoomTile(tile.zoomed ? null : tile.index)}
-            >
-              <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
-                {tile.zoomed ? (
-                  <path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4-4M6.5 9.5l-4 4" />
-                ) : (
-                  <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" />
-                )}
-              </svg>
-            </button>
-            <button
-              className="toolbar-btn toolbar-icon"
-              title="Take off screen (⌘W) — it keeps running"
-              aria-label="Take this window off screen"
-              onClick={() => closeTile(tile.index)}
-            >
-              <svg className="toolbar-ic" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 4l8 8M12 4l-8 8" />
-              </svg>
-            </button>
-          </span>
-        )}
       </div>
+      )}
       {/* The chat stays mounted (stable position) whether or not the browser is
           open, so toggling the preview never disturbs the conversation. */}
       <div ref={containerRef} className="content-split">

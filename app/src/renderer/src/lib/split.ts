@@ -8,7 +8,7 @@
  * a window. The store keeps the current split and the saved ones.
  */
 
-export const SPLIT_MAX = 4
+export const SPLIT_MAX = 8
 /** The gap between windows, in px. Also the handle you drag to resize. */
 export const SPLIT_GAP = 8
 /** Narrower than this, a window or a stack row is not worth having. */
@@ -33,6 +33,8 @@ export interface Split {
   fr: number[] | null
   /** One window shown full size for a moment (⌘⇧↩), or null. */
   zoom: number | null
+  /** What you called it; without one the row lists its projects. */
+  name?: string
 }
 
 export interface Rect {
@@ -75,14 +77,15 @@ export function layoutRects(
       return r
     })
   }
-  const cw = (w - SPLIT_GAP) / 2
+  // Four to eight: two rows, the top one taking the extra window when the
+  // count is odd (5 → 3 over 2), each row shared out evenly.
+  const top = Math.ceil(n / 2)
   const ch = (h - SPLIT_GAP) / 2
-  return [
-    { x: 0, y: 0, w: cw, h: ch },
-    { x: cw + SPLIT_GAP, y: 0, w: cw, h: ch },
-    { x: 0, y: ch + SPLIT_GAP, w: cw, h: ch },
-    { x: cw + SPLIT_GAP, y: ch + SPLIT_GAP, w: cw, h: ch }
-  ]
+  const row = (count: number, y: number): Rect[] => {
+    const cw = (w - SPLIT_GAP * (count - 1)) / count
+    return Array.from({ length: count }, (_, i) => ({ x: i * (cw + SPLIT_GAP), y, w: cw, h: ch }))
+  }
+  return [...row(top, 0), ...row(n - top, ch + SPLIT_GAP)]
 }
 
 /** The rectangles for a split, honouring a zoomed window. Null for one not shown. */
@@ -98,7 +101,10 @@ export function splitRects(split: Split, w: number, h: number): (Rect | null)[] 
  */
 export function fits(n: number, w: number, h: number, orient: SplitOrient): boolean {
   if (n <= 1) return true
-  if (n >= 4) return w >= 2 * MIN_TILE_W + SPLIT_GAP && h >= 2 * MIN_TILE_H + SPLIT_GAP
+  if (n >= 4) {
+    const top = Math.ceil(n / 2)
+    return w >= top * MIN_TILE_W + (top - 1) * SPLIT_GAP && h >= 2 * MIN_TILE_H + SPLIT_GAP
+  }
   return orient === 'col'
     ? h >= n * MIN_TILE_H + (n - 1) * SPLIT_GAP
     : w >= n * MIN_TILE_W + (n - 1) * SPLIT_GAP
@@ -236,7 +242,8 @@ export function parseSplits(raw: string | null): Split[] {
         focus: Math.min(Math.max(0, Number(s.focus) || 0), Math.min(s.tiles.length, SPLIT_MAX) - 1),
         orient: s.orient === 'col' ? 'col' : 'row',
         fr: Array.isArray(s.fr) && s.fr.length === s.tiles.length ? s.fr.map(Number) : null,
-        zoom: null
+        zoom: null,
+        ...(typeof s.name === 'string' && s.name.trim() ? { name: s.name.trim().slice(0, 80) } : {})
       }))
   } catch {
     return []

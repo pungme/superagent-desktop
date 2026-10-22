@@ -72,8 +72,8 @@ export function SplitLayer({ canvas }: { canvas: Rect }): React.JSX.Element | nu
         s.focusTile(i)
         focusComposerSoon()
       }
-      // ⌘1–4, and ⌃⇧1–4 as in Arc.
-      const digit = /^Digit([1-4])$/.exec(e.code)?.[1]
+      // ⌘1–8, and ⌃⇧1–8 as in Arc.
+      const digit = /^Digit([1-8])$/.exec(e.code)?.[1]
       if (
         digit &&
         ((e.metaKey && !e.altKey && !e.shiftKey && !e.ctrlKey) ||
@@ -105,7 +105,7 @@ export function SplitLayer({ canvas }: { canvas: Rect }): React.JSX.Element | nu
     return () => window.removeEventListener('keydown', onKey, true)
   }, [split, canvas.w, canvas.h])
 
-  // Holding ⌘ shows every window's number large in its header, so ⌘1–4 can be
+  // Holding ⌘ shows every window's number large in its header, so ⌘1–8 can be
   // read off the screen (CSS keys off this class).
   useEffect(() => {
     if (!split) return
@@ -216,7 +216,7 @@ export function SplitLayer({ canvas }: { canvas: Rect }): React.JSX.Element | nu
             )
           })}
         {drag && plan?.kind === 'full' && (
-          <div className="split-note">Four is the most · close one first</div>
+          <div className="split-note">Eight is the most · close one first</div>
         )}
       </div>
       {notice && (

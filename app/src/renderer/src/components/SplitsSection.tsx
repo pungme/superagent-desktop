@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useStore } from '../state'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import { ProjectIcon } from './ProjectIcon'
@@ -26,6 +27,8 @@ export function SplitsSection(): React.JSX.Element | null {
   const chats = useStore((s) => s.chats)
   const openSplit = useStore((s) => s.openSplit)
   const separateSplit = useStore((s) => s.separateSplit)
+  const renameSplit = useStore((s) => s.renameSplit)
+  const [editing, setEditing] = useState<string | null>(null)
   if (splits.length === 0) return null
   const wsOf = (id: string): Workspace | undefined =>
     tree.flatMap((g) => g.workspaces).find((w) => w.id === id)
@@ -54,10 +57,11 @@ export function SplitsSection(): React.JSX.Element | null {
             className={`split-row ${on ? 'on' : ''}`}
             role="button"
             tabIndex={0}
-            title={detail}
+            title={`${sp.name ? `${sp.name}\n` : ''}${detail}\nDouble-click to rename`}
             aria-label={`Split: ${names}`}
             data-split-id={sp.id}
-            onClick={() => openSplit(sp.id)}
+            onClick={() => editing !== sp.id && openSplit(sp.id)}
+            onDoubleClick={() => setEditing(sp.id)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault()
@@ -71,7 +75,34 @@ export function SplitsSection(): React.JSX.Element | null {
                 return ws ? <TileIcon key={`${t.ws}:${t.chat}`} ws={ws} /> : null
               })}
             </span>
-            <span className="split-row-name">{names || 'Split'}</span>
+            <span className="split-row-name">
+              {editing === sp.id ? (
+                <input
+                  autoFocus
+                  defaultValue={sp.name ?? ''}
+                  placeholder={names || 'Name this split'}
+                  aria-label="Split name"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation()
+                    if (e.key === 'Enter') {
+                      renameSplit(sp.id, (e.target as HTMLInputElement).value)
+                      setEditing(null)
+                    } else if (e.key === 'Escape') {
+                      // Put the old name back first: the blur that follows saves what is there.
+                      ;(e.target as HTMLInputElement).value = sp.name ?? ''
+                      setEditing(null)
+                    }
+                  }}
+                  onBlur={(e) => {
+                    renameSplit(sp.id, e.target.value)
+                    setEditing(null)
+                  }}
+                />
+              ) : (
+                sp.name || names || 'Split'
+              )}
+            </span>
             <span className="split-row-count">{sp.tiles.length}</span>
             <button
               className="split-row-x"

@@ -14007,7 +14007,9 @@ button {
     border-top-color: transparent;
   }
 }
-@container easy-controls (max-width: 560px) {
+/* 900, not 560: a window of a split, or a chat column beside a page, gets the
+   one quiet line; only a full-width chat lays every setting out. */
+@container easy-controls (max-width: 900px) {
   .easy-controls-summary {
     display: inline-flex;
     flex: 0 1 auto;
@@ -14595,11 +14597,7 @@ button {
   background: var(--split-focus);
 }
 /* Holding ⌘: the numbers grow so ⌘1–4 can be read off the screen. */
-:root.split-numbers .tile-num {
-  transform: scale(1.7);
-  transform-origin: left center;
-  margin-right: 12px;
-}
+
 .tile-actions {
   display: inline-flex;
   align-items: center;
@@ -14779,14 +14777,19 @@ button {
 }
 /* Splits in the sidebar: one row per saved split. */
 .sidebar-splits {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
+}
+/* Lined up with Pinned below it: the same label, the same row box. */
+.sidebar-splits .pinned-section-label {
+  padding: 8px 6px 4px;
 }
 .split-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 6px 2px;
-  padding: 6px 8px 6px 10px;
+  margin: 0 0 2px;
+  padding: 7px 8px;
+  outline: none;
   border-radius: 8px;
   font-size: 12.5px;
   color: var(--text-secondary);
@@ -14979,6 +14982,11 @@ button {
   display: flex;
   flex-direction: column;
   position: relative;
+  /* The page or simulator inside is a native view drawn above the card: kept
+     inside the card's edge (and its ring), never on it. */
+  margin: 0 3px 3px;
+  border-radius: 0 0 9px 9px;
+  overflow: hidden;
 }
 .mini-body > * {
   flex: 1;
@@ -15037,4 +15045,134 @@ button {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.4;
+}
+
+/* A click does not leave a focus ring; the keyboard still gets one. */
+.split-row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--split-focus);
+}
+.split-row-name input {
+  width: 100%;
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--bg-content);
+  border: 1px solid var(--split-focus);
+  border-radius: 5px;
+  padding: 1px 5px;
+  outline: none;
+}
+
+/* ---- A window's header in a split: number, logo, the session's name. ---- */
+.workspace-toolbar.tile-head {
+  position: relative;
+  gap: 7px;
+  padding: 6px 8px 6px 6px;
+  min-height: 40px;
+}
+.tile-head .tile-grip {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tile-head:hover .tile-grip {
+  opacity: 1;
+}
+.tile-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+.tile-chat {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tile-chat {
+  flex: 0 1 auto;
+}
+/* The project's name gives way before the session's does (the logo says it too). */
+.tile-project {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1000 auto;
+  min-width: 0;
+}
+.workspace-view:not(.tile-focused) .tile-chat {
+  color: var(--text-secondary);
+}
+.tile-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tile-head:hover .tile-tools,
+.tile-tools:has(.on),
+.tile-tools:focus-within {
+  opacity: 1;
+}
+.tile-head .toolbar-btn.toolbar-icon {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
+.tile-close {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.tile-head:hover .tile-close {
+  opacity: 1;
+}
+@container desk (max-width: 380px) {
+  .tile-project {
+    display: none;
+  }
+}
+/* Holding ⌘: each window says its key, big, in the middle of its header. */
+.tile-hint {
+  display: none;
+}
+:root.split-numbers .tile-hint {
+  display: flex;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 5px 14px;
+  border-radius: 9px;
+  background: var(--split-focus);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  z-index: 5;
+  animation: tile-hint-in 0.12s ease;
+}
+@keyframes tile-hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+}
+/* One project, one desk: the session is the headline there too. */
+.workspace-toolbar .workspace-chat {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.workspace-toolbar .workspace-title:has(+ .workspace-crumb) {
+  color: var(--text-secondary);
+  font-weight: 500;
 }

@@ -19,6 +19,10 @@ const B = { ws: 'w1', chat: 'b' }
 const C = { ws: 'w2', chat: 'c' }
 const D = { ws: 'w3', chat: 'd' }
 const E = { ws: 'w3', chat: 'e' }
+const F = { ws: 'w3', chat: 'f' }
+const G = { ws: 'w4', chat: 'g' }
+const H = { ws: 'w4', chat: 'h' }
+const I = { ws: 'w4', chat: 'i' }
 const split = (tiles = [A, B], extra: Partial<Split> = {}): Split => ({
   id: 's',
   tiles,
@@ -44,6 +48,15 @@ describe('where the windows go', () => {
     expect(g[1].x).toBeGreaterThan(0)
     expect(g[2].y).toBeGreaterThan(0)
     expect(g[3].x + g[3].w).toBeCloseTo(1000)
+  })
+
+  it('puts five to eight in two rows, the extra one on top', () => {
+    const five = layoutRects(5, 1000, 600)
+    expect(five.filter((r) => r.y === 0)).toHaveLength(3)
+    expect(five.filter((r) => r.y > 0)).toHaveLength(2)
+    const eight = layoutRects(8, 1000, 600)
+    expect(eight.filter((r) => r.y === 0)).toHaveLength(4)
+    expect(eight[7].x + eight[7].w).toBeCloseTo(1000)
   })
 
   it('honours shares, and ignores broken ones', () => {
@@ -73,8 +86,10 @@ describe('changing a split', () => {
     expect(withTile(s, A, 3)!.tiles).toEqual([C, B, A])
   })
 
-  it('never takes a fifth', () => {
-    expect(withTile(split([A, B, C, D]), E, 4)).toBeNull()
+  it('takes up to eight, never a ninth', () => {
+    const eight = [A, B, C, D, E, F, G, H]
+    expect(withTile(split([A, B, C, D]), E, 4)!.tiles).toHaveLength(5)
+    expect(withTile(split(eight), I, 8)).toBeNull()
   })
 
   it('takes one away and keeps the focus sensible', () => {
@@ -114,7 +129,9 @@ describe('dropping a chat on the windows', () => {
   })
 
   it('never replaces: a full split says so', () => {
-    expect(dropPlan([A, B, C, D], 'row', E, 100, 100, 1000, 600)).toEqual({ kind: 'full' })
+    expect(dropPlan([A, B, C, D, E, F, G, H], 'row', I, 100, 100, 1000, 600)).toEqual({
+      kind: 'full'
+    })
   })
 
   it('moves a window that is already there instead of adding it twice', () => {

@@ -170,14 +170,15 @@ test('split view: open beside, move between windows, leave and come back, restar
     await window.keyboard.press('Meta+Shift+Enter')
     await expect(desks(window)).toHaveCount(3)
 
-    // Four at most: a fifth says so and changes nothing.
+    // Four, then five: two rows, the extra window on top (eight is the most).
     await row(window, ids.c1).click({ modifiers: ['Meta'] })
     await expect(desks(window)).toHaveCount(4)
     await settled(window)
     if (shots) await window.screenshot({ path: shots('2-four') })
     await row(window, ids.c2).click({ modifiers: ['Meta'] })
-    await expect(window.locator('.split-notice')).toContainText('Four is the most')
-    await expect(desks(window)).toHaveCount(4)
+    await expect(desks(window)).toHaveCount(5)
+    await settled(window)
+    if (shots) await window.screenshot({ path: shots('2b-five') })
 
     // ⌘W (the menu's Close Tab) takes the focused window off screen.
     await app.evaluate(({ BrowserWindow }) => {
@@ -185,10 +186,10 @@ test('split view: open beside, move between windows, leave and come back, restar
         .find((w) => !w.isDestroyed() && w.webContents.getURL().indexOf('#dot') < 0)
         ?.webContents.send('menu:close-tab')
     })
-    await expect(desks(window)).toHaveCount(3)
+    await expect(desks(window)).toHaveCount(4)
     // The × on a window does the same.
     await focused(window).getByRole('button', { name: 'Take this window off screen' }).click()
-    await expect(desks(window)).toHaveCount(2)
+    await expect(desks(window)).toHaveCount(3)
 
     // Opening any other chat leaves the split; the split waits in the sidebar.
     const kept = await window.evaluate(() =>
@@ -201,16 +202,23 @@ test('split view: open beside, move between windows, leave and come back, restar
     await expect(window.locator('.split-row')).not.toHaveClass(/on/)
     // …and the Splits row brings it back, as it was.
     await window.locator('.split-row').click()
-    await expect(desks(window)).toHaveCount(2)
+    await expect(desks(window)).toHaveCount(3)
     for (const id of kept) await expect(desk(window, id)).toBeVisible()
     await expect(composerA1).toHaveValue('a draft that must survive')
+
+    // Name it: double-click the row, type, Enter. The name replaces the list.
+    await window.locator('.split-row').dblclick()
+    await window.getByLabel('Split name').fill('Launch week')
+    await window.getByLabel('Split name').press('Enter')
+    await expect(window.locator('.split-row-name')).toHaveText('Launch week')
 
     // The split comes back after a restart.
     await app.close()
     ;({ app, window } = await launch(data, proj))
     await window.waitForSelector('.sidebar', { timeout: 20_000 })
-    await expect(desks(window)).toHaveCount(2, { timeout: 15_000 })
+    await expect(desks(window)).toHaveCount(3, { timeout: 15_000 })
     for (const id of kept) await expect(desk(window, id)).toBeVisible()
+    await expect(window.locator('.split-row-name')).toHaveText('Launch week')
 
     // Separate: each chat on its own again, the row gone.
     await window.locator('.split-row').hover()
