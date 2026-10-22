@@ -474,9 +474,11 @@ export function SimulatorPane({
   // Keep main pointed at whatever this pane is showing: the agent's simctl
   // tools said "booted", which with two simulators running would install and
   // launch on whichever one simctl picked — not the one you are watching.
+  // Only a pane on screen says which device is "current": with several chats
+  // mounted (a split, or busy ones kept alive) a hidden pane must not claim it.
   useEffect(() => {
-    void window.cove.simSetCurrent?.(udid)
-  }, [udid])
+    if (visible) void window.cove.simSetCurrent?.(udid)
+  }, [udid, visible])
 
   // Tell main (and through it, the phone) that this chat is showing this
   // device. Open only — hiding the pane by switching chats must not tear the
@@ -1217,11 +1219,14 @@ export function SimulatorPane({
     if (stageRef.current) ro.observe(stageRef.current)
     if (shotRef.current) ro.observe(shotRef.current)
     window.addEventListener('resize', syncNative)
+    // Split view moving this window, every frame while it glides.
+    window.addEventListener('cove:layout-moved', syncNative)
     const t = setInterval(syncNative, 500)
     return () => {
       cancelAnimationFrame(raf)
       ro.disconnect()
       window.removeEventListener('resize', syncNative)
+      window.removeEventListener('cove:layout-moved', syncNative)
       clearInterval(t)
     }
   }, [native, udid, syncNative, fitSize?.width, fitSize?.height, turnedSize?.width])

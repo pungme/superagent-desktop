@@ -21,6 +21,8 @@ interface PaletteItem {
    *  next thing you do is type, not click. */
   thenType?: boolean
   run: () => void
+  /** ⌘↩ on a chat: open it in a window beside the one on screen (split view). */
+  beside?: () => void
 }
 
 /** Is this element actually on screen (not inside a hidden chat or page)? */
@@ -255,7 +257,10 @@ export function CommandPalette({
         subtitle: projectNames.get(c.workspaceId) ?? 'Chat',
         workspace: workspaces.find((w) => w.id === c.workspaceId),
         thenType: true,
-        run: () => openChat(c.workspaceId, c.id)
+        run: () => openChat(c.workspaceId, c.id),
+        beside: projectNames.has(c.workspaceId)
+          ? () => void useStore.getState().openBeside(c.workspaceId, c.id)
+          : undefined
       } as PaletteItem
     }))
     const projectEntries = workspaces
@@ -294,7 +299,10 @@ export function CommandPalette({
       subtitle: projectNames.get(c.workspaceId) ?? 'Chat',
       workspace: workspaces.find((w) => w.id === c.workspaceId),
       thenType: true,
-      run: () => openChat(c.workspaceId, c.id)
+      run: () => openChat(c.workspaceId, c.id),
+      beside: projectNames.has(c.workspaceId)
+        ? () => void useStore.getState().openBeside(c.workspaceId, c.id)
+        : undefined
     }))
     return [...currentChatCommands, ...navigateCommands, ...projects, ...chatItems]
   }, [currentChatCommands, navigateCommands, workspaces, allChats, projectNames, openChat])
@@ -326,8 +334,9 @@ export function CommandPalette({
 
   if (!open) return null
 
-  const run = (item: PaletteItem): void => {
-    item.run()
+  const run = (item: PaletteItem, beside = false): void => {
+    if (beside && item.beside) item.beside()
+    else item.run()
     onClose()
     if (item.thenType) focusComposerSoon()
   }
@@ -362,7 +371,7 @@ export function CommandPalette({
             } else if (e.key === 'Enter') {
               e.preventDefault()
               const item = flat[activeIndex]
-              if (item) run(item)
+              if (item) run(item, e.metaKey)
             }
           }}
         />
@@ -386,12 +395,16 @@ export function CommandPalette({
                     onMouseMove={(e) => {
                       if (pointerSeen(e) || pointerLive) setSelected(idx)
                     }}
-                    onClick={() => run(item)}
+                    onClick={(e) => run(item, e.metaKey || e.altKey)}
+                    title={item.beside ? '⌘↩ opens it beside the chat on screen' : undefined}
                   >
                     {item.workspace && <PaletteIcon ws={item.workspace} />}
                     <span className="cmdk-item-label">{item.label}</span>
                     {item.subtitle && <span className="cmdk-item-subtitle">{item.subtitle}</span>}
                     {item.shortcut && <span className="cmdk-item-shortcut">{item.shortcut}</span>}
+                    {item.beside && idx === activeIndex && !item.shortcut && (
+                      <span className="cmdk-item-shortcut">⌘↩ beside</span>
+                    )}
                   </button>
                 )
               })}

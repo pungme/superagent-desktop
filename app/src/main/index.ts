@@ -516,6 +516,14 @@ app.whenReady().then(async () => {
       const win = BrowserWindow.fromWebContents(e.sender)
       if (!win) return
       const template: Electron.MenuItemConstructorOptions[] = []
+      // Split view: put it in a window beside the conversation on screen.
+      template.push(
+        {
+          label: 'Open in Split',
+          click: () => win.webContents.send('chat:open-beside', { chatId, workspaceId })
+        },
+        { type: 'separator' }
+      )
       // Come back to it later: the dot goes back on until it is opened again.
       // Which way it reads is the window's to say — the marks live there.
       template.push({

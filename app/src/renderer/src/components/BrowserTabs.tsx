@@ -47,7 +47,8 @@ export function BrowserTabs({
   partition,
   initialUrl,
   visible,
-  closable
+  closable,
+  mini = false
 }: {
   basePaneId: string
   workspaceId?: string
@@ -55,6 +56,8 @@ export function BrowserTabs({
   initialUrl?: string
   visible?: boolean
   closable?: boolean
+  /** A mini inside a narrow window of a split: no tab strip, the page fitted. */
+  mini?: boolean
 }): React.JSX.Element {
   const [tabs, setTabs] = useState<Tab[]>(() => load(basePaneId, initialUrl))
   const [chosenId, setChosenId] = useState<string | null>(null)
@@ -149,7 +152,7 @@ export function BrowserTabs({
   })
 
   return (
-    <div className="chat-browser-tabs">
+    <div className={`chat-browser-tabs${mini ? ' mini' : ''}`}>
       <div className="cbt-strip">
         {tabs.map((t) => (
           <div
@@ -196,6 +199,7 @@ export function BrowserTabs({
               partition={partition}
               initialUrl={t.initialUrl}
               visible={visible && t.id === activeId}
+              mini={mini}
               // "Close this preview pane" (closable's own ✕) closes the whole
               // browser surface for the chat — only the base tab should ever
               // offer that. An extra tab's own ✕ lives in the tab strip above

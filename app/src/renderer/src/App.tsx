@@ -1,7 +1,9 @@
 import { goBack, visited, type Visit } from '../../shared/visit-history'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
-import { WorkspaceView } from './components/WorkspaceView'
+import { WorkspaceView, type WorkspaceTile } from './components/WorkspaceView'
+import { SplitLayer } from './components/SplitLayer'
+import { splitRects } from './lib/split'
 import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
@@ -275,6 +277,12 @@ function App(): React.JSX.Element {
     // workspace becomes active — it's re-rendered immediately.
     setOpened([...opened, activeId])
   }
+  // Every project with a window in the split is on screen too.
+  const split = useStore((s) => s.split)
+  const missing = split?.tiles
+    .map((t) => t.ws)
+    .filter((id, i, a) => !opened.includes(id) && a.indexOf(id) === i)
+  if (missing && missing.length) setOpened([...opened, ...missing])
   const openedWorkspaces = opened
     .map((id) => allWorkspaces.find((w) => w.id === id))
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))
@@ -299,6 +307,82 @@ function App(): React.JSX.Element {
   // with it the native browser panes, which paint above HTML and would otherwise
   // punch through the page).
   const contentCovered = sectionOpen || settingsOpen
+
+  // Split view: the windows share the content area below its top strip. Where
+  // that is, measured, so each project's desks can be placed on it.
+  const mainRef = useRef<HTMLElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const [canvas, setCanvas] = useState({ x: 0, y: 0, w: 0, h: 0 })
+  const setSplitCanvas = useStore((s) => s.setSplitCanvas)
+  const measure = useCallback((): void => {
+    const main = mainRef.current
+    const top = sentinelRef.current?.offsetTop ?? 0
+    if (!main) return
+    const next = { x: 0, y: top, w: main.clientWidth, h: Math.max(0, main.clientHeight - top) }
+    setCanvas((c) =>
+      c.x === next.x && c.y === next.y && c.w === next.w && c.h === next.h ? c : next
+    )
+    setSplitCanvas(next.w, next.h)
+  }, [setSplitCanvas])
+  useLayoutEffect(measure)
+  useEffect(() => {
+    const main = mainRef.current
+    if (!main) return
+    // The window resizing, and anything above the windows coming, going or
+    // changing height (a notice, the setup banner) without this re-rendering.
+    const ro = new ResizeObserver(measure)
+    const watch = (): void => {
+      ro.disconnect()
+      ro.observe(main)
+      for (let el = sentinelRef.current?.previousElementSibling; el; el = el.previousElementSibling)
+        ro.observe(el)
+      measure()
+    }
+    const mo = new MutationObserver(watch)
+    mo.observe(main, { childList: true })
+    watch()
+    return () => {
+      ro.disconnect()
+      mo.disconnect()
+    }
+  }, [measure])
+  const splitOn = !!split && !contentCovered
+  // Native pages and simulators sit above the HTML and follow it by measuring;
+  // while windows glide to new places (0.2s) tell them every frame.
+  const layoutKey = split
+    ? `${split.tiles.map((t) => t.chat).join()}|${split.orient}|${split.fr?.join() ?? ''}|${split.zoom}|${split.focus}`
+    : 'single'
+  useEffect(() => {
+    let raf = 0
+    const until = performance.now() + 320
+    const tick = (): void => {
+      window.dispatchEvent(new CustomEvent('cove:layout-moved'))
+      if (performance.now() < until) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [layoutKey, splitOn, canvas.w, canvas.h])
+  const tilesByWs = useMemo(() => {
+    const out = new Map<string, WorkspaceTile[]>()
+    if (!split) return out
+    const rects = splitRects(split, canvas.w, canvas.h)
+    split.tiles.forEach((t, i) => {
+      const r = rects[i]
+      if (!r) return
+      const list = out.get(t.ws) ?? []
+      list.push({
+        chatId: t.chat,
+        index: i,
+        count: split.tiles.length,
+        rect: r,
+        focused: i === split.focus,
+        zoomed: split.zoom === i,
+        orient: split.orient
+      })
+      out.set(t.ws, list)
+    })
+    return out
+  }, [split, canvas.w, canvas.h])
   useEffect(() => {
     // One value, so opening either inherently closes the other. Settings is
     // its own state and covers them both, so going to one leaves it too:
@@ -425,6 +509,11 @@ function App(): React.JSX.Element {
 
   // The chat menu's "Mark as unread" / "Mark as read".
   useEffect(() => {
+    return window.cove.onChatOpenBeside?.(({ chatId, workspaceId }) => {
+      useStore.getState().openBeside(workspaceId, chatId)
+    })
+  }, [])
+  useEffect(() => {
     return window.cove.onChatMark(({ chatId, unread }) => {
       const s = useStore.getState()
       if (unread) s.flagUnread(chatId)
@@ -530,7 +619,9 @@ function App(): React.JSX.Element {
         const s = useStore.getState()
         const id = s.activeWorkspaceId
         const ws = id ? s.tree.flatMap((g) => g.workspaces).find((w) => w.id === id) : undefined
-        if (ws?.kind === 'browser') void s.removeWorkspace(ws.id)
+        // In a split, ⌘W takes the focused window off screen (its chat keeps running).
+        if (s.split) s.closeTile(s.split.focus)
+        else if (ws?.kind === 'browser') void s.removeWorkspace(ws.id)
       } else {
         // skills / routines / toggle-preview are workspace-scoped; forward via window event
         window.dispatchEvent(new CustomEvent(`cove:menu-${action}`))
@@ -562,14 +653,19 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+    <div
+      className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${splitOn ? ' split-on' : ''}`}
+    >
       {/* Kept mounted while collapsed so the width can animate (and so the tree
           doesn't rebuild its expansion state on every toggle). */}
       <Sidebar />
       <SidebarResizer onCollapse={collapseSidebar} />
       {/* The Computer's own menubar is its top chrome and takes the drag
           region with it, so the 8px title strip would read as a gap above it. */}
-      <main className={`content ${computerOpen ? 'computer' : ''}`}>
+      <main
+        ref={mainRef}
+        className={`content ${computerOpen ? 'computer' : ''}${splitOn ? ' split' : ''}`}
+      >
         {!connectionsOffered && (
           <div className="connections-offer">
             <span>
@@ -606,6 +702,8 @@ function App(): React.JSX.Element {
           )}
         </div>
         <HookConsent />
+        {/* Where the windows of a split start: just below whatever sits above them. */}
+        <div ref={sentinelRef} className="split-sentinel" />
         {openedWorkspaces.length === 0 && !contentCovered ? (
           <div className="empty-state">
             <div className="empty-state-inner">
@@ -617,18 +715,36 @@ function App(): React.JSX.Element {
             </div>
           </div>
         ) : (
-          openedWorkspaces.map((ws) => (
-            <div
-              key={ws.id}
-              className="workspace-host"
-              style={{ display: ws.id === activeId && !contentCovered ? 'flex' : 'none' }}
-            >
-              {/* visible also detaches the native browser view — it would
-                  composite above the dashboard otherwise. */}
-              <WorkspaceView ws={ws} visible={ws.id === activeId && !contentCovered} />
-            </div>
-          ))
+          openedWorkspaces.map((ws) => {
+            // Split view: every project with a window in it is on screen, its
+            // desks placed on the shared canvas. Same element either way, so a
+            // project (and its chats' agents) never remounts entering or leaving it.
+            const tiles = splitOn ? (tilesByWs.get(ws.id) ?? []) : undefined
+            const shown = splitOn ? tiles!.length > 0 : ws.id === activeId && !contentCovered
+            return (
+              <div
+                key={ws.id}
+                className={`workspace-host${splitOn ? ' in-split' : ''}`}
+                style={
+                  splitOn
+                    ? {
+                        display: shown ? 'block' : 'none',
+                        left: canvas.x,
+                        top: canvas.y,
+                        width: canvas.w,
+                        height: canvas.h
+                      }
+                    : { display: shown ? 'flex' : 'none' }
+                }
+              >
+                {/* visible also detaches the native browser view — it would
+                    composite above the dashboard otherwise. */}
+                <WorkspaceView ws={ws} visible={shown} tiles={tiles} />
+              </div>
+            )
+          })
         )}
+        {!contentCovered && <SplitLayer canvas={canvas} />}
         {/* Mounted from the first time it is opened and hidden thereafter, the
             same as a workspace: unmounting it stopped the desktop chat's agent
             and tore down its browser tabs, so stepping out of the Computer for

@@ -53,6 +53,29 @@ panel with a tile in its corner, loaded from the same page with `#dot`
   window would be "the first window" to other specs. `e2e/dot.spec.ts` sets it;
   `e2e/dot-live.spec.ts` (`CLAUDE_LIVE=1`) asks a real agent.
 
+## Split view (2.1)
+
+Up to four conversations in the window at once (`lib/split.ts` for the model
+and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`,
+`lib/split-drag.ts`).
+
+- A chat's agent lives inside its mounted `<EasyChat>`; remounting it stops the
+  agent. So `WorkspaceView` keeps ONE stable keyed list of `ChatDesk`s (one per
+  mounted conversation) and split view only positions them. Never render a
+  chat's desk from two places, and never move it between parents.
+- The focused window's chat IS the active chat (`activeChatId`). One
+  subscription at the bottom of `state.ts` keeps them in agreement: showing a
+  chat that is in the split focuses its window, any other chat leaves the split
+  (it waits under Splits in the sidebar). Do not add split checks to callers.
+- `visible` means on screen; `focused` means keys, paste, dictation and menu
+  commands go here. With a split several desks are visible and one is focused;
+  a global listener that should fire once must gate on `focused`.
+- Native views (browser, simulator) sit above the HTML and follow it by
+  measuring; split view dispatches `cove:layout-moved` every frame while windows
+  glide so they keep up. Anything drawn over them needs the overlay lock.
+- A window narrower than `MINI_BELOW` shows its browser or simulator as a mini
+  inside that window (`MiniPane`); the page is the desktop layout zoomed to fit.
+
 ## Computer use
 
 `src/main/computer-use.ts` (permissions, screenshots, consent, ⌥Esc),

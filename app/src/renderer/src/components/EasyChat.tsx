@@ -532,6 +532,12 @@ interface EasyChatProps {
       mounted (so switching back is instant) but get their claude process reaped
       once they've been idle a while — see IDLE_REAP_MS. */
   visible?: boolean
+  /**
+   * The chat keys, paste, dictation and menu commands go to. The same as
+   * `visible` with one chat on screen; in a split several are visible and only
+   * the focused window's chat is this.
+   */
+  focused?: boolean
   /** Where the chat sits relative to the pane, and how to flip it. */
 }
 
@@ -1615,8 +1621,11 @@ export function EasyChat({
   initialSessionId,
   hideNewChat,
   browserProject,
-  visible = true
+  visible = true,
+  focused: focusedProp
 }: EasyChatProps): React.JSX.Element {
+  // Keys, paste, dictation and commands: the focused chat only (see the prop).
+  const focused = focusedProp ?? visible
   const [items, setItems] = useState<Item[]>([])
   const [input, setInput] = useState('')
   // Finished @mentions sit in the text as short tokens drawn as pills; this
@@ -2010,9 +2019,10 @@ export function EasyChat({
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null)
   useEffect(() => {
     setToolbarSlot(
-      document.querySelector<HTMLElement>(`[data-chat-slot="${CSS.escape(workspaceId)}"]`)
+      document.querySelector<HTMLElement>(`[data-chat-slot="${CSS.escape(chatId)}"]`) ??
+        document.querySelector<HTMLElement>(`[data-chat-slot="${CSS.escape(workspaceId)}"]`)
     )
-  }, [workspaceId, visible])
+  }, [workspaceId, chatId, visible])
   const openImages = (): void => {
     setControlMenu(null)
     setImagesOpen(true)
@@ -2526,7 +2536,7 @@ export function EasyChat({
   useEffect(() => {
     // Only the on-screen chat captures document-level paste/dictation/inject
     // events — busy siblings stay mounted but hidden, and must not react.
-    if (!isActive || !visible) return
+    if (!isActive || !focused) return
     const onDocPaste = (e: ClipboardEvent): void => {
       const imgItems = [...(e.clipboardData?.items ?? [])].filter((it) =>
         it.type.startsWith('image/')
@@ -2541,7 +2551,7 @@ export function EasyChat({
     document.addEventListener('paste', onDocPaste)
     return () => document.removeEventListener('paste', onDocPaste)
     // attachImage only closes over stable setState, so re-subscribing per render is unnecessary.
-  }, [isActive, visible])
+  }, [isActive, focused])
 
   // ⌘⇧A attaches the screenshots on offer, ⌘⇧D attaches them and trashes the
   // files: the same two buttons, without reaching for the mouse mid-sentence.
@@ -2550,7 +2560,7 @@ export function EasyChat({
   const shotsRef = useRef(shots)
   shotsRef.current = shots
   useEffect(() => {
-    if (!isActive || !visible || shots.length === 0) return
+    if (!isActive || !focused || shots.length === 0) return
     const onKey = (e: KeyboardEvent): void => {
       if (!e.metaKey || !e.shiftKey || e.altKey || e.ctrlKey) return
       if (e.code !== 'KeyA' && e.code !== 'KeyD') return
@@ -2561,13 +2571,13 @@ export function EasyChat({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [isActive, visible, shots.length])
+  }, [isActive, focused, shots.length])
 
   // A crop from the snip tool (WorkspaceView) lands here — attach it like a
   // pasted image and drop the cursor in the box so you can describe the problem
   // right away. Only the on-screen chat reacts (busy siblings stay hidden).
   useEffect(() => {
-    if (!isActive || !visible) return
+    if (!isActive || !focused) return
     const onSnip = (e: Event): void => {
       const url = (e as CustomEvent<{ url: string }>).detail?.url
       if (!url) return
@@ -2582,7 +2592,7 @@ export function EasyChat({
     }
     window.addEventListener('cove:attach-image', onSnip)
     return () => window.removeEventListener('cove:attach-image', onSnip)
-  }, [isActive, visible])
+  }, [isActive, focused])
 
   // Drag a file onto the chat: images attach (like a paste); other files become
   // a file chip in the composer — the same 📎 chip a file dropped from the tree
@@ -2749,7 +2759,7 @@ export function EasyChat({
   useEffect(() => {
     const onInsert = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId || !visible) return
+      if (detail.workspaceId !== workspaceId || !focused) return
       setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + detail.text)
       const el = inputRef.current
       if (el) {
@@ -2770,7 +2780,7 @@ export function EasyChat({
   useEffect(() => {
     const onWorkOn = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId || !visible) return
+      if (detail.workspaceId !== workspaceId || !focused) return
       setAtBottom(true)
       submitRef.current?.(detail.text, [], { files: [], reply: null, keepComposer: true })
     }
@@ -2782,11 +2792,11 @@ export function EasyChat({
   // screen. No workspace/chat check needed beyond `visible` — it is already
   // true for exactly the one mounted <EasyChat> the user is looking at.
   useEffect(() => {
-    if (!visible) return
+    if (!focused) return
     const onFocus = (): void => inputRef.current?.focus()
     window.addEventListener('cove:command-focus-composer', onFocus)
     return () => window.removeEventListener('cove:command-focus-composer', onFocus)
-  }, [visible])
+  }, [focused])
 
   // Detect a "/command" at the start, or an "@file" at the caret, for the dropdown.
   const updateMention = (value: string): void => {
@@ -4243,7 +4253,7 @@ export function EasyChat({
   useEffect(() => {
     const onInjected = (e: Event): void => {
       const detail = (e as CustomEvent).detail as { workspaceId: string; text: string }
-      if (detail.workspaceId !== workspaceId || !visible) return
+      if (detail.workspaceId !== workspaceId || !focused) return
       // The chat owns its agent process — and may have reaped it while it sat in
       // the background — so delivery happens here rather than through a cached id.
       if (agentIdRef.current) window.cove.agentSend(agentIdRef.current, detail.text)
@@ -4510,11 +4520,11 @@ export function EasyChat({
   }, [chatId])
 
   useEffect(() => {
-    if (!visible) return
+    if (!focused) return
     const onStop = (): void => void interruptNow()
     window.addEventListener('cove:command-stop-agent', onStop)
     return () => window.removeEventListener('cove:command-stop-agent', onStop)
-  }, [visible, interruptNow])
+  }, [focused, interruptNow])
 
   const pillRuns = useMemo(() => pillSegments(input, mentionMap), [input, mentionMap])
   // After a mention was shortened under the caret, put the caret back where
@@ -4998,18 +5008,18 @@ export function EasyChat({
   // The window going away mid-hold means no keyup and no pointerup is ever
   // coming: transcribe what we have rather than recording into the void.
   useEffect(() => {
-    if (!visible) return
+    if (!focused) return
     const onBlur = (): void => {
       if (dictation.state === 'recording') finishDictation()
     }
     window.addEventListener('blur', onBlur)
     return () => window.removeEventListener('blur', onBlur)
-  }, [dictation.state, finishDictation, visible])
+  }, [dictation.state, finishDictation, focused])
 
   // Hold ⌥Space to dictate from anywhere in the window; release to transcribe.
   // Only the on-screen chat listens — a hidden busy sibling must not grab the mic.
   useEffect(() => {
-    if (!visible) return
+    if (!focused) return
     const down = (e: KeyboardEvent): void => {
       if (e.altKey && e.code === 'Space' && !e.repeat) {
         const now = Date.now()
@@ -5032,7 +5042,7 @@ export function EasyChat({
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [startDictation, finishDictation, visible])
+  }, [startDictation, finishDictation, focused])
 
   // Adds a sibling conversation rather than wiping this one — the previous chat
   // keeps its transcript and stays resumable from the sidebar.

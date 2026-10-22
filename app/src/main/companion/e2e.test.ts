@@ -41,9 +41,21 @@ const h = vi.hoisted(() => {
       string,
       { id: string; chatId?: string; workspaceId?: string; owned: boolean }
     >(),
-    sent: [] as { id: string; text: string; from: string; localId?: string }[],
+    sent: [] as {
+      id: string
+      text: string
+      from: string
+      localId?: string
+      replyTo?: { role: string; text: string }
+    }[],
     /** The opening message of every chat a branch was cut for, in order. */
     branchCuts: [] as string[],
+    /** Where the next branch cut puts its copy; null: no copy (no repo here). */
+    cutTo: null as string | null,
+    /** Each chat's own copy of the project, once one is cut for it. */
+    chatCwd: new Map<string, string>(),
+    /** The folder every agent was started in, in order. */
+    startedIn: [] as (string | undefined)[],
     gates: new Map<string, boolean>(),
     identityPem: '' as string
   }
@@ -97,7 +109,7 @@ vi.mock('../store', () => ({
           title: 'Fix login',
           claudeSessionId: 'sess-1',
           updatedAt: 1,
-          cwd: null
+          cwd: h.chatCwd.get('c1') ?? null
         }
       : id === 'c-new'
         ? {
@@ -106,7 +118,7 @@ vi.mock('../store', () => ({
             title: null,
             claudeSessionId: null,
             updatedAt: 2,
-            cwd: null
+            cwd: h.chatCwd.get('c-new') ?? null
           }
         : undefined,
   getWorkspace: (id: string) =>
@@ -204,7 +216,8 @@ vi.mock('../agent', () => ({
   agentBus: h.agentBus,
   listSessions: () => [...h.sessions.values()],
   findSessionByChat: (chatId: string) => [...h.sessions.values()].find((s) => s.chatId === chatId),
-  startAgent: (_owner: null, opts: { chatId?: string; workspaceId?: string }) => {
+  startAgent: (_owner: null, opts: { chatId?: string; workspaceId?: string; cwd?: string }) => {
+    h.startedIn.push(opts.cwd)
     const id = `s-${h.sessions.size + 1}`
     h.sessions.set(id, { id, chatId: opts.chatId, workspaceId: opts.workspaceId, owned: false })
     h.agentBus.emit('started', { id, chatId: opts.chatId, workspaceId: opts.workspaceId })
@@ -214,11 +227,11 @@ vi.mock('../agent', () => ({
     id: string,
     text: string,
     _images: unknown[],
-    origin: { from: string; localId?: string }
+    origin: { from: string; localId?: string; replyTo?: { role: string; text: string } }
   ) => {
     const s = h.sessions.get(id)
     if (!s) return false
-    h.sent.push({ id, text, from: origin.from, localId: origin.localId })
+    h.sent.push({ id, text, from: origin.from, localId: origin.localId, replyTo: origin.replyTo })
     h.agentBus.emit('user', {
       id,
       chatId: s.chatId,
@@ -261,9 +274,10 @@ vi.mock('../chat-copy', () => ({
   // The first message cuts a branch on a real project. Here there is no repo to
   // cut one in, and the chat keeps running in the folder it was given — but who
   // it was tried for is the thing worth watching.
-  cutChatBranch: async (_chatId: string, _path: string, hint: string) => {
+  cutChatBranch: async (chatId: string, _path: string, hint: string) => {
     h.branchCuts.push(hint)
-    return null
+    if (h.cutTo) h.chatCwd.set(chatId, h.cutTo)
+    return h.cutTo
   },
   removeCopy: async () => true
 }))
@@ -694,6 +708,34 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     expect(h.sent.length).toBe(delivered)
   })
 
+  it('a reply quoting a long answer from the agent is sent, with the quote cut short', async () => {
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    // A long answer is the one you most often answer point by point. Its quote
+    // used to be over the limit, and the whole message was refused.
+    const long = 'The plan, step by step. '.repeat(400)
+    phone.send({
+      t: 'req',
+      id: 'q1',
+      method: 'chat.send',
+      params: {
+        chatId: 'c1',
+        text: 'do step two first',
+        localId: 'L-quote',
+        replyTo: { role: 'assistant', text: long }
+      }
+    })
+    const res = await phone.until((f) => f.t === 'res' && (f as { id?: string }).id === 'q1')
+    expect(res).toMatchObject({ ok: true })
+    const sent = h.sent.find((s) => s.localId === 'L-quote')
+    expect(sent?.text).toBe('do step two first')
+    expect(sent?.replyTo?.role).toBe('assistant')
+    expect(sent?.replyTo?.text).toBe(long.slice(0, 4_000))
+    phone.ws.close()
+  })
+
   it('the folder chat keeps the folder; a new conversation gets its own copy', async () => {
     const phone = new FakePhone(secret)
     await phone.connect()
@@ -728,6 +770,36 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     await phone.until((f) => f.t === 'res' && (f as { id: string }).id === 'b3')
     expect(h.branchCuts).toEqual(['add a settings screen'])
     phone.ws.close()
+  })
+
+  it('a new conversation from the phone runs its agent in its own copy, not the project folder', async () => {
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    for (const [id, s] of h.sessions) if (s.chatId === 'c-new') h.sessions.delete(id)
+    h.cutTo = '/tmp/rowfill/.worktrees/wt-new'
+    h.startedIn.length = 0
+    try {
+      phone.send({ t: 'req', id: 'n1', method: 'chat.create', params: { workspaceId: 'w1' } })
+      await phone.until((f) => f.t === 'res' && (f as { id: string }).id === 'n1')
+      phone.send({
+        t: 'req',
+        id: 'n2',
+        method: 'chat.send',
+        params: { chatId: 'c-new', text: 'add a settings screen' }
+      })
+      const res = await phone.until((f) => f.t === 'res' && (f as { id: string }).id === 'n2')
+      expect(res).toMatchObject({ ok: true })
+      // The copy was cut for this message, and the agent works in it. It used
+      // to start in the project folder: the chat sat on its new branch on the
+      // Mac while everything the agent did went into the main checkout.
+      expect(h.startedIn).toEqual(['/tmp/rowfill/.worktrees/wt-new'])
+    } finally {
+      h.cutTo = null
+      h.chatCwd.clear()
+      phone.ws.close()
+    }
   })
 
   it('a phone that keeps asking for the same catch-up is not sent it every time', async () => {

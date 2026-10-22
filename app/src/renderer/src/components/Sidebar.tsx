@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import {
   DndContext,
   DragEndEvent,
+  DragStartEvent,
   PointerSensor,
   closestCenter,
   useSensor,
@@ -26,6 +27,9 @@ import { when } from '../lib/relative-time'
 import { KindIcon, ProjectIcon } from './ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import { UsageFooter } from './UsageFooter'
+import { SplitsSection } from './SplitsSection'
+import { cancelChatDrag, finishChatDrag, moveChatDrag } from '../lib/split-drag'
+import type { SplitTile } from '../lib/split'
 
 const STATUS_LABEL: Record<WorkspaceStatus, string> = {
   idle: 'Idle',
@@ -924,6 +928,9 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
       <div
         ref={setRefs}
         className={`sidebar-item ${ws.kind === 'browser' ? 'has-remove' : ''} ${rootSelected ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isOver && !draggingGroup ? 'drop-before' : ''}`}
+        // The row stands for the folder's own conversation, so ⌘-click and a
+        // drag into the window (split view) know which chat it is.
+        data-root-chat-id={folderChatId ?? undefined}
         onClick={() => {
           setActive(ws.id)
           // This row IS the conversation in the folder itself — the root chat.
@@ -2295,7 +2302,68 @@ export function Sidebar(): React.JSX.Element {
     refresh()
   }, [refresh])
 
+  // A conversation dragged out of the sidebar goes into the split (SplitLayer
+  // shows where); dropped back inside, it reorders as it always did. The
+  // pointer is followed directly: the drag library's offsets are its own.
+  const dragFrom = useRef<{
+    tile: SplitTile
+    at: { x: number; y: number }
+    off: () => void
+  } | null>(null)
+  const tileForChat = (chatId: string): SplitTile | null => {
+    const st = useStore.getState()
+    const known = new Set(st.tree.flatMap((g) => g.workspaces.map((w) => w.id)))
+    for (const [ws, list] of Object.entries(st.chats))
+      if (known.has(ws) && list?.some((c) => c.id === chatId)) return { ws, chat: chatId }
+    return null
+  }
+  const outsideSidebar = (p: { x: number; y: number }): boolean => {
+    const box = asideRef.current?.getBoundingClientRect()
+    return !!box && p.x > box.right
+  }
+  const stopFollowing = (): { x: number; y: number } | null => {
+    const from = dragFrom.current
+    dragFrom.current = null
+    from?.off()
+    return from?.at ?? null
+  }
+  const onDragStart = (e: DragStartEvent): void => {
+    stopFollowing()
+    const id = String(e.active.id)
+    const ev = e.activatorEvent as PointerEvent | null
+    // A chat row, or a project row standing for its folder's conversation.
+    const grabbedRow = (ev?.target as HTMLElement | null)?.closest<HTMLElement>(
+      '[data-chat-id], [data-root-chat-id]'
+    )
+    const grabbed = grabbedRow?.dataset.chatId ?? grabbedRow?.dataset.rootChatId
+    const chatId = id.startsWith('chat:') ? id.slice('chat:'.length) : grabbed
+    const tile = chatId ? tileForChat(chatId) : null
+    if (!tile || !ev) return
+    const follow = (pe: PointerEvent): void => {
+      const from = dragFrom.current
+      if (!from) return
+      from.at = { x: pe.clientX, y: pe.clientY }
+      if (outsideSidebar(from.at)) moveChatDrag(tile, pe.clientX, pe.clientY)
+      else if (useStore.getState().splitDrag) cancelChatDrag()
+    }
+    window.addEventListener('pointermove', follow, true)
+    dragFrom.current = {
+      tile,
+      at: { x: ev.clientX, y: ev.clientY },
+      off: () => window.removeEventListener('pointermove', follow, true)
+    }
+  }
+  const onDragCancel = (): void => {
+    stopFollowing()
+    cancelChatDrag()
+  }
   const onDragEnd = (e: DragEndEvent): void => {
+    const p = stopFollowing()
+    if (p && outsideSidebar(p) && useStore.getState().splitDrag) {
+      finishChatDrag(p.x, p.y)
+      return
+    }
+    cancelChatDrag()
     const activeId = String(e.active.id)
     const overId = e.over?.id ? String(e.over.id) : null
     if (!overId || overId === activeId) return
@@ -2399,6 +2467,20 @@ export function Sidebar(): React.JSX.Element {
         const row = (e.target as HTMLElement).closest<HTMLElement>(SESSION_ROW)
         if (row) cursorRow.current = row
       }}
+      // ⌘-click or ⌥-click a conversation (⌥ as in Arc): open it in a window
+      // beside the one on screen, rather than instead of it.
+      onClickCapture={(e) => {
+        if (!(e.metaKey || e.altKey)) return
+        const row = (e.target as HTMLElement).closest<HTMLElement>(
+          '[data-chat-id], [data-root-chat-id]'
+        )
+        const id = row?.dataset.chatId ?? row?.dataset.rootChatId
+        const tile = id ? tileForChat(id) : null
+        if (!tile) return
+        e.preventDefault()
+        e.stopPropagation()
+        useStore.getState().openBeside(tile.ws, tile.chat)
+      }}
       onKeyDown={onSidebarKeyDown}
     >
       <div className="sidebar-drag-region" />
@@ -2420,11 +2502,22 @@ export function Sidebar(): React.JSX.Element {
         ))}
       </div>
       {mode === 'activity' && <ActivityList />}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        // No scrolling the list while a chat is carried out into the window:
+        // the pointer past the sidebar's edge read as "scroll", and the list
+        // slid out of view under the drag.
+        autoScroll={{ canScroll: () => !useStore.getState().splitDrag }}
+        onDragStart={onDragStart}
+        onDragCancel={onDragCancel}
+        onDragEnd={onDragEnd}
+      >
         <div
           className="sidebar-scroll"
           style={mode === 'activity' ? { display: 'none' } : undefined}
         >
+          <SplitsSection />
           <button
             className={`sidebar-dash-row ${overlay === 'computer' ? 'on' : ''}`}
             onClick={() => window.dispatchEvent(new CustomEvent('cove:open-computer'))}

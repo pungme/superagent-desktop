@@ -1,4 +1,17 @@
 import { create } from 'zustand'
+import {
+  type Split,
+  type SplitTile,
+  type SplitOrient,
+  SPLIT_MAX,
+  fits,
+  newSplitId,
+  parseSplits,
+  prunedSplits,
+  tileIndex,
+  withTile,
+  withoutTile
+} from './lib/split'
 import { useEffect } from 'react'
 import type { TreeGroup, Routine, Chat, GuardrailAsk } from '../../preload'
 import { toProvider, type AgentProvider } from '../../shared/agent-provider'
@@ -283,6 +296,39 @@ interface CoveState {
   tree: TreeGroup[]
   activeWorkspaceId: string | null
   /**
+   * Split view (lib/split.ts): the conversations on screen together, or null
+   * for one at a time. The focused window's chat IS the active chat — showing
+   * any chat that is not in the split leaves it (see the subscription at the
+   * bottom), and the split waits in `splits` to come back to.
+   */
+  split: Split | null
+  /** Every saved split, newest first: the Splits rows in the sidebar. */
+  splits: Split[]
+  /** The size of the area the windows share, so a new split knows if it fits side by side. */
+  splitCanvas: { w: number; h: number }
+  setSplitCanvas: (w: number, h: number) => void
+  /** Put a chat in a window beside the focused one (making a split if there is none). False when there is no room. */
+  openBeside: (workspaceId: string, chatId: string, at?: number) => boolean
+  /** Make window `i` the focused one: its chat becomes the active chat. */
+  focusTile: (i: number) => void
+  /** Take window `i` off screen (its chat keeps running). One left ends the split. */
+  closeTile: (i: number) => void
+  /** Replace the current split's windows (a drop, a reorder). */
+  arrangeSplit: (tiles: SplitTile[], focus: number, orient?: SplitOrient) => void
+  setSplitOrient: (orient: SplitOrient) => void
+  setSplitFr: (fr: number[] | null) => void
+  /** Show window `i` full size for a moment, or null to put it back. */
+  zoomTile: (i: number | null) => void
+  /** A short line about the split (why something could not be done), shown for a moment. */
+  splitNotice: string | null
+  /** A chat being dragged (from the sidebar or a window's header) toward the split, and where the pointer is. */
+  splitDrag: { tile: SplitTile; x: number; y: number } | null
+  setSplitDrag: (d: { tile: SplitTile; x: number; y: number } | null) => void
+  /** Come back to a saved split. */
+  openSplit: (id: string) => void
+  /** Undo a split: its chats are on their own again. */
+  separateSplit: (id: string) => void
+  /**
    * The full-window view sitting over the projects, if any — just Computer
    * now that Dashboard, Skills and Routines are applications inside it. The
    * sidebar marks it, and a project row must not keep looking selected while
@@ -336,7 +382,7 @@ interface CoveState {
     focus?: boolean,
     deskId?: string | null
   ) => void
-  closeFile: (workspaceId: string) => void
+  closeFile: (workspaceId: string, deskId?: string | null) => void
   // Open an absolute file path the right way: text/code/markdown in the in-app
   // viewer, PDFs/images in the preview pane, everything else in the OS default.
   // Shared by the file tree and the agent's open_file tool.
@@ -377,8 +423,8 @@ interface CoveState {
    * pane restored from localStorage has no entry there, so `!undefined` was
    * `true` and the first click on ✕ re-opened what was already open.
    */
-  toggleBrowser: (workspaceId: string, current?: boolean) => void
-  toggleFiles: (workspaceId: string) => void
+  toggleBrowser: (workspaceId: string, current?: boolean, deskId?: string | null) => void
+  toggleFiles: (workspaceId: string, deskId?: string | null) => void
   hooksEnabled: boolean
   setHooksEnabled: (v: boolean) => void
   startHookListener: () => void
@@ -714,9 +760,170 @@ function savedOverlay(): 'computer' | 'chats' | null {
   }
 }
 
+let splitRestored = false
+const SPLITS_KEY = 'cove.splits'
+const SPLIT_KEY = 'cove.split'
+const savedSplits = (): Split[] =>
+  typeof localStorage === 'undefined' ? [] : parseSplits(localStorage.getItem(SPLITS_KEY))
+function persistSplits(list: Split[], current: Split | null): void {
+  try {
+    localStorage.setItem(SPLITS_KEY, JSON.stringify(list))
+    localStorage.setItem(SPLIT_KEY, current?.id ?? '')
+  } catch {
+    /* storage unavailable: the split lasts this session */
+  }
+}
+const initialSplits = savedSplits()
+
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
+  splits: initialSplits,
+  // Restored for real once the projects are known (refresh → focusTile), so the
+  // active chat and the split agree from the first frame.
+  split: null,
+  splitCanvas: { w: 0, h: 0 },
+  splitDrag: null,
+  splitNotice: null,
+  setSplitDrag: (d) => set({ splitDrag: d }),
+  setSplitCanvas: (w, h) => {
+    const c = get().splitCanvas
+    if (c.w !== w || c.h !== h) set({ splitCanvas: { w, h } })
+  },
+  openBeside: (workspaceId, chatId, at) => {
+    const s = get()
+    let sp = s.split
+    if (!sp) {
+      const aw = s.activeWorkspaceId
+      const ac = aw ? s.activeChatId[aw] : undefined
+      if (!aw || !ac || (aw === workspaceId && ac === chatId)) return false
+      const { w, h } = s.splitCanvas
+      sp = {
+        id: newSplitId(),
+        tiles: [{ ws: aw, chat: ac }],
+        focus: 0,
+        orient: w && h && !fits(2, w, h, 'row') ? 'col' : 'row',
+        fr: null,
+        zoom: null
+      }
+    }
+    const have = tileIndex(sp, workspaceId, chatId)
+    if (have >= 0) {
+      if (s.split) get().focusTile(have)
+      return true
+    }
+    const next = withTile(sp, { ws: workspaceId, chat: chatId }, at ?? sp.focus + 1)
+    if (!next) {
+      set({ splitNotice: 'Four is the most · take one off screen first (⌘W)' })
+      return false
+    }
+    const splits = [next, ...s.splits.filter((x) => x.id !== next.id)]
+    persistSplits(splits, next)
+    set({ split: next, splits })
+    get().focusTile(next.focus)
+    return true
+  },
+  focusTile: (i) => {
+    const s = get()
+    const sp = s.split
+    const t = sp?.tiles[i]
+    if (!sp || !t) return
+    localStorage.setItem('activeWorkspace', t.ws)
+    localStorage.setItem(`activeChat:${t.ws}`, t.chat)
+    const split = { ...sp, focus: i, zoom: sp.zoom !== null && sp.zoom !== i ? i : sp.zoom }
+    const splits = s.splits.map((x) => (x.id === split.id ? split : x))
+    persistSplits(splits, split)
+    set({
+      split,
+      splits,
+      activeWorkspaceId: t.ws,
+      activeChatId: { ...s.activeChatId, [t.ws]: t.chat },
+      overlay: null,
+      coldStart: false
+    })
+    get().markRead(t.chat)
+  },
+  closeTile: (i) => {
+    const s = get()
+    const sp = s.split
+    if (!sp || !sp.tiles[i]) return
+    const next = withoutTile(sp, i)
+    if (next.tiles.length < 2) {
+      const left = next.tiles[0]
+      const splits = s.splits.filter((x) => x.id !== sp.id)
+      persistSplits(splits, null)
+      set({ split: null, splits })
+      if (left) {
+        localStorage.setItem('activeWorkspace', left.ws)
+        localStorage.setItem(`activeChat:${left.ws}`, left.chat)
+        set((st) => ({
+          activeWorkspaceId: left.ws,
+          activeChatId: { ...st.activeChatId, [left.ws]: left.chat }
+        }))
+      }
+      return
+    }
+    const splits = s.splits.map((x) => (x.id === next.id ? next : x))
+    persistSplits(splits, next)
+    set({ split: next, splits })
+    get().focusTile(next.focus)
+  },
+  arrangeSplit: (tiles, focus, orient) => {
+    const s = get()
+    const sp = s.split
+    if (tiles.length < 2) return
+    const next: Split = {
+      id: sp?.id ?? newSplitId(),
+      tiles: tiles.slice(0, SPLIT_MAX),
+      focus: Math.min(focus, tiles.length - 1),
+      orient: orient ?? sp?.orient ?? 'row',
+      fr:
+        sp && sp.tiles.length === tiles.length && (orient ?? sp.orient) === sp.orient
+          ? sp.fr
+          : null,
+      zoom: null
+    }
+    const splits = [next, ...s.splits.filter((x) => x.id !== next.id)]
+    persistSplits(splits, next)
+    set({ split: next, splits })
+    get().focusTile(next.focus)
+  },
+  setSplitOrient: (orient) => {
+    const s = get()
+    if (!s.split) return
+    const split = { ...s.split, orient, fr: null }
+    const splits = s.splits.map((x) => (x.id === split.id ? split : x))
+    persistSplits(splits, split)
+    set({ split, splits })
+  },
+  setSplitFr: (fr) => {
+    const s = get()
+    if (!s.split) return
+    const split = { ...s.split, fr }
+    const splits = s.splits.map((x) => (x.id === split.id ? split : x))
+    persistSplits(splits, split)
+    set({ split, splits })
+  },
+  zoomTile: (i) => {
+    const s = get()
+    if (!s.split) return
+    set({ split: { ...s.split, zoom: i } })
+    if (i !== null) get().focusTile(i)
+  },
+  openSplit: (id) => {
+    const s = get()
+    const g = s.splits.find((x) => x.id === id)
+    if (!g) return
+    set({ split: { ...g, zoom: null } })
+    get().focusTile(g.focus)
+  },
+  separateSplit: (id) => {
+    const s = get()
+    const splits = s.splits.filter((x) => x.id !== id)
+    const current = s.split?.id === id ? null : s.split
+    persistSplits(splits, current)
+    set({ splits, split: current })
+  },
   pageUrl: {},
   setPageUrl: (workspaceId, url) =>
     set((s) =>
@@ -785,8 +992,8 @@ export const useStore = create<CoveState>((set, get) => ({
       openFile: { ...s.openFile, [key]: path }
     }))
   },
-  closeFile: (workspaceId) => {
-    const key = deskKey(get(), workspaceId)
+  closeFile: (workspaceId, deskId) => {
+    const key = deskId ?? deskKey(get(), workspaceId)
     localStorage.removeItem(`openFile:${key}`)
     set((s) => ({ openFile: { ...s.openFile, [key]: null } }))
   },
@@ -885,6 +1092,21 @@ export const useStore = create<CoveState>((set, get) => ({
       set({ activeWorkspaceId: saved && allIds.includes(saved) ? saved : (allIds[0] ?? null) })
     }
     await get().refreshChats()
+    // The split you were in comes back with its windows, once the projects and
+    // their chats are known (a chat deleted meanwhile drops out of it).
+    if (!splitRestored) {
+      splitRestored = true
+      const known = new Set(allIds)
+      const splits = prunedSplits(get().splits, (t) => {
+        if (!known.has(t.ws)) return false
+        const list = get().chats[t.ws]
+        return !list || list.some((c) => c.id === t.chat)
+      })
+      const current = splits.find((x) => x.id === localStorage.getItem(SPLIT_KEY)) ?? null
+      persistSplits(splits, current)
+      set({ splits, split: current })
+      if (current) get().focusTile(current.focus)
+    }
   },
 
   refreshChats: async () => {
@@ -987,17 +1209,17 @@ export const useStore = create<CoveState>((set, get) => ({
     savePorts(alive)
     set({ ports: alive })
   },
-  toggleFiles: (workspaceId) =>
+  toggleFiles: (workspaceId, deskId) =>
     set((s) => {
-      const key = deskKey(s, workspaceId)
+      const key = deskId ?? deskKey(s, workspaceId)
       const next = !s.filesOpen[key]
       localStorage.setItem(`filesOpen:${key}`, next ? '1' : '0')
       return { filesOpen: { ...s.filesOpen, [key]: next } }
     }),
 
-  toggleBrowser: (workspaceId, current) =>
+  toggleBrowser: (workspaceId, current, deskId) =>
     set((s) => {
-      const key = deskKey(s, workspaceId)
+      const key = deskId ?? deskKey(s, workspaceId)
       const saved = localStorage.getItem(`paneOpen:${key}`)
       const effective = current ?? s.browserOpen[key] ?? (saved !== null ? saved === '1' : false)
       const next = !effective
@@ -1801,6 +2023,43 @@ export async function keepChatChanges(workspaceId: string, chatId: string): Prom
 // (a chat with background work, say). Off unless a test asks for it.
 if (typeof localStorage !== 'undefined' && localStorage.getItem('cove.e2e') === '1')
   (window as unknown as { __store?: typeof useStore }).__store = useStore
+
+// Split view and the active chat agree, however the active chat changed: the
+// sidebar, ⌘K, a new chat, an agent opening a conversation. A chat that is in
+// the split focuses its window; any other chat leaves the split, which waits in
+// the sidebar. Chats or projects that are gone drop out of every split.
+useStore.subscribe((st, prev) => {
+  const moved =
+    st.activeWorkspaceId !== prev.activeWorkspaceId || st.activeChatId !== prev.activeChatId
+  const gone = st.chats !== prev.chats || st.tree !== prev.tree
+  if (!moved && !gone) return
+  if (gone && st.splits.length) {
+    const known = new Set(st.tree.flatMap((g) => g.workspaces.map((w) => w.id)))
+    const alive = (t: SplitTile): boolean => {
+      if (st.tree.length && !known.has(t.ws)) return false
+      const list = st.chats[t.ws]
+      return !list || list.some((c) => c.id === t.chat)
+    }
+    const splits = prunedSplits(st.splits, alive)
+    if (splits.length !== st.splits.length || splits.some((x, i) => x !== st.splits[i])) {
+      const current = st.split ? (splits.find((x) => x.id === st.split!.id) ?? null) : null
+      persistSplits(splits, current)
+      useStore.setState({ splits, split: current })
+      return
+    }
+  }
+  if (!moved || !st.split) return
+  const ws = st.activeWorkspaceId
+  const i = tileIndex(st.split, ws, ws ? st.activeChatId[ws] : undefined)
+  if (i === st.split.focus) return
+  if (i >= 0) {
+    const split = { ...st.split, focus: i }
+    useStore.setState({ split, splits: st.splits.map((x) => (x.id === split.id ? split : x)) })
+  } else if (ws) {
+    persistSplits(st.splits, null)
+    useStore.setState({ split: null })
+  }
+})
 
 // Remember the full-window view as it changes, however it changed (a click, a
 // shortcut, opening a project), for the next start to come back to.

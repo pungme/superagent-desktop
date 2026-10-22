@@ -44,6 +44,8 @@ interface BrowserPaneProps {
    * it. A browser tab is not a preview of anything: it should fill its window.
    */
   fill?: boolean
+  /** Shown as a mini inside a narrow window of a split: fitted from desktop width, no chrome. */
+  mini?: boolean
 }
 
 interface Suggestion {
@@ -151,7 +153,8 @@ export function BrowserPane({
   fill = false,
   occluded = false,
   positionKey,
-  radius = 0
+  radius = 0,
+  mini = false
 }: BrowserPaneProps): React.JSX.Element {
   // paneId is workspace::chat for per-chat views; the workspace is the part
   // before '::'. Used for sidebar/browsing/saved-URL, which are per project.
@@ -240,6 +243,9 @@ export function BrowserPane({
   // only) — otherwise recreating it on every mode change would re-run the pane's
   // setup effect and re-navigate to the initial URL.
   const viewportRef = useRef(viewport)
+  // A mini (split view): the page fitted from desktop width, no chrome.
+  const miniRef = useRef(mini)
+  miniRef.current = mini
   // A local document (PDF/image opened from the file tree) is for READING — the
   // miniature simulated desktop is the wrong frame for it, so it fills the pane
   // regardless of the saved viewport. Picking a viewport manually overrides.
@@ -593,7 +599,7 @@ export function BrowserPane({
       window.cove.browserSetBounds(paneId, b)
     }
     // WebContentsView bounds are window-relative CSS pixels.
-    const mode = docModeRef.current ? 'none' : viewportRef.current
+    const mode = miniRef.current || docModeRef.current ? 'none' : viewportRef.current
     if (mode !== 'both') {
       setTwinFrame(null)
       window.cove.browserTwinBounds?.(paneId, null, 1)
@@ -902,6 +908,16 @@ export function BrowserPane({
   useEffect(() => {
     return window.cove.onBrowserResync(() => syncBoundsSettled())
   }, [syncBoundsSettled])
+  // Split view moves windows without resizing them (a reorder, a window
+  // closing beside this one); it says so every frame while they glide.
+  // Into or out of a mini: refit (desktop width, scaled) where it now sits.
+  useEffect(() => {
+    syncBoundsSettled()
+  }, [mini, syncBoundsSettled])
+  useEffect(() => {
+    window.addEventListener('cove:layout-moved', syncBounds)
+    return () => window.removeEventListener('cove:layout-moved', syncBounds)
+  }, [syncBounds])
 
   /**
    * The backstop: check that the page is still where the pane is, and put it
@@ -1075,7 +1091,7 @@ export function BrowserPane({
   // Absolute for the whole desktop mode (not just once simFrame is known) so the
   // host stays full-height when syncBounds measures it — otherwise the omnibar
   // flipping out of flow would resize the host and misplace the card by one frame.
-  const onCard = viewport === 'desktop' || viewport === 'both' || viewport === 'mobile'
+  const onCard = !mini && (viewport === 'desktop' || viewport === 'both' || viewport === 'mobile')
   const toolbarStyle: React.CSSProperties | undefined = onCard
     ? simFrame
       ? {
@@ -1097,7 +1113,7 @@ export function BrowserPane({
     simFrame.top + simFrame.height + 40 <= hostRef.current.clientHeight
 
   return (
-    <div className="browser-pane">
+    <div className={`browser-pane${mini ? ' mini' : ''}`}>
       <div className={`browser-toolbar ${onCard ? 'on-card' : ''}`} style={toolbarStyle}>
         {state.loading && <span className="browser-loadbar" />}
         <span className="pane-source" title="Superagent's built-in browser">
@@ -1320,7 +1336,7 @@ export function BrowserPane({
       )}
       <div
         ref={hostRef}
-        className={`browser-host ${viewport !== 'none' ? 'sim' : ''}`}
+        className={`browser-host ${!mini && viewport !== 'none' ? 'sim' : ''}`}
         data-pane-id={paneId}
       >
         {simFrame && visible && (

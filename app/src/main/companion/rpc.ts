@@ -138,8 +138,22 @@ const chatSend = z.object({
   localId: z.string().max(80).optional(),
   model: z.string().max(60).optional(),
   permissionMode: permissionModes.optional(),
-  /** WhatsApp-style quote: the message this one answers. */
-  replyTo: z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(4_000) }).optional()
+  /**
+   * WhatsApp-style quote: the message this one answers. Any length is taken and
+   * kept to its first 4,000 characters (the agent is told only the first 400 of
+   * it, see replyPrefix). Refusing a longer one refused the whole message: on
+   * the phone, a reply to any long answer of the agent's could not be sent,
+   * while the same reply from this Mac's window went through.
+   */
+  replyTo: z
+    .object({
+      role: z.enum(['user', 'assistant']),
+      text: z
+        .string()
+        .max(200_000)
+        .transform((t) => t.slice(0, 4_000))
+    })
+    .optional()
 })
 const chatSetAgent = z.object({
   chatId: z.string().min(1),
@@ -1180,7 +1194,7 @@ function noteSent(localId: string): void {
 }
 
 async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
-  const chat = getChat(p.chatId)
+  let chat = getChat(p.chatId)
   if (!chat) return fail('not-found', 'no such chat')
   if (p.localId && seenSendIds.has(p.localId)) {
     // Already accepted; the phone just never heard the ack. Say yes, do nothing.
@@ -1199,8 +1213,14 @@ async function sendToChat(p: ChatSendParams): Promise<Awaited<RpcResult>> {
     if (ws && ws.kind !== 'browser' && copyKind(ws.path) !== null) {
       const cwd = await cutChatBranch(chat.id, ws.path, p.text)
       if (cwd) broadcastToWindows('projects:changed', {})
+      // Read again: the cut gave the chat its own folder, and the agent below
+      // starts in `chat.cwd`. Kept from before the cut, every new conversation
+      // from the phone ran its agent in the project folder while the chat sat
+      // on its new, empty branch.
+      const cut = getChat(chat.id)
       // Deleted while its branch was being cut: nothing left to send to.
-      if (!getChat(chat.id)) return fail('not-found', 'no such chat')
+      if (!cut) return fail('not-found', 'no such chat')
+      chat = cut
     }
   }
   let session = findSessionByChat(p.chatId)
