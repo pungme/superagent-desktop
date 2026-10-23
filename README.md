@@ -69,6 +69,26 @@ the agent can start the server itself and iterate while you watch.
 <tr>
 <td width="46%" valign="top">
 
+**Four chats, one window.** *New in the 2.1 beta.* Drag a chat from the
+sidebar onto the window and it opens beside the one you are in — up to four,
+from any projects: three across, or two over two. Drag a result out of
+<kbd>⌘</kbd><kbd>K</kbd> the same way, or press <kbd>⌘</kbd><kbd>↩</kbd> on it
+to open it beside. Move a window by its handle and pull its edge to resize it.
+Each split is kept as a row under Splits in the sidebar: a small picture of its
+windows with each project's logo, its chats, and a dot while one of them works.
+Click it to go back; × takes it apart. <kbd>⌘</kbd><kbd>1</kbd>–<kbd>4</kbd>
+picks a window, <kbd>⌘</kbd><kbd>⇧</kbd><kbd>[</kbd> and
+<kbd>⌘</kbd><kbd>⇧</kbd><kbd>]</kbd> go round them. A narrow window keeps its
+browser or simulator as a small view inside it. The iPad app splits the same
+way.
+
+</td>
+<td valign="top"><img src="docs/split-view.png" alt="Split view: three chats from three projects side by side in one window, with the split saved as a row under Splits in the sidebar"></td>
+</tr>
+
+<tr>
+<td width="46%" valign="top">
+
 **An agent that can use the browser.** Your agent drives that same browser: open a
 page, click, type, read it back. Not a hidden browser it describes to you
 second-hand — the one on your screen, with your logged-in session. You watch it
@@ -295,7 +315,9 @@ when they are ready, and may change before then.
 - **See what's using the space.** Settings breaks storage down by project, so
   clearing an old conversation's history is a click, not a guess.
 - **Updates itself.** Signed, notarized, delivered in the background — restart
-  when it suits you, with a "What's new" for each release.
+  when it suits you, with a "What's new" for each release. *Restart when
+  finished* waits for the chats still working, and sits as a small chip until
+  then.
 - **Light and dark**, following your system.
 
 ## What it needs — and what it talks to

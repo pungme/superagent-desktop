@@ -2466,6 +2466,67 @@
     }
     @media (prefers-reduced-motion: reduce) { .desk-sec .appwin .ap-side { animation: none; } }
 
+    /* --- V. Split view: up to four chats side by side ------------------- */
+    #split .ap-side .ap-scroll > .ap-row:first-child { margin-top: 2px; }
+    .sp-row { gap: 7px; padding: 5px 6px; }
+    .sp-row.on { background: rgba(134, 166, 198, 0.2); box-shadow: inset 0 0 0 1px rgba(134, 166, 198, 0.45); }
+    .sp-thumb { flex: none; display: flex; gap: 1.5px; }
+    .sp-thumb .ap-pi {
+      width: 9px; height: 15px; border-radius: 2px; font-size: 0.32rem;
+      box-shadow: 0 0 0 1px var(--card), 0 0 0 1.5px var(--line);
+    }
+    .sp-thumb.sp-two .ap-pi { width: 13px; }
+    .sp-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+    .sp-name, .sp-chats { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sp-name { font-size: 0.56rem; }
+    .sp-chats { font-size: 0.48rem; color: var(--faint); font-weight: 500; }
+    .sp-tiles {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+      padding: 8px; background: rgba(246, 242, 233, 0.6);
+    }
+    .sp-tile {
+      display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+      background: var(--card); border-radius: 9px; border: 1px solid rgba(49, 52, 45, 0.12);
+      box-shadow: 0 1px 3px rgba(49, 52, 45, 0.05);
+    }
+    .sp-head {
+      display: flex; align-items: center; gap: 5px; padding: 6px 8px; flex: none;
+      border-bottom: 1px solid var(--line); font-size: 0.56rem; color: var(--muted);
+    }
+    .sp-num {
+      flex: none; width: 11px; height: 11px; border-radius: 3px; display: grid; place-items: center;
+      font-size: 0.42rem; font-weight: 700; color: var(--faint); background: rgba(49, 52, 45, 0.06);
+    }
+    .sp-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sp-head .ap-spin { margin-left: 2px; }
+    .sp-x { margin-left: auto; color: var(--faint); font-size: 0.66rem; line-height: 1; }
+    .sp-tile .ap-stream { padding: 10px 9px; gap: 6px; }
+    .sp-tile .bubble { max-width: 92%; font-size: 0.54rem; padding: 5px 8px; align-self: flex-end; }
+    .sp-tile .ap-say { font-size: 0.54rem; }
+    .sp-tile .ap-tool { font-size: 0.46rem; }
+    .sp-tile .ap-comp { padding: 6px 7px 7px; }
+    .sp-tile .ap-input { font-size: 0.52rem; padding: 5px 7px; }
+    /* ⌘1, ⌘2, ⌘3: the focus goes round the windows */
+    .sp-tile { animation: spFocus 9s var(--ease) infinite; }
+    .sp-tile .sp-num { animation: spNum 9s var(--ease) infinite; }
+    .sp-tile.t2, .sp-tile.t2 .sp-num { animation-delay: -6s; }
+    .sp-tile.t3, .sp-tile.t3 .sp-num { animation-delay: -3s; }
+    @keyframes spFocus {
+      0%, 30% { border-color: rgba(134, 166, 198, 0.9); box-shadow: 0 0 0 1px rgba(134, 166, 198, 0.5), 0 8px 18px -10px rgba(56, 72, 84, 0.35); }
+      36%, 94% { border-color: rgba(49, 52, 45, 0.12); box-shadow: 0 1px 3px rgba(49, 52, 45, 0.05); }
+      100% { border-color: rgba(134, 166, 198, 0.9); box-shadow: 0 0 0 1px rgba(134, 166, 198, 0.5), 0 8px 18px -10px rgba(56, 72, 84, 0.35); }
+    }
+    @keyframes spNum {
+      0%, 30% { background: var(--blue); color: #fff; }
+      36%, 94% { background: rgba(49, 52, 45, 0.06); color: var(--faint); }
+      100% { background: var(--blue); color: #fff; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sp-tile, .sp-tile .sp-num { animation: none; }
+      .sp-tile.t1 { border-color: rgba(134, 166, 198, 0.9); }
+      .sp-tile.t1 .sp-num { background: var(--blue); color: #fff; }
+    }
+
     /* --- VII. The phone ------------------------------------------------- */
     #phone .pane { display: flex; flex-direction: column; align-items: center; }
     .ph-stage { display: flex; justify-content: center; align-items: center; gap: 18px; padding: 6px 0 0; }
@@ -2850,6 +2911,7 @@
     <a href="#worktrees"><span>Worktrees</span><i></i></a>
     <a href="#simulator"><span>Simulator</span><i></i></a>
     <a href="#twice"><span>Two screens</span><i></i></a>
+    <a href="#split"><span>Split view</span><i></i></a>
     <a href="#automation"><span>Automation</span><i></i></a>
     <a href="#notifications"><span>Notifications</span><i></i></a>
     <a href="#phone"><span>The phone</span><i></i></a>
@@ -3281,11 +3343,99 @@
     </div>
   </section>
 
-  <!-- 5 · automation -->
+  <!-- 5 · split view -->
+  <section class="feature io demo" id="split">
+    <div class="wrap feat-grid">
+      <div class="feat-copy" data-rv>
+        <span class="kicker"><span class="num">V.</span>Split view<span class="jp">分割表示</span><span class="beta">Beta</span></span>
+        <h2>Four chats, <em>one window.</em></h2>
+        <p>Drag a chat from the sidebar onto the window and it opens beside the one you are in. Up to four, from any projects: three across, or two over two. Move a window by its handle, pull its edge to resize it.</p>
+        <p>Each split is kept in the sidebar under Splits: a small picture of its windows, its chats, and a dot while one of them works. Click it to go back. <b>&#8984;1&ndash;4</b> picks a window; <b>&#8984;&#8679;[</b> and <b>&#8984;&#8679;]</b> go round them.</p>
+        <p class="beta-note">Available in the 2.1 beta, on the Mac and on iPad.</p>
+      </div>
+      <div class="pane-wrap" data-rv style="--d:.15s">
+        <div class="pane" style="--bobd:10.5s; --bobo:-3s">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-row dim"><i class="ap-pi pi-computer"><i></i></i><span>Computer</span></div>
+            <div class="ap-group">Splits</div>
+            <div class="ap-row on sp-row">
+            <span class="sp-thumb"><i class="ap-pi pi-landing">L</i><i class="ap-pi pi-shop">S</i><i class="ap-pi pi-docs">A</i></span>
+            <span class="sp-text"><span class="sp-name">landing-page &middot; shop-web &middot; api</span><span class="sp-chats">Hero copy &middot; Checkout &middot; Auth test</span></span>
+            <i class="ap-spin"></i>
+            </div>
+            <div class="ap-row dim sp-row">
+            <span class="sp-thumb sp-two"><i class="ap-pi pi-landing">L</i><i class="ap-pi pi-docs">A</i></span>
+            <span class="sp-text"><span class="sp-name">landing-page &middot; api</span><span class="sp-chats">Pricing &middot; Rate limits</span></span>
+            </div>
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow"><span class="ap-clabel">Tighten the hero copy</span></div>
+            <div class="ap-crow"><span class="ap-clabel">Pricing page</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow"><span class="ap-clabel">Checkout button on mobile</span><i class="ap-unread"></i></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi pi-docs">A</i><span>api</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-spin"></i></div>
+            </div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-content sp-tiles">
+            <div class="sp-tile t1">
+            <div class="sp-head"><span class="sp-num">1</span><i class="ap-pi pi-landing">L</i><span class="sp-title">Tighten the hero copy</span><span class="sp-x">&times;</span></div>
+            <div class="ap-stream">
+            <div class="bubble bub-user">Tighten the hero copy, keep the serif on the emphasis.</div>
+            <div class="ap-say">Sub-headline down from 34 words to 12. The serif stays on the emphasis only.</div>
+            <div class="bubble bub-user">Good. Commit it.</div>
+            <div class="ap-say">Committed as <code>Landing: shorter hero sub</code>.</div>
+            </div>
+            <div class="ap-comp"><div class="ap-input"><span>Message Claude&hellip;</span><span class="ap-send">&uarr;</span></div></div>
+            </div>
+            <div class="sp-tile t2">
+            <div class="sp-head"><span class="sp-num">2</span><i class="ap-pi pi-shop">S</i><span class="sp-title">Checkout button on mobile</span><span class="sp-x">&times;</span></div>
+            <div class="ap-stream">
+            <div class="bubble bub-user">The checkout button is cut off on a phone.</div>
+            <div class="ap-say">At 390pt the sticky footer covers it. Moved the button above the footer.</div>
+            <div class="ap-tool"><i></i>browser_set_viewport &rsaquo; phone</div>
+            <div class="ap-say">Fine at 375pt too: 16pt clear of the footer.</div>
+            </div>
+            <div class="ap-comp"><div class="ap-input"><span>Message Claude&hellip;</span><span class="ap-send">&uarr;</span></div></div>
+            </div>
+            <div class="sp-tile t3">
+            <div class="sp-head"><span class="sp-num">3</span><i class="ap-pi pi-docs">A</i><span class="sp-title">Fix the flaky auth test</span><i class="ap-spin"></i><span class="sp-x">&times;</span></div>
+            <div class="ap-stream">
+            <div class="bubble bub-user">Why does the auth test fail one run in five?</div>
+            <div class="ap-say">The expiry reads the real clock. Stubbed it in the spec.</div>
+            <div class="bubble bub-user">Run it 50 times.</div>
+            <div class="ap-tool"><i></i>npm test &rsaquo; 31 of 50</div>
+            </div>
+            <div class="ap-comp"><div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="ap-send">&uarr;</span></div></div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+          <p class="pane-cap">Three projects, three agents, one glance.</p>
+          <ul class="spec"><li>Up to four, from any projects</li><li>Drag a chat in, or &#8984;&#8617; in &#8984;K</li><li>Saved as a row in the sidebar</li><li>On iPad too</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · automation -->
   <section class="feature io demo" id="automation">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">V.</span>Browser automation<span class="jp">自動操作</span></span>
+        <span class="kicker"><span class="num">VI.</span>Browser automation<span class="jp">自動操作</span></span>
         <h2>Hands <em>on the page.</em></h2>
         <p>Say what you want done. It opens the site you are already signed in to and works it the way you would &mdash; reading, writing, clicking, sending. It keeps its own tab, so the one you opened to look something up stays yours.</p>
       </div>
@@ -3406,7 +3556,7 @@
   <section class="feature io demo" id="notifications">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">VI.</span>Notifications<span class="jp">通知</span></span>
+        <span class="kicker"><span class="num">VII.</span>Notifications<span class="jp">通知</span></span>
         <h2>It knocks. <em>It never barges in.</em></h2>
         <p>Your window stays exactly where it is. When the agent finishes, or needs a yes, it says so from the corner.</p>
       </div>
@@ -3498,7 +3648,7 @@
   <section class="feature flip io demo" id="phone">
     <div class="wrap feat-grid">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">VII.</span>The phone<span class="jp">電話</span></span>
+        <span class="kicker"><span class="num">VIII.</span>The phone<span class="jp">電話</span></span>
         <h2>Your Mac's agent, <em>in your pocket.</em></h2>
         <p>Pair the iPhone app once and it follows your Mac from anywhere: the conversation as it happens, a prompt from the sofa, a yes or no when the agent asks. End-to-end encrypted, through a relay that can't read a word of it.</p>
         <p>The same sidebar as the Mac, pins in the same order, the same model list. More than one Mac? Switch from the title at the top.</p>
@@ -3543,7 +3693,7 @@
   <section class="feature io demo" id="dot">
     <div class="wrap dot-copy-only">
       <div class="feat-copy" data-rv>
-        <span class="kicker"><span class="num">VIII.</span>The dot<span class="jp">点</span><span class="beta">Beta</span></span>
+        <span class="kicker"><span class="num">IX.</span>The dot<span class="jp">点</span><span class="beta">Beta</span></span>
         <h2>Ask without <em>opening the app.</em></h2>
         <p>The dot stays ready without recording your screen. Press <b>&#8997; Space</b> and ask: it takes a fresh snapshot of exactly what you are seeing, understands it, and acts from there.</p>
         <p>The answer appears beside the dot, and the conversation is saved in Superagent if you want to open it later.</p>
@@ -3555,7 +3705,7 @@
   <section class="feature desk-sec io demo" id="desk">
     <div class="wrap feat-grid">
       <div class="desk-head feat-copy" data-rv>
-        <span class="kicker"><span class="num">IX.</span>The finale<span class="jp">机</span></span>
+        <span class="kicker"><span class="num">X.</span>The finale<span class="jp">机</span></span>
         <h2>The computer <em>inside</em> Superagent.</h2>
         <p>A desktop, not a slot. Windows you can move, a dock, and more than one agent working at the same time.</p>
       </div>
@@ -3664,7 +3814,7 @@
   <section class="who io" id="who">
     <div class="wrap">
       <div class="who-head" data-rv>
-        <span class="kicker"><span class="num">X.</span>Who it's for<span class="jp">誰のために</span></span>
+        <span class="kicker"><span class="num">XI.</span>Who it's for<span class="jp">誰のために</span></span>
         <h2>Designed the <em>other way round.</em></h2>
         <p class="jp lede" style="letter-spacing:.24em;font-size:.82rem;color:var(--faint);margin-top:10px">コードは、二番目。</p>
         <p class="lede">
@@ -3748,7 +3898,7 @@
   <section class="open io">
     <div class="wrap">
       <div class="open-head" data-rv>
-        <span class="kicker"><span class="num">XI.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
+        <span class="kicker"><span class="num">XII.</span> Open &amp; local<span class="jp">オープン・ローカル</span></span>
         <h2>Don't trust. <em>Verify.</em></h2>
         <p>An agent with a browser is an agent with your logins. Don't take our word for
           what it does with them &mdash; every line of code is public, so you can read it,
@@ -3795,7 +3945,7 @@
         <div class="det" data-rv style="--d:.19s"><div class="glyph">c.</div><b>Interject mid-turn</b><span>Type while the agent works and it sees your message before it finishes, just like the terminal.</span></div>
         <div class="det" data-rv style="--d:.26s"><div class="glyph">d.</div><b>Context gauge</b><span>Every conversation shows how much of the context window it has used.</span></div>
         <div class="det" data-rv style="--d:.33s"><div class="glyph">e.</div><b>Useful notifications</b><span>Done or has a question, with a summary of the agent's actual last reply.</span></div>
-        <div class="det" data-rv style="--d:.4s"><div class="glyph">f.</div><b>Updates itself</b><span>Signed, notarized, delivered in the background. Restart when it suits you.</span></div>
+        <div class="det" data-rv style="--d:.4s"><div class="glyph">f.</div><b>Updates itself</b><span>Signed, notarized, delivered in the background. Restart now, or when finished: it waits for the chats still working.</span></div>
         <div class="det" data-rv style="--d:.05s"><div class="glyph">g.</div><b>Models stay current</b><span>The model list comes from the Claude Code you have installed. A new model shows up without an app update.</span></div>
         <div class="det" data-rv style="--d:.12s"><div class="glyph">h.</div><b>Quit means quit</b><span>Quitting stops everything it started: the agents, their background tasks, routine runs.</span></div>
         <div class="det" data-rv style="--d:.19s"><div class="glyph">i.</div><b>Stop actually stops</b><span>Interrupting a turn ends the whole job it started, a build or a dev server, not just the agent above it.</span></div>
