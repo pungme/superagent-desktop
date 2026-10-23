@@ -2621,7 +2621,6 @@ export function Sidebar(): React.JSX.Element {
           className="sidebar-scroll"
           style={mode === 'activity' ? { display: 'none' } : undefined}
         >
-          <SplitsSection />
           <button
             className={`sidebar-dash-row ${overlay === 'computer' ? 'on' : ''}`}
             onClick={() => window.dispatchEvent(new CustomEvent('cove:open-computer'))}
@@ -2641,6 +2640,8 @@ export function Sidebar(): React.JSX.Element {
             </svg>
             Computer
           </button>
+          {/* Under Computer: the fixed way in first, then what you made. */}
+          <SplitsSection />
           <PinnedShortcuts />
           <ChatsSection />
           {/* One section for everything you work in: open tabs first (their

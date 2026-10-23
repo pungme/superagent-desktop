@@ -299,14 +299,28 @@ export function UpdateBanner(): React.JSX.Element | null {
   }
 
   if (restartWhenIdle) {
+    // Armed and waiting can last an hour, over the header you are working
+    // under: a chip, not a bar. The whole sentence is its tooltip.
+    const total = workingChats + backgroundTasks
+    const full = `Waiting for ${waitingParts.join(' and ')}. Restarting automatically when finished.`
     return (
-      <div className="update-banner update-banner-waiting" role="status">
-        <span className="update-banner-dot update-banner-dot-waiting" />
-        <span className="update-banner-text">
-          Waiting for {waitingParts.join(' and ')}. Restarting automatically when finished.
+      <div className="update-waiting" role="status" title={full} aria-label={full}>
+        <svg className="update-waiting-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M13 8a5 5 0 1 1-1.46-3.54" />
+          <path d="M13 2.5v2.5h-2.5" />
+        </svg>
+        <span className="update-waiting-label">
+          Update after {total} {total === 1 ? 'task' : 'tasks'}
         </span>
-        <button className="update-banner-secondary" onClick={() => setRestartWhenIdle(false)}>
-          Cancel
+        <button
+          className="update-waiting-cancel"
+          onClick={() => setRestartWhenIdle(false)}
+          title="Don't restart automatically"
+          aria-label="Cancel automatic restart"
+        >
+          <svg viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2.5 2.5l5 5M7.5 2.5l-5 5" />
+          </svg>
         </button>
       </div>
     )

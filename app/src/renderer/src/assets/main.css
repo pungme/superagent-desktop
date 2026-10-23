@@ -305,7 +305,7 @@ button {
 .activity-empty {
   padding: 14px 10px;
   font-size: 12px;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
 }
 /* A pinned chat used to just sort ahead of the rest with a tiny glyph on it —
    easy to miss when it was already near the top. A real header makes the
@@ -401,7 +401,7 @@ button {
 .activity-when {
   margin-left: auto;
   font-size: 10.5px;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
   flex: none;
 }
 .activity-where {
@@ -452,7 +452,7 @@ button {
 }
 .pinned-row-glyph {
   flex: 0 0 auto;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
   opacity: 0.8;
 }
 /* The tree's own inline pin marker, next to a pinned chat's title. */
@@ -1161,7 +1161,7 @@ button {
   padding: 3px 8px 3px 10px;
   border-radius: 6px;
   cursor: pointer;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
   font-size: 11.5px;
 }
 .sidebar-otherbranches:hover {
@@ -2837,7 +2837,7 @@ button {
   border-radius: 6px;
   background: transparent;
   font-size: 12px;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
 }
 .easy-quiet-rounds:hover {
   background: var(--hover);
@@ -2869,7 +2869,7 @@ button {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
   cursor: default;
 }
 .easy-loop-chip-mark {
@@ -6923,17 +6923,64 @@ button {
   background: rgba(255, 255, 255, 0.22);
 }
 
-/* A restart queued behind active work is informational, not a warning. The
-   blue dot distinguishes the armed state from both ready (green) and the
-   destructive immediate-restart confirmation (amber). */
-.update-banner-waiting {
-  padding-right: 12px;
+/* A restart queued behind active work: a chip in the top edge, small enough
+   to leave the header readable for the hour it may wait. Theme colours, not
+   the banner's fixed dark — it is a status, not a call to act. */
+.update-waiting {
+  -webkit-app-region: no-drag;
+  position: fixed;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 3px 0 8px;
+  border-radius: 999px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 2px 8px var(--shadow);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: default;
+  animation: update-drop 0.34s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
-.update-banner-dot-waiting {
-  background: #60a5fa;
+.update-waiting-icon {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: #60a5fa;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.update-banner-dot-waiting::before {
-  background: #60a5fa;
+.update-waiting-cancel {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.update-waiting-cancel svg {
+  width: 8px;
+  height: 8px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.update-waiting-cancel:hover {
+  background: var(--hover);
+  color: var(--text-primary);
 }
 
 /* ---- launch intro / splash ---- */
@@ -12741,7 +12788,7 @@ button {
 }
 .storage-clear-note {
   font-size: 11.5px;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
 }
 .storage-row-group {
   display: flex;
@@ -12753,7 +12800,7 @@ button {
   border: none;
   background: none;
   padding: 0;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
   font-size: 11.5px;
   text-decoration: underline;
   cursor: pointer;
@@ -12785,7 +12832,7 @@ button {
   color: var(--text-primary);
 }
 .storage-byproject-count {
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
 }
 .storage-byproject-bytes {
   font-variant-numeric: tabular-nums;
@@ -12798,7 +12845,7 @@ button {
   background: none;
   padding: 2px 6px;
   border-radius: 6px;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
   font-size: 11.5px;
   cursor: pointer;
 }
@@ -12812,7 +12859,7 @@ button {
 }
 .storage-byproject-note {
   font-size: 11.5px;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-tertiary);
 }
 
 /* @-mentions as pills in the composer (see lib/mention-pills.ts). A textarea
@@ -14782,7 +14829,7 @@ button {
 }
 /* Splits in the sidebar: one row per saved split. */
 .sidebar-splits {
-  margin: 0 0 8px;
+  margin: 6px 0 8px;
 }
 /* Lined up with Pinned below it: the same label, the same row box. */
 .sidebar-splits .pinned-section-label {
@@ -15367,33 +15414,36 @@ button {
 
 /* A split's row: a thumbnail of its windows as they sit, its name, and which
    chats are in it. */
+/* The split's windows themselves, each a small card with its project's logo,
+   a hairline apart — no frame around them, so it reads as a picture of the
+   layout rather than a box of boxes. */
 .split-thumb {
   position: relative;
   flex-shrink: 0;
   width: 52px;
   height: 34px;
-  border-radius: 7px;
-  background: rgba(127, 127, 127, 0.1);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-}
-.split-thumb-in {
-  position: absolute;
-  inset: 2px;
 }
 .split-thumb-cell {
   position: absolute;
   display: grid;
   place-items: center;
-  box-sizing: border-box;
-  /* A clear border is the gap between windows. */
-  border: 1px solid transparent;
-  background: rgba(127, 127, 127, 0.16);
-  background-clip: padding-box;
   border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 1px 2px rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }
-.split-row.on .split-thumb {
-  box-shadow: inset 0 0 0 1px rgba(61, 130, 232, 0.6);
+:root[data-theme='light'] .split-thumb-cell {
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.split-row.on .split-thumb-cell {
+  box-shadow:
+    inset 0 0 0 0.5px rgba(61, 130, 232, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.15);
 }
 .split-row {
   padding: 6px 8px;

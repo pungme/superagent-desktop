@@ -103,7 +103,7 @@ test('a split row shows its layout, its chats and whether one is working', async
       const box = (await window.locator('.sidebar-splits').boundingBox())!
       await window.screenshot({
         path: process.env.SHOT,
-        clip: { x: 0, y: Math.max(0, box.y - 10), width: 300, height: box.height + 120 }
+        clip: { x: 0, y: 0, width: 300, height: box.y + box.height + 120 }
       })
     }
   } finally {

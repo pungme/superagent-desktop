@@ -107,6 +107,20 @@ test('the restart warning names what is running', async () => {
     }, chatId)
     await w.getByRole('button', { name: 'Restart to update' }).click()
     await expect(warn).toContainText('Restarting stops them')
+    // Waiting for the work to finish is a small chip, not a bar over the
+    // header: it can sit there for an hour.
+    await warn.getByRole('button', { name: 'Restart when finished' }).click()
+    const chip = w.locator('.update-waiting')
+    await expect(chip).toContainText('Update after 2 tasks')
+    await expect(chip).toHaveAttribute('title', /Waiting for 1 active chat and 1 background task/)
+    const box = (await chip.boundingBox())!
+    expect(box.height).toBeLessThanOrEqual(24)
+    expect(box.width).toBeLessThan(200)
+    if (process.env.SHOT) await w.screenshot({ path: '/tmp/sa-restart-chip.png' })
+    await chip.getByRole('button', { name: 'Cancel automatic restart' }).click()
+    await expect(chip).toHaveCount(0)
+    await w.getByRole('button', { name: 'Restart to update' }).click()
+    await expect(warn).toContainText('Restarting stops them')
     // Keep working leaves everything running.
     await warn.getByRole('button', { name: 'Keep working' }).click()
     await expect(w.locator('.update-banner')).toHaveCount(0)

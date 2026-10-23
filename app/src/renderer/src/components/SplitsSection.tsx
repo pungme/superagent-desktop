@@ -8,6 +8,8 @@ import { layoutRects, type Split } from '../lib/split'
 /** The thumbnail's size: the split's windows drawn as they sit, at this scale. */
 const THUMB_W = 52
 const THUMB_H = 34
+/** The space between two windows in the thumbnail. */
+const THUMB_GAP = 2
 
 function TileIcon({ ws, size }: { ws: Workspace; size: number }): React.JSX.Element {
   const icon = useProjectIcon(ws.id, ws.path, ws.kind)
@@ -25,36 +27,42 @@ function SplitThumb({
   sp: Split
   wsOf: (id: string) => Workspace | undefined
 }): React.JSX.Element {
-  // Laid out on a window-shaped canvas, then scaled down to the thumbnail.
+  // Laid out on a window-shaped canvas, scaled down to the thumbnail, then
+  // pulled apart by the gap wherever two windows meet.
   const W = 1320
   const H = 900
-  const rects = layoutRects(sp.tiles.length, W, H, sp.orient, sp.fr)
+  const half = THUMB_GAP / 2
+  const cells = layoutRects(sp.tiles.length, W, H, sp.orient, sp.fr).map((r) => {
+    const x0 = (r.x / W) * THUMB_W
+    const y0 = (r.y / H) * THUMB_H
+    const x1 = ((r.x + r.w) / W) * THUMB_W
+    const y1 = ((r.y + r.h) / H) * THUMB_H
+    const left = x0 > 0.5 ? x0 + half : 0
+    const top = y0 > 0.5 ? y0 + half : 0
+    const right = x1 < THUMB_W - 0.5 ? x1 - half : THUMB_W
+    const bottom = y1 < THUMB_H - 0.5 ? y1 - half : THUMB_H
+    return { left, top, width: right - left, height: bottom - top }
+  })
+  // One logo size for the whole picture, set by its smallest window, so a
+  // two-over-three split doesn't mix big and small logos.
+  const smallest = Math.min(...cells.map((c) => Math.min(c.width, c.height)))
+  const size = Math.max(9, Math.min(18, Math.round(smallest * 0.78)))
   return (
     <span className="split-thumb" aria-hidden="true">
-      <span className="split-thumb-in">
-        {sp.tiles.map((t, i) => {
-          const r = rects[i]
-          if (!r) return null
-          const ws = wsOf(t.ws)
-          const w = (r.w / W) * (THUMB_W - 4)
-          const h = (r.h / H) * (THUMB_H - 4)
-          const size = Math.max(9, Math.min(18, Math.floor(Math.min(w, h) - 2)))
-          return (
-            <span
-              key={`${t.ws}:${t.chat}`}
-              className="split-thumb-cell"
-              style={{
-                left: `${(r.x / W) * 100}%`,
-                top: `${(r.y / H) * 100}%`,
-                width: `${(r.w / W) * 100}%`,
-                height: `${(r.h / H) * 100}%`
-              }}
-            >
-              {ws && <TileIcon ws={ws} size={size} />}
-            </span>
-          )
-        })}
-      </span>
+      {sp.tiles.map((t, i) => {
+        const c = cells[i]
+        if (!c) return null
+        const ws = wsOf(t.ws)
+        return (
+          <span
+            key={`${t.ws}:${t.chat}`}
+            className="split-thumb-cell"
+            style={{ left: c.left, top: c.top, width: c.width, height: c.height }}
+          >
+            {ws && <TileIcon ws={ws} size={size} />}
+          </span>
+        )
+      })}
     </span>
   )
 }
