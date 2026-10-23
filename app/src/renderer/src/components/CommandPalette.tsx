@@ -6,6 +6,8 @@ import { fuzzyFilter } from '../lib/fuzzy'
 import { ProjectIcon } from './ProjectIcon'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import type { Workspace } from '../../../preload'
+import type { SplitTile } from '../lib/split'
+import { cancelChatDrag, finishChatDrag, moveChatDrag } from '../lib/split-drag'
 
 interface PaletteItem {
   id: string
@@ -23,6 +25,8 @@ interface PaletteItem {
   run: () => void
   /** ⌘↩ on a chat: open it in a window beside the one on screen (split view). */
   beside?: () => void
+  /** A chat, or a project's chat, can be dragged out onto the windows: a split. */
+  tile?: SplitTile
 }
 
 /** Is this element actually on screen (not inside a hidden chat or page)? */
@@ -60,6 +64,43 @@ function focusComposerSoon(): void {
   }
   // After the palette has gone: it is what holds focus until it unmounts.
   requestAnimationFrame(attempt)
+}
+
+/**
+ * A result pulled out of the palette onto the windows. The palette steps aside
+ * as soon as the pointer really moves, so the windows and the drop preview are
+ * what you see; from there it lands like a chat dragged from the sidebar.
+ */
+function dragOut(e: React.PointerEvent, tile: SplitTile, close: () => void): void {
+  if (e.button !== 0 || e.metaKey || e.altKey || e.ctrlKey || e.shiftKey) return
+  const x0 = e.clientX
+  const y0 = e.clientY
+  let carried = false
+  const move = (ev: PointerEvent): void => {
+    if (!carried && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return
+    if (!carried) {
+      carried = true
+      close()
+    }
+    moveChatDrag(tile, ev.clientX, ev.clientY)
+  }
+  const done = (): void => {
+    window.removeEventListener('pointermove', move, true)
+    window.removeEventListener('pointerup', up, true)
+    window.removeEventListener('keydown', esc, true)
+  }
+  const up = (ev: PointerEvent): void => {
+    done()
+    if (carried && useStore.getState().splitDrag) finishChatDrag(ev.clientX, ev.clientY)
+  }
+  const esc = (ev: KeyboardEvent): void => {
+    if (ev.key !== 'Escape') return
+    done()
+    if (carried) cancelChatDrag()
+  }
+  window.addEventListener('pointermove', move, true)
+  window.addEventListener('pointerup', up, true)
+  window.addEventListener('keydown', esc, true)
 }
 
 interface Group {
@@ -154,6 +195,18 @@ export function CommandPalette({
     for (const w of workspaces) m.set(w.id, w.name)
     return m
   }, [workspaces])
+
+  // What dragging a project out carries: the chat it shows, or its newest.
+  const projectTile = useCallback(
+    (wsId: string): SplitTile | undefined => {
+      const chat =
+        activeChatId[wsId] ??
+        allChats.filter((c) => c.workspaceId === wsId).sort((a, b) => b.updatedAt - a.updatedAt)[0]
+          ?.id
+      return chat ? { ws: wsId, chat } : undefined
+    },
+    [activeChatId, allChats]
+  )
 
   // A conversation in Chats belongs to no project: its workspace is not in the
   // tree, so there is nothing for setActive to show. It opens the way the
@@ -260,7 +313,8 @@ export function CommandPalette({
         run: () => openChat(c.workspaceId, c.id),
         beside: projectNames.has(c.workspaceId)
           ? () => void useStore.getState().openBeside(c.workspaceId, c.id)
-          : undefined
+          : undefined,
+        tile: projectNames.has(c.workspaceId) ? { ws: c.workspaceId, chat: c.id } : undefined
       } as PaletteItem
     }))
     const projectEntries = workspaces
@@ -273,14 +327,15 @@ export function CommandPalette({
           subtitle: 'Project',
           workspace: w,
           thenType: true,
-          run: () => useStore.getState().setActive(w.id)
+          run: () => useStore.getState().setActive(w.id),
+          tile: projectTile(w.id)
         } as PaletteItem
       }))
     return [...chatEntries, ...projectEntries]
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 6)
       .map((e) => e.item)
-  }, [allChats, workspaces, projectRecency, projectNames, openChat])
+  }, [allChats, workspaces, projectRecency, projectNames, openChat, projectTile])
 
   // Everything, for search — a project or chat you haven't touched recently
   // still has to be reachable by typing its name.
@@ -291,7 +346,8 @@ export function CommandPalette({
       subtitle: 'Project',
       workspace: w,
       thenType: true,
-      run: () => useStore.getState().setActive(w.id)
+      run: () => useStore.getState().setActive(w.id),
+      tile: projectTile(w.id)
     }))
     const chatItems = allChats.map((c) => ({
       id: `chat.${c.id}`,
@@ -302,10 +358,19 @@ export function CommandPalette({
       run: () => openChat(c.workspaceId, c.id),
       beside: projectNames.has(c.workspaceId)
         ? () => void useStore.getState().openBeside(c.workspaceId, c.id)
-        : undefined
+        : undefined,
+      tile: projectNames.has(c.workspaceId) ? { ws: c.workspaceId, chat: c.id } : undefined
     }))
     return [...currentChatCommands, ...navigateCommands, ...projects, ...chatItems]
-  }, [currentChatCommands, navigateCommands, workspaces, allChats, projectNames, openChat])
+  }, [
+    currentChatCommands,
+    navigateCommands,
+    workspaces,
+    allChats,
+    projectNames,
+    openChat,
+    projectTile
+  ])
 
   const groups = useMemo<Group[]>(() => {
     if (!query.trim()) {
@@ -396,7 +461,16 @@ export function CommandPalette({
                       if (pointerSeen(e) || pointerLive) setSelected(idx)
                     }}
                     onClick={(e) => run(item, e.metaKey || e.altKey)}
-                    title={item.beside ? '⌘↩ opens it beside the chat on screen' : undefined}
+                    onPointerDown={(e) => {
+                      if (item.tile) dragOut(e, item.tile, onClose)
+                    }}
+                    title={
+                      item.beside
+                        ? '⌘↩ opens it beside the chat on screen · drag it onto the window for a split'
+                        : item.tile
+                          ? 'Drag it onto the window for a split'
+                          : undefined
+                    }
                   >
                     {item.workspace && <PaletteIcon ws={item.workspace} />}
                     <span className="cmdk-item-label">{item.label}</span>

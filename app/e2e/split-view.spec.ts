@@ -459,3 +459,75 @@ test('split view: a narrow window shows its browser as a mini, and big docks it'
     for (const dir of [data, proj]) rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('split view: drag a result out of ⌘K onto the window', async () => {
+  test.setTimeout(120_000)
+  const data = mkdtempSync(join(tmpdir(), 'cove-split-cmdk-'))
+  const proj = mkdtempSync(join(tmpdir(), 'cove-split-cmdkp-'))
+  writeFileSync(join(proj, 'README.md'), '# e2e\n')
+  const { app, window } = await launch(data, proj)
+  try {
+    await window.evaluate(() => {
+      localStorage.setItem('cove.onboarded', '1')
+      localStorage.setItem('cove.connectionsOffered', '1')
+      localStorage.setItem('cove.e2e', '1')
+    })
+    await window.reload()
+    await window.waitForSelector('.sidebar', { timeout: 20_000 })
+    const ids = await window.evaluate(async () => {
+      const tree = await window.cove.storeTree()
+      const a = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!.id
+      const one = await window.cove.chatCreate(a)
+      const two = await window.cove.chatCreate(a)
+      await window.cove.chatUpdate(one, { title: 'First chat' })
+      await window.cove.chatUpdate(two, { title: 'Advertiser research' })
+      return { a, one, two }
+    })
+    await window.reload()
+    await window.waitForSelector('.sidebar', { timeout: 20_000 })
+    await window.evaluate(({ a, one }) => {
+      const st = (window as unknown as { __store: Store }).__store.getState()
+      st.setActive(a)
+      st.selectChat(a, one)
+    }, ids)
+    await expect(desk(window, ids.one)).toBeVisible()
+    const canvas = await desk(window, ids.one).boundingBox()
+
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command-palette')
+    })
+    await window.locator('.cmdk-input').fill('adver')
+    const result = window.locator('.cmdk-item', { hasText: 'Advertiser research' })
+    const from = (await result.boundingBox())!
+    await window.mouse.move(from.x + 40, from.y + from.height / 2)
+    await window.mouse.down()
+    await window.mouse.move(from.x + 60, from.y + from.height / 2 + 10, { steps: 4 })
+    // The palette steps aside the moment the result is carried.
+    await expect(window.locator('.cmdk-panel')).toHaveCount(0)
+    await window.mouse.move(canvas!.x + canvas!.width * 0.85, canvas!.y + canvas!.height / 2, {
+      steps: 12
+    })
+    await expect(window.locator('.split-ghost.new')).toBeVisible()
+    if (shots) await window.screenshot({ path: shots('cmdk-dragging') })
+    await window.mouse.up()
+    await expect(desks(window)).toHaveCount(2)
+    await settled(window)
+    const [l, r] = await Promise.all([
+      desk(window, ids.one).boundingBox(),
+      desk(window, ids.two).boundingBox()
+    ])
+    expect(l!.x).toBeLessThan(r!.x)
+
+    // A click is still a click: it opens the result, no split.
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.send('menu:command-palette')
+    })
+    await window.locator('.cmdk-input').fill('First chat')
+    await window.locator('.cmdk-item', { hasText: 'First chat' }).click()
+    await expect(window.locator('.cmdk-panel')).toHaveCount(0)
+    await expect(desks(window)).toHaveCount(2)
+  } finally {
+    await app.close().catch(() => {})
+    for (const dir of [data, proj]) rmSync(dir, { recursive: true, force: true })
+  }
+})
