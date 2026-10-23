@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { stringifyForPhone } from './wire-json'
 import { createHash } from 'crypto'
 import { Sealer, Opener, aadFor, probe, newToken, DeviceKeys } from './crypto'
 import { machineId } from './identity'
@@ -79,7 +80,7 @@ export class ClientConn {
     if (this.closed || !this.sealer) return
     // Streaming text is expendable; anything else waits its turn.
     if (frame.t === 'delta' && this.relay.bufferedAmount > 4 * 1024 * 1024) return
-    this.relay.send(this.id, this.sealer.seal(JSON.stringify(frame)))
+    this.relay.send(this.id, this.sealer.seal(stringifyForPhone(frame)))
   }
 
   close(): void {

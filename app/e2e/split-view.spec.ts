@@ -235,7 +235,7 @@ test('split view: open beside, move between windows, leave and come back, restar
     await window.locator('.split-row').dblclick()
     await window.getByLabel('Split name').fill('Launch week')
     await window.getByLabel('Split name').press('Enter')
-    await expect(window.locator('.split-row-name')).toHaveText('Launch week')
+    await expect(window.locator('.split-row-title')).toHaveText('Launch week')
 
     // The split comes back after a restart.
     await app.close()
@@ -243,7 +243,7 @@ test('split view: open beside, move between windows, leave and come back, restar
     await window.waitForSelector('.sidebar', { timeout: 20_000 })
     await expect(desks(window)).toHaveCount(3, { timeout: 15_000 })
     for (const id of kept) await expect(desk(window, id)).toBeVisible()
-    await expect(window.locator('.split-row-name')).toHaveText('Launch week')
+    await expect(window.locator('.split-row-title')).toHaveText('Launch week')
 
     // Separate: each chat on its own again, the row gone.
     await window.locator('.split-row').hover()

@@ -802,6 +802,46 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     }
   })
 
+  it('repairs a stored split emoji and delivers the newest reply after it', async () => {
+    h.events.set('c-unicode', [
+      {
+        seq: 1,
+        kind: 'tool_result',
+        ts: 1,
+        data: JSON.stringify({
+          kind: 'tool_result',
+          toolId: 'tool',
+          ok: true,
+          summary: ('a'.repeat(399) + '😀').slice(0, 400)
+        })
+      },
+      {
+        seq: 2,
+        kind: 'assistant',
+        ts: 2,
+        data: JSON.stringify({ kind: 'assistant', id: 'newest', text: 'Newest reply 😀' })
+      }
+    ])
+    const phone = new FakePhone(secret)
+    try {
+      await phone.connect()
+      phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+      await phone.until((frame) => frame.t === 'welcome')
+      phone.send({ t: 'subscribe', chatId: 'c-unicode', afterSeq: 0 })
+      const received: unknown[] = []
+      await phone.until((frame) => {
+        if (frame.t === 'event') received.push(frame.event)
+        return frame.t === 'draft'
+      })
+      expect(received).toMatchObject([
+        { seq: 1, data: { summary: 'a'.repeat(399) + '�' } },
+        { seq: 2, data: { text: 'Newest reply 😀' } }
+      ])
+    } finally {
+      phone.ws.close()
+    }
+  })
+
   it('a phone that keeps asking for the same catch-up is not sent it every time', async () => {
     // A long conversation, read from the store (nothing of it in memory).
     h.events.set(

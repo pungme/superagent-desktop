@@ -3,13 +3,58 @@ import { useStore } from '../state'
 import { useProjectIcon } from '../hooks/useProjectIcon'
 import { ProjectIcon } from './ProjectIcon'
 import type { Workspace } from '../../../preload'
-import type { Split } from '../lib/split'
+import { layoutRects, type Split } from '../lib/split'
 
-function TileIcon({ ws }: { ws: Workspace }): React.JSX.Element {
+/** The thumbnail's size: the split's windows drawn as they sit, at this scale. */
+const THUMB_W = 52
+const THUMB_H = 34
+
+function TileIcon({ ws, size }: { ws: Workspace; size: number }): React.JSX.Element {
   const icon = useProjectIcon(ws.id, ws.path, ws.kind)
+  return <ProjectIcon icon={icon} kind={ws.kind} size={size} />
+}
+
+/**
+ * A small picture of the split: its windows laid out as they are on screen
+ * (three across, two over two…), each holding its project's logo.
+ */
+function SplitThumb({
+  sp,
+  wsOf
+}: {
+  sp: Split
+  wsOf: (id: string) => Workspace | undefined
+}): React.JSX.Element {
+  // Laid out on a window-shaped canvas, then scaled down to the thumbnail.
+  const W = 1320
+  const H = 900
+  const rects = layoutRects(sp.tiles.length, W, H, sp.orient, sp.fr)
   return (
-    <span className="split-row-icon">
-      <ProjectIcon icon={icon} kind={ws.kind} size={16} />
+    <span className="split-thumb" aria-hidden="true">
+      <span className="split-thumb-in">
+        {sp.tiles.map((t, i) => {
+          const r = rects[i]
+          if (!r) return null
+          const ws = wsOf(t.ws)
+          const w = (r.w / W) * (THUMB_W - 4)
+          const h = (r.h / H) * (THUMB_H - 4)
+          const size = Math.max(9, Math.min(18, Math.floor(Math.min(w, h) - 2)))
+          return (
+            <span
+              key={`${t.ws}:${t.chat}`}
+              className="split-thumb-cell"
+              style={{
+                left: `${(r.x / W) * 100}%`,
+                top: `${(r.y / H) * 100}%`,
+                width: `${(r.w / W) * 100}%`,
+                height: `${(r.h / H) * 100}%`
+              }}
+            >
+              {ws && <TileIcon ws={ws} size={size} />}
+            </span>
+          )
+        })}
+      </span>
     </span>
   )
 }
@@ -28,8 +73,20 @@ export function SplitsSection(): React.JSX.Element | null {
   const openSplit = useStore((s) => s.openSplit)
   const separateSplit = useStore((s) => s.separateSplit)
   const renameSplit = useStore((s) => s.renameSplit)
+  const busy = useStore((s) => s.busy)
+  const asks = useStore((s) => s.guardrailAsks)
   const [editing, setEditing] = useState<string | null>(null)
   if (splits.length === 0) return null
+  /** Whether a chat of the split needs you (first) or is working. */
+  const statusOf = (sp: Split): 'needs-you' | 'working' | null => {
+    if (sp.tiles.some((t) => asks.some((a) => a.sessionId === t.chat))) return 'needs-you'
+    if (sp.tiles.some((t) => busy[t.chat]?.generating)) return 'working'
+    return null
+  }
+  const titleOf = (sp: Split, i: number): string => {
+    const t = sp.tiles[i]
+    return chats[t.ws]?.find((c) => c.id === t.chat)?.title || 'New chat'
+  }
   const wsOf = (id: string): Workspace | undefined =>
     tree.flatMap((g) => g.workspaces).find((w) => w.id === id)
   const describe = (sp: Split): { names: string; detail: string } => {
@@ -51,6 +108,8 @@ export function SplitsSection(): React.JSX.Element | null {
       {splits.map((sp) => {
         const on = sp.id === current && overlay === null
         const { names, detail } = describe(sp)
+        const status = statusOf(sp)
+        const chatNames = sp.tiles.map((_, i) => titleOf(sp, i)).join(' · ')
         return (
           <div
             key={sp.id}
@@ -69,12 +128,7 @@ export function SplitsSection(): React.JSX.Element | null {
               }
             }}
           >
-            <span className="split-row-icons">
-              {sp.tiles.map((t) => {
-                const ws = wsOf(t.ws)
-                return ws ? <TileIcon key={`${t.ws}:${t.chat}`} ws={ws} /> : null
-              })}
-            </span>
+            <SplitThumb sp={sp} wsOf={wsOf} />
             <span className="split-row-name">
               {editing === sp.id ? (
                 <input
@@ -100,10 +154,22 @@ export function SplitsSection(): React.JSX.Element | null {
                   }}
                 />
               ) : (
-                sp.name || names || 'Split'
+                <>
+                  <span className="split-row-title">{sp.name || names || 'Split'}</span>
+                  {/* Which conversations: two splits of one project otherwise
+                      read the same. */}
+                  <span className="split-row-chats">{chatNames}</span>
+                </>
               )}
             </span>
-            <span className="split-row-count">{sp.tiles.length}</span>
+            {status ? (
+              <span
+                className={`split-row-status ${status}`}
+                title={status === 'working' ? 'A chat here is working' : 'A chat here needs you'}
+              />
+            ) : (
+              <span className="split-row-count">{sp.tiles.length}</span>
+            )}
             <button
               className="split-row-x"
               title="Separate: each chat on its own again"
