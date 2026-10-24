@@ -43,7 +43,7 @@ export function SplitLayer({ canvas }: { canvas: Rect }): React.JSX.Element | nu
   const label = (t: SplitTile): { project: string; chat: string } => {
     const ws = tree.flatMap((g) => g.workspaces).find((w) => w.id === t.ws)
     const c = chatsByWs[t.ws]?.find((x) => x.id === t.chat)
-    return { project: ws?.name ?? '', chat: c?.title || 'New chat' }
+    return { project: ws?.name ?? 'Chats', chat: c?.title || 'New chat' }
   }
 
   // A native page or simulator paints above everything; while a chat is being

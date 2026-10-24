@@ -27,6 +27,8 @@ import {
   takePendingBranch,
   createGroup,
   updateGroup,
+  renameWorkspace,
+  moveChatToWorkspace,
   deleteGroup,
   createWorkspace,
   createBrowserWorkspace,
@@ -279,6 +281,8 @@ const workspaceAdd = z.object({
 })
 const browserCreate = z.object({ url: z.string().max(4000).optional() })
 const idParam = z.object({ id: z.string().min(1) })
+const workspaceRename = z.object({ id: z.string().min(1), name: z.string().min(1).max(80) })
+const chatMove = z.object({ chatId: z.string().min(1), workspaceId: z.string().min(1) })
 const groupCreate = z.object({ name: z.string().max(80).optional() })
 const groupRename = z.object({ id: z.string().min(1), name: z.string().min(1).max(80) })
 const dirsParams = z.object({ path: z.string().max(4000).optional() })
@@ -805,6 +809,27 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         broadcastToWindows('projects:changed', {})
         pushChats()
         return { ok: true, result: { tree: listTree() } }
+      }
+      case 'workspace.rename': {
+        const p = workspaceRename.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!renameWorkspace(p.data.id, p.data.name)) return fail('not-found', 'no such project')
+        broadcastToWindows('projects:changed', {})
+        return { ok: true, result: { tree: listTree() } }
+      }
+      case 'chat.move': {
+        const p = chatMove.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        if (!getWorkspace(p.data.workspaceId)) return fail('not-found', 'no such project')
+        const live = findSessionByChat(p.data.chatId)
+        if (live) stopAgent(live.id, 'phone: chat moved')
+        if (!moveChatToWorkspace(p.data.chatId, p.data.workspaceId))
+          return fail('unavailable', 'a chat on its own branch stays with its project')
+        markContextLost(p.data.chatId)
+        broadcastToWindows('projects:changed', {})
+        pushChats()
+        return { ok: true }
       }
       case 'group.create': {
         const p = groupCreate.safeParse(params)

@@ -56,7 +56,8 @@ export function ChatDesk({
   visible = true,
   focused = visible,
   hidden = false,
-  tile
+  tile,
+  plain = false
 }: {
   ws: Workspace
   chatId?: string
@@ -64,6 +65,8 @@ export function ChatDesk({
   focused?: boolean
   hidden?: boolean
   tile?: DeskTile
+  /** A conversation that belongs to no project (Chats): no project toolbar when it fills the page. */
+  plain?: boolean
 }): React.JSX.Element {
   // Which surface is open is remembered per CONVERSATION, so two chats in one
   // project can have different setups (one on a webpage, another on nothing).
@@ -780,7 +783,7 @@ export function ChatDesk({
             </svg>
           </button>
         </div>
-      ) : (
+      ) : plain ? null : (
       <div className="workspace-toolbar">
         {/* Leads the toolbar because the pane it opens is the leftmost column. */}
         {ws.kind !== 'browser' && (

@@ -172,12 +172,12 @@ test('switching Computer chats keeps the one you left running', async () => {
   // it; like projects, the last few chats now stay mounted.
   const newChat = window.locator('.sidebar-chats-head button[aria-label="New chat"]')
   await newChat.click()
-  await window.waitForSelector('.dchat', { timeout: 10_000 })
-  await expect(window.locator('.dchat .chat-mount')).toHaveCount(1, { timeout: 10_000 })
+  await window.waitForSelector('.chats-host .chat-mount', { timeout: 10_000 })
+  await expect(window.locator('.chats-host .chat-mount')).toHaveCount(1, { timeout: 10_000 })
   await newChat.click()
-  await expect(window.locator('.dchat .chat-mount')).toHaveCount(2, { timeout: 10_000 })
+  await expect(window.locator('.chats-host .chat-mount')).toHaveCount(2, { timeout: 10_000 })
   // Only the one on screen is shown.
-  await expect(window.locator('.dchat .chat-mount:visible')).toHaveCount(1)
+  await expect(window.locator('.chats-host .chat-mount:visible')).toHaveCount(1)
 })
 
 test('Settings opens from the sidebar gear and closes with Done', async () => {
@@ -245,7 +245,7 @@ test('Chats lives in the sidebar, above Projects, and opens a chat straight away
   // One click from the sidebar is the conversation, with no list in between.
   await window.click('.sidebar-item:has-text("e2e-project")')
   await rows.first().click()
-  await expect(window.locator('.chats-host .dchat')).toBeVisible({ timeout: 10_000 })
+  await expect(window.locator('.chats-host .chat-mount:visible')).toHaveCount(1, { timeout: 10_000 })
   await expect(window.locator('.chats-host .dchat-list:visible')).toHaveCount(0)
   await expect(window.locator('.chats-host .chat-mount:visible')).toHaveCount(1)
   await expect(rows.first()).toHaveClass(/active/)

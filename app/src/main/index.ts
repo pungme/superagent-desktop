@@ -38,6 +38,8 @@ import {
 import { startMcpServer } from './mcp'
 import {
   getChat,
+  getTree,
+  DESKTOP_WORKSPACE_ID,
   moveChatToWorkspace,
   registerStoreIpc,
   setChatPinned,
@@ -524,6 +526,26 @@ app.whenReady().then(async () => {
         },
         { type: 'separator' }
       )
+      // Put it under another project, or out into Chats. A chat working in its
+      // own copy of a project (a branch) stays with that project.
+      const ownCopy = Boolean(cwd && cwd.includes('/.worktrees/'))
+      const targets = [
+        ...(workspaceId === DESKTOP_WORKSPACE_ID
+          ? []
+          : [{ id: DESKTOP_WORKSPACE_ID, name: 'Chats' }]),
+        ...getTree()
+          .flatMap((g) => g.workspaces)
+          .filter((w) => w.kind === 'app' && w.id !== workspaceId && w.id !== DESKTOP_WORKSPACE_ID)
+          .map((w) => ({ id: w.id, name: w.name }))
+      ]
+      template.push({
+        label: 'Move to',
+        enabled: !ownCopy && targets.length > 0,
+        submenu: targets.map((t) => ({
+          label: t.name,
+          click: () => win.webContents.send('chat:move-request', { chatId, workspaceId: t.id })
+        }))
+      })
       // Come back to it later: the dot goes back on until it is opened again.
       // Which way it reads is the window's to say — the marks live there.
       template.push({
@@ -621,7 +643,8 @@ app.whenReady().then(async () => {
       // One entry: New Chat isolates itself on a repo now (a chat is a checkout),
       // so the separate worktree item is gone.
       const template: Electron.MenuItemConstructorOptions[] = [
-        { label: 'New Chat', click: () => send('new-chat') }
+        { label: 'New Chat', click: () => send('new-chat') },
+        { label: 'Rename…', click: () => send('rename') }
       ]
       // This row IS the conversation that works in the folder — it has no row of
       // its own — so the only place to empty it is here.

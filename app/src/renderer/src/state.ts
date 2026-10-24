@@ -632,7 +632,8 @@ interface CoveState {
   /** Put a conversation where you dropped it, within its project. */
   moveChat: (chatId: string, beforeChatId: string) => Promise<void>
   /** Take a conversation out of its project, into Chats. */
-  moveChatOut: (chatId: string, toWorkspaceId: string) => Promise<boolean>
+  /** `follow`: the chat stays on screen, now under its new project. */
+  moveChatOut: (chatId: string, toWorkspaceId: string, follow?: boolean) => Promise<boolean>
 }
 
 // Dedupe concurrent loadChats() calls per workspace. Without this, React
@@ -777,6 +778,15 @@ function persistSplits(list: Split[], current: Split | null): void {
 }
 const initialSplits = savedSplits()
 
+// Loose chats live in a workspace that is not a project, so it is not in the
+// tree: it must not count as "gone" when projects are pruned, and while the
+// Chats page is open it is the workspace on screen.
+let chatHomeId: string | null = null
+if (typeof window !== 'undefined')
+  void window.cove?.desktopChatHome?.().then((h) => {
+    if (h) chatHomeId = h.workspaceId
+  })
+
 export const useStore = create<CoveState>((set, get) => ({
   tree: [],
   activeWorkspaceId: null,
@@ -796,7 +806,7 @@ export const useStore = create<CoveState>((set, get) => ({
     const s = get()
     let sp = s.split
     if (!sp) {
-      const aw = s.activeWorkspaceId
+      const aw = s.overlay === 'chats' && chatHomeId ? chatHomeId : s.activeWorkspaceId
       const ac = aw ? s.activeChatId[aw] : undefined
       if (!aw || !ac || (aw === workspaceId && ac === chatId)) return false
       const { w, h } = s.splitCanvas
@@ -1903,7 +1913,7 @@ export const useStore = create<CoveState>((set, get) => ({
   // A newly created project gets one root conversation. WorkspaceView must not
   // independently create another for code folders: those two paths used to
   // race and leave a duplicate nested "New chat / no branch yet" row.
-  moveChatOut: async (chatId, toWorkspaceId) => {
+  moveChatOut: async (chatId, toWorkspaceId, follow = false) => {
     const from = Object.keys(get().chats).find((wid) =>
       (get().chats[wid] ?? []).some((c) => c.id === chatId)
     )
@@ -1912,6 +1922,27 @@ export const useStore = create<CoveState>((set, get) => ({
     // Both ends of the move, so the row leaves its project and arrives in
     // Chats without waiting for anything else to reload them.
     await get().loadChats(toWorkspaceId)
+    // A window of a split keeps showing it, from its new project.
+    const retarget = (sp: Split): Split => ({
+      ...sp,
+      tiles: sp.tiles.map((t) => (t.chat === chatId ? { ...t, ws: toWorkspaceId } : t))
+    })
+    if (get().splits.some((sp) => sp.tiles.some((t) => t.chat === chatId))) {
+      const splits = get().splits.map((sp) =>
+        sp.tiles.some((t) => t.chat === chatId) ? retarget(sp) : sp
+      )
+      const cur = get().split ? (splits.find((x) => x.id === get().split!.id) ?? null) : null
+      persistSplits(splits, cur)
+      set({ splits, split: cur })
+    }
+    if (follow && from && get().activeChatId[from] === chatId) {
+      await get().loadChats(from)
+      const home = await window.cove.desktopChatHome?.()
+      if (home?.workspaceId === toWorkspaceId) get().setOverlay('chats')
+      else get().setActive(toWorkspaceId)
+      get().selectChat(toWorkspaceId, chatId)
+      return true
+    }
     if (from) {
       await get().loadChats(from)
       set((s) => {
@@ -2054,7 +2085,7 @@ useStore.subscribe((st, prev) => {
   if (gone && st.splits.length) {
     const known = new Set(st.tree.flatMap((g) => g.workspaces.map((w) => w.id)))
     const alive = (t: SplitTile): boolean => {
-      if (st.tree.length && !known.has(t.ws)) return false
+      if (st.tree.length && !known.has(t.ws) && t.ws !== chatHomeId) return false
       const list = st.chats[t.ws]
       return !list || list.some((c) => c.id === t.chat)
     }

@@ -35,7 +35,7 @@ async function launch(
 
 type Store = {
   getState: () => Record<string, (...args: unknown[]) => unknown> & {
-    split: { tiles: { chat: string }[] }
+    split: { tiles: { chat: string; ws: string }[] }
   }
 }
 const desks = (w: Page): Locator =>
@@ -529,5 +529,119 @@ test('split view: drag a result out of ⌘K onto the window', async () => {
   } finally {
     await app.close().catch(() => {})
     for (const dir of [data, proj]) rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loose chats join a split, projects can be renamed, a chat moves into a project', async () => {
+  test.setTimeout(150_000)
+  const data = mkdtempSync(join(tmpdir(), 'cove-loose-data-'))
+  const proj = mkdtempSync(join(tmpdir(), 'cove-loose-p-'))
+  writeFileSync(join(proj, 'README.md'), '# e2e\n')
+  const { app, window } = await launch(data, proj)
+  try {
+    await window.evaluate(() => {
+      localStorage.setItem('cove.onboarded', '1')
+      localStorage.setItem('cove.connectionsOffered', '1')
+      localStorage.setItem('cove.e2e', '1')
+    })
+    await window.reload()
+    await window.waitForSelector('.sidebar', { timeout: 20_000 })
+    const ids = await window.evaluate(async () => {
+      const tree = await window.cove.storeTree()
+      const a = tree.flatMap((g) => g.workspaces).find((w) => w.name === 'e2e-project')!.id
+      const home = (await window.cove.desktopChatHome!()).workspaceId
+      const make = async (ws: string, title: string): Promise<string> => {
+        const id = await window.cove.chatCreate(ws)
+        await window.cove.chatUpdate(id, { title })
+        window.cove.chatSave(
+          id,
+          JSON.stringify([
+            { kind: 'msg', msg: { id: `u-${id}`, role: 'user', text: 'hi' } },
+            { kind: 'msg', msg: { id: `a-${id}`, role: 'assistant', text: `Reply in ${title}.` } }
+          ])
+        )
+        return id
+      }
+      return {
+        a,
+        home,
+        p1: await make(a, 'Project chat'),
+        l1: await make(home, 'Loose one'),
+        l2: await make(home, 'Loose two')
+      }
+    })
+    await window.reload()
+    await window.waitForSelector('.sidebar', { timeout: 20_000 })
+
+    // A loose chat on screen (the Chats page), then the other one beside it.
+    await window.evaluate(({ home, l1 }) => {
+      const st = (window as unknown as { __store: Store }).__store.getState()
+      st.selectChat(home, l1)
+      st.setOverlay('chats')
+    }, ids)
+    await expect(desk(window, ids.l1).locator('.easy-assistant').first()).toContainText('Reply in')
+    const draft = desk(window, ids.l1).locator('textarea').first()
+    await draft.fill('draft that must survive')
+    const ok = await window.evaluate(
+      ({ home, l2 }) =>
+        (window as unknown as { __store: Store }).__store.getState().openBeside(home, l2),
+      ids
+    )
+    expect(ok).toBe(true)
+    await expect(desks(window)).toHaveCount(2)
+    await expect(focused(window)).toHaveAttribute('data-desk', ids.l2)
+    await expect(desk(window, ids.l1).locator('.tile-project')).toHaveText('Chats')
+    await expect(desk(window, ids.l1).locator('textarea').first()).toHaveValue(
+      'draft that must survive'
+    )
+    // A project chat joins them too.
+    await window.evaluate(
+      ({ a, p1 }) => (window as unknown as { __store: Store }).__store.getState().openBeside(a, p1),
+      ids
+    )
+    await expect(desks(window)).toHaveCount(3)
+    // The split survives the store noticing the loose chats are not projects.
+    await window.evaluate(() =>
+      (window as unknown as { __store: Store }).__store.getState().refresh()
+    )
+    await window.waitForTimeout(500)
+    await expect(desks(window)).toHaveCount(3)
+
+    // Rename the project: double-click its name.
+    const name = window.locator('.sidebar-item-name', { hasText: 'e2e-project' }).first()
+    await name.dblclick()
+    const input = window.locator('.sidebar-item-rename').first()
+    await input.fill('Renamed project')
+    await input.press('Enter')
+    await expect(window.locator('.sidebar-item-name', { hasText: 'Renamed project' })).toHaveCount(
+      1
+    )
+    const stored = await window.evaluate(async () =>
+      (await window.cove.storeTree()).flatMap((g) => g.workspaces).map((w) => w.name)
+    )
+    expect(stored).toContain('Renamed project')
+
+    // Move a loose chat into the project; its window keeps showing it.
+    const moved = await window.evaluate(
+      ({ a, l2 }) =>
+        (window as unknown as { __store: Store }).__store
+          .getState()
+          .moveChatOut(l2, a, true) as Promise<boolean>,
+      ids
+    )
+    expect(moved).toBe(true)
+    const where = await window.evaluate(
+      (id) =>
+        (window as unknown as { __store: Store }).__store
+          .getState()
+          .split.tiles.find((t: { chat: string }) => t.chat === id) as { ws: string },
+      ids.l2
+    )
+    expect(where.ws).toBe(ids.a)
+    await expect(desk(window, ids.l2).locator('.tile-project')).toHaveText('Renamed project')
+  } finally {
+    await app.close()
+    rmSync(data, { recursive: true, force: true })
+    rmSync(proj, { recursive: true, force: true })
   }
 })

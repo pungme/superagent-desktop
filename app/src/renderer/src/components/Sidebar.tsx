@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { branchLabel, cleanUpQuestion, otherBranchesLabel } from '../../../shared/other-branches'
 import { createPortal } from 'react-dom'
 import {
@@ -877,6 +877,22 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   const defaultTabName = ws.name === 'Browser project' || ws.name === 'New Tab'
   const displayName =
     ws.kind === 'browser' && defaultTabName ? hostOfUrl(siteUrl) || ws.name : ws.name
+  // Rename: double-click the name, or Rename… in the row's menu. Only the label
+  // changes; the folder on disk keeps its name.
+  const renameWorkspace = useStore((s) => s.renameWorkspace)
+  const [renaming, setRenaming] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+  const startRename = useCallback((): void => {
+    setNameDraft(displayName)
+    setRenaming(true)
+  }, [displayName])
+  useEffect(() => {
+    const on = (e: Event): void => {
+      if ((e as CustomEvent<{ id: string }>).detail?.id === ws.id) startRename()
+    }
+    window.addEventListener('cove:rename-project', on)
+    return () => window.removeEventListener('cove:rename-project', on)
+  }, [ws.id, startRename])
   useEffect(() => {
     if (ws.kind === 'browser') return
     let alive = true
@@ -1007,21 +1023,50 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             </span>
           )}
         </span>
-        {/* Not editable: the name mirrors the folder, and renaming here changed
-            only the label — which read as if it would move or rename the folder. */}
-        <span
-          className="sidebar-item-name"
-          title={[
-            ws.path,
-            selfBranch && `⎇ ${selfBranch}`,
-            aheadBehind?.behind ? `↓${aheadBehind.behind} to pull` : '',
-            aheadBehind?.ahead ? `↑${aheadBehind.ahead} to push` : ''
-          ]
-            .filter(Boolean)
-            .join('\n')}
-        >
-          {displayName}
-        </span>
+        {renaming ? (
+          <input
+            className="sidebar-item-rename"
+            value={nameDraft}
+            autoFocus
+            onFocus={(e) => e.currentTarget.select()}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={() => {
+              const n = nameDraft.trim()
+              if (n && n !== displayName) void renameWorkspace(ws.id, n)
+              setRenaming(false)
+            }}
+            onKeyDown={(e) => {
+              // Not the row's: a space or arrow here must not start a drag.
+              e.stopPropagation()
+              if (e.key === 'Enter') e.currentTarget.blur()
+              if (e.key === 'Escape') {
+                setNameDraft(displayName)
+                setRenaming(false)
+              }
+            }}
+          />
+        ) : (
+          <span
+            className="sidebar-item-name"
+            onDoubleClick={(e) => {
+              e.stopPropagation()
+              startRename()
+            }}
+            title={[
+              ws.path,
+              selfBranch && `⎇ ${selfBranch}`,
+              aheadBehind?.behind ? `↓${aheadBehind.behind} to pull` : '',
+              aheadBehind?.ahead ? `↑${aheadBehind.ahead} to push` : '',
+              'Double-click to rename'
+            ]
+              .filter(Boolean)
+              .join('\n')}
+          >
+            {displayName}
+          </span>
+        )}
         {simHere && (
           <span className="sidebar-item-sim" title="A simulator is attached to this project">
             <PhoneIcon />
@@ -1737,6 +1782,13 @@ function ChatsSection(): React.JSX.Element {
   const shown = all ? list : list.slice(0, CHATS_SHOWN)
   const open = (id: string): void => {
     if (!home) return
+    // A chat that is a window of the split goes to that window.
+    const sp = useStore.getState().split
+    const at = sp ? sp.tiles.findIndex((t) => t.ws === home && t.chat === id) : -1
+    if (at >= 0) {
+      useStore.getState().focusTile(at)
+      return
+    }
     selectChat(home, id)
     window.dispatchEvent(new CustomEvent('cove:open-chats'))
   }

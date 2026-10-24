@@ -13,7 +13,6 @@ import { REPLAY_INTRO_EVENT, shouldPlayFirstRunIntro } from './firstRun'
 import { Tour } from './tour/Tour'
 import { REPLAY_TOUR_EVENT } from './tour/tour-keys'
 import { ComputerPanel } from './components/ComputerPanel'
-import { ChatsView } from './components/ChatsView'
 import { Onboarding } from './components/Onboarding'
 import { Settings } from './components/Settings'
 import { CommandPalette } from './components/CommandPalette'
@@ -266,6 +265,8 @@ function App(): React.JSX.Element {
       }
       // Takes it off the list; the folder and its files are untouched.
       if (action === 'remove') s.removeWorkspace(id)
+      if (action === 'rename')
+        window.dispatchEvent(new CustomEvent('cove:rename-project', { detail: { id } }))
     })
   }, [])
 
@@ -283,9 +284,38 @@ function App(): React.JSX.Element {
     .map((t) => t.ws)
     .filter((id, i, a) => !opened.includes(id) && a.indexOf(id) === i)
   if (missing && missing.length) setOpened([...opened, ...missing])
+  // Conversations that belong to no project live in a workspace of their own
+  // that is not in the project list. It is hosted like a project, so a loose
+  // chat is mounted once whether it fills the page (Chats) or is a window of a
+  // split.
+  const [homeWs, setHomeWs] = useState<(typeof allWorkspaces)[number] | null>(null)
+  useEffect(() => {
+    let alive = true
+    void window.cove.desktopChatHome?.().then((h) => {
+      if (!alive || !h) return
+      setHomeWs({
+        id: h.workspaceId,
+        groupId: '',
+        name: 'Chats',
+        path: h.cwd,
+        position: 0,
+        browserUrl: null,
+        lastSessionId: null,
+        kind: 'app'
+      })
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
   const openedWorkspaces = opened
     .map((id) => allWorkspaces.find((w) => w.id === id))
     .filter((w): w is (typeof allWorkspaces)[number] => Boolean(w))
+  const chatsOpen0 = useStore((s) => s.overlay === 'chats')
+  const homeInSplit = !!homeWs && !!split?.tiles.some((t) => t.ws === homeWs.id)
+  const [homeEverOpened, setHomeEverOpened] = useState(false)
+  if (!homeEverOpened && homeWs && (chatsOpen0 || homeInSplit)) setHomeEverOpened(true)
+  if (homeWs && homeEverOpened) openedWorkspaces.push(homeWs)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   // One source of truth: the sidebar highlights whichever of these is showing.
@@ -296,11 +326,6 @@ function App(): React.JSX.Element {
   // Once opened it stays in the tree; before that there is nothing to keep.
   const [computerEverOpened, setComputerEverOpened] = useState(false)
   if (computerOpen && !computerEverOpened) setComputerEverOpened(true)
-  // The same for Chats: it was unmounted whenever you went to a project (or
-  // Settings), and unmounting a chat stops its agent — so a standalone chat
-  // stopped the moment you moved to another session.
-  const [chatsEverOpened, setChatsEverOpened] = useState(false)
-  if (chatsOpen && !chatsEverOpened) setChatsEverOpened(true)
   /** Any full-window section — all four cover the projects the same way. */
   const sectionOpen = overlay !== null
   // Settings is a full page too: like a section it must hide the workspace (and
@@ -508,6 +533,11 @@ function App(): React.JSX.Element {
   }, [])
 
   // The chat menu's "Mark as unread" / "Mark as read".
+  useEffect(() => {
+    return window.cove.onChatMoveRequest?.(({ chatId, workspaceId }) => {
+      void useStore.getState().moveChatOut(chatId, workspaceId, true)
+    })
+  }, [])
   useEffect(() => {
     return window.cove.onChatOpenBeside?.(({ chatId, workspaceId }) => {
       useStore.getState().openBeside(workspaceId, chatId)
@@ -720,11 +750,16 @@ function App(): React.JSX.Element {
             // desks placed on the shared canvas. Same element either way, so a
             // project (and its chats' agents) never remounts entering or leaving it.
             const tiles = splitOn ? (tilesByWs.get(ws.id) ?? []) : undefined
-            const shown = splitOn ? tiles!.length > 0 : ws.id === activeId && !contentCovered
+            const isHome = ws.id === homeWs?.id
+            const shown = splitOn
+              ? tiles!.length > 0
+              : isHome
+                ? chatsOpen && !settingsOpen
+                : ws.id === activeId && !contentCovered
             return (
               <div
                 key={ws.id}
-                className={`workspace-host${splitOn ? ' in-split' : ''}`}
+                className={`workspace-host${splitOn ? ' in-split' : ''}${isHome ? ' chats-host' : ''}`}
                 style={
                   splitOn
                     ? {
@@ -739,7 +774,7 @@ function App(): React.JSX.Element {
               >
                 {/* visible also detaches the native browser view — it would
                     composite above the dashboard otherwise. */}
-                <WorkspaceView ws={ws} visible={shown} tiles={tiles} />
+                <WorkspaceView ws={ws} visible={shown} tiles={tiles} plain={isHome} />
               </div>
             )
           })
@@ -762,15 +797,9 @@ function App(): React.JSX.Element {
         )}
         {/* A full page (not a modal): covers the content area, above the hosts,
             with the native panes already detached via contentCovered. */}
-        {/* Chats, plain: the Computer's conversations without the desktop. */}
-        {chatsEverOpened && (
-          <div
-            className="chats-host"
-            style={{ display: chatsOpen && !settingsOpen ? undefined : 'none' }}
-          >
-            <ChatsView visible={chatsOpen && !settingsOpen} />
-          </div>
-        )}
+        {/* Chats, plain: the Computer's conversations without the desktop. They
+            are hosted with the projects above (homeWs), so they can also be
+            windows of a split. */}
         {settingsOpen && (
           <Settings
             initialSection={settingsInitialSection}

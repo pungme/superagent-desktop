@@ -24,11 +24,14 @@ export interface WorkspaceTile extends DeskTile {
 export function WorkspaceView({
   ws,
   visible = true,
-  tiles
+  tiles,
+  plain = false
 }: {
   ws: Workspace
   visible?: boolean
   tiles?: WorkspaceTile[]
+  /** The home of loose chats: no project toolbar when one fills the page. */
+  plain?: boolean
 }): React.JSX.Element {
   const activeChatId = useStore((s) => s.activeChatId[ws.id])
   const chats = useStore((s) => s.chats[ws.id])
@@ -77,6 +80,7 @@ export function WorkspaceView({
               focused={visible && !!t?.focused}
               hidden={!t}
               tile={t}
+              plain={plain}
             />
           )
         }
@@ -87,6 +91,7 @@ export function WorkspaceView({
             chatId={c.id}
             visible={visible && c.id === activeChatId}
             hidden={c.id !== activeChatId}
+            plain={plain}
           />
         )
       })}
@@ -94,7 +99,7 @@ export function WorkspaceView({
           without one): the desk still shows the toolbar, the browser of a
           browser project, and the way to start a chat. */}
       {!tiles && !shown ? (
-        <ChatDesk key="__project" ws={ws} chatId={activeChatId} visible={visible} />
+        <ChatDesk key="__project" ws={ws} chatId={activeChatId} visible={visible} plain={plain} />
       ) : null}
     </>
   )

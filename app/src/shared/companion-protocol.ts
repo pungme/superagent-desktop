@@ -390,6 +390,8 @@ export type RpcMethod =
   | 'workspace.add'
   | 'workspace.createBrowser'
   | 'workspace.remove'
+  | 'workspace.rename'
+  | 'chat.move'
   | 'group.create'
   | 'group.rename'
   | 'group.delete'

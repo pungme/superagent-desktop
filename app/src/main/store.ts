@@ -1115,6 +1115,14 @@ export function createChat(workspaceId: string, cwd?: string): string {
   return id
 }
 
+/** A project's name in the sidebar. The folder on disk keeps its own. */
+export function renameWorkspace(id: string, name: string): boolean {
+  const n = name.trim()
+  if (!n || !getWorkspace(id)) return false
+  db.prepare('UPDATE workspaces SET name = ? WHERE id = ?').run(n, id)
+  return true
+}
+
 export function getWorkspace(id: string): Workspace | undefined {
   return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as Workspace | undefined
 }
