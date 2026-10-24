@@ -314,8 +314,8 @@ test('split view: drag a chat from the sidebar onto the window, and a window by 
     ])
     expect(l!.x).toBeLessThan(r!.x)
 
-    // Carry window 1 by its handle to the right of window 2: the order swaps.
-    const grip = await desk(window, ids.one).locator('.tile-grip').boundingBox()
+    // Carry the chat by its title to the right of window 2: the order swaps.
+    const grip = await desk(window, ids.one).locator('.tile-name').boundingBox()
     const right = await desk(window, ids.two).boundingBox()
     await window.mouse.move(grip!.x + 4, grip!.y + 8)
     await window.mouse.down()

@@ -688,7 +688,11 @@ export function ChatDesk({
           <span className="tile-project-icon" title={ws.name}>
             <ProjectIcon icon={projectIcon} kind={ws.kind} size={18} />
           </span>
-          <span className="tile-name" title={`${ws.name} › ${activeChat?.title || 'New chat'}`}>
+          <span
+            className="tile-name"
+            title={`${ws.name} › ${activeChat?.title || 'New chat'} · Drag to move this window`}
+            onPointerDown={(e) => chatId && onGripPointerDown(e, { ws: ws.id, chat: chatId })}
+          >
             <span className="tile-chat">{activeChat?.title || 'New chat'}</span>
             <span className="tile-project">{ws.name}</span>
           </span>
