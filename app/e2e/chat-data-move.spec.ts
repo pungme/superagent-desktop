@@ -36,10 +36,15 @@ test('a transcript saved the old way is moved, still shown, and still saved', as
     await app.close()
     const items = [
       { kind: 'msg', msg: { id: 'u1', role: 'user', text: 'why is the header broken?', at: 1 } },
-      { kind: 'msg', msg: { id: 'a1', role: 'assistant', text: 'The nav wraps below 400 points.', at: 2 } }
+      {
+        kind: 'msg',
+        msg: { id: 'a1', role: 'assistant', text: 'The nav wraps below 400 points.', at: 2 }
+      }
     ]
     const chatId = sql('SELECT id FROM chats LIMIT 1')
-    sql(`UPDATE chats SET data = '${JSON.stringify(items).replace(/'/g, "''")}' WHERE id = '${chatId}'`)
+    sql(
+      `UPDATE chats SET data = '${JSON.stringify(items).replace(/'/g, "''")}' WHERE id = '${chatId}'`
+    )
     sql("DELETE FROM kv WHERE key = 'migrated.chat_data'")
     sql('DELETE FROM chat_data')
 
@@ -65,7 +70,15 @@ test('a transcript saved the old way is moved, still shown, and still saved', as
       window.cove.chatSave(id, JSON.stringify(saved))
     }, chatId)
     await expect
-      .poll(() => sql(`SELECT data FROM chat_data WHERE id = '${chatId}'`))
+      // Transcripts are saved by their own database now (one row per item).
+      .poll(() =>
+        execFileSync('sqlite3', [
+          join(data, 'transcripts.sqlite'),
+          `SELECT group_concat(data) FROM transcript_items WHERE chatId = '${chatId}'`
+        ])
+          .toString()
+          .trim()
+      )
       .toContain('and the footer?')
     expect(sql(`SELECT length(data) FROM chats WHERE id = '${chatId}'`)).toBe('0')
     await app.close()

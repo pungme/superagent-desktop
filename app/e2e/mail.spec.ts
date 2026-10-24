@@ -147,6 +147,8 @@ test('install errors belong to one agent and clear when rechecking', async () =>
   await page.reload()
   const agents = page.locator('.onboarding-agent')
   await agents.first().getByRole('button', { name: 'Install', exact: true }).click()
+  // Installing asks first, with the exact command it will run.
+  await agents.first().getByRole('button', { name: 'Allow install', exact: true }).click()
   await expect(agents.first()).toContainText('Test installer failed')
   await expect(agents.nth(1)).not.toContainText('Test installer failed')
   await expect(agents.nth(2)).not.toContainText('Test installer failed')
