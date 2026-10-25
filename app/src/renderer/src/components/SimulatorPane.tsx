@@ -57,9 +57,12 @@ export function SimulatorPane({
   workspaceId,
   chatId,
   onClose,
-  onNothingToShow
+  onNothingToShow,
+  mini = false
 }: {
   visible?: boolean
+  /** Shown small inside a split window: no Snip button over the little screen. */
+  mini?: boolean
   /** So the sidebar can say this project has a simulator attached. */
   workspaceId?: string
   /**
@@ -1672,7 +1675,7 @@ export function SimulatorPane({
       )}
       {/* Floating tool dock beside the phone (the stage is centred, so this sits
           in the margin, not over the screen). Room to grow more tools later. */}
-      {udid && (
+      {udid && !mini && (
         <div className="pane-dock corner">
           <button
             className="pane-dock-btn"

@@ -1125,6 +1125,7 @@ export function ChatDesk({
           sim={
             simOpen && !boardOpen ? (
               <SimulatorPane
+                mini
                 visible={visible}
                 workspaceId={ws.id}
                 chatId={activeChatId ?? undefined}
