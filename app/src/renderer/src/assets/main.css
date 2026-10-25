@@ -15362,11 +15362,16 @@ button {
   .easy-input-agent {
     display: grid;
   }
+  /* One line: the logo sits at the left of it. */
   .easy-input,
-  .easy-input-mirror,
+  .easy-input-mirror {
+    padding-left: 38px;
+  }
+  /* Several lines: the logo moves down into the strip with attach and mic, so
+     the lines run from the edge as everywhere else. */
   .easy-input-box[data-tall] .easy-input,
   .easy-input-box[data-tall] .easy-input-mirror {
-    padding-left: 38px;
+    padding-left: 12px;
   }
   .easy-controls:not(.unfolded) > .easy-controls-summary {
     display: none;
