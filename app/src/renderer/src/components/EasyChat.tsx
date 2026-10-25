@@ -5983,10 +5983,24 @@ export function EasyChat({
             title={
               controlsOpen
                 ? 'Hide the settings'
-                : `${[PROVIDER_PRODUCT[provider], modelLabel, modeLabel].filter(Boolean).join(' · ')}${ctxTokens !== null && ctxPercent >= 75 ? ` · Memory ${ctxPercent}%` : ''}`
+                : `${[PROVIDER_PRODUCT[provider], modelLabel, modeLabel].filter(Boolean).join(' · ')}${ctxTokens !== null ? ` · Memory ${ctxPercent}%` : ''}`
             }
             onClick={toggleControls}
           >
+            {/* How full the conversation's memory is, as a ring round the logo. */}
+            {ctxTokens !== null && (
+              <svg className="easy-input-ring" viewBox="0 0 28 28" aria-hidden="true">
+                <circle className="track" cx="14" cy="14" r="12" pathLength="100" />
+                <circle
+                  className={`fill${ctxPercent >= 90 ? ' hot' : ctxPercent >= 75 ? ' warm' : ''}`}
+                  cx="14"
+                  cy="14"
+                  r="12"
+                  pathLength="100"
+                  strokeDasharray={`${Math.max(2, Math.min(100, ctxPercent))} 100`}
+                />
+              </svg>
+            )}
             <ProviderLogo provider={provider} size={14} />
           </button>
           <textarea
