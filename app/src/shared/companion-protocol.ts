@@ -385,6 +385,7 @@ export type RpcMethod =
   | 'worktrees.list'
   | 'git.checkout'
   | 'chat.search'
+  | 'splits.list'
   | 'accounts.list'
   | 'accounts.pick'
   | 'workspace.add'

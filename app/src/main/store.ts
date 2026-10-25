@@ -1127,6 +1127,12 @@ export function getWorkspace(id: string): Workspace | undefined {
   return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as Workspace | undefined
 }
 
+let kvWatcher: ((key: string) => void) | null = null
+/** Told whenever the window mirrors a setting (the companion watches the splits). */
+export function watchKv(fn: (key: string) => void): void {
+  kvWatcher = fn
+}
+
 /** A mirrored renderer setting (localStorage → kv), or undefined. */
 export function kvGet(key: string): string | undefined {
   const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(key) as
@@ -2209,6 +2215,7 @@ function registerStoreIpcTail(): void {
       db.prepare(
         'INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value'
       ).run(String(key), String(value))
+      kvWatcher?.(String(key))
     } catch {
       // mirroring must never break the app
     }

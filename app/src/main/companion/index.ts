@@ -15,7 +15,8 @@ import {
   getChat,
   getChatProvider,
   getWorkspace,
-  setChatTitle
+  setChatTitle,
+  watchKv
 } from '../store'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL, type AgentProvider } from '../../shared/agent-provider'
 import { broadcastToWindows } from '../util'
@@ -60,6 +61,11 @@ export function relayUrl(): string {
 }
 
 export function startCompanion(): void {
+  // The phone shows the Mac's splits: tell it when they change (it asks again
+  // whenever the chat list is pushed).
+  watchKv((key) => {
+    if (key === 'cove.splits') schedulePushChats()
+  })
   watchStatuses()
   startReaper()
 

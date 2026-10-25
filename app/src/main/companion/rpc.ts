@@ -307,6 +307,8 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
         return { ok: true, result: listTree() }
       case 'chat.list':
         return { ok: true, result: listChats() }
+      case 'splits.list':
+        return { ok: true, result: { splits: listSplits() } }
       case 'chat.send': {
         const p = chatSend.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message)
@@ -1133,6 +1135,39 @@ const SKIP_DIRS = new Set([
  * Computer entry first, then the browser tabs group, then every project group
  * with each project's nested repos.
  */
+/**
+ * The Mac's splits, for the phone's grid: the saved rows under Splits, each with
+ * the conversations in it that still exist. The window keeps them in
+ * localStorage, mirrored to the store, so this reads what the window last saved.
+ */
+export function listSplits(): {
+  id: string
+  name?: string
+  tiles: { workspaceId: string; chatId: string }[]
+}[] {
+  let raw: unknown
+  try {
+    raw = JSON.parse(kvGet('cove.splits') || '[]')
+  } catch {
+    return []
+  }
+  if (!Array.isArray(raw)) return []
+  const out: { id: string; name?: string; tiles: { workspaceId: string; chatId: string }[] }[] = []
+  for (const s of raw as { id?: unknown; name?: unknown; tiles?: unknown }[]) {
+    if (!s || typeof s.id !== 'string' || !Array.isArray(s.tiles)) continue
+    const tiles = (s.tiles as { ws?: unknown; chat?: unknown }[])
+      .filter((t) => t && typeof t.ws === 'string' && typeof t.chat === 'string' && getChat(t.chat))
+      .map((t) => ({ workspaceId: t.ws as string, chatId: t.chat as string }))
+    if (tiles.length < 2) continue
+    out.push({
+      id: s.id,
+      ...(typeof s.name === 'string' && s.name.trim() ? { name: s.name.trim() } : {}),
+      tiles
+    })
+  }
+  return out
+}
+
 export function listTree(): WireGroup[] {
   const statuses = workspaceStatuses()
   const groups: WireGroup[] = getTree().map((g) => ({
