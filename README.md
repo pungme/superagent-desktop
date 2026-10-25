@@ -69,21 +69,21 @@ the agent can start the server itself and iterate while you watch.
 <tr>
 <td width="46%" valign="top">
 
-**Four chats, one window.** *New in the 2.1 beta.* Drag a chat from the
-sidebar onto the window and it opens beside the one you are in — up to four,
-from any projects: three across, or two over two. Drag a result out of
+**Eight chats, one window.** *New in the 2.1 beta.* Drag a chat from the
+sidebar onto the window and it opens beside the one you are in — up to eight,
+from any projects, and chats that belong to no project too. Drag a result out of
 <kbd>⌘</kbd><kbd>K</kbd> the same way, or press <kbd>⌘</kbd><kbd>↩</kbd> on it
 to open it beside. Move a window by its handle and pull its edge to resize it.
 Each split is kept as a row under Splits in the sidebar: a small picture of its
 windows with each project's logo, its chats, and a dot while one of them works.
-Click it to go back; × takes it apart. <kbd>⌘</kbd><kbd>1</kbd>–<kbd>4</kbd>
+Click it to go back; × takes it apart. <kbd>⌘</kbd><kbd>1</kbd>–<kbd>8</kbd>
 picks a window, <kbd>⌘</kbd><kbd>⇧</kbd><kbd>[</kbd> and
 <kbd>⌘</kbd><kbd>⇧</kbd><kbd>]</kbd> go round them. A narrow window keeps its
 browser or simulator as a small view inside it. The iPad app splits the same
-way.
+way, with up to four windows.
 
 </td>
-<td valign="top"><img src="docs/split-view.png" alt="Split view: three chats from three projects side by side in one window, with the split saved as a row under Splits in the sidebar"></td>
+<td valign="top"><img src="docs/split-view.png" alt="Split view: four chats side by side in one window, three from projects and one loose chat, with the split saved as a row under Splits in the sidebar"></td>
 </tr>
 
 <tr>
