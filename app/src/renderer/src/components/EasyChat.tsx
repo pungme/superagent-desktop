@@ -5141,6 +5141,15 @@ export function EasyChat({
     )
     return live.length ? Math.max(...live.map((w) => w.percent)) : null
   }
+  /** The account window nearest its limit, for the ring round the logo. */
+  const limitWindow = (() => {
+    const now = Date.now()
+    const live = (accounts.current?.usage?.windows ?? []).filter(
+      (w) => !w.model && (!w.resetsAt || w.resetsAt > now)
+    )
+    return live.length ? live.reduce((a, b) => (b.percent > a.percent ? b : a)) : null
+  })()
+  const limitPct = limitWindow ? Math.round(limitWindow.percent) : null
   const applyRespawnRef = useRef<() => void>(() => {})
   const applyRespawn = (): void => {
     setControlMenu(null)
@@ -5978,22 +5987,22 @@ export function EasyChat({
               their own under it. Pressing it lays them out below. */}
           <button
             type="button"
-            className={`easy-input-agent${ctxTokens !== null && ctxPercent >= 75 ? ' warm' : ''}${controlsOpen && !controlsFolding ? ' on' : ''}`}
+            className={`easy-input-agent${limitPct !== null && limitPct >= 75 ? ' warm' : ''}${controlsOpen && !controlsFolding ? ' on' : ''}`}
             aria-expanded={controlsOpen && !controlsFolding}
             aria-label={controlsOpen ? 'Hide the settings' : 'Show the settings'}
             onClick={toggleControls}
           >
-            {/* How full the conversation's memory is, as a ring round the logo. */}
-            {ctxTokens !== null && (
+            {/* How much of the account's usage limit is used, as a ring round the logo. */}
+            {limitPct !== null && (
               <svg className="easy-input-ring" viewBox="0 0 28 28" aria-hidden="true">
                 <circle className="track" cx="14" cy="14" r="12" pathLength="100" />
                 <circle
-                  className={`fill${ctxPercent >= 90 ? ' hot' : ctxPercent >= 75 ? ' warm' : ''}`}
+                  className={`fill${limitPct >= 90 ? ' hot' : limitPct >= 75 ? ' warm' : ''}`}
                   cx="14"
                   cy="14"
                   r="12"
                   pathLength="100"
-                  strokeDasharray={`${Math.max(2, Math.min(100, ctxPercent))} 100`}
+                  strokeDasharray={`${Math.max(2, Math.min(100, limitPct))} 100`}
                 />
               </svg>
             )}
@@ -6001,21 +6010,39 @@ export function EasyChat({
             {/* On hover: the details the ring stands for. */}
             {!controlsOpen && (
               <span className="easy-input-tip" role="tooltip">
-                {ctxTokens !== null && (
+                {limitPct !== null && (
                   <>
                     <span className="tip-row">
-                      <b>Memory</b>
+                      <b>Usage limit</b>
                       <span>
-                        {ctxPercent}% · {fmtTokens(ctxTokens)} of {fmtTokens(ctxWindow)}
+                        {limitPct}%{limitWindow?.label ? ` of ${limitWindow.label.toLowerCase()}` : ''}
                       </span>
                     </span>
                     <span className="tip-bar">
                       <i
-                        className={ctxPercent >= 90 ? 'hot' : ctxPercent >= 75 ? 'warm' : ''}
-                        style={{ width: `${Math.max(2, Math.min(100, ctxPercent))}%` }}
+                        className={limitPct >= 90 ? 'hot' : limitPct >= 75 ? 'warm' : ''}
+                        style={{ width: `${Math.max(2, Math.min(100, limitPct))}%` }}
                       />
                     </span>
+                    {limitWindow?.resetsAt ? (
+                      <span className="tip-hint">
+                        Resets{' '}
+                        {new Date(limitWindow.resetsAt).toLocaleString([], {
+                          weekday: 'short',
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    ) : null}
                   </>
+                )}
+                {ctxTokens !== null && (
+                  <span className="tip-row">
+                    <b>Memory</b>
+                    <span>
+                      {ctxPercent}% · {fmtTokens(ctxTokens)} of {fmtTokens(ctxWindow)}
+                    </span>
+                  </span>
                 )}
                 <span className="tip-row">
                   <b>Agent</b>
@@ -6028,10 +6055,7 @@ export function EasyChat({
                 {accounts.current && (
                   <span className="tip-row">
                     <b>Account</b>
-                    <span>
-                      {accounts.current.name}
-                      {fullest(accounts.current) !== null ? ` · ${fullest(accounts.current)}%` : ''}
-                    </span>
+                    <span>{accounts.current.name}</span>
                   </span>
                 )}
                 <span className="tip-hint">Click for the settings</span>
