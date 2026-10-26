@@ -15376,6 +15376,67 @@ button {
 .easy-input-ring .fill.hot {
   stroke: var(--danger, #d64545);
 }
+/* The hover card over the logo: what the ring stands for, and the rest of the
+   settings at a glance. */
+.easy-input-tip {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 8;
+  width: max-content;
+  min-width: 210px;
+  max-width: 300px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-panel);
+  box-shadow:
+    0 0 0 0.5px var(--border-strong),
+    0 12px 32px rgba(0, 0, 0, 0.28);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  pointer-events: none;
+  flex-direction: column;
+  gap: 6px;
+}
+.easy-input-agent:hover .easy-input-tip,
+.easy-input-agent:focus-visible .easy-input-tip {
+  display: flex;
+}
+.easy-input-tip .tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+.easy-input-tip .tip-row b {
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+.easy-input-tip .tip-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--hover);
+  overflow: hidden;
+}
+.easy-input-tip .tip-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--text-tertiary);
+}
+.easy-input-tip .tip-bar i.warm {
+  background: var(--warning, #c98a1b);
+}
+.easy-input-tip .tip-bar i.hot {
+  background: var(--danger, #d64545);
+}
+.easy-input-tip .tip-hint {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
 @container easy-chat (max-width: 928px) {
   .easy-input-agent {
     display: grid;

@@ -5980,11 +5980,7 @@ export function EasyChat({
             type="button"
             className={`easy-input-agent${ctxTokens !== null && ctxPercent >= 75 ? ' warm' : ''}${controlsOpen && !controlsFolding ? ' on' : ''}`}
             aria-expanded={controlsOpen && !controlsFolding}
-            title={
-              controlsOpen
-                ? 'Hide the settings'
-                : `${[PROVIDER_PRODUCT[provider], modelLabel, modeLabel].filter(Boolean).join(' · ')}${ctxTokens !== null ? ` · Memory ${ctxPercent}%` : ''}`
-            }
+            aria-label={controlsOpen ? 'Hide the settings' : 'Show the settings'}
             onClick={toggleControls}
           >
             {/* How full the conversation's memory is, as a ring round the logo. */}
@@ -6002,6 +5998,45 @@ export function EasyChat({
               </svg>
             )}
             <ProviderLogo provider={provider} size={14} />
+            {/* On hover: the details the ring stands for. */}
+            {!controlsOpen && (
+              <span className="easy-input-tip" role="tooltip">
+                {ctxTokens !== null && (
+                  <>
+                    <span className="tip-row">
+                      <b>Memory</b>
+                      <span>
+                        {ctxPercent}% · {fmtTokens(ctxTokens)} of {fmtTokens(ctxWindow)}
+                      </span>
+                    </span>
+                    <span className="tip-bar">
+                      <i
+                        className={ctxPercent >= 90 ? 'hot' : ctxPercent >= 75 ? 'warm' : ''}
+                        style={{ width: `${Math.max(2, Math.min(100, ctxPercent))}%` }}
+                      />
+                    </span>
+                  </>
+                )}
+                <span className="tip-row">
+                  <b>Agent</b>
+                  <span>{[PROVIDER_PRODUCT[provider], modelLabel].filter(Boolean).join(' · ')}</span>
+                </span>
+                <span className="tip-row">
+                  <b>Mode</b>
+                  <span>{modeLabel}</span>
+                </span>
+                {accounts.current && (
+                  <span className="tip-row">
+                    <b>Account</b>
+                    <span>
+                      {accounts.current.name}
+                      {fullest(accounts.current) !== null ? ` · ${fullest(accounts.current)}%` : ''}
+                    </span>
+                  </span>
+                )}
+                <span className="tip-hint">Click for the settings</span>
+              </span>
+            )}
           </button>
           <textarea
             ref={inputRef}
