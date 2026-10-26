@@ -31,6 +31,33 @@ describe("a conversation's shell and the simulators", () => {
     expect(simShellVerdict(`xcrun simctl io ${THEIRS} screenshot /tmp/x.png`, who)).toBeNull()
   })
 
+  /** Nothing in these names a device, so the UDID check never saw them. */
+  it('stops commands that reach every simulator without naming one', () => {
+    expect(simShellVerdict('xcrun simctl shutdown all', who)).toContain('every conversation')
+    expect(simShellVerdict('xcrun simctl erase all && echo done', who)).toContain(
+      'every conversation'
+    )
+    expect(simShellVerdict('xcrun simctl delete all', who)).toContain('every conversation')
+    expect(
+      simShellVerdict(
+        "xcrun simctl list devices | grep Duo | grep -o '[0-9A-F-]\\{36\\}' | xargs -I{} xcrun simctl delete {}",
+        who
+      )
+    ).toContain('list of simulators')
+    expect(
+      simShellVerdict(
+        'for u in $(xcrun simctl list devices -j | jq -r ".devices[][].udid"); do xcrun simctl shutdown $u; done',
+        who
+      )
+    ).toContain('list of simulators')
+    expect(simShellVerdict('killall Simulator', who)).toContain('every conversation')
+    expect(simShellVerdict('pkill -f CoreSimulator', who)).toContain('every conversation')
+    // Looking, and deleting what is already unusable, are fine.
+    expect(simShellVerdict('xcrun simctl list devices available', who)).toBeNull()
+    expect(simShellVerdict('xcrun simctl delete unavailable', who)).toBeNull()
+    expect(simShellVerdict(`xcrun simctl shutdown ${MINE}`, who)).toBeNull()
+  })
+
   it('leaves commands that have nothing to do with a simulator alone', () => {
     expect(simShellVerdict('npm test', who)).toBeNull()
     expect(simShellVerdict('xcodebuild -scheme App build', who)).toBeNull()

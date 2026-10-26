@@ -56,6 +56,26 @@ export function simShellVerdict(command: string, who: SimHolders): string | null
     if (other)
       return `Not run: the simulator ${udid} is in use by "${other}", and this would change what that conversation is running. ${own}`
   }
+
+  // Commands that reach every device without naming one, so no UDID in the
+  // text gives them away: `simctl shutdown all`, a list piped into xargs, a
+  // loop over `simctl list`, killing the simulator service. How a conversation
+  // clearing its own clutter took another one's device with it.
+  for (const m of command.matchAll(/\bsimctl\s+(shutdown|erase|delete)\s+all\b/g))
+    return `Not run: \`simctl ${m[1]} all\` reaches every conversation's simulator, not only this one's. ${own}`
+  if (
+    simctl &&
+    (/\bxargs\b[^\n;]*\bsimctl\b/.test(command) ||
+      (/\bsimctl\s+list\b/.test(command) &&
+        /\b(for|while)\b|\|\s*xargs\b/.test(command) &&
+        /\bsimctl\s+(shutdown|erase|delete|install|uninstall|launch|terminate|boot|openurl|push|addmedia|spawn|privacy|keychain|pbcopy)\b/.test(
+          command
+        )))
+  )
+    return `Not run: a list of simulators fed into simctl would act on other conversations' devices too. Name this conversation's UDID in the command. ${own}`
+  if (/\b(killall|pkill)\b[^\n;|&]*\b(CoreSimulator|SimulatorTrampoline|Simulator)\b/.test(command))
+    return `Not run: stopping Simulator or CoreSimulator stops every conversation's device. ${own}`
+
   if (!simctl && !xcodebuild) return null
 
   if (simctl) {
