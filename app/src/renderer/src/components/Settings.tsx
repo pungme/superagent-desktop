@@ -725,6 +725,7 @@ export function Settings({
   const permissionMode = useStore((s) => s.permissionMode)
   const setPermissionMode = useStore((s) => s.setPermissionMode)
   const [section, setSection] = useState<SectionId>(initialSection)
+  const [diagCopied, setDiagCopied] = useState(false)
   /** Measured on entering Advanced, not on every render — du walks gigabytes. */
   const [storage, setStorage] = useState<{ key: string; label: string; bytes: number }[] | null>(
     null
@@ -1462,6 +1463,21 @@ export function Settings({
                             <span className={`storage-dot storage-${g.key}`} />
                             <span className="storage-label">{g.label}</span>
                             <span className="storage-bytes">{fmtBytes(g.bytes)}</span>
+                            {g.key === 'logs' && (
+                              <button
+                                className="storage-byproject-toggle"
+                                title="Copy what we need to find out why the app crashed. No conversations in it."
+                                onClick={() =>
+                                  void window.cove.diagnostics().then(async (text) => {
+                                    await navigator.clipboard.writeText(text)
+                                    setDiagCopied(true)
+                                    setTimeout(() => setDiagCopied(false), 2500)
+                                  })
+                                }
+                              >
+                                {diagCopied ? 'Copied' : 'Copy diagnostics'}
+                              </button>
+                            )}
                             {g.key === 'logs' && g.bytes > 0 && (
                               <button
                                 className="storage-byproject-toggle"

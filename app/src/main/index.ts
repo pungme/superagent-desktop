@@ -93,6 +93,7 @@ import { buildMenu } from './menu'
 import { startAutoUpdate, isUpdateDownloaded, installUpdateNow } from './updater'
 import { startMemoryWatch } from './memory-watch'
 import { startHealthWatch, healthLog } from './health'
+import { buildDiagnostics } from './diagnostics'
 import { startCrashRelaunch } from './crash-relaunch'
 // Last: it reaches into the companion's send path, which has to be loaded first.
 import { chatToken } from './mcp-token'
@@ -218,6 +219,11 @@ function createWindow(): BrowserWindow {
     }
   })
   mainWindow.on('show', () => paneLog('window-show', 'window'))
+  mainWindow.webContents.on('render-process-gone', (_e, d) => {
+    healthLog(`CRASH main window renderer gone: reason=${d.reason} exit=${d.exitCode}`)
+  })
+  mainWindow.on('unresponsive', () => healthLog('HANG main window unresponsive'))
+  mainWindow.on('responsive', () => healthLog('main window responsive again'))
   app.on('activate', () => {
     paneLog('app-activate', 'window')
     // A Dock click is the user asking for this app BY NAME. The focus bounce
@@ -981,7 +987,22 @@ ipcMain.handle('project:clear-icon-override', (_e, workspaceId: string) => {
 
 process.on('uncaughtException', (err) => {
   paneLog('uncaught-exception', 'main', `${err.message}\n${err.stack ?? ''}`)
+  healthLog(`uncaught exception in main: ${err.message}`)
 })
+process.on('unhandledRejection', (reason) => {
+  healthLog(
+    `unhandled rejection in main: ${String((reason as Error)?.message ?? reason).slice(0, 300)}`
+  )
+})
+// A renderer or helper process that dies leaves no trace in the app's own logs,
+// and a window that went white looked like "it crashed". Written down now, for
+// Settings → Copy diagnostics.
+app.on('child-process-gone', (_e, d) => {
+  healthLog(
+    `CRASH child process gone: type=${d.type} reason=${d.reason} exit=${d.exitCode} name=${d.name ?? ''}`
+  )
+})
+ipcMain.handle('app:diagnostics', () => buildDiagnostics())
 
 // will-quit, not before-quit: before-quit runs even when the quit is then
 // called off (the save guard in transcripts.ts keeps the app open when a window
