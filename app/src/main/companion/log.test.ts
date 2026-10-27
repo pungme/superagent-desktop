@@ -205,3 +205,17 @@ describe('companion log', () => {
     expect(eventsAfter('c1', 0).events.map((e) => e.data.kind)).toEqual(['notice'])
   })
 })
+
+describe('clipForPhone', () => {
+  it('keeps the first part of a huge message and says what it left out', async () => {
+    const { clipForPhone } = await import('./log')
+    const big = 'x'.repeat(100_000)
+    const out = clipForPhone({ chatId: 'c', seq: 1, ts: 1, data: { kind: 'user', id: 'u', text: big } as never })
+    const text = (out.data as { text: string }).text
+    expect(text.startsWith('x'.repeat(60_000))).toBe(true)
+    expect(text.length).toBeLessThan(60_200)
+    expect(text).toContain('40,000 more characters')
+    const small = { chatId: 'c', seq: 2, ts: 1, data: { kind: 'assistant', id: 'a', text: 'hi' } as never }
+    expect(clipForPhone(small)).toBe(small)
+  })
+})

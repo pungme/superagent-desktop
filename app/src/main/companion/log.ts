@@ -115,6 +115,34 @@ function mediaTypeFor(abs: string): string | undefined {
   return MEDIA_TYPES[extname(abs).toLowerCase()]
 }
 
+/** A phone is sent at most this much of any one message; the Mac keeps all of it. */
+const WIRE_TEXT_LIMIT = 60_000
+
+/**
+ * A message can be a megabyte (a pasted log, a whole file). Sent in full to a
+ * phone, 400 of them was hundreds of megabytes to decode and lay out, and the
+ * app was killed opening the conversation. The window still shows all of it.
+ */
+export function clipForPhone(e: WireEvent): WireEvent {
+  const d = e.data as { kind?: string; text?: unknown }
+  if (
+    (d.kind === 'user' || d.kind === 'assistant' || d.kind === 'thinking') &&
+    typeof d.text === 'string'
+  ) {
+    const text = d.text
+    if (text.length > WIRE_TEXT_LIMIT) {
+      return {
+        ...e,
+        data: {
+          ...(e.data as object),
+          text: `${text.slice(0, WIRE_TEXT_LIMIT)}\n\n… [${(text.length - WIRE_TEXT_LIMIT).toLocaleString('en-US')} more characters, not sent to the phone]`
+        } as WireEventData
+      }
+    }
+  }
+  return e
+}
+
 /**
  * Everything after `afterSeq`, from memory when possible. `hasMore` tells the
  * caller to page again (the phone asks with the last seq it got).
@@ -131,15 +159,17 @@ export function eventsAfter(
   const buf = ring.get(chatId)
   if (buf && buf.length && buf[0].seq <= afterSeq + 1) {
     const slice = buf.filter((e) => e.seq > afterSeq)
-    return { events: slice.slice(0, limit), hasMore: slice.length > limit }
+    return { events: slice.slice(0, limit).map(clipForPhone), hasMore: slice.length > limit }
   }
   const rows = listChatEvents(chatId, afterSeq, limit + 1)
-  const events = rows.slice(0, limit).map((r) => ({
-    chatId: r.chatId,
-    seq: r.seq,
-    ts: r.ts,
-    data: JSON.parse(r.data) as WireEventData
-  }))
+  const events = rows.slice(0, limit).map((r) =>
+    clipForPhone({
+      chatId: r.chatId,
+      seq: r.seq,
+      ts: r.ts,
+      data: JSON.parse(r.data) as WireEventData
+    })
+  )
   return { events, hasMore: rows.length > limit }
 }
 
