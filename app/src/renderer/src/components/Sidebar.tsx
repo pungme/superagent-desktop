@@ -218,6 +218,30 @@ function currentActivity(routine: Routine): string | null {
   }
 }
 
+/**
+ * The routines a conversation set up, under that conversation: a monitor its
+ * agent started belongs to the chat that asked for it, not loose under the
+ * project where nothing said where it came from.
+ */
+function ChatRoutines({
+  chatId,
+  workspaceId
+}: {
+  chatId: string | undefined
+  workspaceId: string
+}): React.JSX.Element | null {
+  const routines = useStore((s) => s.routines[workspaceId] ?? EMPTY_ROUTINES)
+  const mine = chatId ? routines.filter((r) => r.chatId === chatId) : EMPTY_ROUTINES
+  if (!mine.length) return null
+  return (
+    <div className="routine-tree chat-routines">
+      {mine.map((r) => (
+        <RoutineRow key={r.id} routine={r} />
+      ))}
+    </div>
+  )
+}
+
 /** A routine shown nested under its project in the sidebar tree. */
 function RoutineRow({ routine }: { routine: Routine }): React.JSX.Element {
   const openRoutineRun = useStore((s) => s.openRoutineRun)
@@ -326,100 +350,103 @@ function BranchRow({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(label)
   return (
-    <div
-      className={`sidebar-branch${nested ? ' nested' : ''}${active ? ' on' : ''}`}
-      data-chat-id={chat?.id}
-      data-split-chat={chat?.id}
-      data-split-ws={chat ? workspaceId : undefined}
-      onClick={onOpen}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onMenu()
-      }}
-      onDoubleClick={() => {
-        if (!chat) return
-        setDraft(label)
-        setEditing(true)
-      }}
-      title={
-        chat
-          ? branch
-          : `${branch} — ${orphanHint ?? 'a branch with no conversation (a git worktree made outside Superagent)'}. Click to start one; right-click to merge or delete.`
-      }
-    >
-      {/* The conversation is what you look for, so it reads first; the branch it
+    <>
+      <div
+        className={`sidebar-branch${nested ? ' nested' : ''}${active ? ' on' : ''}`}
+        data-chat-id={chat?.id}
+        data-split-chat={chat?.id}
+        data-split-ws={chat ? workspaceId : undefined}
+        onClick={onOpen}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          onMenu()
+        }}
+        onDoubleClick={() => {
+          if (!chat) return
+          setDraft(label)
+          setEditing(true)
+        }}
+        title={
+          chat
+            ? branch
+            : `${branch} — ${orphanHint ?? 'a branch with no conversation (a git worktree made outside Superagent)'}. Click to start one; right-click to merge or delete.`
+        }
+      >
+        {/* The conversation is what you look for, so it reads first; the branch it
           runs in sits down the right. A row with no chat yet has nothing to put
           on the left, so the branch takes that place instead of leaving a gap. */}
-      {!chat && <span className="sidebar-branch-glyph">⎇</span>}
-      {!chat && <span className="sidebar-branch-name">{branch}</span>}
-      {!chat && note && <span className="sidebar-branch-note">{note}</span>}
-      {editing && chat ? (
-        <input
-          className="sidebar-item-rename chat-tree-rename"
-          value={draft}
-          autoFocus
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => {
-            const n = draft.trim()
-            if (n && n !== label) renameChat(workspaceId, chat.id, n)
-            setEditing(false)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur()
-            if (e.key === 'Escape') {
-              setDraft(label)
+        {!chat && <span className="sidebar-branch-glyph">⎇</span>}
+        {!chat && <span className="sidebar-branch-name">{branch}</span>}
+        {!chat && note && <span className="sidebar-branch-note">{note}</span>}
+        {editing && chat ? (
+          <input
+            className="sidebar-item-rename chat-tree-rename"
+            value={draft}
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+              const n = draft.trim()
+              if (n && n !== label) renameChat(workspaceId, chat.id, n)
               setEditing(false)
-            }
-          }}
-        />
-      ) : (
-        chat && (
-          <span className="sidebar-branch-title">
-            {/* The conversation's name, and the branch it runs in beneath it —
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur()
+              if (e.key === 'Escape') {
+                setDraft(label)
+                setEditing(false)
+              }
+            }}
+          />
+        ) : (
+          chat && (
+            <span className="sidebar-branch-title">
+              {/* The conversation's name, and the branch it runs in beneath it —
                 each with the whole width of the row, so neither is cut short
                 to make room for the other. The spinner or unread dot closes
                 the name's line: in front of it, that one row's name started
                 further right than every other. */}
-            <span className="sidebar-branch-text">
-              <span className="chat-tree-line">
-                <span className="sidebar-branch-label">{label}</span>
-                {/* Pinned shows here too, not only in the Pinned list above: a
+              <span className="sidebar-branch-text">
+                <span className="chat-tree-line">
+                  <span className="sidebar-branch-label">{label}</span>
+                  {/* Pinned shows here too, not only in the Pinned list above: a
                     pinned chat under its project looked like any other. */}
-                {Boolean(chat.pinned) && (
-                  <span className="chat-tree-pinned" title="Pinned">
-                    <PinGlyph />
-                  </span>
-                )}
-                {running && <span className="chat-tree-spinner" title="Working…" />}
-                {unread && !running && <span className="sidebar-unread" />}
-              </span>
-              <span className="sidebar-branch-chat">
-                <span className="wt-glyph">⎇</span>
-                <span className="wt-name">{branch}</span>
-                {lastUsed(chat.updatedAt) && (
-                  <span className="wt-when">· {lastUsed(chat.updatedAt)}</span>
-                )}
+                  {Boolean(chat.pinned) && (
+                    <span className="chat-tree-pinned" title="Pinned">
+                      <PinGlyph />
+                    </span>
+                  )}
+                  {running && <span className="chat-tree-spinner" title="Working…" />}
+                  {unread && !running && <span className="sidebar-unread" />}
+                </span>
+                <span className="sidebar-branch-chat">
+                  <span className="wt-glyph">⎇</span>
+                  <span className="wt-name">{branch}</span>
+                  {lastUsed(chat.updatedAt) && (
+                    <span className="wt-when">· {lastUsed(chat.updatedAt)}</span>
+                  )}
+                </span>
               </span>
             </span>
-          </span>
-        )
-      )}
-      {onRemove && (
-        <button
-          className="sidebar-branch-remove"
-          title={
-            chat ? 'Delete this chat' : orphanHint ? 'Remove this copy' : 'Remove this worktree'
-          }
-          onClick={(e) => {
-            e.stopPropagation()
-            onRemove()
-          }}
-        >
-          ×
-        </button>
-      )}
-    </div>
+          )
+        )}
+        {onRemove && (
+          <button
+            className="sidebar-branch-remove"
+            title={
+              chat ? 'Delete this chat' : orphanHint ? 'Remove this copy' : 'Remove this worktree'
+            }
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove()
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+      <ChatRoutines chatId={chat?.id} workspaceId={workspaceId} />
+    </>
   )
 }
 
@@ -491,139 +518,142 @@ function ChatRow({
   }, [chat.cwd])
 
   return (
-    <div
-      ref={sortable ? drag.setNodeRef : undefined}
-      style={
-        sortable
-          ? {
-              transform: CSS.Transform.toString(drag.transform),
-              transition: drag.transition,
-              opacity: drag.isDragging ? 0.5 : 1
-            }
-          : undefined
-      }
-      {...(sortable ? drag.attributes : {})}
-      {...(sortable ? drag.listeners : {})}
-      className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''} ${
-        unread ? 'unread' : ''
-      }`}
-      data-chat-id={chat.id}
-      data-split-chat={chat.id}
-      data-split-ws={workspaceId}
-      title={label}
-      onClick={onOpen}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        window.cove.chatMenu(chat.id, workspaceId, chat.cwd, chatIsUnread(chat))
-      }}
-      onDoubleClick={() => {
-        setDraft(label)
-        setEditing(true)
-      }}
-    >
-      {editing ? (
-        <input
-          className="sidebar-item-rename chat-tree-rename"
-          value={draft}
-          autoFocus
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => {
-            const n = draft.trim()
-            if (n && n !== label) renameChat(workspaceId, chat.id, n)
-            setEditing(false)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur()
-            if (e.key === 'Escape') {
-              setDraft(label)
+    <>
+      <div
+        ref={sortable ? drag.setNodeRef : undefined}
+        style={
+          sortable
+            ? {
+                transform: CSS.Transform.toString(drag.transform),
+                transition: drag.transition,
+                opacity: drag.isDragging ? 0.5 : 1
+              }
+            : undefined
+        }
+        {...(sortable ? drag.attributes : {})}
+        {...(sortable ? drag.listeners : {})}
+        className={`routine-tree-row chat-tree-row ${active ? 'selected' : ''} ${
+          unread ? 'unread' : ''
+        }`}
+        data-chat-id={chat.id}
+        data-split-chat={chat.id}
+        data-split-ws={workspaceId}
+        title={label}
+        onClick={onOpen}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          window.cove.chatMenu(chat.id, workspaceId, chat.cwd, chatIsUnread(chat))
+        }}
+        onDoubleClick={() => {
+          setDraft(label)
+          setEditing(true)
+        }}
+      >
+        {editing ? (
+          <input
+            className="sidebar-item-rename chat-tree-rename"
+            value={draft}
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+              const n = draft.trim()
+              if (n && n !== label) renameChat(workspaceId, chat.id, n)
               setEditing(false)
-            }
-          }}
-        />
-      ) : (
-        <span className="chat-tree-title">
-          {/* The name on its own line with the branch beneath it. Side by side
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur()
+              if (e.key === 'Escape') {
+                setDraft(label)
+                setEditing(false)
+              }
+            }}
+          />
+        ) : (
+          <span className="chat-tree-title">
+            {/* The name on its own line with the branch beneath it. Side by side
               they shared one narrow row and both ended in an ellipsis: neither
               the conversation nor where it was working could be read. */}
-          <span className="chat-tree-text">
-            <span className="chat-tree-line">
-              <span className="chat-tree-label">{label}</span>
-              {Boolean(chat.pinned) && (
-                <span className="chat-tree-pinned" title="Pinned">
-                  <PinGlyph />
-                </span>
-              )}
-              {running ? (
-                <span className="chat-tree-spinner" title="Working…" />
-              ) : bgRunning ? (
-                <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
-              ) : (
-                unread && (
-                  <span
-                    className="sidebar-unread"
-                    title="Claude finished — you haven't read this"
-                  />
-                )
-              )}
-            </span>
-            {!chat.cwd && chatPending(chat) ? (
-              /* Waiting for its first message. It is NOT on main — saying so would
-                 be a lie about where the agent is about to write. */
-              <span
-                className="chat-tree-wt pending"
-                title="Its branch is cut when you send the first message"
-              >
-                not started
+            <span className="chat-tree-text">
+              <span className="chat-tree-line">
+                <span className="chat-tree-label">{label}</span>
+                {Boolean(chat.pinned) && (
+                  <span className="chat-tree-pinned" title="Pinned">
+                    <PinGlyph />
+                  </span>
+                )}
+                {running ? (
+                  <span className="chat-tree-spinner" title="Working…" />
+                ) : bgRunning ? (
+                  <span className="chat-tree-bg" title="Background work running (e.g. a monitor)" />
+                ) : (
+                  unread && (
+                    <span
+                      className="sidebar-unread"
+                      title="Claude finished — you haven't read this"
+                    />
+                  )
+                )}
               </span>
-            ) : chat.cwd && wtBranch === null ? (
-              /* Its copy is gone — removed by hand, or the branch merged and
+              {!chat.cwd && chatPending(chat) ? (
+                /* Waiting for its first message. It is NOT on main — saying so would
+                 be a lie about where the agent is about to write. */
+                <span
+                  className="chat-tree-wt pending"
+                  title="Its branch is cut when you send the first message"
+                >
+                  not started
+                </span>
+              ) : chat.cwd && wtBranch === null ? (
+                /* Its copy is gone — removed by hand, or the branch merged and
                  reaped while the chat outlived it. Say so: rendering nothing made
                  a dead chat look exactly like a live one on the folder itself,
                  and a project full of them read as a list of identical rows.
                  ('' is not that: a copy of a folder of repos that has changed
                  none of them is on no branch yet, and gets no chip.) */
-              <span className="chat-tree-wt gone" title={`Its copy is gone: ${chat.cwd}`}>
-                copy gone
-              </span>
-            ) : !(chat.cwd ? wtBranch : folderBranch) ? (
-              /* On no branch, so there is none to name. When it was last used
+                <span className="chat-tree-wt gone" title={`Its copy is gone: ${chat.cwd}`}>
+                  copy gone
+                </span>
+              ) : !(chat.cwd ? wtBranch : folderBranch) ? (
+                /* On no branch, so there is none to name. When it was last used
                  instead: something anyone can read ("no changes yet" meant
                  nothing to someone who does not think in branches), and it
                  keeps the row as tall as its neighbours. */
-              twoLine && <span className="chat-tree-sub">{lastUsed(chat.updatedAt)}</span>
-            ) : (
-              (chat.cwd ? wtBranch : folderBranch) && (
-                <span
-                  className="chat-tree-wt"
-                  title={chat.cwd ? `Its own copy: ${chat.cwd}` : 'Your folder'}
-                >
-                  <span className="wt-glyph">⎇</span>
-                  <span className="wt-name">
-                    {(chat.cwd ? wtBranch : folderBranch)!.replace(/^superagent\//, '')}
-                  </span>
-                  {/* Where, then when. The time is short and keeps its place;
+                twoLine && <span className="chat-tree-sub">{lastUsed(chat.updatedAt)}</span>
+              ) : (
+                (chat.cwd ? wtBranch : folderBranch) && (
+                  <span
+                    className="chat-tree-wt"
+                    title={chat.cwd ? `Its own copy: ${chat.cwd}` : 'Your folder'}
+                  >
+                    <span className="wt-glyph">⎇</span>
+                    <span className="wt-name">
+                      {(chat.cwd ? wtBranch : folderBranch)!.replace(/^superagent\//, '')}
+                    </span>
+                    {/* Where, then when. The time is short and keeps its place;
                       it is the branch name that gives way. */}
-                  {lastUsed(chat.updatedAt) && (
-                    <span className="wt-when">· {lastUsed(chat.updatedAt)}</span>
-                  )}
-                </span>
-              )
-            )}
+                    {lastUsed(chat.updatedAt) && (
+                      <span className="wt-when">· {lastUsed(chat.updatedAt)}</span>
+                    )}
+                  </span>
+                )
+              )}
+            </span>
           </span>
-        </span>
-      )}
-      <button
-        className="routine-tree-run chat-tree-remove"
-        title="Delete this chat"
-        onClick={(e) => {
-          e.stopPropagation()
-          removeChat(workspaceId, chat.id)
-        }}
-      >
-        ×
-      </button>
-    </div>
+        )}
+        <button
+          className="routine-tree-run chat-tree-remove"
+          title="Delete this chat"
+          onClick={(e) => {
+            e.stopPropagation()
+            removeChat(workspaceId, chat.id)
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <ChatRoutines chatId={chat.id} workspaceId={workspaceId} />
+    </>
   )
 }
 
@@ -827,6 +857,16 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
   // which the project row (the folder) is not. Without a row of its own, the
   // only chat of a folder of repos could be neither seen nor opened.
   const plainChatList = chats.length > 1 || chats.some((c) => !isFolderRoot(chats, c))
+  // A routine shows under the chat that set it up while that chat has a row of
+  // its own; otherwise (no chat, a deleted one, or the folder's own chat when
+  // its row is this project row) it shows here, once.
+  const folderChatListed = worktrees.length === 0 && plainChatList
+  const looseRoutines = routines.filter(
+    (r) =>
+      !r.chatId ||
+      !chats.some((c) => c.id === r.chatId) ||
+      (r.chatId === folderChatId && !folderChatListed)
+  )
   const hasChatList = plainChatList || worktrees.some((w) => !w.main) || orphanSets.length > 0
   const hasTree = hasChatList || subrepos.length > 0
   const treeOpen = treeOpenState ?? true
@@ -1491,9 +1531,11 @@ function WorkspaceRow({ ws, index }: { ws: Workspace; index: number }): React.JS
             </div>
           )
         })()}
-      {routines.length > 0 && (
+      {/* Routines nobody's conversation owns (made by hand, or by a chat since
+          deleted), and the folder's own chat's, whose row is the project row. */}
+      {looseRoutines.length > 0 && (
         <div className="routine-tree">
-          {routines.map((r) => (
+          {looseRoutines.map((r) => (
             <RoutineRow key={r.id} routine={r} />
           ))}
         </div>

@@ -1417,7 +1417,12 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
     },
     async ({ prompt, intervalMinutes }) => {
       // Strip the "::routine" suffix so routine-launched sessions map to the real workspace.
-      const res = createRoutineForWorkspace(workspaceIdFromPane(PANE_ID), prompt, intervalMinutes)
+      const res = createRoutineForWorkspace(
+        workspaceIdFromPane(PANE_ID),
+        prompt,
+        intervalMinutes,
+        CHAT_ID ?? null
+      )
       return { content: [{ type: 'text', text: res.message }] }
     }
   )

@@ -74,6 +74,8 @@ export interface Routine {
   lastRunTranscript: string | null
   runCount: number
   lastRunTokens: number
+  /** The conversation that set it up, when an agent did. */
+  chatId?: string | null
 }
 
 /** One step in a routine run's transcript (JSON-encoded in Routine.lastRunTranscript). */

@@ -59,6 +59,8 @@ export interface Routine {
   lastRunTranscript: string | null
   runCount: number
   lastRunTokens: number
+  /** The conversation that set it up, when an agent did; shown under that chat. */
+  chatId: string | null
 }
 
 let db: Database.Database
@@ -98,6 +100,50 @@ function initDb(): void {
   if (!cols.some((c) => c.name === 'lastRunTokens')) {
     db.exec('ALTER TABLE routines ADD COLUMN lastRunTokens INTEGER NOT NULL DEFAULT 0')
   }
+  // The conversation that set it up, so the sidebar shows it under that chat
+  // and not loose under the project.
+  if (!cols.some((c) => c.name === 'chatId')) {
+    db.exec('ALTER TABLE routines ADD COLUMN chatId TEXT')
+  }
+  backfillRoutineChats()
+}
+
+/**
+ * Routines made before the chat was recorded: find the conversation whose agent
+ * called create_routine with this prompt (the call is in its event log, the
+ * prompt cut short there) and record it. Once per routine; one that matches
+ * nothing stays with the project.
+ */
+function backfillRoutineChats(): void {
+  try {
+    const todo = db
+      .prepare('SELECT id, workspaceId, prompt FROM routines WHERE chatId IS NULL')
+      .all() as { id: string; workspaceId: string; prompt: string }[]
+    if (!todo.length) return
+    const find = db.prepare(
+      `SELECT e.chatId AS chatId, e.data AS data FROM chat_events e JOIN chats c ON c.id = e.chatId
+       WHERE c.workspaceId = ? AND e.kind = 'tool' AND e.data LIKE '%create_routine%'`
+    )
+    const set = db.prepare('UPDATE routines SET chatId = ? WHERE id = ?')
+    for (const r of todo) {
+      const head = r.prompt.slice(0, 60)
+      for (const row of find.all(r.workspaceId) as { chatId: string; data: string }[]) {
+        let detail = ''
+        try {
+          detail = String((JSON.parse(row.data) as { detail?: string }).detail ?? '')
+        } catch {
+          continue
+        }
+        const d = detail.slice(0, 60)
+        if (d.length >= 20 && (head.startsWith(d) || d.startsWith(head))) {
+          set.run(row.chatId, r.id)
+          break
+        }
+      }
+    }
+  } catch {
+    /* a log that cannot be read leaves the routines with their project */
+  }
 }
 
 /** Re-exported so existing importers of the routine transcript shape keep working. */
@@ -123,15 +169,16 @@ export function createRoutine(
   workspaceId: string,
   workspacePath: string,
   prompt: string,
-  intervalMs: number
+  intervalMs: number,
+  chatId: string | null = null
 ): Routine {
   const id = randomUUID()
   const interval = flooredInterval(intervalMs)
   const now = nowMs()
   db.prepare(
-    `INSERT INTO routines (id, workspaceId, workspacePath, prompt, intervalMs, enabled, nextRunAt, lastRunAt, lastRunStatus, lastRunSummary)
-     VALUES (?, ?, ?, ?, ?, 1, ?, NULL, NULL, NULL)`
-  ).run(id, workspaceId, workspacePath, prompt, interval, now + interval)
+    `INSERT INTO routines (id, workspaceId, workspacePath, prompt, intervalMs, enabled, nextRunAt, lastRunAt, lastRunStatus, lastRunSummary, chatId)
+     VALUES (?, ?, ?, ?, ?, 1, ?, NULL, NULL, NULL, ?)`
+  ).run(id, workspaceId, workspacePath, prompt, interval, now + interval, chatId)
   return db.prepare('SELECT * FROM routines WHERE id = ?').get(id) as Routine
 }
 
@@ -139,13 +186,14 @@ export function createRoutine(
 export function createRoutineForWorkspace(
   workspaceId: string,
   prompt: string,
-  intervalMinutes: number
+  intervalMinutes: number,
+  chatId: string | null = null
 ): { ok: boolean; message: string } {
   const ws = db.prepare('SELECT path FROM workspaces WHERE id = ?').get(workspaceId) as
     { path: string } | undefined
   if (!ws) return { ok: false, message: `Unknown workspace ${workspaceId}` }
   const requestedMs = intervalMinutes * 60 * 1000
-  createRoutine(workspaceId, ws.path, prompt, requestedMs)
+  createRoutine(workspaceId, ws.path, prompt, requestedMs, chatId)
   broadcast()
   const floored = requestedMs < MIN_INTERVAL_MS
   return {
