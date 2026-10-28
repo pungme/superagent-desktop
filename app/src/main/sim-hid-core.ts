@@ -30,6 +30,11 @@ interface Session {
 }
 
 const sessions = new Map<string, Session>()
+/** Where the input process writes down what went wrong (main's health log). */
+let report: (line: string) => void = (line) => console.log(`[siminput] ${line}`)
+export function setHidReporter(fn: (line: string) => void): void {
+  report = fn
+}
 /** Devices where siminput said no: an older Xcode, or dtuhidd never answered. */
 const refused = new Map<string, number>()
 /**
@@ -85,6 +90,10 @@ function session(bin: string | null, udid: string): Session | null {
     }
   })
   const die = (): void => {
+    if (sessions.get(udid)?.proc === proc)
+      report(
+        `input helper for ${udid.slice(0, 8)} exited (${proc.exitCode ?? proc.signalCode ?? 'error'})`
+      )
     clearTimeout(startTimer)
     settle(false)
     if (sessions.get(udid)?.proc === proc) sessions.delete(udid)
@@ -104,6 +113,12 @@ function send(s: Session, cmd: Record<string, unknown>): Promise<HidResult> {
     // Long enough for a slow swipe or a paragraph of text; never forever.
     const timer = setTimeout(() => {
       s.pending.delete(id)
+      // A helper that stops answering (the simulator restarted under it,
+      // dtuhidd went away) used to be kept: every touch after it timed out
+      // too, and touch in the pane was dead until the app restarted. Drop it;
+      // the next touch starts a fresh one.
+      report(`input to ${udidOf(s).slice(0, 8)} timed out; restarting its helper`)
+      dropSession(s)
       resolve({ ok: false, error: 'timeout' })
     }, 15_000)
     s.pending.set(id, (r) => {
@@ -112,6 +127,20 @@ function send(s: Session, cmd: Record<string, unknown>): Promise<HidResult> {
     })
     s.proc.stdin.write(JSON.stringify({ ...cmd, id }) + '\n')
   })
+}
+
+function udidOf(s: Session): string {
+  for (const [u, x] of sessions) if (x === s) return u
+  return '?'
+}
+
+function dropSession(s: Session): void {
+  for (const [u, x] of sessions) if (x === s) sessions.delete(u)
+  try {
+    s.proc.kill()
+  } catch {
+    /* already gone */
+  }
 }
 
 export function endHidSession(udid: string): void {

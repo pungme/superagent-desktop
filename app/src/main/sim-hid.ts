@@ -1,4 +1,12 @@
-import { app, ipcMain, MessageChannelMain, utilityProcess, type UtilityProcess } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  MessageChannelMain,
+  utilityProcess,
+  type UtilityProcess
+} from 'electron'
+import { healthLog } from './health'
 import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
@@ -26,6 +34,7 @@ export function siminputPath(): string | null {
 }
 
 let worker: UtilityProcess | null = null
+let quitting = false
 let workerFailed = false
 let nextId = 1
 const pending = new Map<number, (result: unknown) => void>()
@@ -41,16 +50,24 @@ function inputProcess(): UtilityProcess | null {
   try {
     const w = utilityProcess.fork(script, [], { serviceName: 'Superagent Simulator Input' })
     w.postMessage({ op: 'init', bin: siminputPath() })
-    w.on('message', (m: { id?: number; result?: unknown }) => {
+    w.on('message', (m: { id?: number; result?: unknown; log?: string }) => {
+      if (typeof m?.log === 'string') healthLog(`sim input: ${m.log}`)
       if (typeof m?.id !== 'number') return
       const done = pending.get(m.id)
       pending.delete(m.id)
       done?.(m.result)
     })
-    w.on('exit', () => {
+    w.on('exit', (code) => {
       if (worker === w) worker = null
       for (const done of pending.values()) done(null)
       pending.clear()
+      // The windows hold a line straight to this process; it is dead now, and
+      // every touch sent down it would wait forever. Tell them to ask again:
+      // the next one starts a fresh process.
+      if (!quitting)
+        healthLog(`CRASH sim input process exited (code ${code}); restarting on the next touch`)
+      for (const win of BrowserWindow.getAllWindows())
+        if (!win.isDestroyed()) win.webContents.send('sim:input-port-lost')
     })
     worker = w
     return w
@@ -94,6 +111,7 @@ export function endHidSession(udid: string): void {
 }
 
 export function stopAllHid(): void {
+  quitting = true
   if (worker) {
     worker.postMessage({ op: 'stop', id: nextId++ })
     worker.kill()

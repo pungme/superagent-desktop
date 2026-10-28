@@ -1209,6 +1209,19 @@ let simPort: MessagePort | null = null
 let simPortAsked = false
 let simSeq = 1
 const simWaiting = new Map<number, (r: { ok: boolean; error?: string } | null) => void>()
+/** The line is gone (its process exited): forget it, answer the waiting, ask again on the next touch. */
+function dropSimPort(): void {
+  try {
+    simPort?.close()
+  } catch {
+    /* already closed */
+  }
+  simPort = null
+  simPortAsked = false
+  for (const done of simWaiting.values()) done(null)
+  simWaiting.clear()
+}
+ipcRenderer.on('sim:input-port-lost', () => dropSimPort())
 ipcRenderer.on('sim:input-port', (e) => {
   const port = e.ports[0]
   if (!port) return
@@ -1236,7 +1249,20 @@ function simDirect(
   const port = simPort
   return new Promise((resolve) => {
     const id = simSeq++
-    simWaiting.set(id, resolve)
+    // A touch that gets no answer must not hold the finger forever: after a
+    // while it goes the old way (null), and a line that has stopped answering
+    // is replaced. Text can take a while; a touch should not.
+    const wait = action.type === 'text' ? 20_000 : 4_000
+    const timer = setTimeout(() => {
+      if (!simWaiting.has(id)) return
+      simWaiting.delete(id)
+      resolve(null)
+      if (simPort === port) dropSimPort()
+    }, wait)
+    simWaiting.set(id, (r) => {
+      clearTimeout(timer)
+      resolve(r)
+    })
     port.postMessage({ op: 'send', id, udid, action })
   })
 }

@@ -1,4 +1,5 @@
 import {
+  setHidReporter,
   endHidSession,
   hidReadyWith,
   sendHidWith,
@@ -41,6 +42,7 @@ const parent = (
 ).parentPort
 
 let bin: string | null = null
+setHidReporter((line) => parent.postMessage({ log: line }))
 
 async function handle(m: Request): Promise<unknown> {
   const udid = String(m.udid ?? '')

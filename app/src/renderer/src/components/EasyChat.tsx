@@ -1594,7 +1594,6 @@ function usageLine(a: Account | null | undefined): string | null {
     .join(' · ')
 }
 
-
 export function EasyChat({
   cwd,
   workspaceId,
@@ -5795,7 +5794,14 @@ export function EasyChat({
           ))}
           {pendingImages.map((img, idx) => (
             <div key={idx} className="easy-attachment">
-              <img src={img.url} alt="pasted" />
+              {/* Click to look at it full size before sending. */}
+              <img
+                src={img.url}
+                alt="pasted"
+                title="Click to view"
+                style={{ cursor: 'zoom-in' }}
+                onClick={() => setLightbox(img.url)}
+              />
               <button
                 className="easy-attachment-remove"
                 onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
@@ -6015,7 +6021,8 @@ export function EasyChat({
                     <span className="tip-row">
                       <b>Usage limit</b>
                       <span>
-                        {limitPct}%{limitWindow?.label ? ` of ${limitWindow.label.toLowerCase()}` : ''}
+                        {limitPct}%
+                        {limitWindow?.label ? ` of ${limitWindow.label.toLowerCase()}` : ''}
                       </span>
                     </span>
                     <span className="tip-bar">
@@ -6046,7 +6053,9 @@ export function EasyChat({
                 )}
                 <span className="tip-row">
                   <b>Agent</b>
-                  <span>{[PROVIDER_PRODUCT[provider], modelLabel].filter(Boolean).join(' · ')}</span>
+                  <span>
+                    {[PROVIDER_PRODUCT[provider], modelLabel].filter(Boolean).join(' · ')}
+                  </span>
                 </span>
                 <span className="tip-row">
                   <b>Mode</b>

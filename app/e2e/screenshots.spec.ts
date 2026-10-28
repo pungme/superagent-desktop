@@ -108,6 +108,13 @@ test('Attach & delete attaches it and removes the file', async () => {
   expect(existsSync(join(shotsDir, kept))).toBe(true)
 })
 
+test('an attached picture opens full size when clicked', async () => {
+  await window.locator('.easy-attachment img').first().click()
+  await expect(window.locator('.easy-lightbox')).toBeVisible()
+  await window.locator('.easy-lightbox').click({ position: { x: 5, y: 5 } })
+  await expect(window.locator('.easy-lightbox')).toHaveCount(0)
+})
+
 test('Delete trashes the file without attaching it', async () => {
   const name = 'Screenshot 2026-09-29 at 20.14.00.png'
   shoot(name)
