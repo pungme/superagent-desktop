@@ -15582,3 +15582,40 @@ button {
 .split-row:hover .split-row-status {
   display: none;
 }
+
+/* The step the agent is in, beside "Working". */
+.easy-step-now {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.easy-step-detail {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+/* Messages sent while it is inside a step: they wait for it. */
+.easy-step-waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 14px 6px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.easy-step-stop {
+  margin-left: auto;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}

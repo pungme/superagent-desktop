@@ -595,6 +595,31 @@ function WorkingTimer(): React.JSX.Element | null {
   return <span className="easy-elapsed">Working {secs}s</span>
 }
 
+/**
+ * The step the agent is in, and for how long: "Running gh run watch … · 4m 12s".
+ * Shown once a step has taken a few seconds, so quick ones do not flicker.
+ */
+function StepNow({
+  step
+}: {
+  step: { name: string; detail: string; since: number }
+}): React.JSX.Element | null {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const secs = Math.floor((now - step.since) / 1000)
+  if (secs < 5) return null
+  const { verb } = toolLabel(step.name)
+  const took = secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`
+  return (
+    <span className="easy-step-now" title={step.detail}>
+      · {verb} <span className="easy-step-detail">{step.detail.slice(0, 80)}</span> · {took}
+    </span>
+  )
+}
+
 /** Monochrome line icon, matching the sidebar's — currentColor, no emoji. */
 function MicIcon(): React.JSX.Element {
   return (
@@ -1780,6 +1805,18 @@ export function EasyChat({
     reply: { role: 'user' | 'assistant'; text: string } | null
   }
   const [queued, setQueued] = useState<QueuedMsg[]>([])
+  /**
+   * The step the agent is in right now: the last tool it called that has not
+   * answered. A long one (a deploy, a wait loop) used to leave only "Working
+   * 292s" on screen while your messages piled up unread, with nothing saying
+   * it was stuck in a step or that they would wait for it.
+   */
+  const [step, setStep] = useState<{
+    id: string
+    name: string
+    detail: string
+    since: number
+  } | null>(null)
   // The confirm menu shown when you hold Send (or right-click it) while the
   // agent is working: "send now" vs "send when it finishes".
   const [sendMenu, setSendMenu] = useState(false)
@@ -3360,6 +3397,7 @@ export function EasyChat({
               typeof (block.input as { path?: unknown })?.path === 'string'
                 ? String((block.input as { path: string }).path)
                 : null
+            setStep({ id, name, detail: toolDetail(block.input), since: Date.now() })
             const card: Item = diff
               ? { kind: 'diff', diff }
               : handedOver
@@ -3434,6 +3472,7 @@ export function EasyChat({
             // Bash call answers with the shell's id, and a later BashOutput poll
             // says whether it has finished.
             const resultFor = typeof block.tool_use_id === 'string' ? block.tool_use_id : null
+            if (resultFor) setStep((st) => (st && st.id === resultFor ? null : st))
             if (resultFor) {
               // A screenshot tool's own picture, or one Claude's Read opened.
               // The Mac keeps a thumbnail beside the log under this same tool
@@ -4593,6 +4632,9 @@ export function EasyChat({
   // Stop — interrupting is a decision to take over, so held messages wait for
   // the user rather than firing into the interrupt.
   useEffect(() => {
+    if (!generating) setStep(null)
+  }, [generating])
+  useEffect(() => {
     if (generating) return
     const q = queuedRef.current
     if (q.length === 0 || interruptedRef.current) return
@@ -5631,8 +5673,47 @@ export function EasyChat({
                   {fmtTokens(Math.round(animatedLiveTokens ?? liveTokens))} tokens
                 </span>
               )}
+              {step && <StepNow step={step} />}
             </div>
           )}
+          {generating &&
+            step &&
+            (() => {
+              // What you said while it was inside this step: it reaches the agent
+              // only when the step returns, so say so, and offer to stop it.
+              const waiting = items.filter(
+                (it) =>
+                  it.kind === 'msg' &&
+                  it.msg.role === 'user' &&
+                  !it.msg.system &&
+                  (it.msg.at ?? 0) > step.since
+              )
+              if (!waiting.length) return null
+              return (
+                <div className="easy-step-waiting" role="status">
+                  <span>
+                    {waiting.length === 1
+                      ? 'Your message waits'
+                      : `Your ${waiting.length} messages wait`}{' '}
+                    until this step finishes.
+                  </span>
+                  <button
+                    className="easy-step-stop"
+                    onClick={() =>
+                      void interruptNow({
+                        text: waiting
+                          .map((it) => (it.kind === 'msg' ? it.msg.text : ''))
+                          .filter(Boolean)
+                          .join('\n\n'),
+                        images: []
+                      })
+                    }
+                  >
+                    Stop and answer
+                  </button>
+                </div>
+              )
+            })()}
         </div>
         {!atBottom && items.length > 0 && (
           <button className="easy-scrolldown" onClick={scrollToBottom} title="Scroll to bottom">
