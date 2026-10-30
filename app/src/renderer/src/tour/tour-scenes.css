@@ -239,11 +239,11 @@
 }
 .tour-scene .d7-kind.asks {
   background: rgba(196, 180, 214, 0.4);
-  color: #6f5d87;
+  color: #6e6e73;
 }
 .tour-scene .d7-kind.done {
   background: rgba(169, 189, 159, 0.4);
-  color: #55704e;
+  color: #6e6e73;
 }
 
 /* the dock, with the badge the notification also puts there */
@@ -278,7 +278,7 @@
   min-width: 13px;
   height: 13px;
   border-radius: 999px;
-  background: #c8797a;
+  background: #ff3b30;
   color: #fff;
   font-size: 7.36px;
   font-weight: 700;
@@ -311,7 +311,7 @@
   letter-spacing: 0.16em;
   font-weight: 700;
   background: rgba(134, 166, 198, 0.28);
-  color: #4f6f8e;
+  color: #6e6e73;
   vertical-align: 1px;
 }
 .tour-scene .feat-copy .beta-note {
@@ -785,7 +785,7 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: #5fa970;
+  background: #0071e3;
   flex: none;
 }
 @keyframes d10sheet {
@@ -1408,7 +1408,7 @@
   }
   49%,
   92% {
-    background: #5fa970;
+    background: #0071e3;
     transform: none;
   }
   97%,
@@ -1425,7 +1425,7 @@
   top: 206px;
   font-size: 9.6px;
   font-weight: 600;
-  color: #4c8a5c;
+  color: #1d1d1f;
   opacity: 0;
   animation: t2ok 12s var(--ease) infinite;
 }
