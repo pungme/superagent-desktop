@@ -22,6 +22,8 @@ const root = '/tmp/Developer'
 if (existsSync(root)) throw new Error(`${root} exists; not touching it`)
 mkdirSync(root)
 const urlFile = join(userData, 'mcp-url.txt')
+// HERO_VIDEO=<dir>: film the story into numbered frames there instead (see story()).
+const VIDEO = process.env.HERO_VIDEO ? resolve(process.env.HERO_VIDEO) : null
 
 const repo = (name) => {
   const d = join(root, name)
@@ -144,17 +146,14 @@ try {
   await win.waitForSelector('.sidebar-item:has-text("landing-page")', { timeout: 20_000 })
   await win.click('.sidebar-item:has-text("landing-page")')
   await win.waitForTimeout(800)
-  await win.screenshot({ path: out.replace(/\.png$/, '-step0.png') })
-  if (process.env.HERO_STOP === '1') {
-    console.log(await win.evaluate((id) => window.cove.chatList(id).then((l) => JSON.stringify(l.map((c) => [c.title, c.cwd])) ), ids.landing))
-    console.log(await win.locator('.sidebar-item:has-text("landing-page")').first().evaluate((e) => e.outerHTML.slice(0, 3000)))
-    console.log(await win.evaluate(() => Object.keys(localStorage).filter((k) => k.includes('tree')).map((k) => k + '=' + localStorage.getItem(k))))
-  }
   await win.click('.sidebar :text("Pricing page refresh")')
   await win.waitForTimeout(800)
-  await win.screenshot({ path: out.replace(/\.png$/, '-step1.png') })
   console.log(JSON.stringify(ids))
-  if (process.env.HERO_STOP === '1') process.exit(0)
+  const film = VIDEO ? await story(win) : null
+  if (film) {
+    await composite(win)
+    await film.scene0()
+  }
 
   // The browser, opened the way the agent does it: over its MCP tools.
   for (let i = 0; i < 50 && !existsSync(urlFile); i++) await win.waitForTimeout(200)
@@ -172,9 +171,29 @@ try {
   if (await btn.count()) await btn.first().click()
   await win.waitForTimeout(1500)
   console.log(await tool('browser_navigate', { url: 'https://stripe.com/en-us' }))
+  if (film) {
+    await win.waitForTimeout(7000)
+    await tidyPages()
+    await composite(win)
+    await film.scene1()
+  }
   await win.waitForTimeout(1500)
   console.log(await tool('browser_set_viewport', { viewport: 'both' }))
   await win.waitForTimeout(9000)
+  await tidyPages()
+  await composite(win)
+  if (film) await film.scene2()
+  else await win.screenshot({ path: out })
+  console.log('saved', out)
+} finally {
+  if (process.env.HERO_KEEP !== '1') {
+    await app.close()
+    rmSync(userData, { recursive: true, force: true })
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+async function tidyPages() {
   // A visitor who has already answered the cookie question and closed the
   // region and sales-chat prompts: hide what floats over the page.
   const tidy = `(() => {
@@ -190,17 +209,7 @@ try {
       for (const wc of webContents.getAllWebContents())
         if (/stripe\.com/.test(wc.getURL())) await wc.executeJavaScript(js).catch(() => {})
     }, tidy)
-    await win.waitForTimeout(1500)
-  }
-  await win.screenshot({ path: out.replace(/\.png$/, '-step2.png') })
-  await composite(win)
-  await win.screenshot({ path: out })
-  console.log('saved', out)
-} finally {
-  if (process.env.HERO_KEEP !== '1') {
-    await app.close()
-    rmSync(userData, { recursive: true, force: true })
-    rmSync(root, { recursive: true, force: true })
+    await new Promise((r) => setTimeout(r, 1500))
   }
 }
 
@@ -240,6 +249,7 @@ async function composite(win) {
       // Inside the pane's host, not fixed over the window (a full-window layer
       // repaints the whole surface and the material comes out black).
       const host = [...document.querySelectorAll('.browser-host')].find((h) => h.offsetParent !== null)
+      if (!host) return 'no pane'
       const hr = host.getBoundingClientRect()
       const frames = [...host.querySelectorAll('.browser-sim-frame')].filter((f) => f.offsetParent !== null)
       for (const v of views) {
@@ -265,4 +275,150 @@ async function composite(win) {
   console.log(res)
   await win.waitForFunction(() => [...document.querySelectorAll('.__shot_overlay img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => console.error('overlay did not decode'))
   await win.waitForTimeout(400)
+}
+
+// The landing-page film, ~8.5 s at 30 fps: the question is typed and sent, the
+// pane opens stripe.com as a desktop page, the iPhone joins it, the steps row
+// shows and the reply streams in, ending on the still's composition. The
+// conversation is the stored one, revealed a piece at a time; the panes are
+// the real app's, and changes the app does not animate are crossfades.
+async function story(win) {
+  const sharp = (await import('sharp')).default
+  const FW = 1920
+  const FH = Math.round((H * FW) / W)
+  rmSync(VIDEO, { recursive: true, force: true })
+  mkdirSync(VIDEO, { recursive: true })
+  const { copyFileSync } = await import('fs')
+  let n = 0
+  let last = null
+  let lastFile = null
+  const file = () => join(VIDEO, `f${String(n++).padStart(4, '0')}.png`)
+  const grab = async () =>
+    sharp(await win.screenshot()).resize(FW, FH).removeAlpha().raw().toBuffer()
+  const put = async (raw) => {
+    last = raw
+    lastFile = file()
+    await sharp(raw, { raw: { width: FW, height: FH, channels: 3 } })
+      .png({ compressionLevel: 1 })
+      .toFile(lastFile)
+  }
+  const shoot = async (st) => {
+    await win.evaluate((s) => window.__hero(s), st)
+    await win.waitForTimeout(40)
+    await put(await grab())
+  }
+  const hold = (k) => {
+    for (let i = 0; i < k; i++) copyFileSync(lastFile, file())
+  }
+  const ease = (t) => 1 - Math.pow(1 - t, 3)
+  const smooth = (t) => t * t * (3 - 2 * t)
+  const crossfade = async (st, k) => {
+    const a = last
+    await win.evaluate((s) => window.__hero(s), st)
+    await win.waitForTimeout(60)
+    const b = await grab()
+    for (let i = 1; i <= k; i++) {
+      const t = smooth(i / k)
+      const m = Buffer.alloc(a.length)
+      for (let j = 0; j < a.length; j++) m[j] = a[j] + (b[j] - a[j]) * t + 0.5
+      await put(i === k ? b : m)
+    }
+  }
+
+  const Q =
+    'Open stripe.com and show it as desktop and iPhone side by side. Does the hero hold up on mobile?'
+  await win.evaluate(() => {
+    const visible = (sel) => [...document.querySelectorAll(sel)].find((e) => e.offsetParent !== null)
+    const setInput = (v) => {
+      const ta = visible('textarea.easy-input')
+      if (!ta || ta.value === v) return
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, v)
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    // How much of a reply has "arrived": its text cut to the first n
+    // characters, blocks with nothing in them yet left out.
+    const stream = (el, n) => {
+      const body = el.querySelector(':scope > .md')
+      if (!body) return
+      if (body.__full == null) body.__full = body.innerHTML
+      body.innerHTML = body.__full
+      if (n == null) return
+      const walk = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
+      let left = n
+      const texts = []
+      while (walk.nextNode()) texts.push(walk.currentNode)
+      for (const t of texts) {
+        if (left <= 0) t.textContent = ''
+        else if (t.textContent.length > left) t.textContent = t.textContent.slice(0, left)
+        left -= t.textContent.length || 0
+        if (left < 0) left = 0
+      }
+      for (const blk of body.querySelectorAll('p, li, ul, ol')) if (!blk.textContent.trim()) blk.style.display = 'none'
+    }
+    window.__heroReplyLength = () => {
+      const tr = visible('.easy-transcript')
+      const reply = tr.querySelectorAll('.easy-msg.easy-assistant')[1]
+      stream(reply, null)
+      const body = reply.querySelector(':scope > .md')
+      return body.textContent.length
+    }
+    window.__hero = (st) => {
+      const tr = visible('.easy-transcript')
+      const user = tr.querySelector('.easy-msg.easy-user')
+      const [open, reply] = tr.querySelectorAll('.easy-msg.easy-assistant')
+      const tools = tr.querySelector('.easy-toolgroup')
+      const show = (el, k) => {
+        if (!el) return
+        // Not display:none: the transcript is virtualized, and a row that
+        // measures zero gets dropped. Hidden in place keeps every row where it is.
+        el.style.visibility = k <= 0 ? 'hidden' : ''
+        el.style.opacity = String(Math.max(0, k))
+        el.style.transform = k < 1 ? `translateY(${((1 - k) * 12).toFixed(2)}px)` : ''
+      }
+      show(user, st.user)
+      show(open, st.open)
+      show(tools, st.tools)
+      show(reply, st.reply === 0 ? 0 : 1)
+      if (reply) stream(reply, st.reply == null || st.reply < 0 ? null : st.reply)
+      for (const m of tr.querySelectorAll('.easy-msg-meta')) m.style.opacity = String(st.meta)
+      setInput(st.input ?? '')
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    }
+  })
+  const base = { user: 0, open: 0, tools: 0, reply: 0, meta: 0, input: '' }
+  const replyLen = await win.evaluate(() => window.__heroReplyLength())
+  return {
+    // The chat alone: the question is typed and sent, the first answer lands.
+    async scene0() {
+      await shoot(base)
+      hold(11)
+      for (let i = 1; i <= 30; i++) await shoot({ ...base, input: Q.slice(0, Math.round((Q.length * i) / 30)) })
+      hold(8)
+      for (let i = 1; i <= 7; i++) await shoot({ ...base, user: ease(i / 7) })
+      hold(9)
+      for (let i = 1; i <= 7; i++) await shoot({ ...base, user: 1, open: ease(i / 7) })
+      hold(4)
+    },
+    // stripe.com opens in the pane as a desktop page.
+    async scene1() {
+      await crossfade({ ...base, user: 1, open: 1 }, 15)
+      hold(15)
+    },
+    // The iPhone joins it; the steps row, then the reply streaming in.
+    async scene2() {
+      await crossfade({ ...base, user: 1, open: 1 }, 15)
+      hold(6)
+      for (let i = 1; i <= 6; i++) await shoot({ ...base, user: 1, open: 1, tools: ease(i / 6) })
+      hold(4)
+      const F = 80
+      for (let i = 1; i <= F; i++)
+        await shoot({ ...base, user: 1, open: 1, tools: 1, reply: Math.max(1, Math.round((replyLen * i) / F)) })
+      for (let i = 1; i <= 8; i++)
+        await shoot({ ...base, user: 1, open: 1, tools: 1, reply: -1, meta: ease(i / 8) })
+      hold(30)
+      // The last frame, full size: the poster is this exact picture.
+      await win.screenshot({ path: out })
+      console.log('frames', n, 'reply chars', replyLen)
+    }
+  }
 }

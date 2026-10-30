@@ -67,6 +67,7 @@
       -webkit-font-smoothing: antialiased;
     }
     img { display: block; max-width: 100%; height: auto; }
+    video { display: block; width: 100%; height: auto; }
     a { color: inherit; text-decoration: none; }
     :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 
@@ -205,7 +206,7 @@
         <p class="fine">Free and open source. Works with Claude Code, Codex and Antigravity.</p>
       </div>
       <div class="shot">
-        <img class="window" src="hero-window.png" alt="The Superagent window: stripe.com open in the browser pane as a desktop card and an iPhone side by side, with the chat that opened it reporting what it found" width="2880" height="1800" fetchpriority="high" decoding="async" />
+        <video class="window" id="hero-film" muted playsinline preload="metadata" poster="hero-window.png" width="2880" height="1800" aria-label="The Superagent window: stripe.com open in the browser pane as a desktop card and an iPhone side by side, with the chat that opened it reporting what it found"><source src="hero.mp4" type="video/mp4" /><source src="hero.webm" type="video/webm" /></video>
       </div>
     </section>
 
@@ -298,6 +299,18 @@
   </footer>
 
   <script>
+    // the hero film plays once, when it comes into view, and stays on its last frame (the poster's picture);
+    // with reduced motion it never starts and the poster is all there is
+    (() => {
+      const film = document.getElementById("hero-film");
+      if (!film || matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
+      const io = new IntersectionObserver((entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        film.play().catch(() => {});
+      }, { threshold: 0.5 });
+      io.observe(film);
+    })();
     // the portrait cut of the film on a portrait screen
     if (matchMedia("(max-aspect-ratio: 3/4)").matches) document.getElementById("film-link").href = "reel-phone.mp4?v=5";
   </script>
