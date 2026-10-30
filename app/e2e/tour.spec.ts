@@ -62,7 +62,7 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
   const slides: [title: string, beta: boolean, moment: number][] = [
     ['Every chat on one rail', false, 5],
     ['It sees what it builds', false, 6.6],
-    ['Four at once', false, 3],
+    ['Side by side', false, 3],
     ['It knocks. It never barges in', false, 2.5],
     ['Answer from anywhere', false, 3],
     ['Jobs that come back on time', false, 3],

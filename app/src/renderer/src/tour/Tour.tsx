@@ -464,8 +464,8 @@ const TOUR_SLIDES: Slide[] = [
   {
     id: 'split',
     kicker: 'Split view',
-    title: 'Four at once',
-    text: 'Put up to four conversations side by side and watch them work. Click one to talk to it.',
+    title: 'Side by side',
+    text: 'Put up to eight conversations in one window and watch them work. Click one to talk to it.',
     scene: SplitScene
   },
   {
