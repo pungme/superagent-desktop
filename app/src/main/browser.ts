@@ -398,6 +398,9 @@ export function wireAppContextMenu(window: BrowserWindow): void {
 function wireContextMenu(view: WebContentsView, window: BrowserWindow): void {
   const wc = view.webContents
   wc.on('context-menu', (_e, params) => {
+    // A right-click from the phone: the page gets its contextmenu event, but
+    // no native menu opens on a Mac nobody may be sitting at.
+    if ((phoneMenuUntil.get(wc) ?? 0) > Date.now()) return
     const template: Electron.MenuItemConstructorOptions[] = []
     const sep = (): void => {
       if (template.length) template.push({ type: 'separator' })
@@ -1116,6 +1119,9 @@ export function destroyBrowserPane(id: string): void {
   faviconByPane.delete(id)
   errorUrlByPane.delete(id)
   detachedWhileAway.delete(id)
+  const held = compositingHeld.get(id)
+  if (held) clearTimeout(held)
+  compositingHeld.delete(id)
   // The view may already be a corpse (its renderer crashed) — removing and
   // closing a destroyed view is exactly the throw this function is cleaning
   // up after, so both steps go best-effort.
@@ -1139,6 +1145,48 @@ export function destroyWorkspacePanes(workspaceId: string): void {
   for (const id of [...panes.keys()]) {
     if (id === workspaceId || id.startsWith(prefix)) destroyBrowserPane(id)
   }
+}
+
+/**
+ * Right-clicks sent from the phone (companion/browser-input.ts) mark the page
+ * for a moment, so the native menu a right-click opens is skipped for them.
+ */
+const phoneMenuUntil = new WeakMap<Electron.WebContents, number>()
+export function skipNativeMenuFor(wc: Electron.WebContents, ms = 1500): void {
+  phoneMenuUntil.set(wc, Date.now() + ms)
+}
+
+/**
+ * The size of the page's view, in the window's points: what a picture of the
+ * page covers (Page.captureScreenshot takes the view, at the screen's scale),
+ * and the space `sendInputEvent` takes its x and y in. Null for no pane.
+ */
+export function paneViewSize(paneId: string): { width: number; height: number } | null {
+  const pane = panes.get(paneId)
+  if (!pane || pane.view.webContents.isDestroyed()) return null
+  const { width, height } = pane.view.getBounds()
+  return { width, height }
+}
+
+/**
+ * Keep a pane composited for `ms` while the phone is using it: a page that is
+ * not in the window's tree paints nothing, so a scroll from the phone would
+ * not show until the next picture parked it again. Each call extends the hold;
+ * releaseCompositing leaves a held pane alone, and the hold releases it.
+ */
+const compositingHeld = new Map<string, ReturnType<typeof setTimeout>>()
+export function holdCompositing(paneId: string, ms: number): void {
+  if (!panes.has(paneId)) return
+  ensureCompositing(paneId)
+  const prev = compositingHeld.get(paneId)
+  if (prev) clearTimeout(prev)
+  compositingHeld.set(
+    paneId,
+    setTimeout(() => {
+      compositingHeld.delete(paneId)
+      releaseCompositing(paneId)
+    }, ms)
+  )
 }
 
 function hidePane(pane: BrowserPane): void {
@@ -1186,7 +1234,7 @@ export function ensureCompositing(paneId: string): void {
  * opened on the phone put a full-width page on the Mac.
  */
 export function releaseCompositing(paneId: string): void {
-  if (!compositingHidden.has(paneId)) return
+  if (!compositingHidden.has(paneId) || compositingHeld.has(paneId)) return
   const pane = panes.get(paneId)
   compositingHidden.delete(paneId)
   if (!pane || pane.visible || pane.window.isDestroyed()) return

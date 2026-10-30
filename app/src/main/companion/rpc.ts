@@ -57,13 +57,22 @@ import {
   mkdirSync
 } from 'fs'
 import * as auto from '../automation'
-import { browserFor, installedBrowsers, switchBrowser } from '../external-browser'
+import {
+  browserFor,
+  externalBrowserForPane,
+  installedBrowsers,
+  switchBrowser
+} from '../external-browser'
 import {
   getPaneWebContents,
   ensureBackgroundPane,
   ensureCompositing,
-  releaseCompositing
+  releaseCompositing,
+  holdCompositing,
+  paneViewSize,
+  skipNativeMenuFor
 } from '../browser'
+import { browserInputParams, deliverBrowserInput } from './browser-input'
 import { openSimulators, simStill, deviceLabel, sendSimInput } from '../simulator'
 import { listWorktrees } from '../files'
 import { copyKind, cutChatBranch, removeCopy } from '../chat-copy'
@@ -299,6 +308,8 @@ const PHONE_IMAGE_BYTES = 600_000
  * (readForPhone) keeps the bigger cap because it is a single crisp view.
  */
 const MIRROR_IMAGE_BYTES = 140_000
+/** How long a pane keeps painting after the phone last touched it. */
+const PHONE_INPUT_HOLD_MS = 4000
 
 export async function handleRpc(method: RpcMethod, params: unknown): Promise<RpcResult> {
   try {
@@ -658,6 +669,31 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           wc.reloadIgnoringCache()
         }
         return { ok: true }
+      }
+      case 'browser.input': {
+        // Only a paired phone gets here (session.ts answers nothing before
+        // hello), and only into the pane of a conversation that exists.
+        const p = browserInputParams.safeParse(params)
+        if (!p.success) return fail('bad-params', p.error.message)
+        if (!getChat(p.data.chatId)) return fail('not-found', 'no such chat')
+        const pane = paneFor(p.data.chatId)
+        const wc = pane ? getPaneWebContents(pane) : undefined
+        if (!pane || !wc || wc.isDestroyed() || !/^https?:/i.test(wc.getURL()))
+          return fail('unavailable', 'the browser is not open for this conversation')
+        // The picture of a conversation browsing in Brave or Chrome is that
+        // browser's tab, not this pane: a tap here would land somewhere else.
+        if (externalBrowserForPane(pane))
+          return fail('unavailable', 'this conversation browses in your own browser; use it there')
+        // Painting for a few seconds after the last touch, so what it did is
+        // in the next picture (a parked pane paints nothing).
+        holdCompositing(pane, PHONE_INPUT_HOLD_MS)
+        const size = paneViewSize(pane)
+        if (!size || size.width < 2 || size.height < 2)
+          return fail('unavailable', 'the browser is not laid out yet')
+        if (p.data.action.type === 'click' && p.data.action.button === 'right')
+          skipNativeMenuFor(wc)
+        await deliverBrowserInput(pane, wc, size, p.data.action)
+        return { ok: true, result: {} }
       }
       case 'files.list': {
         const p = fileList.safeParse(params)

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { EventEmitter } from 'events'
-import { generateKeyPairSync, createPrivateKey, createPublicKey, sign } from 'crypto'
+import { generateKeyPairSync, createPrivateKey, createPublicKey, sign, randomBytes } from 'crypto'
 import WebSocket from 'ws'
 
 interface RelayServer {
@@ -57,7 +57,30 @@ const h = vi.hoisted(() => {
     /** The folder every agent was started in, in order. */
     startedIn: [] as (string | undefined)[],
     gates: new Map<string, boolean>(),
-    identityPem: '' as string
+    identityPem: '' as string,
+    /** What the conversation's browser pane was sent (browser.input). */
+    paneEvents: [] as { type: string; x?: number; y?: number; deltaY?: number; keyCode?: string }[],
+    paneTyped: [] as string[],
+    /** Whether c1 has a browser pane open, and on what. */
+    paneUrl: '' as string
+  }
+})
+
+// One pane, for c1, that records what it is sent instead of being a page.
+vi.mock('../browser', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../browser')>()
+  const wc = {
+    isDestroyed: () => false,
+    getURL: () => h.paneUrl,
+    sendInputEvent: (e: { type: string }) => void h.paneEvents.push(e),
+    insertText: async (t: string) => void h.paneTyped.push(t)
+  }
+  return {
+    ...real,
+    getPaneWebContents: (id: string) => (id === 'w1::c1' && h.paneUrl ? wc : undefined),
+    paneViewSize: (id: string) => (id === 'w1::c1' ? { width: 1000, height: 800 } : null),
+    holdCompositing: () => undefined,
+    skipNativeMenuFor: () => undefined
   }
 })
 
@@ -72,7 +95,10 @@ vi.mock('electron', () => ({
   BrowserWindow: { getAllWindows: () => [] }
 }))
 
-vi.mock('../util', () => ({ broadcastToWindows: () => undefined }))
+vi.mock('../util', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../util')>()),
+  broadcastToWindows: () => undefined
+}))
 
 vi.mock('../store', () => ({
   getDb: () => {
@@ -878,6 +904,84 @@ describe.skipIf(!hasRelay)('desktop ⇄ relay ⇄ phone', () => {
     for (let i = 0; i < 300; i++) phone.send({ t: 'subscribe', chatId: 'c-long', afterSeq: 0 })
     await new Promise((r) => setTimeout(r, 1500))
     expect(events).toBeLessThan(5000)
+    phone.ws.close()
+  })
+
+  it('the phone taps, scrolls and types into the conversation’s browser, and only there', async () => {
+    // A phone that was never paired: its frames open with no device's key, so
+    // the Mac drops it, answers nothing, and no page hears a thing.
+    const stranger = new FakePhone(randomBytes(32))
+    await stranger.connect()
+    stranger.send({
+      t: 'req',
+      id: 'x0',
+      method: 'browser.input',
+      params: { chatId: 'c1', action: { type: 'click', x: 0.5, y: 0.5 } }
+    })
+    await new Promise((r) => setTimeout(r, 150))
+    expect(stranger.inbox).toEqual([])
+    expect(h.paneEvents).toEqual([])
+    stranger.ws.close()
+
+    const phone = new FakePhone(secret)
+    await phone.connect()
+    phone.send({ t: 'hello', v: 1, device: 'iphone-1', token, app: 'ios/0.1' })
+    await phone.until((f) => f.t === 'welcome')
+    const ask = async (id: string, params: unknown): Promise<ServerFrame> => {
+      phone.send({ t: 'req', id, method: 'browser.input', params } as never)
+      return phone.until((f) => f.t === 'res' && (f as { id?: string }).id === id)
+    }
+    expect(h.paneEvents).toEqual([])
+
+    // No page open: refused, nothing sent.
+    h.paneUrl = ''
+    expect(
+      await ask('i0', { chatId: 'c1', action: { type: 'click', x: 0.5, y: 0.5 } })
+    ).toMatchObject({ ok: false, error: { code: 'unavailable' } })
+    h.paneUrl = 'http://localhost:5173/'
+    const i1 = await ask('i1', { chatId: 'c1', action: { type: 'click', x: 0.25, y: 0.5 } })
+    expect(i1).toMatchObject({ ok: true })
+    expect(
+      await ask('i2', {
+        chatId: 'c1',
+        action: { type: 'scroll', x: 0.5, y: 0.5, dx: 0, dy: -0.25 }
+      })
+    ).toMatchObject({ ok: true })
+    expect(await ask('i3', { chatId: 'c1', action: { type: 'text', text: 'hi' } })).toMatchObject({
+      ok: true
+    })
+    expect(await ask('i4', { chatId: 'c1', action: { type: 'key', key: 'Enter' } })).toMatchObject({
+      ok: true
+    })
+    expect(h.paneEvents.map((e) => e.type)).toEqual([
+      'mouseMove',
+      'mouseDown',
+      'mouseUp',
+      'mouseWheel',
+      'keyDown',
+      'char',
+      'keyUp'
+    ])
+    expect(h.paneEvents[1]).toMatchObject({ x: 250, y: 400 })
+    expect(h.paneEvents[3]).toMatchObject({ x: 500, y: 400, deltaY: -200 })
+    expect(h.paneTyped).toEqual(['hi'])
+
+    // Another chat, a chat that is not there, a bad point, a key it has no business pressing.
+    const before = h.paneEvents.length
+    expect(
+      await ask('i5', { chatId: 'c-new', action: { type: 'click', x: 0.5, y: 0.5 } })
+    ).toMatchObject({ ok: false })
+    expect(
+      await ask('i6', { chatId: 'nope', action: { type: 'click', x: 0.5, y: 0.5 } })
+    ).toMatchObject({ ok: false, error: { code: 'not-found' } })
+    expect(
+      await ask('i7', { chatId: 'c1', action: { type: 'click', x: 4, y: 0.5 } })
+    ).toMatchObject({ ok: false, error: { code: 'bad-params' } })
+    expect(
+      await ask('i8', { chatId: 'c1', action: { type: 'key', key: 'q', meta: true } })
+    ).toMatchObject({ ok: false, error: { code: 'bad-params' } })
+    expect(h.paneEvents.length).toBe(before)
+    h.paneUrl = ''
     phone.ws.close()
   })
 

@@ -371,6 +371,7 @@ export type RpcMethod =
   | 'browser.set'
   | 'browser.screenshot'
   | 'browser.nav'
+  | 'browser.input'
   | 'sim.screenshot'
   | 'sim.input'
   | 'files.list'
@@ -468,6 +469,61 @@ export interface WireBrowserShot {
   /** The frame the phone said it holds is this one, so it was not sent again. */
   unchanged?: boolean
 }
+
+/**
+ * `browser.input`: the phone using the page it mirrors, as you would at the
+ * Mac. Points are fractions of the last picture the phone was sent (0,0 its
+ * top left, 1,1 its bottom right), so the phone needs to know nothing about
+ * the Mac's screen; the Mac maps them onto the pane as it is now.
+ *
+ * Added in 2.1. A Mac from before answers `bad-params` ("unknown method").
+ */
+export interface BrowserInputParams {
+  chatId: string
+  action: BrowserInputAction
+}
+
+export type BrowserInputButton = 'left' | 'right'
+
+/** The keys the phone can press, besides typing text. */
+export const BROWSER_INPUT_KEYS = [
+  'Enter',
+  'Backspace',
+  'Delete',
+  'Tab',
+  'Escape',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown'
+] as const
+export type BrowserInputKey = (typeof BROWSER_INPUT_KEYS)[number]
+
+export type BrowserInputAction =
+  /** The pointer moves there (hover; with a button held, a drag). */
+  | { type: 'move'; x: number; y: number }
+  /**
+   * Press and let go there: a tap, or the trackpad's click. `count` is this
+   * press's click count, as a mouse reports it: a double-click is a click with
+   * 1, then one with 2.
+   */
+  | { type: 'click'; x: number; y: number; button?: BrowserInputButton; count?: number }
+  /** A button goes down there and stays down until `up`: selecting, dragging. */
+  | { type: 'down'; x: number; y: number; button?: BrowserInputButton }
+  | { type: 'up'; x: number; y: number; button?: BrowserInputButton }
+  /**
+   * The wheel, with the pointer at x,y. dx/dy is how far the finger moved, as
+   * a fraction of the picture's width and height: the page moves with the
+   * finger, as it does under a finger on a phone (dy > 0 shows what is above).
+   */
+  | { type: 'scroll'; x: number; y: number; dx: number; dy: number }
+  /** Typed into whatever has focus on the page. */
+  | { type: 'text'; text: string }
+  | { type: 'key'; key: BrowserInputKey; shift?: boolean }
 
 /** `files.read`: a project file, in whichever form the phone can show. */
 export type WireFileContent =
