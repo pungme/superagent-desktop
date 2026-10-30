@@ -121,6 +121,9 @@
     .duo { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 120px; align-items: center; }
     .duo .intro { margin-top: 24px; max-width: 520px; }
     .links { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 24px; font-family: var(--display); font-size: 21px; line-height: 1.38095; letter-spacing: 0.011em; }
+    .devices { display: flex; justify-content: center; align-items: flex-end; gap: 32px; margin-top: 80px; }
+    .devices-intro { margin-top: 24px; max-width: 560px; }
+    .tablet { width: 440px; border-radius: 3.6% / 2.6%; outline: 1px solid rgba(0, 0, 0, 0.1); outline-offset: -1px; }
     .phone { width: 253px; border-radius: 13.4% / 6.2%; outline: 1px solid rgba(0, 0, 0, 0.1); outline-offset: -1px; }
 
     .final { padding-bottom: var(--section); text-align: center; }
@@ -159,6 +162,8 @@
       .shot, .hero .shot { margin-top: 40px; }
       .header + .shot { margin-top: 40px; }
       .phone { width: 220px; }
+      .tablet { width: 100%; max-width: 440px; }
+      .devices { flex-direction: column; align-items: center; }
       footer .content { flex-direction: column; }
     }
   </style>
@@ -218,17 +223,18 @@
     </section>
 
     <section id="phone">
-      <div class="content duo">
-        <div>
-          <p class="eyebrow">iPhone</p>
-          <h2>Your Mac,<br /> in your pocket.</h2>
-          <p class="intro">Follow along and answer from anywhere. Encrypted end to end.</p>
-          <p class="links">
-            <a class="link" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener">Get the iPhone app</a>
-            <a class="link" href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">Build it yourself</a>
-          </p>
+      <div class="content">
+        <p class="eyebrow">iPhone and iPad</p>
+        <h2>Your Mac,<br /> wherever you are.</h2>
+        <p class="intro devices-intro">Follow along and answer from your iPhone or iPad. Encrypted end to end.</p>
+        <p class="links">
+          <a class="link" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener">Get the app</a>
+          <a class="link" href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">Build it yourself</a>
+        </p>
+        <div class="devices">
+          <img class="tablet" src="ipad-app.png" alt="The iPad app: the sidebar of conversations beside the one that is open, with the account's usage at its foot" width="834" height="1210" loading="lazy" decoding="async" />
+          <img class="phone" src="phone-app.png" alt="The iPhone app: a page mirrored from the Mac above the conversation that opened it" width="506" height="1100" loading="lazy" decoding="async" />
         </div>
-        <img class="phone" src="phone-app.png" alt="The iPhone app: a page mirrored from the Mac above the conversation that opened it" width="506" height="1100" loading="lazy" decoding="async" />
       </div>
     </section>
 
