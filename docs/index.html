@@ -178,6 +178,766 @@
       footer .content { flex-direction: column; }
       .brand .jp { display: none; }
     }
+
+    /* Section copy beyond the header: Roman numeral and Beta in the eyebrow, body paragraphs under the intro */
+    .eyebrow .num { color: var(--ink-2); margin-right: 10px; font-weight: 600; }
+    .eyebrow .beta { color: var(--blue); font-size: 0.62em; letter-spacing: 0.02em; margin-left: 10px; vertical-align: 0.15em; }
+    .copy .body { margin-top: 16px; color: var(--ink-2); }
+    .copy .body b, .center-copy .body b { color: var(--ink); font-weight: 600; }
+    .copy .fine, .center-copy .fine { margin-top: 16px; }
+    .header:has(.copy) { align-items: start; }
+    .header .copy { padding-top: 33px; }
+    .header .copy .intro { text-wrap: pretty; }
+    .center-copy { text-align: center; max-width: 720px; margin: 0 auto; }
+    .center-copy .intro { margin-top: 24px; }
+    .center-copy .body { margin: 16px auto 0; max-width: 600px; color: var(--ink-2); }
+
+    /* Under each picture: one line of caption and one line of specifics */
+    .caption { margin-top: 40px; text-align: center; font-family: var(--display); font-size: 21px; line-height: 1.38095; letter-spacing: 0.011em; color: var(--ink); }
+    .spec { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 0; margin-top: 12px; list-style: none; font-size: 14px; line-height: 1.42859; letter-spacing: -0.016em; color: var(--ink-2); }
+    .spec li + li::before { content: "\00b7"; margin: 0 14px; color: #86868b; }
+
+    /* The hero's longer promise, set as Apple's large statement paragraph */
+    .statement { text-align: center; }
+    .statement p.big { font-family: var(--display); font-size: 32px; line-height: 1.25; font-weight: 600; letter-spacing: 0; max-width: 900px; margin: 0 auto; text-wrap: balance; }
+    .statement .spec { margin-top: 32px; font-size: 17px; }
+    .statement .ctas { margin-top: 28px; }
+
+    /* XI: a plain comparison table, hairline rows, no fills */
+    .lede { margin-top: 24px; color: var(--ink-2); }
+    .lede b { color: var(--ink); font-weight: 600; }
+    .who-jp { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, sans-serif; font-size: 14px; letter-spacing: 0.24em; color: #86868b; margin-top: 12px; }
+    .cmp-scroll { margin-top: 80px; }
+    .cmp { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; line-height: 1.42859; letter-spacing: -0.016em; }
+    .cmp caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .cmp th, .cmp td { text-align: left; vertical-align: top; padding: 18px 16px 18px 0; border-bottom: 1px solid #d2d2d7; }
+    .cmp thead th { font-family: var(--display); font-size: 17px; line-height: 1.23536; font-weight: 600; letter-spacing: -0.022em; padding-bottom: 20px; vertical-align: top; }
+    .cmp thead th small { display: block; margin-top: 4px; font-family: var(--font); font-size: 12px; line-height: 1.33337; font-weight: 400; letter-spacing: -0.01em; color: var(--ink-2); }
+    .cmp thead th small.jp { color: var(--ink-2); }
+    .cmp thead th.us img { display: inline-block; width: 20px; height: 20px; border-radius: 5px; margin: 0 8px 0 0; vertical-align: -3px; }
+    .cmp col.c0 { width: 24%; }
+    .cmp tbody th { font-family: var(--display); font-size: 17px; line-height: 1.23536; font-weight: 600; letter-spacing: -0.022em; }
+    .cmp tbody th b { font-weight: 600; }
+    .cmp td i { display: block; font-style: normal; font-size: 17px; line-height: 1.2; color: #86868b; }
+    .cmp td i.y { color: var(--ink); }
+    .cmp td.us i.y { color: var(--blue); }
+    .cmp td span { display: block; margin-top: 4px; color: var(--ink-2); }
+    .cmp-legend { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 24px; font-size: 12px; line-height: 1.33337; letter-spacing: -0.01em; color: var(--ink-2); }
+    .cmp-legend i { font-style: normal; color: var(--ink); margin-right: 4px; }
+    .cmp-note { margin-top: 8px; }
+    .who-foot { margin-top: 64px; text-align: center; max-width: 720px; margin-left: auto; margin-right: auto; }
+    .who-foot b { color: var(--ink); font-weight: 600; }
+
+    /* XII: two content tiles, as Apple sets a pair of #f5f5f7 tiles */
+    .pillars { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 80px; }
+    .tile { background: #f5f5f7; border-radius: 28px; padding: 48px 40px; }
+    .tile h3 { font-family: var(--display); font-size: 28px; line-height: 1.14286; font-weight: 600; letter-spacing: 0.007em; }
+    .tile > p { margin-top: 12px; color: var(--ink-2); }
+    .tile ul { list-style: none; margin-top: 28px; display: grid; gap: 14px; }
+    .tile li { display: grid; grid-template-columns: 20px 1fr; color: var(--ink-2); }
+    .tile li::before { content: "\2713"; color: var(--blue); }
+    .tile li b { color: var(--ink); font-weight: 600; }
+    .open-foot { margin-top: 40px; text-align: center; }
+    .open-foot a { color: var(--link); }
+    .open-foot a:hover { text-decoration: underline; }
+
+    /* The small things: a grid of short tiles */
+    .det-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 80px; }
+    .det { background: #f5f5f7; border-radius: 28px; padding: 32px 32px 36px; }
+    .det .glyph { font-size: 12px; line-height: 1.33337; color: #86868b; letter-spacing: 0.04em; }
+    .det b { display: block; margin-top: 10px; font-family: var(--display); font-size: 21px; line-height: 1.19048; font-weight: 600; letter-spacing: 0.011em; }
+    .det span { display: block; margin-top: 8px; font-size: 14px; line-height: 1.42859; letter-spacing: -0.016em; color: var(--ink-2); }
+
+    /* Welcome home */
+    .final .home-jp { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, sans-serif; font-size: 17px; letter-spacing: 0.24em; color: var(--ink-2); margin-bottom: 12px; }
+    .final .how-line { margin-top: 20px; }
+    .final .how-line b { color: var(--ink); font-weight: 600; }
+    .final .ctas { margin-top: 32px; }
+
+    @media (max-width: 1068px) {
+      .statement p.big { font-size: 28px; line-height: 1.25; }
+      .pillars { grid-template-columns: 1fr; }
+      .det-grid { grid-template-columns: 1fr 1fr; }
+      .header .copy { padding-top: 0; }
+      .ill { margin-top: 48px; }
+    }
+    @media (max-width: 734px) {
+      .statement p.big { font-size: 24px; line-height: 1.16667; }
+      .statement .spec { font-size: 14px; }
+      .caption { font-size: 19px; margin-top: 28px; }
+      .ill { margin-top: 40px; }
+      .tile { padding: 36px 28px; }
+      .tile h3 { font-size: 24px; }
+      .det-grid { grid-template-columns: 1fr; gap: 12px; margin-top: 48px; }
+      .pillars, .cmp-scroll { margin-top: 48px; }
+      .eyebrow .num { margin-right: 6px; }
+      .spec { flex-direction: column; align-items: center; gap: 4px; }
+      .spec li + li::before { content: none; }
+      /* a five-column table does not fit a phone: each row becomes its own block */
+      .cmp, .cmp tbody, .cmp tr, .cmp th, .cmp td { display: block; width: 100%; }
+      .cmp thead { display: none; }
+      .cmp tbody tr { padding: 20px 0; border-bottom: 1px solid #d2d2d7; }
+      .cmp tbody th, .cmp td { border: 0; padding: 0; }
+      .cmp tbody th { margin-bottom: 10px; }
+      .cmp td { display: grid; grid-template-columns: 112px 18px 1fr; padding: 4px 0; }
+      .cmp td::before { content: attr(data-col); color: var(--ink); font-weight: 600; }
+      .cmp td i { font-size: 14px; line-height: 1.42859; }
+      .cmp td span { margin-top: 0; }
+    }
+
+    /* The drawn windows from the earlier page, redrawn in greys: laid out at 960px and scaled to the column */
+.ill { --cream:#f5f5f7; --ink:#1d1d1f; --muted:#6e6e73; --faint:#86868b; --line:rgba(0,0,0,.1);
+  --sage:#0071e3; --lilac:#0071e3; --blue:#0071e3; --blush:#d1d1d6; --gold:#d1d1d6; --deep:#6e6e73;
+  --card:#fff; --skel:#ededf0; --skel2:#dcdce0; --glass:rgba(255,255,255,.86); --glass-edge:#fff;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; --sans: var(--font);
+  --ease: cubic-bezier(.22,.8,.24,1); --mz: 1;
+  position: relative; width: 100%; max-width: 980px; margin: 80px auto 0; font-family: var(--font); letter-spacing: normal; line-height: 1.6; }
+.ill .tl {width: 10px; height: 10px; border-radius: 50%; flex: none;}
+.ill .tl.r {background: #ff5f57;}
+.ill .tl.y {background: #febc2e;}
+.ill .tl.g {background: #28c840;}
+.ill .ln {height: 7px; border-radius: 4px; background: var(--skel);}
+.ill .ln.dk {background: var(--skel2);}
+.ill .fv {width: 9px; height: 9px; border-radius: 3px; flex: none;}
+.ill .fv1 {background: var(--blue);}
+.ill .fv2 {background: var(--sage);}
+.ill .bubble {max-width: 88%; padding: 8px 11px; border-radius: 12px; font-size: 0.68rem; line-height: 1.5;}
+.ill .bub-user {align-self: flex-end; background: var(--ink); color: #f5f5f7; border-bottom-right-radius: 4px;}
+.ill .mp-bar {display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-bottom: 1px solid var(--line);}
+.ill .mp-url {flex: 1; height: 12px; border-radius: 6px; background: var(--cream); border: 1px solid var(--line);
+      font-size: 0.5rem; color: var(--faint); display: flex; align-items: center; padding: 0 7px; font-family: var(--mono);}
+.ill .mini {border: 1px solid rgba(0, 0, 0, 0.13);
+      border-radius: 13px;
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.05),
+        0 8px 18px -8px rgba(0, 0, 0, 0.24),
+        0 34px 60px -26px rgba(0, 0, 0, 0.42);}
+.ill .scaler {width: 100%; height: calc(564.7px * var(--mz));}
+.ill .mini {width: 960px; height: 564.7px; max-width: none; flex: none;
+      transform: scale(var(--mz)); transform-origin: top left;
+      text-align: left;
+      
+      display: flex; flex-direction: column;}
+.ill .mini > :last-child {margin-bottom: 0;}
+.ill .mini {background: rgba(255, 255, 255, 0.62); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;}
+.ill .mini {display: block; padding: 0; background: var(--card);}
+.ill .appwin {display: grid; grid-template-columns: 194px 1fr;
+      height: 100%; font-size: 13px; color: var(--ink);
+      background: var(--card);}
+.ill .ap-side {display: flex; flex-direction: column; min-width: 0;
+      background: rgba(245, 245, 247, 0.86);
+      border-right: 1px solid var(--line);}
+.ill .ap-lights {display: flex; gap: 6px; padding: 11px 12px 6px;}
+.ill .ap-side .tl {width: 9px; height: 9px;}
+.ill .ap-scroll {flex: 1; padding: 4px 8px; overflow: hidden;}
+.ill .ap-group {font-size: 0.5rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--faint); padding: 9px 6px 4px;}
+.ill .ap-row {display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+      border-radius: 6px; font-size: 0.62rem; font-weight: 550; line-height: 1.2;}
+.ill .ap-row.on {background: rgba(0, 0, 0, 0.07);}
+.ill .ap-row.dim {color: var(--muted); font-weight: 500;}
+.ill .ap-row > span:first-of-type {overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .ap-caret {width: 0; height: 0; flex: none; margin-left: 1px;
+      border-left: 3.5px solid var(--faint);
+      border-top: 3px solid transparent; border-bottom: 3px solid transparent;}
+.ill .ap-br {margin-left: auto; flex: none;
+      font-size: 0.48rem; color: var(--faint); letter-spacing: 0.02em;
+      padding: 1px 5px; border-radius: 999px; border: 1px solid var(--line);}
+.ill .ap-chats {position: relative; padding: 1px 0 2px 13px;}
+.ill .ap-crow {display: flex; align-items: center; gap: 5px; padding: 4px 6px; margin-bottom: 1px;
+      border-radius: 6px; font-size: 0.6rem; color: var(--muted); line-height: 1.2;}
+.ill .ap-crow.on {background: rgba(0, 0, 0, 0.07); color: var(--ink); font-weight: 550;}
+.ill .ap-clabel {overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .ap-wt {flex: none; font-size: 0.44rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 1px 4px; border-radius: 3px;
+      background: rgba(142, 142, 147, 0.42); color: #0071e3;}
+.ill .ap-spin {width: 8px; height: 8px; border-radius: 50%; flex: none; margin-left: auto;
+      border: 1.5px solid rgba(142, 142, 147, 0.3); border-top-color: var(--sage);
+      animation: apspin 0.85s linear infinite;}
+.ill .ap-unread {width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex: none; margin-left: auto;}
+.ill .ap-foot {padding: 8px 14px; border-top: 1px solid var(--line);
+      font-size: 0.55rem; color: var(--faint);}
+.ill .ap-group.ap-proj {display: flex; align-items: center;}
+.ill .ap-gbtns {margin-left: auto; display: flex; gap: 5px;}
+.ill .ap-gbtns svg {width: 8px; height: 8px; fill: none; stroke: var(--faint);
+      stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;}
+.ill .ap-side .fv {width: 11px; height: 11px; border-radius: 2.5px; margin-left: 0;}
+.ill .ap-pi {width: 11px; height: 11px; flex: none; border-radius: 2.5px;
+      display: inline-grid; place-items: center; overflow: hidden;
+      font-size: 0.4rem; font-weight: 800; line-height: 1; color: #fff;}
+.ill .ap-pi.app {border-radius: 3px; box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);}
+.ill .ap-pi i {display: block;}
+.ill .pi-landing {background: var(--ink);}
+.ill .pi-design {background: var(--lilac);}
+.ill .pi-design i {width: 5px; height: 5px; border-radius: 50%; border: 1.2px solid #fff;}
+.ill .pi-mobile {background: #c7c7cc;}
+.ill .pi-mobile i {width: 4px; height: 5px; border-radius: 1px; background: #fff;}
+.ill .pi-shop {background: var(--gold); color: var(--ink);}
+.ill .pi-notes {background: #c7c7cc;}
+.ill .pi-notes i {width: 5px; height: 1px; background: #fff; box-shadow: 0 -2px 0 #fff, 0 2px 0 #fff;}
+.ill .pi-outreach {background: var(--blush);}
+.ill .pi-docs {background: var(--sage);}
+.ill .pi-studio {background: #c7c7cc;}
+.ill .pi-studio i {width: 5px; height: 4px; border-radius: 1px; border: 1.1px solid #fff;}
+.ill .pi-computer {background: var(--ink);}
+.ill .pi-computer i {width: 5px; height: 3.5px; border-radius: 0.8px; border: 1.1px solid #fff;}
+.ill .ap-row .ap-caret.end {margin-left: auto; transform: rotate(90deg);}
+.ill .ap-sim {margin-left: auto; flex: none; display: inline-flex;}
+.ill .ap-sim svg {width: 6px; height: 8px; fill: none; stroke: var(--muted); stroke-width: 1.2;}
+.ill .ap-sim + .ap-br {margin-left: 4px;}
+.ill .ap-repos {padding: 1px 0 2px 13px;}
+.ill .ap-repo {display: flex; align-items: center; gap: 5px; padding: 3px 6px;
+      font-size: 0.56rem; color: var(--muted); line-height: 1.2;}
+.ill .ap-repo .ap-rk {font-family: var(--mono); font-size: 0.46rem; color: var(--faint);}
+.ill .ap-rb {margin-left: auto; font-size: 0.46rem; color: var(--faint);}
+.ill .ap-main {display: flex; flex-direction: column; min-width: 0;}
+.ill .ap-bar {display: flex; align-items: center; gap: 7px;
+      padding: 8px 11px; border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.6);}
+.ill .ap-btn {display: inline-flex; align-items: center; gap: 4px; flex: none;
+      font-size: 0.56rem; font-weight: 600; color: var(--muted);
+      padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);}
+.ill .ap-btn.ic-only {padding: 3px 6px; font-size: 0.62rem;}
+.ill .ic {width: 8px; height: 8px; flex: none; border-radius: 1.5px;}
+.ill .ic-files {background: var(--gold); border-radius: 1.5px 3px 1.5px 1.5px;}
+.ill .ic-todo {background: var(--blue);}
+.ill .ic-snip {background: var(--blush);}
+.ill .ap-title {font-size: 0.63rem; font-weight: 650; flex: none; margin-left: 3px;}
+.ill .ap-path {font-family: var(--mono); font-size: 0.5rem; color: var(--faint);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;}
+.ill .ap-branch {flex: none; font-size: 0.5rem; color: var(--muted);
+      padding: 2px 6px; border-radius: 999px; border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.6);}
+.ill .ap-branch i {font-style: normal; color: var(--faint); margin-right: 2px;}
+.ill .ap-server {display: inline-flex; align-items: center; gap: 5px; flex: none;
+      font-size: 0.5rem; color: var(--muted); font-family: var(--mono);
+      padding: 2px 7px; border-radius: 999px;
+      background: rgba(142, 142, 147, 0.22); border: 1px solid rgba(142, 142, 147, 0.3);}
+.ill .ap-server i {width: 5px; height: 5px; border-radius: 50%; background: #0071e3; animation: pulse 2.4s ease-in-out infinite;}
+.ill .ap-server em {font-style: normal; font-family: var(--sans); color: #6e6e73; font-weight: 600;}
+.ill .ap-spacer {flex: 1;}
+.ill .ap-content {flex: 1; min-height: 0; display: flex;}
+.ill .ap-split {flex: 1; display: flex; min-width: 0;}
+.ill .ap-chat {flex: 1; display: flex; flex-direction: column; min-width: 0;}
+.ill .ap-chat.narrow {flex: none; width: 232px; border-left: 1px solid var(--line);}
+.ill .ap-stream {flex: 1; min-height: 0; padding: 12px 13px;
+      display: flex; flex-direction: column; gap: 7px;
+      align-items: flex-start; justify-content: flex-end;}
+.ill .ap-stream.ap-stack {position: relative; padding: 0;}
+.ill .ap-stream.ap-stack > .d1-pg {position: absolute; inset: 0; padding: 12px 13px;
+      display: flex; flex-direction: column; gap: 7px;
+      align-items: flex-start; justify-content: flex-end;}
+.ill .ap-chat .bubble {max-width: 82%; font-size: 0.61rem; padding: 6px 9px; border-radius: 10px;}
+.ill .ap-say {font-size: 0.61rem; line-height: 1.5; color: var(--ink); max-width: 94%;}
+.ill .ap-say code,
+.ill .d1-say code {font-family: var(--mono); font-size: 0.54rem; padding: 1px 4px; border-radius: 4px;
+      background: rgba(0, 0, 0, 0.07);}
+.ill .ap-tool {display: inline-flex; align-items: center; gap: 5px;
+      font-family: var(--mono); font-size: 0.52rem; color: #6e6e73;
+      padding: 2px 7px; border-radius: 999px; background: rgba(142, 142, 147, 0.24);}
+.ill .ap-tool i {width: 4px; height: 4px; border-radius: 50%; background: var(--sage);}
+.ill .ap-card {align-self: stretch; background: rgba(0, 0, 0, 0.04);
+      border-radius: 10px; padding: 10px 12px 0; overflow: hidden;}
+.ill .ap-comp {border-top: 1px solid var(--line); padding: 8px 11px 9px; background: rgba(255, 255, 255, 0.4);}
+.ill .ap-input {display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 9px; background: var(--card);
+      font-size: 0.58rem; color: var(--faint);}
+.ill .ap-input .hint {font-size: 0.52rem; opacity: 0.72;}
+.ill .ap-chat.narrow .ap-input .hint {display: none;}
+.ill .ap-cursor {width: 1px; height: 10px; background: var(--muted); margin-right: -3px; animation: apblink 1.1s steps(1) infinite;}
+.ill .ap-send {margin-left: auto; width: 15px; height: 15px; border-radius: 50%; flex: none;
+      background: var(--ink); color: var(--cream); font-size: 0.5rem;
+      display: flex; align-items: center; justify-content: center;}
+.ill .ap-modes {display: flex; gap: 5px; margin-top: 6px;}
+.ill .ap-pill {font-size: 0.5rem; color: var(--muted); padding: 2px 6px; border-radius: 5px;
+      border: 1px solid var(--line); background: rgba(255, 255, 255, 0.66);}
+.ill .ap-pill b {color: var(--ink); font-weight: 650;}
+.ill .ap-pane {flex: 1; display: flex; flex-direction: column; min-width: 0; background: rgba(245, 245, 247, 0.4);}
+.ill .ap-pbar {display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, 0.5);}
+.ill .ap-purl {flex: 1; font-family: var(--mono); font-size: 0.5rem; color: var(--faint);
+      padding: 2px 8px; border-radius: 999px; background: var(--cream); border: 1px solid var(--line);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .ap-pdevice,
+.ill .ap-vp {font-size: 0.52rem; color: var(--muted); padding: 2px 7px; border-radius: 999px;
+      border: 1px solid var(--line); background: rgba(255, 255, 255, 0.66);}
+.ill .ap-pdevice {flex: 1; text-align: left; border: 0; background: none; padding-left: 2px;}
+.ill .ap-vp b {color: var(--ink); font-weight: 650;}
+.ill .ap-live {display: inline-flex; align-items: center; gap: 5px; flex: none;
+      font-size: 0.5rem; color: #6e6e73; font-weight: 600;}
+.ill .ap-live i {width: 5px; height: 5px; border-radius: 50%; background: #0071e3; animation: pulse 2.4s ease-in-out infinite;}
+.ill .ap-pbody {flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 14px;}
+.ill .ap-pane.sim .ap-pbody {padding: 12px;}
+.ill .ap-pane.sim {background: rgba(0, 0, 0, 0.05);}
+.ill .mini.scene {background: none; border: 0; overflow: visible;}
+.ill .d7-desk {position: relative; height: 100%; border-radius: 13px; overflow: hidden;
+      background: #f5f5f7;}
+.ill .appwin.dim {position: absolute; left: 30px; right: 78px; top: 26px; bottom: 40px;
+      height: auto; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+      box-shadow: 0 18px 44px -22px rgba(0, 0, 0, 0.55);
+      opacity: 0.55; filter: saturate(0.55);}
+.ill.ill-features .ap-crow.on {background: none;}
+.ill.ill-features .ap-chats {z-index: 0;}
+.ill.ill-features .ap-chats::before {content: ""; position: absolute; left: 13px; right: 0; top: 0;
+      height: var(--rowh, 19.5px); border-radius: 6px; background: rgba(0, 0, 0, 0.08);
+      animation: aphl 12s var(--ease) infinite; z-index: -1;}
+.ill.ill-features .ap-crow {position: relative; z-index: 1;}
+.ill .ap-card .d2-graph {transform: scale(1.2); transform-origin: center center; margin: 20px auto 26px;}
+.ill .ap-card .d2-files {border-top: 1px solid var(--line); background: none; padding: 8px 0 2px; margin-top: 2px;}
+.ill .ap-card .d2-fh {margin-bottom: 5px;}
+.ill .d1-pg1 {animation: d1a 12s ease-in-out infinite;}
+.ill .d1-pg2 {animation: d1b 12s ease-in-out infinite; opacity: 0;}
+.ill .d1-pg3 {animation: d1c 12s ease-in-out infinite; opacity: 0;}
+.ill .d1-say {font-size: 0.61rem; line-height: 1.5; color: var(--ink); max-width: 94%;}
+.ill .d1-steps {display: flex; align-items: center; gap: 6px; font-size: 0.53rem; color: var(--muted); padding: 1px 0;}
+.ill .d1-steps .caret {color: var(--faint);}
+.ill .d1-steps b {font-weight: 650; color: var(--ink);}
+.ill .d1-swap {display: inline-grid;}
+.ill .d1-swap > span {grid-area: 1 / 1; white-space: nowrap;}
+.ill .d1-n1,
+.ill .d1-s1 {animation: d1sw1 12s steps(1) infinite;}
+.ill .d1-n2,
+.ill .d1-s2 {animation: d1sw2 12s steps(1) infinite; opacity: 0;}
+.ill .d1-n3,
+.ill .d1-s3 {animation: d1sw3 12s steps(1) infinite; opacity: 0;}
+.ill .d1-live {display: inline-flex; align-items: center; gap: 4px;}
+.ill .d1-live i {width: 4px; height: 4px; border-radius: 50%; background: var(--sage);
+      animation: d1pulse 1.4s ease-in-out infinite, d1workfade 12s ease-in-out infinite;}
+.ill .d1-card {align-self: stretch; background: rgba(0, 0, 0, 0.045); border-radius: 9px;
+      padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
+      animation: d1card 12s var(--ease) infinite;}
+.ill .d1-pg2 .d1-card,
+.ill .d1-pg3 .d1-card {animation: none; opacity: 1; transform: none;}
+.ill .d1-bul {margin: 1px 0 0; padding-left: 13px; display: flex; flex-direction: column; gap: 2px;}
+.ill .d1-bul li {font-size: 0.58rem; line-height: 1.45; color: var(--muted);}
+.ill .d1-bul b {color: var(--ink); font-weight: 650;}
+.ill .d1-diff {display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 0.5rem; color: var(--faint); margin-top: 2px;}
+.ill .d1-diff .add {color: #6e6e73;}
+.ill .d1-diff .del {color: #86868b;}
+.ill .d1-late {animation: d1late 12s var(--ease) infinite; opacity: 0;}
+.ill .d2-graph {position: relative; width: 300px; height: 130px; margin: 0 auto;
+      transform: scale(1.7); transform-origin: center center;}
+.ill .d2-lbl {position: absolute; font-family: var(--mono); font-size: 0.56rem; color: var(--faint);}
+.ill .d2-lbl.main-l {left: 0; top: 84px;}
+.ill .d2-lbl.br-l {left: 136px; top: 68px; color: #0071e3;}
+.ill .d2-line {position: absolute; height: 3px; border-radius: 2px; background: var(--skel2);}
+.ill .d2-main-line {left: 0; right: 0; top: 104px;}
+.ill .d2-diag {left: 74px; top: 100px; width: 74px; background: var(--lilac);
+      transform-origin: left center; transform: rotate(-38deg) scaleX(1);
+      animation: d2diag 8s var(--ease) infinite;}
+.ill .d2-branch-line {left: 132px; top: 54px; width: 158px; background: var(--lilac);
+      transform-origin: left center;
+      animation: d2br 8s var(--ease) infinite;}
+.ill .d2-c {position: absolute; width: 13px; height: 13px; border-radius: 50%; border: 3px solid #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);}
+.ill .d2-cm {background: var(--muted); top: 96px;}
+.ill .d2-cb {background: var(--lilac); top: 46px;}
+.ill .cm1 {left: 18px;}
+.ill .cm2 {left: 52px;}
+.ill .cm3 {left: 68px; top: 96px; background: var(--sage);}
+.ill .cb1 {left: 150px;}
+.ill .cb2 {left: 196px;}
+.ill .cb3 {left: 242px;}
+.ill .d2-pop1 {animation: d2pop 8s var(--ease) infinite;}
+.ill .d2-pop2 {animation: d2pop2 8s var(--ease) infinite;}
+.ill .d2-pop3 {animation: d2pop3 8s var(--ease) infinite;}
+.ill .d2-clean {position: absolute; left: 6px; top: 118px;
+      font-size: 0.58rem; font-weight: 600; color: #6e6e73;
+      display: flex; align-items: center; gap: 5px;}
+.ill .d2-clean i {width: 12px; height: 12px; border-radius: 50%; background: var(--sage); color: #fff;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 0.5rem; font-style: normal;
+      animation: d2clean 8s ease-in-out infinite;}
+.ill .d2-commit-msg {position: absolute; right: 0; top: 0; font-family: var(--mono); font-size: 0.55rem; color: var(--muted);
+      background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px;
+      animation: d2msg 8s var(--ease) infinite;}
+.ill .iphone {position: relative; width: 148px; border-radius: 26px;
+      background: #1d1d1f; padding: 7px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2), 0 22px 44px -18px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 2px #3a3a3c;
+      flex: none;}
+.ill .iphone-screen {position: relative; border-radius: 20px; overflow: hidden;
+      background: var(--card);
+      
+      aspect-ratio: 9 / 19.5;}
+.ill .iphone .island {position: absolute; top: 13px; left: 50%; transform: translateX(-50%);
+      width: 46px; height: 12px; border-radius: 999px; background: #1d1d1f; z-index: 6;}
+.ill .d3-phone {width: 178px;}
+.ill .d3-app {display: flex; flex-direction: column; height: 100%; padding-top: 34px;}
+.ill .d3-navbar {padding: 0 12px 8px; display: flex; align-items: center; justify-content: space-between;}
+.ill .d3-title {font-size: 0.62rem; font-weight: 700; color: var(--ink);}
+.ill .d3-list {flex: 1; padding: 4px 10px; display: flex; flex-direction: column; gap: 8px;}
+.ill .d3-card {position: relative; background: var(--cream); border-radius: 10px; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px;}
+.ill .d3-card.hl {animation: d3hl 8s ease-in-out infinite;}
+.ill .d3-ripple {position: absolute; right: 16px; top: 12px; width: 26px; height: 26px; border-radius: 50%;
+      border: 2.5px solid var(--blue); opacity: 0; pointer-events: none; z-index: 5;
+      animation: d3rip 8s var(--ease) infinite;}
+.ill .d3-sheet {position: absolute; left: 0; right: 0; bottom: 0; height: 62%;
+      background: #fff; border-radius: 16px 16px 0 0; z-index: 4;
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.14);
+      padding: 12px; display: flex; flex-direction: column; gap: 8px;
+      transform: translateY(106%);
+      animation: d3sheet 8s var(--ease) infinite;}
+.ill .d3-grab {width: 30px; height: 4px; border-radius: 2px; background: var(--skel2); margin: 0 auto 2px;}
+.ill .d3-btn {margin-top: auto; height: 26px; border-radius: 9px; background: var(--ink); color: #f5f5f7;
+      display: flex; align-items: center; justify-content: center; font-size: 0.58rem; font-weight: 600;}
+.ill .d4-flex {display: flex; flex: 1; align-items: center; justify-content: center; gap: 30px; padding: 18px 6px;}
+.ill .d4-desktop {width: min(392px, 58%); background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0, 0, 0,0.07), 0 18px 40px -20px rgba(0, 0, 0,0.35);}
+.ill .d4-view {height: 244px; overflow: hidden; position: relative;}
+.ill .d4-phone {width: 136px;}
+.ill .d4-phone .iphone-screen {padding-top: 0;}
+.ill .pm {display: flex; flex-direction: column; gap: 7px; padding: 11px; animation: d4scroll 8s var(--ease) infinite;}
+.ill .pm-nav {display: flex; gap: 6px; align-items: center; margin-bottom: 2px;}
+.ill .pm-logo {width: 12px; height: 12px; border-radius: 4px; background: var(--sage);}
+.ill .pm-hero {height: 64px; border-radius: 8px;
+      background: #e8e8ed; opacity: 0.7; position: relative; overflow: hidden;}
+.ill .pm-btn {width: 74px; height: 20px; border-radius: 7px; background: var(--ink);
+      animation: d4btn 8s var(--ease) infinite;}
+.ill .pm-cards {display: flex; gap: 7px;}
+.ill .pm-card {flex: 1; height: 44px; border-radius: 7px; background: var(--cream); border: 1px solid var(--line);}
+.ill .d5-steps {margin: 16px auto 0; display: flex; flex-direction: column; gap: 2px;
+      width: fit-content; max-width: 100%;}
+.ill .d5-step {display: flex; align-items: center; gap: 9px;
+      font-size: 0.72rem; color: var(--faint);
+      padding: 4px 10px; border-radius: 999px;
+      animation: d5step 10s steps(1) infinite;}
+.ill .d5-step .n {font-family: var(--mono); font-size: 0.6rem; width: 15px; flex: none;}
+.ill .d5-step b {font-weight: 600;}
+.ill .d5-step:nth-child(1) {animation-name: d5step1;}
+.ill .d5-step:nth-child(2) {animation-name: d5step2;}
+.ill .d5-step:nth-child(3) {animation-name: d5step3;}
+.ill .d5-step:nth-child(4) {animation-name: d5step4;}
+.ill .d2-files {border-top: 1px solid var(--line); padding: 9px 12px 11px; background: rgba(255, 255, 255, 0.5);}
+.ill .d2-fh {font-size: 0.53rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
+      color: var(--faint); margin-bottom: 6px;}
+.ill .d2-f {display: flex; align-items: center; gap: 10px; padding: 3px 0;
+      font-family: var(--mono); font-size: 0.56rem; color: var(--muted);
+      opacity: 0; transform: translateY(4px);}
+.ill .d2-f .fn {flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .d2-f .add {color: #6e6e73;}
+.ill .d2-f .del {color: #86868b;}
+.ill .d2-f1 {animation: d2file 9s var(--ease) infinite; animation-delay: 0.6s;}
+.ill .d2-f2 {animation: d2file 9s var(--ease) infinite; animation-delay: 1.5s;}
+.ill .d2-f3 {animation: d2file 9s var(--ease) infinite; animation-delay: 2.4s;}
+.ill .dk-desk {position: relative; flex: 1; min-width: 0; overflow: hidden;
+      background: #f5f5f7;}
+.ill .dk-files {position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 12px; z-index: 1;}
+.ill .dk-file {width: 52px; text-align: center; font-size: 0.46rem; color: var(--muted);}
+.ill .dk-file i {display: block; width: 26px; height: 30px; margin: 0 auto 3px; border-radius: 4px;}
+.ill .dk-doc {background: #ffffff; border: 1px solid var(--line); box-shadow: 0 2px 5px rgba(0, 0, 0,0.1);}
+.ill .dk-folder {background: #c7c7cc; border-radius: 3px 5px 4px 4px !important; box-shadow: 0 2px 5px rgba(0, 0, 0,0.12);}
+.ill .dk-win {position: absolute; border-radius: 9px; overflow: hidden;
+      background: var(--card); border: 1px solid rgba(0, 0, 0, 0.14);
+      box-shadow: 0 2px 5px rgba(0, 0, 0,0.06), 0 14px 30px -12px rgba(0, 0, 0, 0.42);
+      display: flex; flex-direction: column;}
+.ill .dk-bar {display: flex; align-items: center; gap: 5px; padding: 5px 7px; flex: none;
+      border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, 0.75);}
+.ill .dk-bar .tl {width: 6px; height: 6px;}
+.ill .dk-url {font-family: var(--mono); font-size: 0.42rem; color: var(--faint); margin-left: 4px;}
+.ill .dk-name {font-size: 0.48rem; font-weight: 650; margin-left: 4px;}
+.ill .dk-bar .ap-spin {width: 7px; height: 7px;}
+.ill .dk-browser {left: 15%; top: 12%; width: 44%; height: 60%; z-index: 2; animation: dkFloatA 13s ease-in-out infinite;}
+.ill .dk-page {flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 5px;}
+.ill .dk-hero {height: 34%; border-radius: 5px; background: #e8e8ed; opacity: 0.62;}
+.ill .dk-page .ln {height: 4px;}
+.ill .dk-cards {display: flex; gap: 4px; margin-top: 1px;}
+.ill .dk-cards span {flex: 1; height: 20px; border-radius: 4px; background: var(--cream); border: 1px solid var(--line);}
+.ill .dk-cursor {position: absolute; z-index: 5; width: 9px; height: 12px; background: var(--ink);
+      -webkit-clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      filter: drop-shadow(0 0 1px #fff) drop-shadow(0 2px 3px rgba(0, 0, 0,0.35));
+      animation: dkCursor 9s var(--ease) infinite;}
+.ill .dk-chat {right: 6%; top: 7%; width: 32%; height: 46%; z-index: 3; animation: dkFloatB 15s ease-in-out infinite;}
+.ill .dk-chat2 {right: 13%; bottom: 12%; width: 27%; height: 27%; z-index: 2; animation: dkFloatA 17s ease-in-out infinite;}
+.ill .dk-body {flex: 1; min-height: 0; padding: 8px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start;}
+.ill .dk-body .bubble {font-size: 0.46rem; padding: 4px 6px; border-radius: 7px; max-width: 92%;}
+.ill .dk-body .ap-say {font-size: 0.46rem; line-height: 1.45;}
+.ill .dk-body .ap-tool {font-size: 0.4rem; padding: 1px 5px;}
+.ill .dk-body .ln {height: 4px;}
+.ill .dk-typing {display: flex; gap: 3px; padding: 2px 0;}
+.ill .dk-typing i {width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--faint); animation: dkDot 1.3s ease-in-out infinite;}
+.ill .dk-typing i:nth-child(2) {animation-delay: 0.16s;}
+.ill .dk-typing i:nth-child(3) {animation-delay: 0.32s;}
+.ill .dk-dash {left: 6%; bottom: 13%; width: 21%; z-index: 3; padding: 9px 10px 10px; gap: 4px; animation: dkFloatB 12s ease-in-out infinite;}
+.ill .dk-dash-head {font-size: 0.42rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);}
+.ill .dk-stat {display: flex; align-items: baseline; gap: 4px;}
+.ill .dk-stat b {font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em;}
+.ill .dk-stat span {font-size: 0.44rem; color: var(--muted);}
+.ill .dk-bars {display: flex; align-items: flex-end; gap: 3px; height: 18px; margin-top: 2px;}
+.ill .dk-bars i {flex: 1; border-radius: 1.5px; background: var(--sage); opacity: 0.65;}
+.ill .dk-bars i:nth-child(1) {height: 34%;}
+.ill .dk-bars i:nth-child(2) {height: 56%;}
+.ill .dk-bars i:nth-child(3) {height: 44%;}
+.ill .dk-bars i:nth-child(4) {height: 78%;}
+.ill .dk-bars i:nth-child(5) {height: 62%;}
+.ill .dk-bars i:nth-child(6) {height: 92%;}
+.ill .dk-bars i:nth-child(7) {height: 70%;}
+.ill .dk-delta {font-size: 0.42rem; color: #6e6e73;}
+.ill .dk-dock {position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 6;
+      display: flex; align-items: flex-end; gap: 6px; padding: 5px 8px 7px; border-radius: 11px;
+      background: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.7);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.4);}
+.ill .dk-app {position: relative; width: 20px; height: 20px; border-radius: 6px; background: rgba(0, 0, 0, 0.15);}
+.ill .dk-app i {position: absolute; left: 50%; bottom: -5px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--muted);}
+.ill .dk-app.a1 {background: var(--ink);}
+.ill .dk-app.a2 {background: #c7c7cc;}
+.ill .dk-app.a3 {background: #c7c7cc;}
+.ill .dk-app.a4 {background: rgba(142, 142, 147, 0.6);}
+.ill .dk-app.a5 {background: rgba(142, 142, 147, 0.6);}
+.ill .dk-app.a6 {background: rgba(142, 142, 147, 0.6);}
+.ill .ap-pbody.flush {padding: 0; align-items: stretch;}
+.ill .br {flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff;}
+.ill .br-tabs {display: flex; align-items: flex-end; gap: 5px; padding: 5px 7px 0; background: rgba(245, 245, 247,0.9);}
+.ill .br-tab {display: inline-flex; align-items: center; gap: 5px; max-width: 78%;
+      font-size: 0.44rem; color: var(--ink); background: #fff;
+      border-radius: 6px 6px 0 0; padding: 4px 9px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .br-fav {width: 7px; height: 7px; border-radius: 1.5px; background: #86868b; flex: none;}
+.ill .br-plus {font-size: 0.5rem; color: var(--faint); padding: 0 4px 3px;}
+.ill .br-omni {display: flex; align-items: center; gap: 7px; padding: 5px 8px; background: #fff; border-bottom: 1px solid var(--line);}
+.ill .br-arrows {font-size: 0.5rem; color: var(--faint); letter-spacing: 2px;}
+.ill .br-url {flex: 1; display: inline-flex; align-items: center; gap: 4px;
+      font-family: var(--mono); font-size: 0.44rem; color: var(--ink);
+      background: #f1f3f4; border-radius: 999px; padding: 3px 9px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .br-url em {font-style: normal; color: var(--faint);}
+.ill .br-lock {width: 5px; height: 6px; border-radius: 1px; background: var(--faint); flex: none;}
+.ill .gm {position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 84px 1fr; background: #fff;}
+.ill .gm-side {padding: 8px 6px;}
+.ill .gm-compose {display: flex; align-items: center; gap: 4px; justify-content: center;
+      font-size: 0.46rem; font-weight: 600; color: #3c4043;
+      background: #e8e8ed; border-radius: 999px; padding: 5px 0; margin-bottom: 8px;}
+.ill .gm-compose i {width: 6px; height: 6px; border-radius: 1px; background: #3c4043;}
+.ill .gm-nav {display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.46rem; color: #444746; padding: 3px 7px; border-radius: 999px; margin-bottom: 1px;}
+.ill .gm-nav.on {background: #e8e8ed; color: #0071e3; font-weight: 700;}
+.ill .gm-nav span {font-size: 0.42rem;}
+.ill .gm-list {border-left: 1px solid #e8eaed; overflow: hidden;}
+.ill .gm-row {display: flex; align-items: center; gap: 7px; padding: 5px 9px;
+      border-bottom: 1px solid #f1f3f4; font-size: 0.45rem; color: #5f6368;}
+.ill .gm-from {width: 58px; flex: none; font-weight: 700; color: #202124; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .gm-subj {flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .gm-subj b {color: #202124; font-weight: 600;}
+.ill .gm-when {font-size: 0.4rem; color: #5f6368; flex: none;}
+.ill .gm-done {flex: none; width: 8px; font-size: 0.44rem; color: transparent;}
+.ill .gm-row.done .gm-done {color: #6e6e73;}
+.ill .gm-row.done {color: #9aa0a6;}
+.ill .gm-row.now {background: #ffffff;}
+.ill .gm-row.now .gm-done {color: #0071e3; animation: gmNow 1.4s ease-in-out infinite;}
+.ill .gm-comp {position: absolute; right: 10px; bottom: 0; width: 47%; z-index: 5;
+      background: #fff; border-radius: 8px 8px 0 0;
+      box-shadow: 0 -1px 3px rgba(60,64,67,0.16), 0 8px 20px -6px rgba(60,64,67,0.4);
+      display: flex; flex-direction: column; overflow: hidden;}
+.ill .gm-ch {font-size: 0.44rem; font-weight: 650; color: #fff; background: #404040; padding: 4px 9px;}
+.ill .gm-crow {display: flex; gap: 6px; padding: 4px 9px; border-bottom: 1px solid #f1f3f4; font-size: 0.44rem; color: #5f6368;}
+.ill .gm-crow span {width: 26px; flex: none;}
+.ill .gm-crow b {font-weight: 400; color: #202124; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.ill .gm-ctext {padding: 7px 9px; font-size: 0.44rem; line-height: 1.65; color: #202124;}
+.ill .gm-cfoot {display: flex; align-items: center; gap: 8px; padding: 6px 9px 8px;}
+.ill .gm-send {font-size: 0.45rem; font-weight: 650; color: #fff; background: #0071e3;
+      border-radius: 999px; padding: 3px 12px;
+      animation: mlSend 9s var(--ease) infinite;}
+.ill .gm-clip {font-family: var(--mono); font-size: 0.4rem; color: #5f6368;}
+.ill .ml-swap {position: relative; display: inline-grid;}
+.ill .ml-swap > i {grid-area: 1 / 1; font-style: normal; white-space: nowrap;}
+.ill .ml-swap .n1 {animation: mlA 9s steps(1) infinite;}
+.ill .ml-swap .n2 {animation: mlB 9s steps(1) infinite; opacity: 0;}
+.ill .ml-swap .n3 {animation: mlC 9s steps(1) infinite; opacity: 0;}
+.ill .ml-toast {position: absolute; left: 12px; bottom: 12px; z-index: 6;
+      font-size: 0.44rem; font-weight: 600; color: #fff; background: #323232;
+      border-radius: 4px; padding: 4px 10px;
+      opacity: 0; transform: translateY(6px);
+      animation: mlToast 9s var(--ease) infinite;}
+.ill .ml-cursor {position: absolute; z-index: 7; width: 10px; height: 13px; background: var(--ink);
+      -webkit-clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
+      filter: drop-shadow(0 0 1px #fff) drop-shadow(0 2px 4px rgba(0, 0, 0,0.4));
+      animation: mlCur 9s var(--ease) infinite;}
+.ill .ml-prog {font-size: 0.5rem; color: var(--muted);}
+.ill .ml-prog b {font-weight: 650; color: var(--ink);}
+.ill .d7-note {position: absolute; right: 14px; width: 268px;
+      display: flex; gap: 9px; padding: 10px 11px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--glass-edge); border-radius: 14px;
+      backdrop-filter: blur(14px) saturate(150%);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07), 0 18px 40px -16px rgba(0, 0, 0, 0.45);
+      transform: translateX(300px); opacity: 0;}
+.ill .d7-n1 {top: 16px; animation: d7a 12s var(--ease) infinite;}
+.ill .d7-n2 {top: 16px; animation: d7b 12s var(--ease) infinite;}
+.ill .d7-icon {width: 26px; height: 26px; border-radius: 7px; flex: none;
+      background: var(--ink); display: flex; align-items: center; justify-content: center;}
+.ill .d7-icon i {width: 8px; height: 8px; border-radius: 2px; background: var(--cream);}
+.ill .d7-txt {min-width: 0; flex: 1;}
+.ill .d7-hd {display: flex; align-items: baseline; gap: 6px;}
+.ill .d7-hd b {font-size: 0.58rem; font-weight: 700; letter-spacing: 0.02em;}
+.ill .d7-time {font-size: 0.53rem; color: var(--faint); margin-left: auto;}
+.ill .d7-ttl {font-size: 0.63rem; font-weight: 600; margin-top: 1px; line-height: 1.35;}
+.ill .d7-bd {font-size: 0.6rem; color: var(--muted); line-height: 1.45; margin-top: 2px;}
+.ill .d7-bd code {font-family: var(--mono); font-size: 0.54rem; padding: 1px 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.07);}
+.ill .d7-kind {display: inline-block; font-size: 0.5rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 1px 6px; border-radius: 999px; margin-bottom: 3px;}
+.ill .d7-kind.asks {background: rgba(142, 142, 147, 0.4); color: #0071e3;}
+.ill .d7-kind.done {background: rgba(142, 142, 147, 0.4); color: #6e6e73;}
+.ill .d7-dock {position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+      display: flex; align-items: flex-end; gap: 7px;
+      padding: 6px 9px; border-radius: 13px;
+      background: rgba(255, 255, 255, 0.6); border: 1px solid var(--glass-edge);
+      backdrop-filter: blur(10px);}
+.ill .d7-app {width: 21px; height: 21px; border-radius: 6px; background: rgba(0, 0, 0, 0.16);}
+.ill .d7-app.sa {background: var(--ink); position: relative;}
+.ill .d7-badge {position: absolute; top: -4px; right: -4px; min-width: 13px; height: 13px;
+      border-radius: 999px; background: #86868b; color: #fff;
+      font-size: 0.46rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      animation: d7badge 12s var(--ease) infinite; opacity: 0; transform: scale(0.3);}
+.ill .dk {border-radius: 16px; overflow: hidden;}
+.ill .dk {opacity: 1; transform: none;
+      transition: opacity 1s var(--ease), transform 1s var(--ease);
+      transition-delay: var(--d, 0s);}
+.ill .dk-browser {grid-area: browser; display: flex; flex-direction: column; min-height: 300px; background: var(--glass);
+      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--glass-edge);}
+.ill .dk-dash {grid-area: dash; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;}
+@media (prefers-reduced-motion: reduce) { .ill .d1-pg2,
+.ill .d1-pg3,
+.ill .d3-ripple {opacity: 0 !important;} }
+@media (prefers-reduced-motion: reduce) { .ill .d3-sheet {transform: translateY(106%) !important;} }
+.ill .mini,
+.ill .d1-pg {background: var(--card) !important;}
+.ill .pm-hero {background: var(--skel) !important;}
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.75); } }
+@keyframes apspin { to { transform: rotate(360deg); } }
+@keyframes apblink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+@keyframes aphl {
+      0%, 30% { transform: translateY(0); }
+      34%, 63% { transform: translateY(calc(var(--rowh, 19.5px) + 1px)); }
+      67%, 95% { transform: translateY(calc((var(--rowh, 19.5px) + 1px) * 2)); }
+      100% { transform: translateY(0); }
+    }
+@keyframes d1a { 0%, 30% { opacity: 1; } 32%, 97% { opacity: 0; } 99%, 100% { opacity: 1; } }
+@keyframes d1b { 0%, 32% { opacity: 0; } 34%, 63% { opacity: 1; } 65%, 100% { opacity: 0; } }
+@keyframes d1c { 0%, 65% { opacity: 0; } 67%, 95% { opacity: 1; } 97%, 100% { opacity: 0; } }
+@keyframes d1sw1 { 0%, 7% { opacity: 1; } 8%, 100% { opacity: 0; } }
+@keyframes d1sw2 { 0%, 7% { opacity: 0; } 8%, 15% { opacity: 1; } 16%, 100% { opacity: 0; } }
+@keyframes d1sw3 { 0%, 15% { opacity: 0; } 16%, 100% { opacity: 1; } }
+@keyframes d1pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes d1workfade { 0%, 20% { opacity: 1; } 26%, 100% { opacity: 0; } }
+@keyframes d1card {
+      0%, 18% { opacity: 0; transform: translateY(5px); }
+      24%, 30% { opacity: 1; transform: none; }
+      32%, 100% { opacity: 0; transform: none; }
+    }
+@keyframes d1late {
+      0%, 24% { opacity: 0; transform: translateY(5px); }
+      29%, 30% { opacity: 1; transform: none; }
+      32%, 100% { opacity: 0; transform: none; }
+    }
+@keyframes d2diag {
+      0%, 6% { transform: rotate(-38deg) scaleX(0); }
+      16%, 94% { transform: rotate(-38deg) scaleX(1); }
+      97%, 100% { transform: rotate(-38deg) scaleX(0); }
+    }
+@keyframes d2br {
+      0%, 14% { transform: scaleX(0); }
+      26%, 94% { transform: scaleX(1); }
+      97%, 100% { transform: scaleX(0); }
+    }
+@keyframes d2pop { 0%, 30% { transform: scale(0); } 36% { transform: scale(1.35); } 40%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+@keyframes d2pop2 { 0%, 44% { transform: scale(0); } 50% { transform: scale(1.35); } 54%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+@keyframes d2pop3 { 0%, 58% { transform: scale(0); } 64% { transform: scale(1.35); } 68%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
+@keyframes d2clean { 0%, 70% { transform: scale(1); } 75% { transform: scale(1.35); } 80%, 100% { transform: scale(1); } }
+@keyframes d2msg {
+      0%, 58% { opacity: 0; transform: translateY(5px); }
+      65%, 92% { opacity: 1; transform: translateY(0); }
+      96%, 100% { opacity: 0; }
+    }
+@keyframes d3hl {
+      0%, 16% { background: var(--cream); }
+      22%, 30% { background: rgba(142, 142, 147, 0.35); }
+      38%, 100% { background: var(--cream); }
+    }
+@keyframes d3rip {
+      0%, 17% { opacity: 0; transform: scale(0.25); }
+      20% { opacity: 0.75; transform: scale(0.45); }
+      32% { opacity: 0; transform: scale(1.9); }
+      100% { opacity: 0; transform: scale(0.25); }
+    }
+@keyframes d3sheet {
+      0%, 26% { transform: translateY(106%); }
+      35%, 66% { transform: translateY(4%); }
+      76%, 100% { transform: translateY(106%); }
+    }
+@keyframes d4scroll {
+      0%, 22% { transform: translateY(0); }
+      36%, 58% { transform: translateY(-24%); }
+      72%, 100% { transform: translateY(0); }
+    }
+@keyframes d4btn {
+      0%, 58% { transform: scale(1); }
+      63% { transform: scale(1.1); }
+      68%, 100% { transform: scale(1); }
+    }
+@keyframes d5step1 { 0%, 17% { color: var(--ink); background: rgba(142, 142, 147, 0.14); } 18%, 100% { color: var(--faint); background: transparent; } }
+@keyframes d5step2 { 0%, 17% { color: var(--faint); background: transparent; } 18%, 52% { color: var(--ink); background: rgba(142, 142, 147, 0.14); } 53%, 100% { color: var(--faint); background: transparent; } }
+@keyframes d5step3 { 0%, 52% { color: var(--faint); background: transparent; } 53%, 65% { color: var(--ink); background: rgba(142, 142, 147, 0.14); } 66%, 100% { color: var(--faint); background: transparent; } }
+@keyframes d5step4 { 0%, 65% { color: var(--faint); background: transparent; } 66%, 92% { color: var(--ink); background: rgba(142, 142, 147, 0.14); } 93%, 100% { color: var(--faint); background: transparent; } }
+@keyframes d2file {
+      0% { opacity: 0; transform: translateY(4px); }
+      8%, 88% { opacity: 1; transform: none; }
+      97%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+@keyframes dkCursor {
+      0%, 8% { transform: translate(64px, 74px); }
+      22%, 40% { transform: translate(38px, 44px); }
+      54%, 72% { transform: translate(86px, 96px); }
+      88%, 100% { transform: translate(64px, 74px); }
+    }
+@keyframes dkDot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.45; } 30% { transform: translateY(-2px); opacity: 1; } }
+@keyframes dkFloatA { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes dkFloatB { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(2px); } }
+@keyframes gmNow { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes mlSend { 0%, 56% { transform: scale(1); } 60% { transform: scale(0.92); } 64%, 100% { transform: scale(1); } }
+@keyframes mlA { 0%, 32% { opacity: 1; } 33%, 100% { opacity: 0; } }
+@keyframes mlB { 0%, 32% { opacity: 0; } 33%, 65% { opacity: 1; } 66%, 100% { opacity: 0; } }
+@keyframes mlC { 0%, 65% { opacity: 0; } 66%, 100% { opacity: 1; } }
+@keyframes mlToast {
+      0%, 60% { opacity: 0; transform: translateY(6px); }
+      66%, 88% { opacity: 1; transform: none; }
+      94%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+@keyframes mlCur {
+      0%, 10% { transform: translate(120px, 60px); }
+      26%, 48% { transform: translate(190px, 128px); }
+      58%, 70% { transform: translate(168px, 176px); }
+      86%, 100% { transform: translate(120px, 60px); }
+    }
+@keyframes d7a {
+      0% { transform: translateX(300px); opacity: 0; }
+      5%, 32% { transform: translateX(0); opacity: 1; }
+      38%, 100% { transform: translateX(300px); opacity: 0; }
+    }
+@keyframes d7b {
+      0%, 46% { transform: translateX(300px); opacity: 0; }
+      52%, 82% { transform: translateX(0); opacity: 1; }
+      88%, 100% { transform: translateX(300px); opacity: 0; }
+    }
+@keyframes d7badge {
+      0%, 4% { opacity: 0; transform: scale(0.3); }
+      9%, 100% { opacity: 1; transform: scale(1); }
+    }
+/* page overrides: one hairline edge, no shadow card, greys for every project icon */
+.ill .mini { border: 0 !important; border-radius: 12px; box-shadow: none !important; outline: 1px solid rgba(0,0,0,.1); outline-offset: -1px; }
+.ill .mini.scene { outline: 0; }
+.ill .pi-design, .ill .pi-mobile, .ill .pi-shop, .ill .pi-notes, .ill .pi-outreach, .ill .pi-docs, .ill .pi-studio { background: #aeaeb2; color: #fff; }
+.ill .ic-files, .ill .ic-todo, .ill .ic-snip { background: #c7c7cc; }
+.ill .fv1, .ill .fv2 { background: #c7c7cc; }
+.ill .dk-bars i { background: #c7c7cc; opacity: 1; }
+.ill .dk-bars i:last-child { background: var(--blue); }
+.ill .d7-desk { background: none; border-radius: 0; overflow: visible; }
+.ill * { animation-play-state: paused; }
+.ill.play * { animation-play-state: running; }
+@media (prefers-reduced-motion: reduce) { .ill *, .ill *::before, .ill *::after { animation: none !important; transition: none !important; } }
+
   </style>
 </head>
 <body>
@@ -206,7 +966,18 @@
         <p class="fine">Free and open source. Works with Claude Code, Codex and Antigravity.</p>
       </div>
       <div class="shot">
-        <video class="window" id="hero-film" muted playsinline preload="metadata" poster="hero-window.png" width="2880" height="1800" aria-label="The Superagent window: stripe.com open in the browser pane as a desktop card and an iPhone side by side, with the chat that opened it reporting what it found"><source src="hero.mp4" type="video/mp4" /><source src="hero.webm" type="video/webm" /></video>
+        <video class="window" id="hero-film" muted playsinline preload="metadata" poster="hero-window.png" width="2880" height="1800" aria-label="A short film of the Superagent window: a question is typed, stripe.com opens in the browser pane as a desktop page and an iPhone side by side, then four chats from four projects work side by side in split view, and Command-K finds a chat"><source src="hero.mp4" type="video/mp4" /><source src="hero.webm" type="video/webm" /></video>
+      </div>
+    </section>
+
+    <section class="statement" id="about">
+      <div class="content">
+        <p class="big">Superagent is a Mac app for Claude Code, Codex and Antigravity. It gives your agent a browser, an iPhone and a line to your phone, on the subscription you already pay for.</p>
+        <ul class="spec"><li>Your work stays on your Mac</li><li>No account. No tracking.</li><li>Open source</li></ul>
+        <div class="ctas">
+          <a class="link" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener">Get the iPhone app</a>
+          <a class="link" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">View on GitHub</a>
+        </div>
       </div>
     </section>
 
@@ -223,32 +994,890 @@
       </div>
     </section>
 
+    <section id="features">
+      <div class="content">
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">I.</span>The sidebar<span class="jp" lang="ja">サイドバー</span></p>
+            <h2>Every chat. One sidebar.</h2>
+          </div>
+          <div class="copy">
+            <p class="intro">Give each task its own chat. Each one remembers its own work, so you can jump between them and pick up exactly where you left off.</p>
+            <p class="body">A spinner means an agent is still working. A dot means it finished while you were away. Every project shows its real icon: the website&rsquo;s favicon, or your app&rsquo;s icon from Xcode.</p>
+          </div>
+        </div>
+        <div class="ill ill-features" role="img" aria-label="The Superagent window: a sidebar of projects and their chats, one still working and one finished, beside the open conversation">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-pi app pi-studio"><i></i></i><span>studio</span><i class="ap-caret end"></i></div>
+            <div class="ap-repos">
+            <div class="ap-repo"><span class="ap-rk">&lt;/&gt;</span><span>studio-web</span><span class="ap-rb">&#9095; main</span></div>
+            <div class="ap-repo"><span class="ap-rk">&lt;/&gt;</span><span>studio-ios</span><span class="ap-rb">cloning&hellip;</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">landing-page</span>
+            <span class="ap-path">~/work/landing-page</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span><span class="ap-server"><i></i>localhost:5173<em>Open preview</em></span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-chat">
+            <div class="ap-stream ap-stack">
+            <div class="d1-pg d1-pg1">
+            <div class="bubble bub-user">Tighten the hero copy, keep the serif on the emphasis.</div>
+            <div class="d1-say">Trimming the sub-headline and leaving the serif where it earns its keep.</div>
+            <div class="d1-steps">
+            <span class="caret">&rsaquo;</span>
+            <b class="d1-swap"><span class="d1-n1">3 steps</span><span class="d1-n2">7 steps</span><span class="d1-n3">11 steps</span></b>
+            <span>&middot; 1 edit</span>
+            <span class="d1-live"><i></i></span>
+            <span class="d1-st d1-swap"><span class="d1-s1">Reading index.html</span><span class="d1-s2">Editing hero copy</span><span class="d1-s3">Done in 24s</span></span>
+            </div>
+            <div class="d1-card">
+            <div class="d1-say"><code>docs/index.html</code> &mdash; the sub is one line now.</div>
+            <ul class="d1-bul">
+            <li><b>Sub-headline</b> &mdash; 34 words down to 12.</li>
+            <li><b>Serif</b> &mdash; kept on the emphasis, dropped elsewhere.</li>
+            </ul>
+            <div class="d1-diff"><span class="add">+12</span><span class="del">&minus;34</span><span>1 file changed</span></div>
+            </div>
+            <div class="bubble bub-user d1-late">Good. Commit it.</div>
+            <div class="d1-say d1-late">Committed as <code>Landing: shorter hero sub</code>.</div>
+            </div>
+            <div class="d1-pg d1-pg2">
+            <div class="bubble bub-user">Why is the login redirect looping?</div>
+            <div class="d1-say">Opened the page and walked the redirect chain in the browser pane.</div>
+            <div class="d1-steps">
+            <span class="caret">&rsaquo;</span><b>9 steps</b><span>&middot; 2 edits</span>
+            <span class="d1-st">Done in 1m 12s</span>
+            </div>
+            <div class="d1-card">
+            <div class="d1-say">The session cookie was set on <code>/login</code> but read on <code>/</code>, so the guard bounced you every time.</div>
+            <ul class="d1-bul">
+            <li><b>Cause</b> &mdash; cookie path scoped too narrowly.</li>
+            <li><b>Fix</b> &mdash; set <code>path=/</code> and added a regression test.</li>
+            </ul>
+            <div class="d1-diff"><span class="add">+31</span><span class="del">&minus;6</span><span>2 files changed</span></div>
+            </div>
+            <div class="bubble bub-user">Does the test cover the logout path too?</div>
+            <div class="d1-say">It does now &mdash; <code>tests/auth.spec.ts</code> asserts the cookie is cleared on sign&#8209;out.</div>
+            </div>
+            <div class="d1-pg d1-pg3">
+            <div class="bubble bub-user">Move us to pnpm, keep CI green.</div>
+            <div class="d1-say">Migrated the lockfile and reran the workflow until it passed.</div>
+            <div class="d1-steps">
+            <span class="caret">&rsaquo;</span><b>26 steps</b><span>&middot; 5 edits</span>
+            <span class="d1-st">Done in 4m 06s</span>
+            </div>
+            <div class="d1-card">
+            <div class="d1-say"><code>pnpm-lock.yaml</code> replaces <code>package-lock.json</code>; CI is green on the branch.</div>
+            <ul class="d1-bul">
+            <li><b>Workflow</b> &mdash; swapped the setup step and the cache key.</li>
+            <li><b>Install</b> &mdash; 41s down to 12s on a cold runner.</li>
+            </ul>
+            <div class="d1-diff"><span class="add">+248</span><span class="del">&minus;3,911</span><span>4 files changed</span></div>
+            </div>
+            <div class="bubble bub-user">Any peer-dep warnings?</div>
+            <div class="d1-say">Two, both from <code>eslint-config-next</code>. Pinned them in <code>.npmrc</code> and the install is clean.</div>
+            </div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+        </div>
+        <p class="caption">Click a chat. The whole conversation is there.</p>
+        <ul class="spec"><li>One chat per task</li><li>Kept through a restart</li><li>Working or done, at a glance</li><li>Each project&rsquo;s own icon</li></ul>
+      </div>
+    </section>
+
+    <section id="worktrees">
+      <div class="content">
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">II.</span>Worktree chats<span class="jp" lang="ja">各チャット、各ブランチ</span></p>
+            <h2>Its own branch. Your files untouched.</h2>
+          </div>
+          <div class="copy">
+            <p class="intro">Start a chat on a worktree: a separate copy of your project, on its own git branch. The agent commits there, and the folder you work in stays exactly as you left it.</p>
+          </div>
+        </div>
+        <div class="ill ill-worktrees" role="img" aria-label="A chat on its own worktree: three commits land on its branch while main and your checkout stay clean">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
+            <div class="ap-crow on"><span class="ap-clabel">Fix the flaky auth test</span><span class="ap-wt">worktree</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">landing-page</span>
+            <span class="ap-path">~/work/.worktrees/fix-auth</span>
+            <span class="ap-branch"><i>&#9095;</i>superagent/fix&#8209;auth</span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-chat">
+            <div class="ap-stream">
+            <div class="bubble bub-user">Fix the flaky auth test &mdash; on its own branch, don't touch my checkout.</div>
+            <div class="ap-say">Started this chat on a worktree at <code>superagent/fix-auth</code>. Commits land there; <code>main</code> stays where you left it.</div>
+            <div class="ap-card">
+            <div class="d2-graph">
+            <span class="d2-commit-msg">&#10003; stub clock in auth spec</span>
+            <span class="d2-lbl br-l">superagent/fix-auth</span>
+            <span class="d2-line d2-main-line"></span>
+            <span class="d2-line d2-diag"></span>
+            <span class="d2-line d2-branch-line"></span>
+            <span class="d2-c d2-cm cm1"></span>
+            <span class="d2-c d2-cm cm2"></span>
+            <span class="d2-c d2-cm cm3"></span>
+            <span class="d2-c d2-cb cb1 d2-pop1"></span>
+            <span class="d2-c d2-cb cb2 d2-pop2"></span>
+            <span class="d2-c d2-cb cb3 d2-pop3"></span>
+            <span class="d2-lbl main-l">main</span>
+            <span class="d2-clean"><i>&#10003;</i> your checkout · clean</span>
+            </div>
+            <div class="d2-files">
+            <div class="d2-fh">Changed on the branch</div>
+            <div class="d2-f d2-f1"><span class="fn">src/auth/session.ts</span><span class="add">+26</span><span class="del">&minus;4</span></div>
+            <div class="d2-f d2-f2"><span class="fn">src/auth/clock.ts</span><span class="add">+18</span><span class="del">&minus;0</span></div>
+            <div class="d2-f d2-f3"><span class="fn">tests/auth.spec.ts</span><span class="add">+41</span><span class="del">&minus;12</span></div>
+            </div>
+            </div>
+            <div class="ap-say">Three commits in. Your working tree is still clean.</div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+        </div>
+        <p class="caption">Commits go to the chat&rsquo;s branch. Main stays put.</p>
+        <ul class="spec"><li>A separate copy of the project</li><li>Your checkout never changes</li><li>A branch named after the chat</li></ul>
+      </div>
+    </section>
+
+    <section id="simulator">
+      <div class="content">
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">III.</span>The simulator<span class="jp" lang="ja">シミュレーター</span></p>
+            <h2>An iPhone in the window.</h2>
+          </div>
+          <div class="copy">
+            <p class="intro">Building an iPhone app? The agent opens a real iOS Simulator right inside Superagent, then taps, types and swipes through your app to check its own work.</p>
+            <p class="body">It uses the Simulator that comes with Xcode, so there is nothing else to install.</p>
+          </div>
+        </div>
+        <div class="ill ill-simulator" role="img" aria-label="An iPhone simulator streamed into the window beside the chat that boots it, taps a row and reports back">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-sim" title="Simulator attached"><svg viewBox="0 0 6 8"><rect x="0.6" y="0.6" width="4.8" height="6.8" rx="1.1"/></svg></span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow on"><span class="ap-clabel">Check the confirm flow</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Order sheet spacing</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Bump to iOS 18.2</span></div>
+            </div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">mobile-app</span>
+            <span class="ap-path">~/work/mobile-app</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-split">
+            <div class="ap-pane sim">
+            <div class="ap-pbar"><span class="ap-pdevice">iPhone 16 &middot; iOS 18.2</span><span class="ap-live"><i></i>streaming</span></div>
+            <div class="ap-pbody">
+            <div class="iphone d3-phone">
+            <span class="island"></span>
+            <div class="iphone-screen">
+            <div class="d3-app">
+            <div class="d3-navbar"><span class="d3-title">Orders</span><span class="ln dk" style="width:20px"></span></div>
+            <div class="d3-list">
+            <div class="d3-card hl">
+            <span class="d3-ripple"></span>
+            <span class="ln dk" style="width:52%"></span>
+            <span class="ln" style="width:76%"></span>
+            </div>
+            <div class="d3-card"><span class="ln dk" style="width:44%"></span><span class="ln" style="width:68%"></span></div>
+            <div class="d3-card"><span class="ln dk" style="width:58%"></span><span class="ln" style="width:72%"></span></div>
+            <div class="d3-card"><span class="ln dk" style="width:40%"></span><span class="ln" style="width:64%"></span></div>
+            </div>
+            </div>
+            <div class="d3-sheet">
+            <span class="d3-grab"></span>
+            <span class="ln dk" style="width:46%; height:9px"></span>
+            <span class="ln" style="width:82%"></span>
+            <span class="ln" style="width:70%"></span>
+            <span class="d3-btn">Confirm order</span>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            <div class="ap-chat narrow">
+            <div class="ap-stream">
+            <div class="bubble bub-user">Check the confirm button still works on iPhone.</div>
+            <div class="ap-say">Booting the simulator and opening Orders.</div>
+            <div class="ap-tool"><i></i>sim_boot &rsaquo; iPhone 16</div>
+            <div class="ap-tool"><i></i>sim_tap &rsaquo; row 2</div>
+            <div class="ap-say">Tapped it. The sheet opens and <b>Confirm order</b> is enabled.</div>
+            <div class="ap-tool"><i></i>sim_screen &rsaquo; captured</div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+        </div>
+        <p class="caption">Ask once. It boots the phone and tells you what it found.</p>
+        <ul class="spec"><li>Live, inside the window</li><li>Taps, types and swipes</li><li>Nothing extra to install</li></ul>
+      </div>
+    </section>
+
+    <section id="twice">
+      <div class="content">
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">IV.</span>Desktop &amp; phone at once<span class="jp" lang="ja">二重表示</span></p>
+            <h2>One page. Two screens.</h2>
+          </div>
+          <div class="copy">
+            <p class="intro">See a web page as a desktop and as a phone, side by side and both live. Change something and both update. The agent can switch the view itself: a real 390&times;844 phone, desktop, or both.</p>
+          </div>
+        </div>
+        <div class="ill ill-twice" role="img" aria-label="One page shown as a desktop card and as a phone side by side, in one browser session">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow on"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">landing-page</span>
+            <span class="ap-path">~/work/landing-page</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span><span class="ap-server"><i></i>localhost:5173<em>Open preview</em></span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-split">
+            <div class="ap-pane ">
+            <div class="ap-pbar"><span class="ap-purl">yoursite.dev/launch</span><span class="ap-vp"><b>Desktop</b> + Phone</span></div>
+            <div class="ap-pbody">
+            <div class="d4-flex">
+            <div class="d4-desktop">
+            <div class="mp-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="mp-url">yoursite.dev/launch</span></div>
+            <div class="d4-view">
+            <div class="pm">
+            <div class="pm-nav"><span class="pm-logo"></span><span class="ln" style="width:26px"></span><span class="ln" style="width:26px"></span><span class="ln dk" style="width:38px; margin-left:auto"></span></div>
+            <div class="pm-hero"></div>
+            <div class="ln dk" style="width:62%; height:9px"></div>
+            <div class="ln" style="width:84%"></div>
+            <div class="ln" style="width:52%"></div>
+            <div class="pm-btn"></div>
+            <div class="pm-cards"><span class="pm-card"></span><span class="pm-card"></span><span class="pm-card"></span></div>
+            <div class="ln" style="width:70%"></div>
+            <div class="ln" style="width:58%"></div>
+            </div>
+            </div>
+            </div>
+            <div class="iphone d4-phone">
+            <span class="island"></span>
+            <div class="iphone-screen">
+            <div class="pm" style="padding-top:30px">
+            <div class="pm-nav"><span class="pm-logo"></span><span class="ln dk" style="width:30px; margin-left:auto"></span></div>
+            <div class="pm-hero" style="height:52px"></div>
+            <div class="ln dk" style="width:74%; height:8px"></div>
+            <div class="ln" style="width:90%"></div>
+            <div class="ln" style="width:64%"></div>
+            <div class="pm-btn" style="width:64px; height:18px"></div>
+            <div class="pm-cards" style="flex-direction:column"><span class="pm-card" style="height:30px"></span><span class="pm-card" style="height:30px"></span></div>
+            <div class="ln" style="width:76%"></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            <div class="ap-chat narrow">
+            <div class="ap-stream">
+            <div class="bubble bub-user">Show me the launch page on both.</div>
+            <div class="ap-say">Same session, two viewports. Scroll one and the other follows.</div>
+            <div class="ap-tool"><i></i>browser_set_viewport &rsaquo; both</div>
+            <div class="ap-tool"><i></i>browser_navigate &rsaquo; /launch</div>
+            <div class="ap-say">The hero holds up at 390pt; the card row stacks below 520.</div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+        </div>
+        <p class="caption">Check both layouts at a glance.</p>
+        <ul class="spec"><li>Desktop and phone, side by side</li><li>A true phone size, 390&times;844</li><li>Every change shows in both</li></ul>
+      </div>
+    </section>
+
     <section id="split">
       <div class="content">
         <div class="header">
           <div>
-            <p class="eyebrow">Split view<span class="jp" lang="ja">分割表示</span></p>
-            <h2>Up to eight chats. One window.</h2>
+            <p class="eyebrow"><span class="num">V.</span>Split view<span class="jp" lang="ja">分割表示</span><span class="beta">Beta</span></p>
+            <h2>Eight chats. One window.</h2>
           </div>
-          <p class="intro">Side by side, from any project, saved as one row in the sidebar. New in the 2.1&nbsp;beta.</p>
+          <div class="copy">
+            <p class="intro">Put up to eight chats side by side and watch them all work at once. Drag one in from the sidebar or from &#8984;K, from any project.</p>
+            <p class="body">Move and resize each window, or give one chat the whole screen. Every split is saved in the sidebar, so you can return to it in one click. <b>&#8984;1&ndash;8</b> jumps to a window.</p>
+            <p class="fine">In the 2.1 beta: up to eight on the Mac, four on iPad.</p>
+          </div>
         </div>
         <div class="shot"><img src="split-view.png" alt="Split view: four chats side by side in one window, three from projects and one loose chat, with the split saved as a row under Splits in the sidebar" width="2880" height="1800" loading="lazy" decoding="async" /></div>
+        <p class="caption">Several projects. Several agents. One glance.</p>
+        <ul class="spec"><li>Up to eight chats</li><li>Drag one in, or &#8984;&#8617; in &#8984;K</li><li>Saved in the sidebar</li><li>On iPad too</li></ul>
+      </div>
+    </section>
+
+    <section id="automation">
+      <div class="content">
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">VI.</span>Browser automation<span class="jp" lang="ja">自動操作</span></p>
+            <h2>It uses the web for you.</h2>
+          </div>
+          <div class="copy">
+            <p class="intro">Tell it what to do on a site you&rsquo;re already signed in to, like answering a batch of emails. It reads, types, clicks and sends the way you would.</p>
+            <p class="body">It works in its own tab, so the tab you&rsquo;re using stays yours.</p>
+          </div>
+        </div>
+        <div class="ill ill-automation" role="img" aria-label="The agent working a signed-in inbox in the browser pane: reading threads, writing each reply by name and sending them">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-row dim"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-outreach">O</i><span>outreach</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow on"><span class="ap-clabel">Pricing follow-ups</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Launch note draft</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Weekly digest</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">outreach</span>
+            <span class="ap-path">~/work/outreach</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-split">
+            <div class="ap-pane ">
+            <div class="ap-pbar"><span class="ap-pdevice">Signed in as you</span><span class="ml-prog"><b class="ml-swap"><i class="n1">5</i><i class="n2">6</i><i class="n3">7</i></b> of 8 sent</span><span class="ap-live"><i></i>Claude is browsing</span></div>
+            <div class="ap-pbody flush">
+                  <div class="br">
+                    <div class="br-tabs">
+                      <span class="br-tab"><i class="br-fav"></i>Inbox (12) &ndash; you@yourco.com &ndash; Gmail</span>
+                      <span class="br-plus">+</span>
+                    </div>
+                    <div class="br-omni">
+                      <span class="br-arrows">&lsaquo; &rsaquo;</span>
+                      <span class="br-url"><i class="br-lock"></i>mail.google.com<em>/mail/u/0/#inbox</em></span>
+                    </div>
+                    <div class="gm">
+                      <aside class="gm-side">
+                        <div class="gm-compose"><i></i>Compose</div>
+                        <div class="gm-nav on">Inbox<span>12</span></div>
+                        <div class="gm-nav">Starred</div>
+                        <div class="gm-nav">Snoozed</div>
+                        <div class="gm-nav">Sent<span class="ml-swap"><i class="n1">5</i><i class="n2">6</i><i class="n3">7</i></span></div>
+                        <div class="gm-nav">Drafts</div>
+                      </aside>
+                      <div class="gm-list">
+                        <div class="gm-row done"><span class="gm-from">Priya Raman</span><span class="gm-subj"><b>Pricing for a team of 12</b> &mdash; we are comparing a few options</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row done"><span class="gm-from">Daniel Ok</span><span class="gm-subj"><b>Re: the launch note</b> &mdash; is there a written version?</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row now"><span class="gm-from">Mei Sandoval</span><span class="gm-subj"><b>Quick question on tiers</b> &mdash; do you charge per seat or per repo?</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row "><span class="gm-from">Tomas Ilves</span><span class="gm-subj"><b>Following up</b> &mdash; no rush, whenever suits</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row "><span class="gm-from">Ana Beltr&aacute;n</span><span class="gm-subj"><b>Enterprise pricing?</b> &mdash; we would need SSO and audit logs</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                        <div class="gm-row "><span class="gm-from">Ravi Menon</span><span class="gm-subj"><b>Pricing page question</b> &mdash; the middle tier is the one</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
+                      </div>
+                      <div class="gm-comp">
+                        <div class="gm-ch">New Message</div>
+                        <div class="gm-crow"><span>To</span><b class="ml-swap"><i class="n1">priya@northwind.co</i><i class="n2">daniel@aperture.io</i><i class="n3">mei@lantern.dev</i></b></div>
+                        <div class="gm-crow"><span>Subject</span><b>Pricing, and the launch note</b></div>
+                        <div class="gm-ctext">
+                          Hi <b class="ml-swap"><i class="n1">Priya</i><i class="n2">Daniel</i><i class="n3">Mei</i></b>,<br>
+                          You asked about pricing last week &mdash; the launch note is attached, and the team tier is the one you want.
+                        </div>
+                        <div class="gm-cfoot"><span class="gm-send">Send</span><span class="gm-clip">launch-note.pdf</span></div>
+                      </div>
+                      <div class="ml-toast">&#10003; Sent</div>
+                      <span class="ml-cursor"></span>
+                    </div>
+                  </div>
+                </div>
+            </div>
+            <div class="ap-chat narrow">
+                    <div class="ap-stream">
+                      <div class="bubble bub-user">Eight people asked about pricing this week. Send them each the launch note.</div>
+                      <div class="ap-say">Your inbox is already open and signed in. Working through them one at a time.</div>
+                      <div class="d5-steps" aria-hidden="true">
+                        <div class="d5-step"><span class="n">01</span><span><b>Reads</b> the eight threads</span></div>
+                        <div class="d5-step"><span class="n">02</span><span><b>Writes</b> each reply by name</span></div>
+                        <div class="d5-step"><span class="n">03</span><span><b>Attaches</b> the launch note</span></div>
+                        <div class="d5-step"><span class="n">04</span><span><b>Sends</b>, and lists who it wrote</span></div>
+                      </div>
+                      <div class="ap-say">Six away. Two are asking about the enterprise tier &mdash; I have left those for you.</div>
+                    </div>
+                    <div class="ap-comp">
+                      <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+                      <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+                    </div>
+                  </div>
+            </div>
+            </div>
+            </div>
+            </div>
+          </div></div>
+        </div>
+        <p class="caption">Ask once. It does the rest, in your browser.</p>
+        <ul class="spec"><li>Uses your signed-in accounts</li><li>Works in its own tab</li><li>Stop it at any moment</li></ul>
+      </div>
+    </section>
+
+    <section id="notifications">
+      <div class="content">
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">VII.</span>Notifications<span class="jp" lang="ja">通知</span></p>
+            <h2>It knocks. It doesn&rsquo;t barge in.</h2>
+          </div>
+          <div class="copy">
+            <p class="intro">When an agent finishes, or needs your OK, a macOS notification tells you, with a short summary of its reply. Superagent never jumps in front of what you&rsquo;re doing.</p>
+          </div>
+        </div>
+        <div class="ill ill-notifications" role="img" aria-label="A macOS notification sliding in at the corner while the Superagent window stays where it is">
+          <div class="scaler"><div class="mini scene">
+            <div class="d7-desk">
+            <div class="appwin dim">
+            <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+            <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
+            <div class="ap-row dim"><i class="fv fv1"></i><span>en.wikipedia.org</span></div>
+            <div class="ap-row dim"><i class="fv fv2"></i><span>localhost:5173</span></div>
+            <div class="ap-row on"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+            <div class="ap-chats">
+            <div class="ap-crow on"><span class="ap-clabel">Tighten the hero copy</span><i class="ap-spin"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Fix the flaky auth test</span><i class="ap-unread"></i></div>
+            <div class="ap-crow"><span class="ap-clabel">Migrate to pnpm</span></div>
+            </div>
+            <div class="ap-row dim"><i class="ap-pi app pi-design"><i></i></i><span>design-system</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-mobile"><i></i></i><span>mobile-app</span><span class="ap-br">main</span></div>
+            <div class="ap-group">Personal</div>
+            <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            <div class="ap-row dim"><i class="ap-pi app pi-notes"><i></i></i><span>notes-app</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+            </aside>
+            <div class="ap-main">
+            <div class="ap-bar">
+            <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+            <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+            <span class="ap-title">landing-page</span>
+            <span class="ap-path">~/work/landing-page</span>
+            <span class="ap-branch"><i>&#9095;</i>main</span>
+            <span class="ap-spacer"></span>
+            <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+            <span class="ap-btn ic-only">&#9704;</span>
+            </div>
+            <div class="ap-content">
+            <div class="ap-chat">
+            <div class="ap-stream">
+            <div class="bubble bub-user">Push it when the tests pass.</div>
+            <div class="ap-say">Running the suite now. I'll ask before I push.</div>
+            <div class="ap-tool"><i></i>npm test &rsaquo; 24 passing</div>
+            </div>
+            <div class="ap-comp">
+            <div class="ap-input"><span class="ap-cursor"></span><span>Message Claude&hellip;</span><span class="hint">/ commands &middot; @ files &middot; paste an image</span><span class="ap-send">&uarr;</span></div>
+            <div class="ap-modes"><span class="ap-pill">Model <b>Default</b></span><span class="ap-pill">Mode <b>Full</b></span></div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            <div class="d7-note d7-n1">
+            <span class="d7-icon"><i></i></span>
+            <div class="d7-txt">
+            <div class="d7-hd"><b>Superagent</b><span class="d7-time">now</span></div>
+            <span class="d7-kind asks">Wants you</span>
+            <div class="d7-ttl">Fix the flaky auth test</div>
+            <div class="d7-bd">Asking before it runs <code>git push --force-with-lease</code></div>
+            </div>
+            </div>
+            <div class="d7-note d7-n2">
+            <span class="d7-icon"><i></i></span>
+            <div class="d7-txt">
+            <div class="d7-hd"><b>Superagent</b><span class="d7-time">now</span></div>
+            <span class="d7-kind done">Finished</span>
+            <div class="d7-ttl">Migrate to pnpm</div>
+            <div class="d7-bd">26 steps, 4 files changed. CI is green on the branch.</div>
+            </div>
+            </div>
+            <div class="d7-dock">
+            <span class="d7-app"></span>
+            <span class="d7-app"></span>
+            <span class="d7-app sa"><span class="d7-badge">1</span></span>
+            <span class="d7-app"></span>
+            <span class="d7-app"></span>
+            </div>
+            </div>
+          </div></div>
+        </div>
+        <p class="caption">Click the notification to go straight to that chat.</p>
+        <ul class="spec"><li>A standard macOS notification</li><li>Opens the chat that asked</li><li>Never steals focus</li></ul>
       </div>
     </section>
 
     <section id="phone">
       <div class="content">
-        <p class="eyebrow">iPhone and iPad<span class="jp" lang="ja">どこでも</span></p>
-        <h2>Your Mac,<br /> wherever you are.</h2>
-        <p class="intro devices-intro">Follow along and answer from your iPhone or iPad. Encrypted end to end.</p>
-        <p class="links">
-          <a class="link" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener">Get the app</a>
-          <a class="link" href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">Build it yourself</a>
-        </p>
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">VIII.</span>iPhone and iPad<span class="jp" lang="ja">電話</span></p>
+            <h2>Your Mac&rsquo;s agent, in your pocket.</h2>
+          </div>
+          <div class="copy">
+            <p class="intro">Pair the iPhone or iPad app once with a QR code. Then follow every chat as it happens, start a new task, or approve a request, from anywhere.</p>
+            <p class="body">Messages are encrypted end to end and pass through a relay that can&rsquo;t read them. You get the same sidebar and pins as on your Mac, and you can switch between Macs.</p>
+            <p class="links">
+              <a class="link" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener">Get the app on TestFlight</a>
+              <a class="link" href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">Build it yourself</a>
+            </p>
+            <p class="fine">iPhone and iPad &middot; iOS&nbsp;26 &middot; Free and open source</p>
+          </div>
+        </div>
         <div class="devices">
           <img class="tablet" src="ipad-app.png" alt="The iPad app: the sidebar of conversations beside the one that is open, with the account's usage at its foot" width="834" height="1210" loading="lazy" decoding="async" />
           <img class="phone" src="phone-app.png" alt="The iPhone app: a page mirrored from the Mac above the conversation that opened it" width="506" height="1100" loading="lazy" decoding="async" />
         </div>
+        <p class="caption">Live while the app is open. A notification when it isn&rsquo;t.</p>
+        <ul class="spec"><li>Pair with a QR code</li><li>Approve from anywhere</li><li>Switch between Macs</li><li>Encrypted end to end</li><li>Run your own relay</li></ul>
+      </div>
+    </section>
+
+    <section id="dot">
+      <div class="content center-copy">
+        <p class="eyebrow"><span class="num">IX.</span>The dot<span class="jp" lang="ja">点</span><span class="beta">Beta</span></p>
+        <h2>Ask from anywhere.</h2>
+        <p class="intro">The dot is a small button in the corner of your screen. Press <b>&#8997; Space</b> in any app and ask: it looks at what&rsquo;s on your screen at that moment, then answers or gets it done.</p>
+        <p class="body">It doesn&rsquo;t record your screen in the background. The answer appears next to the dot, and the chat is saved in Superagent for later.</p>
+        <p class="fine">Turn it on in Settings &rarr; General.</p>
+      </div>
+    </section>
+
+    <section id="desk">
+      <div class="content">
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">X.</span>The finale<span class="jp" lang="ja">机</span></p>
+            <h2>A computer inside Superagent.</h2>
+          </div>
+          <div class="copy">
+            <p class="intro">The Computer view is a desktop of its own, with windows you can move and a dock. Several agents can work there at the same time, and you can see all of it.</p>
+          </div>
+        </div>
+        <div class="ill ill-desk" role="img" aria-label="The Computer view: a desktop inside Superagent with a browser, two agent chats and a dashboard open as movable windows above a dock">
+          <div class="scaler"><div class="mini">
+            <div class="appwin">
+              <aside class="ap-side">
+            <div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
+            <div class="ap-scroll">
+              <div class="ap-group ap-proj">Projects<span class="ap-gbtns" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M8 7.3v4M6 9.3h4"/></svg></span></div>
+              <div class="ap-row dim"><i class="fv fv1"></i><span>stripe.com</span></div>
+              <div class="ap-row on"><i class="ap-pi pi-computer"><i></i></i><span>Computer</span></div>
+              <div class="ap-chats">
+                <div class="ap-crow on"><span class="ap-clabel">Pricing page refresh</span><i class="ap-spin"></i></div>
+                <div class="ap-crow"><span class="ap-clabel">Ship the changelog</span><i class="ap-spin"></i></div>
+                <div class="ap-crow"><span class="ap-clabel">Weekly numbers</span><i class="ap-unread"></i></div>
+              </div>
+              <div class="ap-row dim"><i class="ap-pi pi-landing">L</i><span>landing-page</span><span class="ap-br">main</span></div>
+              <div class="ap-row dim"><i class="ap-pi pi-docs">D</i><span>docs-site</span><span class="ap-br">main</span></div>
+              <div class="ap-group">Personal</div>
+              <div class="ap-row dim"><i class="ap-pi pi-shop">S</i><span>shop-web</span><span class="ap-br">main</span></div>
+            </div>
+            <div class="ap-foot">+ New group</div>
+          </aside>
+              <div class="ap-main">
+                <div class="ap-bar">
+                  <span class="ap-btn"><i class="ic ic-files"></i>Files</span>
+                  <span class="ap-btn"><i class="ic ic-todo"></i>Todo</span>
+                  <span class="ap-title">Computer</span>
+                  <span class="ap-path">3 agents working</span>
+                  <span class="ap-spacer"></span>
+                  <span class="ap-btn"><i class="ic ic-snip"></i>Snip</span>
+                  <span class="ap-btn ic-only">&#9704;</span>
+                </div>
+                <div class="ap-content">
+                  <div class="dk-desk">
+
+                    <div class="dk-files">
+                      <div class="dk-file"><i class="dk-doc"></i><span>notes.md</span></div>
+                      <div class="dk-file"><i class="dk-folder"></i><span>screenshots</span></div>
+                    </div>
+
+                    <!-- the page one agent is working on -->
+                    <div class="dk-win dk-browser">
+                      <div class="dk-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="dk-url">stripe.com/pricing</span></div>
+                      <div class="dk-page">
+                        <div class="dk-hero"></div>
+                        <div class="ln dk" style="width:52%"></div>
+                        <div class="ln" style="width:78%"></div>
+                        <div class="dk-cards"><span></span><span></span><span></span></div>
+                        <div class="ln" style="width:64%"></div>
+                      </div>
+                      <span class="dk-cursor"></span>
+                    </div>
+
+                    <!-- an agent mid-sentence -->
+                    <div class="dk-win dk-chat">
+                      <div class="dk-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="dk-name">Pricing page refresh</span><i class="ap-spin"></i></div>
+                      <div class="dk-body">
+                        <div class="bubble bub-user">Make the tiers easier to compare.</div>
+                        <div class="ap-say">Three columns, same baseline, price up top.</div>
+                        <div class="ap-tool"><i></i>browser_click &rsaquo; Pricing</div>
+                        <div class="dk-typing"><i></i><i></i><i></i></div>
+                      </div>
+                    </div>
+
+                    <!-- a second agent, so it reads as more than one -->
+                    <div class="dk-win dk-chat2">
+                      <div class="dk-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="dk-name">Ship the changelog</span><i class="ap-spin"></i></div>
+                      <div class="dk-body">
+                        <div class="ap-tool"><i></i>git commit &rsaquo; 1.5.13</div>
+                        <div class="ln" style="width:82%"></div>
+                        <div class="ln" style="width:58%"></div>
+                      </div>
+                    </div>
+
+                    <div class="dk-win dk-dash">
+                      <div class="dk-dash-head">Today</div>
+                      <div class="dk-stat"><b>42</b><span>turns</span></div>
+                      <div class="dk-delta">&#9650; 8 on yesterday</div>
+                      <div class="dk-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                    </div>
+
+                    <div class="dk-dock">
+                      <span class="dk-app a1"><i></i></span>
+                      <span class="dk-app a2"><i></i></span>
+                      <span class="dk-app a3"><i></i></span>
+                      <span class="dk-app a4"></span>
+                      <span class="dk-app a5"></span>
+                      <span class="dk-app a6"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div></div>
+        </div>
+        <p class="caption">Everything your agents are doing, on one screen.</p>
+        <ul class="spec"><li>Movable windows</li><li>Several agents at once</li><li>A dock for the rest</li></ul>
+      </div>
+    </section>
+
+    <section id="who">
+      <div class="content">
+        <div class="header">
+          <div>
+            <p class="eyebrow"><span class="num">XI.</span>Who it's for<span class="jp" lang="ja">誰のために</span></p>
+            <h2>Judge the work by looking at it.</h2>
+            <p class="who-jp" lang="ja">コードは、二番目。</p>
+          </div>
+          <div class="copy">
+            <p class="intro">Most agent tools are made for people who read code all day. Superagent puts the page, the app and the phone next to the chat, so anyone can see whether the work is right. The code is still there when you want it.</p>
+          </div>
+        </div>
+
+        <div class="cmp-scroll">
+          <table class="cmp">
+            <caption>How Superagent compares to agent IDEs, app builders and cloud agents</caption>
+            <colgroup><col class="c0" /><col /><col /><col /><col /></colgroup>
+            <thead>
+              <tr>
+                <td></td>
+                <th scope="col" class="us"><img src="logo.png" alt="" width="20" height="20" />Superagent<small class="jp" lang="ja">スーパーエージェント</small></th>
+                <th scope="col">Agent IDEs<small>Orca, Conductor, Emdash, Cursor, Antigravity</small></th>
+                <th scope="col">App builders<small>Lovable, Bolt, Replit, v0</small></th>
+                <th scope="col">Cloud agents<small>Manus, Operator</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">No git or terminal needed</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Keep it or throw it away</span></td><td data-col="Agent IDEs"><i class="n">&mdash;</i><span>Worktrees and diffs</span></td><td data-col="App builders"><i class="y">&#10003;</i></td><td data-col="Cloud agents"><i class="y">&#10003;</i></td>
+              </tr>
+              <tr>
+                <th scope="row">Works on your own project</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Any folder on your Mac</span></td><td data-col="Agent IDEs"><i class="y">&#10003;</i><span>Any git repo</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>New apps, in their cloud</span></td><td data-col="Cloud agents"><i class="p">~</i><span>Manus has a local mode</span></td>
+              </tr>
+              <tr>
+                <th scope="row">A browser signed in as you</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Sign in once</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Orca imports cookies</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>A preview only</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>A fresh sandbox</span></td>
+              </tr>
+              <tr>
+                <th scope="row">A live iPhone in the window</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Built in</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Orca only</span></td><td data-col="App builders"><i class="n">&mdash;</i></td><td data-col="Cloud agents"><i class="n">&mdash;</i></td>
+              </tr>
+              <tr>
+                <th scope="row">Your Mac, from your phone</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Scan a QR code</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Orca, over LAN or Tailscale</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>Nothing to connect to</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>Their machines</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Your existing subscription</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>No second bill</span></td><td data-col="Agent IDEs"><i class="y">&#10003;</i><span>Bring your own agent</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>A plan, plus credits</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>A plan, plus credits</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Open source (MIT)</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>App, phone app and relay</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Orca and Emdash</span></td><td data-col="App builders"><i class="n">&mdash;</i></td><td data-col="Cloud agents"><i class="n">&mdash;</i></td>
+              </tr>
+              <tr>
+                <th scope="row">Private on your phone</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>Encrypted end to end</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Unencrypted on your network</span></td><td data-col="App builders"><i class="p">~</i><span>A browser tab</span></td><td data-col="Cloud agents"><i class="p">~</i><span>Their app, their account</span></td>
+              </tr>
+              <tr>
+                <th scope="row">No account needed</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>No sign-up, no tracking</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Hosted parts need one</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>Account required</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>Account required</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Your work stays on your Mac</th>
+                <td class="us" data-col="Superagent"><i class="y">&#10003;</i><span>No server of ours</span></td><td data-col="Agent IDEs"><i class="p">~</i><span>Until you use the cloud</span></td><td data-col="App builders"><i class="n">&mdash;</i><span>Their servers</span></td><td data-col="Cloud agents"><i class="n">&mdash;</i><span>Their servers</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="cmp-legend"><span><i>&#10003;</i> Yes</span><span><i>~</i> Partly, or only some</span><span><i>&mdash;</i> No</span></p>
+        <p class="fine cmp-note">Checked against each product&rsquo;s own documentation, August 2026. <a class="link" href="https://github.com/pungme/superagent-desktop/issues" target="_blank" rel="noopener">Tell us if something is wrong</a></p>
+
+        <p class="intro who-foot">Describe what you want and <b>watch it get built</b>, on your own Mac, with your own accounts and the subscription you already have.</p>
       </div>
     </section>
 
@@ -256,17 +1885,63 @@
       <div class="content">
         <div class="header">
           <div>
-            <p class="eyebrow">Open source<span class="jp" lang="ja">オープンソース</span></p>
-            <h2>Stays on your Mac.</h2>
+            <p class="eyebrow"><span class="num">XII.</span>Open &amp; local<span class="jp" lang="ja">オープン・ローカル</span></p>
+            <h2>Don't trust. Verify.</h2>
           </div>
-          <div class="intro">
-            <p>No account, no telemetry, no server of ours. It runs on the subscription you already have.</p>
-            <p class="links">
-              <a class="link" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">Desktop app</a>
-              <a class="link" href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">iPhone app</a>
-              <a class="link" href="https://github.com/pungme/superagent-relay" target="_blank" rel="noopener">Relay</a>
-            </p>
+          <div class="copy">
+            <p class="intro">An agent with a browser can use your logins. So every line of Superagent is public: read it, build it yourself, and check what it does.</p>
           </div>
+        </div>
+        <div class="pillars">
+          <div class="tile">
+            <h3>Open source, all of it.</h3>
+            <p>The Mac app, the iPhone app and the relay are on GitHub under the MIT license.</p>
+            <ul>
+              <li><span><b>Read the code.</b> See how it uses your browser, what leaves your Mac and how phone messages are encrypted.</span></li>
+              <li><span><b>Build it yourself.</b> Clone it, change it, ship your own.</span></li>
+              <li><span><b>Signed and notarized by Apple.</b> The app you download is the build that was published.</span></li>
+              <li><span><b>Issues in the open.</b> Bugs and plans are discussed in public.</span></li>
+            </ul>
+          </div>
+          <div class="tile">
+            <h3>No server of ours.</h3>
+            <p>Your work goes nowhere but your own disk, and the code shows it.</p>
+            <ul>
+              <li><span><b>Stays on your Mac.</b> Chats, code and pages are never uploaded.</span></li>
+              <li><span><b>Your own subscription.</b> Claude Code talks to Anthropic, Codex to OpenAI, Antigravity to Google. Directly, with no second bill.</span></li>
+              <li><span><b>No account, no tracking.</b> No sign-up and no analytics in the app.</span></li>
+              <li><span><b>Your logins stay yours.</b> Browser sessions are stored on your Mac, like any browser&rsquo;s.</span></li>
+              <li><span><b>Your phone, encrypted.</b> Only when you pair a phone does the Mac use a relay, and it sees nothing but encrypted data. You can run your own with one command.</span></li>
+            </ul>
+          </div>
+        </div>
+        <p class="fine open-foot">Read the code for the <a href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">Mac app</a>, the <a href="https://github.com/pungme/superagent-ios" target="_blank" rel="noopener">iPhone app</a> and the <a href="https://github.com/pungme/superagent-relay" target="_blank" rel="noopener">relay</a>, or see <a href="https://github.com/pungme?tab=repositories&amp;q=superagent" target="_blank" rel="noopener">all three in one place</a>.</p>
+      </div>
+    </section>
+
+    <section id="details">
+      <div class="content">
+        <p class="eyebrow">The small things<span class="jp" lang="ja">小さな事</span></p>
+        <h2>The details, done right.</h2>
+        <div class="det-grid">
+          <div class="det"><b>Survives restarts</b><span>Panes, files and chats come back as you left them, even after an update.</span></div>
+          <div class="det"><b>Never steals focus</b><span>Agents finish quietly. The window comes forward only when you ask.</span></div>
+          <div class="det"><b>Talk mid-task</b><span>Type while the agent works. It reads your message before it finishes.</span></div>
+          <div class="det"><b>Context gauge</b><span>Every chat shows how much of the agent&rsquo;s memory it has used.</span></div>
+          <div class="det"><b>Useful notifications</b><span>Done, or a question, with a summary of the reply.</span></div>
+          <div class="det"><b>Updates itself</b><span>Signed updates in the background. It waits for running chats before it restarts.</span></div>
+          <div class="det"><b>Models stay current</b><span>New models in your Claude Code appear without an app update.</span></div>
+          <div class="det"><b>Quit means quit</b><span>Quitting stops everything it started: agents, background tasks, routines.</span></div>
+          <div class="det"><b>Stop really stops</b><span>Stopping a turn also stops the builds and servers it started.</span></div>
+          <div class="det"><b>Pins in your order</b><span>Drag pinned chats into any order. Your phone follows.</span></div>
+          <div class="det"><b>Every picture, kept</b><span>All the images in a chat, by day. Download one, or jump to its message.</span></div>
+          <div class="det"><b>Light when idle</b><span>A window with nothing to do uses very little CPU.</span></div>
+          <div class="det"><b>One key away</b><span>&#8963;&#8997; S brings Superagent forward from any app, and back again.</span></div>
+          <div class="det"><b>Dictation on your Mac</b><span>Hold a key and speak. It&rsquo;s transcribed on your Mac, not on a server.</span></div>
+          <div class="det"><b>Each agent, its own lane</b><span>An agent gets only its own chat&rsquo;s tools. A yes in one chat isn&rsquo;t a yes in another.</span></div>
+          <div class="det"><b>Smooth replies</b><span>Replies arrive word by word at an even pace. Never half a word.</span></div>
+          <div class="det"><b>Quieter loops</b><span>Each round of a loop shows only what you asked.</span></div>
+          <div class="det"><b>Your names stay</b><span>A chat you named keeps its name.</span></div>
         </div>
       </div>
     </section>
@@ -281,12 +1956,15 @@
 
     <section class="final">
       <div class="content">
+        <p class="home-jp" lang="ja">おかえりなさい</p>
         <h2>Welcome home.</h2>
+        <p class="intro how-line">Install it, open a project, and say what you want. Then watch it happen beside the chat.</p>
         <div class="ctas">
           <a class="pill" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple" aria-hidden="true">&#63743;</span>Download for Mac</a>
           <a class="link" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">All releases</a>
         </div>
-        <p class="fine">Apple Silicon. Notarized by Apple.</p>
+        <p class="fine">Works with Claude Code, Codex and Antigravity.</p>
+        <p class="fine">Free and open source &middot; Apple Silicon &middot; Notarized by Apple &middot; Updates itself</p>
       </div>
     </section>
   </main>
@@ -313,6 +1991,18 @@
     })();
     // the portrait cut of the film on a portrait screen
     if (matchMedia("(max-aspect-ratio: 3/4)").matches) document.getElementById("film-link").href = "reel-phone.mp4?v=5";
+    // the drawn windows are laid out at 960px and scaled to the column; they move only while on screen
+    (() => {
+      const ills = document.querySelectorAll(".ill");
+      const fit = (el) => el.style.setProperty("--mz", (el.clientWidth / 960).toFixed(4));
+      if ("ResizeObserver" in window) {
+        const ro = new ResizeObserver((entries) => entries.forEach((e) => fit(e.target)));
+        ills.forEach((el) => ro.observe(el));
+      } else ills.forEach(fit);
+      if (!("IntersectionObserver" in window)) { ills.forEach((el) => el.classList.add("play")); return; }
+      const io = new IntersectionObserver((entries) => entries.forEach((e) => e.target.classList.toggle("play", e.isIntersecting)), { threshold: 0.15 });
+      ills.forEach((el) => io.observe(el));
+    })();
   </script>
 </body>
 </html>
