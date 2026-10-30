@@ -123,20 +123,38 @@ try {
   await page.waitForSelector('.onboarding-agent-ready')
   await shot('7-ready')
 
-  // 8. How it works: each scene of the tour, paused at a telling moment
-  // (the same moments as e2e/tour.spec.ts).
+  // 8. How it works: each slide, its recording or its scene paused at a
+  // telling moment (the same moments as e2e/tour.spec.ts), at 1440 × 900 and
+  // again at 1280 × 800.
   await page.click('.onboarding-continue')
-  const moments = [5, 6.6, 3, 2.5, 3, 3, 10, 6.3, 1]
-  for (const [i, moment] of moments.entries()) {
-    await page.waitForSelector('.tour-card .tour-frame')
-    await page.waitForTimeout(700)
-    await page.evaluate((ms) => {
+  const moments = [4.6, 6, 4, 6, 3, 4.5, 10, 6.3, 1]
+  const pause = (ms) =>
+    page.evaluate(async (ms) => {
+      const video = document.querySelector('.tour-frame video')
+      if (video) {
+        if (video.readyState < 1) await new Promise((r) => video.addEventListener('loadedmetadata', r, { once: true }))
+        video.pause()
+        video.currentTime = Math.min(ms / 1000, video.duration - 0.05)
+        await new Promise((r) => video.addEventListener('seeked', r, { once: true }))
+      }
       for (const a of document.querySelector('.tour-frame').getAnimations({ subtree: true })) {
         a.pause()
         a.currentTime = ms
       }
-    }, moment * 1000)
-    await shot(`8-tour-${i + 1}`)
+    }, ms)
+  const size = (w, h) =>
+    app.evaluate(({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0].setContentSize(w, h), [w, h])
+  for (const [i, moment] of moments.entries()) {
+    await page.waitForSelector('.tour-card .tour-frame')
+    for (const [w, h, suffix] of [
+      [1280, 800, '-1280'],
+      [1440, 900, '']
+    ]) {
+      await size(w, h)
+      await page.waitForTimeout(700)
+      await pause(moment * 1000)
+      await shot(`8-tour-${i + 1}${suffix}`)
+    }
     await page
       .getByRole('button', { name: i === moments.length - 1 ? 'Get started' : 'Next' })
       .click()

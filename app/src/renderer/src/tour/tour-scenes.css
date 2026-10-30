@@ -139,38 +139,71 @@
   top: 16px;
   animation: d7b 12s var(--ease) infinite;
 }
-/* slide in, sit there a while, slide back out — nothing grabs focus */
+/* Slide in from the edge of the screen and settle with a little give; when
+   the second one comes, the first steps down under it, as macOS stacks them.
+   Then both slide away. Nothing takes focus. */
 @keyframes d7a {
-  0% {
+  0%,
+  3% {
     transform: translateX(300px);
     opacity: 0;
   }
-  5%,
-  32% {
-    transform: translateX(0);
+  7% {
+    transform: translateX(-7px);
     opacity: 1;
   }
-  38%,
+  9%,
+  40% {
+    transform: none;
+    opacity: 1;
+  }
+  45% {
+    transform: translateY(111px) scale(0.985);
+  }
+  47%,
+  82% {
+    transform: translateY(108px) scale(0.985);
+    opacity: 1;
+  }
+  88%,
   100% {
-    transform: translateX(300px);
+    transform: translate(300px, 108px) scale(0.985);
     opacity: 0;
   }
 }
 @keyframes d7b {
   0%,
-  46% {
+  40% {
     transform: translateX(300px);
     opacity: 0;
   }
-  52%,
-  82% {
-    transform: translateX(0);
+  44% {
+    transform: translateX(-7px);
     opacity: 1;
   }
-  88%,
+  46%,
+  84% {
+    transform: none;
+    opacity: 1;
+  }
+  90%,
   100% {
     transform: translateX(300px);
     opacity: 0;
+  }
+}
+/* The line you are typing in your own window keeps growing throughout. */
+.tour-scene .d7-typing {
+  width: 4%;
+  animation: d7type 12s steps(24, end) infinite;
+}
+@keyframes d7type {
+  0% {
+    width: 4%;
+  }
+  70%,
+  100% {
+    width: 62%;
   }
 }
 .tour-scene .d7-icon {
@@ -270,6 +303,28 @@
 .tour-scene .d7-app.sa {
   background: var(--ink);
   position: relative;
+  animation: d7bounce 12s var(--ease) infinite;
+}
+/* The Dock icon hops when it has something for you. */
+@keyframes d7bounce {
+  0%,
+  4%,
+  9%,
+  14%,
+  41%,
+  46%,
+  100% {
+    transform: none;
+  }
+  6.5% {
+    transform: translateY(-9px);
+  }
+  11.5% {
+    transform: translateY(-5px);
+  }
+  43.5% {
+    transform: translateY(-7px);
+  }
 }
 .tour-scene .d7-badge {
   position: absolute;
@@ -282,23 +337,49 @@
   color: #fff;
   font-size: 7.36px;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
   animation: d7badge 12s var(--ease) infinite;
   opacity: 0;
   transform: scale(0.3);
 }
 @keyframes d7badge {
   0%,
-  4% {
+  6% {
     opacity: 0;
     transform: scale(0.3);
   }
-  9%,
-  100% {
+  9% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  11%,
+  90% {
     opacity: 1;
     transform: scale(1);
+  }
+  95%,
+  100% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+/* 1, then 2 rolls up when the second one comes. */
+.tour-scene .d7-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 13px;
+  line-height: 13px;
+  animation: d7count 12s var(--ease) infinite;
+}
+@keyframes d7count {
+  0%,
+  44% {
+    transform: none;
+  }
+  47%,
+  100% {
+    transform: translateY(-13px);
   }
 }
 /* ---- VIII and IX: the dot, and the Mac itself ---- */
@@ -358,6 +439,8 @@
   opacity: 0;
   animation: d9sa 16s var(--ease) infinite;
 }
+/* Your window steps back rather than vanishing; Superagent's comes out of
+   the tile in the corner and settles in front. */
 @keyframes d9other {
   0%,
   46% {
@@ -365,22 +448,30 @@
     transform: none;
     filter: saturate(0.6);
   }
-  52%,
+  53%,
   90% {
-    opacity: 0;
-    transform: scale(0.985);
+    opacity: 0.4;
+    transform: translate(-16px, 6px) scale(0.96);
+    filter: saturate(0.6);
   }
-  96%,
+  97%,
   100% {
     opacity: 0.72;
     transform: none;
   }
 }
+.tour-scene .d9-sa {
+  transform-origin: 100% 100%;
+}
 @keyframes d9sa {
   0%,
   46% {
     opacity: 0;
-    transform: translateY(10px) scale(0.985);
+    transform: translate(250px, 150px) scale(0.3);
+  }
+  51% {
+    opacity: 1;
+    transform: translate(-3px, -2px) scale(1.008);
   }
   53%,
   90% {
@@ -390,7 +481,25 @@
   96%,
   100% {
     opacity: 0;
-    transform: translateY(10px) scale(0.985);
+    transform: translate(250px, 150px) scale(0.3);
+  }
+}
+/* The chat it was asked for becomes the selected one as the window arrives. */
+.tour-scene .d9-sa .d9-row.on {
+  animation: d9on 16s var(--ease) infinite;
+}
+@keyframes d9on {
+  0%,
+  52% {
+    background: transparent;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  56%,
+  100% {
+    background: rgba(29, 29, 31, 0.09);
+    color: var(--ink);
+    font-weight: 600;
   }
 }
 .tour-scene .d9-body {
@@ -572,13 +681,18 @@
   opacity: 0;
   animation: d9panel 16s var(--ease) infinite;
 }
+/* The panel grows out of the tile, and goes back into it. */
 @keyframes d9panel {
   0%,
   6% {
     opacity: 0;
-    transform: translateY(8px) scale(0.96);
+    transform: translate(10px, 34px) scale(0.12);
   }
-  10%,
+  9.5% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+  11%,
   90% {
     opacity: 1;
     transform: none;
@@ -586,7 +700,7 @@
   95%,
   100% {
     opacity: 0;
-    transform: translateY(8px) scale(0.96);
+    transform: translate(10px, 34px) scale(0.12);
   }
 }
 .tour-scene .d9-q {
@@ -626,11 +740,12 @@
 .tour-scene .d9-foot {
   animation: d9ans 16s var(--ease) infinite;
 }
+/* Each step slides in from the left, the answer rises under them. */
 @keyframes d9s1 {
   0%,
   30% {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateX(-10px);
   }
   33%,
   100% {
@@ -642,7 +757,7 @@
   0%,
   38% {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateX(-10px);
   }
   41%,
   100% {
@@ -654,12 +769,79 @@
   0%,
   48% {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
   }
   52%,
   100% {
     opacity: 1;
     transform: none;
+  }
+}
+/* ⌥ Space: the keys pressed beside the tile, which gives under them. */
+.tour-scene .d9-keys {
+  position: absolute;
+  right: 78px;
+  bottom: 28px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  animation: d9keys 16s var(--ease) infinite;
+}
+.tour-scene .d9-keys kbd {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  box-shadow: 0 6px 14px -8px rgba(56, 72, 84, 0.5);
+}
+@keyframes d9keys {
+  0%,
+  1% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  3%,
+  4.5% {
+    opacity: 1;
+    transform: none;
+  }
+  5.5% {
+    opacity: 1;
+    transform: translateY(1.5px);
+  }
+  7% {
+    opacity: 1;
+    transform: none;
+  }
+  10%,
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.tour-scene .d9-tile {
+  animation: d9press 16s var(--ease) infinite;
+}
+@keyframes d9press {
+  0%,
+  4.8%,
+  7.5%,
+  100% {
+    transform: none;
+  }
+  5.6% {
+    transform: scale(0.9);
   }
 }
 /* the tile: still, then turning while it works, then still again */
@@ -849,6 +1031,52 @@
     transform: scale(1);
   }
 }
+/* The pointer it moves: from the panel across to Export…, where the ring
+   has closed in, and a press. */
+.tour-scene .d10-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 16px;
+  height: 22px;
+  fill: #1d1d1f;
+  stroke: #fff;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
+  opacity: 0;
+  animation: d10cursor 16s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+@keyframes d10cursor {
+  0%,
+  25% {
+    opacity: 0;
+    transform: translate(780px, 330px);
+  }
+  27% {
+    opacity: 1;
+    transform: translate(780px, 330px);
+  }
+  37%,
+  42% {
+    opacity: 1;
+    transform: translate(590px, 85px);
+  }
+  43.5% {
+    opacity: 1;
+    transform: translate(590px, 85px) scale(0.86);
+  }
+  45%,
+  64% {
+    opacity: 1;
+    transform: translate(590px, 85px);
+  }
+  67%,
+  100% {
+    opacity: 0;
+    transform: translate(590px, 85px);
+  }
+}
 /* a password manager comes to the front: everything stops */
 .tour-scene .d10-pw {
   position: absolute;
@@ -865,13 +1093,18 @@
   transform: translateY(14px) scale(0.97);
   animation: d10pw 16s var(--ease) infinite;
 }
+/* Passwords comes up from below and lands in front: everything stops. */
 @keyframes d10pw {
   0%,
   66% {
     opacity: 0;
-    transform: translateY(14px) scale(0.97);
+    transform: translateY(150px) scale(0.97);
   }
-  70%,
+  69.5% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+  71%,
   91% {
     opacity: 1;
     transform: none;
@@ -879,7 +1112,7 @@
   96%,
   100% {
     opacity: 0;
-    transform: translateY(14px) scale(0.97);
+    transform: translateY(150px) scale(0.97);
   }
 }
 .tour-scene .d10-pwrow {
@@ -911,11 +1144,16 @@
   animation: d10panel 16s var(--ease) infinite;
   opacity: 0;
 }
+/* Out of the tile, as the dot's panel does. */
 @keyframes d10panel {
   0%,
-  3% {
+  2% {
     opacity: 0;
-    transform: translateY(8px) scale(0.96);
+    transform: translate(10px, 34px) scale(0.12);
+  }
+  5.5% {
+    opacity: 1;
+    transform: scale(1.015);
   }
   7%,
   91% {
@@ -925,7 +1163,7 @@
   96%,
   100% {
     opacity: 0;
-    transform: translateY(8px) scale(0.96);
+    transform: translate(10px, 34px) scale(0.12);
   }
 }
 .tour-scene .d10-ask {
@@ -1175,406 +1413,10 @@
   }
 }
 
-/* ---- scenes that are the tour's own ---- */
-.tour-scene .t-full {
-  right: 34px;
-}
-
-/* 1 · every session on one rail: three chats, each lit in turn */
-.tour-scene .t1-row {
-  position: relative;
-  padding-right: 22px;
-}
-.tour-scene .t1-row b {
-  position: absolute;
-  right: 7px;
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  margin-top: -3.5px;
-  border-radius: 50%;
-  border: 1.5px solid var(--muted);
-  border-top-color: transparent;
-  animation: t1spin 0.9s linear infinite;
-}
-.tour-scene .t1-row b.done {
-  border: 0;
-  background: #34c759;
-  animation: none;
-}
-@keyframes t1spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.tour-scene .t1-a {
-  animation: t1a 12s var(--ease) infinite;
-}
-.tour-scene .t1-b {
-  animation: t1b 12s var(--ease) infinite;
-}
-.tour-scene .t1-c {
-  animation: t1c 12s var(--ease) infinite;
-}
-@keyframes t1a {
-  0%,
-  30% {
-    background: rgba(29, 29, 31, 0.09);
-    color: var(--ink);
-  }
-  34%,
-  100% {
-    background: transparent;
-    color: var(--muted);
-  }
-}
-@keyframes t1b {
-  0%,
-  30% {
-    background: transparent;
-    color: var(--muted);
-  }
-  34%,
-  63% {
-    background: rgba(29, 29, 31, 0.09);
-    color: var(--ink);
-  }
-  67%,
-  100% {
-    background: transparent;
-    color: var(--muted);
-  }
-}
-@keyframes t1c {
-  0%,
-  63% {
-    background: transparent;
-    color: var(--muted);
-  }
-  67%,
-  96% {
-    background: rgba(29, 29, 31, 0.09);
-    color: var(--ink);
-  }
-  100% {
-    background: transparent;
-    color: var(--muted);
-  }
-}
-.tour-scene .t1-panes {
-  position: relative;
-}
-.tour-scene .t1-pane {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-}
-.tour-scene .t1-pa {
-  animation: t1pa 12s var(--ease) infinite;
-}
-.tour-scene .t1-pb {
-  animation: t1pb 12s var(--ease) infinite;
-}
-.tour-scene .t1-pc {
-  animation: t1pc 12s var(--ease) infinite;
-}
-@keyframes t1pa {
-  0%,
-  30% {
-    opacity: 1;
-    transform: none;
-  }
-  34%,
-  100% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-@keyframes t1pb {
-  0%,
-  30% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  34%,
-  63% {
-    opacity: 1;
-    transform: none;
-  }
-  67%,
-  100% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-@keyframes t1pc {
-  0%,
-  63% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  67%,
-  96% {
-    opacity: 1;
-    transform: none;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-.tour-scene .t1-step {
-  font-size: 9.3px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.tour-scene .t1-step i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #34c759;
-}
-
-/* 2 · it sees what it builds: the chat on the left, the page it drives on the right */
-.tour-scene .t2-body {
-  display: grid;
-  grid-template-columns: 1fr 1.15fr;
-  height: calc(100% - 33px);
-}
-.tour-scene .t2-chat {
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  border-right: 1px solid var(--line);
-}
-.tour-scene .t2-page {
-  padding: 14px;
-  background: rgba(29, 29, 31, 0.04);
-}
-.tour-scene .t2-browser {
-  height: 100%;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
-  position: relative;
-}
-.tour-scene .t2-url {
-  margin: 9px 10px;
-  height: 18px;
-  border-radius: 9px;
-  background: var(--cream);
-  border: 1px solid var(--line);
-  font-size: 8.6px;
-  color: var(--faint);
-  display: flex;
-  align-items: center;
-  padding: 0 9px;
-}
-.tour-scene .t2-hero {
-  padding: 26px 26px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-.tour-scene .t2-hero .ln {
-  height: 12px;
-}
-.tour-scene .t2-hero .ln.sm {
-  height: 6px;
-}
-.tour-scene .t2-cta {
-  margin-top: 12px;
-  align-self: flex-start;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 8px 16px;
-  border-radius: 9px;
-  background: var(--ink);
-  color: var(--cream);
-  animation: t2cta 12s var(--ease) infinite;
-}
-@keyframes t2cta {
-  0%,
-  44% {
-    background: var(--ink);
-    transform: none;
-  }
-  46% {
-    transform: scale(0.94);
-  }
-  49%,
-  92% {
-    background: #0071e3;
-    transform: none;
-  }
-  97%,
-  100% {
-    background: var(--ink);
-  }
-}
-.tour-scene .t2-cta::after {
-  content: 'Sign up';
-}
-.tour-scene .t2-ok {
-  position: absolute;
-  left: 26px;
-  top: 206px;
-  font-size: 9.6px;
-  font-weight: 600;
-  color: #1d1d1f;
-  opacity: 0;
-  animation: t2ok 12s var(--ease) infinite;
-}
-@keyframes t2ok {
-  0%,
-  49% {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  53%,
-  92% {
-    opacity: 1;
-    transform: none;
-  }
-  97%,
-  100% {
-    opacity: 0;
-  }
-}
-.tour-scene .t2-cursor {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2.5px solid #4f8cff;
-  background: rgba(79, 140, 255, 0.18);
-  animation: t2cursor 12s var(--ease) infinite;
-}
-@keyframes t2cursor {
-  0%,
-  22% {
-    transform: translate(250px, 230px);
-    opacity: 0;
-  }
-  28% {
-    transform: translate(250px, 230px);
-    opacity: 1;
-  }
-  42%,
-  46% {
-    transform: translate(48px, 124px);
-    opacity: 1;
-  }
-  52%,
-  100% {
-    transform: translate(48px, 124px);
-    opacity: 0;
-  }
-}
-.tour-scene .t2-s1 {
-  animation: t2s1 12s var(--ease) infinite;
-}
-.tour-scene .t2-s2 {
-  animation: t2s2 12s var(--ease) infinite;
-}
-.tour-scene .t2-s3 {
-  animation: t2s3 12s var(--ease) infinite;
-}
-@keyframes t2s1 {
-  0%,
-  14% {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  18%,
-  94% {
-    opacity: 1;
-    transform: none;
-  }
-  99%,
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes t2s2 {
-  0%,
-  30% {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  34%,
-  94% {
-    opacity: 1;
-    transform: none;
-  }
-  99%,
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes t2s3 {
-  0%,
-  54% {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  58%,
-  94% {
-    opacity: 1;
-    transform: none;
-  }
-  99%,
-  100% {
-    opacity: 0;
-  }
-}
-
-/* 6 · split view: four chats side by side, appearing one after another */
-.tour-scene .t6-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 8px;
-  padding: 10px;
-  height: calc(100% - 33px);
-  box-sizing: border-box;
-}
-.tour-scene .t6-pane {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--card);
-  opacity: 0;
-  animation: t6in 0.5s var(--ease) forwards;
-}
-.tour-scene .t6-p1 {
-  animation-delay: 0.35s;
-}
-.tour-scene .t6-p2 {
-  animation-delay: 0.7s;
-}
-.tour-scene .t6-p3 {
-  animation-delay: 1.05s;
-}
-@keyframes t6in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* 7 · the phone: an approval answered from the iPhone */
+/* ---- the phone: a yes given from the iPhone ----
+   The phone rises into place once; then, every 9 s, the question slides up
+   as a sheet, Allow is tapped, the sheet goes, and the answer drops in as a
+   banner from the top while the chat's line changes under it. */
 .tour-scene .t7-desk {
   display: flex;
   align-items: center;
@@ -1588,11 +1430,19 @@
   background: var(--card);
   border: 8px solid #1d1d1f;
   box-sizing: border-box;
-  padding: 44px 16px 16px;
+  padding: 44px 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
+  overflow: hidden;
   box-shadow: 0 24px 50px -24px rgba(56, 72, 84, 0.6);
+  animation: t7rise 0.9s var(--ease) both;
+}
+@keyframes t7rise {
+  from {
+    transform: translateY(70px) rotate(-2deg);
+    opacity: 0;
+  }
 }
 .tour-scene .t7-island {
   position: absolute;
@@ -1603,13 +1453,16 @@
   margin-left: -35px;
   border-radius: 10px;
   background: #1d1d1f;
+  z-index: 3;
 }
 .tour-scene .t7-head {
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 700;
-  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+  margin: 2px 2px 4px;
 }
 .tour-scene .t7-row {
+  position: relative;
   font-size: 10.5px;
   font-weight: 600;
   padding: 8px 10px;
@@ -1617,109 +1470,201 @@
   background: rgba(29, 29, 31, 0.05);
 }
 .tour-scene .t7-row small {
+  position: relative;
   display: block;
+  height: 13px;
+  overflow: hidden;
   font-weight: 500;
   font-size: 8.8px;
+  line-height: 13px;
   color: var(--faint);
 }
-.tour-scene .t7-ask,
-.tour-scene .t7-done {
-  opacity: 0;
-  animation: t6in 0.5s var(--ease) forwards;
+.tour-scene .t7-row small span {
+  display: block;
 }
-.tour-scene .t7-ask {
-  margin-top: auto;
+.tour-scene .t7-was,
+.tour-scene .t7-now {
+  animation: t7line 9s var(--ease) infinite;
+}
+@keyframes t7line {
+  0%,
+  47% {
+    transform: none;
+  }
+  51%,
+  95% {
+    transform: translateY(-13px);
+  }
+  99%,
+  100% {
+    transform: none;
+  }
+}
+.tour-scene .t7-spin {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 10%, var(--muted));
+  -webkit-mask: radial-gradient(closest-side, transparent 58%, #000 62%);
+  mask: radial-gradient(closest-side, transparent 58%, #000 62%);
+  animation: t7spin 0.8s linear infinite;
+}
+@keyframes t7spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* the question, as a sheet from the bottom */
+.tour-scene .t7-sheet {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  padding: 12px;
-  border-radius: 14px;
+  padding: 14px 13px 13px;
+  border-radius: 22px;
   background: var(--ink);
   color: var(--cream);
   font-size: 9.6px;
-  animation-delay: 0.6s;
+  line-height: 1.45;
+  box-shadow: 0 -10px 30px -12px rgba(29, 29, 31, 0.45);
+  transform: translateY(115%);
+  animation: t7sheet 9s var(--ease) infinite;
 }
-.tour-scene .t7-ask b {
-  font-size: 11.5px;
+.tour-scene .t7-sheet b {
+  font-size: 12px;
+}
+@keyframes t7sheet {
+  0%,
+  8% {
+    transform: translateY(115%);
+  }
+  14% {
+    transform: translateY(-3px);
+  }
+  16%,
+  37% {
+    transform: none;
+  }
+  43%,
+  100% {
+    transform: translateY(115%);
+  }
 }
 .tour-scene .t7-btns {
   display: flex;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 5px;
 }
 .tour-scene .t7-btns i {
+  position: relative;
   flex: 1;
   font-style: normal;
+  font-weight: 600;
   text-align: center;
-  padding: 6px;
-  border-radius: 8px;
+  padding: 7px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
 }
 .tour-scene .t7-btns i.yes {
-  background: #34c759;
-  color: #fff;
-  animation: t7press 0.3s ease 1.9s;
+  background: #f5f5f7;
+  color: var(--ink);
+  animation: t7press 9s var(--ease) infinite;
 }
 @keyframes t7press {
-  50% {
-    transform: scale(0.92);
+  0%,
+  31%,
+  36%,
+  100% {
+    transform: none;
+  }
+  33% {
+    transform: scale(0.93);
   }
 }
-.tour-scene .t7-done {
-  font-size: 9.6px;
-  color: var(--muted);
-  text-align: center;
-  animation-delay: 2.3s;
-}
-
-/* 8 · routines: a list of scheduled jobs, and what the last run did */
-.tour-scene .t8-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 20px 24px;
-}
-.tour-scene .t8-row {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card);
-  font-size: 10.5px;
+/* the fingertip on Allow */
+.tour-scene .t7-tap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  background: rgba(29, 29, 31, 0.18);
   opacity: 0;
-  animation: t6in 0.5s var(--ease) forwards;
+  animation: t7tap 9s var(--ease) infinite;
 }
-.tour-scene .t8-r1 {
-  animation-delay: 0.3s;
-}
-.tour-scene .t8-r2 {
-  animation-delay: 0.6s;
-}
-.tour-scene .t8-r3 {
-  animation-delay: 0.9s;
-}
-.tour-scene .t8-when {
-  flex: none;
-  width: 140px;
-  font-weight: 700;
-}
-.tour-scene .t8-what {
-  color: var(--muted);
-}
-.tour-scene .t8-ran {
-  margin-top: 8px;
-  opacity: 0;
-  animation: t6in 0.5s var(--ease) 1.2s forwards;
-}
-@media (prefers-reduced-motion: reduce) {
-  .tour-scene .t6-pane,
-  .tour-scene .t7-ask,
-  .tour-scene .t7-done,
-  .tour-scene .t8-row,
-  .tour-scene .t8-ran {
-    animation: none;
+@keyframes t7tap {
+  0%,
+  30% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  32% {
     opacity: 1;
+    transform: scale(0.8);
+  }
+  37%,
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+/* the answer, as a banner dropping from the top */
+.tour-scene .t7-banner {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  top: 6px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 16px;
+  background: rgba(245, 245, 247, 0.96);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 24px -12px rgba(29, 29, 31, 0.45);
+  font-size: 8.8px;
+  line-height: 1.35;
+  color: var(--muted);
+  transform: translateY(-130%);
+  animation: t7banner 9s var(--ease) infinite;
+}
+.tour-scene .t7-banner b {
+  display: block;
+  color: var(--ink);
+  font-size: 9.6px;
+}
+.tour-scene .t7-app {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--ink);
+}
+@keyframes t7banner {
+  0%,
+  45% {
+    transform: translateY(-130%);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+  52%,
+  84% {
+    transform: none;
+  }
+  90%,
+  100% {
+    transform: translateY(-130%);
   }
 }

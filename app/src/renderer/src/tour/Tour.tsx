@@ -1,12 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { TOUR_SEEN_KEY } from './tour-keys'
+import homeClip from './clips/home.mp4'
+import homePoster from './clips/home.jpg'
+import buildClip from './clips/build.mp4'
+import buildPoster from './clips/build.jpg'
+import splitClip from './clips/split.mp4'
+import splitPoster from './clips/split.jpg'
+import routinesClip from './clips/routines.mp4'
+import routinesPoster from './clips/routines.jpg'
 import './tour.css'
 import './tour-scenes.css'
 
 /**
- * How Superagent works, shown rather than told: short scenes, each a
- * small animation of the app doing the thing, the same pictures the website
- * uses. Part of setting up, and there to be played again from Settings.
+ * How Superagent works, shown rather than told. What happens in the window is
+ * a short silent recording of the app itself; what happens outside it (a
+ * notification, the phone, the dot, the Mac) is a small moving drawing. Part
+ * of setting up, and there to be played again from Settings.
  */
 
 const Lights = ({ title }: { title: string }): React.JSX.Element => (
@@ -30,118 +39,6 @@ const Lines = ({ widths }: { widths: (number | [number, 'dk'])[] }): React.JSX.E
   </>
 )
 
-function HomeScene(): React.JSX.Element {
-  return (
-    <div className="d7-desk">
-      <div className="dq-win t-full">
-        <Lights title="Superagent" />
-        <div className="d9-body">
-          <div className="d9-side">
-            <div className="d9-grp">Projects</div>
-            <div className="d9-row proj">landing-page</div>
-            <div className="d9-row sub t1-row t1-a">
-              Tighten the hero copy
-              <b />
-            </div>
-            <div className="d9-row sub t1-row t1-b">
-              Fix the flaky auth test
-              <b />
-            </div>
-            <div className="d9-row proj">mobile-app</div>
-            <div className="d9-row sub t1-row t1-c">
-              Migrate to pnpm
-              <b className="done" />
-            </div>
-            <div className="d9-row proj">shop-web</div>
-          </div>
-          <div className="d9-chat t1-panes">
-            <div className="d9-chat t1-pane t1-pa">
-              <div className="d9-ttl">
-                Tighten the hero copy<small>landing-page · working</small>
-              </div>
-              <div className="d9-msg">Make the headline shorter.</div>
-              <div className="d9-reply">
-                Two lines instead of three. It is live in the pane next door.
-              </div>
-              <div className="t1-step">
-                <i />
-                Editing · Hero.tsx
-              </div>
-            </div>
-            <div className="d9-chat t1-pane t1-pb">
-              <div className="d9-ttl">
-                Fix the flaky auth test<small>landing-page · working</small>
-              </div>
-              <div className="d9-msg">Why does login.spec fail one run in five?</div>
-              <div className="d9-reply">
-                It races the session cookie. Waiting for <code>/me</code> before the click fixes it.
-              </div>
-              <div className="t1-step">
-                <i />
-                Running a command · npm test
-              </div>
-            </div>
-            <div className="d9-chat t1-pane t1-pc">
-              <div className="d9-ttl">
-                Migrate to pnpm<small>mobile-app · finished</small>
-              </div>
-              <div className="d9-msg">Move this repo to pnpm.</div>
-              <div className="d9-reply">
-                Done in 26 steps, 4 files changed. CI is green on its branch.
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function BuildScene(): React.JSX.Element {
-  return (
-    <div className="d7-desk">
-      <div className="dq-win t-full">
-        <Lights title="Superagent — shop-web" />
-        <div className="t2-body">
-          <div className="t2-chat">
-            <div className="d9-msg">Check that sign up still works.</div>
-            <div className="dq-step t1-step t2-s1" style={{ color: 'var(--muted)' }}>
-              <i />
-              Opening · localhost:5173
-            </div>
-            <div className="dq-step t1-step t2-s2" style={{ color: 'var(--muted)' }}>
-              <i />
-              Clicking · Sign up
-            </div>
-            <div className="d9-reply t2-s3">
-              It works: the form submits and the welcome page loads. I checked it on a phone width
-              too.
-            </div>
-          </div>
-          <div className="t2-page">
-            <div className="t2-browser">
-              <div className="t2-url">localhost:5173</div>
-              <div className="t2-hero">
-                <Lines
-                  widths={[
-                    [62, 'dk'],
-                    [44, 'dk']
-                  ]}
-                />
-                <span className="ln sm" style={{ width: '70%' }} />
-                <span className="ln sm" style={{ width: '52%' }} />
-                <span className="t2-cta" />
-              </div>
-              <div className="t2-ok">Welcome aboard ✓</div>
-              <div className="t2-cursor" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function KnockScene(): React.JSX.Element {
   return (
     <div className="d7-desk">
@@ -158,6 +55,8 @@ function KnockScene(): React.JSX.Element {
           </div>
           <div className="d7-code">
             <Lines widths={[[38, 'dk'], 64, 52, 70, [30, 'dk'], 58, 44, 66, 36]} />
+            {/* What you are doing goes on: the line you are typing grows. */}
+            <span className="ln dk d7-typing" />
           </div>
         </div>
       </div>
@@ -195,7 +94,12 @@ function KnockScene(): React.JSX.Element {
         <span className="d7-app" />
         <span className="d7-app" />
         <span className="d7-app sa">
-          <span className="d7-badge">1</span>
+          <span className="d7-badge">
+            <span className="d7-count">
+              <span>1</span>
+              <span>2</span>
+            </span>
+          </span>
         </span>
         <span className="d7-app" />
         <span className="d7-app" />
@@ -260,6 +164,10 @@ function DotScene(): React.JSX.Element {
           <span>Clear</span>
         </div>
       </div>
+      <div className="d9-keys">
+        <kbd>⌥</kbd>
+        <kbd>Space</kbd>
+      </div>
       <div className="dq-tile d9-tile">
         <i />
       </div>
@@ -299,6 +207,9 @@ function ComputerScene(): React.JSX.Element {
         </div>
       </div>
       <div className="d10-ring" />
+      <svg className="d10-cursor" viewBox="0 0 16 22" aria-hidden="true">
+        <path d="M1 1v17l4.5-4.2 3 6.6 2.6-1.2-3-6.4H14z" />
+      </svg>
       <div className="d10-pw">
         <Lights title="Passwords" />
         {[0, 1, 2, 3].map((i) => (
@@ -349,87 +260,42 @@ function ComputerScene(): React.JSX.Element {
   )
 }
 
-const SPLIT_PANES: [string, string, string, string][] = [
-  ['Tighten the hero copy', 'landing-page', 'Two lines instead of three.', 'Editing · Hero.tsx'],
-  ['Fix the flaky auth test', 'landing-page', 'It races the session cookie.', 'Running · npm test'],
-  ['Migrate to pnpm', 'mobile-app', 'Done. CI is green on its branch.', ''],
-  ['Slow loads on the feed', 'shop-web', 'The images were 4 MB each.', 'Resizing · 38 files']
-]
-
-function SplitScene(): React.JSX.Element {
-  return (
-    <div className="d7-desk">
-      <div className="dq-win t-full">
-        <Lights title="Superagent — Split" />
-        <div className="t6-grid">
-          {SPLIT_PANES.map(([title, project, reply, step], i) => (
-            <div key={title} className={`t6-pane t6-p${i}`}>
-              <div className="d9-ttl">
-                {title}
-                <small>
-                  {project} · {step ? 'working' : 'finished'}
-                </small>
-              </div>
-              <div className="d9-reply">{reply}</div>
-              {step && (
-                <div className="t1-step">
-                  <i />
-                  {step}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function PhoneScene(): React.JSX.Element {
   return (
     <div className="d7-desk t7-desk">
       <div className="t7-phone">
         <div className="t7-island" />
-        <div className="t7-head">Superagent</div>
+        <div className="t7-banner">
+          <span className="t7-app" />
+          <span>
+            <b>Fix the flaky auth test</b>
+            Pushed. The pull request is open.
+          </span>
+        </div>
+        <div className="t7-head">Chats</div>
         <div className="t7-row">
-          Fix the flaky auth test<small>landing-page · working</small>
+          Fix the flaky auth test
+          <small>
+            <span className="t7-was">landing-page · wants you</span>
+            <span className="t7-now">landing-page · finished</span>
+          </small>
+        </div>
+        <div className="t7-row">
+          Dark mode tokens<small>design-system · working</small>
+          <i className="t7-spin" />
         </div>
         <div className="t7-row">
           Migrate to pnpm<small>mobile-app · finished</small>
         </div>
-        <div className="t7-ask">
+        <div className="t7-sheet">
           <b>Run git push?</b>
           <span>Fix the flaky auth test wants to push its branch.</span>
           <div className="t7-btns">
             <i>Deny</i>
-            <i className="yes">Allow</i>
-          </div>
-        </div>
-        <div className="t7-done">Pushed. The pull request is open.</div>
-      </div>
-    </div>
-  )
-}
-
-function RoutinesScene(): React.JSX.Element {
-  return (
-    <div className="d7-desk">
-      <div className="dq-win t-full">
-        <Lights title="Superagent — Routines" />
-        <div className="t8-list">
-          {[
-            ['Every morning · 9:00', 'Check last night’s deploy and tell me what broke'],
-            ['Every hour', 'Look for new bug reports and sort them'],
-            ['Mondays · 8:00', 'Sum up the pull requests waiting for review'],
-            ['Fridays · 17:00', 'Write the week’s release notes']
-          ].map(([when, what], i) => (
-            <div key={when} className={`t8-row t8-r${i}`}>
-              <span className="t8-when">{when}</span>
-              <span className="t8-what">{what}</span>
-            </div>
-          ))}
-          <div className="d9-reply t8-ran">
-            Ran at 9:00. The deploy is healthy; one slow query on the feed, fixed on a branch.
+            <i className="yes">
+              Allow
+              <em className="t7-tap" />
+            </i>
           </div>
         </div>
       </div>
@@ -467,68 +333,75 @@ function KeysScene(): React.JSX.Element {
   )
 }
 
+/** A short silent recording of the real app (scripts/_tour-clips.mjs). */
+interface Clip {
+  video: string
+  poster: string
+}
+
 interface Slide {
   id: string
   kicker: string
   beta?: boolean
   title: string
   text: React.ReactNode
-  scene: () => React.JSX.Element
+  /** Filmed from the app where it can be; drawn where it happens outside it. */
+  clip?: Clip
+  scene?: () => React.JSX.Element
 }
 
 const TOUR_SLIDES: Slide[] = [
   {
     id: 'home',
-    kicker: 'Your agents',
-    title: 'Every chat on one rail',
-    text: 'Each project keeps its own conversations, and several can work at once. A spinner means it is working, a dot means it has something for you.',
-    scene: HomeScene
+    kicker: 'Your chats',
+    title: 'Every chat in one list.',
+    text: 'Each project keeps its own chats, and several can work at once. A spinner means a chat is working. A dot means it is done and has something for you.',
+    clip: { video: homeClip, poster: homePoster }
   },
   {
     id: 'build',
-    kicker: 'A real browser, a real simulator',
-    title: 'It sees what it builds',
-    text: 'The agent drives the page next to the chat: it opens it, clicks, reads what happened, and checks it on a phone width. The same goes for an iPhone app in the Simulator.',
-    scene: BuildScene
+    kicker: 'Browser',
+    title: 'It checks its own work.',
+    text: 'The agent opens your site next to the chat, clicks through it and tries it at phone size. Press ⌘B to show or hide the browser.',
+    clip: { video: buildClip, poster: buildPoster }
   },
   {
     id: 'split',
     kicker: 'Split view',
-    title: 'Side by side',
-    text: 'Put up to eight conversations in one window and watch them work. Click one to talk to it.',
-    scene: SplitScene
+    title: 'Watch several chats at once.',
+    text: '⌘-click a chat in the sidebar to open it beside the one you are in. Up to eight fit in the window. Click one to type to it.',
+    clip: { video: splitClip, poster: splitPoster }
   },
   {
     id: 'knock',
-    kicker: 'While you do something else',
-    title: 'It knocks. It never barges in',
-    text: 'Your window stays where it is. When an agent finishes or needs a yes, it tells you from the corner, and on your phone if you pair it.',
+    kicker: 'Notifications',
+    title: 'It tells you when it needs you.',
+    text: 'When a chat finishes or needs your yes, a notification comes in from the corner. Whatever you are working on stays in front.',
     scene: KnockScene
   },
   {
     id: 'phone',
-    kicker: 'On your iPhone',
-    title: 'Answer from anywhere',
-    text: 'Pair your phone and your chats come with you. Read what an agent did, say yes to what it asks, or give it the next job.',
+    kicker: 'iPhone',
+    title: 'Answer from your phone.',
+    text: 'Pair your iPhone in Settings › Phone. Then you can read your chats, say yes to what an agent asks, or give it the next job.',
     scene: PhoneScene
   },
   {
     id: 'routines',
     kicker: 'Routines',
-    title: 'Jobs that come back on time',
-    text: 'Ask a chat to do something every morning or every hour, and it runs while Superagent is open.',
-    scene: RoutinesScene
+    title: 'Jobs that run on a schedule.',
+    text: 'Tell a chat “do this every morning”, or add a job in View › Routines. Routines run while Superagent is open.',
+    clip: { video: routinesClip, poster: routinesPoster }
   },
   {
     id: 'dot',
     kicker: 'The dot',
     beta: true,
-    title: 'The best agent is the one that disappears',
+    title: 'Ask from any app.',
     text: (
       <>
-        Close the window and Superagent goes on working. What is left is a small tile in the corner
-        of your screen, over every app. Press <kbd>⌥ Space</kbd>, or <kbd>⌃⌥ V</kbd> to say it out
-        loud: a question, a job, or the app itself. “Go to the wepush chat about e2e testing.”
+        Press <kbd>⌥ Space</kbd> and type, or <kbd>⌃⌥ V</kbd> and speak: a question, a job, or “go
+        to my chat about e2e tests”. It works with the window closed.
       </>
     ),
     scene: DotScene
@@ -537,18 +410,38 @@ const TOUR_SLIDES: Slide[] = [
     id: 'computer',
     kicker: 'Computer use',
     beta: true,
-    title: 'It can use your Mac, when you let it',
-    text: 'Off until you turn it on in Settings. It asks first, for the Mac and for each app, shows where it is about to click, keeps out of anything that holds your secrets, and ⌥ Esc stops it.',
+    title: 'It can use your Mac, if you let it.',
+    text: 'The first time an agent needs your Mac it asks you, and again for each app. It stays out of password managers, and ⌥ Esc stops it at once.',
     scene: ComputerScene
   },
   {
     id: 'keys',
     kicker: 'Shortcuts',
-    title: 'Keys worth knowing',
+    title: 'Keys worth knowing.',
     text: 'The ones that work from any app can be changed in Settings.',
     scene: KeysScene
   }
 ]
+
+const reducedMotion = (): boolean =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
+/** A recording in the window's shape. With reduced motion, its still. */
+function ClipView({ clip }: { clip: Clip }): React.JSX.Element {
+  if (reducedMotion()) return <img className="tour-clip" src={clip.poster} alt="" />
+  return (
+    <video
+      className="tour-clip"
+      src={clip.video}
+      poster={clip.poster}
+      autoPlay
+      muted
+      playsInline
+      loop
+      disablePictureInPicture
+    />
+  )
+}
 
 export function Tour({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [at, setAt] = useState(0)
@@ -556,6 +449,18 @@ export function Tour({ onDone }: { onDone: () => void }): React.JSX.Element {
   const last = at === TOUR_SLIDES.length - 1
   const Scene = slide.scene
 
+  // The scenes are drawn at 960 × 565 and scaled as one piece to whatever
+  // size the frame has (it follows the window).
+  const frameRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = frameRef.current
+    if (!el) return
+    const fit = (): void => el.style.setProperty('--tour-zoom', String(el.clientWidth / 960))
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [at])
   // The dot's own slide carries its switch: whether to keep it is decided
   // while looking at what it is.
   const [dotOn, setDotOn] = useState(false)
@@ -595,10 +500,16 @@ export function Tour({ onDone }: { onDone: () => void }): React.JSX.Element {
       <div className="tour-card">
         {/* Keyed by slide, so each one's animation starts from its beginning. */}
         <div className="tour-slide" key={slide.id}>
-          <div className="tour-frame" aria-hidden="true">
-            <div className="tour-scene">
-              <Scene />
-            </div>
+          <div className="tour-frame" aria-hidden="true" ref={frameRef}>
+            {slide.clip ? (
+              <ClipView clip={slide.clip} />
+            ) : (
+              Scene && (
+                <div className="tour-scene">
+                  <Scene />
+                </div>
+              )
+            )}
           </div>
           <div className="tour-kicker">
             {slide.kicker}
@@ -607,42 +518,45 @@ export function Tour({ onDone }: { onDone: () => void }): React.JSX.Element {
           <h1>{slide.title}</h1>
           <p className="tour-text">{slide.text}</p>
         </div>
-        <div className="tour-extra">
-          {slide.id === 'dot' && (
-            <label className="tour-switch">
-              <input
-                type="checkbox"
-                checked={dotOn}
-                onChange={(e) => {
-                  setDotOn(e.target.checked)
-                  void window.cove.setDotEnabled(e.target.checked).then(setDotOn)
-                }}
-              />{' '}
-              Show the dot on my screen
-            </label>
-          )}
-        </div>
-        <div className="tour-dots" role="tablist" aria-label="Slides">
-          {TOUR_SLIDES.map((s, i) => (
-            <button
-              key={s.id}
-              role="tab"
-              aria-selected={i === at}
-              aria-label={s.title}
-              className={i === at ? 'on' : ''}
-              onClick={() => go(i)}
-            />
-          ))}
-        </div>
-        <div className="tour-actions">
-          {at > 0 && (
-            <button className="tour-btn quiet" onClick={() => go(at - 1)}>
-              Back
+        {/* One row under the words: the slide's own switch, where you are, the way on. */}
+        <div className="tour-foot">
+          <div className="tour-extra">
+            {slide.id === 'dot' && (
+              <label className="tour-switch">
+                <input
+                  type="checkbox"
+                  checked={dotOn}
+                  onChange={(e) => {
+                    setDotOn(e.target.checked)
+                    void window.cove.setDotEnabled(e.target.checked).then(setDotOn)
+                  }}
+                />{' '}
+                Show the dot on my screen
+              </label>
+            )}
+          </div>
+          <div className="tour-dots" role="tablist" aria-label="Slides">
+            {TOUR_SLIDES.map((s, i) => (
+              <button
+                key={s.id}
+                role="tab"
+                aria-selected={i === at}
+                aria-label={s.title}
+                className={i === at ? 'on' : ''}
+                onClick={() => go(i)}
+              />
+            ))}
+          </div>
+          <div className="tour-actions">
+            {at > 0 && (
+              <button className="tour-btn quiet" onClick={() => go(at - 1)}>
+                Back
+              </button>
+            )}
+            <button className="tour-btn" onClick={() => (last ? finish() : go(at + 1))}>
+              {last ? 'Get started' : 'Next'}
             </button>
-          )}
-          <button className="tour-btn" onClick={() => (last ? finish() : go(at + 1))}>
-            {last ? 'Get started' : 'Next'}
-          </button>
+          </div>
         </div>
       </div>
     </div>

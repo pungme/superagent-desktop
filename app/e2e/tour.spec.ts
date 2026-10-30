@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 /**
- * "How it works": animated scenes shown while setting up, and again from
- * Settings. SHOT=1 saves a picture of each scene part-way through its
- * animation, to look at.
+ * "How it works": short recordings of the app and animated scenes, shown while
+ * setting up and again from Settings. SHOT=1 saves a picture of each slide
+ * part-way through, to look at.
  */
 
 let app: ElectronApplication
@@ -38,9 +38,15 @@ test.afterAll(async () => {
   for (const d of [data, proj]) if (d) rmSync(d, { recursive: true, force: true })
 })
 
-/** Put every animation of the scene at a moment, so a picture of it means something. */
+/** Put the slide's recording or its animations at a moment, so a picture of it means something. */
 async function at(seconds: number): Promise<void> {
-  await window.evaluate((ms) => {
+  await window.evaluate(async (ms) => {
+    const video = document.querySelector<HTMLVideoElement>('.tour-frame video')
+    if (video) {
+      video.pause()
+      video.currentTime = Math.min(ms / 1000, video.duration - 0.05)
+      await new Promise((r) => video.addEventListener('seeked', r, { once: true }))
+    }
     for (const a of document.querySelector('.tour-frame')!.getAnimations({ subtree: true })) {
       a.pause()
       a.currentTime = ms
@@ -60,26 +66,43 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
   await expect(tour).toBeVisible()
 
   const slides: [title: string, beta: boolean, moment: number][] = [
-    ['Every chat on one rail', false, 5],
-    ['It sees what it builds', false, 6.6],
-    ['Side by side', false, 3],
-    ['It knocks. It never barges in', false, 2.5],
-    ['Answer from anywhere', false, 3],
-    ['Jobs that come back on time', false, 3],
-    ['The best agent is the one that disappears', true, 10],
-    ['It can use your Mac, when you let it', true, 6.3],
-    ['Keys worth knowing', false, 0]
+    ['Every chat in one list.', false, 4.6],
+    ['It checks its own work.', false, 6],
+    ['Watch several chats at once.', false, 4],
+    ['It tells you when it needs you.', false, 6],
+    ['Answer from your phone.', false, 3],
+    ['Jobs that run on a schedule.', false, 4.5],
+    ['Ask from any app.', true, 10],
+    ['It can use your Mac, if you let it.', true, 6.3],
+    ['Keys worth knowing.', false, 0]
   ]
   for (const [i, [title, beta, moment]] of slides.entries()) {
     await expect(tour.getByRole('heading', { name: title })).toBeVisible()
     await expect(tour.locator('.tour-beta')).toHaveCount(beta ? 1 : 0)
     await expect(tour.getByRole('tab', { selected: true })).toHaveAccessibleName(title)
-    if (title === 'Keys worth knowing') {
+    if (title === 'Keys worth knowing.') {
       // The last page is a list, not a scene: the menu's own shortcuts.
       await expect(tour.locator('.tour-key')).toHaveCount(10)
       await expect(tour.locator('.tour-key', { hasText: 'Search everything' })).toContainText('K')
+    } else if (await tour.locator('.tour-frame video').count()) {
+      // A recording of the app: it loads, it plays, silently.
+      const video = tour.locator('.tour-frame video')
+      await expect(video).toBeVisible()
+      await expect
+        .poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && v.currentTime > 0.2), {
+          timeout: 10_000
+        })
+        .toBe(true)
+      expect(
+        await video.evaluate((v: HTMLVideoElement) => ({
+          muted: v.muted,
+          loop: v.loop,
+          width: v.videoWidth,
+          poster: !!v.poster
+        }))
+      ).toEqual({ muted: true, loop: true, width: 1920, poster: true })
     } else {
-      // A scene is really drawn: it has the desk it sits on, and it is moving.
+      // A drawn scene: it has the desk it sits on, and it is moving.
       await expect(tour.locator('.tour-scene .d7-desk')).toBeVisible()
       expect(
         await window.evaluate(
@@ -105,11 +128,9 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
 test('the keys work, the dot can be turned on on its own slide, and Esc leaves', async () => {
   await window.evaluate(() => window.dispatchEvent(new CustomEvent('cove:replay-tour')))
   const tour = window.getByRole('dialog', { name: 'How Superagent works' })
-  await expect(tour.getByRole('heading', { name: 'Every chat on one rail' })).toBeVisible()
+  await expect(tour.getByRole('heading', { name: 'Every chat in one list.' })).toBeVisible()
   for (let i = 0; i < 6; i++) await window.keyboard.press('ArrowRight')
-  await expect(
-    tour.getByRole('heading', { name: 'The best agent is the one that disappears' })
-  ).toBeVisible()
+  await expect(tour.getByRole('heading', { name: 'Ask from any app.' })).toBeVisible()
   // Only this slide has the switch, and it says what the app has.
   const keep = tour.getByLabel('Show the dot on my screen')
   // Off until turned on; the switch here is one place to do that.
@@ -119,10 +140,10 @@ test('the keys work, the dot can be turned on on its own slide, and Esc leaves',
   await keep.uncheck()
   expect(await window.evaluate(() => window.cove.dotEnabled())).toBe(false)
   await window.keyboard.press('ArrowLeft')
-  await expect(tour.getByRole('heading', { name: 'Jobs that come back on time' })).toBeVisible()
+  await expect(tour.getByRole('heading', { name: 'Jobs that run on a schedule.' })).toBeVisible()
   await expect(tour.getByLabel('Show the dot on my screen')).toHaveCount(0)
   // A dot of the row goes straight to its scene.
-  await tour.getByRole('tab', { name: 'Keys worth knowing' }).click()
+  await tour.getByRole('tab', { name: 'Keys worth knowing.' }).click()
   await expect(tour.getByRole('button', { name: 'Get started' })).toBeVisible()
   await window.keyboard.press('Escape')
   await expect(tour).toHaveCount(0)
