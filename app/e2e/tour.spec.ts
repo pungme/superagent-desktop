@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 /**
- * "How it works": five animated scenes shown while setting up, and again from
+ * "How it works": animated scenes shown while setting up, and again from
  * Settings. SHOT=1 saves a picture of each scene part-way through its
  * animation, to look at.
  */
@@ -62,7 +62,10 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
   const slides: [title: string, beta: boolean, moment: number][] = [
     ['Every chat on one rail', false, 5],
     ['It sees what it builds', false, 6.6],
+    ['Four at once', false, 3],
     ['It knocks. It never barges in', false, 2.5],
+    ['Answer from anywhere', false, 3],
+    ['Jobs that come back on time', false, 3],
     ['The best agent is the one that disappears', true, 10],
     ['It can use your Mac, when you let it', true, 6.3]
   ]
@@ -96,9 +99,7 @@ test('the keys work, the dot can be turned on on its own slide, and Esc leaves',
   await window.evaluate(() => window.dispatchEvent(new CustomEvent('cove:replay-tour')))
   const tour = window.getByRole('dialog', { name: 'How Superagent works' })
   await expect(tour.getByRole('heading', { name: 'Every chat on one rail' })).toBeVisible()
-  await window.keyboard.press('ArrowRight')
-  await window.keyboard.press('ArrowRight')
-  await window.keyboard.press('ArrowRight')
+  for (let i = 0; i < 6; i++) await window.keyboard.press('ArrowRight')
   await expect(
     tour.getByRole('heading', { name: 'The best agent is the one that disappears' })
   ).toBeVisible()
@@ -111,7 +112,7 @@ test('the keys work, the dot can be turned on on its own slide, and Esc leaves',
   await keep.uncheck()
   expect(await window.evaluate(() => window.cove.dotEnabled())).toBe(false)
   await window.keyboard.press('ArrowLeft')
-  await expect(tour.getByRole('heading', { name: 'It knocks. It never barges in' })).toBeVisible()
+  await expect(tour.getByRole('heading', { name: 'Jobs that come back on time' })).toBeVisible()
   await expect(tour.getByLabel('Show the dot on my screen')).toHaveCount(0)
   // A dot of the row goes straight to its scene.
   await tour.getByRole('tab', { name: 'It can use your Mac, when you let it' }).click()

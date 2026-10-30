@@ -1539,3 +1539,192 @@
     opacity: 0;
   }
 }
+
+/* 6 · split view: four chats side by side, appearing one after another */
+.tour-scene .t6-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  padding: 10px;
+  height: calc(100% - 33px);
+  box-sizing: border-box;
+}
+.tour-scene .t6-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  opacity: 0;
+  animation: t6in 0.5s var(--ease) forwards;
+}
+.tour-scene .t6-p1 {
+  animation-delay: 0.35s;
+}
+.tour-scene .t6-p2 {
+  animation-delay: 0.7s;
+}
+.tour-scene .t6-p3 {
+  animation-delay: 1.05s;
+}
+@keyframes t6in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 7 · the phone: an approval answered from the iPhone */
+.tour-scene .t7-desk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tour-scene .t7-phone {
+  position: relative;
+  width: 250px;
+  height: 500px;
+  border-radius: 40px;
+  background: var(--card);
+  border: 8px solid #2b2d28;
+  box-sizing: border-box;
+  padding: 44px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 24px 50px -24px rgba(56, 72, 84, 0.6);
+}
+.tour-scene .t7-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 70px;
+  height: 20px;
+  margin-left: -35px;
+  border-radius: 10px;
+  background: #2b2d28;
+}
+.tour-scene .t7-head {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.tour-scene .t7-row {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(49, 52, 45, 0.05);
+}
+.tour-scene .t7-row small {
+  display: block;
+  font-weight: 500;
+  font-size: 8.8px;
+  color: var(--faint);
+}
+.tour-scene .t7-ask,
+.tour-scene .t7-done {
+  opacity: 0;
+  animation: t6in 0.5s var(--ease) forwards;
+}
+.tour-scene .t7-ask {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 9.6px;
+  animation-delay: 0.6s;
+}
+.tour-scene .t7-ask b {
+  font-size: 11.5px;
+}
+.tour-scene .t7-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.tour-scene .t7-btns i {
+  flex: 1;
+  font-style: normal;
+  text-align: center;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.tour-scene .t7-btns i.yes {
+  background: #7fae82;
+  color: #fff;
+  animation: t7press 0.3s ease 1.9s;
+}
+@keyframes t7press {
+  50% {
+    transform: scale(0.92);
+  }
+}
+.tour-scene .t7-done {
+  font-size: 9.6px;
+  color: var(--muted);
+  text-align: center;
+  animation-delay: 2.3s;
+}
+
+/* 8 · routines: a list of scheduled jobs, and what the last run did */
+.tour-scene .t8-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 24px;
+}
+.tour-scene .t8-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  font-size: 10.5px;
+  opacity: 0;
+  animation: t6in 0.5s var(--ease) forwards;
+}
+.tour-scene .t8-r1 {
+  animation-delay: 0.3s;
+}
+.tour-scene .t8-r2 {
+  animation-delay: 0.6s;
+}
+.tour-scene .t8-r3 {
+  animation-delay: 0.9s;
+}
+.tour-scene .t8-when {
+  flex: none;
+  width: 140px;
+  font-weight: 700;
+}
+.tour-scene .t8-what {
+  color: var(--muted);
+}
+.tour-scene .t8-ran {
+  margin-top: 8px;
+  opacity: 0;
+  animation: t6in 0.5s var(--ease) 1.2s forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-scene .t6-pane,
+  .tour-scene .t7-ask,
+  .tour-scene .t7-done,
+  .tour-scene .t8-row,
+  .tour-scene .t8-ran {
+    animation: none;
+    opacity: 1;
+  }
+}

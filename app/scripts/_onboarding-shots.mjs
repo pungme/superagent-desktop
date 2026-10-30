@@ -128,7 +128,7 @@ try {
   // 8. How it works: each scene of the tour, paused at a telling moment
   // (the same moments as e2e/tour.spec.ts).
   await page.click('.onboarding-continue')
-  const moments = [5, 6.6, 2.5, 10, 6.3]
+  const moments = [5, 6.6, 3, 2.5, 3, 3, 10, 6.3]
   for (const [i, moment] of moments.entries()) {
     await page.waitForSelector('.tour-card .tour-frame')
     await page.waitForTimeout(700)

@@ -4,7 +4,7 @@ import './tour.css'
 import './tour-scenes.css'
 
 /**
- * How Superagent works, shown rather than told: five short scenes, each a
+ * How Superagent works, shown rather than told: short scenes, each a
  * small animation of the app doing the thing, the same pictures the website
  * uses. Part of setting up, and there to be played again from Settings.
  */
@@ -349,6 +349,94 @@ function ComputerScene(): React.JSX.Element {
   )
 }
 
+const SPLIT_PANES: [string, string, string, string][] = [
+  ['Tighten the hero copy', 'landing-page', 'Two lines instead of three.', 'Editing · Hero.tsx'],
+  ['Fix the flaky auth test', 'landing-page', 'It races the session cookie.', 'Running · npm test'],
+  ['Migrate to pnpm', 'mobile-app', 'Done. CI is green on its branch.', ''],
+  ['Slow loads on the feed', 'shop-web', 'The images were 4 MB each.', 'Resizing · 38 files']
+]
+
+function SplitScene(): React.JSX.Element {
+  return (
+    <div className="d7-desk">
+      <div className="dq-win t-full">
+        <Lights title="Superagent — Split" />
+        <div className="t6-grid">
+          {SPLIT_PANES.map(([title, project, reply, step], i) => (
+            <div key={title} className={`t6-pane t6-p${i}`}>
+              <div className="d9-ttl">
+                {title}
+                <small>
+                  {project} · {step ? 'working' : 'finished'}
+                </small>
+              </div>
+              <div className="d9-reply">{reply}</div>
+              {step && (
+                <div className="t1-step">
+                  <i />
+                  {step}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PhoneScene(): React.JSX.Element {
+  return (
+    <div className="d7-desk t7-desk">
+      <div className="t7-phone">
+        <div className="t7-island" />
+        <div className="t7-head">Superagent</div>
+        <div className="t7-row">
+          Fix the flaky auth test<small>landing-page · working</small>
+        </div>
+        <div className="t7-row">
+          Migrate to pnpm<small>mobile-app · finished</small>
+        </div>
+        <div className="t7-ask">
+          <b>Run git push?</b>
+          <span>Fix the flaky auth test wants to push its branch.</span>
+          <div className="t7-btns">
+            <i>Deny</i>
+            <i className="yes">Allow</i>
+          </div>
+        </div>
+        <div className="t7-done">Pushed. The pull request is open.</div>
+      </div>
+    </div>
+  )
+}
+
+function RoutinesScene(): React.JSX.Element {
+  return (
+    <div className="d7-desk">
+      <div className="dq-win t-full">
+        <Lights title="Superagent — Routines" />
+        <div className="t8-list">
+          {[
+            ['Every morning · 9:00', 'Check last night’s deploy and tell me what broke'],
+            ['Every hour', 'Look for new bug reports and sort them'],
+            ['Mondays · 8:00', 'Sum up the pull requests waiting for review'],
+            ['Fridays · 17:00', 'Write the week’s release notes']
+          ].map(([when, what], i) => (
+            <div key={when} className={`t8-row t8-r${i}`}>
+              <span className="t8-when">{when}</span>
+              <span className="t8-what">{what}</span>
+            </div>
+          ))}
+          <div className="d9-reply t8-ran">
+            Ran at 9:00. The deploy is healthy; one slow query on the feed, fixed on a branch.
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface Slide {
   id: string
   kicker: string
@@ -374,11 +462,32 @@ const TOUR_SLIDES: Slide[] = [
     scene: BuildScene
   },
   {
+    id: 'split',
+    kicker: 'Split view',
+    title: 'Four at once',
+    text: 'Put up to four conversations side by side and watch them work. Click one to talk to it.',
+    scene: SplitScene
+  },
+  {
     id: 'knock',
     kicker: 'While you do something else',
     title: 'It knocks. It never barges in',
     text: 'Your window stays where it is. When an agent finishes or needs a yes, it tells you from the corner, and on your phone if you pair it.',
     scene: KnockScene
+  },
+  {
+    id: 'phone',
+    kicker: 'On your iPhone',
+    title: 'Answer from anywhere',
+    text: 'Pair your phone and your chats come with you. Read what an agent did, say yes to what it asks, or give it the next job.',
+    scene: PhoneScene
+  },
+  {
+    id: 'routines',
+    kicker: 'Routines',
+    title: 'Jobs that come back on time',
+    text: 'Ask a chat to do something every morning or every hour, and it runs while Superagent is open.',
+    scene: RoutinesScene
   },
   {
     id: 'dot',
