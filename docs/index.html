@@ -93,6 +93,12 @@
     .brand .jp { font-size: 12px; letter-spacing: 0.08em; margin-left: 10px; }
     .eyebrow .jp { font-size: 0.62em; letter-spacing: 0.08em; margin-left: 12px; }
     .hero-jp { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, sans-serif; font-size: 21px; letter-spacing: 0.12em; color: #6e6e73; margin-top: 14px; }
+    .pricing { text-align: center; }
+    .pricing .price { font-size: 96px; line-height: 1.04; letter-spacing: -0.015em; margin-top: 8px; }
+    .pricing .price span { color: #6e6e73; }
+    .pricing .intro { max-width: 560px; margin: 32px auto 0; }
+    @media (max-width: 1068px) { .pricing .price { font-size: 72px; } }
+    @media (max-width: 734px) { .pricing .price { font-size: 52px; } }
     .eyebrow { font-family: var(--display); font-size: 21px; line-height: 1.19048; font-weight: 600; letter-spacing: 0.011em; }
     .hero .eyebrow { font-size: 28px; line-height: 1.14286; letter-spacing: 0.007em; }
     h1, h2 { font-family: var(--display); font-weight: 600; text-wrap: balance; }
@@ -169,6 +175,7 @@
       .tablet { width: 100%; max-width: 440px; }
       .devices { flex-direction: column; align-items: center; }
       footer .content { flex-direction: column; }
+      .brand .jp { display: none; }
     }
   </style>
 </head>
@@ -176,6 +183,7 @@
   <nav class="nav" aria-label="Main">
     <div class="nav-inner">
       <a class="brand" href="#top"><img src="logo.png" alt="" width="24" height="24" />Superagent<span class="jp" lang="ja">スーパーエージェント</span></a>
+      <a class="hide-sm" href="#pricing">Pricing</a>
       <a class="hide-sm" href="docs/">Docs</a>
       <a class="hide-sm" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
       <a class="hide-sm" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
@@ -259,6 +267,14 @@
             </p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section id="pricing" class="pricing">
+      <div class="content">
+        <p class="eyebrow">Pricing<span class="jp" lang="ja">料金</span></p>
+        <h2 class="price">Free forever.<br /><span>Really.</span></h2>
+        <p class="intro">No plan, no trial, no card. Your agent runs on the Claude, ChatGPT or Google plan you already have.</p>
       </div>
     </section>
 
