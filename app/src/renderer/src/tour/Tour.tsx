@@ -437,6 +437,36 @@ function RoutinesScene(): React.JSX.Element {
   )
 }
 
+const KEYS: [string, string[]][] = [
+  ['Search everything', ['⌘', 'K']],
+  ['New project', ['⌘', 'N']],
+  ['Show or hide the preview', ['⌘', 'B']],
+  ['Close the tab', ['⌘', 'W']],
+  ['Settings', ['⌘', ',']],
+  ['Show Superagent', ['⌃', '⌥', 'S']],
+  ['The dot', ['⌥', 'Space']],
+  ['Talk to it', ['⌃', '⌥', 'V']],
+  ['Stop using your Mac', ['⌥', 'Esc']],
+  ['Zoom in', ['⌘', '+']]
+]
+
+function KeysScene(): React.JSX.Element {
+  return (
+    <div className="tour-keys">
+      {KEYS.map(([what, keys]) => (
+        <div key={what} className="tour-key">
+          <span>{what}</span>
+          <kbd>
+            {keys.map((k) => (
+              <b key={k}>{k}</b>
+            ))}
+          </kbd>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 interface Slide {
   id: string
   kicker: string
@@ -510,6 +540,13 @@ const TOUR_SLIDES: Slide[] = [
     title: 'It can use your Mac, when you let it',
     text: 'Off until you turn it on in Settings. It asks first, for the Mac and for each app, shows where it is about to click, keeps out of anything that holds your secrets, and ⌥ Esc stops it.',
     scene: ComputerScene
+  },
+  {
+    id: 'keys',
+    kicker: 'Shortcuts',
+    title: 'Keys worth knowing',
+    text: 'The ones that work from any app can be changed in Settings.',
+    scene: KeysScene
   }
 ]
 

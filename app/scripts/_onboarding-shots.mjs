@@ -1,4 +1,4 @@
-// Screenshot driver: walks the first-run flow (intro reel → probe → welcome
+// Screenshot driver: walks the first-run flow (probe → welcome
 // card in each of its states → the app) against a throwaway userData dir, with
 // the agent probe stubbed in main so every state is reachable on a Mac that
 // already has Claude Code. Quiet: no window, Dock icon or focus (main/quiet.ts).
@@ -22,7 +22,6 @@ const app = await electron.launch({
     ...process.env,
     COVE_E2E_QUIET: '1',
     COVE_USER_DATA: dir,
-    COVE_E2E_INTRO: '1',
     NODE_ENV: 'production'
   }
 })
@@ -45,10 +44,13 @@ const INSTALLED = env(provider(true, false, '2.1.283'), provider(false, false))
 const READY = env(provider(true, true, '2.1.283'), provider(false, false))
 
 const setEnv = (status, delay = 0) =>
-  app.evaluate((_e, [s, d]) => {
-    globalThis.__env = s
-    globalThis.__envDelay = d
-  }, [status, delay])
+  app.evaluate(
+    (_e, [s, d]) => {
+      globalThis.__env = s
+      globalThis.__envDelay = d
+    },
+    [status, delay]
+  )
 
 try {
   const page = await app.firstWindow()
@@ -78,24 +80,18 @@ try {
     ipcMain.removeAllListeners('env:open-login')
   })
 
-  // 1. The intro reel, over the app, on a brand-new install.
+  // A brand-new install.
   await setEnv(NONE)
   await page.evaluate(() => {
     localStorage.clear()
     sessionStorage.clear()
   })
   await page.reload()
-  await page.waitForSelector('.first-run-intro iframe', { timeout: 10_000 })
-  for (let i = 1; i <= 20; i++) {
-    await page.waitForTimeout(i === 1 ? 1200 : 2500)
-    if ((await page.locator('.first-run-intro').count()) === 0) break
-    await shot(`1-intro-${String(i).padStart(2, '0')}`)
-  }
-  await page.waitForSelector('.first-run-intro', { state: 'detached', timeout: 40_000 })
 
   // 3. The welcome card: nothing installed.
   await page.waitForSelector('.onboarding-card')
-  await page.waitForTimeout(800)
+  // Past the short splash a first launch opens on.
+  await page.waitForTimeout(2600)
   await shot('3-welcome-nothing-installed')
 
   // 4. Installing, then an install that failed.
@@ -103,7 +99,9 @@ try {
   await page.waitForSelector('.onboarding-approval')
   await page.waitForTimeout(300)
   await shot('4a-approve-install')
-  await page.locator('.onboarding-approval .onboarding-agent-btn', { hasText: 'Allow install' }).click()
+  await page
+    .locator('.onboarding-approval .onboarding-agent-btn', { hasText: 'Allow install' })
+    .click()
   await page.waitForSelector('.onboarding-agent-plan.busy')
   await page.waitForTimeout(400)
   await shot('4-installing')
@@ -128,7 +126,7 @@ try {
   // 8. How it works: each scene of the tour, paused at a telling moment
   // (the same moments as e2e/tour.spec.ts).
   await page.click('.onboarding-continue')
-  const moments = [5, 6.6, 3, 2.5, 3, 3, 10, 6.3]
+  const moments = [5, 6.6, 3, 2.5, 3, 3, 10, 6.3, 1]
   for (const [i, moment] of moments.entries()) {
     await page.waitForSelector('.tour-card .tour-frame')
     await page.waitForTimeout(700)
@@ -159,8 +157,7 @@ try {
   await page.waitForTimeout(1200)
   await shot('11-app-first-screen')
 
-  // 2. What sits under the intro while the probe runs (seen when the intro is
-  // skipped early, or doesn't play): taken last, with the intro already seen.
+  // 2. While the probe runs: taken last.
   await setEnv(NONE, 15_000)
   await page.evaluate(() => localStorage.removeItem('cove.onboarded'))
   await page.reload()

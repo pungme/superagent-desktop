@@ -29,11 +29,10 @@
   }
 }
 .tour-kicker {
-  margin-top: 26px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  margin-top: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text-tertiary);
   display: flex;
   align-items: center;
@@ -48,18 +47,20 @@
   color: var(--accent, #4f46e5);
 }
 .tour-card h1 {
-  margin: 8px 0 0;
-  font-size: 26px;
-  line-height: 1.2;
-  font-weight: 700;
+  margin: 6px 0 0;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.022em;
   color: var(--text-primary);
 }
 .tour-text {
   margin: 10px 0 0;
   max-width: 520px;
   min-height: 66px;
-  font-size: 14.5px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.47;
+  letter-spacing: -0.01em;
   color: var(--text-secondary);
 }
 .tour-text kbd {
@@ -108,7 +109,7 @@
   height: 36px;
   padding: 0 18px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 999px;
   background: var(--text-primary);
   color: var(--bg-content);
   font: inherit;
@@ -184,4 +185,52 @@
   height: 15px;
   margin: 0;
   accent-color: var(--text-primary);
+}
+
+/* The last page: the keys worth knowing, as a plain list. */
+.tour-keys {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 40px 72px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 72px;
+  align-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1d1d1f;
+}
+.tour-key {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 24px;
+  letter-spacing: -0.015em;
+}
+.tour-key span {
+  color: #424245;
+}
+.tour-key kbd {
+  display: inline-flex;
+  gap: 7px;
+  font: inherit;
+}
+.tour-key kbd b {
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #f5f5f7;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom-width: 2px;
+  font-size: 21px;
+  font-weight: 500;
+  color: #1d1d1f;
 }

@@ -8,8 +8,6 @@ import { HookConsent } from './components/HookConsent'
 import { PreviewToast } from './components/PreviewToast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { IntroSplash } from './components/IntroSplash'
-import { FirstRunIntro } from './components/FirstRunIntro'
-import { REPLAY_INTRO_EVENT, shouldPlayFirstRunIntro } from './firstRun'
 import { Tour } from './tour/Tour'
 import { REPLAY_TOUR_EVENT } from './tour/tour-keys'
 import { ComputerPanel } from './components/ComputerPanel'
@@ -96,12 +94,6 @@ function App(): React.JSX.Element {
     () => localStorage.getItem('cove.connectionsOffered') === '1'
   )
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('cove.onboarded') === '1')
-  // Anyone who has not seen the reel's intro opens on it once, over whatever
-  // loads beneath: a brand-new install, and someone who was using the app
-  // before it had one. (It used to be new installs only, so the people who had
-  // been here longest never saw it.)
-  const [firstRunIntro, setFirstRunIntro] = useState(() => shouldPlayFirstRunIntro())
-  if (firstRunIntro) sessionStorage.setItem('cove.introPlayed', '1') // not the short splash too
   // Screenshots macOS saves, collected once for the whole window: whichever
   // chat is on screen offers them (state.ts shots). Stale ones are swept here.
   useEffect(() => {
@@ -124,13 +116,6 @@ function App(): React.JSX.Element {
     const replay = (): void => setTourOpen(true)
     window.addEventListener(REPLAY_TOUR_EVENT, replay)
     return () => window.removeEventListener(REPLAY_TOUR_EVENT, replay)
-  }, [])
-
-  // Asked for again from Settings: played whatever has been seen before.
-  useEffect(() => {
-    const replay = (): void => setFirstRunIntro(true)
-    window.addEventListener(REPLAY_INTRO_EVENT, replay)
-    return () => window.removeEventListener(REPLAY_INTRO_EVENT, replay)
   }, [])
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -659,11 +644,7 @@ function App(): React.JSX.Element {
     })
   }, [addGroup, addWorkspace])
 
-  const intro = firstRunIntro ? (
-    <FirstRunIntro onDone={() => setFirstRunIntro(false)} />
-  ) : (
-    tourOpen && <Tour onDone={() => setTourOpen(false)} />
-  )
+  const intro = tourOpen && <Tour onDone={() => setTourOpen(false)} />
 
   if (!onboarded) {
     return (

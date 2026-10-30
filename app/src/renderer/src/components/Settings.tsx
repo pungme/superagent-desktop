@@ -15,7 +15,6 @@ import { useStore, ACCENTS, ICON_COLOURS, applyAccent, iconFill } from '../state
 import { IconEditor } from './IconEditor'
 import type { IconPlace } from '../app-icon'
 import { PhoneSettings } from './PhoneSettings'
-import { REPLAY_INTRO_EVENT } from '../firstRun'
 import { REPLAY_TOUR_EVENT } from '../tour/tour-keys'
 import {
   AGENT_PROVIDERS,
@@ -1591,23 +1590,8 @@ export function Settings({
                 <Toggle checked={betaUpdates} onChange={toggleBeta} />
               </Row>
               <Row
-                title="Intro"
-                desc="The short film that plays the first time Superagent opens: what the app does, in half a minute."
-              >
-                <button
-                  className="settings-update-check"
-                  onClick={() => {
-                    // Out of Settings first: the intro plays over the app.
-                    onClose()
-                    window.dispatchEvent(new CustomEvent(REPLAY_INTRO_EVENT))
-                  }}
-                >
-                  Show the intro again
-                </button>
-              </Row>
-              <Row
                 title="How it works"
-                desc="Five short scenes: your chats on one rail, the agent seeing what it builds, how it gets your attention, the dot, and using your Mac."
+                desc="What Superagent does and the keys worth knowing, a page at a time."
               >
                 <button
                   className="settings-update-check"

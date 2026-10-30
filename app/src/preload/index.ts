@@ -887,8 +887,6 @@ export interface CoveApi {
   browsersSignInDone: () => Promise<boolean>
   /** Settings → Reset Superagent: wipe projects, chats and the rest, then restart. */
   resetApp: () => Promise<{ ok: boolean }>
-  /** Whether the first-run intro may play (not in a test run). */
-  introAllowed: () => boolean
   /** Settings → Accounts: more than one subscription per agent (see main/accounts.ts). */
   accountsList: (recheck?: boolean) => Promise<{
     claude: Account[]
@@ -1572,7 +1570,6 @@ const cove: CoveApi = {
     ipcRenderer.invoke('browsers:continue-in-yours', paneId, url),
   browsersSignInDone: () => ipcRenderer.invoke('browsers:sign-in-done'),
   resetApp: () => ipcRenderer.invoke('app:reset'),
-  introAllowed: () => ipcRenderer.sendSync('app:intro-allowed') as boolean,
   accountsList: (recheck) => ipcRenderer.invoke('accounts:list', recheck),
   onAccountsChanged: (cb) => subscribe('accounts:changed', () => cb()),
   accountsRefreshUsage: (force) => ipcRenderer.invoke('accounts:refresh-usage', force),

@@ -67,19 +67,26 @@ test('it is shown again from Settings, one scene at a time, and ends where you w
     ['Answer from anywhere', false, 3],
     ['Jobs that come back on time', false, 3],
     ['The best agent is the one that disappears', true, 10],
-    ['It can use your Mac, when you let it', true, 6.3]
+    ['It can use your Mac, when you let it', true, 6.3],
+    ['Keys worth knowing', false, 0]
   ]
   for (const [i, [title, beta, moment]] of slides.entries()) {
     await expect(tour.getByRole('heading', { name: title })).toBeVisible()
     await expect(tour.locator('.tour-beta')).toHaveCount(beta ? 1 : 0)
     await expect(tour.getByRole('tab', { selected: true })).toHaveAccessibleName(title)
-    // A scene is really drawn: it has the desk it sits on, and it is moving.
-    await expect(tour.locator('.tour-scene .d7-desk')).toBeVisible()
-    expect(
-      await window.evaluate(
-        () => document.querySelector('.tour-frame')!.getAnimations({ subtree: true }).length
-      )
-    ).toBeGreaterThan(2)
+    if (title === 'Keys worth knowing') {
+      // The last page is a list, not a scene: the menu's own shortcuts.
+      await expect(tour.locator('.tour-key')).toHaveCount(10)
+      await expect(tour.locator('.tour-key', { hasText: 'Search everything' })).toContainText('K')
+    } else {
+      // A scene is really drawn: it has the desk it sits on, and it is moving.
+      await expect(tour.locator('.tour-scene .d7-desk')).toBeVisible()
+      expect(
+        await window.evaluate(
+          () => document.querySelector('.tour-frame')!.getAnimations({ subtree: true }).length
+        )
+      ).toBeGreaterThan(2)
+    }
     if (process.env.SHOT) {
       // Past the slide's own entrance, then at a telling moment of its scene.
       await window.waitForTimeout(700)
@@ -115,7 +122,7 @@ test('the keys work, the dot can be turned on on its own slide, and Esc leaves',
   await expect(tour.getByRole('heading', { name: 'Jobs that come back on time' })).toBeVisible()
   await expect(tour.getByLabel('Show the dot on my screen')).toHaveCount(0)
   // A dot of the row goes straight to its scene.
-  await tour.getByRole('tab', { name: 'It can use your Mac, when you let it' }).click()
+  await tour.getByRole('tab', { name: 'Keys worth knowing' }).click()
   await expect(tour.getByRole('button', { name: 'Get started' })).toBeVisible()
   await window.keyboard.press('Escape')
   await expect(tour).toHaveCount(0)
