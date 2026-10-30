@@ -527,7 +527,11 @@ export async function handleRpc(method: RpcMethod, params: unknown): Promise<Rpc
           claude: listAccounts('claude'),
           codex: listAccounts('codex'),
           antigravity: listAccounts('antigravity'),
-          current: chat ? accountForChat(getChatProvider(chat.id), chat.id).id : null
+          // With no chat, the account a new chat would start on — what the
+          // Mac's sidebar foot shows then, and the phone's too.
+          current: chat
+            ? accountForChat(getChatProvider(chat.id), chat.id).id
+            : accountForChat(toProvider(kvGet('cove.provider')), undefined).id
         }
         return { ok: true, result }
       }

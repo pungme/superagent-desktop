@@ -576,6 +576,10 @@ export interface WireAccounts {
   claude: WireAccount[]
   codex: WireAccount[]
   antigravity: WireAccount[]
+  /**
+   * The account the chat asked about is on; with no chat, the one a new chat
+   * would start on (null from a Mac older than 2.1.0-beta.20).
+   */
   current: string | null
 }
 
