@@ -250,23 +250,21 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
 
   // The foot of the sidebar says the same, and moves the chat too.
   const footer = window.locator('.usage-footer-btn')
-  await expect(footer).toContainText('92%')
+  // It says what is left, not what is used: 92% used is 8% left.
+  await expect(footer).toContainText('8% left')
   await footer.hover()
-  await expect(
-    window.locator('.usage-popover-window', { hasText: 'Weekly Fable' })
-  ).toContainText('100%')
+  // The account the chat is on: pointing at it shows each limit, as what is left.
+  const mine = window.locator('.usage-popover-row.on')
+  await mine.hover()
+  await expect(mine.locator('.usage-popover-window', { hasText: 'Weekly Fable' })).toContainText(
+    '0% left'
+  )
+  // Another account opens on a click and stays open; its button moves the chat.
   const work = window.locator('.usage-popover-row', { hasText: 'Work' })
-  await expect(work).toBeEnabled()
-  // The row the chat is on is filled and so is the one under the pointer: with
-  // nothing between them they read as a single block.
-  await work.hover()
-  const [mine, hovered] = await Promise.all([
-    window.locator('.usage-popover-row.on').boundingBox(),
-    work.boundingBox()
-  ])
-  expect(hovered!.y - (mine!.y + mine!.height)).toBeGreaterThanOrEqual(2)
+  await work.locator('.usage-account-toggle').click()
+  await expect(work.locator('.usage-account-toggle')).toHaveAttribute('aria-expanded', 'true')
   await window.locator('.usage-popover').screenshot({ path: 'test-results/usage-popover.png' })
-  await work.click()
+  await work.locator('.usage-account-switch').click()
   await expect(pill).toContainText('Work')
   await expect
     .poll(

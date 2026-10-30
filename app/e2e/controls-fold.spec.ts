@@ -62,7 +62,7 @@ test('a narrow chat folds its settings into the logo in the box, which opens the
     // says what the chat is set to when you point at it.
     await expect(summary).toBeHidden()
     await expect(logo).toBeVisible()
-    expect(await logo.getAttribute('title')).toContain('Claude Code')
+    expect(await logo.locator('.easy-input-tip').textContent()).toContain('Claude Code')
     await expect(model).toBeHidden()
     // The typing starts after the logo, not under it.
     const input = w.locator('.easy-input:visible').first()
