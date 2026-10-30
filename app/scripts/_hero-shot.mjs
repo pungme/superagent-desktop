@@ -60,6 +60,8 @@ try {
   await win.evaluate(() => {
     localStorage.setItem('cove.onboarded', '1')
     localStorage.setItem('cove.connectionsOffered', '1')
+    // Exposes the store (window.__store), which is how the split is made below.
+    localStorage.setItem('cove.e2e', '1')
     localStorage.setItem('cove.theme', 'light')
   })
   await win.reload()
@@ -83,9 +85,9 @@ try {
       }
       const mk = async (g, n) => (await cove.createWorkspace(g, n, dirs[n])).workspaceId
       const landing = await mk(work, 'landing-page')
-      await mk(work, 'mobile-app')
-      await mk(work, 'design-system')
-      await mk(personal, 'notes-app')
+      const mobile = await mk(work, 'mobile-app')
+      const design = await mk(work, 'design-system')
+      const notes = await mk(personal, 'notes-app')
       await mk(personal, 'reading-list')
 
       const other = await cove.chatCreate(landing)
@@ -137,7 +139,37 @@ try {
           }
         ])
       )
-      return { landing, chat }
+      // The split scene's four conversations, each in a different project,
+      // stored finished: the film reveals them a step at a time.
+      const tool = (id, name, detail) => ({ kind: 'tool', tool: { id, name, detail } })
+      const said = async (ws, title, ask, tools, answer, existing) => {
+        const id = existing ?? (await cove.chatCreate(ws))
+        await cove.chatUpdate(id, { title })
+        cove.chatSave(
+          id,
+          JSON.stringify([
+            { kind: 'msg', msg: { id: id + 'u', role: 'user', text: ask, at: now - 90e3 } },
+            ...tools.map(([n, d], i) => tool(id + 't' + i, n, d)),
+            { kind: 'msg', msg: { id: id + 'a', role: 'assistant', text: answer, at: now - 5e3, tokens: 48000, tokensNew: 2100 } }
+          ])
+        )
+        return id
+      }
+      const split = [
+        await said(landing, 'Tighten the hero copy', 'Make the headline shorter, keep the tone.',
+          [['Read', 'src/Hero.tsx'], ['Edit', 'src/Hero.tsx'], ['Bash', 'npm run build']],
+          'Two lines instead of three. I cut "for teams of any size": it was doing nothing, and the sentence lands harder without it.', other),
+        await said(mobile, 'Fix the flaky login test', 'The login e2e fails about one run in five. Find out why.',
+          [['Bash', 'npx playwright test login'], ['Read', 'e2e/login.spec.ts'], ['Grep', 'waitForURL'], ['Edit', 'e2e/login.spec.ts'], ['Bash', 'npx playwright test login --repeat-each 30']],
+          'It races the session cookie: the test taps before the redirect lands. It now waits for the URL, and 30 runs in a row are green.'),
+        await said(design, 'Dark mode tokens', 'Add dark variants for the surface and border tokens.',
+          [['Read', 'tokens/color.json'], ['Edit', 'tokens/color.json'], ['Edit', 'tokens/dark.json'], ['Bash', 'npm run build:tokens']],
+          'Added dark surface, border and both hover states. Every pair passes AA contrast, and the token build is clean.'),
+        await said(notes, 'Export to Markdown', 'Add Export as Markdown to the File menu.',
+          [['Grep', 'File menu'], ['Read', 'src/menu.ts'], ['Edit', 'src/menu.ts'], ['Edit', 'src/export.ts'], ['Bash', 'npm test']],
+          'File › Export as Markdown is in, on ⇧⌘E. Headings, lists and checkboxes round-trip, and images are saved beside the file.')
+      ]
+      return { landing, chat, split: [[landing, split[0]], [mobile, split[1]], [design, split[2]], [notes, split[3]]] }
     },
     { dirs, now }
   )
@@ -182,7 +214,12 @@ try {
   await win.waitForTimeout(9000)
   await tidyPages()
   await composite(win)
-  if (film) await film.scene2()
+  if (film) {
+    await film.scene2()
+    await film.sceneSplit(ids.split)
+    await film.scenePalette('login')
+    await film.finale()
+  }
   else await win.screenshot({ path: out })
   console.log('saved', out)
 } finally {
@@ -312,9 +349,19 @@ async function story(win) {
   }
   const ease = (t) => 1 - Math.pow(1 - t, 3)
   const smooth = (t) => t * t * (3 - 2 * t)
-  const crossfade = async (st, k) => {
+  let poster = null
+  const fadeTo = async (b, k) => {
     const a = last
-    await win.evaluate((s) => window.__hero(s), st)
+    for (let i = 1; i <= k; i++) {
+      const t = smooth(i / k)
+      const m = Buffer.alloc(a.length)
+      for (let j = 0; j < a.length; j++) m[j] = a[j] + (b[j] - a[j]) * t + 0.5
+      await put(i === k ? b : m)
+    }
+  }
+  const crossfade = async (st, k, ready) => {
+    const a = last
+    if (!ready) await win.evaluate((s) => window.__hero(s), st)
     await win.waitForTimeout(60)
     const b = await grab()
     for (let i = 1; i <= k; i++) {
@@ -415,10 +462,177 @@ async function story(win) {
         await shoot({ ...base, user: 1, open: 1, tools: 1, reply: Math.max(1, Math.round((replyLen * i) / F)) })
       for (let i = 1; i <= 8; i++)
         await shoot({ ...base, user: 1, open: 1, tools: 1, reply: -1, meta: ease(i / 8) })
-      hold(30)
-      // The last frame, full size: the poster is this exact picture.
+      hold(36)
+      poster = last
+      // The first scene's last frame, full size: the poster is this exact
+      // picture, and the film comes back to it at the end.
       await win.screenshot({ path: out })
       console.log('frames', n, 'reply chars', replyLen)
+    },
+    // Four conversations from four projects at once, in one window: each
+    // working (the app's own Working row and sidebar spinner), its steps
+    // counting up, its reply streaming in, at its own pace.
+    async sceneSplit(pairs) {
+      await win.evaluate((pairs) => {
+        const st = window.__store.getState()
+        const [[ws0, c0], ...rest] = pairs
+        st.setActive(ws0)
+        st.selectChat(ws0, c0)
+        for (const [ws, c] of rest) window.__store.getState().openBeside(ws, c)
+      }, pairs)
+      await win.waitForTimeout(2500)
+      await composite(win)
+      // Per window: when its steps start, seconds between steps, when its
+      // reply starts and how long it streams, the Working counter at t=0.
+      const plan = [
+        { steps: 0.4, every: 0.5, reply: 2.7, dur: 1.1, base: 14, verbs: ['Reading', 'Editing', 'Terminal'] },
+        { steps: 0.0, every: 0.35, reply: 1.7, dur: 1.2, base: 41, verbs: ['Terminal', 'Reading', 'Searching', 'Editing', 'Terminal'] },
+        { steps: 0.2, every: 0.55, reply: 4.1, dur: 1.1, base: 9, verbs: ['Reading', 'Editing', 'Editing', 'Terminal'] },
+        { steps: 0.6, every: 0.5, reply: 3.3, dur: 1.2, base: 22, verbs: ['Searching', 'Reading', 'Editing', 'Editing', 'Terminal'] }
+      ]
+      await win.evaluate(({ pairs, plan }) => {
+        const tiles = pairs.map(([, c], i) => ({ chat: c, ...plan[i] }))
+        // The chat's own markup for a reply on its way (the mark, the counter),
+        // as it draws it while its agent works.
+        const working = () => {
+          const d = document.createElement('div')
+          d.className = 'easy-thinking __film'
+          d.innerHTML = '<span class="easy-think-mark" aria-hidden="true"><span class="easy-think-dot"></span></span><span class="easy-elapsed"></span>'
+          return d
+        }
+        const summary = (verbs) => {
+          const acc = []
+          for (const v of verbs) {
+            const have = acc.find((a) => a.v === v)
+            if (have) have.n++
+            else acc.push({ v, n: 1 })
+          }
+          return acc.map((a) => (a.n > 1 ? `${a.v} ×${a.n}` : a.v)).join(' · ')
+        }
+        const busyNow = {}
+        window.__split = (t) => {
+          for (const tl of tiles) {
+            const root = document.querySelector(`.workspace-view[data-desk="${tl.chat}"]`)
+            const tr = root.querySelector('.easy-transcript')
+            const reply = tr.querySelector('.easy-msg.easy-assistant')
+            const group = tr.querySelector('.easy-toolgroup')
+            const body = reply.querySelector(':scope > .md')
+            if (body.__full == null) {
+              body.__full = body.innerHTML
+              body.__len = body.textContent.length
+              group.__count = group.querySelector('.easy-tools-count').textContent
+              group.__n = parseInt(group.__count, 10)
+              group.__summary = group.querySelector('.easy-tools-summary').textContent
+            }
+            const done = tl.reply + tl.dur
+            const k = t < tl.steps ? 0 : Math.min(group.__n, 1 + Math.floor((t - tl.steps) / tl.every))
+            group.style.visibility = k ? '' : 'hidden'
+            group.querySelector('.easy-tools-count').textContent =
+              k === group.__n ? group.__count : `${k} step${k > 1 ? 's' : ''}`
+            group.querySelector('.easy-tools-summary').textContent =
+              k === group.__n ? group.__summary : summary(tl.verbs.slice(0, k))
+            const chars = t < tl.reply ? 0 : Math.round(Math.min(1, (t - tl.reply) / tl.dur) * body.__len)
+            reply.style.visibility = chars ? '' : 'hidden'
+            body.innerHTML = body.__full
+            if (chars < body.__len) {
+              const walk = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
+              let left = chars
+              const texts = []
+              while (walk.nextNode()) texts.push(walk.currentNode)
+              for (const x of texts) {
+                if (x.textContent.length > left) x.textContent = x.textContent.slice(0, left)
+                left -= x.textContent.length
+              }
+            }
+            const meta = reply.querySelector('.easy-msg-meta')
+            if (meta) meta.style.opacity = String(Math.max(0, Math.min(1, (t - done) / 0.3)))
+            const scroll = tr.querySelector('.easy-scroll')
+            let w = scroll.querySelector('.__film')
+            if (t < done) {
+              if (!w) scroll.appendChild((w = working()))
+              w.querySelector('.easy-elapsed').textContent = `Working ${tl.base + Math.floor(t)}s`
+              // Under the last thing on screen: the reply once it streams, else the steps.
+              const last = chars ? reply : k ? group : tr.querySelector('.easy-msg.easy-user')
+              const r = last.getBoundingClientRect()
+              const s = scroll.getBoundingClientRect()
+              // The mark sits on the bubbles' edge, as the chat's own row does.
+              const edge = reply.getBoundingClientRect().left - s.left
+              Object.assign(w.style, { position: 'absolute', left: `${edge}px`, right: '0', top: `${r.bottom - s.top + scroll.scrollTop + 10}px` })
+              if (getComputedStyle(scroll).position === 'static') scroll.style.position = 'relative'
+            } else if (w) w.remove()
+            const busy = t < done
+            if (busyNow[tl.chat] !== busy) {
+              busyNow[tl.chat] = busy
+              window.__store.getState().setBusy(tl.chat, { generating: busy, background: 0 })
+            }
+          }
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+        }
+      }, { pairs, plan })
+      // The app's own animations (the working mark, the spinners) held to the film's clock.
+      const at = async (t) => {
+        await win.evaluate((t) => {
+          window.__split(t)
+          for (const a of document.getAnimations()) {
+            a.pause()
+            a.currentTime = t * 1000
+          }
+        }, t)
+        await win.waitForTimeout(30)
+      }
+      await at(0)
+      await win.waitForTimeout(300)
+      await win.evaluate(() => window.__split(0))
+      await crossfade(null, 18, true)
+      for (let i = 1; i <= 180; i++) {
+        await at(i / 30)
+        await put(await grab())
+      }
+      hold(20)
+    },
+    // ⌘K over the split: the palette opens and finds a conversation by a
+    // word in it, across every project.
+    async scenePalette(query) {
+      const clock = async (t) =>
+        win.evaluate((t) => {
+          for (const a of document.getAnimations()) {
+            a.pause()
+            a.currentTime = t * 1000
+          }
+        }, t)
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0].webContents.send('menu:command-palette')
+      })
+      await win.waitForSelector('.cmdk-panel', { timeout: 5000 })
+      await win.waitForTimeout(600)
+      await clock(7)
+      await crossfade(null, 9, true)
+      let t = 7
+      for (let i = 1; i <= query.length; i++) {
+        await win.evaluate((v) => {
+          const el = document.querySelector('.cmdk-input')
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v)
+          el.dispatchEvent(new Event('input', { bubbles: true }))
+        }, query.slice(0, i))
+        await win.waitForTimeout(250)
+        for (let f = 0; f < 4; f++) {
+          t += 1 / 30
+          await clock(t)
+          await put(await grab())
+        }
+      }
+      await win.waitForTimeout(800)
+      for (let f = 0; f < 50; f++) {
+        t += 1 / 30
+        await clock(t)
+        await put(await grab())
+      }
+    },
+    // Back to the first scene's last picture, which is also the poster.
+    async finale() {
+      await fadeTo(poster, 20)
+      hold(45)
+      console.log('frames', n)
     }
   }
 }
