@@ -35,6 +35,7 @@ const provider = (installed, loggedIn, version) => ({
 const env = (claude, codex) => ({
   claude,
   codex,
+  antigravity: provider(false, false),
   claudeInstalled: claude.installed,
   claudeVersion: claude.version,
   loggedIn: (claude.installed && claude.loggedIn) || (codex.installed && codex.loggedIn)
@@ -98,33 +99,65 @@ try {
   await shot('3-welcome-nothing-installed')
 
   // 4. Installing, then an install that failed.
-  await page.locator('.onboarding-install-btn', { hasText: 'Install' }).first().click()
-  await page.waitForSelector('.onboarding-install-progress')
+  await page.locator('.onboarding-agent-btn', { hasText: 'Install' }).first().click()
+  await page.waitForSelector('.onboarding-approval')
+  await page.waitForTimeout(300)
+  await shot('4a-approve-install')
+  await page.locator('.onboarding-approval .onboarding-agent-btn', { hasText: 'Allow install' }).click()
+  await page.waitForSelector('.onboarding-agent-plan.busy')
   await page.waitForTimeout(400)
   await shot('4-installing')
   await app.evaluate(() =>
     globalThis.__finishInstall({ ok: false, error: 'curl: (6) Could not resolve host: claude.ai' })
   )
-  await page.waitForSelector('.onboarding-install-error')
+  await page.waitForSelector('.onboarding-agent-error')
   await shot('5-install-failed')
 
   // 6. Installed, not signed in.
   await setEnv(INSTALLED)
-  await page.click('.onboarding-recheck')
-  await page.waitForSelector('.onboarding-install-btn:has-text("Sign in")')
+  await page.click('.onboarding-skip:has-text("Check again")')
+  await page.waitForSelector('.onboarding-agent-btn:has-text("Sign in")')
   await shot('6-installed-sign-in')
 
   // 7. One agent ready.
   await setEnv(READY)
-  await page.click('.onboarding-recheck')
-  await page.waitForSelector('.onboarding-agent-badge')
+  await page.click('.onboarding-skip:has-text("Check again")')
+  await page.waitForSelector('.onboarding-agent-ready')
   await shot('7-ready')
 
-  // 8. Into the app.
+  // 8. How it works: each scene of the tour, paused at a telling moment
+  // (the same moments as e2e/tour.spec.ts).
   await page.click('.onboarding-continue')
+  const moments = [5, 6.6, 2.5, 10, 6.3]
+  for (const [i, moment] of moments.entries()) {
+    await page.waitForSelector('.tour-card .tour-frame')
+    await page.waitForTimeout(700)
+    await page.evaluate((ms) => {
+      for (const a of document.querySelector('.tour-frame').getAnimations({ subtree: true })) {
+        a.pause()
+        a.currentTime = ms
+      }
+    }, moment * 1000)
+    await shot(`8-tour-${i + 1}`)
+    await page
+      .getByRole('button', { name: i === moments.length - 1 ? 'Get started' : 'Next' })
+      .click()
+  }
+
+  // 9. How it should behave, then 10. connecting apps.
+  await page.waitForSelector('.choices-card')
+  await page.waitForTimeout(500)
+  await shot('9-choices')
+  await page.click('.onboarding-continue')
+  await page.waitForSelector('h1:has-text("Connect your apps")')
+  await page.waitForTimeout(500)
+  await shot('10-connections')
+
+  // 11. Into the app.
+  await page.click('.onboarding-skip')
   await page.waitForSelector('.sidebar', { timeout: 20_000 })
   await page.waitForTimeout(1200)
-  await shot('8-app-first-screen')
+  await shot('11-app-first-screen')
 
   // 2. What sits under the intro while the probe runs (seen when the intro is
   // skipped early, or doesn't play): taken last, with the intro already seen.
