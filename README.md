@@ -6,7 +6,7 @@
 
 <p align="center"><b>A home for your agent.</b></p>
 
-<p align="center">A Mac app where your coding agent lives: a real browser it drives, an iPhone in the window, chats that survive restarts, your phone in the loop. Open source, on the subscription you already have.</p>
+<p align="center">A free, open-source Mac app for <b>Claude Code</b>, <b>OpenAI Codex</b> and <b>Google Antigravity</b>: a desktop GUI where your AI coding agent works next to a real browser it drives, an iOS Simulator in the window, and your iPhone in the loop. Run several agents in parallel, each on its own git branch. No API key: it runs on the subscription you already have.</p>
 
 <p align="center">
   <a href="https://github.com/pungme/superagent-desktop/releases/latest"><img src="https://img.shields.io/github/v/release/pungme/superagent-desktop?label=release&color=1c1d1a" alt="Latest release"></a>
@@ -47,7 +47,7 @@ For Antigravity, install the `agy` CLI and run `agy` in Terminal to sign in with
 Google, then select Antigravity in the chat’s agent picker. Its model picker
 reads the models available to your account.
 
-![Superagent — a Monet at the Met open in the browser pane as a desktop page and an iPhone side by side, with the agent that opened it explaining the painting in the chat beside them](docs/hero.png)
+![Superagent, a desktop app for Claude Code and Codex: stripe.com open in the built-in browser as a desktop page and an iPhone side by side, with the agent that opened it answering in the chat beside them](docs/hero.png)
 
 ---
 
@@ -323,9 +323,10 @@ when they are ready, and may change before then.
 ## What it needs — and what it talks to
 
 - A Mac with Apple Silicon.
-- [Claude Code](https://claude.com/claude-code), installed and signed in. Your
-  subscription is the only thing Superagent runs on — nothing extra to buy, no
-  key to paste.
+- One coding agent, installed and signed in: [Claude Code](https://claude.com/claude-code),
+  [Codex](https://github.com/openai/codex) or Antigravity (`agy`). Superagent can
+  install them for you on first launch. Your subscription is the only thing it
+  runs on: nothing extra to buy, no key to paste.
 - Xcode, only if you want the simulator.
 - An iPhone with the companion app, only if you want your phone in the loop.
 
@@ -360,9 +361,8 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
 
 ## Roadmap
 
-- **Other agents.** Superagent wraps Claude Code today, but in the end it's an
-  LLM driving a home — the plan is an agent layer that other CLIs and local
-  models can plug into.
+- **More agents.** Claude Code, Codex and Antigravity are in; next is an agent
+  layer that other CLIs and local models can plug into.
 - **A desktop.** A workspace that behaves like a real computer: several things
   open at once — browser, files, a terminal, a simulator — arranged the way you
   left them, with the agent working across all of them.
@@ -373,6 +373,48 @@ with Playwright. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md
 - **Watchers.** Routines already run on a schedule and the browser already
   reads pages. Point one at a page and get told what changed, with a before
   and after.
+
+## Pricing
+
+Free forever. Really. No plan, no trial, no account. Superagent runs on the
+Claude, ChatGPT or Google AI plan you already have.
+
+## FAQ
+
+**Is Superagent a GUI for Claude Code?**
+Yes. It runs the real Claude Code CLI on your Mac and gives it a window: chats
+per project, a built-in browser, an iOS Simulator, files, and an iPhone app. It
+does the same for OpenAI Codex and Google Antigravity, and you can switch agent
+per chat.
+
+**Do I need an API key?**
+No. It uses the agent you are already signed in to, on your Claude Pro or Max,
+ChatGPT Plus or Pro, or Google AI plan.
+
+**Can I run several Claude Code or Codex sessions in parallel?**
+Yes. Every chat can work in its own git worktree on its own branch, so parallel
+agents don't step on each other, and split view shows up to eight chats in one
+window.
+
+**Can the agent use a browser and test my web app?**
+Yes. It drives a real browser next to the chat: it opens pages, clicks, types,
+takes screenshots and checks the page at phone width, on the sites you are
+already logged into.
+
+**Can it build and test iPhone apps?**
+Yes. The iOS Simulator is streamed into the window and the agent can install,
+launch, tap and swipe through your app.
+
+**Can I control it from my phone?**
+Yes. The free iPhone and iPad app follows your chats, end-to-end encrypted, and
+lets you answer the agent's questions and approve actions from anywhere.
+
+**Is my code sent anywhere?**
+No. Everything runs locally. The only traffic is your agent's own connection to
+its provider, update checks, and, if you pair a phone, an encrypted relay.
+
+**Does it work on Windows or Linux?**
+Not yet. It is a Mac app for Apple Silicon.
 
 ## License
 
