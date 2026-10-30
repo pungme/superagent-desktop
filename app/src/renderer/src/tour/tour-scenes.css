@@ -66,11 +66,7 @@
   height: 100%;
   border-radius: 13px;
   overflow: hidden;
-  background:
-    radial-gradient(80% 70% at 18% 8%, rgba(147, 176, 135, 0.5), transparent 70%),
-    radial-gradient(70% 65% at 88% 18%, rgba(134, 166, 198, 0.45), transparent 72%),
-    radial-gradient(75% 70% at 72% 96%, rgba(184, 163, 210, 0.36), transparent 72%),
-    linear-gradient(160deg, #e9e6da, #e4e9de 50%, #ece5e2);
+  background: #f2f1ed;
 }
 .tour-scene .d7-other {
   position: absolute;
