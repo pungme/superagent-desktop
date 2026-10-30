@@ -15619,3 +15619,11 @@ button {
   font-weight: 500;
   cursor: pointer;
 }
+
+/* Nobody can see the window (minimized, hidden, covered): no animation runs,
+   so no frames are drawn for it. */
+:root.app-asleep *,
+:root.app-asleep *::before,
+:root.app-asleep *::after {
+  animation-play-state: paused !important;
+}

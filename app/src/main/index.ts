@@ -219,6 +219,16 @@ function createWindow(): BrowserWindow {
     }
   })
   mainWindow.on('show', () => paneLog('window-show', 'window'))
+  // Out of sight (minimized or hidden): the window pauses its animations. The
+  // spinners of a working chat kept drawing frames nobody could see, a few
+  // percent of CPU and GPU for as long as an agent worked.
+  const sight = (visible: boolean) => (): void => {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('app:window-visible', visible)
+  }
+  mainWindow.on('minimize', sight(false))
+  mainWindow.on('hide', sight(false))
+  mainWindow.on('restore', sight(true))
+  mainWindow.on('show', sight(true))
   mainWindow.webContents.on('render-process-gone', (_e, d) => {
     healthLog(`CRASH main window renderer gone: reason=${d.reason} exit=${d.exitCode}`)
   })

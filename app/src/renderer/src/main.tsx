@@ -7,6 +7,25 @@ import { useStore, applyAccent, applySavedIcon, type Accent } from './state'
 import { isMainOwnedKey } from '../../shared/kv-owned'
 
 /**
+ * Animations pause while nobody can see the window: minimized, hidden, or
+ * covered by other windows (the page reports that as hidden). A working chat's
+ * spinners otherwise drew frames all day for an empty screen.
+ */
+function watchSight(): void {
+  let shown = true
+  const apply = (): void => {
+    document.documentElement.classList.toggle('app-asleep', !shown || document.hidden)
+  }
+  document.addEventListener('visibilitychange', apply)
+  window.electron?.ipcRenderer?.on?.('app:window-visible', (_e: unknown, v: boolean) => {
+    shown = v
+    apply()
+  })
+  apply()
+}
+watchSight()
+
+/**
  * Durable UI state: localStorage is the fast synchronous layer the whole app
  * reads, but it lives in a Chromium leveldb that an unclean shutdown can
  * corrupt — and Chromium then resets it wholesale (2026-08-06: onboarding
