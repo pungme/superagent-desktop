@@ -7,15 +7,15 @@
  * Generated from docs/index.html the first time; edited by hand since.
  */
 .tour-scene {
-  --cream: #f6f2e9;
-  --ink: #31342d;
-  --muted: #6e7466;
-  --faint: #999f8f;
-  --line: rgba(49, 52, 45, 0.1);
+  --cream: #f5f5f7;
+  --ink: #1d1d1f;
+  --muted: #6e6e73;
+  --faint: #a1a1a6;
+  --line: rgba(29, 29, 31, 0.1);
   --glass-edge: rgba(255, 255, 255, 0.9);
-  --card: #fffefb;
-  --skel: #e2ddcf;
-  --skel2: #d2ccb9;
+  --card: #ffffff;
+  --skel: #e8e8ed;
+  --skel2: #d2d2d7;
   --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
   --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
@@ -35,13 +35,13 @@
   flex: none;
 }
 .tour-scene .tl.r {
-  background: #f1968c;
+  background: #ff5f57;
 }
 .tour-scene .tl.y {
-  background: #efc784;
+  background: #febc2e;
 }
 .tour-scene .tl.g {
-  background: #a5cf92;
+  background: #28c840;
 }
 .tour-scene .chrome-title {
   margin-left: 8px;
@@ -73,7 +73,7 @@
   right: 96px;
   top: 30px;
   bottom: 44px;
-  background: rgba(255, 254, 250, 0.82);
+  background: rgba(255, 255, 255, 0.82);
   border: 1px solid var(--line);
   border-radius: 11px;
   overflow: hidden;
@@ -121,12 +121,12 @@
   display: flex;
   gap: 9px;
   padding: 10px 11px;
-  background: rgba(255, 254, 250, 0.92);
+  background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--glass-edge);
   border-radius: 14px;
   backdrop-filter: blur(14px) saturate(150%);
   box-shadow:
-    0 2px 6px rgba(49, 52, 45, 0.07),
+    0 2px 6px rgba(29, 29, 31, 0.07),
     0 18px 40px -16px rgba(56, 72, 84, 0.45);
   transform: translateX(300px);
   opacity: 0;
@@ -225,7 +225,7 @@
   font-size: 8.64px;
   padding: 1px 4px;
   border-radius: 4px;
-  background: rgba(49, 52, 45, 0.07);
+  background: rgba(29, 29, 31, 0.07);
 }
 .tour-scene .d7-kind {
   display: inline-block;
@@ -257,7 +257,7 @@
   gap: 7px;
   padding: 6px 9px;
   border-radius: 13px;
-  background: rgba(255, 254, 250, 0.6);
+  background: rgba(255, 255, 255, 0.6);
   border: 1px solid var(--glass-edge);
   backdrop-filter: blur(10px);
 }
@@ -265,7 +265,7 @@
   width: 21px;
   height: 21px;
   border-radius: 6px;
-  background: rgba(49, 52, 45, 0.16);
+  background: rgba(29, 29, 31, 0.16);
 }
 .tour-scene .d7-app.sa {
   background: var(--ink);
@@ -326,7 +326,7 @@
   right: 330px;
   top: 34px;
   bottom: 52px;
-  background: rgba(255, 254, 250, 0.9);
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--line);
   border-radius: 11px;
   overflow: hidden;
@@ -404,7 +404,7 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  background: rgba(49, 52, 45, 0.03);
+  background: rgba(29, 29, 31, 0.03);
 }
 .tour-scene .d9-grp {
   font-size: 8px;
@@ -431,7 +431,7 @@
   padding-left: 18px;
 }
 .tour-scene .d9-row.on {
-  background: rgba(49, 52, 45, 0.09);
+  background: rgba(29, 29, 31, 0.09);
   color: var(--ink);
   font-weight: 600;
 }
@@ -463,7 +463,7 @@
 .tour-scene .d9-reply {
   font-size: 9.6px;
   line-height: 1.5;
-  background: rgba(49, 52, 45, 0.05);
+  background: rgba(29, 29, 31, 0.05);
   border-radius: 11px;
   padding: 8px 11px;
   max-width: 88%;
@@ -473,7 +473,7 @@
   font-size: 8.64px;
   padding: 1px 4px;
   border-radius: 4px;
-  background: rgba(49, 52, 45, 0.08);
+  background: rgba(29, 29, 31, 0.08);
 }
 
 /* the dot: a tile in the corner, and the panel that grows out of it */
@@ -733,7 +733,7 @@
     transform: none;
   }
   43.5% {
-    background: rgba(49, 52, 45, 0.16);
+    background: rgba(29, 29, 31, 0.16);
     transform: scale(0.95);
   }
   46%,
@@ -856,7 +856,7 @@
   top: 96px;
   width: 300px;
   height: 190px;
-  background: #fffefa;
+  background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 11px;
   overflow: hidden;
@@ -893,7 +893,7 @@
   width: 18px;
   height: 18px;
   border-radius: 5px;
-  background: rgba(49, 52, 45, 0.12);
+  background: rgba(29, 29, 31, 0.12);
   flex: none;
 }
 .tour-scene .d10-pwrow .ln {
@@ -1199,7 +1199,7 @@
 }
 .tour-scene .t1-row b.done {
   border: 0;
-  background: #7fae82;
+  background: #34c759;
   animation: none;
 }
 @keyframes t1spin {
@@ -1219,7 +1219,7 @@
 @keyframes t1a {
   0%,
   30% {
-    background: rgba(49, 52, 45, 0.09);
+    background: rgba(29, 29, 31, 0.09);
     color: var(--ink);
   }
   34%,
@@ -1236,7 +1236,7 @@
   }
   34%,
   63% {
-    background: rgba(49, 52, 45, 0.09);
+    background: rgba(29, 29, 31, 0.09);
     color: var(--ink);
   }
   67%,
@@ -1253,7 +1253,7 @@
   }
   67%,
   96% {
-    background: rgba(49, 52, 45, 0.09);
+    background: rgba(29, 29, 31, 0.09);
     color: var(--ink);
   }
   100% {
@@ -1334,7 +1334,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #7fae82;
+  background: #34c759;
 }
 
 /* 2 · it sees what it builds: the chat on the left, the page it drives on the right */
@@ -1352,7 +1352,7 @@
 }
 .tour-scene .t2-page {
   padding: 14px;
-  background: rgba(49, 52, 45, 0.04);
+  background: rgba(29, 29, 31, 0.04);
 }
 .tour-scene .t2-browser {
   height: 100%;
@@ -1586,7 +1586,7 @@
   height: 500px;
   border-radius: 40px;
   background: var(--card);
-  border: 8px solid #2b2d28;
+  border: 8px solid #1d1d1f;
   box-sizing: border-box;
   padding: 44px 16px 16px;
   display: flex;
@@ -1602,7 +1602,7 @@
   height: 20px;
   margin-left: -35px;
   border-radius: 10px;
-  background: #2b2d28;
+  background: #1d1d1f;
 }
 .tour-scene .t7-head {
   font-size: 17px;
@@ -1614,7 +1614,7 @@
   font-weight: 600;
   padding: 8px 10px;
   border-radius: 10px;
-  background: rgba(49, 52, 45, 0.05);
+  background: rgba(29, 29, 31, 0.05);
 }
 .tour-scene .t7-row small {
   display: block;
@@ -1656,7 +1656,7 @@
   background: rgba(255, 255, 255, 0.12);
 }
 .tour-scene .t7-btns i.yes {
-  background: #7fae82;
+  background: #34c759;
   color: #fff;
   animation: t7press 0.3s ease 1.9s;
 }
