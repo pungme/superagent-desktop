@@ -89,6 +89,10 @@
     .link::after { content: "\00a0\203A"; }
 
     /* Type scale (desktop / ≤1068 / ≤734), from apple.com's typography-* classes */
+    .jp { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, sans-serif; font-weight: 400; color: #6e6e73; }
+    .brand .jp { font-size: 12px; letter-spacing: 0.08em; margin-left: 10px; }
+    .eyebrow .jp { font-size: 0.62em; letter-spacing: 0.08em; margin-left: 12px; }
+    .hero-jp { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, sans-serif; font-size: 21px; letter-spacing: 0.12em; color: #6e6e73; margin-top: 14px; }
     .eyebrow { font-family: var(--display); font-size: 21px; line-height: 1.19048; font-weight: 600; letter-spacing: 0.011em; }
     .hero .eyebrow { font-size: 28px; line-height: 1.14286; letter-spacing: 0.007em; }
     h1, h2 { font-family: var(--display); font-weight: 600; text-wrap: balance; }
@@ -171,7 +175,7 @@
 <body>
   <nav class="nav" aria-label="Main">
     <div class="nav-inner">
-      <a class="brand" href="#top"><img src="logo.png" alt="" width="24" height="24" />Superagent</a>
+      <a class="brand" href="#top"><img src="logo.png" alt="" width="24" height="24" />Superagent<span class="jp" lang="ja">スーパーエージェント</span></a>
       <a class="hide-sm" href="docs/">Docs</a>
       <a class="hide-sm" href="https://github.com/pungme/superagent-desktop" target="_blank" rel="noopener">GitHub</a>
       <a class="hide-sm" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">Releases</a>
@@ -184,6 +188,7 @@
       <div class="content">
         <p class="eyebrow">Superagent</p>
         <h1>A home for your agent.</h1>
+        <p class="hero-jp" lang="ja">エージェントの帰る場所。</p>
         <p class="intro">A real browser it drives, an iPhone in the window, and your phone in the loop.</p>
         <div class="ctas">
           <a class="pill" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple" aria-hidden="true">&#63743;</span>Download for Mac</a>
@@ -200,7 +205,7 @@
       <div class="content">
         <div class="header">
           <div>
-            <p class="eyebrow">Browser</p>
+            <p class="eyebrow">Browser<span class="jp" lang="ja">ブラウザ</span></p>
             <h2>Ask for a change. Watch it land.</h2>
           </div>
           <p class="intro">The page it is building sits beside the chat, in a real browser the agent drives.</p>
@@ -213,7 +218,7 @@
       <div class="content">
         <div class="header">
           <div>
-            <p class="eyebrow">Split view</p>
+            <p class="eyebrow">Split view<span class="jp" lang="ja">分割表示</span></p>
             <h2>Up to eight chats. One window.</h2>
           </div>
           <p class="intro">Side by side, from any project, saved as one row in the sidebar. New in the 2.1&nbsp;beta.</p>
@@ -224,7 +229,7 @@
 
     <section id="phone">
       <div class="content">
-        <p class="eyebrow">iPhone and iPad</p>
+        <p class="eyebrow">iPhone and iPad<span class="jp" lang="ja">どこでも</span></p>
         <h2>Your Mac,<br /> wherever you are.</h2>
         <p class="intro devices-intro">Follow along and answer from your iPhone or iPad. Encrypted end to end.</p>
         <p class="links">
@@ -242,7 +247,7 @@
       <div class="content">
         <div class="header">
           <div>
-            <p class="eyebrow">Open source</p>
+            <p class="eyebrow">Open source<span class="jp" lang="ja">オープンソース</span></p>
             <h2>Stays on your Mac.</h2>
           </div>
           <div class="intro">
