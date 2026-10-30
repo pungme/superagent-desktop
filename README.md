@@ -47,7 +47,7 @@ For Antigravity, install the `agy` CLI and run `agy` in Terminal to sign in with
 Google, then select Antigravity in the chat’s agent picker. Its model picker
 reads the models available to your account.
 
-![Superagent, a desktop app for Claude Code and Codex: stripe.com open in the built-in browser as a desktop page and an iPhone side by side, with the agent that opened it answering in the chat beside them](docs/hero.png)
+![Superagent, a desktop app for Claude Code, Codex and Antigravity: four AI coding agents working side by side in split view, from four projects, with stripe.com open in the built-in browser](docs/hero.png)
 
 ---
 
