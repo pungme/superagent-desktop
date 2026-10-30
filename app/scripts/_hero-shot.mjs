@@ -1,10 +1,9 @@
-// Landing-page hero: a throwaway quiet instance (no window on screen), seeded
-// with groups, projects, browser workspaces and a stored conversation (no live
-// agent, no tokens), stripe.com opened in the chat's browser pane as desktop +
-// iPhone through the agent's own MCP tools, then captured with the native panes
-// composited in (as _shot-composite.mjs does).
+// The landing-page hero film, from a throwaway quiet instance (no window on
+// screen) seeded with groups, projects, browser workspaces and stored
+// conversations: no live agent, no tokens. See "The film" below for how the
+// motion is captured.
 //
-//   npm run build && node scripts/_hero-shot.mjs <out.png> [width] [height]
+//   npm run build && HERO_VIDEO=<frames dir> node scripts/_hero-shot.mjs <poster.png>
 import { _electron as electron } from 'playwright-core'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'fs'
 import { execFileSync } from 'child_process'
@@ -22,8 +21,8 @@ const root = '/tmp/Developer'
 if (existsSync(root)) throw new Error(`${root} exists; not touching it`)
 mkdirSync(root)
 const urlFile = join(userData, 'mcp-url.txt')
-// HERO_VIDEO=<dir>: film the story into numbered frames there instead (see story()).
-const VIDEO = process.env.HERO_VIDEO ? resolve(process.env.HERO_VIDEO) : null
+// Numbered frames go here; the poster (the last frame, full size) to `out`.
+const VIDEO = resolve(process.env.HERO_VIDEO || join(tmpdir(), 'hero-film'))
 
 const repo = (name) => {
   const d = join(root, name)
@@ -181,47 +180,377 @@ try {
   await win.click('.sidebar :text("Pricing page refresh")')
   await win.waitForTimeout(800)
   console.log(JSON.stringify(ids))
-  const film = VIDEO ? await story(win) : null
-  if (film) {
-    await composite(win)
-    await film.scene0()
-  }
 
-  // The browser, opened the way the agent does it: over its MCP tools.
+  // ---------------------------------------------------------------------------
+  // The film. Nothing in it is a dissolve: the page's own CSS animations and
+  // transitions (a message arriving, the pane opening, the device frames
+  // re-forming, split windows gliding, the palette opening) are frozen with the
+  // DevTools animation clock and stepped a 30th of a second at a time. The
+  // native browser views, which a page capture cannot see, are captured from
+  // main and drawn at the measured rect of the element they sit in, frame by
+  // frame, so they move with it. The conversations are the stored ones,
+  // revealed as they would arrive.
+  // ---------------------------------------------------------------------------
+  const sharp = (await import('sharp')).default
+  const { copyFileSync } = await import('fs')
+  const FPS = 30
+  const FW = 1920
+  const FH = Math.round((H * FW) / W)
+  const S = 2 // device pixels per CSS px in the capture
+  rmSync(VIDEO, { recursive: true, force: true })
+  mkdirSync(VIDEO, { recursive: true })
+
   for (let i = 0; i < 50 && !existsSync(urlFile); i++) await win.waitForTimeout(200)
   const mcpUrl = readFileSync(urlFile, 'utf8')
+  // The agent's own browser tools, called the way Claude Code calls them.
   const tool = async (name, args = {}) => {
     const res = await fetch(`${mcpUrl}?ws=${encodeURIComponent(ids.landing)}&chat=${encodeURIComponent(ids.chat)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } })
     })
-    const text = await res.text()
-    return text.slice(0, 300)
+    return (await res.text()).slice(0, 200)
   }
-  const btn = win.locator('.workspace-toolbar:visible .toolbar-btn:has-text("Browser")')
-  if (await btn.count()) await btn.first().click()
-  await win.waitForTimeout(1500)
+
+  await win.evaluate(() => {
+    const vis = (el) => el && el.offsetParent !== null
+    // The sidebar is native vibrancy over a transparent body, which a page
+    // capture sees through: a neutral stand-in, and the traffic lights.
+    document.body.style.background = '#ececee'
+    const lights = document.createElement('div')
+    Object.assign(lights.style, { position: 'fixed', left: '20px', top: '14px', display: 'flex', gap: '8px', zIndex: '9999', pointerEvents: 'none' })
+    for (const color of ['#ff5f57', '#febc2e', '#28c840']) {
+      const dot = document.createElement('span')
+      Object.assign(dot.style, { width: '12px', height: '12px', borderRadius: '50%', background: color, boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.12)' })
+      lights.appendChild(dot)
+    }
+    document.body.appendChild(lights)
+
+    // Every animation runs on the film's clock: started when first seen,
+    // placed at (now - start), finished (so its end events fire) when done.
+    window.__step = (t) => {
+      for (const a of document.getAnimations()) {
+        if (a.__t0 == null) a.__t0 = t
+        const local = (t - a.__t0) * 1000
+        const end = a.effect?.getComputedTiming?.().endTime ?? 0
+        if (Number.isFinite(end) && local >= end) {
+          try { a.finish() } catch { a.currentTime = end }
+        } else a.currentTime = local
+      }
+    }
+    // Where the native views sit: the device frames of the browser pane, or
+    // the mini page of a narrow split window.
+    window.__slots = () => {
+      const out = []
+      const host = [...document.querySelectorAll('.browser-host')].find(vis)
+      if (host) {
+        ;[...host.querySelectorAll('.browser-sim-frame')].filter(vis).forEach((f, i) => {
+          const r = f.getBoundingClientRect()
+          out.push({ kind: i ? 'phone' : 'card', x: r.left, y: r.top, w: r.width, h: r.height, r: parseFloat(getComputedStyle(f).borderTopLeftRadius) || 0 })
+        })
+      }
+      for (const m of [...document.querySelectorAll('.mini-pane')].filter(vis)) {
+        const r = m.getBoundingClientRect()
+        out.push({ kind: 'mini', x: r.left, y: r.top, w: r.width, h: r.height, r: parseFloat(getComputedStyle(m).borderTopLeftRadius) || 0 })
+      }
+      return out
+    }
+
+    const summary = (verbs) => {
+      const acc = []
+      for (const v of verbs) {
+        const have = acc.find((a) => a.v === v)
+        if (have) have.n++
+        else acc.push({ v, n: 1 })
+      }
+      return acc.map((a) => (a.n > 1 ? `${a.v} ×${a.n}` : a.v)).join(' · ')
+    }
+    const setInput = (ta, v) => {
+      if (!ta || ta.value === v) return
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, v)
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    // Reveal a row the way it arrives: its own arrival animation, once.
+    const show = (el, on) => {
+      if (!el) return
+      if (!on) {
+        el.style.visibility = 'hidden'
+        el.__on = false
+        return
+      }
+      if (el.__on) return
+      el.__on = true
+      el.style.visibility = ''
+      el.closest('.easy-vrow')?.classList.remove('no-anim')
+      if (el.classList.contains('easy-msg')) {
+        el.style.animation = 'none'
+        void el.offsetWidth
+        el.style.animation = ''
+      }
+    }
+    const busyNow = {}
+    // One conversation's state at a moment of the film.
+    window.__chat = (id, st) => {
+      const root = document.querySelector(`.workspace-view[data-desk="${id}"]`)
+      const tr = root && root.querySelector('.easy-transcript')
+      if (!tr || !tr.querySelector('.easy-msg')) return false
+      const user = tr.querySelector('.easy-msg.easy-user')
+      const as = [...tr.querySelectorAll('.easy-msg.easy-assistant')]
+      const reply = as[as.length - 1]
+      const open = as.length > 1 ? as[0] : null
+      const group = tr.querySelector('.easy-toolgroup')
+      const body = reply.querySelector(':scope > .md')
+      if (body.__full == null) {
+        body.__full = body.innerHTML
+        body.__len = body.textContent.length
+        group.__count = group.querySelector('.easy-tools-count').textContent
+        group.__n = parseInt(group.__count, 10)
+        group.__summary = group.querySelector('.easy-tools-summary').textContent
+      }
+      if (st.input !== undefined) setInput(root.querySelector('textarea.easy-input'), st.input)
+      show(user, st.user)
+      show(open, st.open)
+      const k = Math.min(group.__n, st.steps)
+      group.style.visibility = k >= 2 ? '' : 'hidden'
+      group.querySelector('.easy-tools-count').textContent = k === group.__n ? group.__count : `${k} steps`
+      group.querySelector('.easy-tools-summary').textContent = k === group.__n ? group.__summary : summary(st.verbs.slice(0, k))
+      const chars = st.reply < 0 ? body.__len : Math.round(st.reply * body.__len)
+      show(reply, chars > 0)
+      if (body.__shown !== chars) {
+        body.__shown = chars
+        body.innerHTML = body.__full
+        if (chars < body.__len) {
+          const walk = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
+          const texts = []
+          while (walk.nextNode()) texts.push(walk.currentNode)
+          let left = chars
+          for (const x of texts) {
+            if (x.textContent.length > left) x.textContent = x.textContent.slice(0, left)
+            left -= x.textContent.length
+          }
+          for (const blk of body.querySelectorAll('p, li')) if (!blk.textContent.trim()) blk.style.display = 'none'
+        }
+      }
+      for (const m of tr.querySelectorAll('.easy-msg-meta')) m.style.opacity = String(st.meta)
+      // The chat's own "Working" row (its markup), under the last thing shown.
+      const scroll = tr.querySelector('.easy-scroll')
+      let w = scroll.querySelector('.__film')
+      if (st.working != null) {
+        if (!w) {
+          w = document.createElement('div')
+          w.className = 'easy-thinking __film'
+          w.innerHTML = '<span class="easy-think-mark" aria-hidden="true"><span class="easy-think-dot"></span></span><span class="easy-elapsed"></span>'
+          scroll.appendChild(w)
+          if (getComputedStyle(scroll).position === 'static') scroll.style.position = 'relative'
+        }
+        w.querySelector('.easy-elapsed').textContent = `Working ${st.working}s`
+        const last = [reply, group, open, user].find((e) => e && e.style.visibility !== 'hidden' && (e !== reply || chars > 0))
+        const r = last.getBoundingClientRect()
+        const s = scroll.getBoundingClientRect()
+        const edge = (open || reply).getBoundingClientRect().left - s.left
+        Object.assign(w.style, { position: 'absolute', left: `${edge}px`, right: '0', top: `${r.bottom - s.top + scroll.scrollTop + 10}px` })
+      } else if (w) w.remove()
+      const busy = st.working != null
+      if (busyNow[id] !== busy) {
+        busyNow[id] = busy
+        window.__store.getState().setBusy(id, { generating: busy, background: 0 })
+      }
+      return true
+    }
+  })
+
+  // ----- what each conversation is doing at time t -----
+  const clamp = (x) => Math.max(0, Math.min(1, x))
+  const Q = 'Open stripe.com and show it as desktop and iPhone side by side. Does the hero hold up on mobile?'
+  const T = {
+    typeFrom: 0.5, typeTo: 2.3, send: 2.5, open: 3.0, navigate: 3.6, both: 5.0, shot: 5.4,
+    replyFrom: 5.8, replyTo: 8.3,
+    adds: [9.3, 10.2, 11.1],
+    palette: 15.6, typeK: 16.1, pick: 17.5, end: 19.7
+  }
+  const P = ids.chat
+  const pricing = (t) => ({
+    input: t < T.typeFrom ? '' : t < T.send ? Q.slice(0, Math.ceil(clamp((t - T.typeFrom) / (T.typeTo - T.typeFrom)) * Q.length)) : '',
+    user: t >= T.send,
+    open: t >= T.open,
+    steps: t < T.navigate ? 0 : t < T.both ? 1 : t < T.shot ? 2 : 3,
+    verbs: ['navigate', 'set viewport', 'screenshot'],
+    reply: t < T.replyFrom ? 0 : t < T.replyTo ? Math.max(0.004, (t - T.replyFrom) / (T.replyTo - T.replyFrom)) : -1,
+    meta: clamp((t - T.replyTo) / 0.25),
+    working: t >= T.send && t < T.replyTo ? Math.floor(t - T.send) : null
+  })
+  const tiles = [
+    { id: ids.split[1][1], add: T.adds[0], every: 0.42, reply: 11.3, dur: 1.2, base: 31, verbs: ['Terminal', 'Reading', 'Searching', 'Editing', 'Terminal'] },
+    { id: ids.split[2][1], add: T.adds[1], every: 0.5, reply: 13.0, dur: 1.1, base: 12, verbs: ['Reading', 'Editing', 'Editing', 'Terminal'] },
+    { id: ids.split[3][1], add: T.adds[2], every: 0.45, reply: 13.7, dur: 1.2, base: 20, verbs: ['Searching', 'Reading', 'Editing', 'Editing', 'Terminal'] }
+  ]
+  const tileState = (tl, t) => {
+    const done = tl.reply + tl.dur
+    return {
+      user: true,
+      open: false,
+      steps: t < tl.add + 0.3 ? 0 : 1 + Math.floor((t - tl.add - 0.3) / tl.every),
+      verbs: tl.verbs,
+      reply: t < tl.reply ? 0 : t < done ? Math.max(0.004, (t - tl.reply) / tl.dur) : -1,
+      meta: clamp((t - done) / 0.25),
+      working: t < done ? tl.base + Math.floor(t - tl.add) : null
+    }
+  }
+
+  // ----- the native views -----
+  const images = {}
+  const viewsNow = (withPng) =>
+    app.evaluate(async ({ BrowserWindow }, withPng) => {
+      const bw = BrowserWindow.getAllWindows()[0]
+      const out = []
+      for (const v of bw.contentView.children) {
+        if (!v.webContents || !v.getVisible?.()) continue
+        const b = v.getBounds()
+        if (b.width < 20 || b.height < 20) continue
+        let png = null
+        if (withPng) {
+          const img = await v.webContents.capturePage()
+          if (img.isEmpty()) continue
+          png = img.toPNG().toString('base64')
+        }
+        out.push({ ...b, png })
+      }
+      return out
+    }, withPng)
+  // Capture what each view shows now, and where it sits in its element.
+  const capture = async () => {
+    const views = await viewsNow(true)
+    const slots = await win.evaluate(() => window.__slots())
+    for (const v of views) {
+      const cx = v.x + v.width / 2
+      const cy = v.y + v.height / 2
+      const s = slots
+        .filter((s) => cx >= s.x && cx <= s.x + s.w && cy >= s.y && cy <= s.y + s.h)
+        .sort((a, b) => a.w * a.h - b.w * b.h)[0]
+      if (!s) continue
+      images[s.kind] = {
+        png: Buffer.from(v.png, 'base64'),
+        fl: (v.x - s.x) / s.w,
+        ft: (v.y - s.y) / s.h,
+        fw: v.width / s.w,
+        fh: v.height / s.h
+      }
+    }
+    console.log('captured', Object.keys(images).join(','), 'slots', slots.map((s) => s.kind).join(','))
+  }
+  const tidy = () => tidyPages()
+
+  // ----- frames -----
+  let n = 0
+  let lastFile = null
+  const mask = (w, h, r) =>
+    Buffer.from(`<svg width="${w}" height="${h}"><rect width="${w}" height="${h}" rx="${r}" ry="${r}" fill="#fff"/></svg>`)
+  const render = async (full) => {
+    const [png, slots, vis] = await Promise.all([
+      win.screenshot(),
+      win.evaluate(() => window.__slots()),
+      viewsNow(false)
+    ])
+    const layers = []
+    if (vis.length)
+      for (const s of slots) {
+        const im = images[s.kind]
+        if (!im) continue
+        let x = Math.round((s.x + im.fl * s.w) * S)
+        let y = Math.round((s.y + im.ft * s.h) * S)
+        let w = Math.round(im.fw * s.w * S)
+        let h = Math.round(im.fh * s.h * S)
+        if (w < 4 || h < 4) continue
+        const r = Math.round(s.r * S)
+        let buf = await sharp(im.png).resize(w, h, { fit: 'fill' }).ensureAlpha()
+          .composite([{ input: mask(w, h, r), blend: 'dest-in' }]).png().toBuffer()
+        // Keep it inside the window.
+        const cx = Math.max(0, -x)
+        const cy = Math.max(0, -y)
+        const cw = Math.min(w - cx, W * S - (x + cx))
+        const ch = Math.min(h - cy, H * S - (y + cy))
+        if (cw < 2 || ch < 2) continue
+        if (cx || cy || cw !== w || ch !== h) buf = await sharp(buf).extract({ left: cx, top: cy, width: cw, height: ch }).toBuffer()
+        layers.push({ input: buf, left: x + cx, top: y + cy })
+      }
+    const img = sharp(await sharp(png).composite(layers).png().toBuffer())
+    if (full) await img.clone().toFile(full)
+    lastFile = join(VIDEO, `f${String(n++).padStart(4, '0')}.png`)
+    await img.resize(FW, FH).removeAlpha().png({ compressionLevel: 1 }).toFile(lastFile)
+  }
+  // One frame at time t: every conversation where it is, the clock moved on.
+  const frame = async (t, full) => {
+    const chats = [{ id: P, st: pricing(t) }, ...tiles.filter((tl) => t >= tl.add).map((tl) => ({ id: tl.id, st: tileState(tl, t) }))]
+    await win.evaluate(({ chats, t }) => {
+      for (const c of chats) window.__chat(c.id, c.st)
+      window.__step(t)
+      if (document.activeElement instanceof HTMLElement && !document.activeElement.matches('.cmdk-input'))
+        document.activeElement.blur()
+    }, { chats, t })
+    await render(full)
+  }
+  let t = 0
+  const until = async (to) => {
+    while (t + 1e-6 < to) {
+      await frame(t)
+      t = Math.round((t + 1 / FPS) * 1e6) / 1e6
+    }
+  }
+
+  // Start: the conversation, nothing in it yet; the clock frozen.
+  await win.evaluate((st) => window.__chat(st.id, st.st), { id: P, st: pricing(0) })
+  const cdp = await win.context().newCDPSession(win)
+  await cdp.send('Animation.enable')
+  await cdp.send('Animation.setPlaybackRate', { playbackRate: 0 })
+
+  // 1. The question is typed and sent; the pane opens on stripe.com; the
+  //    iPhone joins it; the reply streams in.
+  await until(T.navigate)
   console.log(await tool('browser_navigate', { url: 'https://stripe.com/en-us' }))
-  if (film) {
-    await win.waitForTimeout(7000)
-    await tidyPages()
-    await composite(win)
-    await film.scene1()
-  }
-  await win.waitForTimeout(1500)
+  await win.waitForTimeout(6000)
+  await tidy()
+  await capture()
+  await until(T.both)
   console.log(await tool('browser_set_viewport', { viewport: 'both' }))
-  await win.waitForTimeout(9000)
-  await tidyPages()
-  await composite(win)
-  if (film) {
-    await film.scene2()
-    await film.sceneSplit(ids.split)
-    await film.scenePalette('login')
-    await film.finale()
+  await win.waitForTimeout(8000)
+  await tidy()
+  await capture()
+  await until(T.adds[0])
+
+  // 2. The window becomes the first of a split; three more conversations
+  //    open beside it one at a time, each gliding in as the others make room.
+  for (const [i, tl] of tiles.entries()) {
+    await win.evaluate(([ws, c]) => window.__store.getState().openBeside(ws, c), ids.split[i + 1])
+    await win.waitForTimeout(i === 0 ? 2500 : 900)
+    if (i === 0) await capture()
+    await until(i + 1 < tiles.length ? tiles[i + 1].add : T.palette)
   }
-  else await win.screenshot({ path: out })
-  console.log('saved', out)
+
+  // 3. ⌘K: the palette opens, "login" is typed, the list narrows to the
+  //    conversation, and picking it brings its window forward.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('menu:command-palette'))
+  await win.waitForSelector('.cmdk-panel', { timeout: 5000 })
+  await win.waitForTimeout(400)
+  await until(T.typeK)
+  for (let i = 1; i <= 5; i++) {
+    await win.evaluate((v) => {
+      const el = document.querySelector('.cmdk-input')
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v)
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }, 'login'.slice(0, i))
+    await win.waitForTimeout(300)
+    await until(T.typeK + i * 0.1)
+  }
+  await until(T.pick)
+  await win.evaluate(() => {
+    const hit = [...document.querySelectorAll('.cmdk-item')].find((e) => e.textContent.includes('Fix the flaky login test'))
+    hit?.click()
+  })
+  await win.waitForTimeout(600)
+  await until(T.end)
+  // The last frame, full size: the poster is this exact picture.
+  await frame(t, out)
+  console.log('frames', n)
 } finally {
   if (process.env.HERO_KEEP !== '1') {
     await app.close()
@@ -247,392 +576,5 @@ async function tidyPages() {
         if (/stripe\.com/.test(wc.getURL())) await wc.executeJavaScript(js).catch(() => {})
     }, tidy)
     await new Promise((r) => setTimeout(r, 1500))
-  }
-}
-
-// The panes are native views a CDP capture cannot see: capture each from main
-// at its own bounds and lay the picture over that exact spot.
-async function composite(win) {
-  const views = await app.evaluate(async ({ BrowserWindow }) => {
-    const bw = BrowserWindow.getAllWindows()[0]
-    const out = []
-    for (const v of bw.contentView.children) {
-      if (!v.webContents || !v.getVisible?.()) continue
-      const b = v.getBounds()
-      if (b.width < 20 || b.height < 20) continue
-      const img = await v.webContents.capturePage()
-      if (img.isEmpty()) continue
-      out.push({ ...b, url: v.webContents.getURL(), png: img.toPNG().toString('base64') })
-    }
-    return out
-  })
-  console.log('views', views.map((v) => `${v.url} ${v.x},${v.y} ${v.width}x${v.height}`))
-  const res = await win.evaluate(
-    ({ views, SIDEBAR_BG }) => {
-      document.querySelectorAll('.__shot_overlay').forEach((n) => n.remove())
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-      // The sidebar is native vibrancy over a transparent body: a CDP capture
-      // sees through it. Stand in a neutral tone and the traffic lights.
-      document.body.style.background = SIDEBAR_BG
-      const lights = document.createElement('div')
-      lights.className = '__shot_overlay'
-      Object.assign(lights.style, { position: 'fixed', left: '20px', top: '14px', display: 'flex', gap: '8px', zIndex: '9999', pointerEvents: 'none' })
-      for (const color of ['#ff5f57', '#febc2e', '#28c840']) {
-        const dot = document.createElement('span')
-        Object.assign(dot.style, { width: '12px', height: '12px', borderRadius: '50%', background: color, boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.12)' })
-        lights.appendChild(dot)
-      }
-      document.body.appendChild(lights)
-      // Inside the pane's host, not fixed over the window (a full-window layer
-      // repaints the whole surface and the material comes out black).
-      const host = [...document.querySelectorAll('.browser-host')].find((h) => h.offsetParent !== null)
-      if (!host) return 'no pane'
-      const hr = host.getBoundingClientRect()
-      const frames = [...host.querySelectorAll('.browser-sim-frame')].filter((f) => f.offsetParent !== null)
-      for (const v of views) {
-        // The frame this view sits in gives the corners it is drawn with.
-        const f = frames.find((fr) => {
-          const r = fr.getBoundingClientRect()
-          return v.x >= r.left - 2 && v.x + v.width <= r.right + 2 && v.y >= r.top - 2 && v.y + v.height <= r.bottom + 2
-        })
-        const radius = f ? getComputedStyle(f).borderRadius : '0'
-        const clip = document.createElement('div')
-        clip.className = '__shot_overlay'
-        Object.assign(clip.style, { position: 'absolute', left: `${v.x - hr.left}px`, top: `${v.y - hr.top}px`, width: `${v.width}px`, height: `${v.height}px`, overflow: 'hidden', borderRadius: v.radius ?? radius, pointerEvents: 'none', zIndex: '5' })
-        const img = document.createElement('img')
-        img.src = `data:image/png;base64,${v.png}`
-        Object.assign(img.style, { display: 'block', width: '100%', height: '100%' })
-        clip.appendChild(img)
-        host.appendChild(clip)
-      }
-      return frames.map((f) => { const r = f.getBoundingClientRect(); return `${f.className} ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} r=${getComputedStyle(f).borderRadius}` })
-    },
-    { views, SIDEBAR_BG: process.env.HERO_SIDEBAR || '#ececee' }
-  )
-  console.log(res)
-  await win.waitForFunction(() => [...document.querySelectorAll('.__shot_overlay img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 20000 }).catch(() => console.error('overlay did not decode'))
-  await win.waitForTimeout(400)
-}
-
-// The landing-page film, ~8.5 s at 30 fps: the question is typed and sent, the
-// pane opens stripe.com as a desktop page, the iPhone joins it, the steps row
-// shows and the reply streams in, ending on the still's composition. The
-// conversation is the stored one, revealed a piece at a time; the panes are
-// the real app's, and changes the app does not animate are crossfades.
-async function story(win) {
-  const sharp = (await import('sharp')).default
-  const FW = 1920
-  const FH = Math.round((H * FW) / W)
-  rmSync(VIDEO, { recursive: true, force: true })
-  mkdirSync(VIDEO, { recursive: true })
-  const { copyFileSync } = await import('fs')
-  let n = 0
-  let last = null
-  let lastFile = null
-  const file = () => join(VIDEO, `f${String(n++).padStart(4, '0')}.png`)
-  const grab = async () =>
-    sharp(await win.screenshot()).resize(FW, FH).removeAlpha().raw().toBuffer()
-  const put = async (raw) => {
-    last = raw
-    lastFile = file()
-    await sharp(raw, { raw: { width: FW, height: FH, channels: 3 } })
-      .png({ compressionLevel: 1 })
-      .toFile(lastFile)
-  }
-  const shoot = async (st) => {
-    await win.evaluate((s) => window.__hero(s), st)
-    await win.waitForTimeout(40)
-    await put(await grab())
-  }
-  const hold = (k) => {
-    for (let i = 0; i < k; i++) copyFileSync(lastFile, file())
-  }
-  const ease = (t) => 1 - Math.pow(1 - t, 3)
-  const smooth = (t) => t * t * (3 - 2 * t)
-  let poster = null
-  const fadeTo = async (b, k) => {
-    const a = last
-    for (let i = 1; i <= k; i++) {
-      const t = smooth(i / k)
-      const m = Buffer.alloc(a.length)
-      for (let j = 0; j < a.length; j++) m[j] = a[j] + (b[j] - a[j]) * t + 0.5
-      await put(i === k ? b : m)
-    }
-  }
-  const crossfade = async (st, k, ready) => {
-    const a = last
-    if (!ready) await win.evaluate((s) => window.__hero(s), st)
-    await win.waitForTimeout(60)
-    const b = await grab()
-    for (let i = 1; i <= k; i++) {
-      const t = smooth(i / k)
-      const m = Buffer.alloc(a.length)
-      for (let j = 0; j < a.length; j++) m[j] = a[j] + (b[j] - a[j]) * t + 0.5
-      await put(i === k ? b : m)
-    }
-  }
-
-  const Q =
-    'Open stripe.com and show it as desktop and iPhone side by side. Does the hero hold up on mobile?'
-  await win.evaluate(() => {
-    const visible = (sel) => [...document.querySelectorAll(sel)].find((e) => e.offsetParent !== null)
-    const setInput = (v) => {
-      const ta = visible('textarea.easy-input')
-      if (!ta || ta.value === v) return
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, v)
-      ta.dispatchEvent(new Event('input', { bubbles: true }))
-    }
-    // How much of a reply has "arrived": its text cut to the first n
-    // characters, blocks with nothing in them yet left out.
-    const stream = (el, n) => {
-      const body = el.querySelector(':scope > .md')
-      if (!body) return
-      if (body.__full == null) body.__full = body.innerHTML
-      body.innerHTML = body.__full
-      if (n == null) return
-      const walk = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
-      let left = n
-      const texts = []
-      while (walk.nextNode()) texts.push(walk.currentNode)
-      for (const t of texts) {
-        if (left <= 0) t.textContent = ''
-        else if (t.textContent.length > left) t.textContent = t.textContent.slice(0, left)
-        left -= t.textContent.length || 0
-        if (left < 0) left = 0
-      }
-      for (const blk of body.querySelectorAll('p, li, ul, ol')) if (!blk.textContent.trim()) blk.style.display = 'none'
-    }
-    window.__heroReplyLength = () => {
-      const tr = visible('.easy-transcript')
-      const reply = tr.querySelectorAll('.easy-msg.easy-assistant')[1]
-      stream(reply, null)
-      const body = reply.querySelector(':scope > .md')
-      return body.textContent.length
-    }
-    window.__hero = (st) => {
-      const tr = visible('.easy-transcript')
-      const user = tr.querySelector('.easy-msg.easy-user')
-      const [open, reply] = tr.querySelectorAll('.easy-msg.easy-assistant')
-      const tools = tr.querySelector('.easy-toolgroup')
-      const show = (el, k) => {
-        if (!el) return
-        // Not display:none: the transcript is virtualized, and a row that
-        // measures zero gets dropped. Hidden in place keeps every row where it is.
-        el.style.visibility = k <= 0 ? 'hidden' : ''
-        el.style.opacity = String(Math.max(0, k))
-        el.style.transform = k < 1 ? `translateY(${((1 - k) * 12).toFixed(2)}px)` : ''
-      }
-      show(user, st.user)
-      show(open, st.open)
-      show(tools, st.tools)
-      show(reply, st.reply === 0 ? 0 : 1)
-      if (reply) stream(reply, st.reply == null || st.reply < 0 ? null : st.reply)
-      for (const m of tr.querySelectorAll('.easy-msg-meta')) m.style.opacity = String(st.meta)
-      setInput(st.input ?? '')
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-    }
-  })
-  const base = { user: 0, open: 0, tools: 0, reply: 0, meta: 0, input: '' }
-  const replyLen = await win.evaluate(() => window.__heroReplyLength())
-  return {
-    // The chat alone: the question is typed and sent, the first answer lands.
-    async scene0() {
-      await shoot(base)
-      hold(11)
-      for (let i = 1; i <= 30; i++) await shoot({ ...base, input: Q.slice(0, Math.round((Q.length * i) / 30)) })
-      hold(8)
-      for (let i = 1; i <= 7; i++) await shoot({ ...base, user: ease(i / 7) })
-      hold(9)
-      for (let i = 1; i <= 7; i++) await shoot({ ...base, user: 1, open: ease(i / 7) })
-      hold(4)
-    },
-    // stripe.com opens in the pane as a desktop page.
-    async scene1() {
-      await crossfade({ ...base, user: 1, open: 1 }, 15)
-      hold(15)
-    },
-    // The iPhone joins it; the steps row, then the reply streaming in.
-    async scene2() {
-      await crossfade({ ...base, user: 1, open: 1 }, 15)
-      hold(6)
-      for (let i = 1; i <= 6; i++) await shoot({ ...base, user: 1, open: 1, tools: ease(i / 6) })
-      hold(4)
-      const F = 80
-      for (let i = 1; i <= F; i++)
-        await shoot({ ...base, user: 1, open: 1, tools: 1, reply: Math.max(1, Math.round((replyLen * i) / F)) })
-      for (let i = 1; i <= 8; i++)
-        await shoot({ ...base, user: 1, open: 1, tools: 1, reply: -1, meta: ease(i / 8) })
-      hold(36)
-      poster = last
-      // The first scene's last frame, full size: the poster is this exact
-      // picture, and the film comes back to it at the end.
-      await win.screenshot({ path: out })
-      console.log('frames', n, 'reply chars', replyLen)
-    },
-    // Four conversations from four projects at once, in one window: each
-    // working (the app's own Working row and sidebar spinner), its steps
-    // counting up, its reply streaming in, at its own pace.
-    async sceneSplit(pairs) {
-      await win.evaluate((pairs) => {
-        const st = window.__store.getState()
-        const [[ws0, c0], ...rest] = pairs
-        st.setActive(ws0)
-        st.selectChat(ws0, c0)
-        for (const [ws, c] of rest) window.__store.getState().openBeside(ws, c)
-      }, pairs)
-      await win.waitForTimeout(2500)
-      await composite(win)
-      // Per window: when its steps start, seconds between steps, when its
-      // reply starts and how long it streams, the Working counter at t=0.
-      const plan = [
-        { steps: 0.4, every: 0.5, reply: 2.7, dur: 1.1, base: 14, verbs: ['Reading', 'Editing', 'Terminal'] },
-        { steps: 0.0, every: 0.35, reply: 1.7, dur: 1.2, base: 41, verbs: ['Terminal', 'Reading', 'Searching', 'Editing', 'Terminal'] },
-        { steps: 0.2, every: 0.55, reply: 4.1, dur: 1.1, base: 9, verbs: ['Reading', 'Editing', 'Editing', 'Terminal'] },
-        { steps: 0.6, every: 0.5, reply: 3.3, dur: 1.2, base: 22, verbs: ['Searching', 'Reading', 'Editing', 'Editing', 'Terminal'] }
-      ]
-      await win.evaluate(({ pairs, plan }) => {
-        const tiles = pairs.map(([, c], i) => ({ chat: c, ...plan[i] }))
-        // The chat's own markup for a reply on its way (the mark, the counter),
-        // as it draws it while its agent works.
-        const working = () => {
-          const d = document.createElement('div')
-          d.className = 'easy-thinking __film'
-          d.innerHTML = '<span class="easy-think-mark" aria-hidden="true"><span class="easy-think-dot"></span></span><span class="easy-elapsed"></span>'
-          return d
-        }
-        const summary = (verbs) => {
-          const acc = []
-          for (const v of verbs) {
-            const have = acc.find((a) => a.v === v)
-            if (have) have.n++
-            else acc.push({ v, n: 1 })
-          }
-          return acc.map((a) => (a.n > 1 ? `${a.v} ×${a.n}` : a.v)).join(' · ')
-        }
-        const busyNow = {}
-        window.__split = (t) => {
-          for (const tl of tiles) {
-            const root = document.querySelector(`.workspace-view[data-desk="${tl.chat}"]`)
-            const tr = root.querySelector('.easy-transcript')
-            const reply = tr.querySelector('.easy-msg.easy-assistant')
-            const group = tr.querySelector('.easy-toolgroup')
-            const body = reply.querySelector(':scope > .md')
-            if (body.__full == null) {
-              body.__full = body.innerHTML
-              body.__len = body.textContent.length
-              group.__count = group.querySelector('.easy-tools-count').textContent
-              group.__n = parseInt(group.__count, 10)
-              group.__summary = group.querySelector('.easy-tools-summary').textContent
-            }
-            const done = tl.reply + tl.dur
-            const k = t < tl.steps ? 0 : Math.min(group.__n, 1 + Math.floor((t - tl.steps) / tl.every))
-            group.style.visibility = k ? '' : 'hidden'
-            group.querySelector('.easy-tools-count').textContent =
-              k === group.__n ? group.__count : `${k} step${k > 1 ? 's' : ''}`
-            group.querySelector('.easy-tools-summary').textContent =
-              k === group.__n ? group.__summary : summary(tl.verbs.slice(0, k))
-            const chars = t < tl.reply ? 0 : Math.round(Math.min(1, (t - tl.reply) / tl.dur) * body.__len)
-            reply.style.visibility = chars ? '' : 'hidden'
-            body.innerHTML = body.__full
-            if (chars < body.__len) {
-              const walk = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
-              let left = chars
-              const texts = []
-              while (walk.nextNode()) texts.push(walk.currentNode)
-              for (const x of texts) {
-                if (x.textContent.length > left) x.textContent = x.textContent.slice(0, left)
-                left -= x.textContent.length
-              }
-            }
-            const meta = reply.querySelector('.easy-msg-meta')
-            if (meta) meta.style.opacity = String(Math.max(0, Math.min(1, (t - done) / 0.3)))
-            const scroll = tr.querySelector('.easy-scroll')
-            let w = scroll.querySelector('.__film')
-            if (t < done) {
-              if (!w) scroll.appendChild((w = working()))
-              w.querySelector('.easy-elapsed').textContent = `Working ${tl.base + Math.floor(t)}s`
-              // Under the last thing on screen: the reply once it streams, else the steps.
-              const last = chars ? reply : k ? group : tr.querySelector('.easy-msg.easy-user')
-              const r = last.getBoundingClientRect()
-              const s = scroll.getBoundingClientRect()
-              // The mark sits on the bubbles' edge, as the chat's own row does.
-              const edge = reply.getBoundingClientRect().left - s.left
-              Object.assign(w.style, { position: 'absolute', left: `${edge}px`, right: '0', top: `${r.bottom - s.top + scroll.scrollTop + 10}px` })
-              if (getComputedStyle(scroll).position === 'static') scroll.style.position = 'relative'
-            } else if (w) w.remove()
-            const busy = t < done
-            if (busyNow[tl.chat] !== busy) {
-              busyNow[tl.chat] = busy
-              window.__store.getState().setBusy(tl.chat, { generating: busy, background: 0 })
-            }
-          }
-          if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-        }
-      }, { pairs, plan })
-      // The app's own animations (the working mark, the spinners) held to the film's clock.
-      const at = async (t) => {
-        await win.evaluate((t) => {
-          window.__split(t)
-          for (const a of document.getAnimations()) {
-            a.pause()
-            a.currentTime = t * 1000
-          }
-        }, t)
-        await win.waitForTimeout(30)
-      }
-      await at(0)
-      await win.waitForTimeout(300)
-      await win.evaluate(() => window.__split(0))
-      await crossfade(null, 18, true)
-      for (let i = 1; i <= 180; i++) {
-        await at(i / 30)
-        await put(await grab())
-      }
-      hold(20)
-    },
-    // ⌘K over the split: the palette opens and finds a conversation by a
-    // word in it, across every project.
-    async scenePalette(query) {
-      const clock = async (t) =>
-        win.evaluate((t) => {
-          for (const a of document.getAnimations()) {
-            a.pause()
-            a.currentTime = t * 1000
-          }
-        }, t)
-      await app.evaluate(({ BrowserWindow }) => {
-        BrowserWindow.getAllWindows()[0].webContents.send('menu:command-palette')
-      })
-      await win.waitForSelector('.cmdk-panel', { timeout: 5000 })
-      await win.waitForTimeout(600)
-      await clock(7)
-      await crossfade(null, 9, true)
-      let t = 7
-      for (let i = 1; i <= query.length; i++) {
-        await win.evaluate((v) => {
-          const el = document.querySelector('.cmdk-input')
-          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v)
-          el.dispatchEvent(new Event('input', { bubbles: true }))
-        }, query.slice(0, i))
-        await win.waitForTimeout(250)
-        for (let f = 0; f < 4; f++) {
-          t += 1 / 30
-          await clock(t)
-          await put(await grab())
-        }
-      }
-      await win.waitForTimeout(800)
-      for (let f = 0; f < 50; f++) {
-        t += 1 / 30
-        await clock(t)
-        await put(await grab())
-      }
-    },
-    // Back to the first scene's last picture, which is also the poster.
-    async finale() {
-      await fadeTo(poster, 20)
-      hold(45)
-      console.log('frames', n)
-    }
   }
 }
