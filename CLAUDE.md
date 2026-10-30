@@ -55,7 +55,7 @@ panel with a tile in its corner, loaded from the same page with `#dot`
 
 ## Split view (2.1)
 
-Up to four conversations in the window at once (`lib/split.ts` for the model
+Up to eight conversations in the window at once (`lib/split.ts` for the model
 and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`,
 `lib/split-drag.ts`).
 
