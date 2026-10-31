@@ -106,6 +106,14 @@
         },
         {
           "@type": "Question",
+          "name": "What’s the catch?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "There isn’t one. You already pay for the AI: Superagent runs on your own Claude, ChatGPT or Google plan, so there are no tokens of ours to bill you for. It has no servers of ours either; everything runs on your Mac, and the small encrypted relay for the phone costs next to nothing and you can host your own. It is open source under the MIT license, with no account, no tracking and no ads. All it needs is a Mac with Apple Silicon and a plan for at least one of the agents."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "What happens when I hit my Claude limit?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -218,6 +226,7 @@
     .faq-item[open] summary::after { transform: rotate(45deg); }
     .faq-item p { margin: -6px 0 24px; max-width: 760px; font-size: 17px; line-height: 1.47; letter-spacing: -0.022em; color: #6e6e73; }
     .pricing { text-align: center; }
+    .pricing .catch { margin-top: 20px; font-size: 14px; line-height: 1.43; letter-spacing: -0.016em; color: #6e6e73; }
     .pricing .price { font-size: 96px; line-height: 1.04; letter-spacing: -0.015em; margin-top: 8px; }
     .pricing .price span { color: #6e6e73; }
     .pricing .intro { max-width: 560px; margin: 32px auto 0; }
@@ -3490,6 +3499,7 @@
         <p class="eyebrow">Pricing<span class="jp" lang="ja">料金</span></p>
         <h2 class="price">Free forever.<br /><span>Really.</span></h2>
         <p class="intro">No plan, no trial, no card. Your agent runs on the Claude, ChatGPT or Google plan you already have.</p>
+        <p class="catch">What&rsquo;s the catch? You already pay for the AI. Superagent just gives it a home.</p>
       </div>
     </section>
 
@@ -3501,6 +3511,7 @@
           <details class="faq-item"><summary>Is Superagent a GUI for Claude Code?</summary><p>Yes. It runs the real Claude Code CLI on your Mac and gives it a window: chats per project, a built-in browser, an iOS Simulator and an iPhone app. It does the same for OpenAI Codex and Google Antigravity, and you can switch agent per chat.</p></details>
           <details class="faq-item"><summary>Do I need an API key?</summary><p>No. It uses the agent you are already signed in to, on your Claude Pro or Max, ChatGPT Plus or Pro, or Google AI plan.</p></details>
           <details class="faq-item"><summary>Is Superagent free?</summary><p>Yes, free forever. No plan, no trial, no card, no account. It is open source under the MIT license.</p></details>
+          <details class="faq-item"><summary>What’s the catch?</summary><p>There isn’t one. You already pay for the AI: Superagent runs on your own Claude, ChatGPT or Google plan, so there are no tokens of ours to bill you for. It has no servers of ours either; everything runs on your Mac, and the small encrypted relay for the phone costs next to nothing and you can host your own. It is open source under the MIT license, with no account, no tracking and no ads. All it needs is a Mac with Apple Silicon and a plan for at least one of the agents.</p></details>
           <details class="faq-item"><summary>What happens when I hit my Claude limit?</summary><p>Superagent moves the chat to your next Claude account that still has allowance, and the conversation carries on where it was. With Automatic on (Settings, Agents, When an account hits its limit) it switches by itself and says so; otherwise a card asks first, with a button to switch. If only one model&#x27;s limit runs out, such as Fable&#x27;s weekly limit, the chat steps down to the next model and goes back once it can. It never moves a chat from Claude to Codex or Antigravity on its own; you choose the agent per chat.</p></details>
           <details class="faq-item"><summary>Can I run several Claude Code or Codex sessions at once?</summary><p>Yes. Each chat can work in its own git worktree on its own branch, so parallel agents don&#x27;t step on each other, and split view shows up to eight chats in one window.</p></details>
           <details class="faq-item"><summary>Can the agent test my website in a browser?</summary><p>Yes. It drives a real browser next to the chat: it opens pages, clicks, types, takes screenshots and checks the page at phone size, on the sites you are already signed in to.</p></details>
