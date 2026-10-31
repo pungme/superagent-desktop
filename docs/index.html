@@ -83,6 +83,9 @@
 
     .pill { display: inline-flex; align-items: center; gap: 6px; background: var(--blue); color: #fff; border-radius: 980px; font-size: 17px; line-height: 1.17648; letter-spacing: -0.022em; padding: 11px 21px; }
     .pill:hover { background: var(--blue-hover); }
+    .pill.alt { background: transparent; color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+    .pill.alt:hover { background: var(--blue); color: #fff; }
+    .pill .ph { width: 1.05em; height: 1.05em; margin-top: -1px; }
     .pill.sm { font-size: 12px; line-height: 1.33337; letter-spacing: -0.01em; padding: 4px 11px; }
     .pill .apple { font-size: 1.06em; line-height: 1; margin-top: -2px; }
     .link { color: var(--link); }
@@ -121,6 +124,9 @@
     /* Product shots sit on the page, never in a card: the window's own corner and one hairline edge */
     .shot { margin: 64px auto 0; }
     .hero .shot { width: var(--wide); max-width: 87.5%; }
+    /* Starts a little small and settles to full size as you scroll, as Shotcaller's does. */
+    #hero-film { transform-origin: 50% 0%; transform: scale(0.92); will-change: transform; }
+    @media (prefers-reduced-motion: reduce) { #hero-film { transform: none; } }
     .window { border-radius: 0.833% / 1.333%; outline: 1px solid rgba(0, 0, 0, 0.1); outline-offset: -1px; }
     .window.build { border-radius: 0.926% / 1.476%; }
 
@@ -2741,6 +2747,7 @@
         <p class="intro">Your coding agent, with a browser of its own, an iPhone on the desk, and you in your pocket.</p>
         <div class="ctas">
           <a class="pill" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple" aria-hidden="true">&#63743;</span>Download for Mac</a>
+          <a class="pill alt" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener"><svg class="ph" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.75" y="2" width="10.5" height="20" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="10.5" y1="18.6" x2="13.5" y2="18.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Get the iPhone app</a>
         </div>
         <p class="fine">Free. Open source. For Claude Code, Codex and Antigravity.</p>
       </div>
@@ -3261,6 +3268,7 @@
         <p class="intro how-line">Install it. Open a project. Say what you want, and watch it happen.</p>
         <div class="ctas">
           <a class="pill" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple" aria-hidden="true">&#63743;</span>Download for Mac</a>
+          <a class="pill alt" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener"><svg class="ph" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.75" y="2" width="10.5" height="20" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="10.5" y1="18.6" x2="13.5" y2="18.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Get the iPhone app</a>
           <a class="link" href="https://github.com/pungme/superagent-desktop/releases" target="_blank" rel="noopener">All releases</a>
         </div>
         <p class="fine">Works with Claude Code, Codex and Antigravity.</p>
@@ -3276,6 +3284,21 @@
     </div>
   </footer>
 
+  <script>
+    // The hero film grows from 92% to full size over the first 420px of scrolling.
+    (() => {
+      const film = document.getElementById("hero-film");
+      if (!film || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      let queued = false;
+      const set = () => {
+        queued = false;
+        const p = Math.min(Math.max(scrollY / 420, 0), 1);
+        film.style.transform = `scale(${0.92 + p * 0.08})`;
+      };
+      addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(set); } }, { passive: true });
+      set();
+    })();
+  </script>
   <script>
     // the hero film plays once, when it comes into view, and stays on its last frame (the poster's picture);
     // with reduced motion it never starts and the poster is all there is
