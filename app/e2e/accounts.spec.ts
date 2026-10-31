@@ -251,29 +251,23 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
 
   // The foot of the sidebar says the same, and moves the chat too.
   const footer = window.locator('.usage-footer-btn')
-  // It says what is used, counting up, as the composer does.
   await expect(footer).toContainText('92%')
   await footer.hover()
-  // The account the chat is on is ticked, and the foot of the list shows its
-  // limits, as what is used.
-  const mine = window.locator('.usage-popover-row.on')
-  await expect(mine).toContainText('Your Claude login')
-  await expect(mine.locator('.usage-popover-pct')).toHaveText('92%')
-  await expect(mine.locator('.usage-popover-bar')).toHaveClass(/high/)
-  const details = window.locator('.usage-popover-details')
-  await expect(details).toContainText('Your Claude login')
-  await expect(details.locator('.usage-popover-window', { hasText: 'Weekly Fable' })).toContainText(
-    '100% used'
-  )
-  // No disclosure arrows, and nothing alarming in red.
-  await expect(window.locator('.usage-popover')).not.toContainText('▸')
-  // Pointing at another account shows its limits there and what a click does.
+  await expect(
+    window.locator('.usage-popover-window', { hasText: 'Weekly Fable' })
+  ).toContainText('100%')
   const work = window.locator('.usage-popover-row', { hasText: 'Work' })
+  await expect(work).toBeEnabled()
+  // The row the chat is on is filled and so is the one under the pointer: with
+  // nothing between them they read as a single block.
   await work.hover()
-  await expect(details).toContainText('Work')
-  await expect(work.locator('.usage-account-switch')).toHaveText('Use for this chat')
+  const [mine, hovered] = await Promise.all([
+    window.locator('.usage-popover-row.on').boundingBox(),
+    work.boundingBox()
+  ])
+  expect(hovered!.y - (mine!.y + mine!.height)).toBeGreaterThanOrEqual(2)
   await window.locator('.usage-popover').screenshot({ path: 'test-results/usage-popover.png' })
-  await work.locator('.usage-account-switch').click()
+  await work.click()
   await expect(pill).toContainText('Work')
   await expect
     .poll(
