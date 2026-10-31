@@ -415,6 +415,16 @@ function WorktreePill({
       >
         <span className="easy-control-key">Worktrees</span>
         <span className="easy-control-val">{n}</span>
+        <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+          <path
+            d="M2 3.5L5 6.5L8 3.5"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
       {open && (
         <div className="easy-control-menu easy-control-menu-wide easy-worktrees" role="dialog">
@@ -470,6 +480,16 @@ function DevServerPill({
         <span className="easy-run-dot live" />
         <span className="easy-control-key">Server</span>
         <span className="easy-control-val">:{port}</span>
+        <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
+          <path
+            d="M2 3.5L5 6.5L8 3.5"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
       {open && (
         <div className="easy-control-menu">
@@ -1614,7 +1634,8 @@ function usageLine(a: Account | null | undefined): string | null {
           : w.label === 'Weekly'
             ? 'Week'
             : w.label.replace(/ weekly$/, '')
-      return `${label} ${w.resetsAt && w.resetsAt <= now ? 0 : w.percent}%`
+      // What is left, as everywhere else the allowance is shown.
+      return `${label} ${w.resetsAt && w.resetsAt <= now ? 100 : Math.max(0, 100 - w.percent)}% left`
     })
     .join(' · ')
 }
@@ -5174,15 +5195,7 @@ export function EasyChat({
       off?.()
     }
   }, [provider, chatId])
-  /** The fullest window of an account's allowance, for the pill: 0–100, or null. */
-  const fullest = (a: Account | null): number | null => {
-    const now = Date.now()
-    const live = (a?.usage?.windows ?? []).filter(
-      (w) => !w.model && (!w.resetsAt || w.resetsAt > now)
-    )
-    return live.length ? Math.max(...live.map((w) => w.percent)) : null
-  }
-  /** The account window nearest its limit, for the ring round the logo. */
+  /** The account window nearest its limit: for the ring round the logo and the Account row. */
   const limitWindow = (() => {
     const now = Date.now()
     const live = (accounts.current?.usage?.windows ?? []).filter(
@@ -6079,7 +6092,8 @@ export function EasyChat({
             aria-label={controlsOpen ? 'Hide the settings' : 'Show the settings'}
             onClick={toggleControls}
           >
-            {/* How much of the account's usage limit is used, as a ring round the logo. */}
+            {/* How much of the account's allowance is left, as a ring round the
+                logo that empties as it is spent: "% left", like the sidebar. */}
             {limitPct !== null && (
               <svg className="easy-input-ring" viewBox="0 0 28 28" aria-hidden="true">
                 <circle className="track" cx="14" cy="14" r="12" pathLength="100" />
@@ -6089,7 +6103,7 @@ export function EasyChat({
                   cy="14"
                   r="12"
                   pathLength="100"
-                  strokeDasharray={`${Math.max(2, Math.min(100, limitPct))} 100`}
+                  strokeDasharray={`${Math.max(2, Math.min(100, 100 - limitPct))} 100`}
                 />
               </svg>
             )}
@@ -6100,16 +6114,16 @@ export function EasyChat({
                 {limitPct !== null && (
                   <>
                     <span className="tip-row">
-                      <b>Usage limit</b>
+                      <b>Allowance</b>
                       <span>
-                        {limitPct}%
-                        {limitWindow?.label ? ` of ${limitWindow.label.toLowerCase()}` : ''}
+                        {Math.max(0, 100 - limitPct)}% left
+                        {limitWindow?.label ? ` · ${limitWindow.label}` : ''}
                       </span>
                     </span>
                     <span className="tip-bar">
                       <i
                         className={limitPct >= 90 ? 'hot' : limitPct >= 75 ? 'warm' : ''}
-                        style={{ width: `${Math.max(2, Math.min(100, limitPct))}%` }}
+                        style={{ width: `${Math.max(2, Math.min(100, 100 - limitPct))}%` }}
                       />
                     </span>
                     {limitWindow?.resetsAt ? (
@@ -6424,37 +6438,6 @@ export function EasyChat({
       <div
         className={`easy-controls ${controlsOpen ? 'unfolded' : ''} ${controlsFolding ? 'folding' : ''}`}
       >
-        {/* Only drawn when the column is narrow (see .easy-controls-summary):
-            one quiet line saying what the chat is set to, in place of a heap of
-            pills. Pressing it lays the same settings out as a list. */}
-        <button
-          className="easy-controls-summary"
-          aria-expanded={controlsOpen && !controlsFolding}
-          title={controlsOpen ? 'Hide the settings' : "This chat's agent, model, mode and browser"}
-          onClick={toggleControls}
-        >
-          <ProviderLogo provider={provider} size={12} />
-          <span className="easy-controls-summary-text">
-            {[PROVIDER_PRODUCT[provider], modelLabel, modeLabel].filter(Boolean).join(' · ')}
-          </span>
-          {/* The one thing from inside the fold that should not wait to be
-              looked for: memory nearly full. */}
-          {ctxTokens !== null && ctxPercent >= 75 && (
-            <span className="easy-controls-summary-warm" title="Memory is filling up">
-              · Memory {ctxPercent}%
-            </span>
-          )}
-          <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
-            <path
-              d="M2 3.5L5 6.5L8 3.5"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
         <div className="easy-control">
           <button
             className={`easy-control-btn ${controlMenu === 'agent' ? 'open' : ''}`}
@@ -6465,10 +6448,14 @@ export function EasyChat({
             }}
             title="Which agent runs this chat"
           >
-            {/* No "Agent" key here, unlike Model and Mode: the logo and the
-                product name already say what this is, and the title covers the
-                rest. */}
-            <ProviderLogo provider={provider} size={13} />
+            {/* Wide, the pill shows the agent's logo and no key. Narrow, the
+                logo is the button in the message box that opens this list, so
+                here the row is "Agent  Claude Code" like every other row: one
+                mark, one job. */}
+            <span className="easy-control-key easy-control-key-agent">Agent</span>
+            <span className="easy-control-logo">
+              <ProviderLogo provider={provider} size={13} />
+            </span>
             <span className="easy-control-val">{PROVIDER_PRODUCT[provider]}</span>
             <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
               <path
@@ -6516,17 +6503,14 @@ export function EasyChat({
             >
               <span className="easy-control-key">Account</span>
               <span className="easy-control-val">{accounts.current.name}</span>
-              {fullest(accounts.current) !== null && (
+              {/* What is left, as the sidebar's usage menu and the ring say it. */}
+              {limitPct !== null && (
                 <span
-                  className={`easy-account-used ${
-                    fullest(accounts.current)! >= 90
-                      ? 'high'
-                      : fullest(accounts.current)! >= 75
-                        ? 'warn'
-                        : ''
+                  className={`easy-account-left ${
+                    limitPct >= 90 ? 'high' : limitPct >= 75 ? 'warn' : ''
                   }`}
                 >
-                  {fullest(accounts.current)}%
+                  {Math.max(0, 100 - limitPct)}% left
                 </span>
               )}
               <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
@@ -6570,7 +6554,7 @@ export function EasyChat({
                                   return (
                                     <span key={w.label} className="easy-account-window">
                                       <span>{w.label}</span>
-                                      <b>{over ? 0 : w.percent}%</b>
+                                      <b>{over ? 100 : Math.max(0, 100 - w.percent)}% left</b>
                                       <span>
                                         {w.resetsAt && !over
                                           ? `resets ${resetLabel(w.resetsAt, now)}`

@@ -213,8 +213,9 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   // Each limit on its own line, with when it starts over.
   await expect(login.locator('.easy-account-window')).toHaveCount(3)
   await expect(login.locator('.easy-account-window').first()).toContainText('5-hour')
-  await expect(login.locator('.easy-account-window').first()).toContainText('48%')
-  await expect(login.locator('.easy-account-window').nth(1)).toContainText('92%')
+  // As what is left, like the sidebar's usage menu: 48% used is 52% left.
+  await expect(login.locator('.easy-account-window').first()).toContainText('52% left')
+  await expect(login.locator('.easy-account-window').nth(1)).toContainText('8% left')
   await expect(login.locator('.easy-account-window').nth(1)).toContainText('resets ')
   await window
     .locator('.easy-control-menu:visible')
@@ -224,15 +225,17 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
     .screenshot({ path: 'test-results/account-pill.png' })
   await login.click()
   await expect(pill).toContainText('Your Claude login')
-  // How full that account is, in the colour that says "nearly out".
-  await expect(pill.locator('.easy-account-used')).toHaveText('92%')
-  await expect(pill.locator('.easy-account-used')).toHaveClass(/high/)
+  // How much that account has left, in the colour that says "nearly out".
+  await expect(pill.locator('.easy-account-left')).toHaveText('8% left')
+  await expect(pill.locator('.easy-account-left')).toHaveClass(/high/)
   // The agent menu says the same in a few words, per agent; one with nothing
   // read yet keeps its description.
   const agentPill = window.locator('.easy-controls:visible .easy-control-btn').first()
   await agentPill.click()
   const agentMenu = window.locator('.easy-control-menu:visible')
-  await expect(agentMenu.locator('.easy-control-item').nth(0)).toContainText('5h 48% · Week 92%')
+  await expect(agentMenu.locator('.easy-control-item').nth(0)).toContainText(
+    '5h 52% left · Week 8% left'
+  )
   await expect(agentMenu.locator('.easy-control-item').nth(2)).toContainText('Google AI plan')
   await agentMenu.screenshot({ path: 'test-results/agent-menu.png' })
   await agentPill.click()

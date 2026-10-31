@@ -7364,17 +7364,26 @@ button {
 .easy-control-val {
   font-weight: 500;
 }
-/* How full the account this chat is on is: quiet until it is nearly out. */
-.easy-account-used {
+/* How much the account this chat is on has left: quiet until it is nearly out. */
+.easy-account-left {
   color: var(--text-tertiary);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.easy-account-used.warn {
+.easy-account-left.warn {
   color: var(--warning, #c98a1b);
 }
-.easy-account-used.high {
+.easy-account-left.high {
   color: var(--danger, #d64545);
+}
+/* The agent pill: wide, its logo says what it is; the "Agent" key is only for
+   the narrow list, where the logo is the button in the message box instead. */
+.easy-control-key-agent {
+  display: none;
+}
+.easy-control-logo {
+  display: inline-flex;
 }
 
 .easy-control-caret {
@@ -13958,48 +13967,11 @@ button {
 }
 
 /* A narrow chat column, like any page on a narrow screen: the row of pills
-   folds into one line that says what the chat is set to, and opens into a
-   plain list of the same settings. Wide, nothing changes. */
+   folds away behind the agent's logo at the front of the message box
+   (.easy-input-agent) and opens as a plain list of the same settings. Wide,
+   nothing changes. */
 .easy-controls {
   container: easy-controls / inline-size;
-}
-.easy-controls-summary {
-  display: none;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  border: none;
-  background: none;
-  padding: 3px 4px;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 11px;
-}
-.easy-controls-summary:hover {
-  background: var(--hover);
-  color: var(--text-primary);
-}
-.easy-controls-summary-warm {
-  flex: none;
-  color: var(--warning, #c98a1b);
-  font-variant-numeric: tabular-nums;
-}
-/* Wide, or open: the Memory gauge itself is showing. */
-.easy-controls-summary-warm {
-  display: none;
-}
-.easy-controls-summary-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.easy-controls-summary .easy-control-caret {
-  transition: transform 0.2s ease;
-}
-.easy-controls.unfolded:not(.folding) .easy-controls-summary .easy-control-caret {
-  transform: rotate(180deg);
 }
 /* The list opens a row at a time, each growing into its place, and closes the
    same way faster. Only for the length of the animation: a row at rest has no
@@ -14036,47 +14008,48 @@ button {
 /* 900, not 560: a window of a split, or a chat column beside a page, gets the
    one quiet line; only a full-width chat lays every setting out. */
 @container easy-controls (max-width: 900px) {
-  .easy-controls-summary {
-    display: inline-flex;
-    flex: 0 1 auto;
-  }
-  .easy-controls:not(.unfolded) .easy-controls-summary-warm {
-    display: inline;
-  }
-  /* Folded: the line, and nothing else. Memory and the token count used to
-     stay out beside it, and in a column this narrow they wrapped into two more
-     rows under it — three lines of furniture below the message box. They are
-     the last row of the list now; the line itself says so when memory is
-     running short (.easy-controls-summary-warm). */
-  .easy-controls:not(.unfolded) > .easy-control,
-  .easy-controls:not(.unfolded) > .easy-stats {
-    display: none;
-  }
   /* Open: one setting to a row, its name on the left and its value on the
-     right, with hairlines between them rather than a box around each. */
-  .easy-controls.unfolded > .easy-controls-summary {
-    flex-basis: 100%;
-  }
+     right, with hairlines between them rather than a box around each. The
+     first row needs none: the message box is right above it. */
   .easy-controls.unfolded > .easy-control {
     flex: 0 0 100%;
     order: 2;
     border-top: 1px solid var(--border);
   }
+  .easy-controls.unfolded > .easy-control:first-of-type {
+    border-top-color: transparent;
+  }
+  /* The foot: one quiet line, "Memory ▬ 59% · 31.2M tokens", not a row of
+     its own weight. */
   .easy-controls.unfolded > .easy-stats {
     flex: 0 0 100%;
     order: 3;
     margin-left: 0;
-    padding: 8px 4px;
+    padding: 8px 4px 2px;
+    gap: 0;
     border-top: 1px solid var(--border);
-    justify-content: space-between;
+    justify-content: flex-start;
     animation: easy-controls-row-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s backwards;
+  }
+  .easy-controls.unfolded > .easy-stats .easy-ctx,
+  .easy-controls.unfolded > .easy-stats .easy-session-tokens {
+    padding: 0;
+  }
+  .easy-controls.unfolded > .easy-stats .easy-ctx-label {
+    font-weight: 400;
+  }
+  .easy-controls.unfolded > .easy-stats .easy-ctx-track {
+    width: 36px;
+    height: 4px;
+  }
+  .easy-controls.unfolded > .easy-stats .easy-ctx-pct {
+    min-width: 0;
   }
   .easy-controls.unfolded.folding > .easy-stats {
     animation: easy-controls-row-out 0.16s ease-out forwards;
   }
-  /* The dot that joins the two on one line has nothing to join across a row. */
-  .easy-controls.unfolded > .easy-stats .easy-session-tokens::before {
-    content: none;
+  .easy-controls.unfolded > .easy-stats .easy-ctx + .easy-session-tokens::before {
+    margin: 0 6px;
   }
   /* Its tooltip opens from the left of the row here, not off its right end. */
   .easy-controls.unfolded > .easy-stats .easy-ctx-tip {
@@ -14122,8 +14095,12 @@ button {
   .easy-controls.unfolded .easy-control-btn.open {
     background: var(--hover);
   }
+  /* Every row alike: the name on the left in secondary text, the value on the
+     right in primary text, then its chevron. */
   .easy-controls.unfolded .easy-control-key {
     font-size: 12px;
+    letter-spacing: 0;
+    color: var(--text-secondary);
     flex: 1;
     text-align: left;
   }
@@ -14132,15 +14109,22 @@ button {
     max-width: 60%;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text-primary);
   }
-  /* The agent row has a logo and no label of its own. */
-  .easy-controls.unfolded
-    .easy-control-btn
-    > :first-child:not(.easy-control-key)
-    + .easy-control-val {
-    flex: 1;
-    max-width: none;
-    text-align: left;
+  /* A row with nothing to open (none today) keeps its value in line with the
+     chevrons above it. */
+  .easy-controls.unfolded .easy-control-btn > .easy-control-val:last-child {
+    margin-right: 10px;
+  }
+  /* The agent row: the logo is the box's button, so here it is a row like the rest. */
+  .easy-controls.unfolded .easy-control-key-agent {
+    display: inline;
+  }
+  .easy-controls.unfolded .easy-control-logo {
+    display: none;
+  }
+  .easy-controls.unfolded .easy-account-left {
+    font-size: 11px;
   }
   .easy-controls.unfolded .easy-control-menu {
     left: 0;
@@ -15352,9 +15336,9 @@ button {
   background: var(--active);
   opacity: 1;
 }
-/* Memory, as a ring round the logo (like a watch's progress ring): the one
-   thing from the settings that should not wait to be looked for. It reddens as
-   it fills. */
+/* The account's allowance left, as a ring round the logo (like a watch's
+   progress ring): the one thing from the settings that should not wait to be
+   looked for. It empties as it is spent, and warms, then reddens, near the end. */
 .easy-input-ring {
   position: absolute;
   inset: 0;
@@ -15458,11 +15442,16 @@ button {
   .easy-input-box[data-tall] .easy-input-mirror {
     padding-left: 12px;
   }
-  .easy-controls:not(.unfolded) > .easy-controls-summary {
-    display: none;
-  }
   .easy-controls:not(.unfolded) {
     padding-bottom: 0;
+  }
+  /* Folded: nothing under the box at all; the logo opens the list. Memory and
+     the token count are its foot, and in the logo's hover card meanwhile.
+     Keyed to the same width as the logo, so the settings are never hidden
+     without the button that shows them. */
+  .easy-controls:not(.unfolded) > .easy-control,
+  .easy-controls:not(.unfolded) > .easy-stats {
+    display: none;
   }
 }
 
