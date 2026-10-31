@@ -7,3 +7,11 @@ export function resetLabel(at: number, now: number): string {
     ? time
     : `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`
 }
+
+/** The same moment, as short as it reads: "40m" or "5h" while it is close, else the day ("Wed"). */
+export function resetShort(at: number, now: number): string {
+  const left = at - now
+  if (left < 3_600_000) return `${Math.max(1, Math.round(left / 60_000))}m`
+  if (left < 24 * 3_600_000) return `${Math.round(left / 3_600_000)}h`
+  return new Date(at).toLocaleDateString([], { weekday: 'short' })
+}

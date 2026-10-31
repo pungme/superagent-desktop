@@ -1758,7 +1758,7 @@ button {
    limit lines all start on the same edge; the limit columns have fixed widths,
    so 5-hour, Weekly and Weekly Fable line up from one account to the next. */
 .usage-popover {
-  width: 372px;
+  width: 320px;
   padding: 6px;
 }
 .usage-popover-head {
@@ -1792,7 +1792,7 @@ button {
   line-height: 16px;
 }
 .usage-popover-windows {
-  grid-template-columns: 80px 1fr 38px 116px;
+  grid-template-columns: 80px 1fr 38px 32px;
   column-gap: 10px;
   row-gap: 6px;
   line-height: 14px;
