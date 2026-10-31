@@ -112,7 +112,7 @@
     .content { width: var(--content); max-width: 87.5%; margin: 0 auto; }
     section { padding-top: var(--section); }
 
-    /* Hero: centred eyebrow, headline, one line of intro, the pill and "Watch the film ›" */
+    /* Hero: centred eyebrow, headline, one line of intro, the pill */
     .hero { padding-top: 72px; text-align: center; }
     .hero .intro { max-width: 640px; margin: 20px auto 0; color: var(--ink); }
     .ctas { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 16px 32px; margin-top: 32px; font-size: 17px; }
@@ -2741,7 +2741,6 @@
         <p class="intro">Your coding agent, with a browser of its own, an iPhone on the desk, and you in your pocket.</p>
         <div class="ctas">
           <a class="pill" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple" aria-hidden="true">&#63743;</span>Download for Mac</a>
-          <a class="link" id="film-link" href="reel-desktop.mp4?v=5">Watch the film</a>
         </div>
         <p class="fine">Free. Open source. For Claude Code, Codex and Antigravity.</p>
       </div>
@@ -3291,7 +3290,6 @@
       io.observe(film);
     })();
     // the portrait cut of the film on a portrait screen
-    if (matchMedia("(max-aspect-ratio: 3/4)").matches) document.getElementById("film-link").href = "reel-phone.mp4?v=5";
     // The drawings are laid out at 960px and scaled to their width, as the tour does
     (() => {
       const fitIll = (el) => el.style.setProperty("--mz", (el.clientWidth / 960).toFixed(4));
