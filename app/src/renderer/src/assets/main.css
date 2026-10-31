@@ -1779,6 +1779,13 @@ button {
 .usage-popover-row + .usage-popover-row {
   margin-top: 2px;
 }
+/* Over the reset column, so "2h" and "Wed" say what they are. */
+.usage-popover-head-reset {
+  margin-left: auto;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
 /* No tick: the account this chat is on is the filled row with the bold name. */
 .usage-popover-tick {
   display: none;

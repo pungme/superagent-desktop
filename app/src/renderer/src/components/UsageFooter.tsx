@@ -123,6 +123,7 @@ export function UsageFooter(): React.JSX.Element | null {
               <div className="usage-popover-head">
                 <ProviderLogo provider={p} size={12} />
                 {PROVIDER_LABEL[p]}
+                <span className="usage-popover-head-reset">Resets</span>
               </div>
               {lists[p].map((a) => {
                 const here = a.id === current.id
