@@ -58,6 +58,7 @@
         "Routines on a schedule",
         "iPhone and iPad companion app, end-to-end encrypted",
         "Works with Claude Code, Codex and Antigravity",
+        "Several accounts per agent: a chat moves to the next account when one hits its usage limit",
         "No API key, runs on your existing subscription"
       ],
       "sameAs": [
@@ -101,6 +102,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Yes, free forever. No plan, no trial, no card, no account. It is open source under the MIT license."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What happens when I hit my Claude limit?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Superagent moves the chat to your next Claude account that still has allowance, and the conversation carries on where it was. With Automatic on (Settings, Agents, When an account hits its limit) it switches by itself and says so; otherwise a card asks first, with a button to switch. If only one model's limit runs out, such as Fable's weekly limit, the chat steps down to the next model and goes back once it can. It never moves a chat from Claude to Codex or Antigravity on its own; you choose the agent per chat."
           }
         },
         {
@@ -230,7 +239,13 @@
     .hero { padding-top: 72px; text-align: center; }
     .hero .intro { max-width: 640px; margin: 20px auto 0; color: var(--ink); }
     .ctas { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 16px 32px; margin-top: 32px; font-size: 17px; }
-    .hero .fine { margin-top: 20px; }
+    .hero .fine { margin-top: 12px; }
+    /* The three agents, under the buttons: their own marks, small, in a quiet row */
+    .agents { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px 24px; margin-top: 28px; list-style: none; font-size: 14px; line-height: 1.42859; letter-spacing: -0.016em; color: var(--ink); }
+    .agents li { display: inline-flex; align-items: center; gap: 7px; }
+    .agents li.lead { color: var(--ink-2); }
+    .agents svg { width: 16px; height: 16px; flex: none; color: var(--ink); }
+    @media (max-width: 734px) { .agents { gap: 6px 20px; } .agents li.lead { flex-basis: 100%; justify-content: center; } }
 
     /* Product shots sit on the page, never in a card: the window's own corner and one hairline edge */
     .shot { margin: 64px auto 0; }
@@ -2372,10 +2387,40 @@
     .g-steps > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .g-field .ph { text-overflow: ellipsis; }
     .g-calg .ev { left: 3px; right: 3px; padding: 6px 5px; font-size: 11px; }
+    /* Every agent: the agent picker in the composer, the allowance at the foot of the sidebar, the limit card */
+    .gfx-stage svg.g-mk { width: 15px; height: 15px; stroke: none; color: #1d1d1f; }
+    .g-pick { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; margin-left: -6px; padding: 0 8px; border-radius: 8px; color: #1d1d1f; font-size: 13px; font-weight: 500; transition: background 0.25s; }
+    .g-pick.on { background: rgba(0, 0, 0, 0.07); }
+    .gfx-stage .g-pick .dn { width: 10px; height: 10px; color: #86868b; stroke-width: 1.8; }
+    .g-menu { position: absolute; left: 14px; bottom: 60px; z-index: 5; width: 290px; padding: 6px; background: #fbfbfd; border-radius: 12px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 20px 50px -14px rgba(0, 0, 0, 0.32); opacity: 0; transform: translateY(8px) scale(0.98); transform-origin: 20px 100%; transition: opacity 0.3s, transform 0.45s cubic-bezier(0.22, 0.8, 0.24, 1); pointer-events: none; }
+    .g-menu.on { opacity: 1; transform: none; }
+    .g-mh { padding: 6px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #86868b; }
+    .g-mi { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 8px; font-size: 14px; transition: background 0.2s; }
+    .g-mi.hov { background: rgba(0, 0, 0, 0.06); }
+    .g-mi small { font-size: 12px; color: #86868b; }
+    .g-mi .ck { margin-left: auto; width: 14px; height: 14px; color: #0071e3; stroke-width: 2; }
+    .g-use { margin: auto 0 14px; padding: 10px 10px 4px; border-radius: 10px; background: rgba(0, 0, 0, 0.04); font-size: 12.5px; }
+    .g-use .hd { display: flex; align-items: center; gap: 7px; padding-bottom: 6px; font-weight: 600; }
+    .g-acc { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "nm pc" "tr tr"; align-items: center; row-gap: 5px; padding: 3px 0 9px; color: #6e6e73; }
+    .g-acc .nm { grid-area: nm; } .g-acc .tr { grid-area: tr; } .g-acc .pc { grid-area: pc; }
+    .g-acc .nm { transition: color 0.3s; }
+    .g-acc.cur .nm { color: #1d1d1f; font-weight: 600; }
+    .g-acc .tr { height: 4px; border-radius: 2px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
+    .g-acc .tr i { display: block; height: 100%; border-radius: 2px; background: #6e6e73; transition: background 0.4s; }
+    .g-acc.cur .tr i { background: #1d1d1f; }
+    .g-acc .pc { text-align: right; font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .g-lim { align-self: flex-start; width: 440px; padding: 12px 15px; border-radius: 14px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 6px 18px -10px rgba(0, 0, 0, 0.18); font-size: 14px; line-height: 1.4; }
+    .g-lim .r { display: flex; align-items: center; gap: 9px; }
+    .g-lim .r + .r { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0, 0, 0, 0.06); color: #0071e3; }
+    .g-lim .r > svg { color: #86868b; }
+    .g-lim .r + .r > svg { color: #0071e3; }
+    .g-lim .r b { font-weight: 600; }
     .gfx noscript img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   </style>
 </head>
 <body>
+  <!-- The agents' own marks, the same paths as the app's ProviderLogo.tsx: Claude in its #D97757, the others in ink -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><symbol id="mk-claude" viewBox="0 0 24 24"><path fill="#D97757" stroke="none" d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></symbol><symbol id="mk-codex" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" fill-rule="evenodd" clip-rule="evenodd" d="M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z"/></symbol><symbol id="mk-antigravity" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" fill-rule="evenodd" clip-rule="evenodd" d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z"/></symbol></svg>
   <nav class="nav" aria-label="Main">
     <div class="nav-inner">
       <a class="brand" href="#top"><img src="logo.png" alt="" width="24" height="24" />Superagent<span class="jp" lang="ja">スーパーエージェント</span></a>
@@ -2398,7 +2443,13 @@
           <a class="pill" href="https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg"><span class="apple" aria-hidden="true">&#63743;</span>Download for Mac</a>
           <a class="pill alt" href="https://testflight.apple.com/join/hvg9RGMh" target="_blank" rel="noopener"><svg class="ph" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.75" y="2" width="10.5" height="20" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="10.5" y1="18.6" x2="13.5" y2="18.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Get the iPhone app</a>
         </div>
-        <p class="fine">Free. Open source. For Claude Code, Codex and Antigravity.</p>
+        <ul class="agents">
+          <li class="lead">Works with</li>
+          <li><svg aria-hidden="true"><use href="#mk-claude"/></svg>Claude Code</li>
+          <li><svg aria-hidden="true"><use href="#mk-codex"/></svg>Codex</li>
+          <li><svg aria-hidden="true"><use href="#mk-antigravity"/></svg>Antigravity</li>
+        </ul>
+        <p class="fine">Free. Open source. On the plan you already have.</p>
       </div>
       <div class="shot">
         <div class="gfx" id="hero-film" data-g="hero" role="img" aria-label="Animated drawing of the Superagent window: a question is typed, stripe.com opens in the browser pane and then on an iPhone beside it, four chats from four projects glide in side by side, and Command-K finds a chat" style="aspect-ratio:1200/750"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="hero-window.png" alt="" /></noscript></div>
@@ -2416,6 +2467,19 @@
       </div>
     </section>
 
+    <section id="agents" class="feature">
+      <div class="content">
+        <div class="head">
+          <p class="eyebrow">Every agent<span class="jp" lang="ja">すべてのエージェント</span></p>
+          <h2>Claude, Codex, Gemini. Never stuck.</h2>
+          <p class="intro">Pick Claude Code, Codex or Antigravity (Gemini) for each chat. When an account runs out, Superagent moves the chat to your next one and keeps going.</p>
+        </div>
+      </div>
+      <div class="media clip"><div class="gfx" data-g="agents" role="img" aria-label="Animated drawing of Superagent: the agent picker in the composer shows Claude Code, Codex and Antigravity, and Claude Code is kept. The chat starts working, the Personal account&rsquo;s allowance in the sidebar runs down to nothing, a card says Claude &middot; Personal is out until 9:00, the chat moves to Claude &middot; Work by itself, and the answer arrives" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="content">
+        <p class="note">Add more than one account per agent, and turn on Automatic under Settings &rarr; Agents &rarr; When an account hits its limit; otherwise the chat asks first, with a button to switch. If only one Claude model runs out (Fable&rsquo;s weekly limit, say), the chat steps down to the next model and goes back once it can. A chat never changes agent on its own; you pick that.</p>
+      </div>
+    </section>
     <section id="build" class="feature alt">
       <div class="content">
         <div class="head">
@@ -2763,6 +2827,7 @@
           <details class="faq-item"><summary>Is Superagent a GUI for Claude Code?</summary><p>Yes. It runs the real Claude Code CLI on your Mac and gives it a window: chats per project, a built-in browser, an iOS Simulator and an iPhone app. It does the same for OpenAI Codex and Google Antigravity, and you can switch agent per chat.</p></details>
           <details class="faq-item"><summary>Do I need an API key?</summary><p>No. It uses the agent you are already signed in to, on your Claude Pro or Max, ChatGPT Plus or Pro, or Google AI plan.</p></details>
           <details class="faq-item"><summary>Is Superagent free?</summary><p>Yes, free forever. No plan, no trial, no card, no account. It is open source under the MIT license.</p></details>
+          <details class="faq-item"><summary>What happens when I hit my Claude limit?</summary><p>Superagent moves the chat to your next Claude account that still has allowance, and the conversation carries on where it was. With Automatic on (Settings, Agents, When an account hits its limit) it switches by itself and says so; otherwise a card asks first, with a button to switch. If only one model&#x27;s limit runs out, such as Fable&#x27;s weekly limit, the chat steps down to the next model and goes back once it can. It never moves a chat from Claude to Codex or Antigravity on its own; you choose the agent per chat.</p></details>
           <details class="faq-item"><summary>Can I run several Claude Code or Codex sessions at once?</summary><p>Yes. Each chat can work in its own git worktree on its own branch, so parallel agents don&#x27;t step on each other, and split view shows up to eight chats in one window.</p></details>
           <details class="faq-item"><summary>Can the agent test my website in a browser?</summary><p>Yes. It drives a real browser next to the chat: it opens pages, clicks, types, takes screenshots and checks the page at phone size, on the sites you are already signed in to.</p></details>
           <details class="faq-item"><summary>Can I use it from my iPhone?</summary><p>Yes. The iPhone and iPad app follows your chats, end-to-end encrypted, so you can answer the agent and approve what it asks from anywhere.</p></details>
@@ -3276,6 +3341,50 @@
           }),
           cls(16500, "blur", "on", false), cls(16500, "pal", "on", false),
           cls(16600, "t1", "focus", false), cls(16600, "t2", "focus"),
+        ],
+      };
+
+      // Every agent: Claude Code is picked from the three, the chat works, the Personal account runs dry,
+      // and the chat moves to Work by itself (Automatic) and carries on. It never changes agent on its own.
+      const mk = (p) => `<svg class="g-mk"><use href="#mk-${p}"/></svg>`;
+      const DOWN = S(P("M4 6l4 4 4-4"));
+      const AGENTS = [["claude", "Claude Code", "Anthropic"], ["codex", "Codex", "OpenAI"], ["antigravity", "Antigravity", "Google Gemini"]];
+      const acc = (k, name, pct, label, cur) => `<div class="g-acc${cur ? " cur" : ""}"${K(k)}><span class="nm">${name}</span><span class="tr"><i${K(k + "-bar")} style="width:${pct}%"></i></span><span class="pc"${K(k + "-pc")}>${label}</span></div>`;
+      const drain = (t, dur, k, from, to) => run(t, dur, (p, st, c) => {
+        const v = Math.round(lerp(from, to, p));
+        c.q(k + "-bar").style.width = v + "%";
+        c.q(k + "-pc").textContent = v + "% left";
+      });
+      scenes.agents = {
+        w: 960, h: 600, end: 12000, p0: [560, 640],
+        html: () => `<aside class="g-side" style="width:200px"><div class="g-tl"><i></i><i></i><i></i></div>` +
+          seg(false) + Hd("Projects") + row("landing-page", { on: true, k: "p" }) + row("mobile-app") + row("design-system") + row("notes-app") +
+          `<div class="g-use"><div class="hd">${mk("claude")}Claude</div>${acc("ac1", "Personal", 18, "18% left", true)}${acc("ac2", "Work", 82, "82% left")}</div></aside>` +
+          tile("t", F, bar("landing-page", "Pricing page", chip(`${mk("claude")}<span${K("chip")}>Personal</span>`)) +
+          `<div class="g-body"><div class="g-chatc"><div class="g-stream">${U("Add a yearly switch to the pricing cards.", "u1")}${WORK("w")}${STEPS("s")}` +
+          `<div class="g-lim g-hide"${K("lim")}><div class="r">${ic.clock}<span><b>Claude · Personal</b> is out until 9:00</span></div><div class="r g-hide"${K("mv")}>${ic.reload}<span>Moved to <b>Claude · Work</b>. Carrying on.</span></div></div>` +
+          `${WORK("w2")}${STEPS("s2")}${A("Done. The cards switch between monthly and yearly, and yearly shows two months free.", "a1")}</div>` +
+          `<div class="g-menu"${K("menu")}><div class="g-mh">Agent</div>${AGENTS.map(([p, n, by], i) => `<div class="g-mi"${K("mi" + i)}>${mk(p)}<span>${n}</span><small>${by}</small>${i === 0 ? `<svg class="ck" viewBox="0 0 16 16"><path d="M3.5 8.4l3 3 6-6.6"/></svg>` : ""}</div>`).join("")}</div>` +
+          `<div class="g-comp"><div class="g-field"><span class="g-pick"${K("pick")}>${mk("claude")}Claude Code${DOWN}</span><span class="tx"${K("in")}></span><span class="ph">Message Claude…</span>${ic.mic}</div><span class="g-send">${ic.up}</span></div></div></div>`),
+        steps: () => [
+          // you can choose: the picker opens on the three agents, and Claude Code stays
+          ptr(300, 800, "pick"), click(1150), cls(1150, "pick", "on"), cls(1200, "menu", "on"),
+          ptr(1500, 450, "mi1"), cls(1950, "mi1", "hov"),
+          ptr(2150, 400, "mi2"), cls(2150, "mi1", "hov", false), cls(2550, "mi2", "hov"),
+          ptr(2750, 450, "mi0"), cls(2750, "mi2", "hov", false), cls(3200, "mi0", "hov"),
+          click(3450), cls(3550, "menu", "on", false), cls(3550, "pick", "on", false), ptrOff(3700),
+          // the chat works, and the Personal allowance runs down
+          type(3800, "in", "Add a yearly switch to the pricing cards."),
+          send(5800, "in", "u1"),
+          html(6000, "p-e", SPIN), show(6000, "w"), tick(6000, 2400, "w-s"),
+          ...stepTo(6500, "s", 1, ["Editing"]),
+          drain(6000, 2300, "ac1", 18, 0),
+          ...stepTo(7400, "s", 2, ["Editing", "Reading"]),
+          // out: a card says so, and the chat moves to the next account by itself
+          hide(8400, "w"), html(8400, "ac1-pc", "until 9:00"), show(8400, "lim"),
+          show(9300, "mv"), cls(9300, "ac1", "cur", false), cls(9300, "ac2", "cur"), html(9300, "chip", "Work"),
+          show(9800, "w2"), tick(9800, 1500, "w2-s"), drain(9800, 1500, "ac2", 82, 79), ...stepTo(10200, "s2", 1, ["Editing"]),
+          hide(11300, "w2"), stream(11300, 700, "a1"), html(11300, "p-e", DOT),
         ],
       };
 
