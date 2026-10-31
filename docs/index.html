@@ -3,45 +3,150 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Superagent · スーパーエージェント · a home for your agent</title>
-  <meta
-    name="description"
-    content="Superagent is a Mac app that gives your coding agent a home: a real browser it drives, chats that survive restarts, your phone in the loop, and a place to watch it work. Works with Claude Code, Codex and Antigravity."
-  />
+  <title>Superagent: free Mac app for Claude Code, Codex and Antigravity</title>
+  <meta name="description" content="Superagent is a free, open-source Mac app for Claude Code, Codex and Antigravity. Your AI coding agent gets a real browser, an iOS Simulator, parallel chats on their own git branches, and an iPhone app. No API key." />
   <link rel="canonical" href="https://superagent.computer/" />
   <link rel="icon" href="logo.png" />
   <link rel="apple-touch-icon" href="logo.png" />
   <meta name="color-scheme" content="light" />
   <meta name="theme-color" content="#ffffff" />
-  <meta property="og:title" content="Superagent, a home for your agent" />
-  <meta property="og:description" content="A Mac app that gives your coding agent a home: a real browser it drives, chats that survive restarts, your phone in the loop. Works with Claude Code, Codex and Antigravity." />
+  <meta property="og:title" content="Superagent: a home for your coding agent" />
+  <meta property="og:description" content="Superagent is a free, open-source Mac app for Claude Code, Codex and Antigravity. Your AI coding agent gets a real browser, an iOS Simulator, parallel chats on their own git branches, and an iPhone app. No API key." />
   <meta property="og:image" content="https://superagent.computer/hero.png" />
   <meta property="og:url" content="https://superagent.computer/" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta property="og:site_name" content="Superagent" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:image:width" content="2720" />
+  <meta property="og:image:height" content="1800" />
+  <meta property="og:image:alt" content="Superagent on a Mac: four coding agents working side by side in split view, with a website open in the built-in browser" />
+  <meta name="twitter:title" content="Superagent: a home for your coding agent" />
+  <meta name="twitter:description" content="Free, open-source Mac app for Claude Code, Codex and Antigravity: a real browser, an iOS Simulator, parallel chats and an iPhone app. No API key." />
+  <meta name="twitter:image" content="https://superagent.computer/hero.png" />
+  <meta name="keywords" content="Claude Code GUI, Claude Code desktop app, Codex desktop app, Antigravity, AI coding agent, Mac app, browser automation, iOS Simulator, git worktree, parallel agents" />
   <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
     {
-      "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "Superagent",
+      "alternateName": "スーパーエージェント",
       "url": "https://superagent.computer/",
-      "description": "Superagent is an open-source macOS desktop app that gives Claude Code and Codex a real browser to drive, an iOS Simulator to install and screenshot apps in, and a phone companion app for remote monitoring.",
+      "description": "Superagent is a free, open-source macOS app for Claude Code, OpenAI Codex and Google Antigravity. It gives your AI coding agent a real browser to drive, an iOS Simulator in the window, chats that each work on their own git branch, split view for up to eight chats, routines on a schedule, and a companion iPhone and iPad app.",
       "image": "https://superagent.computer/hero.png",
+      "screenshot": "https://superagent.computer/hero.png",
       "applicationCategory": "DeveloperApplication",
-      "operatingSystem": "macOS",
+      "operatingSystem": "macOS (Apple Silicon)",
       "offers": {
         "@type": "Offer",
         "price": "0",
         "priceCurrency": "USD"
       },
+      "isAccessibleForFree": true,
       "license": "https://github.com/pungme/superagent-desktop/blob/main/LICENSE",
       "downloadUrl": "https://github.com/pungme/superagent-desktop/releases/latest/download/SuperAgent.dmg",
       "codeRepository": "https://github.com/pungme/superagent-desktop",
+      "featureList": [
+        "A real browser the agent drives",
+        "iOS Simulator in the window",
+        "Desktop and phone views side by side",
+        "Chats on their own git worktree branch",
+        "Split view with up to eight chats",
+        "Browser automation on your signed-in sites",
+        "Routines on a schedule",
+        "iPhone and iPad companion app, end-to-end encrypted",
+        "Works with Claude Code, Codex and Antigravity",
+        "No API key, runs on your existing subscription"
+      ],
+      "sameAs": [
+        "https://github.com/pungme/superagent-desktop",
+        "https://github.com/pungme/superagent-ios",
+        "https://github.com/pungme/superagent-relay"
+      ],
       "author": {
         "@type": "Person",
         "name": "Pung Worathiti Manosroi"
       }
+    },
+    {
+      "@type": "WebSite",
+      "name": "Superagent",
+      "url": "https://superagent.computer/",
+      "inLanguage": "en"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is Superagent a GUI for Claude Code?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. It runs the real Claude Code CLI on your Mac and gives it a window: chats per project, a built-in browser, an iOS Simulator and an iPhone app. It does the same for OpenAI Codex and Google Antigravity, and you can switch agent per chat."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need an API key?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. It uses the agent you are already signed in to, on your Claude Pro or Max, ChatGPT Plus or Pro, or Google AI plan."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Superagent free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, free forever. No plan, no trial, no card, no account. It is open source under the MIT license."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I run several Claude Code or Codex sessions at once?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Each chat can work in its own git worktree on its own branch, so parallel agents don't step on each other, and split view shows up to eight chats in one window."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can the agent test my website in a browser?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. It drives a real browser next to the chat: it opens pages, clicks, types, takes screenshots and checks the page at phone size, on the sites you are already signed in to."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I use it from my iPhone?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The iPhone and iPad app follows your chats, end-to-end encrypted, so you can answer the agent and approve what it asks from anywhere."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does my code leave my Mac?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Everything runs locally. The only traffic is your agent's own connection to its provider, update checks, and an encrypted relay if you pair a phone."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does it work on Windows or Linux?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Not yet. Superagent is a Mac app for Apple Silicon."
+          }
+        }
+      ]
     }
+  ]
+}
   </script>
   <style>
     /* Apple's product-page system, measured off apple.com (see .superagent/apple-design-research.md):
@@ -96,6 +201,13 @@
     .brand .jp { font-size: 12px; letter-spacing: 0.08em; margin-left: 10px; }
     .eyebrow .jp { font-size: 0.62em; letter-spacing: 0.08em; margin-left: 12px; }
     .hero-jp { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, sans-serif; font-size: 21px; letter-spacing: 0.12em; color: #6e6e73; margin-top: 14px; }
+    .faq-list { margin-top: 56px; border-top: 1px solid #d2d2d7; }
+    .faq-item { border-bottom: 1px solid #d2d2d7; }
+    .faq-item summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 22px 0; font-size: 21px; line-height: 1.38; font-weight: 600; letter-spacing: 0.011em; }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: "+"; font-weight: 400; font-size: 28px; color: #6e6e73; transition: transform .25s ease; }
+    .faq-item[open] summary::after { transform: rotate(45deg); }
+    .faq-item p { margin: -6px 0 24px; max-width: 760px; font-size: 17px; line-height: 1.47; letter-spacing: -0.022em; color: #6e6e73; }
     .pricing { text-align: center; }
     .pricing .price { font-size: 96px; line-height: 1.04; letter-spacing: -0.015em; margin-top: 8px; }
     .pricing .price span { color: #6e6e73; }
@@ -2640,6 +2752,23 @@
         <p class="eyebrow">Pricing<span class="jp" lang="ja">料金</span></p>
         <h2 class="price">Free forever.<br /><span>Really.</span></h2>
         <p class="intro">No plan, no trial, no card. Your agent runs on the Claude, ChatGPT or Google plan you already have.</p>
+      </div>
+    </section>
+
+    <section id="faq" class="faq">
+      <div class="content">
+        <p class="eyebrow">Questions<span class="jp" lang="ja">よくある質問</span></p>
+        <h2>Good questions.</h2>
+        <div class="faq-list">
+          <details class="faq-item"><summary>Is Superagent a GUI for Claude Code?</summary><p>Yes. It runs the real Claude Code CLI on your Mac and gives it a window: chats per project, a built-in browser, an iOS Simulator and an iPhone app. It does the same for OpenAI Codex and Google Antigravity, and you can switch agent per chat.</p></details>
+          <details class="faq-item"><summary>Do I need an API key?</summary><p>No. It uses the agent you are already signed in to, on your Claude Pro or Max, ChatGPT Plus or Pro, or Google AI plan.</p></details>
+          <details class="faq-item"><summary>Is Superagent free?</summary><p>Yes, free forever. No plan, no trial, no card, no account. It is open source under the MIT license.</p></details>
+          <details class="faq-item"><summary>Can I run several Claude Code or Codex sessions at once?</summary><p>Yes. Each chat can work in its own git worktree on its own branch, so parallel agents don&#x27;t step on each other, and split view shows up to eight chats in one window.</p></details>
+          <details class="faq-item"><summary>Can the agent test my website in a browser?</summary><p>Yes. It drives a real browser next to the chat: it opens pages, clicks, types, takes screenshots and checks the page at phone size, on the sites you are already signed in to.</p></details>
+          <details class="faq-item"><summary>Can I use it from my iPhone?</summary><p>Yes. The iPhone and iPad app follows your chats, end-to-end encrypted, so you can answer the agent and approve what it asks from anywhere.</p></details>
+          <details class="faq-item"><summary>Does my code leave my Mac?</summary><p>No. Everything runs locally. The only traffic is your agent&#x27;s own connection to its provider, update checks, and an encrypted relay if you pair a phone.</p></details>
+          <details class="faq-item"><summary>Does it work on Windows or Linux?</summary><p>Not yet. Superagent is a Mac app for Apple Silicon.</p></details>
+        </div>
       </div>
     </section>
 
