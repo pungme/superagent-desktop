@@ -213,9 +213,9 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
   // Each limit on its own line, with when it starts over.
   await expect(login.locator('.easy-account-window')).toHaveCount(3)
   await expect(login.locator('.easy-account-window').first()).toContainText('5-hour')
-  // As what is left, like the sidebar's usage menu: 48% used is 52% left.
-  await expect(login.locator('.easy-account-window').first()).toContainText('52% left')
-  await expect(login.locator('.easy-account-window').nth(1)).toContainText('8% left')
+  // As what is used, counting up, like the sidebar's usage menu.
+  await expect(login.locator('.easy-account-window').first()).toContainText('48%')
+  await expect(login.locator('.easy-account-window').nth(1)).toContainText('92%')
   await expect(login.locator('.easy-account-window').nth(1)).toContainText('resets ')
   await window
     .locator('.easy-control-menu:visible')
@@ -225,17 +225,15 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
     .screenshot({ path: 'test-results/account-pill.png' })
   await login.click()
   await expect(pill).toContainText('Your Claude login')
-  // How much that account has left, in the colour that says "nearly out".
-  await expect(pill.locator('.easy-account-left')).toHaveText('8% left')
-  await expect(pill.locator('.easy-account-left')).toHaveClass(/high/)
+  // How full that account is, in the colour that says "nearly out".
+  await expect(pill.locator('.easy-account-used')).toHaveText('92%')
+  await expect(pill.locator('.easy-account-used')).toHaveClass(/high/)
   // The agent menu says the same in a few words, per agent; one with nothing
   // read yet keeps its description.
   const agentPill = window.locator('.easy-controls:visible .easy-control-btn').first()
   await agentPill.click()
   const agentMenu = window.locator('.easy-control-menu:visible')
-  await expect(agentMenu.locator('.easy-control-item').nth(0)).toContainText(
-    '5h 52% left · Week 8% left'
-  )
+  await expect(agentMenu.locator('.easy-control-item').nth(0)).toContainText('5h 48% · Week 92%')
   await expect(agentMenu.locator('.easy-control-item').nth(2)).toContainText('Google AI plan')
   await agentMenu.screenshot({ path: 'test-results/agent-menu.png' })
   await agentPill.click()
@@ -253,19 +251,27 @@ test('an account running dry puts a card in its chat, and Switch pins the chat t
 
   // The foot of the sidebar says the same, and moves the chat too.
   const footer = window.locator('.usage-footer-btn')
-  // It says what is left, not what is used: 92% used is 8% left.
-  await expect(footer).toContainText('8% left')
+  // It says what is used, counting up, as the composer does.
+  await expect(footer).toContainText('92%')
   await footer.hover()
-  // The account the chat is on: pointing at it shows each limit, as what is left.
+  // The account the chat is on is ticked, and the foot of the list shows its
+  // limits, as what is used.
   const mine = window.locator('.usage-popover-row.on')
-  await mine.hover()
-  await expect(mine.locator('.usage-popover-window', { hasText: 'Weekly Fable' })).toContainText(
-    '0% left'
+  await expect(mine).toContainText('Your Claude login')
+  await expect(mine.locator('.usage-popover-pct')).toHaveText('92%')
+  await expect(mine.locator('.usage-popover-bar')).toHaveClass(/high/)
+  const details = window.locator('.usage-popover-details')
+  await expect(details).toContainText('Your Claude login')
+  await expect(details.locator('.usage-popover-window', { hasText: 'Weekly Fable' })).toContainText(
+    '100% used'
   )
-  // Another account opens on a click and stays open; its button moves the chat.
+  // No disclosure arrows, and nothing alarming in red.
+  await expect(window.locator('.usage-popover')).not.toContainText('▸')
+  // Pointing at another account shows its limits there and what a click does.
   const work = window.locator('.usage-popover-row', { hasText: 'Work' })
-  await work.locator('.usage-account-toggle').click()
-  await expect(work.locator('.usage-account-toggle')).toHaveAttribute('aria-expanded', 'true')
+  await work.hover()
+  await expect(details).toContainText('Work')
+  await expect(work.locator('.usage-account-switch')).toHaveText('Use for this chat')
   await window.locator('.usage-popover').screenshot({ path: 'test-results/usage-popover.png' })
   await work.locator('.usage-account-switch').click()
   await expect(pill).toContainText('Work')

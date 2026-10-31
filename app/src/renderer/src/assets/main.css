@@ -1617,29 +1617,29 @@ button {
   font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
 }
-/* Which window the number is: the 5-hour one or the week. */
-.usage-footer-which {
-  font-size: 10px;
-  color: var(--text-tertiary);
-}
 .usage-footer-pct.warn {
   color: var(--warning, #c98a1b);
 }
 .usage-footer-pct.high {
   color: var(--danger, #d64545);
 }
+/* Every account, one quiet line each, grouped by agent; the foot of the list
+   holds the limits of the row under the pointer (else this chat's account).
+   Laid out like a macOS menu: 24px rows, an 8px grid, colour only on a bar
+   that is nearly empty. */
 .usage-popover {
   position: absolute;
   left: 0;
   bottom: calc(100% + 6px);
-  width: 380px;
-  max-height: 60vh;
+  width: 304px;
+  max-height: 70vh;
   overflow-y: auto;
-  padding: 6px;
+  padding: 4px 6px 0;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--bg-panel);
   box-shadow: 0 12px 32px var(--shadow, rgba(0, 0, 0, 0.18));
+  font-variant-numeric: tabular-nums;
   z-index: 50;
 }
 .usage-popover-group + .usage-popover-group {
@@ -1651,62 +1651,103 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  font-size: 10.5px;
+  height: 24px;
+  padding: 4px 8px 0;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--text-tertiary);
 }
 .usage-popover-row {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
   width: 100%;
+  height: 24px;
+  padding: 0 8px;
   border: none;
+  border-radius: 6px;
   background: none;
   color: var(--text-primary);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
-  padding: 6px 8px;
-  border-radius: 8px;
+  cursor: default;
 }
-/* A sliver between rows: the one the chat is on is filled, and the row under
-   the pointer fills too, so side by side they ran into one block. */
-.usage-popover-row + .usage-popover-row {
-  margin-top: 2px;
+.usage-popover-row:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: -2px;
 }
-.usage-popover-row:not(:disabled):hover {
+.usage-popover-row.seen {
   background: var(--hover);
-  cursor: pointer;
 }
-.usage-popover-row:disabled {
-  opacity: 1;
-}
-.usage-popover-tick {
-  margin-right: 5px;
-  color: var(--text-secondary);
-}
-.usage-popover-row.on .usage-popover-name {
-  font-weight: 600;
-}
-/* The account this chat runs on: a filled row, not only a tick and a heavier
-   name, which in a list of near-identical rows were easy to look past. */
-.usage-popover-row.on,
-.usage-popover-row.on:not(:disabled):hover {
+/* The account this chat runs on: a tick and a filled row. */
+.usage-popover-row.on {
   background: var(--active);
 }
-.usage-popover-row.on .usage-popover-tick {
-  color: var(--text-primary);
+.usage-popover-row.can {
+  cursor: pointer;
 }
-/* How full, as a bar: the figure says how much, the bar is what you can compare
-   down the list without reading. */
+.usage-popover-tick {
+  flex: none;
+  width: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.usage-popover-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Out of allowance (or signed out): dimmed, not red. */
+.usage-popover-row.out .usage-popover-name,
+.usage-popover-row[aria-disabled='true']:not(.on) .usage-popover-name {
+  color: var(--text-tertiary);
+}
+.usage-popover-status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.usage-popover-pct {
+  width: 32px;
+  text-align: right;
+  color: var(--text-secondary);
+}
+.usage-popover-quiet {
+  color: var(--text-tertiary);
+}
+/* What clicking does, said where the pointer is: it takes the place of the
+   bar and figure, which the details below repeat. */
+.usage-account-switch {
+  display: none;
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.usage-popover-row.can:hover .usage-account-switch,
+.usage-popover-row.can:focus-visible .usage-account-switch {
+  display: block;
+}
+.usage-popover-row.can:hover .usage-popover-status,
+.usage-popover-row.can:focus-visible .usage-popover-status {
+  display: none;
+}
+/* What is used, as a bar that fills: the figure says how much, the bar compares
+   down the list without reading. Amber at 75% used, red at 90%, like the ring. */
 .usage-popover-bar {
+  display: block;
+  width: 48px;
   height: 4px;
   border-radius: 2px;
-  background: var(--border);
+  background: var(--border-strong);
   overflow: hidden;
 }
 .usage-popover-bar i {
@@ -1715,46 +1756,79 @@ button {
   border-radius: 2px;
   background: var(--text-tertiary);
 }
+.usage-popover-bar.warn i,
 .usage-popover-window.warn .usage-popover-bar i {
   background: var(--warning, #c98a1b);
 }
+.usage-popover-bar.high i,
 .usage-popover-window.high .usage-popover-bar i {
   background: var(--danger, #d64545);
 }
-/* One line per window, in columns: its name, how full, when it starts over. */
+/* The details: stuck to the foot of the list so a long list scrolls under it. */
+.usage-popover-details {
+  position: sticky;
+  bottom: 0;
+  margin: 4px -6px 0;
+  padding: 8px 14px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.usage-popover-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 18px;
+  margin-bottom: 4px;
+}
+.usage-popover-detail-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.usage-popover-detail-why {
+  flex: none;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+/* One line per limit, in fixed columns: name, bar, what is left, when it resets. */
 .usage-popover-windows {
   display: grid;
-  grid-template-columns: max-content minmax(36px, 1fr) 54px max-content;
+  grid-template-columns: 76px minmax(32px, 1fr) 60px max-content;
+  grid-auto-rows: 18px;
+  align-content: start;
   align-items: center;
   column-gap: 8px;
-  row-gap: 2px;
   font-size: 11px;
   color: var(--text-tertiary);
 }
 .usage-popover-window {
   display: contents;
 }
-.usage-popover-window b {
-  text-align: right;
-}
+.usage-popover-window-label,
 .usage-popover-reset {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.usage-popover-windows .usage-popover-bar {
+  width: auto;
+}
 .usage-popover-window b {
-  font-weight: 600;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
   color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
 }
-.usage-popover-window.warn b {
-  color: var(--warning, #c98a1b);
-}
-.usage-popover-window.high b {
-  color: var(--danger, #d64545);
-}
-.usage-popover-note {
-  padding: 6px 8px 2px;
-  font-size: 11px;
-  color: var(--text-tertiary);
+.usage-popover-empty {
+  grid-column: 1 / -1;
 }
 
 .sidebar-settings {
@@ -7364,17 +7438,17 @@ button {
 .easy-control-val {
   font-weight: 500;
 }
-/* How much the account this chat is on has left: quiet until it is nearly out. */
-.easy-account-left {
+/* How full the account this chat is on is: quiet until it is nearly out. */
+.easy-account-used {
   color: var(--text-tertiary);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.easy-account-left.warn {
+.easy-account-used.warn {
   color: var(--warning, #c98a1b);
 }
-.easy-account-left.high {
+.easy-account-used.high {
   color: var(--danger, #d64545);
 }
 /* The agent pill: wide, its logo says what it is; the "Agent" key is only for
@@ -14123,7 +14197,7 @@ button {
   .easy-controls.unfolded .easy-control-logo {
     display: none;
   }
-  .easy-controls.unfolded .easy-account-left {
+  .easy-controls.unfolded .easy-account-used {
     font-size: 11px;
   }
   .easy-controls.unfolded .easy-control-menu {
@@ -15336,9 +15410,9 @@ button {
   background: var(--active);
   opacity: 1;
 }
-/* The account's allowance left, as a ring round the logo (like a watch's
-   progress ring): the one thing from the settings that should not wait to be
-   looked for. It empties as it is spent, and warms, then reddens, near the end. */
+/* The account's usage limit, as a ring round the logo (like a watch's progress
+   ring): the one thing from the settings that should not wait to be looked
+   for. It fills as it is spent, and warms, then reddens, near the end. */
 .easy-input-ring {
   position: absolute;
   inset: 0;
@@ -15623,38 +15697,3 @@ button {
   animation-play-state: paused !important;
 }
 
-/* Account details preview on hover and remain expanded when clicked. */
-.usage-account-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.usage-account-status {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin: 2px 0 4px;
-}
-.usage-account-status.blocked {
-  color: var(--danger, #d64545);
-}
-.usage-account-details {
-  padding-top: 8px;
-}
-.usage-account-switch {
-  margin-top: 8px;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-primary);
-  background: var(--bg-panel);
-  font: inherit;
-  cursor: pointer;
-}

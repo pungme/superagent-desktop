@@ -1634,8 +1634,8 @@ function usageLine(a: Account | null | undefined): string | null {
           : w.label === 'Weekly'
             ? 'Week'
             : w.label.replace(/ weekly$/, '')
-      // What is left, as everywhere else the allowance is shown.
-      return `${label} ${w.resetsAt && w.resetsAt <= now ? 100 : Math.max(0, 100 - w.percent)}% left`
+      // What is used, counting up, as everywhere else the allowance is shown.
+      return `${label} ${w.resetsAt && w.resetsAt <= now ? 0 : Math.round(w.percent)}%`
     })
     .join(' · ')
 }
@@ -6092,8 +6092,8 @@ export function EasyChat({
             aria-label={controlsOpen ? 'Hide the settings' : 'Show the settings'}
             onClick={toggleControls}
           >
-            {/* How much of the account's allowance is left, as a ring round the
-                logo that empties as it is spent: "% left", like the sidebar. */}
+            {/* How much of the account's usage limit is used, as a ring round
+                the logo that fills as it is spent, like the sidebar. */}
             {limitPct !== null && (
               <svg className="easy-input-ring" viewBox="0 0 28 28" aria-hidden="true">
                 <circle className="track" cx="14" cy="14" r="12" pathLength="100" />
@@ -6103,7 +6103,7 @@ export function EasyChat({
                   cy="14"
                   r="12"
                   pathLength="100"
-                  strokeDasharray={`${Math.max(2, Math.min(100, 100 - limitPct))} 100`}
+                  strokeDasharray={`${Math.max(2, Math.min(100, limitPct))} 100`}
                 />
               </svg>
             )}
@@ -6114,16 +6114,15 @@ export function EasyChat({
                 {limitPct !== null && (
                   <>
                     <span className="tip-row">
-                      <b>Allowance</b>
+                      <b>Usage limit</b>
                       <span>
-                        {Math.max(0, 100 - limitPct)}% left
-                        {limitWindow?.label ? ` · ${limitWindow.label}` : ''}
+                        {limitPct}%{limitWindow?.label ? ` · ${limitWindow.label}` : ''}
                       </span>
                     </span>
                     <span className="tip-bar">
                       <i
                         className={limitPct >= 90 ? 'hot' : limitPct >= 75 ? 'warm' : ''}
-                        style={{ width: `${Math.max(2, Math.min(100, 100 - limitPct))}%` }}
+                        style={{ width: `${Math.max(2, Math.min(100, limitPct))}%` }}
                       />
                     </span>
                     {limitWindow?.resetsAt ? (
@@ -6503,14 +6502,14 @@ export function EasyChat({
             >
               <span className="easy-control-key">Account</span>
               <span className="easy-control-val">{accounts.current.name}</span>
-              {/* What is left, as the sidebar's usage menu and the ring say it. */}
+              {/* How much is used, as the sidebar's usage menu and the ring say it. */}
               {limitPct !== null && (
                 <span
-                  className={`easy-account-left ${
+                  className={`easy-account-used ${
                     limitPct >= 90 ? 'high' : limitPct >= 75 ? 'warn' : ''
                   }`}
                 >
-                  {Math.max(0, 100 - limitPct)}% left
+                  {limitPct}%
                 </span>
               )}
               <svg className="easy-control-caret" width="8" height="8" viewBox="0 0 10 10">
@@ -6554,7 +6553,7 @@ export function EasyChat({
                                   return (
                                     <span key={w.label} className="easy-account-window">
                                       <span>{w.label}</span>
-                                      <b>{over ? 100 : Math.max(0, 100 - w.percent)}% left</b>
+                                      <b>{over ? 0 : Math.round(w.percent)}%</b>
                                       <span>
                                         {w.resetsAt && !over
                                           ? `resets ${resetLabel(w.resetsAt, now)}`

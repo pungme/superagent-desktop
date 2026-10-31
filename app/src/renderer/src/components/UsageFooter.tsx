@@ -29,18 +29,29 @@ function fullestWindow(
   return live.reduce((m, w) => (w.percent > m.percent ? w : m))
 }
 
-/** "5h" or "Week": short enough for the foot of the sidebar. */
-const shortWindow = (label: string): string =>
-  label === '5-hour' ? '5h' : label === 'Weekly' ? 'Week' : label.replace(/ weekly$/, ' week')
+/** When a window starts over, short: "11 PM", "4:30 PM", "Sat 8 AM". */
+function shortReset(at: number, now: number): string {
+  return resetLabel(at, now)
+    .replace(/:00(?=\s?[AP]M)/i, '')
+    .replace(/:00$/, '')
+}
+
+interface RowState {
+  used: number | null
+  out: boolean
+  reset: number | null
+}
 
 const level = (pct: number | null): string =>
   pct === null ? '' : pct >= 90 ? 'high' : pct >= 75 ? 'warn' : ''
 
 /**
- * How much of the allowance is left, at the foot of the sidebar: the account
+ * How much of the allowance is used, at the foot of the sidebar: the account
  * the chat on screen is on (or, with none, the one a new chat would start on),
- * and on hover every account connected, each with its windows. One of the same
- * agent can be picked there to move the chat to it.
+ * and on hover every account connected, one line each. The foot of the list
+ * shows the limits of the row under the pointer (else this chat's account).
+ * Clicking another account of the same agent moves the chat to it; one that is
+ * out or signed out says why instead.
  */
 export function UsageFooter(): React.JSX.Element | null {
   const workspaceId = useStore((s) => s.activeWorkspaceId)
@@ -52,8 +63,11 @@ export function UsageFooter(): React.JSX.Element | null {
   const [current, setCurrent] = useState<Account | null>(null)
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [hovered, setHovered] = useState<string | null>(null)
+  /** The row under the pointer or the keyboard: the details at the foot follow it. */
+  const [previewId, setPreview] = useState<string | null>(null)
+  // "Now" for what is out and when it resets: read when the list opens or the
+  // numbers change, not on every render.
+  const [now, setNow] = useState(() => Date.now())
   const root = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<number | null>(null)
 
@@ -67,6 +81,7 @@ export function UsageFooter(): React.JSX.Element | null {
         if (!alive) return
         setLists({ claude: list.claude, codex: list.codex, antigravity: list.antigravity })
         setCurrent(acct)
+        setNow(Date.now())
       })
     }
     load()
@@ -112,7 +127,10 @@ export function UsageFooter(): React.JSX.Element | null {
   const which = fullestWindow(current)
   const show = (): void => {
     if (closeTimer.current) window.clearTimeout(closeTimer.current)
-    if (!open) void window.cove.accountsRefreshUsage()
+    if (!open) {
+      void window.cove.accountsRefreshUsage()
+      setNow(Date.now())
+    }
     setOpen(true)
   }
   const hide = (): void => {
@@ -129,6 +147,38 @@ export function UsageFooter(): React.JSX.Element | null {
     setOpen(false)
     setPinned(false)
   }
+  /** What the list says about one account: how much is used, and whether it is out. */
+  const state = (a: Account): RowState => {
+    const limit = fullestWindow(a)
+    const used = limit ? Math.min(100, Math.max(0, Math.round(limit.percent))) : null
+    const out = (limit !== null && limit.percent >= 100) || (a.limitedUntil ?? 0) > now
+    const reset =
+      a.limitedUntil && a.limitedUntil > now ? a.limitedUntil : (limit?.resetsAt ?? null)
+    return { used, out, reset }
+  }
+  // Out or signed out can't take the chat: the row says why rather than failing.
+  const canPick = (a: Account, s: RowState): boolean =>
+    !!chatId && a.provider === provider && a.id !== current.id && !a.needsAuth && !s.out
+  /** Why an account can't take this chat, in a few words; null when it can (or is it). */
+  const why = (a: Account, s: RowState): string | null => {
+    if (a.id === current.id) return null
+    if (a.needsAuth) return 'Sign in under Settings → Agents'
+    if (s.out)
+      return s.reset ? `Out of allowance until ${shortReset(s.reset, now)}` : 'Out of allowance'
+    if (!chatId) return 'Open a chat to switch to it'
+    if (a.provider !== provider) return `This chat runs on ${PROVIDER_LABEL[provider]}`
+    return null
+  }
+  const shown = lists
+    ? AGENT_PROVIDERS.filter((p) =>
+        lists[p].some((a) => a.usage || a.kind !== 'login' || p === provider)
+      )
+    : []
+  const everyone = lists ? shown.flatMap((p) => lists[p]) : []
+  const detail = everyone.find((a) => a.id === previewId) ?? current
+  // The details keep the height of the longest, so the rows above never move
+  // under the pointer as it passes from one account to the next.
+  const rows = Math.max(1, ...everyone.map((a) => a.usage?.windows.length ?? 0))
 
   return (
     <div ref={root} className="usage-footer" onMouseEnter={show} onMouseLeave={hide}>
@@ -140,112 +190,107 @@ export function UsageFooter(): React.JSX.Element | null {
           else show()
         }}
         aria-expanded={open}
-        title="Allowance left — hover to preview, click to keep open"
+        // Which limit the figure is (5-hour or week) is said here and in the
+        // list: a word more at the foot squeezed the account's name to a letter.
+        title={`${which ? `${which.label} usage` : 'Usage'} — hover for every account, click to keep open`}
       >
         <ProviderLogo provider={current.provider} size={12} />
         <span className="usage-footer-name">{current.name.replace(/^Your (.*) login$/, '$1')}</span>
         <span className={`usage-footer-bar ${level(pct)}`} aria-hidden>
-          <i style={{ width: `${pct === null ? 0 : Math.max(0, 100 - pct)}%` }} />
+          <i style={{ width: `${pct === null ? 0 : Math.min(100, Math.round(pct))}%` }} />
         </span>
         <span className={`usage-footer-pct ${level(pct)}`}>
-          {pct === null ? '—' : `${Math.max(0, 100 - pct)}% left`}
+          {pct === null ? '—' : `${Math.min(100, Math.round(pct))}%`}
         </span>
-        {which && <span className="usage-footer-which">{shortWindow(which.label)}</span>}
       </button>
       {open && lists && (
         <div className="usage-popover" role="region" aria-label="Account allowance">
-          {AGENT_PROVIDERS.filter((p) =>
-            lists[p].some((a) => a.usage || a.kind !== 'login' || p === provider)
-          ).map((p) => (
+          {shown.map((p) => (
             <div key={p} className="usage-popover-group">
               <div className="usage-popover-head">
                 <ProviderLogo provider={p} size={12} />
                 {PROVIDER_LABEL[p]}
               </div>
               {lists[p].map((a) => {
+                const s = state(a)
                 const here = a.id === current.id
-                const can = !!chatId && p === provider && !here && !a.needsAuth
-                const limit = fullestWindow(a)
-                const used = limit?.percent ?? null
-                const left = used === null ? null : Math.max(0, 100 - used)
-                const blocked = (used !== null && used >= 100) || (a.limitedUntil ?? 0) > Date.now()
-                const reset =
-                  a.limitedUntil && a.limitedUntil > Date.now() ? a.limitedUntil : limit?.resetsAt
-                const details = expanded === a.id || hovered === a.id
+                const can = canPick(a, s)
                 return (
-                  <div
+                  <button
                     key={a.id}
-                    className={`usage-popover-row ${here ? 'on' : ''}`}
-                    onMouseEnter={() => setHovered(a.id)}
-                    onMouseLeave={() => setHovered(null)}
+                    className={`usage-popover-row ${here ? 'on' : ''} ${can ? 'can' : ''} ${
+                      s.out ? 'out' : ''
+                    } ${previewId === a.id ? 'seen' : ''}`}
+                    aria-disabled={!can}
+                    aria-current={here || undefined}
+                    title={can ? undefined : (why(a, s) ?? undefined)}
+                    onMouseEnter={() => setPreview(a.id)}
+                    onMouseLeave={() => setPreview(null)}
+                    onFocus={() => setPreview(a.id)}
+                    onBlur={() => setPreview(null)}
+                    onClick={() => can && pick(a)}
                   >
-                    <button
-                      className="usage-account-toggle"
-                      aria-expanded={details}
-                      onClick={() => setExpanded(expanded === a.id ? null : a.id)}
-                    >
-                      <span className="usage-popover-name">
-                        {here && <span className="usage-popover-tick">✓</span>}
-                        {a.name}
-                      </span>
-                      <span aria-hidden>{details ? '▾' : '▸'}</span>
-                    </button>
-                    <span
-                      className={`usage-account-status ${blocked || a.needsAuth ? 'blocked' : ''}`}
-                    >
-                      {a.needsAuth
-                        ? 'Needs sign-in'
-                        : blocked
-                          ? `Blocked · ${reset ? 'resets ' + resetLabel(reset, Date.now()) : 'waiting for reset'}`
-                          : left === null
-                            ? 'Usage not read yet'
-                            : `${left}% left · ${limit?.label}`}
+                    <span className="usage-popover-tick" aria-hidden>
+                      {here ? '✓' : ''}
                     </span>
-                    {left !== null && (
-                      <span className={`usage-popover-window ${level(used)}`}>
-                        <span className="usage-popover-bar">
-                          <i style={{ width: `${left}%` }} />
+                    <span className="usage-popover-name">{a.name}</span>
+                    <span className="usage-popover-status">
+                      {a.needsAuth ? (
+                        <span className="usage-popover-quiet">Needs sign-in</span>
+                      ) : s.out ? (
+                        <span className="usage-popover-quiet">
+                          {s.reset ? `Resets ${shortReset(s.reset, now)}` : 'Out for now'}
                         </span>
-                      </span>
-                    )}
-                    {details && (
-                      <div className="usage-account-details">
-                        <div className="usage-popover-windows">
-                          {a.usage?.windows.map((w) => {
-                            const now = Date.now()
-                            const over = !!w.resetsAt && w.resetsAt <= now
-                            const v = over ? 0 : Math.min(100, Math.max(0, w.percent))
-                            return (
-                              <div key={w.label} className={`usage-popover-window ${level(v)}`}>
-                                <span>{w.label}</span>
-                                <span className="usage-popover-bar">
-                                  <i style={{ width: `${100 - v}%` }} />
-                                </span>
-                                <b>{100 - v}% left</b>
-                                <span className="usage-popover-reset">
-                                  {w.resetsAt && !over
-                                    ? `resets ${resetLabel(w.resetsAt, now)}`
-                                    : ''}
-                                </span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                        {can && (
-                          <button className="usage-account-switch" onClick={() => pick(a)}>
-                            Use this account
-                          </button>
-                        )}
-                        {here && <span className="usage-popover-note">This chat’s account</span>}
-                      </div>
-                    )}
-                  </div>
+                      ) : s.used === null ? (
+                        <span className="usage-popover-quiet">—</span>
+                      ) : (
+                        <>
+                          <span className={`usage-popover-bar ${level(s.used)}`} aria-hidden>
+                            <i style={{ width: `${s.used}%` }} />
+                          </span>
+                          <span className="usage-popover-pct">{s.used}%</span>
+                        </>
+                      )}
+                    </span>
+                    {can && <span className="usage-account-switch">Use for this chat</span>}
+                  </button>
                 )
               })}
             </div>
           ))}
-          {!chatId && (
-            <div className="usage-popover-note">Open a chat to move it to another account.</div>
+          {detail && (
+            <div className="usage-popover-details" aria-live="polite">
+              <div className="usage-popover-detail-head">
+                <span className="usage-popover-detail-name">{detail.name}</span>
+                {why(detail, state(detail)) && (
+                  <span className="usage-popover-detail-why">{why(detail, state(detail))}</span>
+                )}
+              </div>
+              <div className="usage-popover-windows" style={{ minHeight: rows * 18 }}>
+                {detail.usage?.windows.length ? (
+                  detail.usage.windows.map((w) => {
+                    const over = !!w.resetsAt && w.resetsAt <= now
+                    const v = over ? 0 : Math.min(100, Math.max(0, Math.round(w.percent)))
+                    return (
+                      <div key={w.label} className={`usage-popover-window ${level(v)}`}>
+                        <span className="usage-popover-window-label">{w.label}</span>
+                        <span className="usage-popover-bar" aria-hidden>
+                          <i style={{ width: `${v}%` }} />
+                        </span>
+                        <b>{v}% used</b>
+                        <span className="usage-popover-reset">
+                          {w.resetsAt && !over ? shortReset(w.resetsAt, now) : ''}
+                        </span>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <span className="usage-popover-empty">
+                    {detail.needsAuth ? detail.needsAuth : 'Usage not read yet'}
+                  </span>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
