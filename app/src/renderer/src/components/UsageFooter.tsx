@@ -132,6 +132,7 @@ export function UsageFooter(): React.JSX.Element | null {
                     key={a.id}
                     role="menuitem"
                     className={`usage-popover-row ${here ? 'on' : ''}`}
+                    aria-current={here ? 'true' : undefined}
                     disabled={!can}
                     onClick={() => pick(a)}
                     title={

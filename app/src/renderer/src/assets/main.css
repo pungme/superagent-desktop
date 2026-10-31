@@ -1768,24 +1768,20 @@ button {
 }
 .usage-popover-head > :first-child {
   width: 12px;
-  margin-right: 10px;
+  margin-right: 6px;
   flex: none;
 }
 .usage-popover-row {
   position: relative;
   gap: 6px;
-  padding: 8px 10px 8px 32px;
+  padding: 8px 10px;
 }
 .usage-popover-row + .usage-popover-row {
   margin-top: 2px;
 }
+/* No tick: the account this chat is on is the filled row with the bold name. */
 .usage-popover-tick {
-  position: absolute;
-  left: 10px;
-  top: 8px;
-  width: 12px;
-  margin: 0;
-  text-align: center;
+  display: none;
 }
 .usage-popover-name {
   font-size: 12.5px;
