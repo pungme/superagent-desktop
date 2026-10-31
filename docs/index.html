@@ -67,7 +67,6 @@
       -webkit-font-smoothing: antialiased;
     }
     img { display: block; max-width: 100%; height: auto; }
-    video { display: block; width: 100%; height: auto; }
     a { color: inherit; text-decoration: none; }
     :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 
@@ -127,8 +126,6 @@
     /* Starts a little small and settles to full size as you scroll, as Shotcaller's does. */
     #hero-film { transform-origin: 50% 0%; transform: scale(0.92); will-change: transform; }
     @media (prefers-reduced-motion: reduce) { #hero-film { transform: none; } }
-    .window { border-radius: 0.833% / 1.333%; outline: 1px solid rgba(0, 0, 0, 0.1); outline-offset: -1px; }
-    .window.build { border-radius: 0.926% / 1.476%; }
 
     /* Section header: Apple's two-column header, headline left, copy right, 120px apart */
     .header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 120px; row-gap: 20px; align-items: end; }
@@ -207,9 +204,6 @@
 
     /* The pictures: as wide as Apple lets media run (1260px at 1440), never in a card */
     .media { position: relative; width: var(--wide); max-width: 87.5%; margin: 80px auto 0; }
-    .media video { width: 100%; height: auto; background: #ececee; }
-    .media .window { border-radius: 12px; outline: 1px solid rgba(0, 0, 0, 0.1); outline-offset: -1px; }
-    .media.drawn .ill { margin: 0; max-width: none; }
     /* The tour's scenes happen on a desktop, outside the window: a plain #f5f5f7 tile holds them
        (white on a grey band), as Apple holds content in a 28px tile */
     .media.scene { background: #f5f5f7; border-radius: 28px; padding: 3.5% 4.5%; }
@@ -288,7 +282,6 @@
       .feature .eyebrow .jp { font-size: 12px; }
       .feature .more { font-size: 19px; }
       .media { margin-top: 40px; }
-      .media .window { border-radius: 6px; }
       .media.scene { border-radius: 18px; padding: 4%; }
       .vbtn { top: calc(100% + 12px); width: 30px; height: 30px; }
       .vbtn svg { width: 16px; height: 16px; }
@@ -336,632 +329,6 @@
     .final .ctas { margin-top: 32px; }
 
 
-    /* The drawn windows from the earlier page, redrawn in greys: laid out at 960px and scaled to the column */
-.ill { --cream:#f5f5f7; --ink:#1d1d1f; --muted:#6e6e73; --faint:#86868b; --line:rgba(0,0,0,.1);
-  --sage:#0071e3; --lilac:#0071e3; --blue:#0071e3; --blush:#d1d1d6; --gold:#d1d1d6; --deep:#6e6e73;
-  --card:#fff; --skel:#ededf0; --skel2:#dcdce0; --glass:rgba(255,255,255,.86); --glass-edge:#fff;
-  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; --sans: var(--font);
-  --ease: cubic-bezier(.22,.8,.24,1); --mz: 1;
-  position: relative; width: 100%; max-width: 980px; margin: 80px auto 0; font-family: var(--font); letter-spacing: normal; line-height: 1.6; }
-.ill .tl {width: 10px; height: 10px; border-radius: 50%; flex: none;}
-.ill .tl.r {background: #ff5f57;}
-.ill .tl.y {background: #febc2e;}
-.ill .tl.g {background: #28c840;}
-.ill .ln {height: 7px; border-radius: 4px; background: var(--skel);}
-.ill .ln.dk {background: var(--skel2);}
-.ill .fv {width: 9px; height: 9px; border-radius: 3px; flex: none;}
-.ill .fv1 {background: var(--blue);}
-.ill .fv2 {background: var(--sage);}
-.ill .bubble {max-width: 88%; padding: 8px 11px; border-radius: 12px; font-size: 0.68rem; line-height: 1.5;}
-.ill .bub-user {align-self: flex-end; background: var(--ink); color: #f5f5f7; border-bottom-right-radius: 4px;}
-.ill .mp-bar {display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-bottom: 1px solid var(--line);}
-.ill .mp-url {flex: 1; height: 12px; border-radius: 6px; background: var(--cream); border: 1px solid var(--line);
-      font-size: 0.5rem; color: var(--faint); display: flex; align-items: center; padding: 0 7px; font-family: var(--mono);}
-.ill .mini {border: 1px solid rgba(0, 0, 0, 0.13);
-      border-radius: 13px;
-      box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.05),
-        0 8px 18px -8px rgba(0, 0, 0, 0.24),
-        0 34px 60px -26px rgba(0, 0, 0, 0.42);}
-.ill .scaler {width: 100%; height: calc(564.7px * var(--mz));}
-.ill .mini {width: 960px; height: 564.7px; max-width: none; flex: none;
-      transform: scale(var(--mz)); transform-origin: top left;
-      text-align: left;
-      
-      display: flex; flex-direction: column;}
-.ill .mini > :last-child {margin-bottom: 0;}
-.ill .mini {background: rgba(255, 255, 255, 0.62); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;}
-.ill .mini {display: block; padding: 0; background: var(--card);}
-.ill .appwin {display: grid; grid-template-columns: 194px 1fr;
-      height: 100%; font-size: 13px; color: var(--ink);
-      background: var(--card);}
-.ill .ap-side {display: flex; flex-direction: column; min-width: 0;
-      background: rgba(245, 245, 247, 0.86);
-      border-right: 1px solid var(--line);}
-.ill .ap-lights {display: flex; gap: 6px; padding: 11px 12px 6px;}
-.ill .ap-side .tl {width: 9px; height: 9px;}
-.ill .ap-scroll {flex: 1; padding: 4px 8px; overflow: hidden;}
-.ill .ap-group {font-size: 0.5rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
-      color: var(--faint); padding: 9px 6px 4px;}
-.ill .ap-row {display: flex; align-items: center; gap: 6px; padding: 4px 6px;
-      border-radius: 6px; font-size: 0.62rem; font-weight: 550; line-height: 1.2;}
-.ill .ap-row.on {background: rgba(0, 0, 0, 0.07);}
-.ill .ap-row.dim {color: var(--muted); font-weight: 500;}
-.ill .ap-row > span:first-of-type {overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .ap-caret {width: 0; height: 0; flex: none; margin-left: 1px;
-      border-left: 3.5px solid var(--faint);
-      border-top: 3px solid transparent; border-bottom: 3px solid transparent;}
-.ill .ap-br {margin-left: auto; flex: none;
-      font-size: 0.48rem; color: var(--faint); letter-spacing: 0.02em;
-      padding: 1px 5px; border-radius: 999px; border: 1px solid var(--line);}
-.ill .ap-chats {position: relative; padding: 1px 0 2px 13px;}
-.ill .ap-crow {display: flex; align-items: center; gap: 5px; padding: 4px 6px; margin-bottom: 1px;
-      border-radius: 6px; font-size: 0.6rem; color: var(--muted); line-height: 1.2;}
-.ill .ap-crow.on {background: rgba(0, 0, 0, 0.07); color: var(--ink); font-weight: 550;}
-.ill .ap-clabel {overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .ap-wt {flex: none; font-size: 0.44rem; font-weight: 700; letter-spacing: 0.06em;
-      text-transform: uppercase; padding: 1px 4px; border-radius: 3px;
-      background: rgba(142, 142, 147, 0.42); color: #0071e3;}
-.ill .ap-spin {width: 8px; height: 8px; border-radius: 50%; flex: none; margin-left: auto;
-      border: 1.5px solid rgba(142, 142, 147, 0.3); border-top-color: var(--sage);
-      animation: apspin 0.85s linear infinite;}
-.ill .ap-unread {width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex: none; margin-left: auto;}
-.ill .ap-foot {padding: 8px 14px; border-top: 1px solid var(--line);
-      font-size: 0.55rem; color: var(--faint);}
-.ill .ap-group.ap-proj {display: flex; align-items: center;}
-.ill .ap-gbtns {margin-left: auto; display: flex; gap: 5px;}
-.ill .ap-gbtns svg {width: 8px; height: 8px; fill: none; stroke: var(--faint);
-      stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;}
-.ill .ap-side .fv {width: 11px; height: 11px; border-radius: 2.5px; margin-left: 0;}
-.ill .ap-pi {width: 11px; height: 11px; flex: none; border-radius: 2.5px;
-      display: inline-grid; place-items: center; overflow: hidden;
-      font-size: 0.4rem; font-weight: 800; line-height: 1; color: #fff;}
-.ill .ap-pi.app {border-radius: 3px; box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);}
-.ill .ap-pi i {display: block;}
-.ill .pi-landing {background: var(--ink);}
-.ill .pi-design {background: var(--lilac);}
-.ill .pi-design i {width: 5px; height: 5px; border-radius: 50%; border: 1.2px solid #fff;}
-.ill .pi-mobile {background: #c7c7cc;}
-.ill .pi-mobile i {width: 4px; height: 5px; border-radius: 1px; background: #fff;}
-.ill .pi-shop {background: var(--gold); color: var(--ink);}
-.ill .pi-notes {background: #c7c7cc;}
-.ill .pi-notes i {width: 5px; height: 1px; background: #fff; box-shadow: 0 -2px 0 #fff, 0 2px 0 #fff;}
-.ill .pi-outreach {background: var(--blush);}
-.ill .pi-docs {background: var(--sage);}
-.ill .pi-studio {background: #c7c7cc;}
-.ill .pi-studio i {width: 5px; height: 4px; border-radius: 1px; border: 1.1px solid #fff;}
-.ill .pi-computer {background: var(--ink);}
-.ill .pi-computer i {width: 5px; height: 3.5px; border-radius: 0.8px; border: 1.1px solid #fff;}
-.ill .ap-row .ap-caret.end {margin-left: auto; transform: rotate(90deg);}
-.ill .ap-sim {margin-left: auto; flex: none; display: inline-flex;}
-.ill .ap-sim svg {width: 6px; height: 8px; fill: none; stroke: var(--muted); stroke-width: 1.2;}
-.ill .ap-sim + .ap-br {margin-left: 4px;}
-.ill .ap-repos {padding: 1px 0 2px 13px;}
-.ill .ap-repo {display: flex; align-items: center; gap: 5px; padding: 3px 6px;
-      font-size: 0.56rem; color: var(--muted); line-height: 1.2;}
-.ill .ap-repo .ap-rk {font-family: var(--mono); font-size: 0.46rem; color: var(--faint);}
-.ill .ap-rb {margin-left: auto; font-size: 0.46rem; color: var(--faint);}
-.ill .ap-main {display: flex; flex-direction: column; min-width: 0;}
-.ill .ap-bar {display: flex; align-items: center; gap: 7px;
-      padding: 8px 11px; border-bottom: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.6);}
-.ill .ap-btn {display: inline-flex; align-items: center; gap: 4px; flex: none;
-      font-size: 0.56rem; font-weight: 600; color: var(--muted);
-      padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.72);}
-.ill .ap-btn.ic-only {padding: 3px 6px; font-size: 0.62rem;}
-.ill .ic {width: 8px; height: 8px; flex: none; border-radius: 1.5px;}
-.ill .ic-files {background: var(--gold); border-radius: 1.5px 3px 1.5px 1.5px;}
-.ill .ic-todo {background: var(--blue);}
-.ill .ic-snip {background: var(--blush);}
-.ill .ap-title {font-size: 0.63rem; font-weight: 650; flex: none; margin-left: 3px;}
-.ill .ap-path {font-family: var(--mono); font-size: 0.5rem; color: var(--faint);
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;}
-.ill .ap-branch {flex: none; font-size: 0.5rem; color: var(--muted);
-      padding: 2px 6px; border-radius: 999px; border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.6);}
-.ill .ap-branch i {font-style: normal; color: var(--faint); margin-right: 2px;}
-.ill .ap-server {display: inline-flex; align-items: center; gap: 5px; flex: none;
-      font-size: 0.5rem; color: var(--muted); font-family: var(--mono);
-      padding: 2px 7px; border-radius: 999px;
-      background: rgba(142, 142, 147, 0.22); border: 1px solid rgba(142, 142, 147, 0.3);}
-.ill .ap-server i {width: 5px; height: 5px; border-radius: 50%; background: #0071e3; animation: pulse 2.4s ease-in-out infinite;}
-.ill .ap-server em {font-style: normal; font-family: var(--sans); color: #6e6e73; font-weight: 600;}
-.ill .ap-spacer {flex: 1;}
-.ill .ap-content {flex: 1; min-height: 0; display: flex;}
-.ill .ap-split {flex: 1; display: flex; min-width: 0;}
-.ill .ap-chat {flex: 1; display: flex; flex-direction: column; min-width: 0;}
-.ill .ap-chat.narrow {flex: none; width: 232px; border-left: 1px solid var(--line);}
-.ill .ap-stream {flex: 1; min-height: 0; padding: 12px 13px;
-      display: flex; flex-direction: column; gap: 7px;
-      align-items: flex-start; justify-content: flex-end;}
-.ill .ap-stream.ap-stack {position: relative; padding: 0;}
-.ill .ap-stream.ap-stack > .d1-pg {position: absolute; inset: 0; padding: 12px 13px;
-      display: flex; flex-direction: column; gap: 7px;
-      align-items: flex-start; justify-content: flex-end;}
-.ill .ap-chat .bubble {max-width: 82%; font-size: 0.61rem; padding: 6px 9px; border-radius: 10px;}
-.ill .ap-say {font-size: 0.61rem; line-height: 1.5; color: var(--ink); max-width: 94%;}
-.ill .ap-say code,
-.ill .d1-say code {font-family: var(--mono); font-size: 0.54rem; padding: 1px 4px; border-radius: 4px;
-      background: rgba(0, 0, 0, 0.07);}
-.ill .ap-tool {display: inline-flex; align-items: center; gap: 5px;
-      font-family: var(--mono); font-size: 0.52rem; color: #6e6e73;
-      padding: 2px 7px; border-radius: 999px; background: rgba(142, 142, 147, 0.24);}
-.ill .ap-tool i {width: 4px; height: 4px; border-radius: 50%; background: var(--sage);}
-.ill .ap-card {align-self: stretch; background: rgba(0, 0, 0, 0.04);
-      border-radius: 10px; padding: 10px 12px 0; overflow: hidden;}
-.ill .ap-comp {border-top: 1px solid var(--line); padding: 8px 11px 9px; background: rgba(255, 255, 255, 0.4);}
-.ill .ap-input {display: flex; align-items: center; gap: 6px; padding: 6px 8px;
-      border: 1px solid var(--line); border-radius: 9px; background: var(--card);
-      font-size: 0.58rem; color: var(--faint);}
-.ill .ap-input .hint {font-size: 0.52rem; opacity: 0.72;}
-.ill .ap-chat.narrow .ap-input .hint {display: none;}
-.ill .ap-cursor {width: 1px; height: 10px; background: var(--muted); margin-right: -3px; animation: apblink 1.1s steps(1) infinite;}
-.ill .ap-send {margin-left: auto; width: 15px; height: 15px; border-radius: 50%; flex: none;
-      background: var(--ink); color: var(--cream); font-size: 0.5rem;
-      display: flex; align-items: center; justify-content: center;}
-.ill .ap-modes {display: flex; gap: 5px; margin-top: 6px;}
-.ill .ap-pill {font-size: 0.5rem; color: var(--muted); padding: 2px 6px; border-radius: 5px;
-      border: 1px solid var(--line); background: rgba(255, 255, 255, 0.66);}
-.ill .ap-pill b {color: var(--ink); font-weight: 650;}
-.ill .ap-pane {flex: 1; display: flex; flex-direction: column; min-width: 0; background: rgba(245, 245, 247, 0.4);}
-.ill .ap-pbar {display: flex; align-items: center; gap: 8px; padding: 6px 10px;
-      border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, 0.5);}
-.ill .ap-purl {flex: 1; font-family: var(--mono); font-size: 0.5rem; color: var(--faint);
-      padding: 2px 8px; border-radius: 999px; background: var(--cream); border: 1px solid var(--line);
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .ap-pdevice,
-.ill .ap-vp {font-size: 0.52rem; color: var(--muted); padding: 2px 7px; border-radius: 999px;
-      border: 1px solid var(--line); background: rgba(255, 255, 255, 0.66);}
-.ill .ap-pdevice {flex: 1; text-align: left; border: 0; background: none; padding-left: 2px;}
-.ill .ap-vp b {color: var(--ink); font-weight: 650;}
-.ill .ap-live {display: inline-flex; align-items: center; gap: 5px; flex: none;
-      font-size: 0.5rem; color: #6e6e73; font-weight: 600;}
-.ill .ap-live i {width: 5px; height: 5px; border-radius: 50%; background: #0071e3; animation: pulse 2.4s ease-in-out infinite;}
-.ill .ap-pbody {flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 14px;}
-.ill .ap-pane.sim .ap-pbody {padding: 12px;}
-.ill .ap-pane.sim {background: rgba(0, 0, 0, 0.05);}
-.ill .mini.scene {background: none; border: 0; overflow: visible;}
-.ill .d7-desk {position: relative; height: 100%; border-radius: 13px; overflow: hidden;
-      background: #f5f5f7;}
-.ill .appwin.dim {position: absolute; left: 30px; right: 78px; top: 26px; bottom: 40px;
-      height: auto; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
-      box-shadow: 0 18px 44px -22px rgba(0, 0, 0, 0.55);
-      opacity: 0.55; filter: saturate(0.55);}
-.ill.ill-features .ap-crow.on {background: none;}
-.ill.ill-features .ap-chats {z-index: 0;}
-.ill.ill-features .ap-chats::before {content: ""; position: absolute; left: 13px; right: 0; top: 0;
-      height: var(--rowh, 19.5px); border-radius: 6px; background: rgba(0, 0, 0, 0.08);
-      animation: aphl 12s var(--ease) infinite; z-index: -1;}
-.ill.ill-features .ap-crow {position: relative; z-index: 1;}
-.ill .ap-card .d2-graph {transform: scale(1.2); transform-origin: center center; margin: 20px auto 26px;}
-.ill .ap-card .d2-files {border-top: 1px solid var(--line); background: none; padding: 8px 0 2px; margin-top: 2px;}
-.ill .ap-card .d2-fh {margin-bottom: 5px;}
-.ill .d1-pg1 {animation: d1a 12s ease-in-out infinite;}
-.ill .d1-pg2 {animation: d1b 12s ease-in-out infinite; opacity: 0;}
-.ill .d1-pg3 {animation: d1c 12s ease-in-out infinite; opacity: 0;}
-.ill .d1-say {font-size: 0.61rem; line-height: 1.5; color: var(--ink); max-width: 94%;}
-.ill .d1-steps {display: flex; align-items: center; gap: 6px; font-size: 0.53rem; color: var(--muted); padding: 1px 0;}
-.ill .d1-steps .caret {color: var(--faint);}
-.ill .d1-steps b {font-weight: 650; color: var(--ink);}
-.ill .d1-swap {display: inline-grid;}
-.ill .d1-swap > span {grid-area: 1 / 1; white-space: nowrap;}
-.ill .d1-n1,
-.ill .d1-s1 {animation: d1sw1 12s steps(1) infinite;}
-.ill .d1-n2,
-.ill .d1-s2 {animation: d1sw2 12s steps(1) infinite; opacity: 0;}
-.ill .d1-n3,
-.ill .d1-s3 {animation: d1sw3 12s steps(1) infinite; opacity: 0;}
-.ill .d1-live {display: inline-flex; align-items: center; gap: 4px;}
-.ill .d1-live i {width: 4px; height: 4px; border-radius: 50%; background: var(--sage);
-      animation: d1pulse 1.4s ease-in-out infinite, d1workfade 12s ease-in-out infinite;}
-.ill .d1-card {align-self: stretch; background: rgba(0, 0, 0, 0.045); border-radius: 9px;
-      padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
-      animation: d1card 12s var(--ease) infinite;}
-.ill .d1-pg2 .d1-card,
-.ill .d1-pg3 .d1-card {animation: none; opacity: 1; transform: none;}
-.ill .d1-bul {margin: 1px 0 0; padding-left: 13px; display: flex; flex-direction: column; gap: 2px;}
-.ill .d1-bul li {font-size: 0.58rem; line-height: 1.45; color: var(--muted);}
-.ill .d1-bul b {color: var(--ink); font-weight: 650;}
-.ill .d1-diff {display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 0.5rem; color: var(--faint); margin-top: 2px;}
-.ill .d1-diff .add {color: #6e6e73;}
-.ill .d1-diff .del {color: #86868b;}
-.ill .d1-late {animation: d1late 12s var(--ease) infinite; opacity: 0;}
-.ill .d2-graph {position: relative; width: 300px; height: 130px; margin: 0 auto;
-      transform: scale(1.7); transform-origin: center center;}
-.ill .d2-lbl {position: absolute; font-family: var(--mono); font-size: 0.56rem; color: var(--faint);}
-.ill .d2-lbl.main-l {left: 0; top: 84px;}
-.ill .d2-lbl.br-l {left: 136px; top: 68px; color: #0071e3;}
-.ill .d2-line {position: absolute; height: 3px; border-radius: 2px; background: var(--skel2);}
-.ill .d2-main-line {left: 0; right: 0; top: 104px;}
-.ill .d2-diag {left: 74px; top: 100px; width: 74px; background: var(--lilac);
-      transform-origin: left center; transform: rotate(-38deg) scaleX(1);
-      animation: d2diag 8s var(--ease) infinite;}
-.ill .d2-branch-line {left: 132px; top: 54px; width: 158px; background: var(--lilac);
-      transform-origin: left center;
-      animation: d2br 8s var(--ease) infinite;}
-.ill .d2-c {position: absolute; width: 13px; height: 13px; border-radius: 50%; border: 3px solid #fff;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);}
-.ill .d2-cm {background: var(--muted); top: 96px;}
-.ill .d2-cb {background: var(--lilac); top: 46px;}
-.ill .cm1 {left: 18px;}
-.ill .cm2 {left: 52px;}
-.ill .cm3 {left: 68px; top: 96px; background: var(--sage);}
-.ill .cb1 {left: 150px;}
-.ill .cb2 {left: 196px;}
-.ill .cb3 {left: 242px;}
-.ill .d2-pop1 {animation: d2pop 8s var(--ease) infinite;}
-.ill .d2-pop2 {animation: d2pop2 8s var(--ease) infinite;}
-.ill .d2-pop3 {animation: d2pop3 8s var(--ease) infinite;}
-.ill .d2-clean {position: absolute; left: 6px; top: 118px;
-      font-size: 0.58rem; font-weight: 600; color: #6e6e73;
-      display: flex; align-items: center; gap: 5px;}
-.ill .d2-clean i {width: 12px; height: 12px; border-radius: 50%; background: var(--sage); color: #fff;
-      display: inline-flex; align-items: center; justify-content: center; font-size: 0.5rem; font-style: normal;
-      animation: d2clean 8s ease-in-out infinite;}
-.ill .d2-commit-msg {position: absolute; right: 0; top: 0; font-family: var(--mono); font-size: 0.55rem; color: var(--muted);
-      background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px;
-      animation: d2msg 8s var(--ease) infinite;}
-.ill .iphone {position: relative; width: 148px; border-radius: 26px;
-      background: #1d1d1f; padding: 7px;
-      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2), 0 22px 44px -18px rgba(0, 0, 0, 0.45),
-        inset 0 0 0 2px #3a3a3c;
-      flex: none;}
-.ill .iphone-screen {position: relative; border-radius: 20px; overflow: hidden;
-      background: var(--card);
-      
-      aspect-ratio: 9 / 19.5;}
-.ill .iphone .island {position: absolute; top: 13px; left: 50%; transform: translateX(-50%);
-      width: 46px; height: 12px; border-radius: 999px; background: #1d1d1f; z-index: 6;}
-.ill .d3-phone {width: 178px;}
-.ill .d3-app {display: flex; flex-direction: column; height: 100%; padding-top: 34px;}
-.ill .d3-navbar {padding: 0 12px 8px; display: flex; align-items: center; justify-content: space-between;}
-.ill .d3-title {font-size: 0.62rem; font-weight: 700; color: var(--ink);}
-.ill .d3-list {flex: 1; padding: 4px 10px; display: flex; flex-direction: column; gap: 8px;}
-.ill .d3-card {position: relative; background: var(--cream); border-radius: 10px; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px;}
-.ill .d3-card.hl {animation: d3hl 8s ease-in-out infinite;}
-.ill .d3-ripple {position: absolute; right: 16px; top: 12px; width: 26px; height: 26px; border-radius: 50%;
-      border: 2.5px solid var(--blue); opacity: 0; pointer-events: none; z-index: 5;
-      animation: d3rip 8s var(--ease) infinite;}
-.ill .d3-sheet {position: absolute; left: 0; right: 0; bottom: 0; height: 62%;
-      background: #fff; border-radius: 16px 16px 0 0; z-index: 4;
-      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.14);
-      padding: 12px; display: flex; flex-direction: column; gap: 8px;
-      transform: translateY(106%);
-      animation: d3sheet 8s var(--ease) infinite;}
-.ill .d3-grab {width: 30px; height: 4px; border-radius: 2px; background: var(--skel2); margin: 0 auto 2px;}
-.ill .d3-btn {margin-top: auto; height: 26px; border-radius: 9px; background: var(--ink); color: #f5f5f7;
-      display: flex; align-items: center; justify-content: center; font-size: 0.58rem; font-weight: 600;}
-.ill .d4-flex {display: flex; flex: 1; align-items: center; justify-content: center; gap: 30px; padding: 18px 6px;}
-.ill .d4-desktop {width: min(392px, 58%); background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
-      box-shadow: 0 2px 6px rgba(0, 0, 0,0.07), 0 18px 40px -20px rgba(0, 0, 0,0.35);}
-.ill .d4-view {height: 244px; overflow: hidden; position: relative;}
-.ill .d4-phone {width: 136px;}
-.ill .d4-phone .iphone-screen {padding-top: 0;}
-.ill .pm {display: flex; flex-direction: column; gap: 7px; padding: 11px; animation: d4scroll 8s var(--ease) infinite;}
-.ill .pm-nav {display: flex; gap: 6px; align-items: center; margin-bottom: 2px;}
-.ill .pm-logo {width: 12px; height: 12px; border-radius: 4px; background: var(--sage);}
-.ill .pm-hero {height: 64px; border-radius: 8px;
-      background: #e8e8ed; opacity: 0.7; position: relative; overflow: hidden;}
-.ill .pm-btn {width: 74px; height: 20px; border-radius: 7px; background: var(--ink);
-      animation: d4btn 8s var(--ease) infinite;}
-.ill .pm-cards {display: flex; gap: 7px;}
-.ill .pm-card {flex: 1; height: 44px; border-radius: 7px; background: var(--cream); border: 1px solid var(--line);}
-.ill .d5-steps {margin: 16px auto 0; display: flex; flex-direction: column; gap: 2px;
-      width: fit-content; max-width: 100%;}
-.ill .d5-step {display: flex; align-items: center; gap: 9px;
-      font-size: 0.72rem; color: var(--faint);
-      padding: 4px 10px; border-radius: 999px;
-      animation: d5step 10s steps(1) infinite;}
-.ill .d5-step .n {font-family: var(--mono); font-size: 0.6rem; width: 15px; flex: none;}
-.ill .d5-step b {font-weight: 600;}
-.ill .d5-step:nth-child(1) {animation-name: d5step1;}
-.ill .d5-step:nth-child(2) {animation-name: d5step2;}
-.ill .d5-step:nth-child(3) {animation-name: d5step3;}
-.ill .d5-step:nth-child(4) {animation-name: d5step4;}
-.ill .d2-files {border-top: 1px solid var(--line); padding: 9px 12px 11px; background: rgba(255, 255, 255, 0.5);}
-.ill .d2-fh {font-size: 0.53rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
-      color: var(--faint); margin-bottom: 6px;}
-.ill .d2-f {display: flex; align-items: center; gap: 10px; padding: 3px 0;
-      font-family: var(--mono); font-size: 0.56rem; color: var(--muted);
-      opacity: 0; transform: translateY(4px);}
-.ill .d2-f .fn {flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .d2-f .add {color: #6e6e73;}
-.ill .d2-f .del {color: #86868b;}
-.ill .d2-f1 {animation: d2file 9s var(--ease) infinite; animation-delay: 0.6s;}
-.ill .d2-f2 {animation: d2file 9s var(--ease) infinite; animation-delay: 1.5s;}
-.ill .d2-f3 {animation: d2file 9s var(--ease) infinite; animation-delay: 2.4s;}
-.ill .dk-desk {position: relative; flex: 1; min-width: 0; overflow: hidden;
-      background: #f5f5f7;}
-.ill .dk-files {position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 12px; z-index: 1;}
-.ill .dk-file {width: 52px; text-align: center; font-size: 0.46rem; color: var(--muted);}
-.ill .dk-file i {display: block; width: 26px; height: 30px; margin: 0 auto 3px; border-radius: 4px;}
-.ill .dk-doc {background: #ffffff; border: 1px solid var(--line); box-shadow: 0 2px 5px rgba(0, 0, 0,0.1);}
-.ill .dk-folder {background: #c7c7cc; border-radius: 3px 5px 4px 4px !important; box-shadow: 0 2px 5px rgba(0, 0, 0,0.12);}
-.ill .dk-win {position: absolute; border-radius: 9px; overflow: hidden;
-      background: var(--card); border: 1px solid rgba(0, 0, 0, 0.14);
-      box-shadow: 0 2px 5px rgba(0, 0, 0,0.06), 0 14px 30px -12px rgba(0, 0, 0, 0.42);
-      display: flex; flex-direction: column;}
-.ill .dk-bar {display: flex; align-items: center; gap: 5px; padding: 5px 7px; flex: none;
-      border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, 0.75);}
-.ill .dk-bar .tl {width: 6px; height: 6px;}
-.ill .dk-url {font-family: var(--mono); font-size: 0.42rem; color: var(--faint); margin-left: 4px;}
-.ill .dk-name {font-size: 0.48rem; font-weight: 650; margin-left: 4px;}
-.ill .dk-bar .ap-spin {width: 7px; height: 7px;}
-.ill .dk-browser {left: 15%; top: 12%; width: 44%; height: 60%; z-index: 2; animation: dkFloatA 13s ease-in-out infinite;}
-.ill .dk-page {flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 5px;}
-.ill .dk-hero {height: 34%; border-radius: 5px; background: #e8e8ed; opacity: 0.62;}
-.ill .dk-page .ln {height: 4px;}
-.ill .dk-cards {display: flex; gap: 4px; margin-top: 1px;}
-.ill .dk-cards span {flex: 1; height: 20px; border-radius: 4px; background: var(--cream); border: 1px solid var(--line);}
-.ill .dk-cursor {position: absolute; z-index: 5; width: 9px; height: 12px; background: var(--ink);
-      -webkit-clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
-      clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
-      filter: drop-shadow(0 0 1px #fff) drop-shadow(0 2px 3px rgba(0, 0, 0,0.35));
-      animation: dkCursor 9s var(--ease) infinite;}
-.ill .dk-chat {right: 6%; top: 7%; width: 32%; height: 46%; z-index: 3; animation: dkFloatB 15s ease-in-out infinite;}
-.ill .dk-chat2 {right: 13%; bottom: 12%; width: 27%; height: 27%; z-index: 2; animation: dkFloatA 17s ease-in-out infinite;}
-.ill .dk-body {flex: 1; min-height: 0; padding: 8px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start;}
-.ill .dk-body .bubble {font-size: 0.46rem; padding: 4px 6px; border-radius: 7px; max-width: 92%;}
-.ill .dk-body .ap-say {font-size: 0.46rem; line-height: 1.45;}
-.ill .dk-body .ap-tool {font-size: 0.4rem; padding: 1px 5px;}
-.ill .dk-body .ln {height: 4px;}
-.ill .dk-typing {display: flex; gap: 3px; padding: 2px 0;}
-.ill .dk-typing i {width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--faint); animation: dkDot 1.3s ease-in-out infinite;}
-.ill .dk-typing i:nth-child(2) {animation-delay: 0.16s;}
-.ill .dk-typing i:nth-child(3) {animation-delay: 0.32s;}
-.ill .dk-dash {left: 6%; bottom: 13%; width: 21%; z-index: 3; padding: 9px 10px 10px; gap: 4px; animation: dkFloatB 12s ease-in-out infinite;}
-.ill .dk-dash-head {font-size: 0.42rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);}
-.ill .dk-stat {display: flex; align-items: baseline; gap: 4px;}
-.ill .dk-stat b {font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em;}
-.ill .dk-stat span {font-size: 0.44rem; color: var(--muted);}
-.ill .dk-bars {display: flex; align-items: flex-end; gap: 3px; height: 18px; margin-top: 2px;}
-.ill .dk-bars i {flex: 1; border-radius: 1.5px; background: var(--sage); opacity: 0.65;}
-.ill .dk-bars i:nth-child(1) {height: 34%;}
-.ill .dk-bars i:nth-child(2) {height: 56%;}
-.ill .dk-bars i:nth-child(3) {height: 44%;}
-.ill .dk-bars i:nth-child(4) {height: 78%;}
-.ill .dk-bars i:nth-child(5) {height: 62%;}
-.ill .dk-bars i:nth-child(6) {height: 92%;}
-.ill .dk-bars i:nth-child(7) {height: 70%;}
-.ill .dk-delta {font-size: 0.42rem; color: #6e6e73;}
-.ill .dk-dock {position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 6;
-      display: flex; align-items: flex-end; gap: 6px; padding: 5px 8px 7px; border-radius: 11px;
-      background: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.7);
-      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-      box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.4);}
-.ill .dk-app {position: relative; width: 20px; height: 20px; border-radius: 6px; background: rgba(0, 0, 0, 0.15);}
-.ill .dk-app i {position: absolute; left: 50%; bottom: -5px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--muted);}
-.ill .dk-app.a1 {background: var(--ink);}
-.ill .dk-app.a2 {background: #c7c7cc;}
-.ill .dk-app.a3 {background: #c7c7cc;}
-.ill .dk-app.a4 {background: rgba(142, 142, 147, 0.6);}
-.ill .dk-app.a5 {background: rgba(142, 142, 147, 0.6);}
-.ill .dk-app.a6 {background: rgba(142, 142, 147, 0.6);}
-.ill .ap-pbody.flush {padding: 0; align-items: stretch;}
-.ill .br {flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff;}
-.ill .br-tabs {display: flex; align-items: flex-end; gap: 5px; padding: 5px 7px 0; background: rgba(245, 245, 247,0.9);}
-.ill .br-tab {display: inline-flex; align-items: center; gap: 5px; max-width: 78%;
-      font-size: 0.44rem; color: var(--ink); background: #fff;
-      border-radius: 6px 6px 0 0; padding: 4px 9px;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .br-fav {width: 7px; height: 7px; border-radius: 1.5px; background: #86868b; flex: none;}
-.ill .br-plus {font-size: 0.5rem; color: var(--faint); padding: 0 4px 3px;}
-.ill .br-omni {display: flex; align-items: center; gap: 7px; padding: 5px 8px; background: #fff; border-bottom: 1px solid var(--line);}
-.ill .br-arrows {font-size: 0.5rem; color: var(--faint); letter-spacing: 2px;}
-.ill .br-url {flex: 1; display: inline-flex; align-items: center; gap: 4px;
-      font-family: var(--mono); font-size: 0.44rem; color: var(--ink);
-      background: #f1f3f4; border-radius: 999px; padding: 3px 9px;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .br-url em {font-style: normal; color: var(--faint);}
-.ill .br-lock {width: 5px; height: 6px; border-radius: 1px; background: var(--faint); flex: none;}
-.ill .gm {position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 84px 1fr; background: #fff;}
-.ill .gm-side {padding: 8px 6px;}
-.ill .gm-compose {display: flex; align-items: center; gap: 4px; justify-content: center;
-      font-size: 0.46rem; font-weight: 600; color: #3c4043;
-      background: #e8e8ed; border-radius: 999px; padding: 5px 0; margin-bottom: 8px;}
-.ill .gm-compose i {width: 6px; height: 6px; border-radius: 1px; background: #3c4043;}
-.ill .gm-nav {display: flex; align-items: center; justify-content: space-between;
-      font-size: 0.46rem; color: #444746; padding: 3px 7px; border-radius: 999px; margin-bottom: 1px;}
-.ill .gm-nav.on {background: #e8e8ed; color: #0071e3; font-weight: 700;}
-.ill .gm-nav span {font-size: 0.42rem;}
-.ill .gm-list {border-left: 1px solid #e8eaed; overflow: hidden;}
-.ill .gm-row {display: flex; align-items: center; gap: 7px; padding: 5px 9px;
-      border-bottom: 1px solid #f1f3f4; font-size: 0.45rem; color: #5f6368;}
-.ill .gm-from {width: 58px; flex: none; font-weight: 700; color: #202124; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .gm-subj {flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .gm-subj b {color: #202124; font-weight: 600;}
-.ill .gm-when {font-size: 0.4rem; color: #5f6368; flex: none;}
-.ill .gm-done {flex: none; width: 8px; font-size: 0.44rem; color: transparent;}
-.ill .gm-row.done .gm-done {color: #6e6e73;}
-.ill .gm-row.done {color: #9aa0a6;}
-.ill .gm-row.now {background: #ffffff;}
-.ill .gm-row.now .gm-done {color: #0071e3; animation: gmNow 1.4s ease-in-out infinite;}
-.ill .gm-comp {position: absolute; right: 10px; bottom: 0; width: 47%; z-index: 5;
-      background: #fff; border-radius: 8px 8px 0 0;
-      box-shadow: 0 -1px 3px rgba(60,64,67,0.16), 0 8px 20px -6px rgba(60,64,67,0.4);
-      display: flex; flex-direction: column; overflow: hidden;}
-.ill .gm-ch {font-size: 0.44rem; font-weight: 650; color: #fff; background: #404040; padding: 4px 9px;}
-.ill .gm-crow {display: flex; gap: 6px; padding: 4px 9px; border-bottom: 1px solid #f1f3f4; font-size: 0.44rem; color: #5f6368;}
-.ill .gm-crow span {width: 26px; flex: none;}
-.ill .gm-crow b {font-weight: 400; color: #202124; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-.ill .gm-ctext {padding: 7px 9px; font-size: 0.44rem; line-height: 1.65; color: #202124;}
-.ill .gm-cfoot {display: flex; align-items: center; gap: 8px; padding: 6px 9px 8px;}
-.ill .gm-send {font-size: 0.45rem; font-weight: 650; color: #fff; background: #0071e3;
-      border-radius: 999px; padding: 3px 12px;
-      animation: mlSend 9s var(--ease) infinite;}
-.ill .gm-clip {font-family: var(--mono); font-size: 0.4rem; color: #5f6368;}
-.ill .ml-swap {position: relative; display: inline-grid;}
-.ill .ml-swap > i {grid-area: 1 / 1; font-style: normal; white-space: nowrap;}
-.ill .ml-swap .n1 {animation: mlA 9s steps(1) infinite;}
-.ill .ml-swap .n2 {animation: mlB 9s steps(1) infinite; opacity: 0;}
-.ill .ml-swap .n3 {animation: mlC 9s steps(1) infinite; opacity: 0;}
-.ill .ml-toast {position: absolute; left: 12px; bottom: 12px; z-index: 6;
-      font-size: 0.44rem; font-weight: 600; color: #fff; background: #323232;
-      border-radius: 4px; padding: 4px 10px;
-      opacity: 0; transform: translateY(6px);
-      animation: mlToast 9s var(--ease) infinite;}
-.ill .ml-cursor {position: absolute; z-index: 7; width: 10px; height: 13px; background: var(--ink);
-      -webkit-clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
-      clip-path: polygon(0 0, 0 74%, 26% 58%, 44% 100%, 62% 92%, 45% 51%, 78% 50%);
-      filter: drop-shadow(0 0 1px #fff) drop-shadow(0 2px 4px rgba(0, 0, 0,0.4));
-      animation: mlCur 9s var(--ease) infinite;}
-.ill .ml-prog {font-size: 0.5rem; color: var(--muted);}
-.ill .ml-prog b {font-weight: 650; color: var(--ink);}
-.ill .d7-note {position: absolute; right: 14px; width: 268px;
-      display: flex; gap: 9px; padding: 10px 11px;
-      background: rgba(255, 255, 255, 0.92);
-      border: 1px solid var(--glass-edge); border-radius: 14px;
-      backdrop-filter: blur(14px) saturate(150%);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07), 0 18px 40px -16px rgba(0, 0, 0, 0.45);
-      transform: translateX(300px); opacity: 0;}
-.ill .d7-n1 {top: 16px; animation: d7a 12s var(--ease) infinite;}
-.ill .d7-n2 {top: 16px; animation: d7b 12s var(--ease) infinite;}
-.ill .d7-icon {width: 26px; height: 26px; border-radius: 7px; flex: none;
-      background: var(--ink); display: flex; align-items: center; justify-content: center;}
-.ill .d7-icon i {width: 8px; height: 8px; border-radius: 2px; background: var(--cream);}
-.ill .d7-txt {min-width: 0; flex: 1;}
-.ill .d7-hd {display: flex; align-items: baseline; gap: 6px;}
-.ill .d7-hd b {font-size: 0.58rem; font-weight: 700; letter-spacing: 0.02em;}
-.ill .d7-time {font-size: 0.53rem; color: var(--faint); margin-left: auto;}
-.ill .d7-ttl {font-size: 0.63rem; font-weight: 600; margin-top: 1px; line-height: 1.35;}
-.ill .d7-bd {font-size: 0.6rem; color: var(--muted); line-height: 1.45; margin-top: 2px;}
-.ill .d7-bd code {font-family: var(--mono); font-size: 0.54rem; padding: 1px 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.07);}
-.ill .d7-kind {display: inline-block; font-size: 0.5rem; font-weight: 700; letter-spacing: 0.1em;
-      text-transform: uppercase; padding: 1px 6px; border-radius: 999px; margin-bottom: 3px;}
-.ill .d7-kind.asks {background: rgba(142, 142, 147, 0.4); color: #0071e3;}
-.ill .d7-kind.done {background: rgba(142, 142, 147, 0.4); color: #6e6e73;}
-.ill .d7-dock {position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
-      display: flex; align-items: flex-end; gap: 7px;
-      padding: 6px 9px; border-radius: 13px;
-      background: rgba(255, 255, 255, 0.6); border: 1px solid var(--glass-edge);
-      backdrop-filter: blur(10px);}
-.ill .d7-app {width: 21px; height: 21px; border-radius: 6px; background: rgba(0, 0, 0, 0.16);}
-.ill .d7-app.sa {background: var(--ink); position: relative;}
-.ill .d7-badge {position: absolute; top: -4px; right: -4px; min-width: 13px; height: 13px;
-      border-radius: 999px; background: #86868b; color: #fff;
-      font-size: 0.46rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
-      animation: d7badge 12s var(--ease) infinite; opacity: 0; transform: scale(0.3);}
-.ill .dk {border-radius: 16px; overflow: hidden;}
-.ill .dk {opacity: 1; transform: none;
-      transition: opacity 1s var(--ease), transform 1s var(--ease);
-      transition-delay: var(--d, 0s);}
-.ill .dk-browser {grid-area: browser; display: flex; flex-direction: column; min-height: 300px; background: var(--glass);
-      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--glass-edge);}
-.ill .dk-dash {grid-area: dash; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;}
-@media (prefers-reduced-motion: reduce) { .ill .d1-pg2,
-.ill .d1-pg3,
-.ill .d3-ripple {opacity: 0 !important;} }
-@media (prefers-reduced-motion: reduce) { .ill .d3-sheet {transform: translateY(106%) !important;} }
-.ill .mini,
-.ill .d1-pg {background: var(--card) !important;}
-.ill .pm-hero {background: var(--skel) !important;}
-@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.75); } }
-@keyframes apspin { to { transform: rotate(360deg); } }
-@keyframes apblink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
-@keyframes aphl {
-      0%, 30% { transform: translateY(0); }
-      34%, 63% { transform: translateY(calc(var(--rowh, 19.5px) + 1px)); }
-      67%, 95% { transform: translateY(calc((var(--rowh, 19.5px) + 1px) * 2)); }
-      100% { transform: translateY(0); }
-    }
-@keyframes d1a { 0%, 30% { opacity: 1; } 32%, 97% { opacity: 0; } 99%, 100% { opacity: 1; } }
-@keyframes d1b { 0%, 32% { opacity: 0; } 34%, 63% { opacity: 1; } 65%, 100% { opacity: 0; } }
-@keyframes d1c { 0%, 65% { opacity: 0; } 67%, 95% { opacity: 1; } 97%, 100% { opacity: 0; } }
-@keyframes d1sw1 { 0%, 7% { opacity: 1; } 8%, 100% { opacity: 0; } }
-@keyframes d1sw2 { 0%, 7% { opacity: 0; } 8%, 15% { opacity: 1; } 16%, 100% { opacity: 0; } }
-@keyframes d1sw3 { 0%, 15% { opacity: 0; } 16%, 100% { opacity: 1; } }
-@keyframes d1pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-@keyframes d1workfade { 0%, 20% { opacity: 1; } 26%, 100% { opacity: 0; } }
-@keyframes d1card {
-      0%, 18% { opacity: 0; transform: translateY(5px); }
-      24%, 30% { opacity: 1; transform: none; }
-      32%, 100% { opacity: 0; transform: none; }
-    }
-@keyframes d1late {
-      0%, 24% { opacity: 0; transform: translateY(5px); }
-      29%, 30% { opacity: 1; transform: none; }
-      32%, 100% { opacity: 0; transform: none; }
-    }
-@keyframes d2diag {
-      0%, 6% { transform: rotate(-38deg) scaleX(0); }
-      16%, 94% { transform: rotate(-38deg) scaleX(1); }
-      97%, 100% { transform: rotate(-38deg) scaleX(0); }
-    }
-@keyframes d2br {
-      0%, 14% { transform: scaleX(0); }
-      26%, 94% { transform: scaleX(1); }
-      97%, 100% { transform: scaleX(0); }
-    }
-@keyframes d2pop { 0%, 30% { transform: scale(0); } 36% { transform: scale(1.35); } 40%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
-@keyframes d2pop2 { 0%, 44% { transform: scale(0); } 50% { transform: scale(1.35); } 54%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
-@keyframes d2pop3 { 0%, 58% { transform: scale(0); } 64% { transform: scale(1.35); } 68%, 94% { transform: scale(1); } 97%, 100% { transform: scale(0); } }
-@keyframes d2clean { 0%, 70% { transform: scale(1); } 75% { transform: scale(1.35); } 80%, 100% { transform: scale(1); } }
-@keyframes d2msg {
-      0%, 58% { opacity: 0; transform: translateY(5px); }
-      65%, 92% { opacity: 1; transform: translateY(0); }
-      96%, 100% { opacity: 0; }
-    }
-@keyframes d3hl {
-      0%, 16% { background: var(--cream); }
-      22%, 30% { background: rgba(142, 142, 147, 0.35); }
-      38%, 100% { background: var(--cream); }
-    }
-@keyframes d3rip {
-      0%, 17% { opacity: 0; transform: scale(0.25); }
-      20% { opacity: 0.75; transform: scale(0.45); }
-      32% { opacity: 0; transform: scale(1.9); }
-      100% { opacity: 0; transform: scale(0.25); }
-    }
-@keyframes d3sheet {
-      0%, 26% { transform: translateY(106%); }
-      35%, 66% { transform: translateY(4%); }
-      76%, 100% { transform: translateY(106%); }
-    }
-@keyframes d4scroll {
-      0%, 22% { transform: translateY(0); }
-      36%, 58% { transform: translateY(-24%); }
-      72%, 100% { transform: translateY(0); }
-    }
-@keyframes d4btn {
-      0%, 58% { transform: scale(1); }
-      63% { transform: scale(1.1); }
-      68%, 100% { transform: scale(1); }
-    }
-@keyframes d5step1 { 0%, 17% { color: var(--ink); background: rgba(142, 142, 147, 0.14); } 18%, 100% { color: var(--faint); background: transparent; } }
-@keyframes d5step2 { 0%, 17% { color: var(--faint); background: transparent; } 18%, 52% { color: var(--ink); background: rgba(142, 142, 147, 0.14); } 53%, 100% { color: var(--faint); background: transparent; } }
-@keyframes d5step3 { 0%, 52% { color: var(--faint); background: transparent; } 53%, 65% { color: var(--ink); background: rgba(142, 142, 147, 0.14); } 66%, 100% { color: var(--faint); background: transparent; } }
-@keyframes d5step4 { 0%, 65% { color: var(--faint); background: transparent; } 66%, 92% { color: var(--ink); background: rgba(142, 142, 147, 0.14); } 93%, 100% { color: var(--faint); background: transparent; } }
-@keyframes d2file {
-      0% { opacity: 0; transform: translateY(4px); }
-      8%, 88% { opacity: 1; transform: none; }
-      97%, 100% { opacity: 0; transform: translateY(4px); }
-    }
-@keyframes dkCursor {
-      0%, 8% { transform: translate(64px, 74px); }
-      22%, 40% { transform: translate(38px, 44px); }
-      54%, 72% { transform: translate(86px, 96px); }
-      88%, 100% { transform: translate(64px, 74px); }
-    }
-@keyframes dkDot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.45; } 30% { transform: translateY(-2px); opacity: 1; } }
-@keyframes dkFloatA { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-@keyframes dkFloatB { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(2px); } }
-@keyframes gmNow { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-@keyframes mlSend { 0%, 56% { transform: scale(1); } 60% { transform: scale(0.92); } 64%, 100% { transform: scale(1); } }
-@keyframes mlA { 0%, 32% { opacity: 1; } 33%, 100% { opacity: 0; } }
-@keyframes mlB { 0%, 32% { opacity: 0; } 33%, 65% { opacity: 1; } 66%, 100% { opacity: 0; } }
-@keyframes mlC { 0%, 65% { opacity: 0; } 66%, 100% { opacity: 1; } }
-@keyframes mlToast {
-      0%, 60% { opacity: 0; transform: translateY(6px); }
-      66%, 88% { opacity: 1; transform: none; }
-      94%, 100% { opacity: 0; transform: translateY(4px); }
-    }
-@keyframes mlCur {
-      0%, 10% { transform: translate(120px, 60px); }
-      26%, 48% { transform: translate(190px, 128px); }
-      58%, 70% { transform: translate(168px, 176px); }
-      86%, 100% { transform: translate(120px, 60px); }
-    }
 @keyframes d7a {
       0% { transform: translateX(300px); opacity: 0; }
       5%, 32% { transform: translateX(0); opacity: 1; }
@@ -976,19 +343,6 @@
       0%, 4% { opacity: 0; transform: scale(0.3); }
       9%, 100% { opacity: 1; transform: scale(1); }
     }
-/* page overrides: one hairline edge, no shadow card, greys for every project icon */
-.ill .mini { border: 0 !important; border-radius: 12px; box-shadow: none !important; outline: 1px solid rgba(0,0,0,.1); outline-offset: -1px; }
-.ill .mini.scene { outline: 0; }
-.ill .pi-design, .ill .pi-mobile, .ill .pi-shop, .ill .pi-notes, .ill .pi-outreach, .ill .pi-docs, .ill .pi-studio { background: #aeaeb2; color: #fff; }
-.ill .ic-files, .ill .ic-todo, .ill .ic-snip { background: #c7c7cc; }
-.ill .fv1, .ill .fv2 { background: #c7c7cc; }
-.ill .dk-bars i { background: #c7c7cc; opacity: 1; }
-.ill .dk-bars i:last-child { background: var(--blue); }
-.ill .d7-desk { background: none; border-radius: 0; overflow: visible; }
-.ill * { animation-play-state: paused; }
-.ill.play * { animation-play-state: running; }
-@media (prefers-reduced-motion: reduce) { .ill *, .ill *::before, .ill *::after { animation: none !important; transition: none !important; } }
-
 
     /* The tour's drawn scenes (app/src/renderer/src/tour/tour-scenes.css), as the app has them */
 
@@ -2659,62 +2013,6 @@
        switch, Computer, Chats and Projects, folder rows with their chats and branches under them;
        the conversation on a white sheet with its icon toolbar, breadcrumb and branch chip; the
        composer's rounded field with its round send button. */
-    .ill .appwin.cs-win { background: #ececee; }
-    .ill .cs-win .ap-side { background: transparent; border-right: 0; }
-    .ill .cs-win .ap-lights { padding: 11px 13px 4px; }
-    .ill .cs-seg { display: grid; grid-template-columns: 1fr 1fr; margin: 8px 10px 6px; padding: 2px; border-radius: 7px; background: rgba(0, 0, 0, 0.06); font-size: 0.56rem; color: var(--muted); text-align: center; }
-    .ill .cs-seg span { padding: 3px 0; border-radius: 5px; }
-    .ill .cs-seg .on { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.1); }
-    .ill .cs-comp { display: flex; align-items: center; gap: 6px; margin: 2px 8px 6px; padding: 4px 6px; font-size: 0.6rem; color: var(--muted); }
-    .ill .cs-win svg { width: 10px; height: 10px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
-    .ill .cs-h { display: flex; align-items: center; padding: 6px 12px 3px; font-size: 0.46rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-    .ill .cs-hb { margin-left: auto; display: flex; gap: 5px; color: var(--muted); }
-    .ill .cs-hb svg { width: 8px; height: 8px; }
-    .ill .cs-g { display: flex; align-items: center; gap: 3px; padding: 7px 10px 2px; font-size: 0.46rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-    .ill .cs-g .cs-caret { width: 8px; height: 8px; }
-    .ill .cs-row { display: flex; align-items: center; gap: 5px; margin: 1px 8px; padding: 4px 6px; border-radius: 6px; font-size: 0.6rem; color: var(--ink); }
-    .ill .cs-row.on { background: rgba(0, 0, 0, 0.06); }
-    .ill .cs-row span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ill .cs-row .cs-caret { width: 8px; height: 8px; color: var(--muted); }
-    .ill .cs-st { width: 5px; height: 5px; border-radius: 50%; border: 1px solid #aeaeb2; flex: none; }
-    .ill .cs-fold { color: var(--muted); }
-    .ill .cs-chat { display: flex; align-items: center; gap: 5px; margin: 1px 8px 1px 22px; padding: 4px 7px; border-radius: 6px; border-left: 0; }
-    .ill .cs-chat span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .ill .cs-chat b { font-size: 0.54rem; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ill .cs-chat small { font-size: 0.44rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ill .cs-chat.on { background: rgba(0, 0, 0, 0.07); }
-    .ill .cs-unread { width: 5px; height: 5px; border-radius: 50%; background: var(--ink); flex: none; }
-    .ill .cs-win .ap-spin { border-top-color: var(--ink); }
-    .ill .cs-foot { margin-top: auto; display: flex; align-items: center; gap: 5px; padding: 8px 14px 10px; font-size: 0.52rem; color: var(--muted); }
-    .ill .cs-claude { color: #d97757; font-size: 0.6rem; line-height: 1; }
-    .ill .cs-meter { width: 34px; height: 3px; border-radius: 2px; background: rgba(0, 0, 0, 0.1); margin-left: 4px; }
-    .ill .cs-gear { margin-left: auto; }
-    .ill .cs-win .ap-main { background: #fff; margin: 6px 6px 6px 0; border-radius: 9px; overflow: hidden; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05); }
-    .ill .cs-bar { gap: 5px; padding: 7px 9px; background: #fff; }
-    .ill .cs-bar > svg { color: var(--ink); margin-left: 4px; }
-    .ill .cb-ic { display: grid; place-items: center; width: 18px; height: 16px; border-radius: 5px; background: rgba(0, 0, 0, 0.05); color: var(--muted); }
-    .ill .cb-ic svg { width: 9px; height: 9px; }
-    .ill .cb-proj { font-size: 0.6rem; color: var(--muted); }
-    .ill .cb-sep { font-size: 0.6rem; color: var(--faint); }
-    .ill .cb-chat { font-size: 0.6rem; font-weight: 600; white-space: nowrap; }
-    .ill .cs-bar .ap-path { font-family: var(--font); font-size: 0.5rem; }
-    .ill .cs-bar .ap-branch { border-radius: 999px; padding: 1px 6px; border: 1px solid var(--line); background: #f5f5f7; color: var(--muted); }
-    .ill .cb-more { color: var(--muted); font-size: 0.6rem; letter-spacing: 0.05em; }
-    .ill .cs-win .ap-pane { background: #fff; }
-    .ill .cs-win .ap-pane.sim { background: #f5f5f7; }
-    .ill .cs-win .ap-chat.narrow { border-left: 1px solid var(--line); }
-    .ill .cs-win .ap-chat .bub-user { background: #1d1d1f; color: #fff; border-radius: 11px; }
-    .ill .cs-win .ap-say { background: #f2f2f4; border-radius: 10px; padding: 7px 9px; }
-    .ill .cs-steps { font-size: 0.52rem; color: var(--muted); }
-    .ill .cs-steps b { color: var(--ink); font-weight: 500; }
-    .ill .cs-meta { font-size: 0.46rem; color: var(--faint); margin-top: -4px; }
-    .ill .cs-comp-box { display: flex; align-items: center; gap: 6px; border-top: 0; padding: 8px 9px 9px; background: #fff; }
-    .ill .cs-in { flex: 1; min-width: 0; border-radius: 10px; background: #f2f2f4; padding: 7px 9px 6px; }
-    .ill .cs-ph { display: flex; align-items: center; gap: 4px; font-size: 0.56rem; color: var(--faint); }
-    .ill .cs-tools { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
-    .ill .cs-sp { flex: 1; }
-    .ill .cs-tools svg { width: 9px; height: 9px; color: var(--faint); }
-    .ill .cs-send { width: 20px; height: 20px; border-radius: 50%; background: #8e8e93; color: #fff; display: grid; place-items: center; font-size: 0.56rem; flex: none; }
 
     /* The scenes move only while on screen and playing; with reduced motion, they hold still */
     .media.scene .tour-scene * { animation-play-state: paused; }
@@ -2724,6 +2022,245 @@
       .vbtn { display: none; }
     }
 
+      /* Animated drawings of the app: one design system. Each is drawn at a fixed size (960x600, the hero
+       1200x750) and scaled to its column, so it looks the same from a phone to a wide screen. */
+    .gfx { position: relative; width: 100%; overflow: hidden; border-radius: calc(14px * var(--k, 1)); background: #f0f0f2; outline: 1px solid rgba(0, 0, 0, 0.1); outline-offset: -1px; isolation: isolate; }
+    .gfx-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-family: var(--font); font-size: 14px; line-height: 1.4; color: #1d1d1f; letter-spacing: -0.01em; text-align: left; transition: opacity 0.45s ease; -webkit-font-smoothing: antialiased; }
+    .gfx-stage.g-out { opacity: 0; }
+    .gfx-stage.g-paused *, .gfx-stage.g-paused *::before, .gfx-stage.g-paused *::after { animation-play-state: paused !important; }
+    .gfx-stage.g-still *, .gfx-stage.g-still *::before, .gfx-stage.g-still *::after { animation: none !important; transition: none !important; }
+    .gfx-stage svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+    .gfx-stage b { font-weight: 600; }
+    .g-hide { display: none !important; }
+    .g-pop { animation: g-pop 0.5s cubic-bezier(0.22, 0.8, 0.24, 1) both; }
+    @keyframes g-pop { from { opacity: 0; transform: translateY(8px); } }
+    @keyframes g-spin { to { transform: rotate(360deg); } }
+    @keyframes g-blink { 50% { opacity: 0; } }
+    @keyframes g-ripple { from { transform: scale(0.2); opacity: 0.5; } to { transform: scale(1); opacity: 0; } }
+    @keyframes g-flash { from { opacity: 0.9; } to { opacity: 0; } }
+    @keyframes g-ring { from { box-shadow: 0 0 0 0 rgba(0, 113, 227, 0.45); } to { box-shadow: 0 0 0 14px rgba(0, 113, 227, 0); } }
+    .g-ease { transition-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1); }
+
+    /* window and sidebar */
+    .g-side { position: absolute; left: 0; top: 0; bottom: 0; width: 200px; padding: 0 12px; display: flex; flex-direction: column; }
+    .g-tl { display: flex; gap: 8px; padding: 16px 6px 0; }
+    .g-tl i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12); }
+    .g-tl i:nth-child(2) { background: #febc2e; }
+    .g-tl i:nth-child(3) { background: #28c840; }
+    .g-seg { display: grid; grid-template-columns: 1fr 1fr; margin: 22px 2px 10px; padding: 2px; border-radius: 8px; background: rgba(0, 0, 0, 0.06); font-size: 13px; text-align: center; color: #6e6e73; }
+    .g-seg span { padding: 3px 0; border-radius: 6px; }
+    .g-seg .on { background: #fff; color: #1d1d1f; font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
+    .g-h { padding: 14px 10px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #86868b; }
+    .g-row { position: relative; display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 10px; border-radius: 8px; font-size: 14px; white-space: nowrap; transition: background 0.3s; }
+    .g-row.on { background: rgba(0, 0, 0, 0.07); font-weight: 500; }
+    .g-row > svg { color: #6e6e73; }
+    .g-row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .g-row.sub { height: 32px; margin-left: 18px; font-size: 13.5px; }
+    .g-row .br { color: #86868b; width: 13px; height: 13px; }
+    .g-spin { width: 13px; height: 13px; flex: none; border-radius: 50%; border: 1.7px solid rgba(0, 0, 0, 0.12); border-top-color: #1d1d1f; animation: g-spin 0.9s linear infinite; }
+    .g-dot { width: 8px; height: 8px; flex: none; margin: 0 2.5px; border-radius: 50%; background: #0071e3; }
+    .g-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 0 8px 16px; font-size: 13px; color: #6e6e73; }
+    .g-foot i { flex: 1; height: 3px; border-radius: 2px; background: rgba(0, 0, 0, 0.1); margin-right: 18px; }
+    .g-cl { stroke: #d97757 !important; stroke-width: 1.8 !important; width: 14px !important; height: 14px !important; }
+    .g-ln { display: block; height: 8px; border-radius: 4px; background: #e8e8ed; }
+    .g-ln.dk { background: #d2d2d7; }
+    .g-ln.lt { background: rgba(255, 255, 255, 0.35); }
+    .g-side .g-ln { background: rgba(0, 0, 0, 0.09); }
+
+    /* the white card(s) the chats live in */
+    .g-tile { position: absolute; display: flex; flex-direction: column; overflow: hidden; background: #fff; border-radius: 12px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.04); }
+    .g-tile.in { opacity: 0; }
+    .g-bar { flex: none; display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); font-size: 14px; white-space: nowrap; }
+    .g-bar > svg { color: #6e6e73; }
+    .g-bar .pj { color: #6e6e73; }
+    .g-bar .sep { color: #c7c7cc; }
+    .g-bar .tt { font-weight: 600; }
+    .g-chip { display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; padding: 2px 10px; border-radius: 999px; border: 1px solid rgba(0, 0, 0, 0.1); font-size: 12px; color: #6e6e73; }
+    .g-chip svg { width: 12px; height: 12px; }
+    .g-chip .live { width: 7px; height: 7px; border-radius: 50%; background: #0071e3; }
+    .g-th { flex: none; display: flex; align-items: center; gap: 9px; height: 44px; padding: 0 14px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); font-size: 14px; color: #86868b; white-space: nowrap; }
+    .g-badge { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: rgba(0, 0, 0, 0.06); font-size: 12px; font-weight: 600; color: #6e6e73; transition: background 0.35s, color 0.35s; }
+    .g-tile.focus .g-badge { background: #0071e3; color: #fff; }
+    .g-tile.focus .g-th { color: #1d1d1f; }
+    .g-tile.focus .g-th .nm { font-weight: 600; }
+    .g-body { position: relative; flex: 1; min-height: 0; display: flex; }
+    .g-chatc { position: relative; flex: 0 0 100%; min-width: 0; display: flex; flex-direction: column; transition: flex-basis 0.7s cubic-bezier(0.22, 0.8, 0.24, 1); }
+    .g-pane { position: relative; flex: 1 1 0; min-width: 0; overflow: hidden; background: #fafafa; border-right: 1px solid rgba(0, 0, 0, 0.06); }
+
+    /* chat */
+    .g-stream { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 20px 20px 8px; }
+    .g-u { align-self: flex-end; max-width: 80%; padding: 10px 15px; border-radius: 16px; background: #1d1d1f; color: #fff; font-size: 15px; line-height: 1.4; }
+    .g-a { align-self: flex-start; max-width: 88%; padding: 10px 15px; border-radius: 16px; background: #f2f2f4; font-size: 15px; line-height: 1.45; }
+    .g-u .g-ln, .g-a .g-ln { margin: 5px 0; }
+    .g-u .g-ln { background: rgba(255, 255, 255, 0.3); }
+    .g-a .g-ln { background: #dedee3; }
+    .g-steps { display: flex; align-items: center; gap: 6px; padding-left: 4px; font-size: 13px; color: #86868b; }
+    .g-steps svg { width: 12px; height: 12px; }
+    .g-steps b { color: #1d1d1f; font-weight: 500; }
+    .g-work { display: flex; align-items: center; gap: 9px; padding-left: 4px; font-size: 13px; color: #86868b; }
+    .g-logo { width: 20px; height: 20px; border-radius: 6px; background: #1d1d1f; display: grid; place-items: center; }
+    .g-logo::after { content: ""; width: 7px; height: 7px; border-radius: 2px; background: #fff; }
+    .w { display: none; }
+    .w.on { display: inline; }
+    .g-comp { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px 14px; }
+    .g-field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-radius: 12px; background: #f2f2f4; color: #86868b; font-size: 14px; }
+    .g-field .tx { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; color: #1d1d1f; }
+    .g-field .ph { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+    .g-field.typing .ph { flex: 1; visibility: hidden; }
+    .g-field.typing .tx::after { content: ""; display: inline-block; width: 1.5px; height: 17px; margin-left: 1px; vertical-align: -3px; background: #0071e3; animation: g-blink 1s steps(1) infinite; }
+    .g-send { width: 32px; height: 32px; flex: none; border-radius: 50%; background: #c7c7cc; color: #fff; display: grid; place-items: center; transition: background 0.25s; }
+    .g-send.go { background: #1d1d1f; }
+    .g-send svg { stroke-width: 1.8; }
+
+    /* browser pane */
+    .g-card { position: absolute; overflow: hidden; background: #fff; border-radius: 12px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 14px 34px -10px rgba(0, 0, 0, 0.22); transform-origin: 0 0; transition: transform 0.8s cubic-bezier(0.22, 0.8, 0.24, 1), opacity 0.6s ease; }
+    .g-card.off { opacity: 0; transform: translateY(36px); }
+    .g-url { display: flex; align-items: center; gap: 12px; height: 38px; padding: 0 14px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); color: #86868b; font-size: 13px; }
+    .g-url .f { flex: 1; display: flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 7px; background: #f2f2f4; color: #1d1d1f; }
+    .g-load { position: absolute; left: 0; top: 37px; height: 2px; width: 100%; background: #0071e3; transform-origin: 0 0; transform: scaleX(0); opacity: 0; }
+    .g-phone { position: absolute; overflow: hidden; background: #fff; border-radius: 28px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 0 0 7px #1d1d1f, 0 18px 40px -12px rgba(0, 0, 0, 0.35); transition: clip-path 0.9s cubic-bezier(0.22, 0.8, 0.24, 1), transform 0.9s cubic-bezier(0.22, 0.8, 0.24, 1), opacity 0.4s; }
+    .g-phone.off { opacity: 0; transform: translateY(24px) scale(0.92); clip-path: inset(40% 30% 40% 30% round 28px); }
+    .g-phone.flat { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 14px 34px -10px rgba(0, 0, 0, 0.22); border-radius: 16px; }
+    .g-island { position: absolute; left: 50%; top: 9px; width: 64px; height: 18px; margin-left: -32px; border-radius: 10px; background: #1d1d1f; z-index: 3; }
+    .g-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 5; }
+    .g-flash.on { animation: g-flash 0.6s ease-out; }
+
+    /* drawn web page, neutral */
+    .g-page { position: absolute; left: 0; right: 0; top: 38px; bottom: 0; overflow: hidden; }
+    .g-wnav { display: flex; align-items: center; gap: 14px; height: 40px; padding: 0 22px; }
+    .g-wnav .lg { font-size: 17px; font-weight: 700; letter-spacing: -0.03em; }
+    .g-wnav .g-ln { width: 44px; height: 6px; }
+    .g-wnav .sp { flex: 1; }
+    .g-btn { display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 16px; border-radius: 999px; background: #1d1d1f; color: #fff; font-size: 13px; font-weight: 500; white-space: nowrap; transition: background 0.6s, transform 0.6s cubic-bezier(0.22, 0.8, 0.24, 1); }
+    .g-btn.sm { height: 24px; padding: 0 12px; font-size: 11.5px; }
+    .g-btn.ghost { background: #fff; color: #1d1d1f; box-shadow: inset 0 0 0 1px #d2d2d7; }
+    .g-btn.blue { background: #0071e3; }
+    .g-hl { font-weight: 650; letter-spacing: -0.025em; line-height: 1.12; }
+    .g-ribbon { position: absolute; right: -40px; top: -30px; width: 330px; height: 300px; }
+
+    /* palette */
+    .g-blur { position: absolute; inset: 0; z-index: 30; background: rgba(240, 240, 242, 0.4); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); opacity: 0; transition: opacity 0.4s; pointer-events: none; }
+    .g-blur.on { opacity: 1; }
+    .g-pal { position: absolute; z-index: 31; width: 520px; overflow: hidden; background: #fbfbfd; border-radius: 14px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 28px 70px -16px rgba(0, 0, 0, 0.35); opacity: 0; transform: translateY(-8px); transition: opacity 0.35s, transform 0.5s cubic-bezier(0.22, 0.8, 0.24, 1); }
+    .g-pal.on { opacity: 1; transform: none; }
+    .g-pin { display: flex; align-items: center; height: 54px; padding: 0 20px; font-size: 18px; border-bottom: 1px solid rgba(0, 0, 0, 0.07); color: #86868b; }
+    .g-pin .tx { color: #1d1d1f; }
+    .g-pin .tx::after { content: ""; display: inline-block; width: 1.5px; height: 20px; margin-left: 1px; vertical-align: -4px; background: #0071e3; animation: g-blink 1s steps(1) infinite; }
+    .g-plist { padding: 8px; }
+    .g-pr { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border-radius: 8px; font-size: 15px; overflow: hidden; transition: height 0.35s cubic-bezier(0.22, 0.8, 0.24, 1), opacity 0.25s; }
+    .g-pr svg { color: #86868b; }
+    .g-pr .m { margin-left: auto; color: #86868b; font-size: 13px; }
+    .g-pr.sel { background: rgba(0, 0, 0, 0.06); }
+    .g-pr.gone { height: 0; opacity: 0; }
+    .g-key { position: absolute; z-index: 32; display: flex; gap: 6px; opacity: 0; transition: opacity 0.3s; }
+    .g-key.on { opacity: 1; }
+    .g-key kbd { min-width: 38px; height: 38px; padding: 0 8px; display: grid; place-items: center; border-radius: 9px; background: #fff; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 2px 0 rgba(0, 0, 0, 0.1); font: 500 18px var(--font); color: #1d1d1f; }
+
+    /* pointer */
+    .g-ptr { position: absolute; left: 0; top: 0; z-index: 40; width: 26px; height: 26px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .g-ptr.on { opacity: 1; }
+    .g-ptr svg { position: relative; width: 26px !important; height: 26px !important; fill: #1d1d1f !important; stroke: #fff !important; stroke-width: 1.1 !important; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.3)); }
+    .g-ptr::before { content: ""; position: absolute; left: -16px; top: -16px; width: 34px; height: 34px; border-radius: 50%; background: rgba(0, 113, 227, 0.35); opacity: 0; }
+    .g-ptr.clk::before { animation: g-ripple 0.55s ease-out; }
+
+    /* the desk (Computer) */
+    .g-desk { position: absolute; inset: 48px 0 0; }
+    .g-mbar { display: flex; align-items: center; gap: 18px; height: 34px; padding: 0 16px; font-size: 13px; border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
+    .g-mbar .lg { width: 16px; height: 16px; border-radius: 4px; }
+    .g-dock { position: absolute; left: 50%; bottom: 18px; display: flex; gap: 6px; padding: 8px 10px; border-radius: 18px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 8px 24px -10px rgba(0, 0, 0, 0.25); transform: translateX(-50%); }
+    .g-dock span { position: relative; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 11px; color: #1d1d1f; }
+    .g-dock span svg { width: 24px; height: 24px; stroke-width: 1.5; }
+    .g-dock span.run::after { content: ""; position: absolute; bottom: -5px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #1d1d1f; }
+    .g-dw { position: absolute; overflow: hidden; display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 18px 44px -14px rgba(0, 0, 0, 0.3); transition: transform 0.7s cubic-bezier(0.22, 0.8, 0.24, 1), opacity 0.45s; }
+    .g-dw.off { opacity: 0; transform: translateY(var(--fy, 160px)) scale(0.2); }
+    .g-dwt { flex: none; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); font-size: 13.5px; font-weight: 600; }
+    .g-dwt svg { color: #6e6e73; }
+    .g-dwt .ctl { margin-left: auto; display: flex; gap: 7px; }
+    .g-dwt .ctl i { width: 10px; height: 10px; border-radius: 50%; background: #e3e3e8; }
+
+    @media (prefers-reduced-motion: reduce) { .gfx-stage { transition: none; } }
+    .g-tile { transition: opacity 0.5s ease; }
+    .g-end { display: flex; align-items: center; flex: none; }
+    .g-cnt { font-size: 12px; color: #86868b; }
+    .g-ok { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #0071e3; color: #fff; }
+    .gfx-stage .g-ok svg { width: 12px; height: 12px; stroke-width: 2.2; }
+    .g-ln.w.on { display: block; }
+    .gfx-stage svg.g-art { width: 100%; height: 100%; fill: none; stroke: none; }
+    .gfx-stage svg.g-ribbon { position: absolute; right: -40px; top: -30px; width: 330px; height: 300px; }
+    .gfx-stage svg.g-ribbon.sm { right: -34px; top: -14px; width: 170px; height: 155px; }
+    .g-btn.g-ringed { animation: g-ring 1.1s ease-out 2; }
+    .g-tile.pane .g-chatc { flex-basis: var(--cw, 300px); }
+    .g-tile.tiled .g-pane { display: none; }
+    .g-tile.tiled .g-chatc { flex-basis: 100%; transition: none; }
+    .g-pane.dual .g-card.desk { transform: var(--dual); }
+    .g-mini { position: absolute; right: 16px; top: 14px; z-index: 2; width: 250px; height: 178px; overflow: hidden; background: #fff; border-radius: 12px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 14px 34px -10px rgba(0, 0, 0, 0.25); }
+    .g-mini .g-url { gap: 8px; font-size: 13px; }
+    .g-minip { position: relative; height: 148px; overflow: hidden; }
+    .g-minip .g-page { top: 0; right: auto; bottom: auto; width: 520px; height: 310px; transform: scale(0.48); transform-origin: 0 0; }
+    /* sidebar, Activity */
+    .g-acts { position: relative; height: 300px; margin-top: 2px; }
+    .g-act { position: absolute; left: 0; right: 0; top: 0; height: 52px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-radius: 10px; transition: transform 0.75s cubic-bezier(0.22, 0.8, 0.24, 1), background 0.3s; }
+    .g-act.on { background: rgba(0, 0, 0, 0.07); }
+    .g-act .st { width: 14px; flex: none; display: grid; place-items: center; }
+    .g-act .tx { display: flex; flex-direction: column; min-width: 0; }
+    .g-act .nm { font-size: 14.5px; font-weight: 500; }
+    .g-act small { font-size: 12.5px; color: #86868b; }
+    /* worktrees */
+    .g-graph { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+    .gfx-stage .g-graph svg.g-art { width: 600px; height: 216px; }
+    .g-gl { font: 500 15px var(--font); fill: #86868b; }
+    .g-gl.b { fill: #0071e3; }
+    .g-cpop.g-pop { animation: g-cpop 0.5s cubic-bezier(0.22, 0.8, 0.24, 1) both; transform-box: fill-box; transform-origin: center; }
+    @keyframes g-cpop { from { transform: scale(0); } }
+    .g-choose { display: flex; gap: 12px; transition: opacity 0.4s; }
+    .g-choose .g-btn { height: 36px; padding: 0 20px; font-size: 14px; }
+    .g-choose.fade { opacity: 0; }
+    /* routines */
+    .g-rts { padding: 10px 14px; }
+    .g-rt { display: flex; align-items: center; gap: 16px; height: 88px; padding: 0 16px; border-radius: 12px; transition: background 0.4s; }
+    .g-rt + .g-rt { box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.06); }
+    .g-rt .lead { width: 40px; height: 40px; flex: none; display: grid; place-items: center; }
+    .gfx-stage .g-rt .lead svg.g-art { width: 40px; height: 40px; }
+    .gfx-stage .g-rt .lead .ic svg { width: 24px; height: 24px; color: #aeaeb2; }
+    .g-rt .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #6e6e73; }
+    .g-rt .tx b { font-size: 16px; color: #1d1d1f; }
+    .g-rt .st { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #6e6e73; }
+    .g-rt .tm { font-size: 16px; font-weight: 500; color: #1d1d1f; font-variant-numeric: tabular-nums; }
+    .g-rt.run { background: rgba(0, 113, 227, 0.06); }
+    .g-rt.ok .st { color: #0071e3; }
+    /* the Computer */
+    .g-mbar .g-logo { width: 16px; height: 16px; border-radius: 5px; }
+    .g-mbar .g-logo::after { width: 6px; height: 6px; }
+    .g-deskin { position: absolute; left: 0; right: 0; top: 34px; bottom: 0; }
+    .g-dw.off { opacity: 0; transform: scale(0.12); }
+    .g-calg { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); }
+    .g-calg .col { position: relative; border-left: 1px solid rgba(0, 0, 0, 0.06); background: repeating-linear-gradient(#fff 0 40px, rgba(0, 0, 0, 0.05) 40px 41px); }
+    .g-calg .col:first-child { border-left: 0; }
+    .g-calg .d { display: block; padding: 8px 0; text-align: center; font-size: 12px; font-weight: 600; color: #6e6e73; background: #fff; border-bottom: 1px solid rgba(0, 0, 0, 0.06); }
+    .g-calg .ev { position: absolute; left: 4px; right: 4px; height: 50px; padding: 6px 7px; border-radius: 7px; font-style: normal; font-size: 11.5px; font-weight: 600; line-height: 1.2; }
+    .g-calg .ev.ink { background: #1d1d1f; color: #fff; }
+    .g-calg .ev.blue { background: #0071e3; color: #fff; }
+    .g-calg .ev.grey { background: #e8e8ed; color: #1d1d1f; }
+    /* the simulator */
+    .g-app { padding: 46px 14px 0; }
+    .g-oc { margin-top: 12px; padding: 12px; border-radius: 12px; background: #f2f2f4; transition: background 0.3s; }
+    .g-oc.hit { background: #e3e3e8; }
+    .g-sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 60%; display: flex; flex-direction: column; padding: 12px 16px 22px; background: #fff; border-radius: 20px 20px 0 0; box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12); transform: translateY(105%); transition: transform 0.7s cubic-bezier(0.22, 0.8, 0.24, 1); }
+    .g-sheet.on { transform: none; }
+    .g-sheet .grab { display: block; width: 36px; height: 5px; margin: 0 auto 16px; border-radius: 3px; background: #d2d2d7; }
+    /* browser automation */
+    .g-ibh { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 18px 10px; font-size: 14px; color: #6e6e73; }
+    .g-ibh b { font-size: 18px; color: #1d1d1f; }
+    .g-mail { display: flex; align-items: center; gap: 16px; height: 52px; padding: 0 18px; border-top: 1px solid rgba(0, 0, 0, 0.06); }
+    .g-mail .g-ln { transition: opacity 0.4s; }
+    .g-mail.done .g-ln { opacity: 0.4; }
+    .g-mail .ok { margin-left: auto; width: 20px; height: 20px; border-radius: 50%; background: #0071e3; color: #fff; display: grid; place-items: center; transform: scale(0); transition: transform 0.45s cubic-bezier(0.22, 0.8, 0.24, 1); }
+    .g-mail.done .ok { transform: none; }
+    .gfx-stage .g-mail .ok svg { width: 12px; height: 12px; stroke-width: 2.2; }
+    .g-steps > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .g-field .ph { text-overflow: ellipsis; }
+    .g-calg .ev { left: 3px; right: 3px; padding: 6px 5px; font-size: 11px; }
+    .gfx noscript img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   </style>
 </head>
 <body>
@@ -2752,7 +2289,7 @@
         <p class="fine">Free. Open source. For Claude Code, Codex and Antigravity.</p>
       </div>
       <div class="shot">
-        <video class="window" id="hero-film" muted playsinline preload="metadata" poster="hero-window.png" width="2880" height="1800" aria-label="A short film of the Superagent window: a question is typed, stripe.com opens in the browser pane as a desktop page and an iPhone side by side, then four chats from four projects work side by side in split view, and Command-K finds a chat"><source src="hero.mp4" type="video/mp4" /><source src="hero.webm" type="video/webm" /></video>
+        <div class="gfx" id="hero-film" data-g="hero" role="img" aria-label="Animated drawing of the Superagent window: a question is typed, stripe.com opens in the browser pane and then on an iPhone beside it, four chats from four projects glide in side by side, and Command-K finds a chat" style="aspect-ratio:1200/750"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="hero-window.png" alt="" /></noscript></div>
       </div>
     </section>
 
@@ -2776,7 +2313,7 @@
           <p class="more"><a class="link" href="docs/#browser">Learn more</a></p>
         </div>
       </div>
-      <div class="media clip"><video class="window" muted playsinline loop preload="none" poster="media/build.jpg" width="1920" height="1130" aria-label="Filmed in Superagent: the agent opens a shop on localhost beside its chat, fills in the sign-up form, checks the page at phone size and reports back"><source src="media/build.mp4" type="video/mp4" /></video><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="build" role="img" aria-label="Animated drawing of Superagent: you ask for the Sign up button to be blue, and the shop page in the browser beside the chat changes" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/build.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">Filmed in the app: the agent signs up on the page, checks it at phone size and reports back.</p>
       </div>
@@ -2790,7 +2327,7 @@
           <p class="more"><a class="link" href="docs/#sidebar">Learn more</a></p>
         </div>
       </div>
-      <div class="media clip"><video class="window" muted playsinline loop preload="none" poster="media/home.jpg" width="1920" height="1130" aria-label="Filmed in Superagent: chats from several projects working in the sidebar; one finishes, earns its dot and is opened"><source src="media/home.mp4" type="video/mp4" /></video><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="home" role="img" aria-label="Animated drawing of the Superagent sidebar: several chats spin while they work, one finishes and gets a dot, and opening it shows its answer" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/home.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">Chats survive restarts and remember their own work. Projects wear their real icons: the site&rsquo;s favicon, or your app&rsquo;s icon from Xcode.</p>
       </div>
@@ -2804,7 +2341,7 @@
           <p class="more"><a class="link" href="docs/#chats">Learn more</a></p>
         </div>
       </div>
-      <div class="media clip"><video class="window" muted playsinline loop preload="none" poster="media/worktrees.jpg" width="1920" height="1130" aria-label="Filmed in Superagent: a chat on its own branch appears under its project, shows its worktree, and offers Keep changes or Throw away changes"><source src="media/worktrees.mp4" type="video/mp4" /></video><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="worktrees" role="img" aria-label="Animated drawing of a worktree chat: a branch splits off from main while the chat works, then Keep changes merges it back" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/worktrees.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">Under the hood it&rsquo;s a git worktree named after the chat. Your folder doesn&rsquo;t change until you press Keep, and then it lands as one change.</p>
       </div>
@@ -2818,75 +2355,7 @@
           <p class="more"><a class="link" href="docs/#simulator">Learn more</a></p>
         </div>
       </div>
-      <div class="media drawn"><div class="ill ill-simulator" role="img" aria-label="An iPhone simulator streamed into the window beside the chat that boots it, taps a row and reports back">
-          <div class="scaler"><div class="mini">
-            <div class="appwin cs-win">
-            <aside class="ap-side cs">
-<div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
-<div class="cs-seg"><span>Activity</span><span class="on">Projects</span></div>
-<div class="cs-comp"><svg viewBox="0 0 16 16"><rect x="1.8" y="2.6" width="12.4" height="8.6" rx="1.2"/><path d="M6 13.6h4M8 11.2v2.4"/></svg>Computer</div>
-<div class="cs-h">Chats<span class="cs-hb"><svg viewBox="0 0 16 16"><path d="M13 9v3.6a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1H7"/><path d="M11.6 2.2l2.2 2.2L8.4 9.8H6.2V7.6z"/></svg></span></div>
-<div class="cs-h">Projects<span class="cs-hb"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg></span></div>
-<div class="cs-g"><svg class="cs-caret" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>Work</div>
-<div class="cs-row"><i class="cs-st"></i><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span>landing-page</span></div>
-<div class="cs-row on"><i class="cs-st"></i><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span>mobile-app</span><svg class="cs-caret" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg></div>
-<div class="cs-chat on"><span><b>Check the confirm flow</b><small>&#9095; confirm-flow &middot; now</small></span><i class="ap-spin"></i></div>
-<div class="cs-chat"><span><b>Order sheet spacing</b><small>&#9095; order-sheet &middot; now</small></span><i class="cs-unread"></i></div>
-<div class="cs-row"><i class="cs-st"></i><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span>design-system</span></div>
-<div class="cs-g"><svg class="cs-caret" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>Personal</div>
-<div class="cs-row"><i class="cs-st"></i><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span>notes-app</span></div>
-<div class="cs-foot"><span class="cs-claude">&#10035;</span>Claude<i class="cs-meter"></i><span class="cs-gear">&#9881;</span></div>
-</aside>
-            <div class="ap-main">
-            <div class="ap-bar cs-bar"><span class="cb-ic"><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg></span><span class="cb-ic"><svg viewBox="0 0 16 16"><path d="M2.5 4.5l1.2 1.2 2-2.2M2.5 10.5l1.2 1.2 2-2.2M8 5h6M8 11h6"/></svg></span><span class="cb-ic on"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg></span><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span class="cb-proj">mobile-app</span><span class="cb-sep">&rsaquo;</span><b class="cb-chat">Check the confirm flow</b><span class="ap-path">~/work/mobile-app</span><span class="ap-branch">&#9095; main &middot;</span><span class="ap-spacer"></span><span class="cb-more">&middot;&middot;&middot;</span></div>
-            <div class="ap-content">
-            <div class="ap-split">
-            <div class="ap-pane sim">
-            <div class="ap-pbar"><span class="ap-pdevice">iPhone 16 &middot; iOS 18.2</span><span class="ap-live"><i></i>streaming</span></div>
-            <div class="ap-pbody">
-            <div class="iphone d3-phone">
-            <span class="island"></span>
-            <div class="iphone-screen">
-            <div class="d3-app">
-            <div class="d3-navbar"><span class="d3-title">Orders</span><span class="ln dk" style="width:20px"></span></div>
-            <div class="d3-list">
-            <div class="d3-card hl">
-            <span class="d3-ripple"></span>
-            <span class="ln dk" style="width:52%"></span>
-            <span class="ln" style="width:76%"></span>
-            </div>
-            <div class="d3-card"><span class="ln dk" style="width:44%"></span><span class="ln" style="width:68%"></span></div>
-            <div class="d3-card"><span class="ln dk" style="width:58%"></span><span class="ln" style="width:72%"></span></div>
-            <div class="d3-card"><span class="ln dk" style="width:40%"></span><span class="ln" style="width:64%"></span></div>
-            </div>
-            </div>
-            <div class="d3-sheet">
-            <span class="d3-grab"></span>
-            <span class="ln dk" style="width:46%; height:9px"></span>
-            <span class="ln" style="width:82%"></span>
-            <span class="ln" style="width:70%"></span>
-            <span class="d3-btn">Confirm order</span>
-            </div>
-            </div>
-            </div>
-            </div>
-            </div>
-            <div class="ap-chat narrow">
-            <div class="ap-stream">
-            <div class="bubble bub-user">Check the confirm button still works on iPhone.</div>
-            <div class="ap-say">Booting the simulator and opening Orders.</div>
-            <div class="cs-steps">&rsaquo; <b>2 steps</b> Booting &middot; Tapping</div>
-            <div class="ap-say">Tapped it. The sheet opens and <b>Confirm order</b> is enabled.</div>
-            <div class="cs-meta">2k &nbsp;Today 9:41 AM</div>
-            </div>
-            <div class="ap-comp cs-comp-box"><div class="cs-in"><div class="cs-ph"><span class="ap-cursor"></span>Message Claude&hellip;</div><div class="cs-tools"><span class="cs-claude">&#10035;</span><span class="cs-sp"></span><svg viewBox="0 0 16 16"><path d="M10.5 5.5l-4.6 4.6a1.4 1.4 0 0 0 2 2l5-5a2.8 2.8 0 0 0-4-4l-5 5a4.2 4.2 0 0 0 6 6l4-4"/></svg><svg viewBox="0 0 16 16"><rect x="5.6" y="1.8" width="4.8" height="8" rx="2.4"/><path d="M3.4 8a4.6 4.6 0 0 0 9.2 0M8 12.6v2"/></svg></div></div><span class="cs-send">&uarr;</span></div>
-            </div>
-            </div>
-            </div>
-            </div>
-            </div>
-          </div></div>
-        </div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="simulator" role="img" aria-label="Animated drawing of the simulator: an iPhone boots beside the chat, the agent taps an order and Confirm, and reports that it works" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">It uses the Simulator that comes with Xcode. Nothing else to install.</p>
       </div>
@@ -2900,7 +2369,7 @@
           <p class="more"><a class="link" href="docs/#browser">Learn more</a></p>
         </div>
       </div>
-      <div class="media clip"><video class="window" muted playsinline loop preload="none" poster="media/twice.jpg" width="1920" height="1200" aria-label="Filmed in Superagent: stripe.com opens in the browser pane, then shows as a desktop page and an iPhone side by side"><source src="media/twice.mp4" type="video/mp4" /></video><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="twice" role="img" aria-label="Animated drawing of the browser pane: stripe.com opens beside the chat, then the same page appears on an iPhone next to it" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/twice.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">One session behind both, so a sign-in counts for both. The agent switches between phone, desktop or both on its own.</p>
       </div>
@@ -2913,7 +2382,7 @@
           <p class="intro">Chats from any project, side by side, all working at once.</p>
         </div>
       </div>
-      <div class="media clip"><video class="window" muted playsinline loop preload="none" poster="media/split.jpg" width="1920" height="1130" aria-label="Filmed in Superagent: chats join a split one at a time while the others make room, and one is clicked to talk to it"><source src="media/split.mp4" type="video/mp4" /></video><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="split" role="img" aria-label="Animated drawing of split view: chats from different projects glide into the window one by one until there are four side by side" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/split.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">⌘-click a chat, or drag one in from the sidebar or ⌘K. Resize, rearrange, or give one the whole screen. Splits are saved in the sidebar, and ⌘1–8 jumps between windows. Up to eight on the Mac, four on iPad. In the 2.1 beta.</p>
       </div>
@@ -2927,94 +2396,7 @@
           <p class="more"><a class="link" href="docs/#browser">Learn more</a></p>
         </div>
       </div>
-      <div class="media drawn"><div class="ill ill-automation" role="img" aria-label="The agent working a signed-in inbox in the browser pane: reading threads, writing each reply by name and sending them">
-          <div class="scaler"><div class="mini">
-            <div class="appwin cs-win">
-            <aside class="ap-side cs">
-<div class="ap-lights"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span></div>
-<div class="cs-seg"><span>Activity</span><span class="on">Projects</span></div>
-<div class="cs-comp"><svg viewBox="0 0 16 16"><rect x="1.8" y="2.6" width="12.4" height="8.6" rx="1.2"/><path d="M6 13.6h4M8 11.2v2.4"/></svg>Computer</div>
-<div class="cs-h">Chats<span class="cs-hb"><svg viewBox="0 0 16 16"><path d="M13 9v3.6a1 1 0 0 1-1 1H3.4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1H7"/><path d="M11.6 2.2l2.2 2.2L8.4 9.8H6.2V7.6z"/></svg></span></div>
-<div class="cs-h">Projects<span class="cs-hb"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg></span></div>
-<div class="cs-g"><svg class="cs-caret" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>Work</div>
-<div class="cs-row"><i class="cs-st"></i><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span>landing-page</span></div>
-<div class="cs-row on"><i class="cs-st"></i><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span>outreach</span><svg class="cs-caret" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg></div>
-<div class="cs-chat on"><span><b>Pricing follow-ups</b><small>&#9095; pricing-follow-ups &middot; now</small></span><i class="ap-spin"></i></div>
-<div class="cs-chat"><span><b>Launch note draft</b><small>&#9095; launch-note &middot; now</small></span><i class="cs-unread"></i></div>
-<div class="cs-row"><i class="cs-st"></i><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span>design-system</span></div>
-<div class="cs-g"><svg class="cs-caret" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>Personal</div>
-<div class="cs-row"><i class="cs-st"></i><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span>notes-app</span></div>
-<div class="cs-foot"><span class="cs-claude">&#10035;</span>Claude<i class="cs-meter"></i><span class="cs-gear">&#9881;</span></div>
-</aside>
-            <div class="ap-main">
-            <div class="ap-bar cs-bar"><span class="cb-ic"><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg></span><span class="cb-ic"><svg viewBox="0 0 16 16"><path d="M2.5 4.5l1.2 1.2 2-2.2M2.5 10.5l1.2 1.2 2-2.2M8 5h6M8 11h6"/></svg></span><span class="cb-ic on"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2"/></svg></span><svg class="cs-fold" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/></svg><span class="cb-proj">outreach</span><span class="cb-sep">&rsaquo;</span><b class="cb-chat">Pricing follow-ups</b><span class="ap-path">~/work/outreach</span><span class="ap-branch">&#9095; main &middot;</span><span class="ap-spacer"></span><span class="cb-more">&middot;&middot;&middot;</span></div>
-            <div class="ap-content">
-            <div class="ap-split">
-            <div class="ap-pane ">
-            <div class="ap-pbar"><span class="ap-pdevice">Signed in as you</span><span class="ml-prog"><b class="ml-swap"><i class="n1">5</i><i class="n2">6</i><i class="n3">7</i></b> of 8 sent</span><span class="ap-live"><i></i>Claude is browsing</span></div>
-            <div class="ap-pbody flush">
-                  <div class="br">
-                    <div class="br-tabs">
-                      <span class="br-tab"><i class="br-fav"></i>Inbox (12) &ndash; you@yourco.com &ndash; Gmail</span>
-                      <span class="br-plus">+</span>
-                    </div>
-                    <div class="br-omni">
-                      <span class="br-arrows">&lsaquo; &rsaquo;</span>
-                      <span class="br-url"><i class="br-lock"></i>mail.google.com<em>/mail/u/0/#inbox</em></span>
-                    </div>
-                    <div class="gm">
-                      <aside class="gm-side">
-                        <div class="gm-compose"><i></i>Compose</div>
-                        <div class="gm-nav on">Inbox<span>12</span></div>
-                        <div class="gm-nav">Starred</div>
-                        <div class="gm-nav">Snoozed</div>
-                        <div class="gm-nav">Sent<span class="ml-swap"><i class="n1">5</i><i class="n2">6</i><i class="n3">7</i></span></div>
-                        <div class="gm-nav">Drafts</div>
-                      </aside>
-                      <div class="gm-list">
-                        <div class="gm-row done"><span class="gm-from">Priya Raman</span><span class="gm-subj"><b>Pricing for a team of 12</b> &mdash; we are comparing a few options</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
-                        <div class="gm-row done"><span class="gm-from">Daniel Ok</span><span class="gm-subj"><b>Re: the launch note</b> &mdash; is there a written version?</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
-                        <div class="gm-row now"><span class="gm-from">Mei Sandoval</span><span class="gm-subj"><b>Quick question on tiers</b> &mdash; do you charge per seat or per repo?</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
-                        <div class="gm-row "><span class="gm-from">Tomas Ilves</span><span class="gm-subj"><b>Following up</b> &mdash; no rush, whenever suits</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
-                        <div class="gm-row "><span class="gm-from">Ana Beltr&aacute;n</span><span class="gm-subj"><b>Enterprise pricing?</b> &mdash; we would need SSO and audit logs</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
-                        <div class="gm-row "><span class="gm-from">Ravi Menon</span><span class="gm-subj"><b>Pricing page question</b> &mdash; the middle tier is the one</span><span class="gm-when">9:14</span><span class="gm-done">&#10003;</span></div>
-                      </div>
-                      <div class="gm-comp">
-                        <div class="gm-ch">New Message</div>
-                        <div class="gm-crow"><span>To</span><b class="ml-swap"><i class="n1">priya@northwind.co</i><i class="n2">daniel@aperture.io</i><i class="n3">mei@lantern.dev</i></b></div>
-                        <div class="gm-crow"><span>Subject</span><b>Pricing, and the launch note</b></div>
-                        <div class="gm-ctext">
-                          Hi <b class="ml-swap"><i class="n1">Priya</i><i class="n2">Daniel</i><i class="n3">Mei</i></b>,<br>
-                          You asked about pricing last week &mdash; the launch note is attached, and the team tier is the one you want.
-                        </div>
-                        <div class="gm-cfoot"><span class="gm-send">Send</span><span class="gm-clip">launch-note.pdf</span></div>
-                      </div>
-                      <div class="ml-toast">&#10003; Sent</div>
-                      <span class="ml-cursor"></span>
-                    </div>
-                  </div>
-                </div>
-            </div>
-            <div class="ap-chat narrow">
-                    <div class="ap-stream">
-                      <div class="bubble bub-user">Eight people asked about pricing this week. Send them each the launch note.</div>
-                      <div class="ap-say">Your inbox is already open and signed in. Working through them one at a time.</div>
-                      <div class="d5-steps" aria-hidden="true">
-                        <div class="d5-step"><span class="n">01</span><span><b>Reads</b> the eight threads</span></div>
-                        <div class="d5-step"><span class="n">02</span><span><b>Writes</b> each reply by name</span></div>
-                        <div class="d5-step"><span class="n">03</span><span><b>Attaches</b> the launch note</span></div>
-                        <div class="d5-step"><span class="n">04</span><span><b>Sends</b>, and lists who it wrote</span></div>
-                      </div>
-                      <div class="ap-say">Six away. Two are asking about the enterprise tier &mdash; I have left those for you.</div>
-                    </div>
-                    <div class="ap-comp cs-comp-box"><div class="cs-in"><div class="cs-ph"><span class="ap-cursor"></span>Message Claude&hellip;</div><div class="cs-tools"><span class="cs-claude">&#10035;</span><span class="cs-sp"></span><svg viewBox="0 0 16 16"><path d="M10.5 5.5l-4.6 4.6a1.4 1.4 0 0 0 2 2l5-5a2.8 2.8 0 0 0-4-4l-5 5a4.2 4.2 0 0 0 6 6l4-4"/></svg><svg viewBox="0 0 16 16"><rect x="5.6" y="1.8" width="4.8" height="8" rx="2.4"/><path d="M3.4 8a4.6 4.6 0 0 0 9.2 0M8 12.6v2"/></svg></div></div><span class="cs-send">&uarr;</span></div>
-                  </div>
-            </div>
-            </div>
-            </div>
-            </div>
-          </div></div>
-        </div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="automation" role="img" aria-label="Animated drawing of browser automation: the agent works down a signed-in inbox, replying to each message in turn while the count goes up" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">It works in its own tab, so yours stays yours. Stop it whenever you like.</p>
       </div>
@@ -3068,7 +2450,7 @@
           <p class="more"><a class="link" href="docs/#board">Learn more</a></p>
         </div>
       </div>
-      <div class="media clip"><video class="window" muted playsinline loop preload="none" poster="media/routines.jpg" width="1920" height="1130" aria-label="Filmed in Superagent: the Routines window opens, a new job is typed in and added beside the ones already there"><source src="media/routines.mp4" type="video/mp4" /></video><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="routines" role="img" aria-label="Animated drawing of Routines: the clock reaches nine, the Every morning job runs by itself and its chat appears with a dot" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/routines.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">Routines run while Superagent is open.</p>
       </div>
@@ -3132,7 +2514,7 @@
           <p class="more"><a class="link" href="docs/#computer">Learn more</a></p>
         </div>
       </div>
-      <div class="media clip"><video class="window" muted playsinline loop preload="none" poster="media/computer.jpg" width="1920" height="1128" aria-label="Filmed in Superagent: the Computer view opens with a chat and Routines on the desk, the Calendar opens from the dock, and the chat is brought forward"><source src="media/computer.mp4" type="video/mp4" /></video><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
+      <div class="media clip"><div class="gfx" data-g="desk" role="img" aria-label="Animated drawing of the Computer view: a chat, a browser and a calendar open from the dock as windows on the desk, and the chat comes forward" style="aspect-ratio:960/600"><div class="gfx-stage" aria-hidden="true"></div><noscript><img src="media/computer.jpg" alt="" /></noscript></div><button class="vbtn" type="button" aria-label="Pause"><svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="4.5" width="3" height="11" rx="1"/><rect x="11.5" y="4.5" width="3" height="11" rx="1"/></svg><svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 4.6v10.8a.8.8 0 0 0 1.2.7l8.6-5.4a.8.8 0 0 0 0-1.4L7.7 3.9a.8.8 0 0 0-1.2.7z"/></svg></button></div>
       <div class="content">
         <p class="note">Chat, browser, dashboard, skills, routines and calendar, each in its own window. Everything your agents are up to, on one screen.</p>
       </div>
@@ -3300,58 +2682,514 @@
     })();
   </script>
   <script>
-    // the hero film plays once, when it comes into view, and stays on its last frame (the poster's picture);
-    // with reduced motion it never starts and the poster is all there is
+    // Animated drawings of the app. Each one is a few seconds of story on a small clock: steps fire at
+    // their time, the clock only runs while the drawing is on screen, and a loop starts over from a clean
+    // copy of the drawing. With reduced motion it shows its last moment and stays still.
     (() => {
-      const film = document.getElementById("hero-film");
-      if (!film || matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
-      const io = new IntersectionObserver((entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        io.disconnect();
-        film.play().catch(() => {});
-      }, { threshold: 0.5 });
-      io.observe(film);
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const inout = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+      const lerp = (a, b, t) => a + (b - a) * t;
+
+      /* ---------- steps ---------- */
+      const at = (t, f) => ({ at: t, dur: 0, fn: (p, s, c) => f(c) });
+      const run = (t, dur, f) => ({ at: t, dur, fn: f });
+      const show = (t, k) => at(t, (c) => { const e = c.q(k); e.classList.remove("g-hide"); e.classList.add("g-pop"); });
+      const hide = (t, k) => at(t, (c) => c.q(k).classList.add("g-hide"));
+      const cls = (t, k, name, on = true) => at(t, (c) => c.q(k).classList.toggle(name, on));
+      const html = (t, k, s) => at(t, (c) => { c.q(k).innerHTML = s; });
+      const field = (e) => e.closest(".g-field");
+      const type = (t, k, s, cps = 22) => run(t, (s.length * 1000) / cps, (p, st, c) => {
+        const e = c.q(k), n = Math.round(p * s.length);
+        if (st.n === n) return;
+        st.n = n;
+        e.textContent = s.slice(0, n);
+        const f = field(e);
+        if (f) { f.classList.toggle("typing", n > 0); f.nextElementSibling.classList.toggle("go", n > 0); }
+        e.scrollLeft = e.scrollWidth;
+      });
+      const send = (t, k, bubble) => at(t, (c) => {
+        const e = c.q(k), f = field(e);
+        e.textContent = "";
+        f.classList.remove("typing");
+        f.nextElementSibling.classList.remove("go");
+        const b = c.q(bubble);
+        b.classList.remove("g-hide");
+        b.classList.add("g-pop");
+      });
+      const words = (el) => {
+        const out = [];
+        const walk = (n) => {
+          for (const ch of [...n.childNodes]) {
+            if (ch.nodeType === 3) {
+              const frag = document.createDocumentFragment();
+              for (const w of ch.textContent.split(/(?<=\s)/)) {
+                if (!w) continue;
+                const s = document.createElement("span");
+                s.className = "w";
+                s.textContent = w;
+                frag.appendChild(s);
+                out.push(s);
+              }
+              ch.replaceWith(frag);
+            } else if (ch.nodeType === 1) {
+              if (ch.classList.contains("g-ln")) { ch.classList.add("w"); out.push(ch); } else walk(ch);
+            }
+          }
+        };
+        walk(el);
+        return out;
+      };
+      const stream = (t, dur, k) => run(t, dur, (p, st, c) => {
+        const e = c.q(k);
+        if (!st.w) { e.classList.remove("g-hide"); st.w = words(e); st.n = 0; }
+        const n = Math.round(p * st.w.length);
+        for (let i = st.n; i < n; i++) st.w[i].classList.add("on");
+        st.n = n;
+      });
+      const tick = (t, dur, k) => run(t, dur, (p, st, c) => {
+        const s = 1 + Math.floor((p * dur) / 1000);
+        if (st.s !== s) { st.s = s; c.q(k).textContent = s; }
+      });
+      const ptr = (t, dur, target, dx = 0, dy = 0) => run(t, dur, (p, st, c) => {
+        if (!st.to) {
+          st.from = { ...c.pt };
+          st.to = typeof target === "string" ? c.center(target, dx, dy) : { x: target[0], y: target[1] };
+          c.p.classList.add("on");
+        }
+        const e = inout(p);
+        c.pt = { x: lerp(st.from.x, st.to.x, e), y: lerp(st.from.y, st.to.y, e) };
+        c.place();
+      });
+      const click = (t) => at(t, (c) => { c.p.classList.remove("clk"); void c.p.offsetWidth; c.p.classList.add("clk"); });
+      const ptrOff = (t) => at(t, (c) => c.p.classList.remove("on"));
+      const SIDES = ["left", "top", "width", "height"];
+      const glide = (t, dur, k, to) => run(t, dur, (p, st, c) => {
+        const e = c.q(k);
+        if (!st.from) { st.from = SIDES.map((n) => parseFloat(e.style[n])); e.classList.remove("in"); }
+        const v = inout(p);
+        SIDES.forEach((n, i) => { e.style[n] = lerp(st.from[i], to[i], v) + "px"; });
+      });
+      const draw = (t, dur, k) => run(t, dur, (p, st, c) => {
+        const e = c.q(k);
+        e.classList.remove("g-hide");
+        e.style.strokeDashoffset = 1 - inout(p);
+      });
+      const order = (t, keys, gap) => at(t, (c) => keys.forEach((k, i) => { c.q(k).style.transform = `translateY(${i * gap}px)`; }));
+
+      /* ---------- engine ---------- */
+      const CURSOR = '<div class="g-ptr"><svg viewBox="0 0 16 16"><path d="M3 1.5v12.2l3.1-3 2 4.6 2-.9-2-4.5h4.4z"/></svg></div>';
+      const engine = (gfx, spec) => {
+        const stage = gfx.querySelector(".gfx-stage");
+        const W = spec.w, H = spec.h, end = spec.end, hold = spec.hold ?? 3200;
+        stage.style.width = W + "px";
+        stage.style.height = H + "px";
+        let t = 0, raf = 0, last = 0, playing = false, out = 0, steps = [], c;
+        const advance = (to) => {
+          for (const s of steps) {
+            if (s.at > to) break;
+            if (s.done) continue;
+            const p = s.dur ? Math.min(1, (to - s.at) / s.dur) : 1;
+            s.fn(p, s.st, c);
+            if (p >= 1) s.done = true;
+          }
+        };
+        const build = () => {
+          stage.innerHTML = spec.html() + CURSOR;
+          const cache = {};
+          c = {
+            q: (k) => cache[k] || (cache[k] = stage.querySelector(`[data-k="${k}"]`)),
+            p: stage.lastElementChild,
+            pt: { x: spec.p0 ? spec.p0[0] : W * 0.7, y: spec.p0 ? spec.p0[1] : H + 30 },
+          };
+          c.place = () => { c.p.style.transform = `translate(${c.pt.x - 5}px, ${c.pt.y - 2.5}px)`; };
+          c.center = (k, dx, dy) => {
+            const r = c.q(k).getBoundingClientRect(), s = stage.getBoundingClientRect(), z = s.width / W || 1;
+            return { x: (r.left - s.left + r.width / 2) / z + dx, y: (r.top - s.top + r.height / 2) / z + dy };
+          };
+          c.place();
+          steps = spec.steps().map((s) => ({ ...s, st: {}, done: false })).sort((a, b) => a.at - b.at);
+          t = 0;
+          out = 0;
+          advance(0);
+        };
+        const frame = (now) => {
+          t += Math.min(50, now - last);
+          last = now;
+          if (spec.once && t >= end) { advance(end); playing = false; return; }
+          if (t >= end + hold) {
+            if (!out) { out = t; stage.classList.add("g-out"); }
+            if (t - out > 520) { build(); stage.classList.remove("g-out"); }
+          } else advance(t);
+          raf = requestAnimationFrame(frame);
+        };
+        const api = {
+          play() {
+            if (playing || (spec.once && t >= end)) return;
+            playing = true;
+            stage.classList.remove("g-paused");
+            last = performance.now();
+            raf = requestAnimationFrame(frame);
+          },
+          pause() { playing = false; cancelAnimationFrame(raf); stage.classList.add("g-paused"); },
+          seek(to) { api.pause(); stage.classList.remove("g-paused"); build(); t = to; advance(to); },
+          still() { stage.classList.add("g-still"); api.seek(end); c.p.classList.remove("on"); },
+          get time() { return t; },
+          end,
+        };
+        const fit = () => {
+          const k = gfx.clientWidth / W;
+          if (!k) return;
+          stage.style.transform = `scale(${k})`;
+          gfx.style.setProperty("--k", k.toFixed(4));
+        };
+        fit();
+        if ("ResizeObserver" in window) new ResizeObserver(fit).observe(gfx);
+        else addEventListener("resize", fit);
+        build();
+        stage.classList.add("g-paused");
+        if (reduce) api.still();
+        gfx.gfx = api;
+        return api;
+      };
+
+      /* ---------- drawing parts ---------- */
+      const S = (d) => `<svg viewBox="0 0 16 16">${d}</svg>`;
+      const P = (d) => `<path d="${d}"/>`;
+      const ic = {
+        folder: S(P("M1.8 4.2a1 1 0 0 1 1-1h3.4l1.4 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z")),
+        globe: S('<circle cx="8" cy="8" r="6.2"/>' + P("M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2M8 1.8C6.3 3.6 5.5 5.7 5.5 8s.8 4.4 2.5 6.2")),
+        monitor: S('<rect x="1.8" y="2.6" width="12.4" height="8.6" rx="1.2"/>' + P("M6 13.6h4M8 11.2v2.4")),
+        branch: S('<circle cx="4.5" cy="3.4" r="1.4"/><circle cx="4.5" cy="12.6" r="1.4"/><circle cx="11.5" cy="5" r="1.4"/>' + P("M4.5 4.8v6.4M11.5 6.4c0 3.2-7 2.2-7 4.8")),
+        mic: S('<rect x="5.6" y="1.8" width="4.8" height="8" rx="2.4"/>' + P("M3.4 8a4.6 4.6 0 0 0 9.2 0M8 12.6v1.8")),
+        up: S(P("M8 12.8V3.6M4.2 7.4L8 3.6l3.8 3.8")),
+        right: S(P("M6.5 4.5L10 8l-3.5 3.5")),
+        back: S(P("M10 3.5L5.5 8l4.5 4.5")),
+        fwd: S(P("M6 3.5L10.5 8 6 12.5")),
+        reload: S(P("M13 8a5 5 0 1 1-1.6-3.7M13.2 2.6v3h-3")),
+        clock: S('<circle cx="8" cy="8" r="6.2"/>' + P("M8 4.6V8l2.3 1.5")),
+        cal: S('<rect x="2" y="3" width="12" height="11" rx="1.8"/>' + P("M2 6.6h12M5.4 1.8v2.4M10.6 1.8v2.4")),
+        chat: S(P("M8 2.5c3.3 0 6 2.2 6 5s-2.7 5-6 5c-.8 0-1.6-.1-2.3-.4L2.5 13.4l.9-2.8C2.5 9.7 2 8.6 2 7.5c0-2.8 2.7-5 6-5z")),
+        bars: S(P("M3 13V8.5M6.3 13V4M9.7 13V6.5M13 13V3")),
+        check: S(P("M3.5 8.4l3 3 6-6.6")),
+        split: S('<rect x="1.8" y="2.6" width="12.4" height="10.8" rx="1.6"/>' + P("M8 2.6v10.8M1.8 8h12.4")),
+        mail: S('<rect x="1.8" y="3.2" width="12.4" height="9.6" rx="1.4"/>' + P("M2.2 4l5.8 4.6L13.8 4")),
+      };
+      const CLAUDE = `<svg class="g-cl" viewBox="0 0 16 16">${[0, 30, 60, 90, 120, 150].map((a) => `<path d="M8 2.2v11.6" transform="rotate(${a} 8 8)"/>`).join("")}</svg>`;
+      const K = (k) => (k ? ` data-k="${k}"` : "");
+      const ln = (w, x = "", style = "") => `<i class="g-ln ${x}" style="width:${w};${style}"></i>`;
+      const side = (inner, w = 200) => `<aside class="g-side" style="width:${w}px"><div class="g-tl"><i></i><i></i><i></i></div>${inner}<div class="g-foot">${CLAUDE}<span>Claude</span><i></i></div></aside>`;
+      const seg = (act) => `<div class="g-seg"><span${act ? ' class="on"' : ""}>Activity</span><span${act ? "" : ' class="on"'}>Projects</span></div>`;
+      const Hd = (t, k, hide) => `<div class="g-h${hide ? " g-hide" : ""}"${K(k)}>${t}</div>`;
+      const row = (name, o = {}) => `<div class="g-row${o.on ? " on" : ""}${o.sub ? " sub" : ""}${o.hide ? " g-hide" : ""}"${K(o.k)}>${o.icon ?? ic.folder}<span class="nm">${name}</span>${o.end ? `<span class="g-end"${K(o.k && o.k + "-e")}>${o.end}</span>` : `<span class="g-end"${K(o.k && o.k + "-e")}></span>`}</div>`;
+      const SPIN = '<i class="g-spin"></i>';
+      const DOT = '<i class="g-dot g-pop"></i>';
+      const bar = (proj, title, chip = "") => `<div class="g-bar">${ic.folder}<span class="pj">${proj}</span><span class="sep">›</span><span class="tt">${title}</span>${chip}</div>`;
+      const chip = (inner, k, hide) => `<span class="g-chip${hide ? " g-hide" : ""}"${K(k)}>${inner}</span>`;
+      const LIVE = (site, k, hide) => chip(`<i class="live"></i>${site}`, k, hide);
+      const U = (s, k, hide = true) => `<div class="g-u${hide ? " g-hide" : ""}"${K(k)}>${s}</div>`;
+      const A = (s, k, hide = true) => `<div class="g-a${hide ? " g-hide" : ""}"${K(k)}>${s}</div>`;
+      const steps = (n, labels) => `<b>${n} step${n > 1 ? "s" : ""}</b> <span>· ${labels.join(" · ")}</span>`;
+      const STEPS = (k) => `<div class="g-steps g-hide"${K(k)}>${ic.right}<span${K(k + "-t")}></span></div>`;
+      const stepTo = (t, k, n, labels) => [at(t, (c) => { const e = c.q(k); if (e.classList.contains("g-hide")) { e.classList.remove("g-hide"); e.classList.add("g-pop"); } c.q(k + "-t").innerHTML = steps(n, labels); })];
+      const WORK = (k) => `<div class="g-work g-hide"${K(k)}><i class="g-logo"></i>${SPIN}<span>Working · <span${K(k + "-s")}>1</span>s</span></div>`;
+      const COMP = (k) => `<div class="g-comp"><div class="g-field">${CLAUDE}<span class="tx"${K(k)}></span><span class="ph">Message Claude…</span>${ic.mic}</div><span class="g-send">${ic.up}</span></div>`;
+      const tile = (k, r, inner, x = "") => `<div class="g-tile ${x}"${K(k)} style="left:${r[0]}px;top:${r[1]}px;width:${r[2]}px;height:${r[3]}px">${inner}</div>`;
+      const TH = (n, name) => `<div class="g-th"><span class="g-badge">${n}</span>${ic.folder}<span class="nm">${name}</span></div>`;
+      const URL = (u, k) => `<div class="g-url">${ic.back}${ic.fwd}${ic.reload}<span class="f"${K(k)}>${u}</span></div><i class="g-load"${K(k && k + "-load")}></i>`;
+      const load = (t, k) => run(t, 700, (p, st, c) => {
+        const e = c.q(k + "-load");
+        e.style.opacity = p < 1 ? 1 : 0;
+        e.style.transform = `scaleX(${0.08 + 0.92 * inout(p)})`;
+      });
+      const flash = (t, k) => at(t, (c) => { const e = c.q(k); e.classList.remove("on"); void e.offsetWidth; e.classList.add("on"); });
+
+      // a calm, grey stand-in for a busy website, and a phone-sized cut of it
+      const RIB = '<svg class="g-art g-ribbon" viewBox="0 0 330 300"><path d="M100 0c40 110 125 190 230 232V0z" fill="#f0f0f3"/><path d="M165 0c30 90 92 152 165 182V0z" fill="#e4e4e9"/><path d="M228 0c22 62 56 102 102 122V0z" fill="#d6d6dc"/></svg>';
+      const logos = (n) => `<div style="position:relative;margin:34px 26px 0;display:flex;justify-content:space-between">${Array.from({ length: n }, (_, i) => ln(30 + ((i * 13) % 20) + "px", "dk")).join("")}</div>`;
+      const webDesk = (k) => `<div class="g-page">${RIB}<div class="g-wnav"><span class="lg">stripe</span>${ln("38px")}${ln("46px")}${ln("38px")}<span class="sp"></span><span class="g-btn sm ghost">Sign in</span></div><div style="position:relative;padding:30px 26px 0;width:72%"><div class="g-hl" style="font-size:25px">Financial infrastructure to grow your revenue.</div>${ln("94%", "", "height:11px;margin-top:14px")}${ln("80%", "", "height:11px;margin-top:8px")}<div style="display:flex;gap:8px;margin-top:22px"><span class="g-btn sm">Get started</span><span class="g-btn sm ghost">${ln("64px")}</span></div></div>${logos(6)}<i class="g-flash"${K(k)}></i></div>`;
+      const webPhone = (k) => `<div class="g-island"></div>${RIB.replace("g-ribbon", "g-ribbon sm")}<div style="position:relative;padding:44px 16px 0"><div style="display:flex;align-items:center;justify-content:space-between"><span style="font-weight:700;letter-spacing:-.03em;font-size:15px">stripe</span>${ln("16px", "dk")}</div><div class="g-hl" style="font-size:19px;margin-top:26px">Financial infrastructure to grow your revenue.</div>${ln("92%", "", "margin-top:12px")}${ln("70%", "", "margin-top:7px")}<span class="g-btn sm" style="display:flex;margin-top:18px">Get started</span><span class="g-btn sm ghost" style="display:flex;margin-top:8px">${ln("70px")}</span><div style="display:flex;justify-content:space-around;margin-top:26px">${ln("38px", "dk")}${ln("32px", "dk")}</div>${ln("80%", "", "margin-top:26px")}${ln("60%", "", "margin-top:7px")}</div><i class="g-flash"${K(k)}></i>`;
+
+      /* ---------- the scenes ---------- */
+      const F = [200, 8, 752, 584]; // the chat card beside a 200px sidebar, in a 960x600 window
+      const projects = (on, x = {}) => seg(false) + (x.computer ? row("Computer", { icon: ic.monitor, on: true }) : "") + (x.before || "") + Hd("Projects") +
+        ["landing-page", "mobile-app", "design-system", "notes-app"].map((n) => row(n, { on: n === on, k: "p-" + n, end: x.ends && x.ends[n] })).join("");
+
+      const scenes = {};
+
+      // Browser: you ask, and the page beside the chat changes
+      scenes.build = {
+        w: 960, h: 600, end: 6400,
+        html: () => side(seg(false) + Hd("Projects") + row("shop", { on: true, k: "p" }) + row("landing-page") + row("mobile-app") + row("notes-app")) +
+          tile("t", F, bar("shop", "Sign-up page", LIVE("localhost")) + `<div class="g-body"><div class="g-pane"><div class="g-card" style="left:26px;top:64px;width:410px;height:330px">${URL("localhost:3000", "u")}<div class="g-page"><div class="g-wnav"><span class="lg">Fern</span><span class="sp"></span>${ln("34px")}${ln("40px")}</div><div style="display:flex;gap:22px;padding:26px 24px 0"><div style="flex:1"><div class="g-hl" style="font-size:30px">Plants that arrive happy.</div>${ln("92%", "", "margin-top:16px")}${ln("70%", "", "margin-top:9px")}<span class="g-btn" data-k="btn" style="margin-top:24px">Sign up</span></div><div style="width:140px;height:180px;flex:none;border-radius:12px;background:#f2f2f4;padding:16px 12px"><svg class="g-art" viewBox="0 0 120 150"><path d="M58 140C22 112 14 66 40 22c28 28 42 72 18 118z" fill="#d2d2d7"/><path d="M62 138c8-36 28-60 54-70 2 38-18 64-54 70z" fill="#c4c4ca"/><path d="M58 140L42 40M62 138l44-62" stroke="#f2f2f4" stroke-width="2.4" fill="none"/></svg></div></div></div></div></div>` +
+          `<div class="g-chatc" style="flex-basis:290px"><div class="g-stream">${U("Make the Sign up button blue.", "u1")}${WORK("w")}${STEPS("s")}${A("Done. The button is blue now.", "a1")}</div>${COMP("in")}</div></div>`),
+        steps: () => [
+          type(500, "in", "Make the Sign up button blue."),
+          send(2100, "in", "u1"),
+          html(2300, "p-e", SPIN), show(2400, "w"), tick(2400, 3000, "w-s"),
+          ...stepTo(2900, "s", 1, ["Editing"]),
+          load(3700, "u"),
+          cls(4200, "btn", "blue"), cls(4200, "btn", "g-ringed"),
+          ...stepTo(4300, "s", 2, ["Editing", "Reloading"]),
+          hide(5400, "w"), stream(5400, 700, "a1"), html(5400, "p-e", DOT),
+        ],
+      };
+
+      // Sidebar: several chats working; one finishes and gets its dot, and you open it
+      const ACT = [["a1", "Fix the login test", "mobile-app", SPIN], ["a2", "Dark mode", "design-system", SPIN], ["a3", "Pricing page", "landing-page", ""], ["a4", "Export to Markdown", "notes-app", SPIN], ["a5", "Weekly numbers", "Computer", ""]];
+      scenes.home = {
+        w: 960, h: 600, end: 6600, p0: [700, 640],
+        html: () => side(seg(true) + `<div class="g-acts">${ACT.map(([k, n, p, e], i) => `<div class="g-act${k === "a3" ? " on" : ""}"${K(k)} style="transform:translateY(${i * 56}px)"><span class="st"${K(k + "-e")}>${e}</span><span class="tx"><span class="nm">${n}</span><small>${p}</small></span></div>`).join("")}</div>`, 250) +
+          tile("t", [250, 8, 702, 584], `<div class="g-bar">${ic.folder}<span class="pj"${K("pj")}>landing-page</span><span class="sep">›</span><span class="tt"${K("tt")}>Pricing page</span></div><div class="g-body"><div class="g-chatc"><div class="g-stream"><div class="g-u"${K("o1")}>${ln("210px")}</div><div class="g-a"${K("o2")}>${ln("380px")}${ln("300px")}</div>${U("Add a dark mode.", "n1")}${A("Done. Every colour has a dark twin, and the contrast checks pass.", "n2")}</div>${COMP("in")}</div></div>`),
+        steps: () => [
+          html(1800, "a2-e", DOT), order(1800, ["a2", "a1", "a3", "a4", "a5"], 56),
+          ptr(2700, 900, "a2", -40, 0), click(3700),
+          cls(3750, "a2", "on"), cls(3750, "a3", "on", false), html(3750, "a2-e", ""),
+          hide(3850, "o1"), hide(3850, "o2"), html(3850, "pj", "design-system"), html(3850, "tt", "Dark mode"),
+          show(3900, "n1"), stream(4300, 800, "n2"),
+          ptrOff(4600),
+          html(5400, "a4-e", DOT), order(5400, ["a4", "a2", "a1", "a3", "a5"], 56),
+        ],
+      };
+
+      // Worktrees: a branch splits off, then you keep it (or throw it away)
+      scenes.worktrees = {
+        w: 960, h: 600, end: 7000, p0: [700, 640],
+        html: () => side(seg(false) + Hd("Projects") + row("landing-page", { on: true }) + row("Pricing cards", { sub: true, icon: ic.branch, k: "wt", hide: true }) + row("mobile-app") + row("design-system") + row("notes-app")) +
+          tile("t", F, bar("landing-page", "Pricing cards", chip(`${ic.branch}<span${K("bn")}>main</span>`)) + `<div class="g-body"><div class="g-chatc"><div class="g-stream">${U("Try the plans as cards.", "u1")}<div class="g-graph"><svg class="g-art" viewBox="0 0 640 230">
+            <path d="M20 160H620" stroke="#d2d2d7" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <text x="20" y="200" class="g-gl">main</text>
+            <circle cx="90" cy="160" r="8" fill="#fff" stroke="#aeaeb2" stroke-width="3"/><circle cx="180" cy="160" r="8" fill="#fff" stroke="#aeaeb2" stroke-width="3"/>
+            <path${K("br")} class="g-hide" d="M180 160C240 160 230 70 300 70H470" pathLength="1" stroke="#0071e3" stroke-width="4" stroke-linecap="round" fill="none" stroke-dasharray="1" stroke-dashoffset="1"/>
+            <text${K("bl")} class="g-gl b g-hide" x="300" y="42">pricing-cards</text>
+            ${[0, 1, 2].map((i) => `<circle${K("c" + i)} class="g-hide g-cpop" cx="${320 + i * 70}" cy="70" r="8" fill="#fff" stroke="#0071e3" stroke-width="3"/>`).join("")}
+            <path${K("mg")} class="g-hide" d="M470 70C540 70 530 160 590 160" pathLength="1" stroke="#0071e3" stroke-width="4" stroke-linecap="round" fill="none" stroke-dasharray="1" stroke-dashoffset="1"/>
+            <circle${K("md")} class="g-hide g-cpop" cx="590" cy="160" r="10" fill="#0071e3"/>
+          </svg><div class="g-choose fade"${K("ch")}><span class="g-btn blue"${K("keep")}>Keep changes</span><span class="g-btn ghost">Throw away</span></div></div></div>${COMP("in")}</div></div>`),
+        steps: () => [
+          type(400, "in", "Try the plans as cards."),
+          send(1600, "in", "u1"),
+          show(1900, "wt"), html(1900, "wt-e", SPIN), draw(1900, 900, "br"), html(2200, "bn", "pricing-cards"), show(2500, "bl"),
+          show(3000, "c0"), show(3500, "c1"), show(4000, "c2"),
+          html(4400, "wt-e", DOT), cls(4500, "ch", "fade", false),
+          ptr(4900, 800, "keep"), click(5800),
+          cls(5900, "ch", "fade"), draw(5900, 700, "mg"), show(6550, "md"), html(6550, "bn", "main"), html(6550, "wt-e", `<span class="g-ok">${ic.check}</span>`),
+          ptrOff(6500),
+        ],
+      };
+
+      // Split view: windows glide in until there are four
+      const half = [372, 288];
+      const T = (x, y, w, h) => [x, y, w, h];
+      const splitTile = (k, n, name, r, x) => tile(k, r, TH(n, name) + `<div class="g-body"><div class="g-chatc"><div class="g-stream"><div class="g-u">${ln(90 + n * 14 + "px")}</div><div class="g-a">${ln(220 - n * 10 + "px")}${ln(150 + n * 8 + "px")}</div></div>${COMP("in" + n)}</div></div>`, x);
+      scenes.split = {
+        w: 960, h: 600, end: 8000, p0: [120, 640],
+        html: () => side(projects("landing-page")) +
+          splitTile("t1", 1, "Shorter headline", F, "focus") +
+          splitTile("t2", 2, "Fix the login test", T(640, 8, 372, 584), "in") +
+          splitTile("t3", 3, "Dark mode", T(200, 640, 752, 288), "in") +
+          splitTile("t4", 4, "Export to Markdown", T(640, 304, 372, 288), "in"),
+        steps: () => [
+          ptr(500, 700, "p-mobile-app", -30), click(1250), cls(1300, "p-mobile-app", "on"), cls(1300, "p-landing-page", "on", false),
+          glide(1300, 800, "t1", T(200, 8, ...[372, 584])), glide(1300, 800, "t2", T(580, 8, 372, 584)), cls(1300, "t1", "focus", false), cls(1300, "t2", "focus"),
+          ptr(2400, 600, "p-design-system", -30), click(3050), cls(3100, "p-design-system", "on"), cls(3100, "p-mobile-app", "on", false),
+          glide(3100, 800, "t1", T(200, 8, ...half)), glide(3100, 800, "t2", T(580, 8, ...half)), glide(3100, 800, "t3", T(200, 304, 752, 288)), cls(3100, "t2", "focus", false), cls(3100, "t3", "focus"),
+          ptr(4200, 600, "p-notes-app", -30), click(4850), cls(4900, "p-notes-app", "on"), cls(4900, "p-design-system", "on", false),
+          glide(4900, 800, "t3", T(200, 304, ...half)), glide(4900, 800, "t4", T(580, 304, ...half)), cls(4900, "t3", "focus", false), cls(4900, "t4", "focus"),
+          ptr(5900, 700, [400, 200]), click(6650), cls(6700, "t4", "focus", false), cls(6700, "t1", "focus"),
+          type(6800, "in1", "Even shorter?", 18),
+        ],
+      };
+
+      // Routines: the clock reaches nine, and the morning job runs by itself
+      const clockFace = `<svg class="g-art g-clockf" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="#fff" stroke="#d2d2d7" stroke-width="1.6"/><line${K("hh")} x1="20" y1="20" x2="20" y2="11" stroke="#1d1d1f" stroke-width="2.4" stroke-linecap="round" transform="rotate(240 20 20)"/><line${K("mh")} x1="20" y1="20" x2="20" y2="6" stroke="#1d1d1f" stroke-width="1.6" stroke-linecap="round"/><circle cx="20" cy="20" r="1.8" fill="#1d1d1f"/></svg>`;
+      const routine = (k, when, what, lead, end) => `<div class="g-rt"${K(k)}><span class="lead">${lead}</span><span class="tx"><b>${when}</b>${what}</span><span class="st"${K(k + "-st")}>${end}</span></div>`;
+      const DOCK = (keys) => `<div class="g-dock">${[["chat", ic.chat], ["web", ic.globe], ["dash", ic.bars], ["rt", ic.clock], ["cal", ic.cal]].map(([k, svg]) => `<span${K("d-" + k)}${keys.includes(k) ? ' class="run"' : ""}>${svg}</span>`).join("")}</div>`;
+      const MBAR = '<div class="g-mbar"><i class="g-logo lg"></i><b>Superagent</b></div>';
+      scenes.routines = {
+        w: 960, h: 600, end: 5200,
+        html: () => side(seg(false) + row("Computer", { icon: ic.monitor, on: true }) + Hd("Chats") + row("Check the site", { icon: ic.chat, k: "nc", hide: true, end: '<i class="g-dot"></i>' }) + Hd("Projects") + row("landing-page") + row("shop") + row("mobile-app")) +
+          tile("t", F, MBAR + `<div class="g-dw" style="left:106px;top:72px;width:540px;height:332px"><div class="g-dwt">${ic.clock}Routines<span class="ctl"><i></i><i></i><i></i></span></div><div class="g-rts">` +
+            routine("r1", "Every morning", "Check the site still works", clockFace, `<span class="tm"${K("tm")}>8:00</span>`) +
+            routine("r2", "Every hour", ln("190px"), `<span class="ic">${ic.clock}</span>`, ln("36px")) +
+            routine("r3", "Every Friday", ln("150px"), `<span class="ic">${ic.clock}</span>`, ln("36px")) +
+            `</div></div>${DOCK(["rt"])}`),
+        steps: () => [
+          run(600, 2200, (p, st, c) => {
+            const m = Math.round(p * 60);
+            c.q("mh").setAttribute("transform", `rotate(${m * 6} 20 20)`);
+            c.q("hh").setAttribute("transform", `rotate(${240 + m * 0.5} 20 20)`);
+            if (st.m !== m) { st.m = m; c.q("tm").textContent = m === 60 ? "9:00" : `8:${String(m).padStart(2, "0")}`; }
+          }),
+          cls(2900, "r1", "run"), html(2900, "r1-st", `${SPIN}<span>Running</span>`),
+          cls(4300, "r1", "run", false), cls(4300, "r1", "ok"), html(4300, "r1-st", `<span class="g-ok">${ic.check}</span><span>Done</span>`),
+          show(4500, "nc"),
+        ],
+      };
+
+      // Desktop and phone at once: the page opens beside the chat, then an iPhone forms beside it
+      const pane2 = (cw, desk, deskDual, phone, extra = "") => `<div class="g-pane"${K("pane")} style="--dual:${deskDual}">
+          <div class="g-card off desk"${K("card")} style="left:${desk[0]}px;top:${desk[1]}px;width:${desk[2]}px;height:${desk[3]}px">${URL("https://stripe.com", "u")}${webDesk("f1")}</div>
+          <div class="g-phone off"${K("ph")} style="left:${phone[0]}px;top:${phone[1]}px;width:${phone[2]}px;height:${phone[3]}px">${webPhone("f2")}</div>${extra}</div>`;
+      scenes.twice = {
+        w: 960, h: 600, end: 6400,
+        html: () => side(projects("landing-page", { ends: { "landing-page": "" } })) +
+          tile("t", F, bar("landing-page", "Pricing page", LIVE("stripe.com")) + `<div class="g-body">${pane2(280, [26, 96, 420, 290], "translate(2px, 62px) scale(.6)", [300, 104, 150, 316])}<div class="g-chatc" style="flex-basis:280px"><div class="g-stream">${U("Show it on desktop and iPhone.", "u1")}${WORK("w")}${STEPS("s")}${A("Both look right. The headline keeps to two lines on the phone.", "a1")}</div>${COMP("in")}</div></div>`),
+        steps: () => [
+          type(300, "in", "Show it on desktop and iPhone.", 24),
+          send(1700, "in", "u1"), html(1700, "p-landing-page-e", SPIN),
+          show(2000, "w"), tick(2000, 3300, "w-s"),
+          cls(2200, "card", "off", false), load(2500, "u"), ...stepTo(2500, "s", 1, ["Opening"]),
+          cls(3600, "pane", "dual"), cls(3700, "ph", "off", false), ...stepTo(3700, "s", 2, ["Opening", "Resizing"]),
+          flash(4900, "f1"), flash(4900, "f2"), ...stepTo(4900, "s", 3, ["Opening", "Resizing", "Looking"]),
+          hide(5300, "w"), stream(5300, 800, "a1"), html(5300, "p-landing-page-e", DOT),
+        ],
+      };
+
+      // The Computer: windows open from the dock, and the chat comes forward
+      const dw = (k, r, title, icon, inner, z) => `<div class="g-dw off"${K(k)} style="left:${r[0]}px;top:${r[1]}px;width:${r[2]}px;height:${r[3]}px;z-index:${z};transform-origin:${r[4]}px ${r[5]}px"><div class="g-dwt">${icon}${title}<span class="ctl"><i></i><i></i><i></i></span></div>${inner}</div>`;
+      const fromDock = (r, i) => [...r, 276 + 50 * i - r[0], 502 - r[1]];
+      scenes.desk = {
+        w: 960, h: 600, end: 6600, p0: [560, 640],
+        html: () => side(seg(false) + row("Computer", { icon: ic.monitor, on: true }) + Hd("Projects") + row("landing-page") + row("shop") + row("mobile-app") + row("notes-app")) +
+          tile("t", F, MBAR + `<div class="g-deskin">` +
+            dw("wc", fromDock([34, 22, 330, 300], 0), "Chat", ic.chat, `<div class="g-stream" style="padding:16px">${U("Plan the launch week.", "", false)}${A("Three events are on your calendar.", "a1")}<div class="g-a"${K("a0")}>${ln("150px")}${ln("110px")}</div></div>`, 1) +
+            dw("wb", fromDock([214, 60, 320, 230], 1), "Browser", ic.globe, `<div style="padding:16px 18px"><div class="g-hl" style="font-size:19px">Launch notes</div>${ln("90%", "", "margin-top:14px")}${ln("82%", "", "margin-top:8px")}${ln("64%", "", "margin-top:8px")}<div style="display:flex;gap:10px;margin-top:18px"><i style="flex:1;height:70px;border-radius:8px;background:#f2f2f4"></i><i style="flex:1;height:70px;border-radius:8px;background:#f2f2f4"></i></div></div>`, 2) +
+            dw("wk", fromDock([380, 32, 356, 300], 4), "Calendar", ic.cal, `<div class="g-calg">${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d, i) => `<div class="col"><span class="d">${d}</span>${i === 0 ? `<i class="ev ink g-hide"${K("e0")} style="top:80px">Blog post</i>` : ""}${i === 2 ? `<i class="ev blue g-hide"${K("e1")} style="top:160px">Video</i>` : ""}${i === 4 ? `<i class="ev grey g-hide"${K("e2")} style="top:44px">Newsletter</i>` : ""}</div>`).join("")}</div>`, 3) +
+            `</div>${DOCK([])}`),
+        steps: () => [
+          ptr(400, 700, "d-chat"), click(1150), cls(1200, "wc", "off", false), cls(1200, "d-chat", "run"),
+          ptr(1700, 600, "d-web"), click(2350), cls(2400, "wb", "off", false), cls(2400, "d-web", "run"),
+          ptr(2900, 600, "d-cal"), click(3550), cls(3600, "wk", "off", false), cls(3600, "d-cal", "run"),
+          show(4200, "e0"), show(4450, "e1"), show(4700, "e2"),
+          ptr(5000, 700, [130, 130]), click(5750), at(5800, (c) => { c.q("wc").style.zIndex = 9; }), hide(5900, "a0"), show(5900, "a1"),
+          ptrOff(6400),
+        ],
+      };
+
+      // The simulator: an iPhone boots beside the chat and the agent taps through the app
+      scenes.simulator = {
+        w: 960, h: 600, end: 6800, p0: [470, 640],
+        html: () => side(projects("mobile-app")) +
+          tile("t", F, bar("mobile-app", "Confirm button") + `<div class="g-body"><div class="g-pane"><div class="g-phone off"${K("ph")} style="left:131px;top:52px;width:200px;height:420px"><div class="g-island"></div><div class="g-app"><div class="g-hl" style="font-size:22px">Orders</div>${[0, 1, 2, 3].map((i) => `<div class="g-oc"${K("o" + i)}>${ln(70 + i * 12 + "px", "dk")}${ln(110 - i * 8 + "px", "", "margin-top:8px")}</div>`).join("")}</div><div class="g-sheet"${K("sheet")}><i class="grab"></i>${ln("60%", "dk", "height:10px")}${ln("85%", "", "margin-top:12px")}${ln("70%", "", "margin-top:8px")}<span class="g-btn"${K("cf")} style="display:flex;margin-top:auto">Confirm order</span></div></div></div>` +
+            `<div class="g-chatc" style="flex-basis:290px"><div class="g-stream">${U("Check the Confirm button on iPhone.", "u1")}${WORK("w")}${STEPS("s")}${A("It works. The sheet opens and the order goes through.", "a1")}</div>${COMP("in")}</div></div>`),
+        steps: () => [
+          type(300, "in", "Check the Confirm button on iPhone.", 24),
+          send(1900, "in", "u1"), html(1900, "p-mobile-app-e", SPIN), show(2200, "w"), tick(2200, 3900, "w-s"),
+          cls(2300, "ph", "off", false), ...stepTo(2400, "s", 1, ["Booting"]),
+          ptr(3200, 700, "o0"), click(3950), cls(4000, "o0", "hit"), cls(4100, "sheet", "on"), ...stepTo(4100, "s", 2, ["Booting", "Tapping"]),
+          ptr(4500, 600, "cf"), click(5150), cls(5200, "cf", "blue"), html(5200, "cf", "Ordered"), ...stepTo(5200, "s", 3, ["Booting", "Tapping", "Looking"]),
+          ptrOff(5600), hide(6000, "w"), stream(6000, 700, "a1"), html(6000, "p-mobile-app-e", DOT),
+        ],
+      };
+
+      // Browser automation: it works down the inbox, replying one message at a time
+      scenes.automation = {
+        w: 960, h: 600, end: 7600, p0: [430, 640],
+        html: () => side(seg(false) + Hd("Projects") + row("outreach", { on: true, k: "p" }) + row("landing-page") + row("shop") + row("notes-app")) +
+          tile("t", F, bar("outreach", "Pricing replies", LIVE("Gmail")) + `<div class="g-body"><div class="g-pane"><div class="g-card" style="left:20px;top:20px;width:422px;height:496px">${URL("mail.google.com")}<div class="g-page"><div class="g-ibh"><b>Inbox</b><span><span${K("n")}>0</span> of 6 replied</span></div>${[0, 1, 2, 3, 4, 5].map((i) => `<div class="g-mail"${K("m" + i)}>${ln(56 + ((i * 17) % 30) + "px", "dk")}${ln(150 - ((i * 23) % 50) + "px")}<span class="ok">${ic.check}</span></div>`).join("")}</div></div></div>` +
+            `<div class="g-chatc" style="flex-basis:290px"><div class="g-stream">${U("Reply to everyone who asked about pricing.", "u1")}${WORK("w")}${A("Done. Six replies sent, each by name.", "a1")}</div>${COMP("in")}</div></div>`),
+        steps: () => [
+          type(300, "in", "Reply to everyone who asked about pricing.", 26),
+          send(2100, "in", "u1"), html(2100, "p-e", SPIN), show(2300, "w"), tick(2300, 4900, "w-s"),
+          ...[0, 1, 2, 3, 4, 5].flatMap((i) => {
+            const b = 2700 + i * 650;
+            return [ptr(b, 350, "m" + i, 40), click(b + 400), cls(b + 420, "m" + i, "done"), html(b + 420, "n", String(i + 1))];
+          }),
+          ptrOff(6700), hide(6800, "w"), stream(6800, 600, "a1"), html(6800, "p-e", DOT),
+        ],
+      };
+
+      // The hero: a question, the page in the browser pane, the same page on an iPhone, then four chats
+      // side by side, and Command-K finds one
+      const HA = [220, 8, 972, 734], hw = 482, hh = 363;
+      const PAL = [["Fix the login test", "mobile-app", ic.chat], ["Dark mode", "design-system", ic.chat], ["Export to Markdown", "notes-app", ic.chat], ["Pricing page", "landing-page", ic.chat], ["Open simulator", "", ic.monitor], ["Files", "", ic.folder], ["New chat", "", ic.chat]];
+      const fuzzy = (q, s) => { let i = 0; for (const ch of s.toLowerCase()) if (ch === q[i]) i++; return i === q.length; };
+      const heroTile = (k, n, name, r) => tile(k, r, TH(n, name) + `<div class="g-body"><div class="g-chatc"><div class="g-stream"><div class="g-u">${ln(120 + n * 20 + "px")}</div><div class="g-steps">${ic.right}<b>${n + 1} steps</b><span>· Reading · Editing</span></div><div class="g-a">${ln(300 - n * 20 + "px")}${ln(200 + n * 10 + "px")}</div></div>${COMP("")}</div></div>`, "in");
+      scenes.hero = {
+        w: 1200, h: 750, end: 17200, once: true,
+        html: () => side(seg(false) + row("Computer", { icon: ic.monitor }) + Hd("Splits", "sh", true) + row(`Four chats`, { icon: ic.split, k: "sr", hide: true, end: `<span class="g-cnt"${K("sc")}>2</span>` }) + Hd("Projects") +
+            row("landing-page", { on: false }) + row("Pricing page", { sub: true, on: true, icon: ic.chat, k: "hs" }) + row("mobile-app") + row("design-system") + row("notes-app"), 220) +
+          tile("t1", HA, `<div class="g-bar"${K("bar")}>${ic.folder}<span class="pj">landing-page</span><span class="sep">›</span><span class="tt">Pricing page</span>${chip(`${ic.branch}main`)}${LIVE("stripe.com", "site", true)}</div><div class="g-th g-hide"${K("th")}><span class="g-badge">1</span>${ic.folder}<span class="nm">Pricing page</span></div>` +
+            `<div class="g-body">${pane2(340, [56, 100, 520, 360], "translate(-29px, 60px) scale(.7)", [415, 104, 190, 400])}<div class="g-chatc" style="--cw:340px"><div class="g-stream">${U("Open stripe.com on desktop and iPhone.", "u1")}${A("Opening it in the browser pane.", "a1")}${WORK("w")}${STEPS("s")}${A("It holds up well. On the phone the headline keeps to two lines and <b>Get started</b> goes full width.", "a2")}</div>${COMP("in")}</div>` +
+            `<div class="g-mini g-hide"${K("mini")}><div class="g-url" style="height:30px">${ic.globe}<span style="color:#1d1d1f">stripe.com</span></div><div class="g-minip">${webDesk("")}</div></div></div>`, "focus") +
+          heroTile("t2", 2, "Fix the login test", [770, 8, hw, 734]) + heroTile("t3", 3, "Dark mode", [220, 790, 972, hh]) + heroTile("t4", 4, "Export to Markdown", [770, 379, hw, hh]) +
+          `<div class="g-key"${K("key")} style="left:552px;top:640px"><kbd>⌘</kbd><kbd>K</kbd></div><div class="g-blur"${K("blur")}></div><div class="g-pal"${K("pal")} style="left:340px;top:118px"><div class="g-pin"><span class="tx"${K("q")}></span><span${K("qph")}>Search projects, chats and commands…</span></div><div class="g-plist">${PAL.map(([n, m, svg], i) => `<div class="g-pr${i ? "" : " sel"}"${K("r" + i)}>${svg}<span>${n}</span><span class="m">${m}</span></div>`).join("")}</div></div>`,
+        steps: () => [
+          type(600, "in", "Open stripe.com on desktop and iPhone.", 22),
+          send(2600, "in", "u1"), html(2600, "hs-e", SPIN),
+          show(3100, "a1"), show(3500, "w"), tick(3500, 4300, "w-s"),
+          cls(3900, "t1", "pane"), show(4000, "site"),
+          cls(4500, "card", "off", false), load(4700, "u"), ...stepTo(4700, "s", 1, ["Opening"]),
+          cls(6000, "pane", "dual"), cls(6100, "ph", "off", false), ...stepTo(6100, "s", 2, ["Opening", "Resizing"]),
+          flash(7300, "f1"), flash(7300, "f2"), ...stepTo(7300, "s", 3, ["Opening", "Resizing", "Looking"]),
+          hide(7800, "w"), stream(7800, 1300, "a2"), html(7800, "hs-e", ""),
+          // split view
+          cls(9800, "t1", "tiled"), hide(9800, "bar"), cls(9800, "th", "g-hide", false), show(9900, "mini"),
+          show(9800, "sh"), show(9800, "sr"),
+          glide(9800, 850, "t1", [220, 8, hw, 734]), glide(9800, 850, "t2", [710, 8, hw, 734]),
+          glide(11100, 850, "t1", [220, 8, hw, hh]), glide(11100, 850, "t2", [710, 8, hw, hh]), glide(11100, 850, "t3", [220, 379, 972, hh]), html(11100, "sc", "3"),
+          glide(12400, 850, "t3", [220, 379, hw, hh]), glide(12400, 850, "t4", [710, 379, hw, hh]), html(12400, "sc", "4"),
+          // Command-K
+          cls(13700, "key", "on"), cls(14300, "blur", "on"), cls(14300, "pal", "on"), cls(14600, "key", "on", false),
+          run(15000, 1000, (p, st, c) => {
+            const q = "login".slice(0, Math.round(p * 5));
+            if (st.q === q) return;
+            st.q = q;
+            c.q("q").textContent = q;
+            c.q("qph").style.display = q ? "none" : "";
+            let first = true;
+            PAL.forEach(([n], i) => {
+              const r = c.q("r" + i), ok = !q || fuzzy(q, n);
+              r.classList.toggle("gone", !ok);
+              r.classList.toggle("sel", ok && first);
+              if (ok) first = false;
+            });
+          }),
+          cls(16500, "blur", "on", false), cls(16500, "pal", "on", false),
+          cls(16600, "t1", "focus", false), cls(16600, "t2", "focus"),
+        ],
+      };
+
+      const all = {};
+      document.querySelectorAll(".gfx[data-g]").forEach((g) => { all[g.dataset.g] = engine(g, scenes[g.dataset.g]); });
+      window.__gfx = all;
     })();
-    // the portrait cut of the film on a portrait screen
-    // The drawings are laid out at 960px and scaled to their width, as the tour does
+    // The tour scenes are laid out at 960px and scaled to their width, as the tour does
     (() => {
-      const fitIll = (el) => el.style.setProperty("--mz", (el.clientWidth / 960).toFixed(4));
-      const fitScene = (el) => el.firstElementChild.style.setProperty("--tour-zoom", (el.clientWidth / 960).toFixed(4));
-      const ills = [...document.querySelectorAll(".ill")];
       const scenes = [...document.querySelectorAll(".scene-fit")];
-      const fitAll = () => { ills.forEach(fitIll); scenes.forEach(fitScene); };
-      fitAll();
-      if ("ResizeObserver" in window) new ResizeObserver(fitAll).observe(document.body);
-      else addEventListener("resize", fitAll);
+      const fit = () => scenes.forEach((el) => el.firstElementChild.style.setProperty("--tour-zoom", (el.clientWidth / 960).toFixed(4)));
+      fit();
+      if ("ResizeObserver" in window) new ResizeObserver(fit).observe(document.body);
+      else addEventListener("resize", fit);
+    })();
+    // The hero plays once, when it comes into view, and holds its last moment; off screen it waits.
+    (() => {
+      const g = document.getElementById("hero-film");
+      if (!g || !g.gfx || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (!("IntersectionObserver" in window)) { g.gfx.play(); return; }
+      new IntersectionObserver((entries) => entries.forEach((e) => (e.isIntersecting ? g.gfx.play() : g.gfx.pause())), { threshold: 0.3 }).observe(g);
     })();
     // Every picture plays while it is on screen and pauses when it leaves. The round button in its
     // corner pauses or plays it, and a pause you chose sticks. With reduced motion nothing plays:
-    // a film shows its poster, a drawing holds still.
+    // each drawing shows its last moment and holds still.
     (() => {
       const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
       const items = [...document.querySelectorAll(".media")];
       const ctl = (m) => {
-        const v = m.querySelector("video");
-        const anim = m.querySelector(".ill") || m;
+        const g = m.querySelector(".gfx");
+        const anim = m;
         const btn = m.querySelector(".vbtn");
         let chosen = false;
         const show = (on) => {
           m.classList.toggle("playing", on);
           btn.setAttribute("aria-label", on ? "Pause" : "Play");
         };
-        const play = () => {
-          if (v) v.play().then(() => show(true)).catch(() => show(false));
-          else { anim.classList.add("play"); show(true); }
-        };
-        const pause = () => {
-          if (v) v.pause(); else anim.classList.remove("play");
-          show(false);
-        };
+        const play = () => { if (g && g.gfx) g.gfx.play(); else anim.classList.add("play"); show(true); };
+        const pause = () => { if (g && g.gfx) g.gfx.pause(); else anim.classList.remove("play"); show(false); };
         btn.addEventListener("click", () => {
           if (m.classList.contains("playing")) { chosen = true; pause(); }
           else { chosen = false; play(); }
         });
-        if (v) v.addEventListener("pause", () => show(false));
         return { m, play, pause, get chosen() { return chosen; } };
       };
       const ctls = items.map(ctl);
