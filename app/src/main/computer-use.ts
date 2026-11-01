@@ -990,11 +990,42 @@ export function stopComputerUse(): string[] {
 /** Whether ⌥Esc is ours right now, and whether macOS refused it to us. */
 let stopRefused = false
 
+/**
+ * Others that end when ⌥Esc is pressed, and that need it held while they run
+ * (remote control: a phone working this Mac). One accelerator, one owner: they
+ * share ours rather than register it a second time.
+ */
+const stopListeners = new Set<() => void>()
+const stopHolders = new Set<string>()
+
+export function addStopListener(fn: () => void): () => void {
+  stopListeners.add(fn)
+  return () => stopListeners.delete(fn)
+}
+
+/** Keep ⌥Esc held for `who` until it lets go, whether or not computer use has a yes. */
+export function holdStopKeyFor(who: string): void {
+  stopHolders.add(who)
+  holdStopKey()
+}
+
+export function releaseStopKeyFor(who: string): void {
+  stopHolders.delete(who)
+  if (!anyConsent() && stopHolders.size === 0) releaseStopKey()
+}
+
 function holdStopKey(): void {
   if (stopHeld) return
   try {
     stopHeld = globalShortcut.register(COMPUTER_STOP_HOTKEY, () => {
       stopComputerUse()
+      for (const fn of stopListeners) {
+        try {
+          fn()
+        } catch {
+          // one listener failing must not keep the others from stopping
+        }
+      }
       broadcastToWindows('computer:stopped')
     })
   } catch {
@@ -1026,7 +1057,7 @@ function setActive(on: boolean): void {
     // Look again once the yes could have lapsed.
     idleTimer = setTimeout(() => setActive(false), 60_000)
     idleTimer.unref?.()
-  } else releaseStopKey()
+  } else if (stopHolders.size === 0) releaseStopKey()
   broadcastToWindows('computer:active', on)
 }
 
@@ -1466,6 +1497,54 @@ export async function act(owner: string, action: ComputerAction): Promise<void> 
 
 /** Let what was just done show on screen before it is photographed. */
 export const settle = (ms = 450): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
+// --- what remote control borrows -------------------------------------------
+// Remote control (main/remote-control/) is a phone working this Mac. It uses the
+// same helper, the same capture, the same keep-out list and the same questions
+// about what is in front; these are those, handed over without making the
+// internals public one by one.
+
+/** The helper, one action. Runs that post events can be cut short with killRunningHelper. */
+export const runHelper = cuse
+
+export function killRunningHelper(): void {
+  for (const child of running) child.kill('SIGKILL')
+  running.clear()
+}
+
+/** A picture of one display at a width, as pixels (four bytes each). */
+export async function captureDisplayBitmap(
+  display: Electron.Display,
+  width: number
+): Promise<{ width: number; height: number; data: Buffer }> {
+  const all = screen.getAllDisplays()
+  const size = shotSize(display.bounds, width)
+  const picture = await aroundShot(() => capture(all.indexOf(display), String(display.id), size))
+  const got = picture.image.getSize()
+  const data = picture.image.toBitmap({ scaleFactor: 1 })
+  return { width: got.width, height: got.height, data }
+}
+
+/** Every window on screen, front to back. Throws when the helper cannot say. */
+export const windowLayout = layout
+
+/** The app whose window is at a point, or null. */
+export function appUnder(x: number, y: number): Promise<AppRef | null> {
+  return appAt(String(x), String(y))
+}
+
+/** Superagent's own floating windows and keyboard, as index.ts reported them. */
+export function ownWindows(): {
+  surfaceAt: (x: number, y: number) => boolean
+  focused: () => boolean
+  shortcuts: () => string[]
+} {
+  return {
+    surfaceAt: (x, y) => onOwnSurface(x, y),
+    focused: () => own.focused(),
+    shortcuts: () => own.shortcuts()
+  }
+}
 
 export function registerComputerUseIpc(): void {
   ipcMain.handle('computer:status', () => computerStatus())

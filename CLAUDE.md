@@ -116,6 +116,52 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
 - `prompts.ts` learns whether it is on through `setComputerUseProbe`, not an
   import, so building a prompt does not drag in Electron.
 
+## Remote control (the phone as this Mac's screen, trackpad and keyboard)
+
+`src/main/remote-control/` (`control.ts` the rules, `input.ts` validation,
+`stream.ts` frames, `banner.ts` the Mac's own windows, `index.ts` the wiring),
+`src/shared/remote-control.ts` (keys, points, counters). Protocol in
+`shared/companion-protocol.ts` (`remote.*`, the `remote` and `screen` frames,
+`WireMachine.remoteControl`). Off unless switched on in Settings → Phone.
+
+- **Consent model.** Every session is allowed at the Mac, by someone at the Mac:
+  (1) the phone sends `remote.request` (its own Face ID comes first, on the
+  phone, and is only an extra gate); (2) a native dialog at the Mac, "Allow
+  <phone> to control this Mac?", Don't allow by default, one Allow per display
+  when there are several (that click also chooses the display shared); (3) a
+  second native dialog shows a six-digit code and the phone types it
+  (`remote.code`); three wrong tries burn the request. `askAllow` is a
+  dependency answered only by the dialog: no RPC reaches it, and a `remote.code`
+  sent before the Mac allowed it neither advances nor counts. A request that
+  sits for two minutes expires; three turned-down requests in ten minutes lock
+  requests out for ten; a phone waits five seconds between asks.
+- **While it runs:** the red always-on-top banner (no script, only a Stop link;
+  no banner or no ⌥Esc, no session), ⌥Esc (shared with computer use through
+  `addStopListener`/`holdStopKeyFor`), and it ends when the phone goes (closed
+  connection or 45 s of silence), after 10 idle minutes (only input that was
+  done counts), after 2 hours, on sleep or lock, when the setting goes off, when
+  the display goes, when the banner is lost, or when capture stops working.
+  After any end the next session starts from step 1.
+- **Never:** `guard()` in control.ts checks each action against the Mac as it is
+  then (app in front, app under the pointer, Superagent's own windows and
+  keyboard focus, the keep-out list and `offLimitsApp`), and refuses keys that
+  open Force Quit, log out, stop it, or are Superagent's own shortcuts
+  (`remoteKey`). The stream is covered (`coverOthers`) wherever Superagent has a
+  window, and paused, with no picture sent, while a password manager, Keychain,
+  the lock screen or an app on the keep-out list is in front or anywhere on the
+  shared display; a picture taken just before one appeared is thrown away.
+- `computer.enabled` style: the switch is read once and held in memory
+  (`remote.enabled`, sealed like the computer settings), changed only by
+  `remote:set-enabled` IPC from a window of the app.
+- Tests: `control.test.ts` (state machine and every safeguard, with fakes and a
+  fake clock), `input.test.ts`, `stream.test.ts`, `shared/remote-control.test.ts`,
+  `e2e/phone-remote-control.spec.ts` (fake phone over a real relay). A test run
+  (`COVE_USER_DATA`) swaps the helper for a recorder, the screen for a drawing
+  and the dialogs for ones the test answers (`inertDeps`): never real events.
+  `cuse --dry` covers the helper's new fast actions (`jump tap down up dragto
+  wheel`). `scripts/remote-stream-bench.mjs` measures the stream on app
+  screenshots.
+
 ## Checks
 
 `npm run typecheck`, `npm test` (vitest), `npm run lint`, and

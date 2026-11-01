@@ -1,0 +1,155 @@
+import { BrowserWindow, dialog, app } from 'electron'
+import { spacedCode } from '../../shared/remote-control'
+import type { DisplayInfo } from './control'
+
+/**
+ * What remote control puts on the Mac's screen: the banner that is there for
+ * as long as a phone is working this Mac, and the two native questions that
+ * start it.
+ *
+ * None of it can be answered by the phone. The banner and the dialogs are
+ * Superagent's own windows, and remote input is refused wherever it would land
+ * on one (control.ts: the app under the pointer is Superagent, or the point is
+ * inside one of its windows, or one of them holds the keyboard).
+ */
+
+const STOP_URL = 'sa-remote://stop'
+const WIDTH = 440
+const HEIGHT = 40
+
+const quiet = (): boolean => process.env.COVE_E2E_QUIET === '1'
+
+export function bannerHtml(device: string): string {
+  const what = /ipad/i.test(device) ? 'iPad' : 'iPhone'
+  return `<!doctype html><meta charset="utf-8"><title>Remote control</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent;font:600 13px -apple-system,system-ui,sans-serif;-webkit-user-select:none;user-select:none}
+  .bar{box-sizing:border-box;height:100%;margin:0;display:flex;align-items:center;justify-content:center;gap:10px;
+    background:#c8281e;color:#fff;border-radius:10px;padding:0 14px;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+  a{color:#c8281e;background:#fff;text-decoration:none;border-radius:6px;padding:3px 12px;cursor:pointer}
+</style>
+<div class="bar"><span>Your ${what} is controlling this Mac</span><a href="${STOP_URL}">Stop</a></div>`
+}
+
+/** The banner. `onStop` is called when someone at the Mac chooses Stop in it. */
+export function createBanner(onStop: () => void): {
+  show: (info: { deviceName: string; display: DisplayInfo }) => boolean
+  hide: () => void
+  ok: () => boolean
+  bounds: () => Electron.Rectangle | null
+} {
+  let win: BrowserWindow | null = null
+
+  const hide = (): void => {
+    const w = win
+    win = null
+    if (w && !w.isDestroyed()) w.destroy()
+  }
+
+  return {
+    show({ deviceName, display }) {
+      hide()
+      try {
+        const b = display.bounds
+        const w = new BrowserWindow({
+          x: Math.round(b.x + (b.width - WIDTH) / 2),
+          y: b.y + 6,
+          width: WIDTH,
+          height: HEIGHT,
+          frame: false,
+          transparent: true,
+          resizable: false,
+          movable: false,
+          minimizable: false,
+          maximizable: false,
+          fullscreenable: false,
+          closable: false,
+          // Not a window that takes the keyboard or makes Superagent the app in
+          // front: a click on Stop is a click, nothing more.
+          focusable: false,
+          type: 'panel',
+          hasShadow: false,
+          show: false,
+          webPreferences: { sandbox: true, contextIsolation: true, javascript: false }
+        })
+        w.setAlwaysOnTop(true, 'screen-saver')
+        w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+        // No script, no navigation but the one link: Stop.
+        w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+        w.webContents.on('will-navigate', (e, url) => {
+          e.preventDefault()
+          if (url === STOP_URL) onStop()
+        })
+        void w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(bannerHtml(deviceName)))
+        // A quiet test run shows no windows; everything else is as in life.
+        if (!quiet()) w.showInactive()
+        win = w
+        return true
+      } catch {
+        hide()
+        return false
+      }
+    },
+    hide,
+    ok: () => !!win && !win.isDestroyed() && (quiet() || win.isVisible()),
+    bounds: () => (win && !win.isDestroyed() ? win.getBounds() : null)
+  }
+}
+
+/** Bring Superagent to the front so the question is seen, unless this is a quiet test run. */
+function forward(): void {
+  if (!quiet()) app.focus({ steal: true })
+}
+
+/**
+ * "Allow your iPhone to control this Mac?" A native dialog, Don't allow by
+ * default (Return and Esc both mean no), one Allow button per display when
+ * there are several so the choice of what is shared is made here too.
+ */
+export async function askAllowDialog(q: {
+  deviceName: string
+  displays: DisplayInfo[]
+  signal: AbortSignal
+}): Promise<{ allow: false } | { allow: true; displayId: number }> {
+  forward()
+  const shown = q.displays.slice(0, 4)
+  if (!shown.length) return { allow: false }
+  const many = shown.length > 1
+  const r = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'Superagent',
+    message: `Allow ${q.deviceName} to control this Mac?`,
+    detail:
+      "It will see this screen and use the mouse and keyboard until you stop it: press ⌥Esc, or choose Stop in the red bar at the top. It never uses Superagent's own windows, password managers or the lock screen.\n\nOnly allow it if you just asked for this on your phone.",
+    buttons: ["Don't allow", ...shown.map((d) => (many ? `Allow on ${d.name}` : 'Allow'))],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+    signal: q.signal
+  })
+  const picked = r.response - 1
+  return picked >= 0 && picked < shown.length && !q.signal.aborted
+    ? { allow: true, displayId: shown[picked].id }
+    : { allow: false }
+}
+
+/** The code, on the Mac's screen, until the phone has typed it, or someone chooses Cancel. */
+export async function showCodeDialog(q: {
+  deviceName: string
+  code: string
+  signal: AbortSignal
+}): Promise<void> {
+  forward()
+  await dialog.showMessageBox({
+    type: 'info',
+    title: 'Superagent',
+    message: `Type ${spacedCode(q.code)} on ${q.deviceName}`,
+    detail:
+      'Remote control starts when the code is typed on the phone. Cancel if you did not ask for this.',
+    buttons: ['Cancel'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+    signal: q.signal
+  })
+}

@@ -11,6 +11,13 @@ import { handleRpc, listTree, listChats } from './rpc'
 import { openPanes } from '../browser'
 import { wireBrowser } from './index'
 import { openSimulators, deviceLabel } from '../simulator'
+import {
+  handleRemoteRpc,
+  remoteConnGone,
+  remoteControlOn,
+  remoteHeard,
+  remoteWire
+} from '../remote-control'
 import type { RelayClient } from './relay-client'
 import {
   PROTOCOL_VERSION,
@@ -87,6 +94,7 @@ export class ClientConn {
     if (this.closed) return
     this.closed = true
     this.stopReplays()
+    remoteConnGone(this.id)
     this.relay.closeConn(this.id)
     this.onClosed(this)
   }
@@ -154,6 +162,7 @@ export class ClientConn {
     if (this.closed) return
     this.closed = true
     this.stopReplays()
+    remoteConnGone(this.id)
     this.onClosed(this)
   }
 
@@ -188,6 +197,8 @@ export class ClientConn {
     } catch {
       return
     }
+    // Anything at all from the phone, a ping included, is it still being there.
+    if (this.authenticated) remoteHeard(this.id)
     await this.handle(frame)
   }
 
@@ -273,6 +284,8 @@ export class ClientConn {
           this.send({ t: 'simulator', simulator: { chatId, open: true, udid, device } })
         )
       }
+      // Remote control, when this Mac has it on: where it stands for this phone.
+      if (remoteControlOn()) this.send({ t: 'remote', remote: remoteWire(this.id) })
       this.onAuthed(this)
       return
     }
@@ -329,6 +342,21 @@ export class ClientConn {
           this.send({ t: 'res', id: frame.id, ok: true })
           return
         }
+        // The remote-control methods need to know which phone wrote, and are
+        // answered only with a paired device's connection behind them.
+        if (frame.method.startsWith('remote.') && this.deviceId) {
+          const r = await handleRemoteRpc(
+            { connId: this.id, deviceId: this.deviceId },
+            frame.method,
+            frame.params
+          )
+          this.send(
+            r.ok
+              ? { t: 'res', id: frame.id, ok: true, result: r.result }
+              : { t: 'res', id: frame.id, ok: false, error: r.error }
+          )
+          return
+        }
         const res = await handleRpc(frame.method, frame.params)
         this.send(
           res.ok
@@ -344,5 +372,12 @@ export class ClientConn {
 }
 
 export function machineInfo(): WireMachine {
-  return { name: prettyHostname(), appVersion: app.getVersion(), protocol: PROTOCOL_VERSION }
+  return {
+    name: prettyHostname(),
+    appVersion: app.getVersion(),
+    protocol: PROTOCOL_VERSION,
+    // Said only while Remote control is switched on here: a phone shows
+    // "Control this Mac" from this and from nothing else.
+    ...(remoteControlOn() ? { remoteControl: true } : {})
+  }
 }

@@ -61,6 +61,7 @@ import { registerAgentIpc, killAllAgents, markContextLost, agentBus } from './ag
 import { registerLoops } from './loops'
 import { killAllOneShots } from './kill-tree'
 import { startCompanionLog, forgetChat } from './companion/log'
+import { registerRemoteControlIpc, startRemoteControl } from './remote-control'
 import {
   startCompanion,
   stopCompanion,
@@ -372,6 +373,9 @@ app.whenReady().then(async () => {
   })
   // ⌥Esc, or turning it off, stops the agents that were using the Mac.
   setComputerStop((chatId) => void stopFromDot(chatId))
+  // Remote control (a phone working this Mac): off until switched on here.
+  registerRemoteControlIpc()
+  startRemoteControl()
   registerLidAwakeIpc()
   registerMailIpc()
   registerClaudeModelsIpc()

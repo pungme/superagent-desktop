@@ -224,6 +224,12 @@ export interface WireMachine {
   name: string
   appVersion: string
   protocol: number
+  /**
+   * Present, and true, only while Remote control is switched on at this Mac
+   * (Settings → Phone). A Mac from before, or with it off, leaves it out, and
+   * the phone shows no "Control this Mac".
+   */
+  remoteControl?: boolean
 }
 
 // --- Frames: what travels over the (encrypted) socket -----------------------
@@ -275,6 +281,10 @@ export type ServerFrame =
   | { t: 'openFile'; workspaceId: string; path: string; chatId: string | null }
   | { t: 'browser'; browser: WireBrowser }
   | { t: 'simulator'; simulator: WireSimulator }
+  /** Remote control: where the session stands. Sent on every change (see WireRemote). */
+  | { t: 'remote'; remote: WireRemote }
+  /** Remote control: a piece of the Mac's screen, while a session is running. */
+  | { t: 'screen'; frame: WireScreenFrame }
   | { t: 'res'; id: string; ok: true; result?: unknown }
   | { t: 'res'; id: string; ok: false; error: { code: RpcErrorCode; message: string } }
   | { t: 'pong' }
@@ -374,6 +384,11 @@ export type RpcMethod =
   | 'browser.input'
   | 'sim.screenshot'
   | 'sim.input'
+  | 'remote.request'
+  | 'remote.code'
+  | 'remote.input'
+  | 'remote.view'
+  | 'remote.end'
   | 'files.list'
   | 'files.read'
   | 'files.chunk'
@@ -524,6 +539,121 @@ export type BrowserInputAction =
   /** Typed into whatever has focus on the page. */
   | { type: 'text'; text: string }
   | { type: 'key'; key: BrowserInputKey; shift?: boolean }
+
+// --- Remote control (2.2) ---------------------------------------------------
+//
+// The phone as this Mac's screen, trackpad and keyboard. OFF unless switched on
+// at the Mac. Every session is allowed at the Mac, by someone at the Mac:
+//
+//   1. phone → `remote.request`  (the phone has asked for Face ID first)
+//   2. the Mac shows a native dialog: "Allow your iPhone to control this Mac?"
+//      [Don't allow] [Allow]. Only a click there goes on; nothing on the phone
+//      can answer it. State: 'asking'.
+//   3. then a second dialog shows a six-digit code. State: 'code'. The phone
+//      sends `remote.code` with what was read off the Mac's screen. Three wrong
+//      tries burn the request.
+//   4. the session starts: an always-on-top banner on the Mac, the stream of
+//      `screen` frames, and `remote.input` accepted. State: 'active'.
+//
+// It ends at once on ⌥Esc or the banner's Stop, and on its own when the phone
+// goes, after ten minutes without input, when the Mac sleeps or locks, or when
+// the switch is turned off. A new session needs steps 1-3 again.
+//
+// A Mac from before answers `bad-params` ("unknown method") to all of these.
+
+export type RemoteEndReason =
+  | 'stopped-at-mac'
+  | 'stopped-on-phone'
+  | 'hotkey'
+  | 'phone-left'
+  | 'phone-silent'
+  | 'idle'
+  | 'too-long'
+  | 'slept'
+  | 'locked'
+  | 'turned-off'
+  | 'display-gone'
+  | 'banner-lost'
+  | 'permissions'
+  | 'no-stop-key'
+
+export type RemoteRefusedReason = 'denied' | 'expired' | 'wrong-code' | 'cancelled'
+
+/** Why the stream is paused: the Mac never sends pixels, and refuses input, while it is. */
+export type RemotePause = 'secret' | 'lock' | 'unknown'
+
+export interface WireRemote {
+  /** The Mac has Remote control switched on and ready. False: nothing below applies. */
+  available: boolean
+  state: 'idle' | 'asking' | 'code' | 'active'
+  /** The session this phone has, when `active`. */
+  display?: { name: string; width: number; height: number }
+  /** Set while the stream is paused (password manager, Keychain, lock screen in front). */
+  paused?: RemotePause | null
+  /** The app the Mac stopped for, when it is a named one ("1Password"). */
+  pausedBy?: string
+  /** In 'code': how many wrong codes are left. */
+  triesLeft?: number
+  /** When the last session ended, or the last request was turned down, and why. */
+  ended?: RemoteEndReason | RemoteRefusedReason | null
+  /** Why it is not available, in words, when `available` is false and the Mac can say. */
+  note?: string
+}
+
+/**
+ * A piece of the Mac's screen. The picture is `w`×`h` pixels (the whole shared
+ * display, shrunk); `jpeg` covers the rectangle x,y,rw,rh of it. A key frame is
+ * the whole picture (0,0,w,h) and stands on its own; any other frame is drawn
+ * over the last picture the phone holds. `cursor` is where the Mac's pointer
+ * is, 0..1 across and down, null when it is on another display. A frame with no
+ * `jpeg` only moves the cursor.
+ */
+export interface WireScreenFrame {
+  seq: number
+  w: number
+  h: number
+  x: number
+  y: number
+  rw: number
+  rh: number
+  key: boolean
+  jpeg: string
+  cursor: { x: number; y: number } | null
+}
+
+/** `remote.request`: ask to start. The result is a WireRemote ('asking'). */
+export type RemoteRequestParams = Record<string, never>
+/** `remote.code`: what the Mac's second dialog showed. */
+export interface RemoteCodeParams {
+  code: string
+}
+export type RemoteInputButton = 'left' | 'right'
+export type RemoteInputMod = 'cmd' | 'shift' | 'opt' | 'ctrl' | 'fn'
+/**
+ * Points are fractions of the picture (0,0 top left, 1,1 bottom right). They
+ * are applied in the order given, and a batch stops at the first one refused.
+ */
+export type RemoteInputAction =
+  | { type: 'move'; x: number; y: number }
+  | { type: 'click'; x: number; y: number; button?: RemoteInputButton; count?: number }
+  | { type: 'down'; x: number; y: number; button?: RemoteInputButton }
+  | { type: 'up'; x: number; y: number; button?: RemoteInputButton }
+  | { type: 'drag'; x: number; y: number; toX: number; toY: number }
+  | { type: 'scroll'; x: number; y: number; dx: number; dy: number }
+  | { type: 'text'; text: string }
+  | { type: 'key'; key: string; mods?: RemoteInputMod[] }
+export interface RemoteInputParams {
+  actions: RemoteInputAction[]
+}
+/** `remote.view`: how the phone wants the stream, and "I am still here" (send it every few seconds). */
+export interface RemoteViewParams {
+  /** False while the phone is not showing the screen: the Mac stops capturing. */
+  visible?: boolean
+  /** The widest picture the phone can use, in pixels. */
+  maxWidth?: number
+  /** Send a whole picture next (the phone lost its place). */
+  key?: boolean
+}
 
 /** `files.read`: a project file, in whichever form the phone can show. */
 export type WireFileContent =

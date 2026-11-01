@@ -37,6 +37,7 @@ import { EventEmitter } from 'events'
 import { loadedMachineId } from './identity'
 import { listChats } from './rpc'
 import { loopsBus } from '../loops'
+import { bindRemoteTransport } from '../remote-control'
 import type { WireEvent, WireBrowser } from '../../shared/companion-protocol'
 
 /**
@@ -61,6 +62,15 @@ export function relayUrl(): string {
 }
 
 export function startCompanion(): void {
+  // Remote control sends its frames, and asks who is still there, through here.
+  bindRemoteTransport({
+    send: (connId, frame) => conns.get(connId)?.send(frame),
+    pushAll: (wire) => {
+      for (const c of conns.values()) if (c.authenticated) c.send({ t: 'remote', remote: wire(c.id) })
+    },
+    alive: (connId) => !!conns.get(connId)?.authenticated,
+    backlog: () => relay.bufferedAmount
+  })
   // The phone shows the Mac's splits: tell it when they change (it asks again
   // whenever the chat list is pushed).
   watchKv((key) => {

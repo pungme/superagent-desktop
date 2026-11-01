@@ -330,6 +330,7 @@ export function PhoneSettings(): React.JSX.Element {
             </div>
           </div>
         )}
+        <RemoteControlRow />
         <div className="settings-row">
           <div className="settings-label">
             <strong>Keep this Mac awake so your phone can reach it</strong>
@@ -394,6 +395,53 @@ export function PhoneSettings(): React.JSX.Element {
         </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * Let a paired phone use this Mac's screen, mouse and keyboard. Off until
+ * switched on here, and only here: the phone cannot turn it on, and cannot
+ * start a session without someone at the Mac clicking Allow.
+ */
+function RemoteControlRow(): React.JSX.Element | null {
+  const [st, setSt] = useState<Awaited<ReturnType<typeof window.cove.remoteStatus>> | null>(null)
+  useEffect(() => {
+    void window.cove.remoteStatus().then(setSt)
+    return window.cove.onRemoteChanged(setSt)
+  }, [])
+  if (!st || !st.supported) return null
+  return (
+    <div className="settings-row">
+      <div className="settings-label">
+        <strong>Let my phone control this Mac</strong>
+        <span>
+          Off unless you turn it on. Each time, this Mac asks you to allow it and shows a code to
+          type on the phone. While it runs a red bar is on screen; press ⌥Esc or choose Stop to end
+          it. It never uses Superagent&apos;s own windows, password managers or the lock screen, and
+          shares the keep-out list under Computer use.
+          {st.enabled && st.note ? ` ${st.note}` : ''}
+        </span>
+        {st.active && (
+          <span>
+            {st.paused ? 'Paused while a password manager or the lock screen is in front. ' : ''}
+            <button className="phone-btn" onClick={() => void window.cove.remoteStop().then(setSt)}>
+              End session
+            </button>
+          </span>
+        )}
+      </div>
+      <label className="phone-switch">
+        <input
+          type="checkbox"
+          aria-label="Let my phone control this Mac"
+          checked={st.enabled}
+          onChange={(e) => void window.cove.setRemoteControl(e.target.checked).then(setSt)}
+        />
+        <span className="phone-switch-state">
+          {st.active ? 'In use' : st.enabled ? 'Allowed, asks each time' : 'Not allowed'}
+        </span>
+      </label>
+    </div>
   )
 }
 

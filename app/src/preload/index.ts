@@ -85,6 +85,19 @@ export type RoutineStep =
   | { kind: 'tool'; name: string; input?: string }
 
 /** One conversation inside a project. A project can hold many. */
+/** Remote control, as Settings shows it. */
+export interface RemoteControlStatus {
+  supported: boolean
+  enabled: boolean
+  active: boolean
+  asking: boolean
+  device: string
+  since: number
+  paused: string | null
+  /** Why it cannot run yet (a permission), in words. */
+  note: string
+}
+
 /** What computer use needs, and has. */
 export interface ComputerStatus {
   supported: boolean
@@ -939,6 +952,12 @@ export interface CoveApi {
   ) => Promise<{ ok: boolean; error?: string }>
   /** Open Terminal on the CLI's one-time interactive sign-in. */
   openAgentLogin: (provider: AgentProvider) => void
+  // --- Remote control (main/remote-control/) -------------------------------
+  remoteStatus: () => Promise<RemoteControlStatus>
+  setRemoteControl: (on: boolean) => Promise<RemoteControlStatus>
+  /** End the phone's session now, as ⌥Esc does. */
+  remoteStop: () => Promise<RemoteControlStatus>
+  onRemoteChanged: (cb: (s: RemoteControlStatus) => void) => () => void
   // --- Computer use (main/computer-use.ts) ---------------------------------
   computerStatus: () => Promise<ComputerStatus>
   setComputerUse: (on: boolean) => Promise<ComputerStatus>
@@ -1601,6 +1620,10 @@ const cove: CoveApi = {
       .finally(() => ipcRenderer.removeListener('env:install-progress', listener))
   },
   openAgentLogin: (provider) => ipcRenderer.send('env:open-login', provider),
+  remoteStatus: () => ipcRenderer.invoke('remote:status'),
+  setRemoteControl: (on) => ipcRenderer.invoke('remote:set-enabled', on),
+  remoteStop: () => ipcRenderer.invoke('remote:stop'),
+  onRemoteChanged: (cb) => subscribe('remote:changed', (s) => cb(s as RemoteControlStatus)),
   computerStatus: () => ipcRenderer.invoke('computer:status'),
   setComputerUse: (on) => ipcRenderer.invoke('computer:set-enabled', on),
   computerDenyPick: () => ipcRenderer.invoke('computer:deny-pick'),

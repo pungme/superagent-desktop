@@ -31,6 +31,15 @@
 //   cuse type  "text"
 //   cuse key   "cmd+shift+4"
 //
+// Remote control (the phone as trackpad and keyboard) needs the pointer to
+// follow a finger, so these do not glide and do not wait for hover to settle:
+//   cuse jump  X Y                    the pointer is there, as one move event
+//   cuse tap   X Y [left|right|middle] [count]   jump, then click
+//   cuse down  X Y [left|right|middle]           jump, then press and hold
+//   cuse up    X Y [left|right|middle]           jump, then let go
+//   cuse dragto X Y                   the pointer moves with the left button held
+//   cuse wheel X Y DX DY              jump, then scroll by DX, DY pixels
+//
 // Coordinates are points on the main display, top left 0,0. With --dry as the
 // first argument nothing is posted: the action is parsed and echoed, which is
 // what the tests run.
@@ -713,6 +722,54 @@ int main(int argc, char **argv) {
     if (left < 2) return fail("axat X Y");
     if (dry) { printf("{\"ok\":true}\n"); return 0; }
     return ax_at(CGPointMake(atof(v[0]), atof(v[1])));
+  }
+  if (!strcmp(act, "jump")) {
+    if (left < 2) return fail("jump X Y");
+    mouse(kCGEventMouseMoved, CGPointMake(atof(v[0]), atof(v[1])), kCGMouseButtonLeft, 0);
+    printf("{\"ok\":true}\n");
+    return 0;
+  }
+  if (!strcmp(act, "tap") || !strcmp(act, "down") || !strcmp(act, "up")) {
+    int tap = !strcmp(act, "tap");
+    if (left < 2) return fail("tap X Y [button] [count]; down X Y [button]; up X Y [button]");
+    CGPoint p = CGPointMake(atof(v[0]), atof(v[1]));
+    const char *which = left > 2 ? v[2] : "left";
+    int count = tap && left > 3 ? atoi(v[3]) : 1;
+    if (count < 1 || count > 3) return fail("count must be 1 to 3");
+    CGMouseButton b = kCGMouseButtonLeft;
+    CGEventType down = kCGEventLeftMouseDown, up = kCGEventLeftMouseUp;
+    if (!strcmp(which, "right")) { b = kCGMouseButtonRight; down = kCGEventRightMouseDown; up = kCGEventRightMouseUp; }
+    else if (!strcmp(which, "middle")) { b = kCGMouseButtonCenter; down = kCGEventOtherMouseDown; up = kCGEventOtherMouseUp; }
+    else if (strcmp(which, "left")) return fail("button must be left, right or middle");
+    mouse(kCGEventMouseMoved, p, kCGMouseButtonLeft, 0);
+    if (tap) {
+      for (int i = 1; i <= count; i++) {
+        mouse(down, p, b, i);
+        nap(18);
+        mouse(up, p, b, i);
+        if (i < count) nap(40);
+      }
+    } else if (!strcmp(act, "down")) {
+      mouse(down, p, b, 1);
+    } else {
+      mouse(up, p, b, 1);
+    }
+    printf("{\"ok\":true}\n");
+    return 0;
+  }
+  if (!strcmp(act, "dragto")) {
+    if (left < 2) return fail("dragto X Y");
+    mouse(kCGEventLeftMouseDragged, CGPointMake(atof(v[0]), atof(v[1])), kCGMouseButtonLeft, 1);
+    printf("{\"ok\":true}\n");
+    return 0;
+  }
+  if (!strcmp(act, "wheel")) {
+    if (left < 4) return fail("wheel X Y DX DY");
+    mouse(kCGEventMouseMoved, CGPointMake(atof(v[0]), atof(v[1])), kCGMouseButtonLeft, 0);
+    CGEventRef e = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 2, atoi(v[3]), atoi(v[2]));
+    post(e);
+    printf("{\"ok\":true}\n");
+    return 0;
   }
   if (!strcmp(act, "move")) {
     if (left < 2) return fail("move X Y");
