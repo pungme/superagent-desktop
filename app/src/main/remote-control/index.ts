@@ -1,5 +1,5 @@
 import { randomInt } from 'crypto'
-import { BrowserWindow, ipcMain, nativeImage, powerMonitor, screen } from 'electron'
+import { BrowserWindow, app, ipcMain, nativeImage, powerMonitor, screen } from 'electron'
 import { z } from 'zod'
 import {
   addStopListener,
@@ -33,6 +33,7 @@ import type { Bitmap, Encode, Rect } from './stream'
  */
 
 const KEY = 'remote.enabled'
+const SHELLS_KEY = 'remote.shells'
 
 /**
  * Read from the store once, then held here and changed only through IPC, as
@@ -49,6 +50,18 @@ function readEnabled(): boolean {
     enabledNow = v === '1'
   }
   return process.platform === 'darwin' && enabledNow
+}
+
+let shellsNow: boolean | null = null
+
+/** Whether the Mac's person allowed terminals and scripting apps. Held like the switch above. */
+function readShells(): boolean {
+  if (shellsNow === null) {
+    const v = settingGet(SHELLS_KEY)
+    if (v === undefined) return false
+    shellsNow = v === '1'
+  }
+  return shellsNow
 }
 
 /** What carries frames to and from a phone, bound by the companion once it is up. */
@@ -176,10 +189,11 @@ let deps: RemoteDeps | null = null
 
 function control(): RemoteControl {
   if (!instance) {
-    deps = process.env.COVE_USER_DATA ? inertDeps(realDeps()) : realDeps()
+    // A test run (never a packaged app, which also has the variable stripped).
+    const testRun = !app.isPackaged && !!process.env.COVE_USER_DATA
+    deps = testRun ? inertDeps(realDeps()) : realDeps()
     instance = new RemoteControl(deps)
-    if (process.env.COVE_USER_DATA)
-      (globalThis as Record<string, unknown>).__remoteTest = testHandle(instance, deps)
+    if (testRun) (globalThis as Record<string, unknown>).__remoteTest = testHandle(instance, deps)
   }
   return instance
 }
@@ -200,6 +214,7 @@ export function status(): {
   asking: boolean
   device: string
   since: number
+  shells: boolean
   paused: string | null
   note: string
 } {
@@ -215,6 +230,7 @@ export function status(): {
 export function startRemoteControl(): void {
   const c = control()
   c.setEnabled(readEnabled())
+  c.setShells(readShells())
   // ⌥Esc, from whatever app is in front.
   addStopListener(() => c.end('hotkey'))
   powerMonitor.on('suspend', () => c.end('slept'))
@@ -230,6 +246,20 @@ export function registerRemoteControlIpc(): void {
     settingSet(KEY, v ? '1' : '0')
     healthLog(`remote: switched ${v ? 'on' : 'off'} at the Mac`)
     control().setEnabled(v && process.platform === 'darwin')
+    // Off takes the shells setting with it: the next time starts safe.
+    if (!v) {
+      shellsNow = false
+      settingSet(SHELLS_KEY, '0')
+    }
+    return status()
+  })
+  // Terminals and scripting apps: another switch, at the Mac and only here.
+  ipcMain.handle('remote:set-shells', (_e, on: boolean) => {
+    const v = !!on && control().isEnabled()
+    shellsNow = v
+    settingSet(SHELLS_KEY, v ? '1' : '0')
+    healthLog(`remote: shells and scripting apps ${v ? 'allowed' : 'not allowed'} at the Mac`)
+    control().setShells(v)
     return status()
   })
   ipcMain.handle('remote:stop', () => {
@@ -277,21 +307,21 @@ export async function handleRemoteRpc(
       case 'remote.code': {
         const p = remoteCodeParams.safeParse(params)
         if (!p.success) return fail('bad-params', 'six digits')
-        return { ok: true, result: c.code(who.connId, p.data.code) }
+        return { ok: true, result: c.code(who, p.data.code) }
       }
       case 'remote.input': {
         const p = remoteInputParams.safeParse(params)
         if (!p.success) return fail('bad-params', p.error.message.slice(0, 300))
-        return { ok: true, result: await c.input(who.connId, p.data.actions) }
+        return { ok: true, result: await c.input(who, p.data.actions) }
       }
       case 'remote.view': {
         const p = remoteViewParams.safeParse(params ?? {})
         if (!p.success) return fail('bad-params', p.error.message.slice(0, 300))
-        c.view(who.connId, p.data)
+        c.view(who, p.data)
         return { ok: true, result: c.wire(who.connId) }
       }
       case 'remote.end':
-        c.endFromPhone(who.connId)
+        c.endFromPhone(who)
         return { ok: true, result: c.wire(who.connId) }
       default:
         return fail('bad-params', `unknown method ${method}`)

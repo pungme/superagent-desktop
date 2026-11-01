@@ -212,7 +212,9 @@ function cusePath(): string | null {
 }
 
 function cuse(
-  args: string[]
+  args: string[],
+  /** Where a run that posts events is kept, so Stop can cut it short. */
+  track: Set<ChildProcess> = running
 ): Promise<{ ok: boolean; out: Record<string, unknown>; error: string }> {
   const bin = cusePath()
   if (!bin)
@@ -220,24 +222,27 @@ function cuse(
   // A test run can aim the accessibility actions at an app of its own (a window
   // off every screen), so that a real agent can be watched pressing and filling
   // without anything of the user's being touched. Never outside a test run.
-  const aim = process.env.COVE_USER_DATA ? process.env.COVE_E2E_AX_PID : undefined
+  const aim =
+    process.env.COVE_USER_DATA && !app.isPackaged ? process.env.COVE_E2E_AX_PID : undefined
   if (aim && /^ax(press|set|menu)?$/.test(args[0])) args = ['--pid', aim, ...args]
   return new Promise((resolve) => {
     let child: ChildProcess | undefined = undefined
     child = execFile(bin, args, { timeout: 20_000 }, (err, stdout) => {
-      if (child) running.delete(child)
+      if (child) track.delete(child)
       let out: Record<string, unknown> = {}
       try {
         out = JSON.parse(String(stdout).trim().split('\n').pop() || '{}')
       } catch {
         // not JSON: treated as a failure below
       }
-      const error = typeof out.error === 'string' ? out.error : err ? err.message : ''
+      // The helper's own words, or a fixed one: never the error's message, which
+      // is the command line (and so whatever was typed).
+      const error =
+        typeof out.error === 'string' ? out.error : err ? 'The helper did not finish.' : ''
       resolve({ ok: !err && out.ok !== false, out, error })
     })
     // Only the ones that post events are worth cutting short.
-    if (child && !['at', 'windows', 'pos', 'trusted', 'parent'].includes(args[0]))
-      running.add(child)
+    if (child && !['at', 'windows', 'pos', 'trusted', 'parent'].includes(args[0])) track.add(child)
   })
 }
 
@@ -975,8 +980,9 @@ export function grantConsent(owner: string, now = Date.now()): void {
 export function stopComputerUse(): string[] {
   const stopped = [...allowed.keys()]
   // Whatever is being typed or dragged right now ends here, not when it is done.
-  for (const child of running) child.kill('SIGKILL')
+  for (const child of [...running, ...remoteRunning]) child.kill('SIGKILL')
   running.clear()
+  remoteRunning.clear()
   allowed.clear()
   grantedAt.clear()
   actionsDone.clear()
@@ -1504,12 +1510,23 @@ export const settle = (ms = 450): Promise<void> => new Promise((r) => setTimeout
 // about what is in front; these are those, handed over without making the
 // internals public one by one.
 
-/** The helper, one action. Runs that post events can be cut short with killRunningHelper. */
-export const runHelper = cuse
+/** Helper runs that remote control started, kept apart from computer use's own. */
+const remoteRunning = new Set<ChildProcess>()
 
+/**
+ * The helper, one action, for remote control. What comes back is only whether it
+ * worked: a fixed sentence, never the helper's or the system's words, since
+ * those reach a phone. Runs that post events can be cut short with killRunningHelper.
+ */
+export async function runHelper(args: string[]): Promise<{ ok: boolean; error: string }> {
+  const r = await cuse(args, remoteRunning)
+  return { ok: r.ok, error: r.ok ? '' : 'The Mac did not do that.' }
+}
+
+/** Cut short what remote control is posting. A computer-use agent's own run is left alone. */
 export function killRunningHelper(): void {
-  for (const child of running) child.kill('SIGKILL')
-  running.clear()
+  for (const child of remoteRunning) child.kill('SIGKILL')
+  remoteRunning.clear()
 }
 
 /** A picture of one display at a width, as pixels (four bytes each). */

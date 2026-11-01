@@ -76,8 +76,6 @@ export interface Step {
   /** Points it touches, in the system's coordinates (both ends of a drag). */
   points: { x: number; y: number }[]
   kind: 'pointer' | 'keys'
-  /** The cost against the rate limit. */
-  cost: number
   /** Whether it is only the pointer moving. */
   move?: boolean
 }
@@ -108,7 +106,6 @@ export function toStep(
         args: [held && held.button === 'left' ? 'dragto' : 'jump', ...s(at)],
         points: [at],
         kind: 'pointer',
-        cost: 0.4,
         move: true
       }
     }
@@ -117,8 +114,7 @@ export function toStep(
       return {
         args: ['tap', ...s(at), a.button ?? 'left', String(a.count ?? 1)],
         points: [at],
-        kind: 'pointer',
-        cost: 1
+        kind: 'pointer'
       }
     }
     case 'down': {
@@ -126,18 +122,17 @@ export function toStep(
       return {
         args: ['down', ...s(at), a.button ?? 'left'],
         points: [at],
-        kind: 'pointer',
-        cost: 1
+        kind: 'pointer'
       }
     }
     case 'up': {
       const at = p(a.x, a.y)
-      return { args: ['up', ...s(at), a.button ?? 'left'], points: [at], kind: 'pointer', cost: 1 }
+      return { args: ['up', ...s(at), a.button ?? 'left'], points: [at], kind: 'pointer' }
     }
     case 'drag': {
       const from = p(a.x, a.y)
       const to = p(a.toX, a.toY)
-      return { args: ['drag', ...s(from), ...s(to)], points: [from, to], kind: 'pointer', cost: 3 }
+      return { args: ['drag', ...s(from), ...s(to)], points: [from, to], kind: 'pointer' }
     }
     case 'scroll': {
       const at = p(a.x, a.y)
@@ -145,16 +140,14 @@ export function toStep(
       return {
         args: ['wheel', ...s(at), String(px.dx), String(px.dy)],
         points: [at],
-        kind: 'pointer',
-        cost: 0.6
+        kind: 'pointer'
       }
     }
     case 'text':
       return {
         args: ['type', a.text],
         points: [],
-        kind: 'keys',
-        cost: 1 + Math.ceil(a.text.length / 20)
+        kind: 'keys'
       }
   }
 }

@@ -217,7 +217,16 @@ static CFStringRef bundle_of(pid_t pid) {
 // front to back. Skipped: ones that are fully transparent, and overlays that
 // are not ordinary windows, the Dock, the menu bar or a menu (a screen-wide
 // overlay of some utility is not what a click reaches). Ours too, when it is
-// not an ordinary window: that is Superagent's own dot, which lets clicks through.
+// the dot (own_skipped).
+//
+// Whether one of Superagent's own windows, on this layer, is left out of that.
+// Only the dot (a floating panel, layer 3), which lets clicks through. Every
+// other window of ours is reported as ours: the native dialogs (Allow, the
+// code, quit anyway) are modal panels on layer 8, they are not BrowserWindows,
+// and a click on one of their buttons must read as Superagent's, never as the
+// app beneath. `ownskip LAYER` says it, for the tests.
+static int own_skipped(int layer) { return layer == 3; }
+
 static int app_at(CGPoint p) {
   CFArrayRef list = CGWindowListCopyWindowInfo(
       kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
@@ -236,7 +245,7 @@ static int app_at(CGPoint p) {
     if (!b || !CGRectMakeWithDictionaryRepresentation(b, &r)) continue;
     if (alpha <= 0 || !CGRectContainsPoint(r, p)) continue;
     if (layer != 0 && layer != 3 && layer != 8 && layer != 20 && layer != 24 && layer != 25 && layer != 101) continue;
-    if (layer != 0 && pid == parent) continue;
+    if (pid == parent && own_skipped(layer)) continue;
     CFStringRef id = bundle_of(pid);
     printf("{\"name\":");
     json_string(CFDictionaryGetValue(w, kCGWindowOwnerName));
@@ -690,6 +699,11 @@ int main(int argc, char **argv) {
   if (!strcmp(act, "layout")) return layout();
   if (!strcmp(act, "parent")) {
     printf("{\"superagent\":%s}\n", from_superagent() ? "true" : "false");
+    return 0;
+  }
+  if (!strcmp(act, "ownskip")) {
+    if (left < 1) return fail("ownskip LAYER");
+    printf("{\"skipped\":%s}\n", own_skipped(atoi(v[0])) ? "true" : "false");
     return 0;
   }
   if (!strcmp(act, "at")) {

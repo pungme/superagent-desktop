@@ -30,6 +30,30 @@ export const REMOTE_MIN_GAP_MS = 5_000
 export const REMOTE_STRIKES = 3
 export const REMOTE_STRIKE_WINDOW_MS = 10 * 60_000
 export const REMOTE_LOCKOUT_MS = 10 * 60_000
+/**
+ * Dialogs one phone may pop up at the Mac per hour, counting the ones cancelled
+ * by a disconnect: a hostile phone cannot keep stealing focus with a new one.
+ */
+export const REMOTE_ASKS_PER_HOUR = 6
+export const REMOTE_ASK_WINDOW_MS = 60 * 60_000
+/** What each guarded step costs the rate limit: the Mac is asked what is in front (two processes), the helper runs (one). */
+export const SPAWNS_FRONT = 2
+export const SPAWNS_HELPER = 1
+export const SPAWNS_AT = 1
+/** The bucket every action is charged to, a token per process started. */
+export const REMOTE_BUCKET_RATE = 80
+export const REMOTE_BUCKET_BURST = 80
+/** Typed characters a second, and at once: a full 500-character text is allowed, then it waits. */
+export const REMOTE_TEXT_RATE = 250
+export const REMOTE_TEXT_BURST = 500
+/** After a click or a key that can change the app in front, the Mac gets this long to do it before the next action looks. */
+export const REMOTE_SETTLE_MS = 250
+/** Between the readings of the app in front while it settles. */
+export const REMOTE_SETTLE_STEP_MS = 150
+/** After Return in Spotlight or another launcher: the app it opens takes its time. */
+export const REMOTE_LAUNCH_SETTLE_MS = 1200
+/** Readings (two processes each) a settle may take before it says it did not settle. */
+export const REMOTE_SETTLE_READS = 6
 
 /**
  * The most a picture may be, as JPEG bytes. A relay frame is at most 1,048,576
@@ -177,6 +201,63 @@ export class TokenBucket {
 /** The code the Mac shows: six digits. `below(n)` is a random integer in [0, n). */
 export function newCode(below: (n: number) => number): string {
   return String(below(1_000_000)).padStart(6, '0')
+}
+
+/**
+ * A phone's name as the Allow dialog shows it: no control, format (bidi
+ * overrides, zero width), line or paragraph separator characters, single
+ * spaces, at most 60 characters. Shown after a fixed prefix, never alone.
+ */
+export function cleanDeviceName(name: string): string {
+  const out = Array.from(
+    name
+      .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Cs}]/gu, ' ')
+      .replace(/\s+/gu, ' ')
+      .trim()
+  )
+    .slice(0, 60)
+    .join('')
+    .trim()
+  return out || 'a phone'
+}
+
+/**
+ * The Allow dialog's words: what the phone can and cannot do, plainly. `shells`:
+ * whether Superagent was told at the Mac that a phone may use terminals and
+ * scripting apps.
+ */
+export function allowDialog(
+  deviceName: string,
+  shells: boolean
+): { message: string; detail: string } {
+  return {
+    message: 'Allow a phone to control this Mac?',
+    detail: [
+      `Paired phone: ${deviceName}`,
+      'It will see everything on this screen and use the mouse and keyboard until you press ⌥Esc or choose Stop in the red bar.',
+      "It is kept out of Superagent's windows, password managers and the lock screen. Any other app, such as your mail or browser, it can use as you.",
+      shells
+        ? 'You allowed terminals and scripting apps, so it can run commands as you.'
+        : 'Terminals and scripting apps are blocked.',
+      'Only allow it if you just asked for this on your phone.'
+    ].join('\n\n')
+  }
+}
+
+/** Asks inside the hour; null when another may be made, else when the oldest one stops counting. */
+export function askBudgetLeftAt(asks: number[], now: number): number | null {
+  const recent = asks.filter((t) => now - t < REMOTE_ASK_WINDOW_MS)
+  if (recent.length < REMOTE_ASKS_PER_HOUR) return null
+  return Math.min(...recent) + REMOTE_ASK_WINDOW_MS
+}
+
+/**
+ * Whether a test run asked for no windows (`COVE_E2E_QUIET=1`). Never in a
+ * packaged app: anything that can set the app's environment (a LaunchAgent,
+ * `launchctl setenv`) would otherwise turn the banner off while input works.
+ */
+export function quietRun(env: Record<string, string | undefined>, packaged: boolean): boolean {
+  return !packaged && env.COVE_E2E_QUIET === '1'
 }
 
 /** Equal without stopping at the first difference. */

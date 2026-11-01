@@ -89,6 +89,8 @@ export type RoutineStep =
 export interface RemoteControlStatus {
   supported: boolean
   enabled: boolean
+  /** Terminals and scripting apps allowed, at the Mac. */
+  shells: boolean
   active: boolean
   asking: boolean
   device: string
@@ -955,6 +957,7 @@ export interface CoveApi {
   // --- Remote control (main/remote-control/) -------------------------------
   remoteStatus: () => Promise<RemoteControlStatus>
   setRemoteControl: (on: boolean) => Promise<RemoteControlStatus>
+  setRemoteShells: (on: boolean) => Promise<RemoteControlStatus>
   /** End the phone's session now, as ⌥Esc does. */
   remoteStop: () => Promise<RemoteControlStatus>
   onRemoteChanged: (cb: (s: RemoteControlStatus) => void) => () => void
@@ -1622,6 +1625,7 @@ const cove: CoveApi = {
   openAgentLogin: (provider) => ipcRenderer.send('env:open-login', provider),
   remoteStatus: () => ipcRenderer.invoke('remote:status'),
   setRemoteControl: (on) => ipcRenderer.invoke('remote:set-enabled', on),
+  setRemoteShells: (on) => ipcRenderer.invoke('remote:set-shells', on),
   remoteStop: () => ipcRenderer.invoke('remote:stop'),
   onRemoteChanged: (cb) => subscribe('remote:changed', (s) => cb(s as RemoteControlStatus)),
   computerStatus: () => ipcRenderer.invoke('computer:status'),

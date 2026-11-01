@@ -34,6 +34,7 @@ const DISPLAY: DisplayInfo = {
   name: 'Main display',
   bounds: { x: 0, y: 0, width: 1000, height: 500 }
 }
+const CALLER = { connId: 'c1', deviceId: 'd1' }
 const WHO = { connId: 'c1', deviceId: 'd1', deviceName: "Pung's iPhone" }
 
 const win = (app: AppRef | null, x = 0, y = 0, w = 1000, h = 500, layer = 0): LaidWindow => ({
@@ -51,6 +52,15 @@ function make() {
     frames: [] as ServerFrame[],
     pushes: [] as WireRemote[],
     front: NOTES as AppRef | null,
+    /** The app in front changes to this at a time, as macOS does a moment after a key. */
+    frontLater: null as null | { at: number; app: AppRef },
+    /** Every reading of the app in front is the next of these (it never settles). */
+    frontFlips: null as null | AppRef[],
+    /** The flips start once this many helper calls were made. */
+    flipFrom: 0,
+    frontReads: 0,
+    askQs: [] as { deviceName: string; shells: boolean }[],
+    runError: '',
     under: null as AppRef | null,
     windows: [win(NOTES)] as LaidWindow[],
     layoutThrows: false,
@@ -88,8 +98,9 @@ function make() {
     pushAll: (wire) => void w.pushes.push(wire('c1')),
     alive: () => w.alive,
     backlog: () => w.backlog,
-    askAllow: ({ signal }) =>
+    askAllow: ({ signal, deviceName, shells }) =>
       new Promise((resolve) => {
+        w.askQs.push({ deviceName, shells })
         w.askSignals.push(signal)
         w.asks.push(resolve)
         signal.addEventListener('abort', () => resolve({ allow: false }), { once: true })
@@ -103,7 +114,12 @@ function make() {
       }),
     displays: () => w.displays,
     notReady: () => w.ready,
-    front: async () => w.front,
+    front: async () => {
+      w.frontReads++
+      if (w.frontFlips && w.calls.length >= w.flipFrom)
+        return w.frontFlips[w.frontReads % w.frontFlips.length]
+      return w.frontLater && Date.now() >= w.frontLater.at ? w.frontLater.app : w.front
+    },
     layout: async () => {
       if (w.layoutThrows) throw new Error('no layout')
       return w.windows
@@ -114,7 +130,7 @@ function make() {
     ownShortcuts: () => w.ownShortcuts,
     denied: () => w.denied,
     run: async (args) => {
-      if (w.runFails) return { ok: false, error: 'the helper failed' }
+      if (w.runFails) return { ok: false, error: w.runError || 'the helper failed' }
       w.calls.push(args)
       return { ok: true, error: '' }
     },
@@ -157,17 +173,35 @@ function make() {
     await flush()
     w.asks.shift()!({ allow: true, displayId: DISPLAY.id })
     await flush()
-    c.code('c1', w.codes.at(-1)!)
+    c.code(CALLER, w.codes.at(-1)!)
     await flush()
   }
   /** Time passing with the phone still there: it says so every 20 seconds, as its ping does. */
   const wait = async (ms: number): Promise<void> => {
     for (let left = ms; left > 0; left -= 20_000) {
       await flush(Math.min(20_000, left))
-      if (c.wire('c1').state === 'active') c.view('c1', {})
+      if (c.wire('c1').state === 'active') c.view(CALLER, {})
     }
   }
-  const input = (...a: RemoteInputAction[]): Promise<{ done: number }> => c.input('c1', a)
+  /**
+   * Time passes while it runs: after a click or a key that can change the app in
+   * front, the next action waits for the Mac to settle (fake time here).
+   */
+  const running = async <T>(p: Promise<T>): Promise<T> => {
+    let done = false
+    const q = p.then(
+      (v) => ((done = true), v),
+      (e) => {
+        done = true
+        throw e
+      }
+    )
+    q.catch(() => undefined)
+    while (!done) await vi.advanceTimersByTimeAsync(50)
+    return q
+  }
+  const input = (...a: RemoteInputAction[]): Promise<{ done: number }> =>
+    running(c.input(CALLER, a))
   const refused = async (p: Promise<unknown>): Promise<RemoteRefusal> => {
     try {
       await p
@@ -178,7 +212,7 @@ function make() {
     throw new Error('expected a refusal')
   }
   /** What the helper was asked to post (not looking, which posts nothing). */
-  return { c, w, deps, flush, begin, input, refused, wait }
+  return { c, w, deps, flush, begin, input, refused, wait, running }
 }
 
 beforeEach(() => {
@@ -239,7 +273,7 @@ describe('allowing a session, at the Mac', () => {
     await t.flush()
     expect(t.w.asks).toHaveLength(1)
     // The phone tries: a code before anyone allowed, input, a second request.
-    expect(t.c.code('c1', '123456').state).toBe('asking')
+    expect(t.c.code(CALLER, '123456').state).toBe('asking')
     expect(t.w.codes).toHaveLength(0)
     await t.refused(t.input({ type: 'click', x: 0.5, y: 0.5 }))
     expect(() => t.c.request(WHO)).toThrowError(/already/)
@@ -253,7 +287,7 @@ describe('allowing a session, at the Mac', () => {
     t.c.setEnabled(true)
     t.c.request(WHO)
     await t.flush()
-    for (let i = 0; i < 10; i++) t.c.code('c1', '000000')
+    for (let i = 0; i < 10; i++) t.c.code(CALLER, '000000')
     t.w.asks.shift()!({ allow: true, displayId: DISPLAY.id })
     await t.flush()
     expect(t.c.wire('c1')).toMatchObject({ state: 'code', triesLeft: 3 })
@@ -280,10 +314,10 @@ describe('allowing a session, at the Mac', () => {
     await t.flush()
     expect(t.w.codes).toEqual(['424242'])
     expect(t.c.wire('c1')).toMatchObject({ state: 'code', triesLeft: 3 })
-    expect(() => t.c.code('c1', '424243')).toThrowError(/2 tries left/)
+    expect(() => t.c.code(CALLER, '424243')).toThrowError(/2 tries left/)
     expect(t.c.wire('c1')).toMatchObject({ state: 'code', triesLeft: 2 })
     expect(t.w.bannerCalls).toBe(0)
-    t.c.code('c1', '424242')
+    t.c.code(CALLER, '424242')
     expect(t.c.wire('c1')).toMatchObject({ state: 'active', display: { name: 'Main display' } })
     expect(t.w.bannerUp).toBe(true)
     expect(t.w.stopHeld).toBe(true)
@@ -298,13 +332,13 @@ describe('allowing a session, at the Mac', () => {
     await t.flush()
     t.w.asks.shift()!({ allow: true, displayId: DISPLAY.id })
     await t.flush()
-    expect(() => t.c.code('c1', '111111')).toThrow()
-    expect(() => t.c.code('c1', '111111')).toThrow()
-    expect(() => t.c.code('c1', '111111')).toThrowError(/third/)
+    expect(() => t.c.code(CALLER, '111111')).toThrow()
+    expect(() => t.c.code(CALLER, '111111')).toThrow()
+    expect(() => t.c.code(CALLER, '111111')).toThrowError(/third/)
     expect(t.c.wire('c1')).toMatchObject({ state: 'idle', ended: 'wrong-code' })
     expect(t.w.codeSignals[0].aborted).toBe(true)
     // The right code afterwards is nothing: the request is gone.
-    expect(() => t.c.code('c1', '424242')).toThrowError(/nothing to confirm/)
+    expect(() => t.c.code(CALLER, '424242')).toThrowError(/nothing to confirm/)
     expect(t.w.bannerCalls).toBe(0)
   })
 
@@ -337,7 +371,7 @@ describe('allowing a session, at the Mac', () => {
     t.w.asks.shift()!({ allow: true, displayId: DISPLAY.id })
     await t.flush(REMOTE_ASK_MS + 1)
     expect(t.c.wire('c1')).toMatchObject({ state: 'idle', ended: 'expired' })
-    expect(() => t.c.code('c1', '424242')).toThrow()
+    expect(() => t.c.code(CALLER, '424242')).toThrow()
   })
 
   it('three turned-down requests lock requests out for a while, then it asks again', async () => {
@@ -353,6 +387,25 @@ describe('allowing a session, at the Mac', () => {
     await t.flush(6000)
     expect(() => t.c.request(WHO)).toThrowError(/Too many/)
     await t.flush(REMOTE_LOCKOUT_MS + 10_000)
+    expect(t.c.request(WHO).state).toBe('asking')
+  })
+
+  it('the phone can withdraw a request that is waiting at the Mac: the dialogs close, no strike', async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    t.c.request(WHO)
+    await t.flush()
+    t.c.endFromPhone(CALLER)
+    expect(t.w.askSignals[0].aborted).toBe(true)
+    expect(t.c.wire('c1')).toMatchObject({ state: 'idle', ended: 'cancelled' })
+    // Withdrawing is not being turned down: four of them lock nothing out.
+    for (let i = 0; i < 4; i++) {
+      await t.flush(6000)
+      t.c.request(WHO)
+      await t.flush()
+      t.c.endFromPhone(CALLER)
+    }
+    await t.flush(6000)
     expect(t.c.request(WHO).state).toBe('asking')
   })
 
@@ -372,9 +425,9 @@ describe('allowing a session, at the Mac', () => {
     const t = make()
     await t.begin()
     expect(() => t.c.request({ ...WHO, connId: 'c2' })).toThrowError(/already/)
-    await t.refused(t.c.input('c2', [{ type: 'click', x: 0.5, y: 0.5 }]))
-    expect(() => t.c.view('c2', { visible: false })).toThrow()
-    t.c.endFromPhone('c2')
+    await t.refused(t.c.input({ ...CALLER, connId: 'c2' }, [{ type: 'click', x: 0.5, y: 0.5 }]))
+    expect(() => t.c.view({ ...CALLER, connId: 'c2' }, { visible: false })).toThrow()
+    t.c.endFromPhone({ ...CALLER, connId: 'c2' })
     expect(t.c.wire('c1').state).toBe('active')
     expect(t.c.wire('c2').state).toBe('idle')
   })
@@ -405,7 +458,7 @@ describe('allowing a session, at the Mac', () => {
     t.w.asks.shift()!({ allow: true, displayId: DISPLAY.id })
     await t.flush()
     t.w.displays = []
-    t.c.code('c1', '424242')
+    t.c.code(CALLER, '424242')
     expect(t.c.wire('c1')).toMatchObject({ state: 'idle', ended: 'display-gone' })
   })
 
@@ -441,7 +494,7 @@ describe('while a session runs, and how it ends', () => {
     ended(a, 'stopped-at-mac')
     const b = make()
     await b.begin()
-    b.c.endFromPhone('c1')
+    b.c.endFromPhone(CALLER)
     ended(b, 'stopped-on-phone')
   })
 
@@ -652,16 +705,16 @@ describe('input: applied in order, through the helper, only where it is safe', (
     const t = make()
     await t.begin()
     t.w.calls.length = 0
-    let refusedN = 0
-    for (let i = 0; i < 400; i++) {
-      try {
-        await t.input({ type: 'click', x: 0.5, y: 0.5 })
-      } catch (e) {
-        if ((e as RemoteRefusal).reason === 'rate-limited') refusedN++
-      }
-    }
-    expect(refusedN).toBeGreaterThan(150)
-    expect(t.w.calls.length).toBeLessThan(250)
+    // Three hundred clicks sent at once, as a stuck or hostile phone would.
+    const all = Array.from({ length: 300 }, () =>
+      t.c.input(CALLER, [{ type: 'click', x: 0.5, y: 0.5 }]).then(
+        () => 'done',
+        (e: RemoteRefusal) => e.reason
+      )
+    )
+    const results = await t.running(Promise.all(all))
+    expect(results.filter((r) => r === 'rate-limited').length).toBeGreaterThan(150)
+    expect(t.w.calls.length).toBeLessThan(100)
     await t.flush(2000)
     await t.input({ type: 'click', x: 0.5, y: 0.5 })
     expect(t.w.calls.at(-1)).toEqual(['tap', '500', '250', 'left', '1'])
@@ -688,15 +741,19 @@ describe('input: applied in order, through the helper, only where it is safe', (
         await t.begin()
         t.w.calls.length = 0
         t.w.front = app
-        for (const a of [
+        const tried = [
           { type: 'click', x: 0.5, y: 0.5 },
           { type: 'move', x: 0.5, y: 0.5 },
           { type: 'text', text: 'x' },
           { type: 'key', key: 'return' },
           { type: 'scroll', x: 0.5, y: 0.5, dx: 0, dy: 0.1 },
           { type: 'drag', x: 0.1, y: 0.1, toX: 0.2, toY: 0.2 }
-        ] as RemoteInputAction[])
-          expect((await t.refused(t.input(a))).reason).toBe(reason)
+        ] as RemoteInputAction[]
+        // The first is refused by the guard itself; by the next the stream has
+        // looked too and paused, which refuses just the same.
+        expect((await t.refused(t.input(tried[0]))).reason).toBe(reason)
+        for (const a of tried.slice(1))
+          expect([reason, 'paused']).toContain((await t.refused(t.input(a))).reason)
         expect(t.w.calls).toEqual([])
       })
     }
@@ -1003,13 +1060,13 @@ describe('the stream', () => {
     const t = make()
     await t.begin()
     await t.flush(300)
-    t.c.view('c1', { visible: false })
+    t.c.view(CALLER, { visible: false })
     await t.flush(1000)
     const n = t.w.captures
     await t.flush(3000)
     expect(t.w.captures).toBe(n)
     t.w.frames.length = 0
-    t.c.view('c1', { visible: true })
+    t.c.view(CALLER, { visible: true })
     await t.flush(300)
     expect(t.w.frames.find((f) => f.t === 'screen')).toMatchObject({ frame: { key: true } })
   })
@@ -1026,7 +1083,7 @@ describe('the stream', () => {
   it('a phone-requested width caps the picture', async () => {
     const t = make()
     await t.begin()
-    t.c.view('c1', { maxWidth: 640 })
+    t.c.view(CALLER, { maxWidth: 640 })
     await t.flush(300)
     expect(t.c.wire('c1').state).toBe('active')
   })
@@ -1038,5 +1095,368 @@ describe('text pieces', () => {
     expect(textPieces('👋'.repeat(30)).join('')).toBe('👋'.repeat(30))
     expect(textPieces('👋'.repeat(30))[0]).toBe('👋'.repeat(24))
     expect(textPieces('')).toEqual([])
+  })
+})
+
+// --- the security review's findings --------------------------------------------
+
+const TERMINAL: AppRef = { id: 'com.apple.Terminal', name: 'Terminal' }
+const SPOTLIGHT: AppRef = { id: 'com.apple.Spotlight', name: 'Spotlight' }
+const SHELLS: AppRef[] = [
+  TERMINAL,
+  { id: 'com.googlecode.iterm2', name: 'iTerm2' },
+  { id: 'dev.warp.Warp-Stable', name: 'Warp' },
+  { id: 'com.mitchellh.ghostty', name: 'Ghostty' },
+  { id: 'org.alacritty', name: 'Alacritty' },
+  { id: 'com.microsoft.VSCode', name: 'Code' },
+  { id: 'com.todesktop.230313mzl4w4u92', name: 'Cursor' },
+  { id: 'dev.zed.Zed', name: 'Zed' },
+  { id: 'com.apple.ScriptEditor2', name: 'Script Editor' },
+  { id: 'com.apple.Automator', name: 'Automator' },
+  { id: 'com.apple.shortcuts', name: 'Shortcuts' },
+  { id: 'com.apple.ActivityMonitor', name: 'Activity Monitor' },
+  { id: 'com.apple.Console', name: 'Console' }
+]
+
+describe('finding 1: no shell through the phone, unless allowed at the Mac', () => {
+  for (const app of SHELLS) {
+    it(`refuses every action while ${app.name} is in front, and posts nothing`, async () => {
+      const t = make()
+      await t.begin()
+      t.w.calls.length = 0
+      t.w.front = app
+      const first = await t.refused(t.input({ type: 'text', text: 'security dump-keychain' }))
+      expect(first.reason).toBe('shell')
+      for (const a of [
+        { type: 'click', x: 0.5, y: 0.5 },
+        { type: 'key', key: 'return' },
+        { type: 'key', key: 'c', mods: ['ctrl'] },
+        { type: 'scroll', x: 0.5, y: 0.5, dx: 0, dy: 0.1 }
+      ] as RemoteInputAction[])
+        expect(['shell', 'paused']).toContain((await t.refused(t.input(a))).reason)
+      expect(t.w.calls).toEqual([])
+    })
+  }
+
+  it("refuses a click on a shell's window under the pointer, whatever is in front", async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    t.w.under = TERMINAL
+    expect((await t.refused(t.input({ type: 'click', x: 0.5, y: 0.5 }))).reason).toBe('shell')
+    expect(
+      (await t.refused(t.input({ type: 'drag', x: 0.1, y: 0.1, toX: 0.2, toY: 0.2 }))).reason
+    ).toBe('shell')
+    expect(t.w.calls).toEqual([])
+  })
+
+  it('pauses the stream while a shell is in front, and covers one that is only on screen', async () => {
+    const t = make()
+    await t.begin()
+    t.w.front = TERMINAL
+    t.w.windows = [win(TERMINAL)]
+    await t.flush(800)
+    expect(t.c.wire('c1')).toMatchObject({ paused: 'secret', pausedBy: 'Terminal' })
+    t.w.captures = 0
+    await t.flush(2000)
+    expect(t.w.captures).toBe(0)
+    // Not in front: it is on screen behind Notes, and its window is covered.
+    t.w.front = NOTES
+    t.w.windows = [win(NOTES, 0, 0, 500, 500), win(TERMINAL, 500, 0, 500, 500)]
+    await t.flush(2000)
+    expect(t.c.wire('c1').paused).toBeNull()
+    const pic = t.w.pictures.at(-1)!
+    const at = (x: number, y: number): number => pic.data[(y * pic.width + x) * 4]
+    expect(at(50, 50)).toBe(255) // Notes' half, as drawn
+    expect(at(150, 50)).toBe(0x2b) // the terminal's half, greyed
+  })
+
+  it('is allowed once the Mac says so, and only then; turning remote control off turns it off again', async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    expect(t.c.shellsAllowed()).toBe(false)
+    t.c.setShells(true)
+    expect(t.c.shellsAllowed()).toBe(true)
+    await t.begin()
+    t.w.calls.length = 0
+    t.w.front = TERMINAL
+    await t.input({ type: 'text', text: 'ls' })
+    expect(t.w.calls).toEqual([['type', 'ls']])
+    t.c.setEnabled(false)
+    expect(t.c.shellsAllowed()).toBe(false)
+    // Off, nothing can switch it on.
+    t.c.setShells(true)
+    expect(t.c.shellsAllowed()).toBe(false)
+  })
+
+  it("tells the Mac's dialog whether shells are allowed, so it can say what the phone can do", async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    t.c.request(WHO)
+    await t.flush()
+    expect(t.w.askQs[0].shells).toBe(false)
+    t.w.asks.shift()!({ allow: false })
+    await t.flush(6000)
+    t.c.setShells(true)
+    t.c.request(WHO)
+    await t.flush()
+    expect(t.w.askQs[1].shells).toBe(true)
+  })
+
+  it('the Spotlight route: Return opens Terminal a moment later, and what is typed next is not delivered', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false }) // the stream's own looks are not what is measured
+    t.w.calls.length = 0
+    t.w.front = SPOTLIGHT
+    // Terminal comes to the front 700 ms after Return, as a launching app does.
+    const p = t.input(
+      { type: 'text', text: 'Terminal' },
+      { type: 'key', key: 'return' },
+      { type: 'text', text: 'security dump-keychain' },
+      { type: 'key', key: 'return' }
+    )
+    t.w.frontLater = { at: Date.now() + 700, app: TERMINAL }
+    const e = await t.refused(p)
+    expect(e.reason).toBe('shell')
+    expect(t.w.calls).toEqual([
+      ['type', 'Terminal'],
+      ['key', 'return']
+    ])
+  })
+})
+
+describe('finding 2: a key does not race a change of the app in front', () => {
+  it('cmd+tab, then Return: the Return is not delivered to the old app, nor to Superagent', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false }) // the stream's own looks are not what is measured
+    t.w.calls.length = 0
+    const p = t.input({ type: 'key', key: 'tab', mods: ['cmd'] }, { type: 'key', key: 'return' })
+    // Superagent comes to the front 300 ms after the keys, late.
+    t.w.frontLater = { at: Date.now() + 300, app: SELF }
+    expect((await t.refused(p)).reason).toBe('own-window')
+    expect(t.w.calls).toEqual([['key', 'cmd+tab']])
+  })
+
+  it("cmd+tab, then cmd+,: Superagent's Settings shortcut never reaches it", async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false }) // the stream's own looks are not what is measured
+    t.w.calls.length = 0
+    const p = t.input(
+      { type: 'key', key: 'tab', mods: ['cmd'] },
+      { type: 'key', key: ',', mods: ['cmd'] }
+    )
+    t.w.frontLater = { at: Date.now() + 300, app: SELF }
+    expect((await t.refused(p)).reason).toBe('own-window')
+    expect(t.w.calls).toEqual([['key', 'cmd+tab']])
+  })
+
+  it('a click that brings another app forward is waited out before the next action looks', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false }) // the stream's own looks are not what is measured
+    t.w.calls.length = 0
+    const p = t.input({ type: 'click', x: 0.5, y: 0.5 }, { type: 'text', text: 'secret' })
+    t.w.frontLater = { at: Date.now() + 300, app: ONEPW }
+    expect((await t.refused(p)).reason).toBe('secret')
+    expect(t.w.calls).toEqual([['tap', '500', '250', 'left', '1']])
+  })
+
+  it('while the app in front will not settle, keys that switch apps are refused', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false }) // the stream's own looks are not what is measured
+    t.w.calls.length = 0
+    t.w.frontFlips = [NOTES, TERMINAL, SELF]
+    await t.input({ type: 'key', key: 'tab', mods: ['cmd'] })
+    t.w.flipFrom = 1
+    const e = await t.refused(t.input({ type: 'key', key: 'a', mods: ['cmd'] }))
+    expect(e.reason).toBe('settling')
+    t.w.frontFlips = null
+    // Once it holds still, it goes on.
+    await t.input({ type: 'key', key: 'a', mods: ['cmd'] })
+    expect(t.w.calls.at(-1)).toEqual(['key', 'cmd+a'])
+  })
+
+  it('plain typing and pointer moves are not slowed down', async () => {
+    const t = make()
+    await t.begin()
+    t.w.frontReads = 0
+    t.w.calls.length = 0
+    const before = Date.now()
+    await t.input({ type: 'text', text: 'hello' }, { type: 'move', x: 0.2, y: 0.2 })
+    expect(Date.now() - before).toBeLessThan(150)
+    expect(t.w.calls).toHaveLength(2)
+  })
+})
+
+describe("finding 3: a click on one of Superagent's own native dialogs", () => {
+  it('is refused when the window under the point reads as Superagent, even with Notes in front and no BrowserWindow there', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    t.w.front = NOTES
+    t.w.ownSurface = false
+    t.w.under = SELF
+    for (const a of [
+      { type: 'click', x: 0.5, y: 0.5 },
+      { type: 'down', x: 0.5, y: 0.5 },
+      { type: 'drag', x: 0.1, y: 0.1, toX: 0.5, toY: 0.5 }
+    ] as RemoteInputAction[])
+      expect((await t.refused(t.input(a))).reason).toBe('own-window')
+    expect(t.w.calls).toEqual([])
+  })
+})
+
+describe('finding 4: strikes and asks are per phone', () => {
+  const OTHER = { connId: 'c2', deviceId: 'd2', deviceName: 'Other iPhone' }
+
+  it('three turned-down requests from one phone do not lock another out', async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    for (let i = 0; i < 3; i++) {
+      await t.flush(6000)
+      t.c.request(WHO)
+      await t.flush()
+      t.w.asks.shift()!({ allow: false })
+      await t.flush()
+    }
+    await t.flush(6000)
+    expect(() => t.c.request(WHO)).toThrowError(/Too many/)
+    expect(t.c.request(OTHER).state).toBe('asking')
+  })
+
+  it('a phone that hangs up on each question is stopped after six an hour, and no dialog is shown for the seventh', async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    for (let i = 0; i < 6; i++) {
+      await t.flush(6000)
+      t.c.request(WHO)
+      await t.flush()
+      t.c.connGone('c1')
+      await t.flush()
+    }
+    expect(t.w.askQs).toHaveLength(6)
+    await t.flush(6000)
+    expect(() => t.c.request(WHO)).toThrowError(/asked too often/)
+    await t.flush(10_000)
+    expect(t.w.askQs).toHaveLength(6)
+    // Another phone is not held back by it, and the hour passes.
+    expect(t.c.request(OTHER).state).toBe('asking')
+    t.c.connGone('c2')
+    await t.flush(61 * 60_000)
+    expect(t.c.request(WHO).state).toBe('asking')
+  })
+})
+
+describe("finding 5: the helper's words never reach the phone or the log", () => {
+  it('a failed run says one fixed thing, whatever the helper said', async () => {
+    const t = make()
+    await t.begin()
+    t.w.runFails = true
+    t.w.runError =
+      'Command failed: /Applications/Superagent.app/Contents/Resources/helper type hunter2'
+    const e = await t.refused(t.input({ type: 'text', text: 'hunter2' }))
+    expect(e.reason).toBe('failed')
+    expect(e.message).toBe('The Mac did not do that.')
+    expect(JSON.stringify(t.w.logs)).not.toMatch(/hunter2|Command failed/)
+  })
+})
+
+describe('finding 6: a session belongs to a connection and the device behind it', () => {
+  const IMPOSTOR = { connId: 'c1', deviceId: 'someone-else' }
+  it('the same connection id with another device id gets nothing', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    await t.refused(t.c.input(IMPOSTOR, [{ type: 'click', x: 0.5, y: 0.5 }]))
+    expect(() => t.c.view(IMPOSTOR, { visible: false })).toThrow()
+    t.c.endFromPhone(IMPOSTOR)
+    expect(t.c.wire('c1').state).toBe('active')
+    expect(t.w.calls).toEqual([])
+  })
+
+  it('and cannot type the code of a request that is not its own', async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    t.c.request(WHO)
+    await t.flush()
+    t.w.asks.shift()!({ allow: true, displayId: DISPLAY.id })
+    await t.flush()
+    expect(() => t.c.code(IMPOSTOR, '424242')).toThrowError(/nothing to confirm/)
+    expect(t.c.wire('c1').state).toBe('code')
+    t.c.code(CALLER, '424242')
+    expect(t.c.wire('c1').state).toBe('active')
+  })
+})
+
+describe('finding 7: the name in the dialog', () => {
+  it('has bidi, zero-width and other invisible characters stripped before it is shown', async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    t.c.request({ ...WHO, deviceName: 'iPhone‮Evil​⁦x\u0085y z  ok' })
+    await t.flush()
+    expect(t.w.askQs[0].deviceName).toBe('iPhone Evil x y z ok')
+  })
+})
+
+describe('finding 8: the cost of an action is what it makes the Mac do', () => {
+  it('a 500-character text costs its pieces, and the next one right behind it waits', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    const text = 'a'.repeat(500)
+    await t.input({ type: 'text', text })
+    expect(t.w.calls).toHaveLength(21)
+    expect((await t.refused(t.input({ type: 'text', text }))).reason).toBe('rate-limited')
+    await t.flush(3000)
+    await t.input({ type: 'text', text })
+    expect(t.w.calls).toHaveLength(42)
+  })
+
+  it('looks at the Mac once per piece and no more, and the helper once per piece', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false }) // the stream's own looks are not what is measured
+    t.w.calls.length = 0
+    t.w.frontReads = 0
+    await t.input({ type: 'text', text: 'a'.repeat(100) })
+    expect(t.w.calls).toHaveLength(5)
+    expect(t.w.frontReads).toBe(5)
+  })
+
+  it('caps typed characters a second: a stream of short texts is cut off at about 500 characters', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    const sent = Array.from({ length: 30 }, () =>
+      t.c.input(CALLER, [{ type: 'text', text: 'b'.repeat(24) }]).then(
+        () => 'done',
+        (e: RemoteRefusal) => e.reason
+      )
+    )
+    const results = await t.running(Promise.all(sent))
+    const done = results.filter((r) => r === 'done').length
+    expect(done).toBeGreaterThanOrEqual(18)
+    expect(done).toBeLessThanOrEqual(22)
+    expect(results.filter((r) => r === 'rate-limited').length).toBe(30 - done)
+  })
+
+  it('charges a long text by its pieces: what is left after one is what a few more looks cost, not what one action does', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    await t.input({ type: 'text', text: 'a'.repeat(500) })
+    t.w.calls.length = 0
+    const sent = Array.from({ length: 10 }, () =>
+      t.c.input(CALLER, [{ type: 'scroll', x: 0.5, y: 0.5, dx: 0, dy: 0.1 }]).then(
+        () => 'done',
+        (e: RemoteRefusal) => e.reason
+      )
+    )
+    const results = await t.running(Promise.all(sent))
+    expect(results.filter((r) => r === 'rate-limited').length).toBeGreaterThanOrEqual(3)
   })
 })

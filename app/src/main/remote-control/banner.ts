@@ -1,5 +1,5 @@
 import { BrowserWindow, dialog, app } from 'electron'
-import { spacedCode } from '../../shared/remote-control'
+import { allowDialog, quietRun, spacedCode } from '../../shared/remote-control'
 import type { DisplayInfo } from './control'
 
 /**
@@ -10,14 +10,17 @@ import type { DisplayInfo } from './control'
  * None of it can be answered by the phone. The banner and the dialogs are
  * Superagent's own windows, and remote input is refused wherever it would land
  * on one (control.ts: the app under the pointer is Superagent, or the point is
- * inside one of its windows, or one of them holds the keyboard).
+ * inside one of its windows, or one of them holds the keyboard). The dialogs
+ * are native panels, not BrowserWindows: the helper's `at` reports them as
+ * Superagent's, which is what keeps a click on their buttons refused.
  */
 
 const STOP_URL = 'sa-remote://stop'
 const WIDTH = 440
 const HEIGHT = 40
 
-const quiet = (): boolean => process.env.COVE_E2E_QUIET === '1'
+// A test run only, and never a packaged app (shared/remote-control.ts quietRun).
+const quiet = (): boolean => quietRun(process.env, app.isPackaged)
 
 export function bannerHtml(device: string): string {
   const what = /ipad/i.test(device) ? 'iPad' : 'iPhone'
@@ -108,6 +111,7 @@ function forward(): void {
  */
 export async function askAllowDialog(q: {
   deviceName: string
+  shells: boolean
   displays: DisplayInfo[]
   signal: AbortSignal
 }): Promise<{ allow: false } | { allow: true; displayId: number }> {
@@ -118,9 +122,7 @@ export async function askAllowDialog(q: {
   const r = await dialog.showMessageBox({
     type: 'warning',
     title: 'Superagent',
-    message: `Allow ${q.deviceName} to control this Mac?`,
-    detail:
-      "It will see this screen and use the mouse and keyboard until you stop it: press ⌥Esc, or choose Stop in the red bar at the top. It never uses Superagent's own windows, password managers or the lock screen.\n\nOnly allow it if you just asked for this on your phone.",
+    ...allowDialog(q.deviceName, q.shells),
     buttons: ["Don't allow", ...shown.map((d) => (many ? `Allow on ${d.name}` : 'Allow'))],
     defaultId: 0,
     cancelId: 0,
@@ -143,9 +145,8 @@ export async function showCodeDialog(q: {
   await dialog.showMessageBox({
     type: 'info',
     title: 'Superagent',
-    message: `Type ${spacedCode(q.code)} on ${q.deviceName}`,
-    detail:
-      'Remote control starts when the code is typed on the phone. Cancel if you did not ask for this.',
+    message: `Type ${spacedCode(q.code)} on the phone`,
+    detail: `Paired phone: ${q.deviceName}\n\nRemote control starts when the code is typed on the phone. Cancel if you did not ask for this.`,
     buttons: ['Cancel'],
     defaultId: 0,
     cancelId: 0,

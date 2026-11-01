@@ -54,6 +54,16 @@ describe.skipIf(!existsSync(bin))('cuse, the hands of computer use', () => {
     expect(run('dragto', '1')).toMatchObject({ ok: false })
     expect(run('wheel', '1', '2', '3')).toMatchObject({ ok: false })
   })
+  it("reports every window of Superagent's own that a click could land on, except the dot", () => {
+    // `at` leaves Superagent's own windows out only when this says so: the dot
+    // is a floating panel (layer 3). A native dialog is a modal panel (layer 8)
+    // and must read as Superagent's, so a click on its button is never taken for
+    // the app beneath it.
+    expect(run('ownskip', '3')).toEqual({ skipped: true })
+    for (const layer of ['0', '8', '20', '24', '25', '101'])
+      expect(run('ownskip', layer), layer).toEqual({ skipped: false })
+    expect(run('ownskip')).toMatchObject({ ok: false })
+  })
   it('types text of any script as characters, counted in bytes', () => {
     expect(run('type', 'héllo 👋')).toEqual({ ok: true, chars: 11 })
   })

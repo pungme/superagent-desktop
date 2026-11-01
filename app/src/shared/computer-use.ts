@@ -249,20 +249,70 @@ export function cleanAppName(name: string): string {
   return name.replace(/[\u200e\u200f\u202a-\u202e]/g, '').trim()
 }
 
+/** Terminals: whatever is typed there runs as a command. */
+const TERMINALS = [
+  'com.apple.terminal',
+  'com.googlecode.iterm2',
+  'dev.warp.',
+  'com.mitchellh.ghostty',
+  'net.kovidgoyal.kitty',
+  'co.zeit.hyper',
+  'org.alacritty',
+  'com.github.wez.wezterm'
+]
+/** Editors with a terminal inside them (Xcode has none and is not here). */
+const EDITORS_WITH_SHELL = ['com.microsoft.vscode', 'com.todesktop.', 'com.jetbrains.', 'dev.zed.']
+/** Apps whose job is to run scripts, or to show what runs and lets it be ended. */
+const SCRIPTING = [
+  'com.apple.scripteditor',
+  'com.apple.automator',
+  'com.apple.shortcuts',
+  'com.apple.activitymonitor',
+  'com.apple.console',
+  'com.raycast.macos',
+  'com.runningwithcrayons.alfred'
+]
+
+/**
+ * Apps that can run commands as the user: a terminal, an editor with one, a
+ * scripting app. Remote control refuses them unless it was allowed at the Mac
+ * (Settings → Phone → "Allow shells and scripting apps"), since a shell is
+ * everything: keychain, SSH keys, a LaunchAgent that outlives the session,
+ * killing Superagent. Computer use warns of the same ones (`appCaution`).
+ */
+const SHELL_APPS: [prefixes: string[], name: string][] = [
+  [TERMINALS, 'a terminal'],
+  [EDITORS_WITH_SHELL, 'a code editor with a terminal'],
+  [SCRIPTING, 'a scripting app']
+]
+
+/** What kind of shell-class app this is ("a terminal"), or null for any other app. */
+export function shellApp(bundleId: string | null | undefined): string | null {
+  if (!bundleId) return null
+  const id = bundleId.toLowerCase()
+  return SHELL_APPS.find(([prefixes]) => prefixes.some((p) => id.startsWith(p)))?.[1] ?? null
+}
+
+/**
+ * Apps that open other apps when Return is pressed in them: after one, the app
+ * in front changes a moment later, not at once.
+ */
+const LAUNCHERS = [
+  'com.apple.spotlight',
+  'com.raycast.macos',
+  'com.runningwithcrayons.alfred',
+  'com.apple.launchpad',
+  'com.apple.dock'
+]
+export function launcherApp(bundleId: string | null | undefined): boolean {
+  const id = (bundleId ?? '').toLowerCase()
+  return LAUNCHERS.some((p) => id.startsWith(p))
+}
+
 const CAUTIONS: [prefixes: string[], warning: string][] = [
+  [TERMINALS, 'It is a terminal: anything typed there runs as a command on this Mac.'],
   [
-    [
-      'com.apple.terminal',
-      'com.googlecode.iterm2',
-      'dev.warp.',
-      'com.mitchellh.ghostty',
-      'net.kovidgoyal.kitty',
-      'co.zeit.hyper'
-    ],
-    'It is a terminal: anything typed there runs as a command on this Mac.'
-  ],
-  [
-    ['com.microsoft.vscode', 'com.todesktop.', 'com.apple.dt.xcode', 'com.jetbrains.', 'dev.zed.'],
+    [...EDITORS_WITH_SHELL, 'com.apple.dt.xcode'],
     'It is a code editor with a terminal: it can change your code and run commands.'
   ],
   [['com.apple.finder'], 'It can move, rename and delete your files there.'],

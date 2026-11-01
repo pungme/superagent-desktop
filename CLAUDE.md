@@ -133,8 +133,15 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   (`remote.code`); three wrong tries burn the request. `askAllow` is a
   dependency answered only by the dialog: no RPC reaches it, and a `remote.code`
   sent before the Mac allowed it neither advances nor counts. A request that
-  sits for two minutes expires; three turned-down requests in ten minutes lock
-  requests out for ten; a phone waits five seconds between asks.
+  sits for two minutes expires. Per paired device (`deviceId`, not shared): three
+  turned-down requests in ten minutes lock that phone out for ten, it waits five
+  seconds between asks, and it gets six dialogs an hour, a request cancelled by
+  hanging up included (otherwise a hostile phone could pop a focus-stealing
+  dialog every five seconds). The session and the code belong to the connection
+  and the device behind it. The Allow dialog says what the phone can do ("sees
+  everything on this screen", "any other app as you", and whether terminals are
+  allowed) and shows the phone's name only after "Paired phone:", cleaned of
+  control, format (bidi, zero width) and separator characters.
 - **While it runs:** the red always-on-top banner (no script, only a Stop link;
   no banner or no ⌥Esc, no session), ⌥Esc (shared with computer use through
   `addStopListener`/`holdStopKeyFor`), and it ends when the phone goes (closed
@@ -142,11 +149,50 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   done counts), after 2 hours, on sleep or lock, when the setting goes off, when
   the display goes, when the banner is lost, or when capture stops working.
   After any end the next session starts from step 1.
+- **What a phone can reach, honestly.** It sees everything on the shared display
+  except what is covered, and uses any app that is not refused as the user: mail,
+  browser, Finder. "Never Superagent's windows or a password manager" is a
+  safeguard on the front app, the app under the pointer and the keyboard focus,
+  not a wall: a terminal is the way round all of it (Spotlight, type
+  "Terminal", Return, then `security dump-keychain`, `op read`, a LaunchAgent or
+  SSH key that outlives the session, `kill` Superagent, `osascript` into its
+  windows). So shell-class apps (`shellApp` in `shared/computer-use.ts`: the
+  terminals, editors with a terminal, Script Editor, Automator, Shortcuts,
+  Activity Monitor, Console, Raycast and Alfred; Xcode has no shell and is not
+  on it; the terminals and editors are the same lists computer use's `appCaution`
+  warns of) are refused like a secret unless "Allow terminals and scripting
+  apps" is on in Settings → Phone. It is a second switch, off by default, held in
+  memory and changed only by `remote:set-shells` IPC like the main one, and it
+  goes off whenever remote control does. A shell app in front pauses the stream,
+  one only on screen is covered, one under the pointer refuses the click. With it
+  on the phone can run commands as the user, and the dialog says so. Nothing
+  stops a shell being *opened* (Spotlight, the Dock, Finder are ordinary apps);
+  what is refused is any key or click once it is in front, which is why the next
+  point matters.
+- **A key cannot race a change of app.** After a click, or a key with Command,
+  Control, Option or Fn, the next action waits for the app in front to be read
+  twice the same (`settle` in control.ts, 150 ms apart after 250 ms; 1.2 s first
+  after Return in Spotlight or another launcher, a double click, or ⌘O, since the
+  app they open arrives late). If it will not hold still, keys that switch apps
+  and Return are refused (`settling`) until it does. Superagent's menu
+  accelerators are not added to the refused shortcuts: that would take ⌘W, ⌘N,
+  ⌘R, ⌘K, ⌘, away from every app, and with the settle a key never reaches
+  Superagent anyway.
 - **Never:** `guard()` in control.ts checks each action against the Mac as it is
   then (app in front, app under the pointer, Superagent's own windows and
-  keyboard focus, the keep-out list and `offLimitsApp`), and refuses keys that
-  open Force Quit, log out, stop it, or are Superagent's own shortcuts
-  (`remoteKey`). The stream is covered (`coverOthers`) wherever Superagent has a
+  keyboard focus, shell apps, the keep-out list and `offLimitsApp`), and refuses
+  keys that open Force Quit, log out, stop it, or are Superagent's own global
+  shortcuts (`remoteKey`). The native dialogs (Allow, the code, quit anyway) are
+  modal panels, not BrowserWindows: the helper's `at` reports every window of
+  Superagent's except the dot as Superagent's (`own_skipped` in the helper's C
+  source, tested through its `ownskip` action), so a click on a dialog's button
+  is refused, here and in computer use. The rate limit is charged per process
+  started (front 2, point 1, helper 1, per piece of text) with a separate cap on
+  typed characters; the helper's own error text never goes to the phone or the
+  log (`runHelper`). Remote runs of the helper are tracked apart, so ending a
+  session does not cut short a computer-use agent's drag (⌥Esc still cuts both).
+  `COVE_E2E_QUIET` is honoured only when not packaged (`quietRun`), as are the
+  other test-only variables (`harden.ts` strips them in a packaged build). The stream is covered (`coverOthers`) wherever Superagent has a
   window, and paused, with no picture sent, while a password manager, Keychain,
   the lock screen or an app on the keep-out list is in front or anywhere on the
   shared display; a picture taken just before one appeared is thrown away.
@@ -154,7 +200,8 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   (`remote.enabled`, sealed like the computer settings), changed only by
   `remote:set-enabled` IPC from a window of the app.
 - Tests: `control.test.ts` (state machine and every safeguard, with fakes and a
-  fake clock), `input.test.ts`, `stream.test.ts`, `shared/remote-control.test.ts`,
+  fake clock; a section per finding of the 2026-11-01 security review),
+  `remote-helper.test.ts` (runs and kills, fake child process), `input.test.ts`, `stream.test.ts`, `shared/remote-control.test.ts`,
   `e2e/phone-remote-control.spec.ts` (fake phone over a real relay). A test run
   (`COVE_USER_DATA`) swaps the helper for a recorder, the screen for a drawing
   and the dialogs for ones the test answers (`inertDeps`): never real events.

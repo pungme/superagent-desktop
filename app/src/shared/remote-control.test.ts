@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
+  REMOTE_ASKS_PER_HOUR,
+  REMOTE_ASK_WINDOW_MS,
   REMOTE_KEYS,
   REMOTE_LOCKOUT_MS,
   REMOTE_STRIKES,
   TokenBucket,
+  allowDialog,
+  askBudgetLeftAt,
+  cleanDeviceName,
   cursorOnPicture,
   lockedUntil,
   newCode,
+  quietRun,
   remoteKey,
   remotePoint,
   remoteTextOk,
@@ -147,5 +153,53 @@ describe('the small counters', () => {
     expect(lockedUntil(strikes, t0 + REMOTE_LOCKOUT_MS + 1)).toBeNull()
     // Old strikes do not count.
     expect(lockedUntil([t0 - 3_600_000, t0 - 3_600_000, t0], t0)).toBeNull()
+  })
+})
+
+describe("a phone's name, and the words of the Allow dialog", () => {
+  it('has control, format, separator and C1 characters taken out, spaces collapsed, and is cut at 60', () => {
+    expect(cleanDeviceName("Pung's iPhone")).toBe("Pung's iPhone")
+    // bidi overrides and isolates, zero width, BOM, soft hyphen
+    expect(cleanDeviceName('a\u202eb\u202ac\u2066d\u2069e\u200bf\ufeffg\u00adh')).toBe(
+      'a b c d e f g h'
+    )
+    // C0, DEL, C1 (NEL), line and paragraph separators, no-break space
+    expect(cleanDeviceName('x\n\u0000y\u007fz\u0085w\u2028v\u2029u\u00a0t')).toBe('x y z w v u t')
+    expect(cleanDeviceName('   a   b   ')).toBe('a b')
+    expect(cleanDeviceName('\u202e\u200b ')).toBe('a phone')
+    expect(Array.from(cleanDeviceName('é'.repeat(200)))).toHaveLength(60)
+  })
+
+  it('says what the phone can do, and what it cannot, in plain words', () => {
+    const off = allowDialog('Pung iPhone', false)
+    expect(off.detail.startsWith('Paired phone: Pung iPhone')).toBe(true)
+    expect(off.detail).toMatch(/see everything on this screen/)
+    expect(off.detail).toMatch(/mouse and keyboard/)
+    expect(off.detail).toMatch(/Terminals and scripting apps are blocked/)
+    expect(off.detail).not.toMatch(/run commands/)
+    expect(off.detail).toMatch(/other app.*as you/)
+    const on = allowDialog('Pung iPhone', true)
+    expect(on.detail).toMatch(/run commands as you/)
+    expect(on.detail).not.toMatch(/blocked/)
+    // The name is never in the headline.
+    expect(off.message).not.toMatch(/Pung/)
+  })
+
+  it('counts an hour of asks, cancelled or not', () => {
+    const t = 10_000_000
+    expect(askBudgetLeftAt([], t)).toBeNull()
+    const some = Array.from({ length: REMOTE_ASKS_PER_HOUR - 1 }, (_, i) => t - i * 1000)
+    expect(askBudgetLeftAt(some, t)).toBeNull()
+    const full = [...some, t - 50_000]
+    // Free again when the oldest of them is an hour old.
+    expect(askBudgetLeftAt(full, t)).toBe(Math.min(...full) + REMOTE_ASK_WINDOW_MS)
+    expect(askBudgetLeftAt(full, Math.min(...full) + REMOTE_ASK_WINDOW_MS)).toBeNull()
+  })
+
+  it('a quiet test run is never a packaged app', () => {
+    expect(quietRun({ COVE_E2E_QUIET: '1' }, false)).toBe(true)
+    expect(quietRun({ COVE_E2E_QUIET: '1' }, true)).toBe(false)
+    expect(quietRun({}, false)).toBe(false)
+    expect(quietRun({ COVE_E2E_QUIET: '0' }, false)).toBe(false)
   })
 })

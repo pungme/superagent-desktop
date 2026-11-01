@@ -1,20 +1,36 @@
 import {
   coverOthers,
   isSelfApp,
+  launcherApp,
   offLimitsApp,
   overlaps,
+  shellApp,
   type AppRef,
   type LaidWindow,
   type ScreenArea
 } from '../../shared/computer-use'
 import {
   REMOTE_ASK_MS,
+  REMOTE_ASK_WINDOW_MS,
+  REMOTE_BUCKET_BURST,
+  REMOTE_BUCKET_RATE,
   REMOTE_CODE_TRIES,
   REMOTE_IDLE_MS,
   REMOTE_MAX_MS,
   REMOTE_MIN_GAP_MS,
+  REMOTE_LAUNCH_SETTLE_MS,
+  REMOTE_SETTLE_MS,
+  REMOTE_SETTLE_READS,
+  REMOTE_SETTLE_STEP_MS,
   REMOTE_SILENT_MS,
+  REMOTE_TEXT_BURST,
+  REMOTE_TEXT_RATE,
+  SPAWNS_AT,
+  SPAWNS_FRONT,
+  SPAWNS_HELPER,
   TokenBucket,
+  askBudgetLeftAt,
+  cleanDeviceName,
   cursorOnPicture,
   lockedUntil,
   newCode,
@@ -52,8 +68,11 @@ import { Governor, ScreenEncoder, mayStream, type Bitmap, type Encode } from './
  *  4. Every action is checked against the Mac as it is at that moment: not
  *     into Superagent's own windows, nothing while a password manager, Keychain
  *     or the lock screen is in front or under the pointer, no key that opens
- *     Force Quit or logs out or is one of Superagent's own shortcuts. The
- *     stream is checked the same way and shows Superagent's windows covered.
+ *     Force Quit or logs out or is one of Superagent's own shortcuts. Nor into
+ *     a terminal or scripting app (a shell is everything the rest guards)
+ *     unless that was allowed at the Mac. After a click or a key that can change
+ *     the app in front, the next action waits until it has. The stream is
+ *     checked the same way and shows Superagent's windows covered.
  *
  * This module touches the Mac only through `RemoteDeps`, so the whole of it is
  * tested with fakes and no screen, mouse or keyboard.
@@ -82,6 +101,8 @@ export interface RemoteDeps {
    */
   askAllow(q: {
     deviceName: string
+    /** Whether terminals and scripting apps are allowed, for the dialog to say so. */
+    shells: boolean
     displays: DisplayInfo[]
     signal: AbortSignal
   }): Promise<{ allow: false } | { allow: true; displayId: number }>
@@ -122,6 +143,12 @@ export interface RemoteDeps {
   changed(): void
 }
 
+/** The phone that is talking: its connection and the paired device behind it. */
+export interface Caller {
+  connId: string
+  deviceId: string
+}
+
 /** An action that was not done, and why, in words the phone can show. */
 export class RemoteRefusal extends Error {
   constructor(
@@ -152,6 +179,7 @@ interface Queued {
 
 interface Session {
   connId: string
+  deviceId: string
   deviceName: string
   display: DisplayInfo
   startedAt: number
@@ -159,6 +187,9 @@ interface Session {
   lastHeardAt: number
   held: Held | null
   bucket: TokenBucket
+  textBucket: TokenBucket
+  /** The app in front was read twice, the same, after the last action that could change it. */
+  confirmed: boolean
   queue: Queued[]
   draining: boolean
   watch: ReturnType<typeof setInterval>
@@ -194,19 +225,16 @@ export function textPieces(text: string): string[] {
   return out
 }
 
-const clean = (name: string): string =>
-  name
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .trim()
-    .slice(0, 60) || 'a phone'
-
 export class RemoteControl {
   private enabled = false
   private pending: Pending | null = null
   private session: Session | null = null
-  private strikes: number[] = []
-  private lastAskAt = -Infinity
+  private shells = false
+  /** Per paired device: one phone's turned-down requests do not lock another phone out. */
+  private strikes = new Map<string, number[]>()
+  private lastAskAt = new Map<string, number>()
+  /** Every dialog a device made the Mac show, cancelled ones too. */
+  private asks = new Map<string, number[]>()
   /** How the last session or request of each phone ended, for it to be told. */
   private outcomes = new Map<string, RemoteEndReason | RemoteRefusedReason>()
 
@@ -222,9 +250,20 @@ export class RemoteControl {
   setEnabled(on: boolean): void {
     this.enabled = on
     if (!on) {
+      this.shells = false
       this.end('turned-off')
       this.cancel('cancelled')
     }
+    this.announce()
+  }
+
+  /** Whether a phone may use terminals and scripting apps. Set at the Mac only, and off whenever remote control goes off. */
+  shellsAllowed(): boolean {
+    return this.shells
+  }
+
+  setShells(on: boolean): void {
+    this.shells = on && this.enabled
     this.announce()
   }
 
@@ -265,6 +304,7 @@ export class RemoteControl {
   /** What Settings shows. */
   summary(): {
     enabled: boolean
+    shells: boolean
     active: boolean
     asking: boolean
     device: string
@@ -274,6 +314,7 @@ export class RemoteControl {
     const s = this.session
     return {
       enabled: this.enabled,
+      shells: this.shells,
       active: !!s,
       asking: !!this.pending,
       device: s?.deviceName ?? this.pending?.deviceName ?? '',
@@ -297,16 +338,26 @@ export class RemoteControl {
     if (notReady) throw new RemoteRefusal('not-ready', notReady)
     if (this.session || this.pending)
       throw new RemoteRefusal('busy', 'This Mac is already answering a phone.')
-    const lock = lockedUntil(this.strikes, now)
+    const lock = lockedUntil(this.strikes.get(who.deviceId) ?? [], now)
     if (lock !== null)
       throw new RemoteRefusal(
         'locked-out',
         `Too many requests were turned down. Try again in ${Math.ceil((lock - now) / 60_000)} minutes.`
       )
-    if (now - this.lastAskAt < REMOTE_MIN_GAP_MS)
+    if (now - (this.lastAskAt.get(who.deviceId) ?? -Infinity) < REMOTE_MIN_GAP_MS)
       throw new RemoteRefusal('too-many', 'Wait a few seconds before asking again.')
-    this.lastAskAt = now
-    const name = clean(who.deviceName)
+    // However each one ended (denied, expired, or cancelled by hanging up), a
+    // phone gets only so many dialogs on this Mac's screen an hour.
+    const recent = (this.asks.get(who.deviceId) ?? []).filter((t) => now - t < REMOTE_ASK_WINDOW_MS)
+    const freeAt = askBudgetLeftAt(recent, now)
+    if (freeAt !== null)
+      throw new RemoteRefusal(
+        'too-many',
+        `This phone has asked too often. Try again in ${Math.ceil((freeAt - now) / 60_000)} minutes.`
+      )
+    this.asks.set(who.deviceId, [...recent, now])
+    this.lastAskAt.set(who.deviceId, now)
+    const name = cleanDeviceName(who.deviceName)
     const abort = new AbortController()
     const p: Pending = {
       connId: who.connId,
@@ -332,6 +383,7 @@ export class RemoteControl {
     try {
       answer = await this.d.askAllow({
         deviceName: p.deviceName,
+        shells: this.shells,
         displays: this.d.displays(),
         signal: p.abort.signal
       })
@@ -357,10 +409,11 @@ export class RemoteControl {
   }
 
   /** The code, from the phone. Starts the session when it is right. */
-  code(connId: string, typed: string): WireRemote {
+  code(who: Caller, typed: string): WireRemote {
+    const connId = who.connId
     const p = this.pending
     if (!this.enabled) throw new RemoteRefusal('off', 'Remote control is off on this Mac.')
-    if (!p || p.connId !== connId)
+    if (!p || p.connId !== connId || p.deviceId !== who.deviceId)
       throw new RemoteRefusal('no-request', 'There is nothing to confirm.')
     // Nobody has allowed it at the Mac yet: there is no code to type, and a
     // guess costs nothing and means nothing. Not counted.
@@ -397,7 +450,8 @@ export class RemoteControl {
     p.abort.abort()
     this.pending = null
     this.outcomes.set(p.connId, why)
-    if (strike) this.strikes.push(this.d.now())
+    if (strike)
+      this.strikes.set(p.deviceId, [...(this.strikes.get(p.deviceId) ?? []), this.d.now()])
     this.d.log(`remote: request from "${p.deviceName}" not allowed (${why})`)
     this.announce()
   }
@@ -431,13 +485,16 @@ export class RemoteControl {
     const now = this.d.now()
     const s: Session = {
       connId: p.connId,
+      deviceId: p.deviceId,
       deviceName: p.deviceName,
       display,
       startedAt: now,
       lastInputAt: now,
       lastHeardAt: now,
       held: null,
-      bucket: new TokenBucket(150, 150, now),
+      bucket: new TokenBucket(REMOTE_BUCKET_RATE, REMOTE_BUCKET_BURST, now),
+      textBucket: new TokenBucket(REMOTE_TEXT_RATE, REMOTE_TEXT_BURST, now),
+      confirmed: true,
       queue: [],
       draining: false,
       watch: setInterval(() => this.watchSession(s), 1000),
@@ -512,21 +569,27 @@ export class RemoteControl {
   }
 
   /** The phone says it is done. */
-  endFromPhone(connId: string): void {
-    if (this.session?.connId === connId) this.end('stopped-on-phone')
+  endFromPhone(who: Caller): void {
+    const s = this.session
+    if (s && s.connId === who.connId && s.deviceId === who.deviceId) this.end('stopped-on-phone')
+    // A request still waiting at the Mac: the phone has had second thoughts, and
+    // the questions on the Mac's screen close (no strike: nobody was turned down).
+    const p = this.pending
+    if (p && p.connId === who.connId && p.deviceId === who.deviceId) this.cancel('cancelled')
   }
 
-  private mine(connId: string): Session {
+  private mine(who: Caller): Session {
     if (!this.enabled) throw new RemoteRefusal('off', 'Remote control is off on this Mac.')
     const s = this.session
-    if (!s || s.connId !== connId) throw new RemoteRefusal('no-session', 'There is no session.')
+    if (!s || s.connId !== who.connId || s.deviceId !== who.deviceId)
+      throw new RemoteRefusal('no-session', 'There is no session.')
     s.lastHeardAt = this.d.now()
     return s
   }
 
   /** How the phone wants the stream, and that it is still there. */
-  view(connId: string, v: { visible?: boolean; maxWidth?: number; key?: boolean }): void {
-    const s = this.mine(connId)
+  view(who: Caller, v: { visible?: boolean; maxWidth?: number; key?: boolean }): void {
+    const s = this.mine(who)
     if (v.visible !== undefined) {
       const was = s.visible
       s.visible = v.visible
@@ -548,8 +611,8 @@ export class RemoteControl {
    * The phone's actions, applied one after another, each only after being
    * checked against the Mac as it is then. Stops at the first one refused.
    */
-  async input(connId: string, actions: RemoteInputAction[]): Promise<{ done: number }> {
-    const s = this.mine(connId)
+  async input(who: Caller, actions: RemoteInputAction[]): Promise<{ done: number }> {
+    const s = this.mine(who)
     // A run of moves is only the last of them: the pointer is where it ends.
     const batch = actions.filter((a, i) => !(a.type === 'move' && actions[i + 1]?.type === 'move'))
     let done = 0
@@ -624,6 +687,16 @@ export class RemoteControl {
         'own-window',
         "Superagent's own window is in the way on the Mac. Remote control does not use it."
       )
+    if (!this.shells) {
+      const shell = shellApp(app.id)
+      if (shell)
+        throw this.refusal(
+          s,
+          a,
+          'shell',
+          `${app.name} is ${shell}, and it can run commands as you. Remote control does not use it unless you allow that on the Mac (Settings → Phone).`
+        )
+    }
     const name = offLimitsApp(app.id, this.d.denied())
     if (name)
       throw this.refusal(
@@ -636,37 +709,102 @@ export class RemoteControl {
       )
   }
 
+  /** A key that can bring another app to the front: any with Command, Control, Option or Fn. */
+  private modded(a: RemoteInputAction): boolean {
+    return a.type === 'key' && (a.mods ?? []).some((m) => m !== 'shift')
+  }
+
   private async apply(s: Session, a: RemoteInputAction): Promise<void> {
     const area = this.d.displays().find((x) => x.id === s.display.id)?.bounds
     if (!area) {
       this.end('display-gone')
       throw new RemoteRefusal('ended', 'The shared display is gone.')
     }
+    // The last thing done may still be changing the app in front: look again
+    // until it has stopped before anything is checked or pressed.
+    if (!s.confirmed) await this.settle(s, 0)
     let step: Step
     if (a.type === 'key') {
       const v = remoteKey(a.key, a.mods ?? [], this.d.ownShortcuts())
       if (!v.ok) throw this.refusal(s, a, 'blocked-key', `Not pressed: ${v.why}.`)
-      step = { args: ['key', v.combo], points: [], kind: 'keys', cost: 1 }
+      if (!s.confirmed && (this.modded(a) || a.key === 'return'))
+        throw this.refusal(
+          s,
+          a,
+          'settling',
+          'The Mac is still switching apps, so that key was not pressed. Try again in a moment.'
+        )
+      step = { args: ['key', v.combo], points: [], kind: 'keys' }
     } else step = toStep(a, area, s.held)
-    if (!s.bucket.take(step.cost, this.d.now()))
-      throw this.refusal(s, a, 'rate-limited', 'Too fast. Slow down a moment.')
     // Typed text goes in pieces, and the Mac is looked at again before each.
     const pieces = a.type === 'text' ? textPieces(a.text) : [null]
+    // Charged for what it costs the Mac: a process for each look at the app in
+    // front (two), at the point (one), and the helper (one); a settle afterwards
+    // looks twice more. Per piece, not per action.
+    const presses = a.type === 'click' || a.type === 'down' || a.type === 'up' || a.type === 'drag'
+    const settles = presses || this.modded(a) || (a.type === 'key' && a.key === 'return')
+    const spawns =
+      pieces.length * (SPAWNS_FRONT + SPAWNS_HELPER) +
+      step.points.length * SPAWNS_AT +
+      (settles ? 2 * SPAWNS_FRONT : 0)
+    const now = this.d.now()
+    if (a.type === 'text' && !s.textBucket.take(Array.from(a.text).length, now))
+      throw this.refusal(s, a, 'rate-limited', 'Typing too fast. Slow down a moment.')
+    if (!s.bucket.take(spawns, now))
+      throw this.refusal(s, a, 'rate-limited', 'Too fast. Slow down a moment.')
+    let front: AppRef | null = null
     for (const piece of pieces) {
-      await this.guard(s, a, step)
+      front = await this.guard(s, a, step)
       if (this.session !== s) throw new RemoteRefusal('ended', 'The session ended.')
       const r = await this.d.run(piece === null ? step.args : ['type', piece])
-      if (!r.ok) throw this.refusal(s, a, 'failed', r.error || 'The Mac did not do that.')
+      // Never the helper's own words: they can carry what was typed.
+      if (!r.ok) throw this.refusal(s, a, 'failed', 'The Mac did not do that.')
     }
     if (a.type === 'down') s.held = { button: a.button ?? 'left', at: step.points[0] }
     else if (a.type === 'up' || a.type === 'click') s.held = null
     s.actions++
     s.lastInputAt = this.d.now()
+    // What it did may bring another app forward, a moment later: nothing else
+    // is done until that has happened. An app that opens another (Return in
+    // Spotlight, a double click, ⌘O) is given longer.
+    if (settles) {
+      const opens =
+        (a.type === 'key' &&
+          (a.key === 'return' || a.key === 'o' || a.key === 'down') &&
+          (launcherApp(front?.id) || (a.mods ?? []).includes('cmd'))) ||
+        (a.type === 'click' && (a.count ?? 1) > 1)
+      await this.settle(s, opens ? REMOTE_LAUNCH_SETTLE_MS : REMOTE_SETTLE_MS)
+    }
     this.kick(s)
   }
 
-  /** Whether this action may touch the Mac as it is now. Throws what the phone is told. */
-  private async guard(s: Session, a: RemoteInputAction, step: Step): Promise<void> {
+  /**
+   * Wait for the app in front to stop changing: read it, and again a moment
+   * later, until two readings agree. Not agreeing after a few tries leaves the
+   * session unconfirmed, and keys that move between apps are refused until it is.
+   */
+  private async settle(s: Session, wait: number): Promise<void> {
+    const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+    if (wait) await sleep(wait)
+    let prev = await this.d.front()
+    for (let i = 1; i < REMOTE_SETTLE_READS; i++) {
+      if (this.session !== s) return
+      await sleep(REMOTE_SETTLE_STEP_MS)
+      const cur = await this.d.front()
+      if ((cur?.id ?? null) === (prev?.id ?? null)) {
+        s.confirmed = true
+        return
+      }
+      prev = cur
+    }
+    s.confirmed = false
+  }
+
+  /**
+   * Whether this action may touch the Mac as it is now. Throws what the phone is
+   * told. Returns the app in front.
+   */
+  private async guard(s: Session, a: RemoteInputAction, step: Step): Promise<AppRef> {
     if (s.paused)
       throw this.refusal(
         s,
@@ -694,6 +832,7 @@ export class RemoteControl {
       }
     } else if (this.d.ownFocused())
       throw this.refusal(s, a, 'own-window', "The keyboard is in Superagent's own window.")
+    return front
   }
 
   // --- the stream --------------------------------------------------------------
@@ -738,6 +877,9 @@ export class RemoteControl {
     const denied = this.d.denied()
     const here = front ? offLimitsApp(front.id, denied) : null
     if (here) return { pause: here === 'the lock screen' ? 'lock' : 'secret', by: here, windows }
+    // A shell in front shows whatever it prints: nothing is sent while it is.
+    if (front && !this.shells && shellApp(front.id))
+      return { pause: 'secret', by: front.name, windows }
     for (const w of windows) {
       if (!w.app || isSelfApp(w.app.id) || !overlaps(w.frame, area)) continue
       const name = offLimitsApp(w.app.id, denied)
@@ -801,7 +943,9 @@ export class RemoteControl {
     // questions) are covered over: what covers the phone's own approvals is
     // not something it can read either.
     const shot = { width: picture.width, height: picture.height, area: display.bounds }
-    const allowed = (id: string): boolean => !isSelfApp(id) && !offLimitsApp(id, this.d.denied())
+    // A shell behind another window is covered, not shown.
+    const allowed = (id: string): boolean =>
+      !isSelfApp(id) && !offLimitsApp(id, this.d.denied()) && (this.shells || !shellApp(id))
     coverOthers(picture.data, shot, before.windows, allowed)
     coverOthers(picture.data, shot, after.windows, allowed)
     const cursor = this.d.cursor()

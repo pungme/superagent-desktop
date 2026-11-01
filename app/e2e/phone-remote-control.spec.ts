@@ -395,6 +395,32 @@ test('it refuses where it must: secrets, its own windows, the keys that get roun
   await phone.waitFor((f) => f.t === 'screen' && f.frame.jpeg !== '' && f.frame.key, resumeMark)
   expect(await input({ type: 'click', x: 0.1, y: 0.1 })).toMatchObject({ ok: true })
   expect(await world((w) => w.calls)).toEqual([['tap', '144', '90', 'left', '1']])
+
+  // A terminal in front: nothing is typed into it, however it got there.
+  await world((w) => {
+    w.calls.length = 0
+    w.front = { id: 'com.apple.Terminal', name: 'Terminal' }
+  })
+  expect(await input({ type: 'text', text: 'security dump-keychain' })).toMatchObject({
+    ok: false,
+    error: { message: expect.stringMatching(/Terminal/) }
+  })
+  expect(await input({ type: 'key', key: 'return' })).toMatchObject({ ok: false })
+  expect(await world((w) => w.calls)).toEqual([])
+  // Until the person at the Mac allows terminals and scripting apps, there, and only there.
+  expect(
+    ((await window.evaluate(() => window.cove.remoteStatus())) as { shells: boolean }).shells
+  ).toBe(false)
+  await window.evaluate(() => window.cove.setRemoteShells(true))
+  await new Promise((r) => setTimeout(r, 1500))
+  expect(await input({ type: 'text', text: 'ls' })).toMatchObject({ ok: true })
+  expect(await world((w) => w.calls)).toEqual([['type', 'ls']])
+  await window.evaluate(() => window.cove.setRemoteShells(false))
+  await world((w) => {
+    w.calls.length = 0
+    w.front = { id: 'com.test.notes', name: 'Notes' }
+  })
+  await new Promise((r) => setTimeout(r, 1500))
 })
 
 test('Stop at the Mac ends it at once, and the next session needs the Mac again', async () => {
@@ -435,8 +461,13 @@ test('turning it off at the Mac ends a session and withdraws it from the phone',
   const code = await startSession()
   expect(await phone.ask('remote.code', { code })).toMatchObject({ ok: true })
   const m4 = phone.seen.length
+  await window.evaluate(() => window.cove.setRemoteShells(true))
   await window.evaluate(() => window.cove.setRemoteControl(false))
   await phone.waitFor((f) => remoteState(f)?.available === false, m4)
+  // Terminals and scripting apps go off with it: the next time starts safe.
+  expect(
+    ((await window.evaluate(() => window.cove.remoteStatus())) as { shells: boolean }).shells
+  ).toBe(false)
   expect(await world((_w, h) => h.control.summary().active)).toBe(false)
   expect(await world((w) => w.bannerUp)).toBe(false)
   expect(await phone.ask('remote.request')).toMatchObject({ ok: false })

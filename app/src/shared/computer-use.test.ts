@@ -12,6 +12,8 @@ import {
   bundleIdFrom,
   heldByAnother,
   isSelfApp,
+  launcherApp,
+  shellApp,
   LOCK_MS,
   focusMoved,
   normalKeyCombo,
@@ -387,5 +389,52 @@ describe("the dot's glance at the screen as you ask", () => {
   it('never photographs a password manager or the lock screen, in front or beside', () => {
     expect(mayGlance({ ...on, frontOffLimits: true })).toBe(false)
     expect(mayGlance({ ...on, secretOnDisplay: true })).toBe(false)
+  })
+})
+
+describe('apps that can run commands as the user', () => {
+  it('knows the terminals, the editors with one and the scripting apps', () => {
+    for (const id of [
+      'com.apple.Terminal',
+      'com.googlecode.iterm2',
+      'dev.warp.Warp-Stable',
+      'com.mitchellh.ghostty',
+      'net.kovidgoyal.kitty',
+      'org.alacritty',
+      'com.github.wez.wezterm',
+      'co.zeit.hyper',
+      'com.microsoft.VSCode',
+      'com.todesktop.230313mzl4w4u92',
+      'dev.zed.Zed',
+      'com.jetbrains.intellij',
+      'com.apple.ScriptEditor2',
+      'com.apple.Automator',
+      'com.apple.shortcuts',
+      'com.apple.ActivityMonitor',
+      'com.apple.Console',
+      'com.raycast.macos'
+    ])
+      expect(shellApp(id), id).toBeTruthy()
+  })
+  it('leaves ordinary apps, and Xcode, which has no shell, alone', () => {
+    for (const id of [
+      'com.apple.Notes',
+      'com.apple.finder',
+      'com.apple.dt.Xcode',
+      'com.apple.Safari',
+      ''
+    ])
+      expect(shellApp(id), id).toBeNull()
+    expect(shellApp(null)).toBeNull()
+  })
+  it('is what computer use warns of as a terminal, so the two lists cannot drift', () => {
+    for (const id of ['com.apple.Terminal', 'org.alacritty', 'com.github.wez.wezterm'])
+      expect(appCaution(id)).toContain('command')
+  })
+  it('knows the launchers, where Return opens another app', () => {
+    expect(launcherApp('com.apple.Spotlight')).toBe(true)
+    expect(launcherApp('com.raycast.macos')).toBe(true)
+    expect(launcherApp('com.apple.Notes')).toBe(false)
+    expect(launcherApp(undefined)).toBe(false)
   })
 })

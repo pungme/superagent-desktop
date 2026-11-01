@@ -337,9 +337,9 @@ export function PhoneSettings(): React.JSX.Element {
             <span>
               On, because a sleeping Mac cannot answer. Turn it off and this Mac stays awake only
               while a phone is connected or an agent is working — so it will fall asleep a few
-              minutes after you put your phone down, and your phone will say it cannot find it
-              until you wake the Mac yourself. Closing the lid still sleeps it either way (macOS
-              rule) unless it&apos;s on power with a display attached.
+              minutes after you put your phone down, and your phone will say it cannot find it until
+              you wake the Mac yourself. Closing the lid still sleeps it either way (macOS rule)
+              unless it&apos;s on power with a display attached.
             </span>
           </div>
           <label className="phone-switch">
@@ -411,37 +411,63 @@ function RemoteControlRow(): React.JSX.Element | null {
   }, [])
   if (!st || !st.supported) return null
   return (
-    <div className="settings-row">
-      <div className="settings-label">
-        <strong>Let my phone control this Mac</strong>
-        <span>
-          Off unless you turn it on. Each time, this Mac asks you to allow it and shows a code to
-          type on the phone. While it runs a red bar is on screen; press ⌥Esc or choose Stop to end
-          it. It never uses Superagent&apos;s own windows, password managers or the lock screen, and
-          shares the keep-out list under Computer use.
-          {st.enabled && st.note ? ` ${st.note}` : ''}
-        </span>
-        {st.active && (
+    <>
+      <div className="settings-row">
+        <div className="settings-label">
+          <strong>Let my phone control this Mac</strong>
           <span>
-            {st.paused ? 'Paused while a password manager or the lock screen is in front. ' : ''}
-            <button className="phone-btn" onClick={() => void window.cove.remoteStop().then(setSt)}>
-              End session
-            </button>
+            Off unless you turn it on. Each time, this Mac asks you to allow it and shows a code to
+            type on the phone. The phone sees everything on this screen and can use any app as you,
+            except Superagent&apos;s windows, password managers, the lock screen and the keep-out
+            list under Computer use. While it runs a red bar is on screen; press ⌥Esc or choose Stop
+            to end it.
+            {st.enabled && st.note ? ` ${st.note}` : ''}
           </span>
-        )}
+          {st.active && (
+            <span>
+              {st.paused ? 'Paused while a password manager or the lock screen is in front. ' : ''}
+              <button
+                className="phone-btn"
+                onClick={() => void window.cove.remoteStop().then(setSt)}
+              >
+                End session
+              </button>
+            </span>
+          )}
+        </div>
+        <label className="phone-switch">
+          <input
+            type="checkbox"
+            aria-label="Let my phone control this Mac"
+            checked={st.enabled}
+            onChange={(e) => void window.cove.setRemoteControl(e.target.checked).then(setSt)}
+          />
+          <span className="phone-switch-state">
+            {st.active ? 'In use' : st.enabled ? 'Allowed, asks each time' : 'Not allowed'}
+          </span>
+        </label>
       </div>
-      <label className="phone-switch">
-        <input
-          type="checkbox"
-          aria-label="Let my phone control this Mac"
-          checked={st.enabled}
-          onChange={(e) => void window.cove.setRemoteControl(e.target.checked).then(setSt)}
-        />
-        <span className="phone-switch-state">
-          {st.active ? 'In use' : st.enabled ? 'Allowed, asks each time' : 'Not allowed'}
-        </span>
-      </label>
-    </div>
+      {st.enabled && (
+        <div className="settings-row">
+          <div className="settings-label">
+            <strong>Allow terminals and scripting apps</strong>
+            <span>
+              Off: the phone cannot use Terminal, editors with a terminal, or scripting apps. On: it
+              can run commands as you.
+            </span>
+          </div>
+          <label className="phone-switch">
+            <input
+              type="checkbox"
+              aria-label="Allow terminals and scripting apps"
+              checked={st.shells}
+              onChange={(e) => void window.cove.setRemoteShells(e.target.checked).then(setSt)}
+            />
+            <span className="phone-switch-state">{st.shells ? 'Allowed' : 'Not allowed'}</span>
+          </label>
+        </div>
+      )}
+    </>
   )
 }
 
