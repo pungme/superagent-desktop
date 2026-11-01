@@ -100,7 +100,8 @@ const displaysNow = (): DisplayInfo[] =>
   screen.getAllDisplays().map((d, i) => ({
     id: d.id,
     name: d.label || (i === 0 ? 'Main display' : `Display ${i + 1}`),
-    bounds: d.bounds
+    bounds: d.bounds,
+    menuBar: d.workArea.y - d.bounds.y
   }))
 
 const inside = (r: Electron.Rectangle, x: number, y: number): boolean =>
@@ -123,9 +124,20 @@ const encode: Encode = (picture: Bitmap, rect: Rect, quality: number) => {
   )
 }
 
+/** The dot's way back to floating over full-screen apps, from index.ts (this file does not load the dot). */
+let refloatDot: () => boolean = () => false
+
 function realDeps(): RemoteDeps {
   const own = ownWindows()
-  const banner = createBanner(() => control().end('stopped-at-mac'))
+  const banner = createBanner(
+    () => control().end('stopped-at-mac'),
+    () => {
+      // With the dot up, the app was already an accessory-style process before
+      // the session (the dot's own call made it so, to float over full-screen
+      // apps): put that back rather than bring the Dock icon back under it.
+      if (!refloatDot()) void app.dock?.show()
+    }
+  )
   return {
     now: () => Date.now(),
     below: (n) => randomInt(n),
@@ -274,7 +286,11 @@ export function fromMainWindow(
 }
 
 /** `isDot`: whether a window is the dot's, which never flips a switch (passed in, so this file does not load the dot). */
-export function registerRemoteControlIpc(isDot: (w: BrowserWindow | null) => boolean): void {
+export function registerRemoteControlIpc(
+  isDot: (w: BrowserWindow | null) => boolean,
+  refloat: () => boolean = () => false
+): void {
+  refloatDot = refloat
   ipcMain.handle('remote:status', () => status())
   registerSwitchIpc(ipcMain, (e: Electron.IpcMainInvokeEvent) => fromMainWindow(e, isDot), {
     confirm: (what) => confirmSwitch(what),

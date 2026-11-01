@@ -1849,17 +1849,21 @@ describe('review 3, M3: all phones together get only so many dialogs an hour', (
 })
 
 describe('review 4', () => {
-  it('menu bar band is 40 points whatever the work area: a press at 37 to 39 is refused with a marked clipboard', async () => {
+  it('the menu bar band is 50 points, or the menu bar itself when that is deeper (More Space)', async () => {
     const t = make()
     await t.begin()
     t.c.view(CALLER, { visible: false })
     t.w.clipboardSecret = true
     t.w.calls.length = 0
-    // y = 0.075 * 500 = 37, 0.079 * 500 = 39: below an old 24 or 37 band, inside 40.
-    for (const y of [0.075, 0.079])
-      expect((await t.refused(t.input({ type: 'click', x: 0.5, y }))).reason).toBe('clipboard')
-    await t.input({ type: 'click', x: 0.5, y: 0.1 })
+    // y = 0.098 * 500 = 49: inside 50, below an old 40.
+    expect((await t.refused(t.input({ type: 'click', x: 0.5, y: 0.098 }))).reason).toBe('clipboard')
+    await t.input({ type: 'click', x: 0.5, y: 0.12 })
     expect(t.w.calls).toHaveLength(1)
+    // A display whose menu bar is 70 deep, read again on the next action.
+    t.w.displays = [{ ...DISPLAY, menuBar: 70 }]
+    expect((await t.refused(t.input({ type: 'click', x: 0.5, y: 0.12 }))).reason).toBe('clipboard')
+    await t.input({ type: 'click', x: 0.5, y: 0.15 })
+    expect(t.w.calls).toHaveLength(2)
   })
 
   it('Control-V and Control-Shift-V are not pasted from a marked clipboard either', async () => {
@@ -1874,12 +1878,16 @@ describe('review 4', () => {
     expect(t.w.calls).toEqual([])
   })
 
-  it('a banner hidden behind a full-screen app ends the session, on an action and on the stream', async () => {
+  it('a banner that is not showing ends the session, on an action and on the stream, after a moment of grace', async () => {
     const t = make()
     await t.begin()
     t.c.view(CALLER, { visible: false })
     t.w.bannerHiddenNow = true
-    const e = await t.refused(t.input({ type: 'key', key: 'a' }))
+    // Just shown: not yet listed is not yet a reason.
+    await t.input({ type: 'key', key: 'a' })
+    expect(t.c.wire('c1').state).toBe('active')
+    await t.flush(600)
+    const e = await t.refused(t.input({ type: 'key', key: 'b' }))
     expect(e.reason).toBe('ended')
     expect(t.c.wire('c1')).toMatchObject({ state: 'idle', ended: 'banner-lost' })
     const u = make()
@@ -1887,5 +1895,40 @@ describe('review 4', () => {
     u.w.bannerHiddenNow = true
     await u.flush(2000)
     expect(u.c.wire('c1')).toMatchObject({ state: 'idle', ended: 'banner-lost' })
+  })
+
+  it('ends only the session it looked at, not one that started since', async () => {
+    const t = make()
+    await t.begin()
+    await t.flush(600)
+    // The check reads the windows, the session ends meanwhile and a new one starts:
+    // the old reading must not end the new session.
+    let release: (() => void) | null = null
+    const layout = t.deps.layout
+    t.deps.layout = () =>
+      new Promise((r) => {
+        release = () => r(layout())
+      }) as never
+    t.w.bannerHiddenNow = true
+    const p = t.c.input(CALLER, [{ type: 'key', key: 'a' }]).catch((x: unknown) => x)
+    await t.flush()
+    t.deps.layout = layout
+    t.c.end('hotkey')
+    t.w.bannerHiddenNow = false
+    await t.flush(6000)
+    t.c.request(WHO)
+    await t.flush()
+    t.w.asks.shift()!({ allow: true, displayId: DISPLAY.id })
+    await t.flush()
+    t.c.code(CALLER, t.w.codes.at(-1)!)
+    expect(t.c.wire('c1').state).toBe('active')
+    // Only the old reading looks at the banner from here on, and well past the new one's grace.
+    t.c.view(CALLER, { visible: false })
+    await t.flush(600)
+    t.w.bannerHiddenNow = true
+    release!()
+    await t.flush()
+    await p
+    expect(t.c.wire('c1').state).toBe('active')
   })
 })

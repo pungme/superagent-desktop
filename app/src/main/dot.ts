@@ -246,6 +246,17 @@ function createDot(): void {
   })
 }
 
+/**
+ * After something else changed the app's process type back (remote control's
+ * banner going, and the Dock icon brought back with it), make the dot float over
+ * full-screen apps again, the way it was made. Returns false when there is no dot.
+ */
+export function refloatDot(): boolean {
+  if (!win || win.isDestroyed()) return false
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  return true
+}
+
 function destroyDot(): void {
   // The reference goes first: a destroy that throws must not leave a window
   // the rest of this module still thinks is the dot, showing it again.

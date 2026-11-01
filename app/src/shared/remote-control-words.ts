@@ -12,7 +12,7 @@ export function reachWords(): string {
 
 /** What Superagent does about it, and that it is not a guarantee. */
 export function limitsWords(shells: boolean): string {
-  return `Superagent tries to keep it away from password managers, macOS password and permission prompts, Superagent itself${shells ? '' : ' and terminals'}, and hides notifications and pauses the picture when one of those appears. That is a list of known cases, not a guarantee: a browser's saved logins, a copied password and other routes to running commands can still get through.${shells ? ' You allowed terminals, so it can run commands as you.' : ''}`
+  return `Superagent tries to keep it away from password managers, macOS password and permission prompts${shells ? '' : ', terminals'} and Superagent's own windows: it pauses the picture while a password manager or prompt is up, covers its own windows and hides notifications. That is a list of known cases, not a guarantee: a browser's saved logins, a copied password and other routes to running commands can still get through.${shells ? ' You allowed terminals, so it can run commands as you.' : ''} Superagent's Dock icon is hidden while a session runs.`
 }
 
 /** The habit that defeats the rest. */

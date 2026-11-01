@@ -177,8 +177,10 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   desktops), and, while it is marked, by right-clicks
   and any press in the menu bar (Edit → Paste); the Apple menu (a fixed 50x40
   region at each display's top left, not detected; the menu-bar band for a marked
-  clipboard is a fixed `MENU_BAR_BAND` of 40 points whatever the work area says,
-  since that is 0 with a hidden menu bar and about 37 on a notched MacBook) and the Dock's menu are not
+  clipboard is `Math.max(MENU_BAR_BAND, the display's menu bar depth)`, with
+  `MENU_BAR_BAND` 50: the depth is 0 with a hidden menu bar, about 37 on a notched
+  MacBook and 43-44 on one set to More Space; the display is read again on every
+  action) and the Dock's menu are not
   pressed, and the keys that reach them are refused too (`remoteKey`: Control with
   F1-F8 which focus the menu bar and the Dock, Control-Option which is VoiceOver's,
   ⌘F5 and ⌥F5, ⇧⌘/ the Help search that runs menu items). The system prompts are matched by bundle id
@@ -234,11 +236,19 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   can float over full-screen apps and every Space, and that hides Superagent's Dock
   icon for as long as the banner exists (measured on Electron 39: icon hidden when
   the banner is created, still hidden after it is destroyed, back after
-  `app.dock.show()`, which `hide()` calls). The banner being seen is the safety
-  property; the icon is cosmetic. Do not pass `skipTransformProcessType`: it keeps
-  the icon and very likely loses the banner over full-screen apps. A banner that is
-  not in front of a full-screen app in the layout scan (`bannerHidden`, checked on
-  every action and every look) ends the session. Whether the banner really shows
+  `app.dock.show()`, which `hide()` calls, except in a quiet test run, where
+  quiet.ts hides the Dock on purpose). When the dot exists, `hide()` re-applies the
+  dot's own `setVisibleOnAllWorkspaces` instead (`refloatDot`): the dot's call had
+  already made the app accessory-style before the session, so that is the state to
+  go back to, and the dot keeps floating over full-screen apps. The banner being
+  seen is the safety property; the icon is cosmetic. Do not pass
+  `skipTransformProcessType`: it keeps the icon and very likely loses the banner
+  over full-screen apps. The banner must be in the on-screen window list on the
+  shared display (`bannerHidden`: a Superagent window on layer 1000 or higher
+  overlapping it), checked on every action and every look after 500 ms of grace
+  (`BANNER_GRACE_MS`), or the session ends; that catches full-screen Split View,
+  notch-aware full-screen windows and a banner on another display only. The check
+  ends only the session it looked at. Whether the banner really shows
   over a real full-screen app cannot be verified without a real Mac: check it by
   hand.
   Not verified on a real Mac (the e2e uses a flag for the banner): that

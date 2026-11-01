@@ -36,6 +36,7 @@ import {
   askBudgetLeftAt,
   cleanDeviceName,
   cursorOnPicture,
+  BANNER_GRACE_MS,
   MENU_BAR_BAND,
   inAppleMenu,
   launcherOnScreen,
@@ -92,6 +93,8 @@ export interface DisplayInfo {
   id: number
   name: string
   bounds: ScreenArea
+  /** How deep the menu bar is (work area's top less the display's), in points. */
+  menuBar?: number
 }
 
 export interface RemoteDeps {
@@ -128,7 +131,7 @@ export interface RemoteDeps {
   appAt(x: number, y: number): Promise<AppRef | null>
   /** The pasteboard carries a type that marks it a secret (a password manager's copy). Names only, never contents. */
   clipboardConcealed(): boolean
-  /** A full-screen app has the display and the banner is not in front of it (from the layout). */
+  /** The banner is not showing on this display, from the on-screen window list. */
   bannerHidden(windows: LaidWindow[], area: ScreenArea): boolean
   /** The point is on one of Superagent's own floating windows. */
   ownSurfaceAt(x: number, y: number): boolean
@@ -747,19 +750,23 @@ export class RemoteControl {
     return a.type === 'key' && (a.mods ?? []).some((m) => m !== 'shift')
   }
 
-  /** The banner is what tells whoever is at the Mac: hidden behind a full-screen app, there is no session. */
-  private checkBanner(windows: LaidWindow[], area: ScreenArea): void {
-    if (windows.length && this.d.bannerHidden(windows, area)) {
-      this.end('banner-lost')
-      throw new RemoteRefusal(
-        'ended',
-        'The banner is hidden behind a full-screen app, so it ended.'
-      )
-    }
+  /**
+   * The banner is what tells whoever is at the Mac: not on screen on the shared
+   * display (after a moment's grace for it to appear), there is no session. Ends
+   * only the session it looked at. Returns whether it ended it.
+   */
+  private bannerGone(s: Session, windows: LaidWindow[], area: ScreenArea): boolean {
+    if (this.session !== s || !windows.length) return false
+    if (this.d.now() - s.startedAt < BANNER_GRACE_MS) return false
+    if (!this.d.bannerHidden(windows, area)) return false
+    this.end('banner-lost')
+    return true
   }
 
   private async apply(s: Session, a: RemoteInputAction): Promise<void> {
-    const area = this.d.displays().find((x) => x.id === s.display.id)?.bounds
+    // Read again for every action: the display can move, and its menu bar change.
+    const shown = this.d.displays().find((x) => x.id === s.display.id)
+    const area = shown?.bounds
     if (!area) {
       this.end('display-gone')
       throw new RemoteRefusal('ended', 'The shared display is gone.')
@@ -807,7 +814,7 @@ export class RemoteControl {
       throw this.refusal(s, a, 'rate-limited', 'Too fast. Slow down a moment.')
     let seen: { front: AppRef; windows: LaidWindow[] } | null = null
     for (const piece of pieces) {
-      seen = await this.guard(s, a, step, area)
+      seen = await this.guard(s, a, step, area, Math.max(MENU_BAR_BAND, shown?.menuBar ?? 0))
       if (this.session !== s) throw new RemoteRefusal('ended', 'The session ended.')
       const r = await this.d.run(piece === null ? step.args : ['type', piece])
       // Never the helper's own words: they can carry what was typed.
@@ -871,10 +878,13 @@ export class RemoteControl {
     s: Session,
     a: RemoteInputAction,
     step: Step,
-    area: ScreenArea
+    area: ScreenArea,
+    /** How much of the display's top is the menu bar, at least. */
+    menuTop: number
   ): Promise<{ front: AppRef; windows: LaidWindow[] }> {
     const sc = await this.scene(area)
-    this.checkBanner(sc.windows, area)
+    if (this.bannerGone(s, sc.windows, area))
+      throw new RemoteRefusal('ended', 'The banner is not on screen at the Mac, so it ended.')
     const front = sc.front
     if (sc.pause === 'unknown' || !front)
       throw this.refusal(
@@ -923,10 +933,7 @@ export class RemoteControl {
           )
         }
         this.checkApp(s, a, under ?? front)
-        if (
-          secretCopied &&
-          (('button' in a && a.button === 'right') || pt.y < area.y + MENU_BAR_BAND)
-        )
+        if (secretCopied && (('button' in a && a.button === 'right') || pt.y < area.y + menuTop))
           throw this.refusal(
             s,
             a,
@@ -1069,10 +1076,7 @@ export class RemoteControl {
     const after = await this.scene(display.bounds)
     s.seen = { at: this.d.now(), scene: after }
     if (this.session !== s) return 1000
-    if (after.windows.length && this.d.bannerHidden(after.windows, display.bounds)) {
-      this.end('banner-lost')
-      return 1000
-    }
+    if (this.bannerGone(s, after.windows, display.bounds)) return 1000
     this.setPause(s, after.pause, after.by)
     if (after.pause) return 700
     // Superagent's own windows (the dialogs, the banner, Settings, the chat's

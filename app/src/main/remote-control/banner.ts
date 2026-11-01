@@ -40,7 +40,15 @@ export function bannerHtml(device: string): string {
  * someone at the Mac chooses Stop in it. Below the menu bar, so it does not sit
  * on the notch or the Apple menu.
  */
-export function createBanner(onStop: () => void): {
+export function createBanner(
+  onStop: () => void,
+  /**
+   * Put the app back as it was once the banner has gone: its windows changed the
+   * process type and took the Dock icon with them. By default the icon comes
+   * back; index.ts passes one that leaves the dot floating over full-screen apps.
+   */
+  restore: () => void = () => void app.dock?.show()
+): {
   show: (info: { deviceName: string; display: DisplayInfo; displays: DisplayInfo[] }) => boolean
   hide: () => void
   ok: () => boolean
@@ -52,8 +60,8 @@ export function createBanner(onStop: () => void): {
     const all = wins
     wins = []
     for (const w of all) if (!w.isDestroyed()) w.destroy()
-    // The windows changed the app's process type and took the Dock icon with them.
-    if (all.length) void app.dock?.show()
+    // A quiet test run hides the Dock on purpose (quiet.ts): leave it so.
+    if (all.length && !quiet()) restore()
   }
 
   const one = (deviceName: string, b: Electron.Rectangle, topInset: number): BrowserWindow => {

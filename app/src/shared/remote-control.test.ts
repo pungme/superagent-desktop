@@ -330,7 +330,12 @@ describe('what the Allow dialog and Settings say: the same words, no absolutes',
         expect(text).toMatch(/stay near the Mac/)
         expect(text).not.toMatch(/blocked|never|cannot use|can't use|cannot be/i)
         // Terminals are named as kept away from only while that is true.
-        expect(/and terminals/.test(text)).toBe(!shells)
+        expect(/prompts, terminals and/.test(text)).toBe(!shells)
+        // Superagent's own windows are covered, not a reason to pause.
+        expect(text).not.toMatch(/pauses the picture when one of those appears/)
+        expect(text).toMatch(/pauses the picture while a password manager or prompt is up/)
+        expect(text).toMatch(/covers its own windows/)
+        expect(text).toMatch(/Dock icon is hidden while a session runs/)
         expect(/run commands as you/.test(text)).toBe(shells)
       })
   }
@@ -340,25 +345,38 @@ describe('what the Allow dialog and Settings say: the same words, no absolutes',
   })
 })
 
-describe('the menu bar band and a banner behind a full-screen app', () => {
+describe('the menu bar band and a banner that is not showing', () => {
   const area = { x: 0, y: 0, width: 1000, height: 500 }
   const w = (id: string, layer: number, x = 0, y = 0, width = 1000, height = 500): never =>
     ({ app: { id, name: id }, owner: id, layer, frame: { x, y, width, height } }) as never
-  it('is a fixed 40 points', () => {
-    expect(MENU_BAR_BAND).toBe(40)
-    expect(inAppleMenu(area, { x: 10, y: 39 })).toBe(true)
-    expect(inAppleMenu(area, { x: 10, y: 40 })).toBe(false)
+  const banner = (x = 280, y = 6): never => w('dev.superagent.app', 1000, x, y, 440, 40)
+  it('is 50 points at least', () => {
+    expect(MENU_BAR_BAND).toBe(50)
+    expect(inAppleMenu(area, { x: 10, y: 49 })).toBe(true)
+    expect(inAppleMenu(area, { x: 10, y: 50 })).toBe(false)
   })
-  it('is hidden when a full-screen window is in front of it, or it is not on screen at all', () => {
-    const banner = w('dev.superagent.app', 1000, 280, 6, 440, 40)
-    expect(bannerHidden([w('com.apple.Safari', 0), banner], area)).toBe(true)
-    expect(bannerHidden([w('com.apple.Safari', 0)], area)).toBe(true)
+  it('is showing when a banner window of ours is on this display, whatever else is', () => {
+    expect(bannerHidden([banner(), w('com.apple.Safari', 0)], area)).toBe(false)
+    // Below a notch-aware full-screen window's top edge too.
+    expect(bannerHidden([w('com.apple.Safari', 0, 0, 37, 1000, 463), banner(280, 43)], area)).toBe(
+      false
+    )
   })
-  it('is fine when it is in front of the full-screen window, or nothing is full-screen', () => {
-    const banner = w('dev.superagent.app', 1000, 280, 6, 440, 40)
-    expect(bannerHidden([banner, w('com.apple.Safari', 0)], area)).toBe(false)
-    // A maximised window starts below the menu bar: not full-screen.
-    expect(bannerHidden([w('com.apple.Safari', 0, 0, 25, 1000, 475)], area)).toBe(false)
-    expect(bannerHidden([w('com.apple.Safari', 0, 0, 0, 500, 400)], area)).toBe(false)
+  it('is hidden in full-screen Split View (two half windows), under a notch offset, or shown elsewhere only', () => {
+    // Split View: two half windows, the banner not listed on this Space.
+    expect(
+      bannerHidden(
+        [w('com.apple.Safari', 0, 0, 0, 500, 500), w('com.apple.Notes', 0, 500, 0, 500, 500)],
+        area
+      )
+    ).toBe(true)
+    // A full-screen window that starts below the notch.
+    expect(bannerHidden([w('com.apple.Safari', 0, 0, 37, 1000, 463)], area)).toBe(true)
+    // Listed, but on another display only.
+    expect(bannerHidden([banner(1280, 6), w('com.apple.Notes', 0)], area)).toBe(true)
+    // Not listed at all, and nothing else either: hidden (the caller skips an empty list).
+    expect(bannerHidden([w('com.apple.Notes', 0)], area)).toBe(true)
+    // Superagent's ordinary windows and the dot are not the banner.
+    expect(bannerHidden([w('dev.superagent.app', 0), w('dev.superagent.app', 3)], area)).toBe(true)
   })
 })

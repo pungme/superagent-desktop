@@ -109,4 +109,29 @@ describe('the banner', () => {
     b.hide()
     expect(dockShow).toHaveBeenCalledOnce()
   })
+
+  it('in a quiet test run leaves the Dock as quiet.ts set it (hidden)', () => {
+    made.length = 0
+    dockShow.mockClear()
+    process.env.COVE_E2E_QUIET = '1'
+    try {
+      const b = createBanner(() => undefined)
+      b.show({ deviceName: 'x', display: d1, displays: [d1] })
+      b.hide()
+      expect(dockShow).not.toHaveBeenCalled()
+    } finally {
+      delete process.env.COVE_E2E_QUIET
+    }
+  })
+
+  it('puts the app back the way it is told to (the dot floating again, when there is one)', () => {
+    made.length = 0
+    dockShow.mockClear()
+    const restore = vi.fn()
+    const b = createBanner(() => undefined, restore)
+    b.show({ deviceName: 'x', display: d1, displays: [d1] })
+    b.hide()
+    expect(restore).toHaveBeenCalledOnce()
+    expect(dockShow).not.toHaveBeenCalled()
+  })
 })

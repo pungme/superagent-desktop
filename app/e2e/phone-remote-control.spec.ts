@@ -340,6 +340,9 @@ test('the validation is the real one: bad frames never reach the helper', async 
 })
 
 test('it refuses where it must: secrets, its own windows, the keys that get round it', async () => {
+  // Many round trips through the relay and a real Electron main process: under a
+  // loaded machine it has taken longer than the default minute once.
+  test.setTimeout(120_000)
   const input = (a: Record<string, unknown>): ReturnType<FakePhone['ask']> =>
     phone.ask('remote.input', { actions: [a] })
   await world((w) => (w.calls.length = 0))
@@ -371,7 +374,7 @@ test('it refuses where it must: secrets, its own windows, the keys that get roun
     w.front = { id: 'com.test.notes', name: 'Notes' }
     w.under = { id: 'dev.superagent.app', name: 'Superagent' }
   })
-  await new Promise((r) => setTimeout(r, 1500))
+  // No wait for the stream here: every action looks at the Mac itself.
   expect(await input({ type: 'click', x: 0.5, y: 0.5 })).toMatchObject({ ok: false })
   await world((w) => {
     w.under = null
@@ -422,7 +425,6 @@ test('it refuses where it must: secrets, its own windows, the keys that get roun
     ((await window.evaluate(() => window.cove.remoteStatus())) as { shells: boolean }).shells
   ).toBe(false)
   await window.evaluate(() => window.cove.setRemoteShells(true))
-  await new Promise((r) => setTimeout(r, 1500))
   expect(await input({ type: 'text', text: 'ls' })).toMatchObject({ ok: true })
   expect(await world((w) => w.calls)).toEqual([['type', 'ls']])
   await window.evaluate(() => window.cove.setRemoteShells(false))
@@ -430,7 +432,6 @@ test('it refuses where it must: secrets, its own windows, the keys that get roun
     w.calls.length = 0
     w.front = { id: 'com.test.notes', name: 'Notes' }
   })
-  await new Promise((r) => setTimeout(r, 1500))
 })
 
 test('Stop at the Mac ends it at once, and the next session needs the Mac again', async () => {

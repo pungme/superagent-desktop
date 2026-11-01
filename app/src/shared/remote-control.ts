@@ -345,11 +345,12 @@ export function inAppleMenu(area: ScreenArea, pt: { x: number; y: number }): boo
 }
 
 /**
- * The top of each display, in points, that counts as the menu bar: a fixed 40,
- * not the work area's offset (which is 0 when the menu bar is hidden or in a
- * full-screen app, and about 37 on a notched MacBook).
+ * The top of each display, in points, that counts as the menu bar at least: 50,
+ * or the work area's offset when that is deeper. The offset alone is 0 when the
+ * menu bar is hidden or in a full-screen app, about 37 on a notched MacBook and
+ * 43-44 on one set to More Space.
  */
-export const MENU_BAR_BAND = 40
+export const MENU_BAR_BAND = 50
 
 const inFrame = (f: ScreenArea, pt: { x: number; y: number }): boolean =>
   pt.x >= f.x && pt.y >= f.y && pt.x < f.x + f.width && pt.y < f.y + f.height
@@ -367,26 +368,21 @@ export function launcherOnScreen(windows: readonly LaidWindow[]): boolean {
 }
 
 /**
- * A full-screen app is in front of the banner: some window covers the whole display
- * from its very top (a full-screen window; a maximised one starts below the menu
- * bar) and no window of Superagent's on layer 1000 or higher, where a banner is,
- * lies in front of it in the front-to-back list. An app's banner that is not listed
- * at all while a full-screen app is up is hidden too.
+ * The banner is not showing on this display: no window of Superagent's on layer
+ * 1000 or higher (where the banner is) overlaps it. The windows come from the
+ * on-screen list, so a banner really showing on the current Space is in it; one
+ * hidden behind a full-screen app, in Split View, under a notch-aware full-screen
+ * window, or shown only on another display, is not. Called once the banner has
+ * had a moment to appear (see `BANNER_GRACE_MS`).
  */
 export function bannerHidden(windows: readonly LaidWindow[], area: ScreenArea): boolean {
-  const covers = (f: ScreenArea): boolean =>
-    f.x <= area.x &&
-    f.y <= area.y &&
-    f.x + f.width >= area.x + area.width &&
-    f.y + f.height >= area.y + area.height
-  const full = windows.findIndex(
-    (w) => !!w.app && !isSelfApp(w.app.id) && w.layer === 0 && covers(w.frame)
+  return !windows.some(
+    (w) => !!w.app && isSelfApp(w.app.id) && w.layer >= 1000 && overlapsArea(w.frame, area)
   )
-  if (full < 0) return false
-  return !windows
-    .slice(0, full)
-    .some((w) => !!w.app && isSelfApp(w.app.id) && w.layer >= 1000 && overlapsArea(w.frame, area))
 }
+
+/** How long after the banner is shown before its absence from the window list counts. */
+export const BANNER_GRACE_MS = 500
 
 const overlapsArea = (a: ScreenArea, b: ScreenArea): boolean =>
   a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
