@@ -236,6 +236,16 @@ test('switching it on at the Mac advertises it, and a new phone connection hears
   await phone.until((f) => remoteState(f)?.available === true)
 })
 
+test('a connection that has not said hello gets nothing from remote control', async () => {
+  const stranger = new FakePhone(hello.url, hello.secret, hello.machine)
+  await stranger.connect()
+  // The key probe has passed (it is the paired phone's key) but no hello with the token.
+  const r = await stranger.ask('remote.request')
+  expect(r).toMatchObject({ ok: false, error: { message: expect.stringMatching(/hello/i) } })
+  expect(await world((w) => w.asks.length)).toBe(0)
+  stranger.ws.close()
+})
+
 test('the phone cannot allow its own session: only the Mac can', async () => {
   const asked = await phone.ask('remote.request')
   expect(asked).toMatchObject({ ok: true, result: { state: 'asking' } })

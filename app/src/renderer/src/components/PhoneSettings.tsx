@@ -416,11 +416,11 @@ function RemoteControlRow(): React.JSX.Element | null {
         <div className="settings-label">
           <strong>Let my phone control this Mac</strong>
           <span>
-            Off unless you turn it on. Each time, this Mac asks you to allow it and shows a code to
-            type on the phone. The phone sees everything on this screen and can use any app as you,
-            except Superagent&apos;s windows, password managers, the lock screen and the keep-out
-            list under Computer use. While it runs a red bar is on screen; press ⌥Esc or choose Stop
-            to end it.
+            Off unless you turn it on, and then on after a restart until you turn it off. Each time,
+            this Mac asks you to allow it and shows a code to type on the phone. While it runs the
+            phone can see the shared screen and use any app as you, except password managers, macOS
+            prompts and Superagent; it can quit apps. A red bar stays on screen: press ⌥Esc or
+            choose Stop to end it. Notifications are hidden from the picture.
             {st.enabled && st.note ? ` ${st.note}` : ''}
           </span>
           {st.active && (
@@ -452,7 +452,8 @@ function RemoteControlRow(): React.JSX.Element | null {
           <div className="settings-label">
             <strong>Allow terminals and scripting apps</strong>
             <span>
-              Off: the phone cannot use Terminal, editors with a terminal, or scripting apps. On: it
+              Off every time Superagent starts. Off is a list of apps, not a wall: commands can
+              still be reached through a browser, files that run later or other apps. On: the phone
               can run commands as you.
             </span>
           </div>

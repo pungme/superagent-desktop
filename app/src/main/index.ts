@@ -374,7 +374,7 @@ app.whenReady().then(async () => {
   // ⌥Esc, or turning it off, stops the agents that were using the Mac.
   setComputerStop((chatId) => void stopFromDot(chatId))
   // Remote control (a phone working this Mac): off until switched on here.
-  registerRemoteControlIpc()
+  registerRemoteControlIpc(isDotWindow)
   startRemoteControl()
   registerLidAwakeIpc()
   registerMailIpc()

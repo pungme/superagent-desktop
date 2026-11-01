@@ -61,6 +61,10 @@ function make() {
     frontReads: 0,
     askQs: [] as { deviceName: string; shells: boolean }[],
     runError: '',
+    appAtFails: false,
+    clipboardSecret: false,
+    /** How many helper runs Stop finds posting. */
+    killRuns: 0,
     under: null as AppRef | null,
     windows: [win(NOTES)] as LaidWindow[],
     layoutThrows: false,
@@ -124,7 +128,11 @@ function make() {
       if (w.layoutThrows) throw new Error('no layout')
       return w.windows
     },
-    appAt: async () => w.under,
+    appAt: async () => {
+      if (w.appAtFails) throw new Error('the helper timed out')
+      return w.under
+    },
+    clipboardConcealed: () => w.clipboardSecret,
     ownSurfaceAt: () => w.ownSurface,
     ownFocused: () => w.ownFocused,
     ownShortcuts: () => w.ownShortcuts,
@@ -134,7 +142,7 @@ function make() {
       w.calls.push(args)
       return { ok: true, error: '' }
     },
-    killRunning: () => void w.killed++,
+    killRunning: () => (w.killed++, w.killRuns),
     cursor: () => w.cursor,
     capture: async () => {
       w.captures++
@@ -987,7 +995,9 @@ describe('the stream', () => {
       expect(t.w.captures).toBe(0)
       expect(t.w.frames.filter((f) => f.t === 'screen')).toHaveLength(0)
       t.w.calls.length = 0
-      expect((await t.refused(t.input({ type: 'click', x: 0.5, y: 0.5 }))).reason).toBe('paused')
+      expect((await t.refused(t.input({ type: 'click', x: 0.5, y: 0.5 }))).reason).toBe(
+        why === 'lock' ? 'lock' : 'secret'
+      )
       expect(t.w.calls).toEqual([])
       // Back to the notes: a whole picture again, and input works.
       t.w.front = NOTES
@@ -1458,5 +1468,226 @@ describe('finding 8: the cost of an action is what it makes the Mac do', () => {
     )
     const results = await t.running(Promise.all(sent))
     expect(results.filter((r) => r === 'rate-limited').length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+// --- the second review's findings -------------------------------------------------
+
+const NOTIF: AppRef = { id: 'com.apple.notificationcenterui', name: 'NotificationCenter' }
+const DOCK: AppRef = { id: 'com.apple.dock', name: 'Dock' }
+const SPOT: LaidWindow = win(SPOTLIGHT, 300, 100, 400, 80, 3)
+
+describe('review 2, finding 2: input never depends on the stream having looked', () => {
+  it('with the stream hidden, a password manager on the display (not in front, not under the pointer) stops keys', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.windows = [win(NOTES), win(ONEPW, 600, 100, 300, 300)]
+    t.w.calls.length = 0
+    const e = await t.refused(t.input({ type: 'key', key: 'a' }))
+    expect(e.reason).toBe('paused')
+    expect((await t.refused(t.input({ type: 'text', text: 'abc' }))).reason).toBe('paused')
+    expect(t.w.calls).toEqual([])
+  })
+
+  it('and with it visible, a secret that arrived a moment ago stops them before the stream has looked', async () => {
+    const t = make()
+    await t.begin()
+    await t.flush(2000)
+    t.w.calls.length = 0
+    t.w.windows = [win(NOTES), win(ONEPW, 600, 100, 300, 300)]
+    expect((await t.refused(t.input({ type: 'key', key: 'a' }))).reason).toBe('paused')
+    expect(t.w.calls).toEqual([])
+  })
+
+  it('and goes on once it has gone, without anyone asking for pictures', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.windows = [win(NOTES), win(ONEPW, 600, 100, 300, 300)]
+    await t.refused(t.input({ type: 'key', key: 'a' }))
+    t.w.windows = [win(NOTES)]
+    await t.input({ type: 'key', key: 'a' })
+    expect(t.w.calls.at(-1)).toEqual(['key', 'a'])
+  })
+})
+
+describe("review 2, finding 4: a password manager's copy is not pasted", () => {
+  it('refuses every paste while the clipboard is marked, and nothing else', async () => {
+    const t = make()
+    await t.begin()
+    t.w.clipboardSecret = true
+    t.w.calls.length = 0
+    for (const mods of [
+      ['cmd'],
+      ['cmd', 'shift'],
+      ['cmd', 'opt', 'shift'],
+      ['cmd', 'ctrl']
+    ] as const)
+      expect((await t.refused(t.input({ type: 'key', key: 'v', mods: [...mods] }))).reason).toBe(
+        'clipboard'
+      )
+    expect(t.w.calls).toEqual([])
+    await t.input({ type: 'key', key: 'c', mods: ['cmd'] }, { type: 'key', key: 'v' })
+    expect(t.w.calls).toEqual([
+      ['key', 'cmd+c'],
+      ['key', 'v']
+    ])
+    t.w.clipboardSecret = false
+    await t.input({ type: 'key', key: 'v', mods: ['cmd'] })
+    expect(t.w.calls.at(-1)).toEqual(['key', 'cmd+v'])
+  })
+})
+
+describe('review 2, finding 5: not knowing what is under a point is a refusal', () => {
+  it('a failed or timed-out look refuses; the desktop (nobody there) does not', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    t.w.appAtFails = true
+    for (const a of [
+      { type: 'click', x: 0.5, y: 0.5 },
+      { type: 'drag', x: 0.1, y: 0.1, toX: 0.5, toY: 0.5 },
+      { type: 'scroll', x: 0.5, y: 0.5, dx: 0, dy: 0.1 }
+    ] as RemoteInputAction[])
+      expect((await t.refused(t.input(a))).reason).toBe('unknown')
+    expect(t.w.calls).toEqual([])
+    t.w.appAtFails = false
+    t.w.under = null
+    await t.input({ type: 'click', x: 0.5, y: 0.5 })
+    expect(t.w.calls).toHaveLength(1)
+  })
+})
+
+describe("review 2, finding 6: Superagent's native dialogs take no keys, and the banner no clicks", () => {
+  it('any window of its own on layer 8 or up refuses everything, whatever lsappinfo says is in front', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    t.w.front = NOTES
+    t.w.windows = [win(SELF, 400, 200, 300, 150, 8), win(NOTES)]
+    for (const a of [
+      { type: 'key', key: 'return' },
+      { type: 'key', key: 'space' },
+      { type: 'text', text: 'y' },
+      { type: 'click', x: 0.1, y: 0.1 }
+    ] as RemoteInputAction[])
+      expect((await t.refused(t.input(a))).reason).toBe('own-window')
+    expect(t.w.calls).toEqual([])
+    // Gone: it goes on. (The banner, on layer 1000, is not one.)
+    t.w.windows = [win(SELF, 300, 0, 440, 40, 1000), win(NOTES)]
+    await t.input({ type: 'key', key: 'return' })
+    expect(t.w.calls).toEqual([['key', 'return']])
+  })
+
+  it('a point inside the banner is refused for every kind of pointer action', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    t.w.ownSurface = true
+    for (const a of [
+      { type: 'move', x: 0.5, y: 0.05 },
+      { type: 'click', x: 0.5, y: 0.05 },
+      { type: 'down', x: 0.5, y: 0.05 },
+      { type: 'up', x: 0.5, y: 0.05 },
+      { type: 'drag', x: 0.5, y: 0.05, toX: 0.1, toY: 0.5 },
+      { type: 'drag', x: 0.1, y: 0.5, toX: 0.5, toY: 0.05 },
+      { type: 'scroll', x: 0.5, y: 0.05, dx: 0, dy: 0.1 }
+    ] as RemoteInputAction[])
+      expect((await t.refused(t.input(a))).reason).toBe('own-window')
+    expect(t.w.calls).toEqual([])
+  })
+})
+
+describe('review 2, finding 7: what a click launches is waited for', () => {
+  it('a click while Spotlight is up (though not reported in front) waits long, so Terminal is seen', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.windows = [SPOT, win(NOTES)]
+    t.w.calls.length = 0
+    const p = t.input(
+      { type: 'click', x: 0.5, y: 0.2 },
+      { type: 'text', text: 'security dump-keychain' }
+    )
+    t.w.frontLater = { at: Date.now() + 800, app: TERMINAL }
+    expect((await t.refused(p)).reason).toBe('shell')
+    expect(t.w.calls).toHaveLength(1)
+  })
+
+  it('and so does Return, and a click on a Dock icon', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.windows = [SPOT, win(NOTES)]
+    t.w.calls.length = 0
+    const p = t.input({ type: 'key', key: 'return' }, { type: 'text', text: 'x' })
+    t.w.frontLater = { at: Date.now() + 800, app: TERMINAL }
+    expect((await t.refused(p)).reason).toBe('shell')
+
+    const u = make()
+    await u.begin()
+    u.c.view(CALLER, { visible: false })
+    u.w.windows = [win(DOCK, 200, 450, 600, 50, 20), win(NOTES)]
+    const q = u.input({ type: 'click', x: 0.5, y: 0.95 }, { type: 'text', text: 'x' })
+    u.w.frontLater = { at: Date.now() + 800, app: TERMINAL }
+    expect((await u.refused(q)).reason).toBe('shell')
+  })
+})
+
+describe('review 2, finding 8: the Apple menu and the Dock menu', () => {
+  it("refuses a press on the Apple menu, and on the Dock's menu; a plain click on a Dock icon is fine", async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.windows = [win(DOCK, 200, 450, 600, 50, 20), win(NOTES)]
+    t.w.calls.length = 0
+    expect((await t.refused(t.input({ type: 'click', x: 0.01, y: 0.01 }))).reason).toBe(
+      'system-menu'
+    )
+    expect(
+      (await t.refused(t.input({ type: 'click', x: 0.5, y: 0.95, button: 'right' }))).reason
+    ).toBe('dock-menu')
+    expect((await t.refused(t.input({ type: 'down', x: 0.5, y: 0.95 }))).reason).toBe('dock-menu')
+    expect(t.w.calls).toEqual([])
+    // Moving there, and a left click on an icon, are not.
+    await t.input({ type: 'move', x: 0.01, y: 0.01 }, { type: 'click', x: 0.5, y: 0.95 })
+    expect(t.w.calls.map((c) => c[0])).toEqual(['jump', 'tap'])
+  })
+})
+
+describe('review 2, finding 12: ending, and the picture', () => {
+  it('after cutting a run short, lets go of both buttons where the pointer is', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    t.w.killRuns = 1
+    t.c.end('hotkey')
+    await t.flush()
+    expect(t.w.calls).toEqual([
+      ['up', '100', '50', 'left'],
+      ['up', '100', '50', 'right']
+    ])
+  })
+
+  it('and posts nothing when nothing was cut short and nothing held', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    t.c.end('hotkey')
+    await t.flush()
+    expect(t.w.calls).toEqual([])
+  })
+
+  it('covers notification banners in the picture (codes, message previews)', async () => {
+    const t = make()
+    await t.begin()
+    t.w.windows = [win(NOTES, 0, 0, 500, 500), win(NOTIF, 500, 0, 500, 500, 25)]
+    await t.flush(2000)
+    expect(t.c.wire('c1').paused).toBeNull()
+    const pic = t.w.pictures.at(-1)!
+    const at = (x: number, y: number): number => pic.data[(y * pic.width + x) * 4]
+    expect(at(50, 50)).toBe(255)
+    expect(at(150, 50)).toBe(0x2b)
   })
 })

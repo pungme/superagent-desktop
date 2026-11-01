@@ -1216,14 +1216,20 @@ export async function offLimitsNow(): Promise<string | null> {
   return offLimitsMessage(await frontApp())
 }
 
-/** Whose window is at a point on the screen: what a click there lands on. */
+/**
+ * Whose window is at a point on the screen: what a click there lands on. Null
+ * when it is no app's (the desktop, the menu bar). Throws when the helper could
+ * not say (it failed, timed out or was killed): that is not "no app", and the
+ * caller must not fall back to the app in front.
+ */
 function appAt(x: string, y: string): Promise<AppRef | null> {
-  return cuse(['at', x, y]).then(({ out }) =>
-    ownerApp(
+  return cuse(['at', x, y]).then(({ ok, out }) => {
+    if (!ok) throw new Error('macOS would not say what is at that point.')
+    return ownerApp(
       typeof out.name === 'string' ? out.name : '',
       typeof out.bundle === 'string' ? out.bundle : ''
     )
-  )
+  })
 }
 
 /** Every app with a window on screen now. Empty when the helper cannot say. */
@@ -1524,9 +1530,11 @@ export async function runHelper(args: string[]): Promise<{ ok: boolean; error: s
 }
 
 /** Cut short what remote control is posting. A computer-use agent's own run is left alone. */
-export function killRunningHelper(): void {
+export function killRunningHelper(): number {
+  const n = remoteRunning.size
   for (const child of remoteRunning) child.kill('SIGKILL')
   remoteRunning.clear()
+  return n
 }
 
 /** A picture of one display at a width, as pixels (four bytes each). */

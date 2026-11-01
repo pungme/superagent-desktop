@@ -1,5 +1,14 @@
 import { randomInt } from 'crypto'
-import { BrowserWindow, app, ipcMain, nativeImage, powerMonitor, screen } from 'electron'
+import {
+  BrowserWindow,
+  app,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeImage,
+  powerMonitor,
+  screen
+} from 'electron'
 import { z } from 'zod'
 import {
   addStopListener,
@@ -23,6 +32,8 @@ import type { LaidWindow, AppRef } from '../../shared/computer-use'
 import type { RpcErrorCode, ServerFrame, WireRemote } from '../../shared/companion-protocol'
 import { RemoteControl, RemoteRefusal, type DisplayInfo, type RemoteDeps } from './control'
 import { askAllowDialog, createBanner, showCodeDialog } from './banner'
+import { concealedFormats } from '../../shared/remote-control'
+import { mayFlip, trustedSender } from './switches'
 import { remoteCodeParams, remoteInputParams, remoteViewParams } from './input'
 import type { Bitmap, Encode, Rect } from './stream'
 
@@ -33,7 +44,6 @@ import type { Bitmap, Encode, Rect } from './stream'
  */
 
 const KEY = 'remote.enabled'
-const SHELLS_KEY = 'remote.shells'
 
 /**
  * Read from the store once, then held here and changed only through IPC, as
@@ -50,18 +60,6 @@ function readEnabled(): boolean {
     enabledNow = v === '1'
   }
   return process.platform === 'darwin' && enabledNow
-}
-
-let shellsNow: boolean | null = null
-
-/** Whether the Mac's person allowed terminals and scripting apps. Held like the switch above. */
-function readShells(): boolean {
-  if (shellsNow === null) {
-    const v = settingGet(SHELLS_KEY)
-    if (v === undefined) return false
-    shellsNow = v === '1'
-  }
-  return shellsNow
 }
 
 /** What carries frames to and from a phone, bound by the companion once it is up. */
@@ -141,10 +139,22 @@ function realDeps(): RemoteDeps {
     front: frontApp,
     layout: windowLayout,
     appAt: appUnder,
+    clipboardConcealed: () => {
+      // Names of what the pasteboard carries, never its contents. Not being able to tell is a yes.
+      try {
+        if (concealedFormats(clipboard.availableFormats())) return true
+        return concealedFormats(
+          ['org.nspasteboard.ConcealedType', 'org.nspasteboard.TransientType'].filter((t) =>
+            clipboard.has(t)
+          )
+        )
+      } catch {
+        return true
+      }
+    },
     ownSurfaceAt: (x, y) => {
       if (own.surfaceAt(x, y)) return true
-      const b = banner.bounds()
-      if (b && inside(b, x, y)) return true
+      if (banner.bounds().some((b) => inside(b, x, y))) return true
       // Any window of Superagent's own that is on screen there.
       return BrowserWindow.getAllWindows().some(
         (w) => !w.isDestroyed() && w.isVisible() && inside(w.getBounds(), x, y)
@@ -193,6 +203,7 @@ function control(): RemoteControl {
     const testRun = !app.isPackaged && !!process.env.COVE_USER_DATA
     deps = testRun ? inertDeps(realDeps()) : realDeps()
     instance = new RemoteControl(deps)
+    if (testRun) confirmSwitch = async () => true
     if (testRun) (globalThis as Record<string, unknown>).__remoteTest = testHandle(instance, deps)
   }
   return instance
@@ -230,34 +241,75 @@ export function status(): {
 export function startRemoteControl(): void {
   const c = control()
   c.setEnabled(readEnabled())
-  c.setShells(readShells())
   // ⌥Esc, from whatever app is in front.
   addStopListener(() => c.end('hotkey'))
   powerMonitor.on('suspend', () => c.end('slept'))
   powerMonitor.on('lock-screen', () => c.end('locked'))
+  // Fast user switching: another person's desktop is not the phone's to use.
+  powerMonitor.on('user-did-resign-active', () => c.end('locked'))
   powerMonitor.on('shutdown', () => c.end('slept'))
 }
 
-export function registerRemoteControlIpc(): void {
+/**
+ * The question at the Mac before a switch goes on: a native dialog, Cancel the
+ * default. A test run answers yes (nothing there to click).
+ */
+let confirmSwitch = async (what: 'on' | 'shells'): Promise<boolean> => {
+  const r = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'Superagent',
+    message:
+      what === 'on'
+        ? 'Let your paired phone control this Mac?'
+        : 'Allow terminals and scripting apps for phones?',
+    detail:
+      what === 'on'
+        ? 'It stays on, even after a restart, until you switch it off here. Each time a phone asks, this Mac asks you again.'
+        : 'A phone that is allowed in can then run commands as you. This is off again whenever Superagent starts.',
+    buttons: ['Cancel', what === 'on' ? 'Turn on' : 'Allow'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  })
+  return r.response === 1
+}
+
+/** Whether this IPC call comes from the app's main window, top frame (never the dot, never a sub-frame). */
+function fromMainWindow(
+  e: Electron.IpcMainInvokeEvent,
+  isDot: (w: BrowserWindow | null) => boolean
+): boolean {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  return trustedSender(e, win, isDot(win))
+}
+
+/** `isDot`: whether a window is the dot's, which never flips a switch (passed in, so this file does not load the dot). */
+export function registerRemoteControlIpc(isDot: (w: BrowserWindow | null) => boolean): void {
   ipcMain.handle('remote:status', () => status())
-  ipcMain.handle('remote:set-enabled', (_e, on: boolean) => {
+  ipcMain.handle('remote:set-enabled', async (e, on: boolean) => {
     const v = !!on
-    enabledNow = v
+    const go = await mayFlip({
+      trusted: fromMainWindow(e, isDot),
+      on: v,
+      confirm: () => confirmSwitch('on')
+    })
+    if (!go) return status()
     settingSet(KEY, v ? '1' : '0')
     healthLog(`remote: switched ${v ? 'on' : 'off'} at the Mac`)
     control().setEnabled(v && process.platform === 'darwin')
-    // Off takes the shells setting with it: the next time starts safe.
-    if (!v) {
-      shellsNow = false
-      settingSet(SHELLS_KEY, '0')
-    }
+    // Off takes the shells setting with it (control.ts).
     return status()
   })
-  // Terminals and scripting apps: another switch, at the Mac and only here.
-  ipcMain.handle('remote:set-shells', (_e, on: boolean) => {
+  // Terminals and scripting apps: another switch, at the Mac and only here. Held
+  // in memory for this run: it is off again after a restart.
+  ipcMain.handle('remote:set-shells', async (e, on: boolean) => {
     const v = !!on && control().isEnabled()
-    shellsNow = v
-    settingSet(SHELLS_KEY, v ? '1' : '0')
+    const go = await mayFlip({
+      trusted: fromMainWindow(e, isDot),
+      on: v,
+      confirm: () => confirmSwitch('shells')
+    })
+    if (!go) return status()
     healthLog(`remote: shells and scripting apps ${v ? 'allowed' : 'not allowed'} at the Mac`)
     control().setShells(v)
     return status()
@@ -359,6 +411,7 @@ interface TestWorld {
   windows: LaidWindow[]
   ownFocused: boolean
   ownSurface: boolean
+  clipboardSecret: boolean
   bannerUp: boolean
   bannerShown: number
   stopKeyHeld: boolean
@@ -390,6 +443,7 @@ function inertDeps(real: RemoteDeps): RemoteDeps {
     ],
     ownFocused: false,
     ownSurface: false,
+    clipboardSecret: false,
     bannerUp: false,
     bannerShown: 0,
     stopKeyHeld: false,
@@ -438,7 +492,8 @@ function inertDeps(real: RemoteDeps): RemoteDeps {
       w.calls.push(args)
       return { ok: true, error: '' }
     },
-    killRunning: () => undefined,
+    killRunning: () => 0,
+    clipboardConcealed: () => w.clipboardSecret,
     cursor: () => w.cursor,
     capture: async () => {
       // A drawing, not the screen: a box that moves a little each look.

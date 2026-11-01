@@ -1,4 +1,11 @@
-import { COMPUTER_STOP_HOTKEY, normalKeyCombo, type ScreenArea } from './computer-use'
+import {
+  COMPUTER_STOP_HOTKEY,
+  isSelfApp,
+  launcherApp,
+  normalKeyCombo,
+  type LaidWindow,
+  type ScreenArea
+} from './computer-use'
 
 /**
  * Remote control, the parts that are only rules and arithmetic: how long things
@@ -40,9 +47,11 @@ export const REMOTE_ASK_WINDOW_MS = 60 * 60_000
 export const SPAWNS_FRONT = 2
 export const SPAWNS_HELPER = 1
 export const SPAWNS_AT = 1
+/** What every guarded step looks at: the app in front (two processes) and the windows on screen (one). */
+export const SPAWNS_SCENE = SPAWNS_FRONT + 1
 /** The bucket every action is charged to, a token per process started. */
-export const REMOTE_BUCKET_RATE = 80
-export const REMOTE_BUCKET_BURST = 80
+export const REMOTE_BUCKET_RATE = 100
+export const REMOTE_BUCKET_BURST = 100
 /** Typed characters a second, and at once: a full 500-character text is allowed, then it waits. */
 export const REMOTE_TEXT_RATE = 250
 export const REMOTE_TEXT_BURST = 500
@@ -234,11 +243,11 @@ export function allowDialog(
     message: 'Allow a phone to control this Mac?',
     detail: [
       `Paired phone: ${deviceName}`,
-      'It will see everything on this screen and use the mouse and keyboard until you press ⌥Esc or choose Stop in the red bar.',
-      "It is kept out of Superagent's windows, password managers and the lock screen. Any other app, such as your mail or browser, it can use as you.",
+      'Until you stop it, the phone can see the shared screen and use the mouse and keyboard as you. It can use any app except password managers, macOS system prompts and Superagent, and it can quit apps.',
       shells
-        ? 'You allowed terminals and scripting apps, so it can run commands as you.'
-        : 'Terminals and scripting apps are blocked.',
+        ? 'You allowed shells, so it can run commands as you.'
+        : 'Commands are not meant to be reachable, but they can be through routes Superagent cannot fully close, such as a browser, files that run later, or other apps.',
+      'Superagent shows a red bar, ends it on ⌥Esc or Stop, pauses the picture while a password manager or prompt is up, and hides notifications.',
       'Only allow it if you just asked for this on your phone.'
     ].join('\n\n')
   }
@@ -279,4 +288,44 @@ export function lockedUntil(strikes: number[], now: number): number | null {
   if (recent.length < REMOTE_STRIKES) return null
   const lifts = Math.max(...recent) + REMOTE_LOCKOUT_MS
   return lifts > now ? lifts : null
+}
+
+// --- what the guard looks at, as pure rules --------------------------------
+
+/** Whether this key pastes: ⌘V and its variants (⇧⌘V, ⌥⇧⌘V, ⌘⌃V). */
+export function pastes(key: string, mods: readonly string[]): boolean {
+  return key.toLowerCase() === 'v' && mods.includes('cmd')
+}
+
+/** Pasteboard types that password managers put on what they copy: it is a secret, or meant to vanish. */
+const CONCEALED = ['org.nspasteboard.concealedtype', 'org.nspasteboard.transienttype']
+
+/** Whether the formats a pasteboard carries (names only, never contents) mark it as a secret. */
+export function concealedFormats(formats: readonly string[]): boolean {
+  return formats.some((f) => CONCEALED.some((c) => f.toLowerCase().includes(c)))
+}
+
+/** Windows of Superagent's own that take the keyboard whatever else is in front: native dialogs and menus (layer 8 up to, not including, the banner's). */
+export function ownModalUp(windows: readonly LaidWindow[]): boolean {
+  return windows.some((w) => !!w.app && isSelfApp(w.app.id) && w.layer >= 8 && w.layer < 1000)
+}
+
+/** The Apple menu (Restart, Shut Down, Log Out) is the first item of the menu bar, at the display's top left. */
+export function inAppleMenu(area: ScreenArea, pt: { x: number; y: number }): boolean {
+  return pt.x >= area.x && pt.x < area.x + 50 && pt.y >= area.y && pt.y < area.y + 40
+}
+
+const inFrame = (f: ScreenArea, pt: { x: number; y: number }): boolean =>
+  pt.x >= f.x && pt.y >= f.y && pt.x < f.x + f.width && pt.y < f.y + f.height
+
+/** The point is on the Dock's own windows (its icons and its context menu). */
+export function onDock(windows: readonly LaidWindow[], pt: { x: number; y: number }): boolean {
+  return windows.some((w) => w.app?.id.toLowerCase() === 'com.apple.dock' && inFrame(w.frame, pt))
+}
+
+/** A launcher (Spotlight, Raycast, Alfred, Launchpad) has a window on screen, front app or not. */
+export function launcherOnScreen(windows: readonly LaidWindow[]): boolean {
+  return windows.some(
+    (w) => !!w.app && launcherApp(w.app.id) && w.app.id.toLowerCase() !== 'com.apple.dock'
+  )
 }

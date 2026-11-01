@@ -164,8 +164,23 @@ const OFF_LIMITS: [prefix: string, name: string][] = [
   ['com.dashlane.', 'Dashlane'],
   ['in.sinew.Enpass', 'Enpass'],
   ['org.keepassxc.', 'KeePassXC'],
-  ['com.apple.SecurityAgent', 'a macOS password prompt']
+  ['com.apple.SecurityAgent', 'a macOS password prompt'],
+  // The apps that draw macOS's own prompts. On macOS 27 these are ordinary
+  // bundled apps to us (the helper reports the outermost .app of a window's
+  // process), so they are matched by bundle id, not only by process name.
+  ['com.apple.UserNotificationCenter', 'a macOS permission prompt'],
+  ['com.apple.coreservices.uiagent', 'a macOS security prompt'],
+  ['com.apple.accessibility.universalAccessAuthWarn', 'a macOS permission prompt'],
+  ['com.apple.ScreenCaptureApprovals', 'a macOS permission prompt'],
+  ['com.apple.AuthorizationHost', 'a macOS password prompt'],
+  ['com.apple.LocalAuthentication', 'a macOS password prompt'],
+  ['com.apple.CoreAuthUI', 'a macOS password prompt'],
+  ['com.apple.SoftwareUpdate', 'a macOS update prompt'],
+  ['com.apple.keychain', 'Keychain Access']
 ]
+
+/** The app that shows notification banners: codes and message previews. Covered in a picture, never paused for. */
+export const NOTIFICATION_HOST = 'com.apple.notificationcenterui'
 
 /** How a window's owner is identified when it has no bundle id: by its process name. */
 export const UNBUNDLED = 'name:'
@@ -189,6 +204,9 @@ const SYSTEM_PROMPTS = [
 /** A window's owner as an app: by bundle id, or by name when it has none. Null for the system's own chrome. */
 export function ownerApp(name: string, bundle: string): AppRef | null {
   const clean = cleanAppName(name)
+  // A system prompt's process name wins over its bundle: known by name as well.
+  if (clean && SYSTEM_PROMPTS.includes(clean.toLowerCase()))
+    return { id: `${UNBUNDLED}${clean}`, name: clean }
   if (bundle) return { id: bundle, name: clean || bundle }
   // The menu bar and the desktop belong to the window server: the app in front answers for them.
   if (!clean || clean === 'Window Server') return null
@@ -240,8 +258,10 @@ export function isSelfApp(bundleId: string | null | undefined): boolean {
 export function appFrom(lsappinfo: string): AppRef | null {
   const id = bundleIdFrom(lsappinfo)
   if (!id) return null
-  const name = /^\s*"([^"]+)"\s+ASN/m.exec(lsappinfo)?.[1] ?? ''
-  return { id, name: cleanAppName(name) || id }
+  const name = cleanAppName(/^\s*"([^"]+)"\s+ASN/m.exec(lsappinfo)?.[1] ?? '')
+  if (name && SYSTEM_PROMPTS.includes(name.toLowerCase()))
+    return { id: `${UNBUNDLED}${name}`, name }
+  return { id, name: name || id }
 }
 
 /** An app's name without the invisible marks some put in front of theirs. */

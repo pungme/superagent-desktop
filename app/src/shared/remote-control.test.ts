@@ -7,6 +7,12 @@ import {
   REMOTE_STRIKES,
   TokenBucket,
   allowDialog,
+  concealedFormats,
+  inAppleMenu,
+  launcherOnScreen,
+  onDock,
+  ownModalUp,
+  pastes,
   askBudgetLeftAt,
   cleanDeviceName,
   cursorOnPicture,
@@ -170,17 +176,22 @@ describe("a phone's name, and the words of the Allow dialog", () => {
     expect(Array.from(cleanDeviceName('é'.repeat(200)))).toHaveLength(60)
   })
 
-  it('says what the phone can do, and what it cannot, in plain words', () => {
+  it('says what the phone can do and what Superagent does about it, with no wall-like claim', () => {
     const off = allowDialog('Pung iPhone', false)
     expect(off.detail.startsWith('Paired phone: Pung iPhone')).toBe(true)
-    expect(off.detail).toMatch(/see everything on this screen/)
-    expect(off.detail).toMatch(/mouse and keyboard/)
-    expect(off.detail).toMatch(/Terminals and scripting apps are blocked/)
-    expect(off.detail).not.toMatch(/run commands/)
-    expect(off.detail).toMatch(/other app.*as you/)
+    expect(off.detail).toMatch(/see the shared screen/)
+    expect(off.detail).toMatch(/mouse and keyboard as you/)
+    expect(off.detail).toMatch(/quit apps/)
+    expect(off.detail).toMatch(/cannot fully close/)
+    expect(off.detail).toMatch(/red bar/)
+    expect(off.detail).toMatch(/⌥Esc/)
+    expect(off.detail).toMatch(/hides notifications/)
+    // Never says terminals are "blocked" or "cannot" be used: they are a list, not a wall.
+    expect(off.detail).not.toMatch(/blocked|never|cannot use|can't use/i)
+    expect(off.detail).not.toMatch(/run commands as you/)
     const on = allowDialog('Pung iPhone', true)
     expect(on.detail).toMatch(/run commands as you/)
-    expect(on.detail).not.toMatch(/blocked/)
+    expect(on.detail).not.toMatch(/cannot fully close/)
     // The name is never in the headline.
     expect(off.message).not.toMatch(/Pung/)
   })
@@ -201,5 +212,49 @@ describe("a phone's name, and the words of the Allow dialog", () => {
     expect(quietRun({ COVE_E2E_QUIET: '1' }, true)).toBe(false)
     expect(quietRun({}, false)).toBe(false)
     expect(quietRun({ COVE_E2E_QUIET: '0' }, false)).toBe(false)
+  })
+})
+
+describe("the guard's pure rules", () => {
+  const w = (id: string | null, layer: number, x = 0, y = 0, width = 100, height = 100): never =>
+    ({
+      app: id ? { id, name: id } : null,
+      owner: id ?? 'Window Server',
+      layer,
+      frame: { x, y, width, height }
+    }) as never
+  it('knows a paste in all its spellings', () => {
+    expect(pastes('v', ['cmd'])).toBe(true)
+    expect(pastes('V', ['cmd', 'shift', 'opt'])).toBe(true)
+    expect(pastes('v', ['cmd', 'ctrl'])).toBe(true)
+    expect(pastes('v', [])).toBe(false)
+    expect(pastes('c', ['cmd'])).toBe(false)
+  })
+  it("reads a password manager's mark on the pasteboard from names alone", () => {
+    expect(concealedFormats(['text/plain', 'org.nspasteboard.ConcealedType'])).toBe(true)
+    expect(concealedFormats(['org.nspasteboard.TransientType'])).toBe(true)
+    expect(concealedFormats(['text/plain', 'text/html'])).toBe(false)
+    expect(concealedFormats([])).toBe(false)
+  })
+  it("knows Superagent's own dialogs and menus from its dot, its ordinary windows and the banner", () => {
+    expect(ownModalUp([w('dev.superagent.app', 8)])).toBe(true)
+    expect(ownModalUp([w('com.github.electron', 101)])).toBe(true)
+    expect(ownModalUp([w('dev.superagent.app', 3), w('dev.superagent.app', 0)])).toBe(false)
+    expect(ownModalUp([w('dev.superagent.app', 1000)])).toBe(false)
+    expect(ownModalUp([w('com.apple.Notes', 8)])).toBe(false)
+  })
+  it("knows the Apple menu and the Dock's windows", () => {
+    const d = { x: 0, y: 0, width: 1000, height: 500 }
+    expect(inAppleMenu(d, { x: 10, y: 5 })).toBe(true)
+    expect(inAppleMenu(d, { x: 60, y: 5 })).toBe(false)
+    expect(inAppleMenu(d, { x: 10, y: 60 })).toBe(false)
+    expect(inAppleMenu({ ...d, x: 1000 }, { x: 1010, y: 5 })).toBe(true)
+    expect(onDock([w('com.apple.dock', 20, 200, 450, 600, 50)], { x: 500, y: 470 })).toBe(true)
+    expect(onDock([w('com.apple.dock', 20, 200, 450, 600, 50)], { x: 500, y: 100 })).toBe(false)
+  })
+  it('sees a launcher on screen, and does not take the Dock for one', () => {
+    expect(launcherOnScreen([w('com.apple.Spotlight', 3)])).toBe(true)
+    expect(launcherOnScreen([w('com.raycast.macos', 3)])).toBe(true)
+    expect(launcherOnScreen([w('com.apple.dock', 20), w('com.apple.Notes', 0)])).toBe(false)
   })
 })

@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, app } from 'electron'
+import { BrowserWindow, dialog, app, screen } from 'electron'
 import { allowDialog, quietRun, spacedCode } from '../../shared/remote-control'
 import type { DisplayInfo } from './control'
 
@@ -34,68 +34,84 @@ export function bannerHtml(device: string): string {
 <div class="bar"><span>Your ${what} is controlling this Mac</span><a href="${STOP_URL}">Stop</a></div>`
 }
 
-/** The banner. `onStop` is called when someone at the Mac chooses Stop in it. */
+/**
+ * The banner, one on every display (a phone sees only the shared one, but
+ * whoever is at the Mac may be looking at another). `onStop` is called when
+ * someone at the Mac chooses Stop in it. Below the menu bar, so it does not sit
+ * on the notch or the Apple menu.
+ */
 export function createBanner(onStop: () => void): {
-  show: (info: { deviceName: string; display: DisplayInfo }) => boolean
+  show: (info: { deviceName: string; display: DisplayInfo; displays: DisplayInfo[] }) => boolean
   hide: () => void
   ok: () => boolean
-  bounds: () => Electron.Rectangle | null
+  bounds: () => Electron.Rectangle[]
 } {
-  let win: BrowserWindow | null = null
+  let wins: BrowserWindow[] = []
 
   const hide = (): void => {
-    const w = win
-    win = null
-    if (w && !w.isDestroyed()) w.destroy()
+    const all = wins
+    wins = []
+    for (const w of all) if (!w.isDestroyed()) w.destroy()
+  }
+
+  const one = (deviceName: string, b: Electron.Rectangle, topInset: number): BrowserWindow => {
+    const w = new BrowserWindow({
+      x: Math.round(b.x + (b.width - WIDTH) / 2),
+      y: b.y + Math.max(6, topInset + 4),
+      width: WIDTH,
+      height: HEIGHT,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      closable: false,
+      // Not a window that takes the keyboard or makes Superagent the app in
+      // front: a click on Stop is a click, nothing more.
+      focusable: false,
+      type: 'panel',
+      hasShadow: false,
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, javascript: false }
+    })
+    w.setAlwaysOnTop(true, 'screen-saver')
+    w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    // No script, no navigation but the one link: Stop.
+    w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    w.webContents.on('will-navigate', (e, url) => {
+      e.preventDefault()
+      if (url === STOP_URL) onStop()
+    })
+    void w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(bannerHtml(deviceName)))
+    // A quiet test run shows no windows; everything else is as in life.
+    if (!quiet()) w.showInactive()
+    return w
   }
 
   return {
-    show({ deviceName, display }) {
+    show({ deviceName, display, displays }) {
       hide()
       try {
-        const b = display.bounds
-        const w = new BrowserWindow({
-          x: Math.round(b.x + (b.width - WIDTH) / 2),
-          y: b.y + 6,
-          width: WIDTH,
-          height: HEIGHT,
-          frame: false,
-          transparent: true,
-          resizable: false,
-          movable: false,
-          minimizable: false,
-          maximizable: false,
-          fullscreenable: false,
-          closable: false,
-          // Not a window that takes the keyboard or makes Superagent the app in
-          // front: a click on Stop is a click, nothing more.
-          focusable: false,
-          type: 'panel',
-          hasShadow: false,
-          show: false,
-          webPreferences: { sandbox: true, contextIsolation: true, javascript: false }
-        })
-        w.setAlwaysOnTop(true, 'screen-saver')
-        w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-        // No script, no navigation but the one link: Stop.
-        w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-        w.webContents.on('will-navigate', (e, url) => {
-          e.preventDefault()
-          if (url === STOP_URL) onStop()
-        })
-        void w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(bannerHtml(deviceName)))
-        // A quiet test run shows no windows; everything else is as in life.
-        if (!quiet()) w.showInactive()
-        win = w
-        return true
+        const real = screen.getAllDisplays()
+        const all = displays.some((d) => d.id === display.id) ? displays : [display, ...displays]
+        for (const d of all) {
+          const work = real.find((x) => x.id === d.id)
+          // The menu bar's depth: where the usable area starts below the display's top.
+          const inset = work ? work.workArea.y - work.bounds.y : 0
+          wins.push(one(deviceName, d.bounds, inset))
+        }
+        return wins.length > 0
       } catch {
         hide()
         return false
       }
     },
     hide,
-    ok: () => !!win && !win.isDestroyed() && (quiet() || win.isVisible()),
-    bounds: () => (win && !win.isDestroyed() ? win.getBounds() : null)
+    // Every one of them still there, or the session ends: a banner that has gone is not telling anyone.
+    ok: () => wins.length > 0 && wins.every((w) => !w.isDestroyed() && (quiet() || w.isVisible())),
+    bounds: () => wins.filter((w) => !w.isDestroyed()).map((w) => w.getBounds())
   }
 }
 

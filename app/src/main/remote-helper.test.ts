@@ -62,7 +62,7 @@ vi.mock('node:child_process', () => ({
 vi.mock('./store', () => ({ getChat: () => undefined, kvGet: () => undefined, kvSet: vi.fn() }))
 vi.mock('./util', () => ({ broadcastToWindows: vi.fn() }))
 
-const { act, grantConsent, killRunningHelper, runHelper, sawFront, stopComputerUse } =
+const { act, appUnder, grantConsent, killRunningHelper, runHelper, sawFront, stopComputerUse } =
   await import('./computer-use')
 
 describe('the helper, as remote control uses it', () => {
@@ -112,5 +112,24 @@ describe('the helper, as remote control uses it', () => {
     stopComputerUse()
     expect(helperRuns[0].killed).toBe(true)
     expect(await remote).toMatchObject({ ok: false })
+  })
+})
+
+describe('what is under a point, as remote control asks it', () => {
+  it('says nobody when the helper says nobody (the desktop), and says it does not know when it fails', async () => {
+    helperRuns.length = 0
+    const none = appUnder(10, 10)
+    helperRuns[0].done(null, '{}')
+    expect(await none).toBeNull()
+    const some = appUnder(10, 10)
+    helperRuns[1].done(null, JSON.stringify({ name: 'Notes', bundle: 'com.apple.Notes' }))
+    expect(await some).toMatchObject({ id: 'com.apple.Notes' })
+    // Timed out, killed, could not start: never the same as nobody.
+    const failed = appUnder(10, 10)
+    helperRuns[2].done(new Error('timed out'), '')
+    await expect(failed).rejects.toThrow()
+    const refused = appUnder(10, 10)
+    helperRuns[3].done(null, JSON.stringify({ ok: false, error: 'nope' }))
+    await expect(refused).rejects.toThrow()
   })
 })

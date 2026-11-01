@@ -138,9 +138,9 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   seconds between asks, and it gets six dialogs an hour, a request cancelled by
   hanging up included (otherwise a hostile phone could pop a focus-stealing
   dialog every five seconds). The session and the code belong to the connection
-  and the device behind it. The Allow dialog says what the phone can do ("sees
-  everything on this screen", "any other app as you", and whether terminals are
-  allowed) and shows the phone's name only after "Paired phone:", cleaned of
+  and the device behind it. The Allow dialog says what the phone can do (sees the
+  shared screen, uses any app as you, quits apps; and what Superagent does about
+  it) and shows the phone's name only after "Paired phone:", cleaned of
   control, format (bidi, zero width) and separator characters.
 - **While it runs:** the red always-on-top banner (no script, only a Stop link;
   no banner or no ⌥Esc, no session), ⌥Esc (shared with computer use through
@@ -149,31 +149,62 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   done counts), after 2 hours, on sleep or lock, when the setting goes off, when
   the display goes, when the banner is lost, or when capture stops working.
   After any end the next session starts from step 1.
-- **What a phone can reach, honestly.** It sees everything on the shared display
-  except what is covered, and uses any app that is not refused as the user: mail,
-  browser, Finder. "Never Superagent's windows or a password manager" is a
-  safeguard on the front app, the app under the pointer and the keyboard focus,
-  not a wall: a terminal is the way round all of it (Spotlight, type
-  "Terminal", Return, then `security dump-keychain`, `op read`, a LaunchAgent or
-  SSH key that outlives the session, `kill` Superagent, `osascript` into its
-  windows). So shell-class apps (`shellApp` in `shared/computer-use.ts`: the
-  terminals, editors with a terminal, Script Editor, Automator, Shortcuts,
-  Activity Monitor, Console, Raycast and Alfred; Xcode has no shell and is not
-  on it; the terminals and editors are the same lists computer use's `appCaution`
-  warns of) are refused like a secret unless "Allow terminals and scripting
-  apps" is on in Settings → Phone. It is a second switch, off by default, held in
-  memory and changed only by `remote:set-shells` IPC like the main one, and it
-  goes off whenever remote control does. A shell app in front pauses the stream,
-  one only on screen is covered, one under the pointer refuses the click. With it
-  on the phone can run commands as the user, and the dialog says so. Nothing
-  stops a shell being *opened* (Spotlight, the Dock, Finder are ordinary apps);
-  what is refused is any key or click once it is in front, which is why the next
-  point matters.
+- **What a phone can reach, honestly (the words the product uses, and no wall-like
+  claim).** For the whole session it can see the shared screen and use the mouse
+  and keyboard as the user, in any app that is not a password manager, a macOS
+  system prompt or Superagent itself; it can quit apps. Superagent limits that
+  with a list, not a wall: the front app, the app under the pointer, every window
+  on the display and the keyboard focus are checked on every action (`guard`
+  calls `scene()` itself, so it never depends on the stream having looked or on
+  the phone asking for pictures); a failed look at what is under a point refuses
+  (`appAt` throws, it never falls back to the front app); the stream pauses for a
+  secret and covers Superagent's windows, notification banners and, unless
+  allowed, shells; a paste is refused while the pasteboard carries the
+  ConcealedType or TransientType a password manager sets; the Apple menu and the
+  Dock's menu are not pressed. The system prompts are matched by bundle id
+  (UserNotificationCenter, CoreServicesUIAgent, universalAccessAuthWarn,
+  ScreenCaptureApprovals, SecurityAgent, AuthorizationHost, Passwords, Keychain)
+  and by owner name, since the helper reports the outermost `.app` of a window.
+  A terminal is the way round all of it (Spotlight, type "Terminal", Return, then
+  `security dump-keychain`, a LaunchAgent, `kill`, `osascript`), so shell-class
+  apps (`shellApp` in `shared/computer-use.ts`, the same lists computer use's
+  `appCaution` warns of; Xcode is not on it) are refused unless "Allow terminals
+  and scripting apps" is on. That is the second switch: off at every start (never
+  stored or read back, a test guards it), on only through the confirmed
+  `remote:set-shells` IPC, and off whenever remote control goes off. **It does
+  not close the route:** command execution stays reachable through a browser's
+  developer tools in a signed-in session, files that run later (shell startup
+  files, LaunchAgents, login items), Finder "Open", Services and Quick Actions,
+  third-party terminals, database consoles and REPLs, SSH and screen-sharing
+  clients, Docker, Xcode. The Allow dialog and Settings say so in those words.
+  `checkApp` is the one place that says which apps are in bounds; an optional
+  "only these apps" mode (an allowlist the user fills) would be one more rule
+  there and in `scene`/the cover predicate. It is a product decision and is not
+  built.
+- **The switches.** `remote:set-enabled` and `remote:set-shells` accept only the
+  top frame of the main window (`trustedSender`, never the dot, never a
+  sub-frame) and ask in a native dialog at the Mac, Cancel the default
+  (`mayFlip`); turning off asks nothing. The main switch persists across restarts
+  (Settings says so); the shells switch does not. Every `remote.*` method needs
+  `hello` (with the device token) to have completed on the connection, not only
+  the key probe (`helloDone` in session.ts).
+- **The banner** is on every display (`createBanner`), below the menu bar, and a
+  session ends if any of them is lost. Fast user switching
+  (`user-did-resign-active`) ends a session, as lock and sleep do; display sleep
+  alone does not (the screen saver and the login window pause the stream).
+  Ending after a helper run was cut short lets go of both buttons at the pointer.
+  Not verified on a real Mac (the e2e uses a flag for the banner): that
+  `type: 'panel'` is not hidden when Superagent loses focus, that it stays above
+  full-screen apps, that `ok()` goes false after the app is hidden with ⌘H (it
+  should, which ends the session: safe), and that it clears the notch. Check them
+  by hand before release.
 - **A key cannot race a change of app.** After a click, or a key with Command,
   Control, Option or Fn, the next action waits for the app in front to be read
   twice the same (`settle` in control.ts, 150 ms apart after 250 ms; 1.2 s first
-  after Return in Spotlight or another launcher, a double click, or ⌘O, since the
-  app they open arrives late). If it will not hold still, keys that switch apps
+  after Return or a click while a launcher (Spotlight, Raycast, Alfred, Launchpad)
+  has a window on screen, which is looked for in the layout because Spotlight
+  may not be reported as the app in front; a click on the Dock; a double click;
+  or ⌘O: the app they open arrives late). If it will not hold still, keys that switch apps
   and Return are refused (`settling`) until it does. Superagent's menu
   accelerators are not added to the refused shortcuts: that would take ⌘W, ⌘N,
   ⌘R, ⌘K, ⌘, away from every app, and with the settle a key never reaches

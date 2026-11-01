@@ -1,5 +1,6 @@
 import {
   coverOthers,
+  NOTIFICATION_HOST,
   isSelfApp,
   launcherApp,
   offLimitsApp,
@@ -28,10 +29,16 @@ import {
   SPAWNS_AT,
   SPAWNS_FRONT,
   SPAWNS_HELPER,
+  SPAWNS_SCENE,
   TokenBucket,
   askBudgetLeftAt,
   cleanDeviceName,
   cursorOnPicture,
+  inAppleMenu,
+  launcherOnScreen,
+  onDock,
+  ownModalUp,
+  pastes,
   lockedUntil,
   newCode,
   remoteKey,
@@ -114,8 +121,10 @@ export interface RemoteDeps {
   front(): Promise<AppRef | null>
   /** Every window on screen, front to back. Throws when it cannot be listed. */
   layout(): Promise<LaidWindow[]>
-  /** The app whose window is at a point. */
+  /** The app whose window is at a point; null for the desktop or menu bar. Throws when it cannot be told: that refuses, never falls back to the app in front. */
   appAt(x: number, y: number): Promise<AppRef | null>
+  /** The pasteboard carries a type that marks it a secret (a password manager's copy). Names only, never contents. */
+  clipboardConcealed(): boolean
   /** The point is on one of Superagent's own floating windows. */
   ownSurfaceAt(x: number, y: number): boolean
   /** One of Superagent's own windows has the keyboard. */
@@ -125,13 +134,13 @@ export interface RemoteDeps {
   denied(): AppRef[]
   /** The helper, one action. */
   run(args: string[]): Promise<{ ok: boolean; error: string }>
-  /** Cut short any helper run that is posting events. */
-  killRunning(): void
+  /** Cut short any helper run that is posting events. How many were cut short. */
+  killRunning(): number
   cursor(): { x: number; y: number } | null
   capture(display: DisplayInfo, width: number): Promise<Bitmap>
   encode: Encode
   banner: {
-    show(info: { deviceName: string; display: DisplayInfo }): boolean
+    show(info: { deviceName: string; display: DisplayInfo; displays: DisplayInfo[] }): boolean
     hide(): void
     ok(): boolean
   }
@@ -478,7 +487,7 @@ export class RemoteControl {
       return fail('no-stop-key', 'session not started: ⌥Esc could not be held')
     }
     // The banner is what tells whoever is at the Mac; no banner, no session.
-    if (!this.d.banner.show({ deviceName: p.deviceName, display })) {
+    if (!this.d.banner.show({ deviceName: p.deviceName, display, displays: this.d.displays() })) {
       this.d.stopKey.release()
       return fail('banner-lost', 'session not started: the banner could not be shown')
     }
@@ -555,9 +564,13 @@ export class RemoteControl {
     clearInterval(s.watch)
     if (s.pumpTimer) clearTimeout(s.pumpTimer)
     // Whatever the helper is posting right now stops here.
-    this.d.killRunning()
+    const killed = this.d.killRunning()
     // A button the phone was holding is let go where it went down, not left held.
-    if (s.held) void this.d.run(['up', String(s.held.at.x), String(s.held.at.y), s.held.button])
+    // And a run cut short between a button's down and up (a tap, a drag) leaves
+    // one held that s.held does not know of: let go of each, where the pointer is.
+    const buttons = killed > 0 ? ['left', 'right'] : s.held ? [s.held.button] : []
+    const at = s.held?.at ?? this.d.cursor()
+    if (at) for (const b of buttons) void this.d.run(['up', String(at.x), String(at.y), b])
     for (const q of s.queue.splice(0)) q.reject(new RemoteRefusal('ended', 'The session ended.'))
     this.d.banner.hide()
     this.d.stopKey.release()
@@ -678,7 +691,12 @@ export class RemoteControl {
     return new RemoteRefusal(reason, message)
   }
 
-  /** The app is one remote control does not act in. Throws. */
+  /**
+   * The app is one remote control does not act in. Throws. This is the one place
+   * that says which apps are in bounds (and `scene` and the cover predicate in
+   * `look` say the same for the picture): an optional "only these apps" mode
+   * would be one more rule here, not a new mechanism.
+   */
   private checkApp(s: Session, a: RemoteInputAction, app: AppRef): void {
     if (isSelfApp(app.id))
       throw this.refusal(
@@ -734,6 +752,15 @@ export class RemoteControl {
           'settling',
           'The Mac is still switching apps, so that key was not pressed. Try again in a moment.'
         )
+      // A secret just copied from a password manager must not be pasted into a
+      // field the picture then shows.
+      if (pastes(a.key, a.mods ?? []) && this.d.clipboardConcealed())
+        throw this.refusal(
+          s,
+          a,
+          'clipboard',
+          'The clipboard holds something a password manager copied, so it was not pasted.'
+        )
       step = { args: ['key', v.combo], points: [], kind: 'keys' }
     } else step = toStep(a, area, s.held)
     // Typed text goes in pieces, and the Mac is looked at again before each.
@@ -744,7 +771,7 @@ export class RemoteControl {
     const presses = a.type === 'click' || a.type === 'down' || a.type === 'up' || a.type === 'drag'
     const settles = presses || this.modded(a) || (a.type === 'key' && a.key === 'return')
     const spawns =
-      pieces.length * (SPAWNS_FRONT + SPAWNS_HELPER) +
+      pieces.length * (SPAWNS_SCENE + SPAWNS_HELPER) +
       step.points.length * SPAWNS_AT +
       (settles ? 2 * SPAWNS_FRONT : 0)
     const now = this.d.now()
@@ -752,9 +779,9 @@ export class RemoteControl {
       throw this.refusal(s, a, 'rate-limited', 'Typing too fast. Slow down a moment.')
     if (!s.bucket.take(spawns, now))
       throw this.refusal(s, a, 'rate-limited', 'Too fast. Slow down a moment.')
-    let front: AppRef | null = null
+    let seen: { front: AppRef; windows: LaidWindow[] } | null = null
     for (const piece of pieces) {
-      front = await this.guard(s, a, step)
+      seen = await this.guard(s, a, step, area)
       if (this.session !== s) throw new RemoteRefusal('ended', 'The session ended.')
       const r = await this.d.run(piece === null ? step.args : ['type', piece])
       // Never the helper's own words: they can carry what was typed.
@@ -768,11 +795,18 @@ export class RemoteControl {
     // is done until that has happened. An app that opens another (Return in
     // Spotlight, a double click, ⌘O) is given longer.
     if (settles) {
+      // A launcher is up (Spotlight may not be reported as the app in front, so
+      // its window is looked for too), or the click is on the Dock: what it opens
+      // arrives late.
+      const launching = !!seen && (launcherApp(seen.front.id) || launcherOnScreen(seen.windows))
       const opens =
         (a.type === 'key' &&
           (a.key === 'return' || a.key === 'o' || a.key === 'down') &&
-          (launcherApp(front?.id) || (a.mods ?? []).includes('cmd'))) ||
-        (a.type === 'click' && (a.count ?? 1) > 1)
+          (launching || (a.mods ?? []).includes('cmd'))) ||
+        (a.type === 'click' &&
+          ((a.count ?? 1) > 1 ||
+            launching ||
+            step.points.some((pt) => !!seen && onDock(seen.windows, pt))))
       await this.settle(s, opens ? REMOTE_LAUNCH_SETTLE_MS : REMOTE_SETTLE_MS)
     }
     this.kick(s)
@@ -802,20 +836,20 @@ export class RemoteControl {
 
   /**
    * Whether this action may touch the Mac as it is now. Throws what the phone is
-   * told. Returns the app in front.
+   * told. Looks at the Mac itself, every time: what is in front and every window
+   * on the display, so a secret on screen stops input whether or not the phone is
+   * asking for pictures and however old the stream's last look is. Returns what
+   * it saw.
    */
-  private async guard(s: Session, a: RemoteInputAction, step: Step): Promise<AppRef> {
-    if (s.paused)
-      throw this.refusal(
-        s,
-        a,
-        'paused',
-        s.paused === 'lock'
-          ? 'The Mac is at its lock screen.'
-          : `${s.pausedBy || 'A password manager'} is in front on the Mac, so the screen and input are paused.`
-      )
-    const front = await this.d.front()
-    if (!front)
+  private async guard(
+    s: Session,
+    a: RemoteInputAction,
+    step: Step,
+    area: ScreenArea
+  ): Promise<{ front: AppRef; windows: LaidWindow[] }> {
+    const sc = await this.scene(area)
+    const front = sc.front
+    if (sc.pause === 'unknown' || !front)
       throw this.refusal(
         s,
         a,
@@ -823,16 +857,64 @@ export class RemoteControl {
         'macOS would not say which app is in front, so nothing was done.'
       )
     this.checkApp(s, a, front)
+    if (ownModalUp(sc.windows))
+      throw this.refusal(
+        s,
+        a,
+        'own-window',
+        'A Superagent dialog is open on the Mac, and remote control does not use it.'
+      )
+    this.setPause(s, sc.pause, sc.by)
+    if (sc.pause)
+      throw this.refusal(
+        s,
+        a,
+        'paused',
+        sc.pause === 'lock'
+          ? 'The Mac is at its lock screen.'
+          : `${sc.by || 'A password manager'} is on screen on the Mac, so the screen and input are paused.`
+      )
     if (step.kind === 'pointer') {
+      const press = a.type === 'click' || a.type === 'down' || a.type === 'up' || a.type === 'drag'
       for (const pt of step.points) {
         if (this.d.ownSurfaceAt(pt.x, pt.y))
           throw this.refusal(s, a, 'own-window', "That is on Superagent's own window.")
-        // The window under the point, which need not be the app in front.
-        this.checkApp(s, a, (await this.d.appAt(pt.x, pt.y)) ?? front)
+        // The window under the point, which need not be the app in front. Not
+        // knowing is a refusal; the desktop and the menu bar (null) are the app in front's.
+        let under: AppRef | null
+        try {
+          under = await this.d.appAt(pt.x, pt.y)
+        } catch {
+          throw this.refusal(
+            s,
+            a,
+            'unknown',
+            'macOS would not say what is under that point, so nothing was done.'
+          )
+        }
+        this.checkApp(s, a, under ?? front)
+        if (press && inAppleMenu(area, pt))
+          throw this.refusal(
+            s,
+            a,
+            'system-menu',
+            'The Apple menu (restart, shut down, log out) is not used by remote control.'
+          )
+        if (
+          press &&
+          onDock(sc.windows, pt) &&
+          (a.type === 'down' || a.type === 'drag' || ('button' in a && a.button === 'right'))
+        )
+          throw this.refusal(
+            s,
+            a,
+            'dock-menu',
+            "The Dock's menu (Quit, Options) is not used by remote control; a plain click on an icon is."
+          )
       }
     } else if (this.d.ownFocused())
       throw this.refusal(s, a, 'own-window', "The keyboard is in Superagent's own window.")
-    return front
+    return { front, windows: sc.windows }
   }
 
   // --- the stream --------------------------------------------------------------
@@ -863,29 +945,34 @@ export class RemoteControl {
    * front, and every window on the shared display, against the built-in list
    * and the user's own. Cannot say: paused.
    */
-  private async scene(
-    area: ScreenArea
-  ): Promise<{ pause: RemotePause | null; by: string; windows: LaidWindow[] }> {
+  private async scene(area: ScreenArea): Promise<{
+    pause: RemotePause | null
+    by: string
+    windows: LaidWindow[]
+    front: AppRef | null
+  }> {
     let front: AppRef | null
     let windows: LaidWindow[]
     try {
       ;[front, windows] = await Promise.all([this.d.front(), this.d.layout()])
     } catch {
-      return { pause: 'unknown', by: '', windows: [] }
+      return { pause: 'unknown', by: '', windows: [], front: null }
     }
-    if (!windows.length) return { pause: 'unknown', by: '', windows }
+    if (!windows.length) return { pause: 'unknown', by: '', windows, front }
     const denied = this.d.denied()
     const here = front ? offLimitsApp(front.id, denied) : null
-    if (here) return { pause: here === 'the lock screen' ? 'lock' : 'secret', by: here, windows }
+    if (here)
+      return { pause: here === 'the lock screen' ? 'lock' : 'secret', by: here, windows, front }
     // A shell in front shows whatever it prints: nothing is sent while it is.
     if (front && !this.shells && shellApp(front.id))
-      return { pause: 'secret', by: front.name, windows }
+      return { pause: 'secret', by: front.name, windows, front }
     for (const w of windows) {
       if (!w.app || isSelfApp(w.app.id) || !overlaps(w.frame, area)) continue
       const name = offLimitsApp(w.app.id, denied)
-      if (name) return { pause: name === 'the lock screen' ? 'lock' : 'secret', by: name, windows }
+      if (name)
+        return { pause: name === 'the lock screen' ? 'lock' : 'secret', by: name, windows, front }
     }
-    return { pause: null, by: '', windows }
+    return { pause: null, by: '', windows, front }
   }
 
   private async pump(s: Session): Promise<void> {
@@ -945,7 +1032,10 @@ export class RemoteControl {
     const shot = { width: picture.width, height: picture.height, area: display.bounds }
     // A shell behind another window is covered, not shown.
     const allowed = (id: string): boolean =>
-      !isSelfApp(id) && !offLimitsApp(id, this.d.denied()) && (this.shells || !shellApp(id))
+      !isSelfApp(id) &&
+      id.toLowerCase() !== NOTIFICATION_HOST &&
+      !offLimitsApp(id, this.d.denied()) &&
+      (this.shells || !shellApp(id))
     coverOthers(picture.data, shot, before.windows, allowed)
     coverOthers(picture.data, shot, after.windows, allowed)
     const cursor = this.d.cursor()

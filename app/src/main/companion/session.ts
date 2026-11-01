@@ -65,6 +65,8 @@ export class ClientConn {
   private sealer: Sealer | null = null
   private opener: Opener | null = null
   private pairing = false
+  /** `hello` came with this device's token: the key probe alone is not enough for remote control. */
+  helloDone = false
   readonly subs = new Set<string>()
   presenceActive = false
   private closed = false
@@ -269,6 +271,7 @@ export class ClientConn {
         this.close()
         return
       }
+      this.helloDone = true
       touchDevice(this.deviceId)
       this.send({ t: 'welcome', machine: machineInfo(), tree: listTree(), chats: listChats() })
       // What each conversation already has open, so the phone can show the page
@@ -345,6 +348,15 @@ export class ClientConn {
         // The remote-control methods need to know which phone wrote, and are
         // answered only with a paired device's connection behind them.
         if (frame.method.startsWith('remote.') && this.deviceId) {
+          if (!this.helloDone) {
+            this.send({
+              t: 'res',
+              id: frame.id,
+              ok: false,
+              error: { code: 'unavailable', message: 'Say hello first.' }
+            })
+            return
+          }
           const r = await handleRemoteRpc(
             { connId: this.id, deviceId: this.deviceId },
             frame.method,

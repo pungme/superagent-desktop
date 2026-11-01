@@ -438,3 +438,37 @@ describe('apps that can run commands as the user', () => {
     expect(launcherApp(undefined)).toBe(false)
   })
 })
+
+describe("the apps that draw the Mac's own prompts, as the helper really reports them", () => {
+  // The helper reports the outermost .app of the window's process: an ordinary
+  // bundle id, not a bare process name.
+  const prompts: [string, string, string][] = [
+    ['UserNotificationCenter', 'com.apple.UserNotificationCenter', 'permission'],
+    ['CoreServicesUIAgent', 'com.apple.coreservices.uiagent', 'security'],
+    ['universalAccessAuthWarn', 'com.apple.accessibility.universalAccessAuthWarn', 'permission'],
+    ['ScreenCaptureApprovals', 'com.apple.ScreenCaptureApprovals', 'permission'],
+    ['SecurityAgent', 'com.apple.SecurityAgent', 'password'],
+    ['authorizationhost', 'com.apple.authorizationhost', 'password'],
+    ['Passwords', 'com.apple.Passwords', 'Passwords'],
+    ['Keychain Access', 'com.apple.keychainaccess', 'Keychain']
+  ]
+  for (const [name, bundle, word] of prompts) {
+    it(`${name} (${bundle}) is off limits by its bundle id`, () => {
+      expect(offLimitsApp(bundle)).toMatch(new RegExp(word, 'i'))
+      const app = ownerApp(name, bundle)
+      expect(offLimitsApp(app?.id)).toBeTruthy()
+    })
+  }
+  it('and by its process name even when it has a bundle id we do not know', () => {
+    const app = ownerApp('UserNotificationCenter', 'com.apple.SomeFutureName')
+    expect(offLimitsApp(app?.id)).toBeTruthy()
+    const front = appFrom(
+      '"coreservicesuiagent" ASN:0x0-0x2002: \n    bundleID="com.apple.somethingelse"'
+    )
+    expect(offLimitsApp(front?.id)).toBeTruthy()
+  })
+  it('leaves ordinary apps alone', () => {
+    expect(offLimitsApp(ownerApp('Notes', 'com.apple.Notes')?.id)).toBeNull()
+    expect(offLimitsApp('com.apple.notificationcenterui')).toBeNull()
+  })
+})
