@@ -1,0 +1,7 @@
+# Superagent 2.1.0-beta.23
+
+**Control your Mac from your iPhone or iPad (Beta, off by default).** Turn on "Let my phone control this Mac" in Settings → Phone, and the Mac asks you to confirm. After that, each time the phone asks to control the Mac, the Mac shows an "Allow?" dialog and then a six-digit code that you type on the phone, so someone has to be at the Mac every time. The phone then shows the Mac's screen with a touch or trackpad mode and a Mac keyboard, and on an iPhone Duo half-folded like a laptop, the screen is on top with the keyboard and trackpad below.
+
+While a session runs, a red bar shows on every display, ⌥Esc or Stop ends it at once, and it ends by itself after 10 idle minutes, after 2 hours, when the phone disconnects, and when the Mac sleeps or locks. Superagent keeps it away from password managers, macOS password and permission prompts, its own windows and terminals (terminals can be allowed with a separate switch that is off after every restart), hides notifications, and refuses pasting and the menu bar while a copied secret is on the clipboard. **That is a list of known cases, not a guarantee.** The phone can still use Mail, Messages (including one-time codes), your files and sites you are already signed in to, and can restart the Mac. The Allow dialog says so in plain words. During a session the Dock icon is hidden. Allow it only when you just asked for it on your own phone, and stay near the Mac.
+
+**A more compact usage menu.** Tighter rows, so more accounts fit without scrolling.
