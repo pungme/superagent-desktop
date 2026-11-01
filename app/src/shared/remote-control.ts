@@ -43,6 +43,15 @@ export const REMOTE_LOCKOUT_MS = 10 * 60_000
  */
 export const REMOTE_ASKS_PER_HOUR = 6
 export const REMOTE_ASK_WINDOW_MS = 60 * 60_000
+/** Dialogs all phones together may pop up at the Mac per hour: one hostile phone with several pairings cannot get round the per-phone count. */
+export const REMOTE_ASKS_GLOBAL_PER_HOUR = 12
+/**
+ * A window of someone else's from this layer up (the screen saver, shielding, an
+ * assistive or system overlay) pauses input and the stream whatever it is: a prompt
+ * can be drawn there by a process the scan cannot name. Popup menus (101), help
+ * tags (200) and a drag in progress (500) are below it and stay usable.
+ */
+export const REMOTE_HIGH_LAYER = 1000
 /** What each guarded step costs the rate limit: the Mac is asked what is in front (two processes), the helper runs (one). */
 export const SPAWNS_FRONT = 2
 export const SPAWNS_HELPER = 1
@@ -139,6 +148,16 @@ export function remoteKey(
     return { ok: false, why: 'that is the shortcut that stops remote control' }
   if (k === 'escape' && (set.has('opt') || set.has('cmd')))
     return { ok: false, why: 'that opens Force Quit, which remote control does not press' }
+  // Keys that move the keyboard into the menu bar, the Dock or a menu search, from
+  // where a menu item (Shut Down, Paste) is one Return away; and VoiceOver's own.
+  if (/^f[1-8]$/.test(k) && set.has('ctrl'))
+    return { ok: false, why: 'that moves the keyboard into the menu bar or the Dock' }
+  if (k === 'f5' && (set.has('cmd') || set.has('opt')))
+    return { ok: false, why: 'that turns on VoiceOver or the accessibility shortcuts' }
+  if (set.has('ctrl') && set.has('opt'))
+    return { ok: false, why: 'Control-Option is the VoiceOver key' }
+  if (k === '/' && set.has('cmd') && set.has('shift'))
+    return { ok: false, why: 'that searches the menus, and runs what it finds' }
   if (k === 'q' && set.has('cmd') && (set.has('shift') || set.has('opt')))
     return { ok: false, why: 'that logs the Mac out, which would end the session' }
   if (own.some((a) => a && ownCombo(a) === norm))
@@ -243,20 +262,22 @@ export function allowDialog(
     message: 'Allow a phone to control this Mac?',
     detail: [
       `Paired phone: ${deviceName}`,
-      'Until you stop it, the phone can see the shared screen and use the mouse and keyboard as you. It can use any app except password managers, macOS system prompts and Superagent, and it can quit apps.',
-      shells
-        ? 'You allowed shells, so it can run commands as you.'
-        : 'Commands are not meant to be reachable, but they can be through routes Superagent cannot fully close, such as a browser, files that run later, or other apps.',
-      'Superagent shows a red bar, ends it on ⌥Esc or Stop, pauses the picture while a password manager or prompt is up, and hides notifications.',
-      'Only allow it if you just asked for this on your phone.'
+      'If you allow this, the phone sees this screen live and can use the mouse and keyboard as you, in nearly any app, for up to 2 hours. It ends after 10 minutes without input, when the phone disconnects, or when you press ⌥Esc or Stop.',
+      "Superagent tries to keep it away from password managers, macOS password and permission prompts, Superagent itself and terminals, and hides notifications. That is a list of known cases, not a guarantee: a browser's saved logins, a copied password, Mail and Messages (including one-time codes), your files, sites you are signed in to, restarting the Mac and other routes to running commands can still get through, and nothing it did is undone afterwards.",
+      ...(shells ? ['You allowed terminals, so it can run commands as you.'] : []),
+      'If a Touch ID or password prompt appears and you approve it out of habit, the phone gets what it asked for. Allow it only when you just asked for it on your own phone, and stay near the Mac.'
     ].join('\n\n')
   }
 }
 
 /** Asks inside the hour; null when another may be made, else when the oldest one stops counting. */
-export function askBudgetLeftAt(asks: number[], now: number): number | null {
+export function askBudgetLeftAt(
+  asks: number[],
+  now: number,
+  limit = REMOTE_ASKS_PER_HOUR
+): number | null {
   const recent = asks.filter((t) => now - t < REMOTE_ASK_WINDOW_MS)
-  if (recent.length < REMOTE_ASKS_PER_HOUR) return null
+  if (recent.length < limit) return null
   return Math.min(...recent) + REMOTE_ASK_WINDOW_MS
 }
 
@@ -297,12 +318,25 @@ export function pastes(key: string, mods: readonly string[]): boolean {
   return key.toLowerCase() === 'v' && mods.includes('cmd')
 }
 
-/** Pasteboard types that password managers put on what they copy: it is a secret, or meant to vanish. */
-const CONCEALED = ['org.nspasteboard.concealedtype', 'org.nspasteboard.transienttype']
+/**
+ * Pasteboard types a password manager puts on what it copies: it is a secret, or
+ * meant to vanish. Asked with `has`, which works on macOS (`availableFormats()`
+ * lists only MIME names there and never shows these).
+ */
+export const CONCEALED_TYPES = [
+  'org.nspasteboard.ConcealedType',
+  'org.nspasteboard.TransientType',
+  'com.agilebits.onepassword',
+  'de.petermaurer.TransientPasteboardType'
+]
 
-/** Whether the formats a pasteboard carries (names only, never contents) mark it as a secret. */
-export function concealedFormats(formats: readonly string[]): boolean {
-  return formats.some((f) => CONCEALED.some((c) => f.toLowerCase().includes(c)))
+/** Whether the pasteboard is marked a secret, by names alone, never contents. Not being able to tell is a yes. */
+export function clipboardConcealed(clip: { has(format: string): boolean }): boolean {
+  try {
+    return CONCEALED_TYPES.some((t) => clip.has(t))
+  } catch {
+    return true
+  }
 }
 
 /** Windows of Superagent's own that take the keyboard whatever else is in front: native dialogs and menus (layer 8 up to, not including, the banner's). */

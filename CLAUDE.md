@@ -137,10 +137,17 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   turned-down requests in ten minutes lock that phone out for ten, it waits five
   seconds between asks, and it gets six dialogs an hour, a request cancelled by
   hanging up included (otherwise a hostile phone could pop a focus-stealing
-  dialog every five seconds). The session and the code belong to the connection
-  and the device behind it. The Allow dialog says what the phone can do (sees the
-  shared screen, uses any app as you, quits apps; and what Superagent does about
-  it) and shows the phone's name only after "Paired phone:", cleaned of
+  dialog every five seconds). All phones together get twelve dialogs an hour. The session and the code belong to the connection
+  and the device behind it. The Allow dialog (`allowDialog`) promises no more than
+  the guard delivers, and says what is plainly reachable: Mail and Messages
+  (including one-time codes, and sending as you), Finder and every file, AirDrop
+  and Share, sites already signed in in a browser (it acts in your accounts
+  without seeing a password), System Settings changes that need no authentication
+  (Login Items), restarting the Mac, up to 2 hours, ended after 10 idle minutes,
+  and that a Touch ID or password prompt approved by habit gives the phone what it
+  asked for. It also says the picture pauses only for apps the guard recognises,
+  not for a browser's own password reveal, password-manager extension popups or
+  autofill (the phone can simply press Sign in). It shows the phone's name only after "Paired phone:", cleaned of
   control, format (bidi, zero width) and separator characters.
 - **While it runs:** the red always-on-top banner (no script, only a Stop link;
   no banner or no ⌥Esc, no session), ⌥Esc (shared with computer use through
@@ -159,12 +166,25 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   the phone asking for pictures); a failed look at what is under a point refuses
   (`appAt` throws, it never falls back to the front app); the stream pauses for a
   secret and covers Superagent's windows, notification banners and, unless
-  allowed, shells; a paste is refused while the pasteboard carries the
-  ConcealedType or TransientType a password manager sets; the Apple menu and the
-  Dock's menu are not pressed. The system prompts are matched by bundle id
+  allowed, shells; a paste is refused while the pasteboard is marked by a
+  password manager (`clipboardConcealed`: `clipboard.has` on ConcealedType,
+  TransientType and two vendor types; `availableFormats()` lists only MIME names on
+  macOS and is no use), by ⌘V and variants, and, while it is marked, by right-clicks
+  and any press in the menu bar (Edit → Paste); the Apple menu (a fixed 50x40
+  region at each display's top left, not detected) and the Dock's menu are not
+  pressed, and the keys that reach them are refused too (`remoteKey`: Control with
+  F1-F8 which focus the menu bar and the Dock, Control-Option which is VoiceOver's,
+  ⌘F5 and ⌥F5, ⇧⌘/ the Help search that runs menu items). The system prompts are matched by bundle id
   (UserNotificationCenter, CoreServicesUIAgent, universalAccessAuthWarn,
   ScreenCaptureApprovals, SecurityAgent, AuthorizationHost, Passwords, Keychain)
-  and by owner name, since the helper reports the outermost `.app` of a window.
+  and by owner name, since the helper reports the outermost `.app` of a window;
+  `layout()` reads a window exactly as `appAt` does (`ownerApp`), so a prompt from a
+  process outside any `.app` (coreautha) is known by its name. Any window of
+  someone else's on layer 1000 or higher (screen saver, shielding; not Superagent's
+  banner, not the notification host, not the Dock) pauses input and the stream
+  whatever it is (`REMOTE_HIGH_LAYER`; popup menus 101, help tags 200 and a drag in
+  progress 500 stay below it so menus remain usable), and the helper's `at` now
+  reports every layer from 100 up instead of dropping them.
   A terminal is the way round all of it (Spotlight, type "Terminal", Return, then
   `security dump-keychain`, a LaunchAgent, `kill`, `osascript`), so shell-class
   apps (`shellApp` in `shared/computer-use.ts`, the same lists computer use's
@@ -184,7 +204,9 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
 - **The switches.** `remote:set-enabled` and `remote:set-shells` accept only the
   top frame of the main window (`trustedSender`, never the dot, never a
   sub-frame) and ask in a native dialog at the Mac, Cancel the default
-  (`mayFlip`); turning off asks nothing. The main switch persists across restarts
+  (`mayFlip`); turning off asks nothing. Pairing and removing a phone
+  (`companion:pair-decide`, `companion:revoke`) take the same sender check
+  (`onlyTrusted`). The main switch persists across restarts
   (Settings says so); the shells switch does not. Every `remote.*` method needs
   `hello` (with the device token) to have completed on the connection, not only
   the key probe (`helloDone` in session.ts).
@@ -193,6 +215,12 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   (`user-did-resign-active`) ends a session, as lock and sleep do; display sleep
   alone does not (the screen saver and the login window pause the stream).
   Ending after a helper run was cut short lets go of both buttons at the pointer.
+  It does not release a modifier key left down by a kill between key-down and
+  key-up (the helper has no such action and it was not added); the window is
+  about 18 ms. The banner passes `skipTransformProcessType: true` to
+  `setVisibleOnAllWorkspaces`: without it Superagent's Dock icon disappears the
+  moment the banner is created and does not come back (measured on Electron 39;
+  with it dock visibility is unchanged).
   Not verified on a real Mac (the e2e uses a flag for the banner): that
   `type: 'panel'` is not hidden when Superagent loses focus, that it stays above
   full-screen apps, that `ok()` goes false after the app is hidden with ⌘H (it

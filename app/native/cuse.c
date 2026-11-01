@@ -227,6 +227,15 @@ static CFStringRef bundle_of(pid_t pid) {
 // app beneath. `ownskip LAYER` says it, for the tests.
 static int own_skipped(int layer) { return layer == 3; }
 
+// Which window layers `at` looks at: the ordinary ones, and everything from the
+// popup-menu level up (menus, the screen saver, shielding windows, a system
+// prompt drawn above everything). A click can land on any of them, so none is
+// skipped as if it were not there. `layerseen LAYER` says it, for the tests.
+static int layer_reported(int layer) {
+  return layer == 0 || layer == 3 || layer == 8 || layer == 20 || layer == 24 || layer == 25 ||
+         layer >= 100;
+}
+
 static int app_at(CGPoint p) {
   CFArrayRef list = CGWindowListCopyWindowInfo(
       kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
@@ -244,7 +253,12 @@ static int app_at(CGPoint p) {
     CFDictionaryRef b = CFDictionaryGetValue(w, kCGWindowBounds);
     if (!b || !CGRectMakeWithDictionaryRepresentation(b, &r)) continue;
     if (alpha <= 0 || !CGRectContainsPoint(r, p)) continue;
-    if (layer != 0 && layer != 3 && layer != 8 && layer != 20 && layer != 24 && layer != 25 && layer != 101) continue;
+    if (!layer_reported(layer)) continue;
+    // The window server's own high windows (the cursor, backstops) are no app's.
+    if (layer >= 100) {
+      CFStringRef who = CFDictionaryGetValue(w, kCGWindowOwnerName);
+      if (who && CFStringCompare(who, CFSTR("Window Server"), 0) == kCFCompareEqualTo) continue;
+    }
     if (pid == parent && own_skipped(layer)) continue;
     CFStringRef id = bundle_of(pid);
     printf("{\"name\":");
@@ -704,6 +718,11 @@ int main(int argc, char **argv) {
   if (!strcmp(act, "ownskip")) {
     if (left < 1) return fail("ownskip LAYER");
     printf("{\"skipped\":%s}\n", own_skipped(atoi(v[0])) ? "true" : "false");
+    return 0;
+  }
+  if (!strcmp(act, "layerseen")) {
+    if (left < 1) return fail("layerseen LAYER");
+    printf("{\"seen\":%s}\n", layer_reported(atoi(v[0])) ? "true" : "false");
     return 0;
   }
   if (!strcmp(act, "at")) {

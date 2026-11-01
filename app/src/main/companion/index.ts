@@ -1,5 +1,6 @@
 import { ipcMain, powerMonitor, powerSaveBlocker } from 'electron'
 import { RelayClient } from './relay-client'
+import { onlyTrusted } from '../remote-control/switches'
 import { ClientConn } from './session'
 import { logBus, record, eventsAfter } from './log'
 import { draftBus } from '../drafts'
@@ -66,7 +67,8 @@ export function startCompanion(): void {
   bindRemoteTransport({
     send: (connId, frame) => conns.get(connId)?.send(frame),
     pushAll: (wire) => {
-      for (const c of conns.values()) if (c.authenticated) c.send({ t: 'remote', remote: wire(c.id) })
+      for (const c of conns.values())
+        if (c.authenticated) c.send({ t: 'remote', remote: wire(c.id) })
     },
     alive: (connId) => !!conns.get(connId)?.authenticated,
     backlog: () => relay.bufferedAmount
@@ -516,17 +518,29 @@ export function wireBrowser(paneId: string, state: BrowserPaneState | null): Wir
   }
 }
 
-export function registerCompanionIpc(): void {
+/**
+ * `trusted`: whether an IPC call comes from the app's main window (top frame, never
+ * the dot), passed in so this file does not load the windows. Who may pair a phone
+ * or remove one is decided only there: a phone with remote control could otherwise
+ * be paired or kept by one script in a renderer.
+ */
+export function registerCompanionIpc(trusted: (e: Electron.IpcMainEvent) => boolean): void {
   ipcMain.handle('companion:state', () => companionState())
   ipcMain.handle('companion:pair-start', () => startPairing(relayUrl()))
   ipcMain.on('companion:pair-cancel', () => cancelPairing())
-  ipcMain.on('companion:pair-decide', (_e, accepted: boolean) => decidePairing(accepted))
-  ipcMain.on('companion:revoke', (_e, id: string) => {
-    removeDevice(id)
-    for (const c of conns.values()) if (c.deviceId === id) c.close()
-    syncRelay()
-    broadcastState()
-  })
+  ipcMain.on(
+    'companion:pair-decide',
+    onlyTrusted(trusted, (accepted: boolean) => decidePairing(accepted))
+  )
+  ipcMain.on(
+    'companion:revoke',
+    onlyTrusted(trusted, (id: string) => {
+      removeDevice(id)
+      for (const c of conns.values()) if (c.deviceId === id) c.close()
+      syncRelay()
+      broadcastState()
+    })
+  )
   ipcMain.on('companion:set-relay', (_e, url: string) => {
     const clean = url.trim().replace(/\/+$/, '')
     kvSet(RELAY_KEY, clean === DEFAULT_RELAY ? '' : clean)

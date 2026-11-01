@@ -61,7 +61,7 @@ import { registerAgentIpc, killAllAgents, markContextLost, agentBus } from './ag
 import { registerLoops } from './loops'
 import { killAllOneShots } from './kill-tree'
 import { startCompanionLog, forgetChat } from './companion/log'
-import { registerRemoteControlIpc, startRemoteControl } from './remote-control'
+import { fromMainWindow, registerRemoteControlIpc, startRemoteControl } from './remote-control'
 import {
   startCompanion,
   stopCompanion,
@@ -404,7 +404,7 @@ app.whenReady().then(async () => {
   startHookServer()
   startRoutines()
   // The phone companion: an outbound relay connection that stays up.
-  registerCompanionIpc()
+  registerCompanionIpc((e) => fromMainWindow(e, isDotWindow))
   startCompanion()
   // Menu-bar presence while a phone is paired; follows pairing/relay changes.
   // Quiet tests leave the menu bar alone too.

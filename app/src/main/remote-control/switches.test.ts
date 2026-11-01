@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mayFlip, trustedSender } from './switches'
+import { mayFlip, onlyTrusted, trustedSender } from './switches'
 
 describe('who may flip the switches', () => {
   const main = {}
@@ -36,5 +36,21 @@ describe('who may flip the switches', () => {
     expect(await mayFlip({ trusted: false, on: true, confirm: ask })).toBe(false)
     expect(await mayFlip({ trusted: false, on: false, confirm: ask })).toBe(false)
     expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('pairing and revoking run only for the main window, and silently not at all for anyone else', () => {
+    const ran: unknown[][] = []
+    const trusted = (e: { senderFrame: unknown; sender: { mainFrame: unknown } }): boolean =>
+      trustedSender(e, alive, false)
+    const handler = onlyTrusted(trusted, (...a: unknown[]) => void ran.push(a))
+    handler(event(), 'device-1')
+    handler(event({}), 'device-2') // a sub-frame
+    expect(ran).toEqual([['device-1']])
+    const dot = onlyTrusted(
+      (e: ReturnType<typeof event>) => trustedSender(e, alive, true),
+      () => ran.push([])
+    )
+    dot(event())
+    expect(ran).toHaveLength(1)
   })
 })

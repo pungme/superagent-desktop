@@ -12,7 +12,9 @@ import {
 } from '../../shared/computer-use'
 import {
   REMOTE_ASK_MS,
+  REMOTE_ASKS_GLOBAL_PER_HOUR,
   REMOTE_ASK_WINDOW_MS,
+  REMOTE_HIGH_LAYER,
   REMOTE_BUCKET_BURST,
   REMOTE_BUCKET_RATE,
   REMOTE_CODE_TRIES,
@@ -89,6 +91,8 @@ export interface DisplayInfo {
   id: number
   name: string
   bounds: ScreenArea
+  /** How deep the menu bar is, in points. */
+  menuBar?: number
 }
 
 export interface RemoteDeps {
@@ -244,6 +248,8 @@ export class RemoteControl {
   private lastAskAt = new Map<string, number>()
   /** Every dialog a device made the Mac show, cancelled ones too. */
   private asks = new Map<string, number[]>()
+  /** And all of them together. */
+  private allAsks: number[] = []
   /** How the last session or request of each phone ended, for it to be told. */
   private outcomes = new Map<string, RemoteEndReason | RemoteRefusedReason>()
 
@@ -364,6 +370,14 @@ export class RemoteControl {
         'too-many',
         `This phone has asked too often. Try again in ${Math.ceil((freeAt - now) / 60_000)} minutes.`
       )
+    // All phones together too: several pairings do not multiply the dialogs.
+    this.allAsks = this.allAsks.filter((t) => now - t < REMOTE_ASK_WINDOW_MS)
+    if (askBudgetLeftAt(this.allAsks, now, REMOTE_ASKS_GLOBAL_PER_HOUR) !== null)
+      throw new RemoteRefusal(
+        'too-many',
+        'This Mac has been asked too often this hour. Try again later.'
+      )
+    this.allAsks.push(now)
     this.asks.set(who.deviceId, [...recent, now])
     this.lastAskAt.set(who.deviceId, now)
     const name = cleanDeviceName(who.deviceName)
@@ -876,6 +890,10 @@ export class RemoteControl {
       )
     if (step.kind === 'pointer') {
       const press = a.type === 'click' || a.type === 'down' || a.type === 'up' || a.type === 'drag'
+      // A secret the pasteboard holds can be pasted from a menu or a context menu
+      // as well as with the key: neither is used while it does.
+      const secretCopied = press && this.d.clipboardConcealed()
+      const menuBar = s.display.menuBar ?? 37
       for (const pt of step.points) {
         if (this.d.ownSurfaceAt(pt.x, pt.y))
           throw this.refusal(s, a, 'own-window', "That is on Superagent's own window.")
@@ -893,6 +911,13 @@ export class RemoteControl {
           )
         }
         this.checkApp(s, a, under ?? front)
+        if (secretCopied && (('button' in a && a.button === 'right') || pt.y < area.y + menuBar))
+          throw this.refusal(
+            s,
+            a,
+            'clipboard',
+            'The clipboard holds something a password manager copied, so menus and right-clicks are not used.'
+          )
         if (press && inAppleMenu(area, pt))
           throw this.refusal(
             s,
@@ -968,6 +993,11 @@ export class RemoteControl {
       return { pause: 'secret', by: front.name, windows, front }
     for (const w of windows) {
       if (!w.app || isSelfApp(w.app.id) || !overlaps(w.frame, area)) continue
+      // Far above ordinary windows: not known, so not trusted (notification banners
+      // and the Dock are covered or skipped elsewhere).
+      const id = w.app.id.toLowerCase()
+      if (w.layer >= REMOTE_HIGH_LAYER && id !== NOTIFICATION_HOST && id !== 'com.apple.dock')
+        return { pause: 'secret', by: w.app.name, windows, front }
       const name = offLimitsApp(w.app.id, denied)
       if (name)
         return { pause: name === 'the lock screen' ? 'lock' : 'secret', by: name, windows, front }

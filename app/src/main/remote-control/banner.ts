@@ -77,7 +77,10 @@ export function createBanner(onStop: () => void): {
       webPreferences: { sandbox: true, contextIsolation: true, javascript: false }
     })
     w.setAlwaysOnTop(true, 'screen-saver')
-    w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    // Over every space and full-screen apps, but without turning Superagent into a
+    // background app: without skipTransformProcessType its Dock icon disappears
+    // (measured on Electron 39) and does not come back.
+    w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
     // No script, no navigation but the one link: Stop.
     w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     w.webContents.on('will-navigate', (e, url) => {

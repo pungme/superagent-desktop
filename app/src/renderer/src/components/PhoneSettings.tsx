@@ -416,11 +416,16 @@ function RemoteControlRow(): React.JSX.Element | null {
         <div className="settings-label">
           <strong>Let my phone control this Mac</strong>
           <span>
-            Off unless you turn it on, and then on after a restart until you turn it off. Each time,
-            this Mac asks you to allow it and shows a code to type on the phone. While it runs the
-            phone can see the shared screen and use any app as you, except password managers, macOS
-            prompts and Superagent; it can quit apps. A red bar stays on screen: press ⌥Esc or
-            choose Stop to end it. Notifications are hidden from the picture.
+            If you allow this, the phone sees your chosen screen live and can use the mouse and
+            keyboard as you, in nearly any app, for up to 2 hours. It ends after 10 minutes without
+            input, when the phone disconnects, or when you press ⌥Esc or Stop. Superagent tries to
+            keep it away from password managers, macOS password and permission prompts, Superagent
+            itself and terminals, and it hides notifications and pauses the picture when one of
+            those appears. That is a list of known cases, not a guarantee: a browser&apos;s saved
+            logins, a copied password and other routes to running commands can still get through,
+            and nothing the phone did is undone when the session ends. Each time, this Mac asks you
+            and shows a code. This stays on after a restart until you turn it off. Allow it only
+            when you just asked for it on your own phone, and stay near the Mac.
             {st.enabled && st.note ? ` ${st.note}` : ''}
           </span>
           {st.active && (

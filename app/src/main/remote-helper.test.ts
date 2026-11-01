@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { offLimitsApp } from '../shared/computer-use'
 
 /**
  * What remote control borrows from computer-use.ts, with the helper process
@@ -62,8 +63,16 @@ vi.mock('node:child_process', () => ({
 vi.mock('./store', () => ({ getChat: () => undefined, kvGet: () => undefined, kvSet: vi.fn() }))
 vi.mock('./util', () => ({ broadcastToWindows: vi.fn() }))
 
-const { act, appUnder, grantConsent, killRunningHelper, runHelper, sawFront, stopComputerUse } =
-  await import('./computer-use')
+const {
+  act,
+  appUnder,
+  grantConsent,
+  killRunningHelper,
+  runHelper,
+  sawFront,
+  stopComputerUse,
+  windowLayout
+} = await import('./computer-use')
 
 describe('the helper, as remote control uses it', () => {
   it('says one fixed thing when a run fails, never the error message with the typed text in it', async () => {
@@ -131,5 +140,30 @@ describe('what is under a point, as remote control asks it', () => {
     const refused = appUnder(10, 10)
     helperRuns[3].done(null, JSON.stringify({ ok: false, error: 'nope' }))
     await expect(refused).rejects.toThrow()
+  })
+})
+
+describe('system prompts that are not in any app, as the layout and the point lookup read them', () => {
+  it('the layout names a window with no bundle by its process name, as appUnder does', async () => {
+    helperRuns.length = 0
+    const p = windowLayout()
+    helperRuns[0].done(
+      null,
+      JSON.stringify({
+        windows: [
+          { name: 'coreautha', bundle: '', layer: 8, x: 0, y: 0, w: 300, h: 200 },
+          { name: 'Window Server', bundle: '', layer: 0, x: 0, y: 0, w: 10, h: 10 },
+          { name: 'Notes', bundle: 'com.apple.Notes', layer: 0, x: 0, y: 0, w: 10, h: 10 }
+        ]
+      })
+    )
+    const w = await p
+    expect(w[0].app).toEqual({ id: 'name:coreautha', name: 'coreautha' })
+    expect(w[1].app).toBeNull()
+    expect(w[2].app).toMatchObject({ id: 'com.apple.Notes' })
+    expect(offLimitsApp(w[0].app?.id)).toBeTruthy()
+    const at = appUnder(1, 1)
+    helperRuns[1].done(null, JSON.stringify({ name: 'coreautha', bundle: '', layer: 2000 }))
+    expect(await at).toEqual({ id: 'name:coreautha', name: 'coreautha' })
   })
 })

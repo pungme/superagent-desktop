@@ -37,3 +37,16 @@ export async function mayFlip(opts: {
   if (!opts.on) return true
   return opts.confirm()
 }
+
+/**
+ * A handler that runs only for a trusted asker, and silently not at all for any
+ * other: for the IPC calls that decide who may pair or be removed.
+ */
+export function onlyTrusted<E extends Asker, A extends unknown[]>(
+  trusted: (e: E) => boolean,
+  fn: (...args: A) => void
+): (e: E, ...args: A) => void {
+  return (e, ...args) => {
+    if (trusted(e)) fn(...args)
+  }
+}

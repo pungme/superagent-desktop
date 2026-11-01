@@ -32,7 +32,7 @@ import type { LaidWindow, AppRef } from '../../shared/computer-use'
 import type { RpcErrorCode, ServerFrame, WireRemote } from '../../shared/companion-protocol'
 import { RemoteControl, RemoteRefusal, type DisplayInfo, type RemoteDeps } from './control'
 import { askAllowDialog, createBanner, showCodeDialog } from './banner'
-import { concealedFormats } from '../../shared/remote-control'
+import { clipboardConcealed } from '../../shared/remote-control'
 import { mayFlip, trustedSender } from './switches'
 import { remoteCodeParams, remoteInputParams, remoteViewParams } from './input'
 import type { Bitmap, Encode, Rect } from './stream'
@@ -99,7 +99,9 @@ const displaysNow = (): DisplayInfo[] =>
   screen.getAllDisplays().map((d, i) => ({
     id: d.id,
     name: d.label || (i === 0 ? 'Main display' : `Display ${i + 1}`),
-    bounds: d.bounds
+    bounds: d.bounds,
+    // How deep the menu bar is (the work area starts below it); a hidden one still opens when the pointer goes up.
+    menuBar: Math.max(24, d.workArea.y - d.bounds.y)
   }))
 
 const inside = (r: Electron.Rectangle, x: number, y: number): boolean =>
@@ -139,19 +141,7 @@ function realDeps(): RemoteDeps {
     front: frontApp,
     layout: windowLayout,
     appAt: appUnder,
-    clipboardConcealed: () => {
-      // Names of what the pasteboard carries, never its contents. Not being able to tell is a yes.
-      try {
-        if (concealedFormats(clipboard.availableFormats())) return true
-        return concealedFormats(
-          ['org.nspasteboard.ConcealedType', 'org.nspasteboard.TransientType'].filter((t) =>
-            clipboard.has(t)
-          )
-        )
-      } catch {
-        return true
-      }
-    },
+    clipboardConcealed: () => clipboardConcealed(clipboard),
     ownSurfaceAt: (x, y) => {
       if (own.surfaceAt(x, y)) return true
       if (banner.bounds().some((b) => inside(b, x, y))) return true
@@ -275,8 +265,8 @@ let confirmSwitch = async (what: 'on' | 'shells'): Promise<boolean> => {
 }
 
 /** Whether this IPC call comes from the app's main window, top frame (never the dot, never a sub-frame). */
-function fromMainWindow(
-  e: Electron.IpcMainInvokeEvent,
+export function fromMainWindow(
+  e: Pick<Electron.IpcMainInvokeEvent, 'sender' | 'senderFrame'>,
   isDot: (w: BrowserWindow | null) => boolean
 ): boolean {
   const win = BrowserWindow.fromWebContents(e.sender)

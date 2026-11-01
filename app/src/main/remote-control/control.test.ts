@@ -1691,3 +1691,157 @@ describe('review 2, finding 12: ending, and the picture', () => {
     expect(at(150, 50)).toBe(0x2b)
   })
 })
+
+// --- the third review's findings ----------------------------------------------------
+
+describe('review 3, S1: a copied password is not pasted from a menu either', () => {
+  it('while the pasteboard is marked, right-clicks and presses in the menu bar are refused, whatever the key', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.clipboardSecret = true
+    t.w.calls.length = 0
+    for (const a of [
+      { type: 'click', x: 0.5, y: 0.5, button: 'right' },
+      { type: 'down', x: 0.5, y: 0.5, button: 'right' },
+      { type: 'click', x: 0.5, y: 0.02 }, // Edit menu, in the menu bar
+      { type: 'down', x: 0.5, y: 0.02 },
+      { type: 'drag', x: 0.5, y: 0.5, toX: 0.5, toY: 0.02 }
+    ] as RemoteInputAction[])
+      expect((await t.refused(t.input(a))).reason).toBe('clipboard')
+    expect((await t.refused(t.input({ type: 'key', key: 'v', mods: ['cmd'] }))).reason).toBe(
+      'clipboard'
+    )
+    expect(t.w.calls).toEqual([])
+    // Moving there, scrolling, and an ordinary click are not paste.
+    await t.input(
+      { type: 'move', x: 0.5, y: 0.02 },
+      { type: 'click', x: 0.5, y: 0.5 },
+      { type: 'scroll', x: 0.5, y: 0.5, dx: 0, dy: 0.1 }
+    )
+    expect(t.w.calls.map((c) => c[0])).toEqual(['jump', 'tap', 'wheel'])
+  })
+
+  it('and when it is not marked, they are fine', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.calls.length = 0
+    await t.input(
+      { type: 'click', x: 0.5, y: 0.5, button: 'right' },
+      { type: 'click', x: 0.5, y: 0.02 }
+    )
+    expect(t.w.calls.map((c) => c[0])).toEqual(['tap', 'tap'])
+  })
+})
+
+describe('review 3, S2: the menu bar and the Dock are not reached by keys either', () => {
+  it('Control with F2 and F3, with or without fn, and the Help search, are never pressed', async () => {
+    const t = make()
+    await t.begin()
+    t.w.calls.length = 0
+    for (const [key, mods] of [
+      ['f2', ['ctrl']],
+      ['f2', ['ctrl', 'fn']],
+      ['f3', ['ctrl']],
+      ['f8', ['ctrl', 'fn']],
+      ['/', ['cmd', 'shift']],
+      ['a', ['ctrl', 'opt', 'cmd']]
+    ] as const)
+      expect(
+        (await t.refused(t.input({ type: 'key', key, mods: [...mods] }))).reason,
+        `${mods.join('+')}+${key}`
+      ).toBe('blocked-key')
+    expect(t.w.calls).toEqual([])
+  })
+})
+
+describe('review 3, S3: prompts from outside any app, and windows far above the rest', () => {
+  const COREAUTHA: AppRef = { id: 'name:coreautha', name: 'coreautha' }
+  const SHIELD: AppRef = { id: 'com.vendor.shield', name: 'Shield' }
+
+  it('a system prompt known only by its process name pauses input and the stream', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.windows = [win(NOTES), win(COREAUTHA, 300, 100, 400, 200, 8)]
+    t.w.calls.length = 0
+    expect((await t.refused(t.input({ type: 'key', key: 'a' }))).reason).toBe('paused')
+    expect((await t.refused(t.input({ type: 'text', text: 'a' }))).reason).toBe('paused')
+    expect(t.w.calls).toEqual([])
+    const u = make()
+    await u.begin()
+    u.w.windows = [win(NOTES), win(COREAUTHA, 300, 100, 400, 200, 8)]
+    u.w.frames.length = 0
+    await u.flush(2000)
+    expect(u.c.wire('c1')).toMatchObject({ paused: 'secret' })
+    expect(u.w.frames.filter((f) => f.t === 'screen' && f.frame.jpeg !== '')).toHaveLength(0)
+  })
+
+  it('any unknown window at the screen-saver level or above pauses, popup menus and drags do not, notifications are covered', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.calls.length = 0
+    t.w.windows = [win(SHIELD, 0, 0, 1000, 500, 1000), win(NOTES)]
+    expect((await t.refused(t.input({ type: 'key', key: 'a' }))).reason).toBe('paused')
+    t.w.windows = [win(SHIELD, 0, 0, 1000, 500, 2000000), win(NOTES)]
+    expect((await t.refused(t.input({ type: 'key', key: 'a' }))).reason).toBe('paused')
+    // Popup menu (101), help tag (200), drag in progress (500): ordinary.
+    for (const layer of [101, 200, 500]) {
+      t.w.windows = [win(SHIELD, 100, 100, 100, 100, layer), win(NOTES)]
+      await t.input({ type: 'key', key: 'a' })
+    }
+    // Notification banners, high up as they are, are covered rather than pausing.
+    t.w.windows = [win(NOTIF, 0, 0, 300, 60, 1000), win(NOTES)]
+    await t.input({ type: 'key', key: 'b' })
+    // Superagent's own banner (layer 1000) is not a reason either.
+    t.w.windows = [win(SELF, 300, 0, 440, 40, 1000), win(NOTES)]
+    await t.input({ type: 'key', key: 'c' })
+    expect(t.w.calls.map((c) => c[1])).toEqual(['a', 'a', 'a', 'b', 'c'])
+  })
+})
+
+describe('review 3, M3: all phones together get only so many dialogs an hour', () => {
+  it('twelve in an hour across several pairings, then none, until the hour passes', async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    const phones = ['d1', 'd2', 'd3'].map((id, i) => ({
+      connId: `c${i + 1}`,
+      deviceId: id,
+      deviceName: `iPhone ${i}`
+    }))
+    let shown = 0
+    for (let round = 0; round < 5; round++)
+      for (const who of phones) {
+        await t.flush(6000)
+        try {
+          t.c.request(who)
+        } catch {
+          continue
+        }
+        await t.flush()
+        shown++
+        t.c.connGone(who.connId)
+        await t.flush()
+      }
+    expect(shown).toBe(12)
+    expect(t.w.askQs).toHaveLength(12)
+    await t.flush(6000)
+    expect(() => t.c.request(phones[0])).toThrowError(/asked too often|too often/)
+    await t.flush(61 * 60_000)
+    expect(t.c.request(phones[0]).state).toBe('asking')
+  })
+
+  it('a phone cannot keep asking each time its request expires: expiries are strikes', async () => {
+    const t = make()
+    t.c.setEnabled(true)
+    for (let i = 0; i < 3; i++) {
+      t.c.request(WHO)
+      await t.flush(REMOTE_ASK_MS + 1)
+      expect(t.c.wire('c1')).toMatchObject({ ended: 'expired' })
+    }
+    expect(() => t.c.request(WHO)).toThrowError(/Too many requests were turned down/)
+    expect(t.w.askQs).toHaveLength(3)
+  })
+})

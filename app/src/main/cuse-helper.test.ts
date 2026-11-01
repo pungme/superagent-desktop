@@ -64,6 +64,27 @@ describe.skipIf(!existsSync(bin))('cuse, the hands of computer use', () => {
       expect(run('ownskip', layer), layer).toEqual({ skipped: false })
     expect(run('ownskip')).toMatchObject({ ok: false })
   })
+  it('looks at every window layer a click could land on, from the popup-menu level up', () => {
+    // `at` used to drop layers above 101 (the screen saver, shielding windows,
+    // a prompt drawn over everything); now it reports them.
+    for (const layer of [
+      '0',
+      '3',
+      '8',
+      '20',
+      '24',
+      '25',
+      '100',
+      '101',
+      '102',
+      '500',
+      '1000',
+      '2000000'
+    ])
+      expect(run('layerseen', layer), layer).toEqual({ seen: true })
+    for (const layer of ['1', '2', '5', '19', '23', '99'])
+      expect(run('layerseen', layer), layer).toEqual({ seen: false })
+  })
   it('types text of any script as characters, counted in bytes', () => {
     expect(run('type', 'héllo 👋')).toEqual({ ok: true, chars: 11 })
   })

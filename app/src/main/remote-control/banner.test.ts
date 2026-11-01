@@ -1,16 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const made: { opts: Record<string, unknown>; destroyed: boolean; visible: boolean }[] = []
+const made: {
+  opts: Record<string, unknown>
+  destroyed: boolean
+  visible: boolean
+  workspaces: unknown[][]
+}[] = []
 vi.mock('electron', () => {
   class BrowserWindow {
-    rec: { opts: Record<string, unknown>; destroyed: boolean; visible: boolean }
+    rec: (typeof made)[number]
     webContents = { setWindowOpenHandler: vi.fn(), on: vi.fn() }
     constructor(opts: Record<string, unknown>) {
-      this.rec = { opts, destroyed: false, visible: false }
+      this.rec = { opts, destroyed: false, visible: false, workspaces: [] }
       made.push(this.rec)
     }
     setAlwaysOnTop = vi.fn()
-    setVisibleOnAllWorkspaces = vi.fn()
+    setVisibleOnAllWorkspaces = (...a: unknown[]): void => {
+      this.rec.workspaces.push(a)
+    }
     loadURL = vi.fn(async () => undefined)
     showInactive(): void {
       this.rec.visible = true
@@ -81,5 +88,13 @@ describe('the banner', () => {
     made.length = 0
     createBanner(() => undefined).show({ deviceName: 'x', display: d1, displays: [d1] })
     expect(made[0].opts).toMatchObject({ focusable: false, type: 'panel', closable: false })
+  })
+  it('stays over every space and full-screen app without taking the Dock icon away', () => {
+    made.length = 0
+    createBanner(() => undefined).show({ deviceName: 'x', display: d1, displays: [d1] })
+    // Without skipTransformProcessType the app stops being a regular app (no Dock icon).
+    expect(made[0].workspaces).toEqual([
+      [true, { visibleOnFullScreen: true, skipTransformProcessType: true }]
+    ])
   })
 })

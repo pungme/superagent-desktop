@@ -463,8 +463,10 @@ async function layout(): Promise<LaidWindow[]> {
     const owner = typeof w.name === 'string' ? w.name : ''
     const bundle = typeof w.bundle === 'string' ? w.bundle : ''
     return {
-      // Only what has a bundle is an app the user can have allowed.
-      app: bundle ? { id: bundle, name: cleanAppName(owner) || bundle } : null,
+      // Read exactly as `appAt` reads a window: a bundle id, else the process
+      // name (a prompt from outside any .app, such as coreautha), else nobody
+      // (the window server's own chrome).
+      app: ownerApp(owner, bundle),
       owner,
       layer: n(w.layer),
       frame: { x: n(w.x), y: n(w.y), width: n(w.w), height: n(w.h) }
