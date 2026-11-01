@@ -1763,7 +1763,7 @@ button {
 }
 .usage-popover-head {
   gap: 0;
-  height: 28px;
+  height: 22px;
   padding: 0 10px;
 }
 .usage-popover-head > :first-child {
@@ -1773,8 +1773,8 @@ button {
 }
 .usage-popover-row {
   position: relative;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: 2px;
+  padding: 4px 10px 5px;
 }
 .usage-popover-row + .usage-popover-row {
   margin-top: 2px;
@@ -1791,21 +1791,21 @@ button {
   display: none;
 }
 .usage-popover-name {
-  font-size: 12.5px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 15px;
 }
 .usage-popover-windows {
   grid-template-columns: 80px 1fr 38px 32px;
   column-gap: 10px;
-  row-gap: 6px;
+  row-gap: 0;
   line-height: 14px;
 }
 .usage-popover-reset {
   text-align: right;
 }
 .usage-popover-group + .usage-popover-group {
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 4px;
+  padding-top: 4px;
 }
 
 .sidebar-settings {
