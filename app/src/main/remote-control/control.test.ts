@@ -564,7 +564,8 @@ describe('while a session runs, and how it ends', () => {
       if (t.c.wire('c1').state === 'active') await t.input({ type: 'move', x: 0.1, y: 0.1 })
     }
     ended(t, 'too-long')
-  })
+    // Two simulated hours in 20-second steps: about 5 s here, more on a busy CI runner.
+  }, 60_000)
 
   it('ends when the Mac sleeps or locks, when the banner is lost, when the display goes, when a permission is taken', async () => {
     for (const [why, cut] of [
