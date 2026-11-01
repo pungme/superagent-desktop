@@ -1,3 +1,4 @@
+import { dialogWords } from './remote-control-words'
 import {
   COMPUTER_STOP_HOTKEY,
   isSelfApp,
@@ -260,13 +261,7 @@ export function allowDialog(
 ): { message: string; detail: string } {
   return {
     message: 'Allow a phone to control this Mac?',
-    detail: [
-      `Paired phone: ${deviceName}`,
-      'If you allow this, the phone sees this screen live and can use the mouse and keyboard as you, in nearly any app, for up to 2 hours. It ends after 10 minutes without input, when the phone disconnects, or when you press ⌥Esc or Stop.',
-      "Superagent tries to keep it away from password managers, macOS password and permission prompts, Superagent itself and terminals, and hides notifications. That is a list of known cases, not a guarantee: a browser's saved logins, a copied password, Mail and Messages (including one-time codes), your files, sites you are signed in to, restarting the Mac and other routes to running commands can still get through, and nothing it did is undone afterwards.",
-      ...(shells ? ['You allowed terminals, so it can run commands as you.'] : []),
-      'If a Touch ID or password prompt appears and you approve it out of habit, the phone gets what it asked for. Allow it only when you just asked for it on your own phone, and stay near the Mac.'
-    ].join('\n\n')
+    detail: dialogWords(deviceName, shells)
   }
 }
 
@@ -313,9 +308,9 @@ export function lockedUntil(strikes: number[], now: number): number | null {
 
 // --- what the guard looks at, as pure rules --------------------------------
 
-/** Whether this key pastes: ⌘V and its variants (⇧⌘V, ⌥⇧⌘V, ⌘⌃V). */
+/** Whether this key pastes: ⌘V and its variants (⇧⌘V, ⌥⇧⌘V, ⌘⌃V), and Control-V, Control-Shift-V (virtual machines, remote desktops, terminals, command palettes). */
 export function pastes(key: string, mods: readonly string[]): boolean {
-  return key.toLowerCase() === 'v' && mods.includes('cmd')
+  return key.toLowerCase() === 'v' && (mods.includes('cmd') || mods.includes('ctrl'))
 }
 
 /**
@@ -346,8 +341,15 @@ export function ownModalUp(windows: readonly LaidWindow[]): boolean {
 
 /** The Apple menu (Restart, Shut Down, Log Out) is the first item of the menu bar, at the display's top left. */
 export function inAppleMenu(area: ScreenArea, pt: { x: number; y: number }): boolean {
-  return pt.x >= area.x && pt.x < area.x + 50 && pt.y >= area.y && pt.y < area.y + 40
+  return pt.x >= area.x && pt.x < area.x + 50 && pt.y >= area.y && pt.y < area.y + MENU_BAR_BAND
 }
+
+/**
+ * The top of each display, in points, that counts as the menu bar: a fixed 40,
+ * not the work area's offset (which is 0 when the menu bar is hidden or in a
+ * full-screen app, and about 37 on a notched MacBook).
+ */
+export const MENU_BAR_BAND = 40
 
 const inFrame = (f: ScreenArea, pt: { x: number; y: number }): boolean =>
   pt.x >= f.x && pt.y >= f.y && pt.x < f.x + f.width && pt.y < f.y + f.height
@@ -363,3 +365,28 @@ export function launcherOnScreen(windows: readonly LaidWindow[]): boolean {
     (w) => !!w.app && launcherApp(w.app.id) && w.app.id.toLowerCase() !== 'com.apple.dock'
   )
 }
+
+/**
+ * A full-screen app is in front of the banner: some window covers the whole display
+ * from its very top (a full-screen window; a maximised one starts below the menu
+ * bar) and no window of Superagent's on layer 1000 or higher, where a banner is,
+ * lies in front of it in the front-to-back list. An app's banner that is not listed
+ * at all while a full-screen app is up is hidden too.
+ */
+export function bannerHidden(windows: readonly LaidWindow[], area: ScreenArea): boolean {
+  const covers = (f: ScreenArea): boolean =>
+    f.x <= area.x &&
+    f.y <= area.y &&
+    f.x + f.width >= area.x + area.width &&
+    f.y + f.height >= area.y + area.height
+  const full = windows.findIndex(
+    (w) => !!w.app && !isSelfApp(w.app.id) && w.layer === 0 && covers(w.frame)
+  )
+  if (full < 0) return false
+  return !windows
+    .slice(0, full)
+    .some((w) => !!w.app && isSelfApp(w.app.id) && w.layer >= 1000 && overlapsArea(w.frame, area))
+}
+
+const overlapsArea = (a: ScreenArea, b: ScreenArea): boolean =>
+  a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y

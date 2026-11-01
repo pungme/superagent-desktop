@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { settingsWords } from './remote-control-words'
 import {
   REMOTE_ASKS_PER_HOUR,
   REMOTE_ASK_WINDOW_MS,
@@ -6,7 +7,9 @@ import {
   REMOTE_LOCKOUT_MS,
   REMOTE_STRIKES,
   TokenBucket,
+  MENU_BAR_BAND,
   allowDialog,
+  bannerHidden,
   clipboardConcealed,
   inAppleMenu,
   launcherOnScreen,
@@ -184,7 +187,7 @@ describe("a phone's name, and the words of the Allow dialog", () => {
     expect(off.detail).toMatch(/10 minutes without input/)
     expect(off.detail).toMatch(/⌥Esc or Stop/)
     expect(off.detail).toMatch(/not a guarantee/)
-    expect(off.detail).toMatch(/Mail and Messages \(including one-time codes\)/)
+    expect(off.detail).toMatch(/Mail and Messages \(including one-time codes/)
     expect(off.detail).toMatch(/saved logins/)
     expect(off.detail).toMatch(/restarting the Mac/)
     expect(off.detail).toMatch(/nothing it did is undone/)
@@ -230,6 +233,9 @@ describe("the guard's pure rules", () => {
     expect(pastes('v', ['cmd'])).toBe(true)
     expect(pastes('V', ['cmd', 'shift', 'opt'])).toBe(true)
     expect(pastes('v', ['cmd', 'ctrl'])).toBe(true)
+    // Virtual machines, remote desktops, terminals and command palettes paste with Control.
+    expect(pastes('v', ['ctrl'])).toBe(true)
+    expect(pastes('v', ['ctrl', 'shift'])).toBe(true)
     expect(pastes('v', [])).toBe(false)
     expect(pastes('c', ['cmd'])).toBe(false)
   })
@@ -299,5 +305,60 @@ describe('keys that reach the menu bar, the Dock, VoiceOver or a menu search', (
     expect(remoteKey('up', ['ctrl']).ok).toBe(true)
     expect(remoteKey('/', ['cmd']).ok).toBe(true)
     expect(remoteKey('space', ['ctrl', 'cmd']).ok).toBe(true)
+  })
+})
+
+describe('what the Allow dialog and Settings say: the same words, no absolutes', () => {
+  for (const shells of [false, true]) {
+    for (const [name, text] of [
+      ['the dialog', allowDialog('Pung iPhone', shells).detail],
+      ['Settings', settingsWords(shells)]
+    ] as const)
+      it(`${name} (shells ${shells ? 'allowed' : 'not allowed'}) says what is reachable and how it ends`, () => {
+        expect(text).toMatch(/sees this screen live/)
+        expect(text).toMatch(/mouse and keyboard as you, in nearly any app, for up to 2 hours/)
+        expect(text).toMatch(/10 minutes without input/)
+        expect(text).toMatch(/⌥Esc or Stop/)
+        expect(text).toMatch(/Mail and Messages \(including one-time codes/)
+        expect(text).toMatch(/Finder and every file/)
+        expect(text).toMatch(/sites you are signed in to/)
+        expect(text).toMatch(/restarting the Mac/)
+        expect(text).toMatch(/saved logins/)
+        expect(text).toMatch(/not a guarantee/)
+        expect(text).toMatch(/nothing it did is undone/)
+        expect(text).toMatch(/Touch ID or password prompt/)
+        expect(text).toMatch(/stay near the Mac/)
+        expect(text).not.toMatch(/blocked|never|cannot use|can't use|cannot be/i)
+        // Terminals are named as kept away from only while that is true.
+        expect(/and terminals/.test(text)).toBe(!shells)
+        expect(/run commands as you/.test(text)).toBe(shells)
+      })
+  }
+  it('Settings adds that it asks each time and stays on after a restart', () => {
+    expect(settingsWords(false)).toMatch(/shows a code/)
+    expect(settingsWords(false)).toMatch(/stays on after a restart/)
+  })
+})
+
+describe('the menu bar band and a banner behind a full-screen app', () => {
+  const area = { x: 0, y: 0, width: 1000, height: 500 }
+  const w = (id: string, layer: number, x = 0, y = 0, width = 1000, height = 500): never =>
+    ({ app: { id, name: id }, owner: id, layer, frame: { x, y, width, height } }) as never
+  it('is a fixed 40 points', () => {
+    expect(MENU_BAR_BAND).toBe(40)
+    expect(inAppleMenu(area, { x: 10, y: 39 })).toBe(true)
+    expect(inAppleMenu(area, { x: 10, y: 40 })).toBe(false)
+  })
+  it('is hidden when a full-screen window is in front of it, or it is not on screen at all', () => {
+    const banner = w('dev.superagent.app', 1000, 280, 6, 440, 40)
+    expect(bannerHidden([w('com.apple.Safari', 0), banner], area)).toBe(true)
+    expect(bannerHidden([w('com.apple.Safari', 0)], area)).toBe(true)
+  })
+  it('is fine when it is in front of the full-screen window, or nothing is full-screen', () => {
+    const banner = w('dev.superagent.app', 1000, 280, 6, 440, 40)
+    expect(bannerHidden([banner, w('com.apple.Safari', 0)], area)).toBe(false)
+    // A maximised window starts below the menu bar: not full-screen.
+    expect(bannerHidden([w('com.apple.Safari', 0, 0, 25, 1000, 475)], area)).toBe(false)
+    expect(bannerHidden([w('com.apple.Safari', 0, 0, 0, 500, 400)], area)).toBe(false)
   })
 })

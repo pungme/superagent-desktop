@@ -36,6 +36,7 @@ import {
   askBudgetLeftAt,
   cleanDeviceName,
   cursorOnPicture,
+  MENU_BAR_BAND,
   inAppleMenu,
   launcherOnScreen,
   onDock,
@@ -91,8 +92,6 @@ export interface DisplayInfo {
   id: number
   name: string
   bounds: ScreenArea
-  /** How deep the menu bar is, in points. */
-  menuBar?: number
 }
 
 export interface RemoteDeps {
@@ -129,6 +128,8 @@ export interface RemoteDeps {
   appAt(x: number, y: number): Promise<AppRef | null>
   /** The pasteboard carries a type that marks it a secret (a password manager's copy). Names only, never contents. */
   clipboardConcealed(): boolean
+  /** A full-screen app has the display and the banner is not in front of it (from the layout). */
+  bannerHidden(windows: LaidWindow[], area: ScreenArea): boolean
   /** The point is on one of Superagent's own floating windows. */
   ownSurfaceAt(x: number, y: number): boolean
   /** One of Superagent's own windows has the keyboard. */
@@ -746,6 +747,17 @@ export class RemoteControl {
     return a.type === 'key' && (a.mods ?? []).some((m) => m !== 'shift')
   }
 
+  /** The banner is what tells whoever is at the Mac: hidden behind a full-screen app, there is no session. */
+  private checkBanner(windows: LaidWindow[], area: ScreenArea): void {
+    if (windows.length && this.d.bannerHidden(windows, area)) {
+      this.end('banner-lost')
+      throw new RemoteRefusal(
+        'ended',
+        'The banner is hidden behind a full-screen app, so it ended.'
+      )
+    }
+  }
+
   private async apply(s: Session, a: RemoteInputAction): Promise<void> {
     const area = this.d.displays().find((x) => x.id === s.display.id)?.bounds
     if (!area) {
@@ -862,6 +874,7 @@ export class RemoteControl {
     area: ScreenArea
   ): Promise<{ front: AppRef; windows: LaidWindow[] }> {
     const sc = await this.scene(area)
+    this.checkBanner(sc.windows, area)
     const front = sc.front
     if (sc.pause === 'unknown' || !front)
       throw this.refusal(
@@ -893,7 +906,6 @@ export class RemoteControl {
       // A secret the pasteboard holds can be pasted from a menu or a context menu
       // as well as with the key: neither is used while it does.
       const secretCopied = press && this.d.clipboardConcealed()
-      const menuBar = s.display.menuBar ?? 37
       for (const pt of step.points) {
         if (this.d.ownSurfaceAt(pt.x, pt.y))
           throw this.refusal(s, a, 'own-window', "That is on Superagent's own window.")
@@ -911,7 +923,10 @@ export class RemoteControl {
           )
         }
         this.checkApp(s, a, under ?? front)
-        if (secretCopied && (('button' in a && a.button === 'right') || pt.y < area.y + menuBar))
+        if (
+          secretCopied &&
+          (('button' in a && a.button === 'right') || pt.y < area.y + MENU_BAR_BAND)
+        )
           throw this.refusal(
             s,
             a,
@@ -1054,6 +1069,10 @@ export class RemoteControl {
     const after = await this.scene(display.bounds)
     s.seen = { at: this.d.now(), scene: after }
     if (this.session !== s) return 1000
+    if (after.windows.length && this.d.bannerHidden(after.windows, display.bounds)) {
+      this.end('banner-lost')
+      return 1000
+    }
     this.setPause(s, after.pause, after.by)
     if (after.pause) return 700
     // Superagent's own windows (the dialogs, the banner, Settings, the chat's

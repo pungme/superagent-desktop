@@ -176,7 +176,14 @@ const OFF_LIMITS: [prefix: string, name: string][] = [
   ['com.apple.LocalAuthentication', 'a macOS password prompt'],
   ['com.apple.CoreAuthUI', 'a macOS password prompt'],
   ['com.apple.SoftwareUpdate', 'a macOS update prompt'],
-  ['com.apple.keychain', 'Keychain Access']
+  ['com.apple.keychain', 'Keychain Access'],
+  // Read from this Mac's /System/Library (Info.plist of each), not guessed.
+  ['com.apple.NetAuthAgent', 'a macOS password prompt'],
+  ['com.apple.security.Keychain-Circle-Notification', 'a macOS security prompt'],
+  ['com.apple.wifi.WiFiAgent', 'a macOS password prompt'],
+  ['com.apple.AuthKit', 'a macOS sign-in prompt'],
+  ['com.apple.tcc.AuthorizationPromptService', 'a macOS permission prompt'],
+  ['com.apple.CoreLocationAgent', 'a macOS permission prompt']
 ]
 
 /** The app that shows notification banners: codes and message previews. Covered in a picture, never paused for. */
@@ -198,7 +205,12 @@ const SYSTEM_PROMPTS = [
   'coreservicesuiagent',
   'usernotificationcenter',
   'authorizationhost',
-  'localauthenticationremoteservice'
+  'localauthenticationremoteservice',
+  'netauthagent',
+  'wifiagent',
+  'authorizationpromptservice',
+  'corelocationagent',
+  'keychain circle notification'
 ]
 
 /** A window's owner as an app: by bundle id, or by name when it has none. Null for the system's own chrome. */

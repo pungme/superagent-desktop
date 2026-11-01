@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
+const dockShow = vi.hoisted(() => vi.fn(async () => undefined))
+
 const made: {
   opts: Record<string, unknown>
   destroyed: boolean
@@ -42,7 +44,7 @@ vi.mock('electron', () => {
   }
   return {
     BrowserWindow,
-    app: { isPackaged: false, focus: vi.fn() },
+    app: { isPackaged: false, focus: vi.fn(), dock: { show: dockShow } },
     dialog: {},
     screen: {
       getAllDisplays: () => [
@@ -89,12 +91,22 @@ describe('the banner', () => {
     createBanner(() => undefined).show({ deviceName: 'x', display: d1, displays: [d1] })
     expect(made[0].opts).toMatchObject({ focusable: false, type: 'panel', closable: false })
   })
-  it('stays over every space and full-screen app without taking the Dock icon away', () => {
+  it('is over every space and full-screen app, the way that works: the process is transformed, so no skipTransformProcessType', () => {
     made.length = 0
     createBanner(() => undefined).show({ deviceName: 'x', display: d1, displays: [d1] })
-    // Without skipTransformProcessType the app stops being a regular app (no Dock icon).
-    expect(made[0].workspaces).toEqual([
-      [true, { visibleOnFullScreen: true, skipTransformProcessType: true }]
-    ])
+    expect(made[0].workspaces).toEqual([[true, { visibleOnFullScreen: true }]])
+  })
+
+  it('brings the Dock icon back when the banner goes (measured: it stays hidden after the window is destroyed)', () => {
+    made.length = 0
+    dockShow.mockClear()
+    const b = createBanner(() => undefined)
+    b.show({ deviceName: 'x', display: d1, displays: [d1] })
+    expect(dockShow).not.toHaveBeenCalled()
+    b.hide()
+    expect(dockShow).toHaveBeenCalledOnce()
+    // Nothing shown, nothing to give back.
+    b.hide()
+    expect(dockShow).toHaveBeenCalledOnce()
   })
 })

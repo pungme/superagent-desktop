@@ -32,8 +32,9 @@ import type { LaidWindow, AppRef } from '../../shared/computer-use'
 import type { RpcErrorCode, ServerFrame, WireRemote } from '../../shared/companion-protocol'
 import { RemoteControl, RemoteRefusal, type DisplayInfo, type RemoteDeps } from './control'
 import { askAllowDialog, createBanner, showCodeDialog } from './banner'
-import { clipboardConcealed } from '../../shared/remote-control'
-import { mayFlip, trustedSender } from './switches'
+import { bannerHidden, clipboardConcealed } from '../../shared/remote-control'
+import { registerSwitchIpc } from './guarded-ipc'
+import { trustedSender } from './switches'
 import { remoteCodeParams, remoteInputParams, remoteViewParams } from './input'
 import type { Bitmap, Encode, Rect } from './stream'
 
@@ -99,9 +100,7 @@ const displaysNow = (): DisplayInfo[] =>
   screen.getAllDisplays().map((d, i) => ({
     id: d.id,
     name: d.label || (i === 0 ? 'Main display' : `Display ${i + 1}`),
-    bounds: d.bounds,
-    // How deep the menu bar is (the work area starts below it); a hidden one still opens when the pointer goes up.
-    menuBar: Math.max(24, d.workArea.y - d.bounds.y)
+    bounds: d.bounds
   }))
 
 const inside = (r: Electron.Rectangle, x: number, y: number): boolean =>
@@ -142,6 +141,7 @@ function realDeps(): RemoteDeps {
     layout: windowLayout,
     appAt: appUnder,
     clipboardConcealed: () => clipboardConcealed(clipboard),
+    bannerHidden,
     ownSurfaceAt: (x, y) => {
       if (own.surfaceAt(x, y)) return true
       if (banner.bounds().some((b) => inside(b, x, y))) return true
@@ -276,33 +276,20 @@ export function fromMainWindow(
 /** `isDot`: whether a window is the dot's, which never flips a switch (passed in, so this file does not load the dot). */
 export function registerRemoteControlIpc(isDot: (w: BrowserWindow | null) => boolean): void {
   ipcMain.handle('remote:status', () => status())
-  ipcMain.handle('remote:set-enabled', async (e, on: boolean) => {
-    const v = !!on
-    const go = await mayFlip({
-      trusted: fromMainWindow(e, isDot),
-      on: v,
-      confirm: () => confirmSwitch('on')
-    })
-    if (!go) return status()
-    settingSet(KEY, v ? '1' : '0')
-    healthLog(`remote: switched ${v ? 'on' : 'off'} at the Mac`)
-    control().setEnabled(v && process.platform === 'darwin')
-    // Off takes the shells setting with it (control.ts).
-    return status()
-  })
-  // Terminals and scripting apps: another switch, at the Mac and only here. Held
-  // in memory for this run: it is off again after a restart.
-  ipcMain.handle('remote:set-shells', async (e, on: boolean) => {
-    const v = !!on && control().isEnabled()
-    const go = await mayFlip({
-      trusted: fromMainWindow(e, isDot),
-      on: v,
-      confirm: () => confirmSwitch('shells')
-    })
-    if (!go) return status()
-    healthLog(`remote: shells and scripting apps ${v ? 'allowed' : 'not allowed'} at the Mac`)
-    control().setShells(v)
-    return status()
+  registerSwitchIpc(ipcMain, (e: Electron.IpcMainInvokeEvent) => fromMainWindow(e, isDot), {
+    confirm: (what) => confirmSwitch(what),
+    isEnabled: () => control().isEnabled(),
+    setEnabled: (v) => {
+      settingSet(KEY, v ? '1' : '0')
+      healthLog(`remote: switched ${v ? 'on' : 'off'} at the Mac`)
+      // Off takes the shells setting with it (control.ts).
+      control().setEnabled(v && process.platform === 'darwin')
+    },
+    setShells: (v) => {
+      healthLog(`remote: shells and scripting apps ${v ? 'allowed' : 'not allowed'} at the Mac`)
+      control().setShells(v)
+    },
+    status
   })
   ipcMain.handle('remote:stop', () => {
     control().end('stopped-at-mac')
@@ -482,6 +469,7 @@ function inertDeps(real: RemoteDeps): RemoteDeps {
       w.calls.push(args)
       return { ok: true, error: '' }
     },
+    bannerHidden: () => false,
     killRunning: () => 0,
     clipboardConcealed: () => w.clipboardSecret,
     cursor: () => w.cursor,

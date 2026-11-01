@@ -52,6 +52,8 @@ export function createBanner(onStop: () => void): {
     const all = wins
     wins = []
     for (const w of all) if (!w.isDestroyed()) w.destroy()
+    // The windows changed the app's process type and took the Dock icon with them.
+    if (all.length) void app.dock?.show()
   }
 
   const one = (deviceName: string, b: Electron.Rectangle, topInset: number): BrowserWindow => {
@@ -77,10 +79,13 @@ export function createBanner(onStop: () => void): {
       webPreferences: { sandbox: true, contextIsolation: true, javascript: false }
     })
     w.setAlwaysOnTop(true, 'screen-saver')
-    // Over every space and full-screen apps, but without turning Superagent into a
-    // background app: without skipTransformProcessType its Dock icon disappears
-    // (measured on Electron 39) and does not come back.
-    w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+    // Over every space and full-screen apps. That needs Electron to make Superagent
+    // an accessory-style app while the window exists (macOS lets only such a process
+    // float over a full-screen app), which hides its Dock icon: accepted for as long
+    // as a session runs, and the icon is brought back in hide(). The banner being
+    // seen matters more than the icon. (Do not pass skipTransformProcessType: it
+    // keeps the icon and very likely loses the banner over full-screen apps.)
+    w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     // No script, no navigation but the one link: Stop.
     w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     w.webContents.on('will-navigate', (e, url) => {

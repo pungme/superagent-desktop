@@ -1,6 +1,6 @@
 import { ipcMain, powerMonitor, powerSaveBlocker } from 'electron'
 import { RelayClient } from './relay-client'
-import { onlyTrusted } from '../remote-control/switches'
+import { registerPairingIpc } from '../remote-control/guarded-ipc'
 import { ClientConn } from './session'
 import { logBus, record, eventsAfter } from './log'
 import { draftBus } from '../drafts'
@@ -526,26 +526,22 @@ export function wireBrowser(paneId: string, state: BrowserPaneState | null): Wir
  */
 export function registerCompanionIpc(trusted: (e: Electron.IpcMainEvent) => boolean): void {
   ipcMain.handle('companion:state', () => companionState())
-  ipcMain.handle('companion:pair-start', () => startPairing(relayUrl()))
-  ipcMain.on('companion:pair-cancel', () => cancelPairing())
-  ipcMain.on(
-    'companion:pair-decide',
-    onlyTrusted(trusted, (accepted: boolean) => decidePairing(accepted))
-  )
-  ipcMain.on(
-    'companion:revoke',
-    onlyTrusted(trusted, (id: string) => {
+  registerPairingIpc(ipcMain, trusted, {
+    start: () => startPairing(relayUrl()),
+    cancel: () => cancelPairing(),
+    decide: (accepted) => decidePairing(accepted),
+    revoke: (id) => {
       removeDevice(id)
       for (const c of conns.values()) if (c.deviceId === id) c.close()
       syncRelay()
       broadcastState()
-    })
-  )
-  ipcMain.on('companion:set-relay', (_e, url: string) => {
-    const clean = url.trim().replace(/\/+$/, '')
-    kvSet(RELAY_KEY, clean === DEFAULT_RELAY ? '' : clean)
-    if (relayUp) relay.restart(relayUrl())
-    broadcastState()
+    },
+    setRelay: (url) => {
+      const clean = url.trim().replace(/\/+$/, '')
+      kvSet(RELAY_KEY, clean === DEFAULT_RELAY ? '' : clean)
+      if (relayUp) relay.restart(relayUrl())
+      broadcastState()
+    }
   })
   ipcMain.on('companion:reconnect', () => {
     if (relayUp) relay.kick()

@@ -450,7 +450,14 @@ describe("the apps that draw the Mac's own prompts, as the helper really reports
     ['SecurityAgent', 'com.apple.SecurityAgent', 'password'],
     ['authorizationhost', 'com.apple.authorizationhost', 'password'],
     ['Passwords', 'com.apple.Passwords', 'Passwords'],
-    ['Keychain Access', 'com.apple.keychainaccess', 'Keychain']
+    ['Keychain Access', 'com.apple.keychainaccess', 'Keychain'],
+    // Read from /System/Library on a Mac, not guessed.
+    ['NetAuthAgent', 'com.apple.NetAuthAgent', 'password'],
+    ['Keychain Circle Notification', 'com.apple.security.Keychain-Circle-Notification', 'security'],
+    ['WiFiAgent', 'com.apple.wifi.WiFiAgent', 'password'],
+    ['AuthKitUI', 'com.apple.AuthKitUI.AKAuthorizationRemoteViewService', 'sign-in'],
+    ['AuthorizationPromptService', 'com.apple.tcc.AuthorizationPromptService', 'permission'],
+    ['CoreLocationAgent', 'com.apple.CoreLocationAgent', 'permission']
   ]
   for (const [name, bundle, word] of prompts) {
     it(`${name} (${bundle}) is off limits by its bundle id`, () => {
@@ -462,6 +469,13 @@ describe("the apps that draw the Mac's own prompts, as the helper really reports
   it('and by its process name even when it has a bundle id we do not know', () => {
     const app = ownerApp('UserNotificationCenter', 'com.apple.SomeFutureName')
     expect(offLimitsApp(app?.id)).toBeTruthy()
+    for (const name of [
+      'NetAuthAgent',
+      'WiFiAgent',
+      'Keychain Circle Notification',
+      'AuthorizationPromptService'
+    ])
+      expect(offLimitsApp(ownerApp(name, '')?.id), name).toBeTruthy()
     const front = appFrom(
       '"coreservicesuiagent" ASN:0x0-0x2002: \n    bundleID="com.apple.somethingelse"'
     )

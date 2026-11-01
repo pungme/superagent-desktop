@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import type { CompanionState } from '../../../preload'
+import { settingsWords } from '../../../shared/remote-control-words'
 
 /**
  * Settings → Phone. Pair an iPhone (a QR + a code you confirm), see which
@@ -416,16 +417,7 @@ function RemoteControlRow(): React.JSX.Element | null {
         <div className="settings-label">
           <strong>Let my phone control this Mac</strong>
           <span>
-            If you allow this, the phone sees your chosen screen live and can use the mouse and
-            keyboard as you, in nearly any app, for up to 2 hours. It ends after 10 minutes without
-            input, when the phone disconnects, or when you press ⌥Esc or Stop. Superagent tries to
-            keep it away from password managers, macOS password and permission prompts, Superagent
-            itself and terminals, and it hides notifications and pauses the picture when one of
-            those appears. That is a list of known cases, not a guarantee: a browser&apos;s saved
-            logins, a copied password and other routes to running commands can still get through,
-            and nothing the phone did is undone when the session ends. Each time, this Mac asks you
-            and shows a code. This stays on after a restart until you turn it off. Allow it only
-            when you just asked for it on your own phone, and stay near the Mac.
+            {settingsWords(st.shells)}
             {st.enabled && st.note ? ` ${st.note}` : ''}
           </span>
           {st.active && (

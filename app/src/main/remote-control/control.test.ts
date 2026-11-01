@@ -63,6 +63,7 @@ function make() {
     runError: '',
     appAtFails: false,
     clipboardSecret: false,
+    bannerHiddenNow: false,
     /** How many helper runs Stop finds posting. */
     killRuns: 0,
     under: null as AppRef | null,
@@ -133,6 +134,7 @@ function make() {
       return w.under
     },
     clipboardConcealed: () => w.clipboardSecret,
+    bannerHidden: () => w.bannerHiddenNow,
     ownSurfaceAt: () => w.ownSurface,
     ownFocused: () => w.ownFocused,
     ownShortcuts: () => w.ownShortcuts,
@@ -1843,5 +1845,47 @@ describe('review 3, M3: all phones together get only so many dialogs an hour', (
     }
     expect(() => t.c.request(WHO)).toThrowError(/Too many requests were turned down/)
     expect(t.w.askQs).toHaveLength(3)
+  })
+})
+
+describe('review 4', () => {
+  it('menu bar band is 40 points whatever the work area: a press at 37 to 39 is refused with a marked clipboard', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.clipboardSecret = true
+    t.w.calls.length = 0
+    // y = 0.075 * 500 = 37, 0.079 * 500 = 39: below an old 24 or 37 band, inside 40.
+    for (const y of [0.075, 0.079])
+      expect((await t.refused(t.input({ type: 'click', x: 0.5, y }))).reason).toBe('clipboard')
+    await t.input({ type: 'click', x: 0.5, y: 0.1 })
+    expect(t.w.calls).toHaveLength(1)
+  })
+
+  it('Control-V and Control-Shift-V are not pasted from a marked clipboard either', async () => {
+    const t = make()
+    await t.begin()
+    t.w.clipboardSecret = true
+    t.w.calls.length = 0
+    for (const mods of [['ctrl'], ['ctrl', 'shift']] as const)
+      expect((await t.refused(t.input({ type: 'key', key: 'v', mods: [...mods] }))).reason).toBe(
+        'clipboard'
+      )
+    expect(t.w.calls).toEqual([])
+  })
+
+  it('a banner hidden behind a full-screen app ends the session, on an action and on the stream', async () => {
+    const t = make()
+    await t.begin()
+    t.c.view(CALLER, { visible: false })
+    t.w.bannerHiddenNow = true
+    const e = await t.refused(t.input({ type: 'key', key: 'a' }))
+    expect(e.reason).toBe('ended')
+    expect(t.c.wire('c1')).toMatchObject({ state: 'idle', ended: 'banner-lost' })
+    const u = make()
+    await u.begin()
+    u.w.bannerHiddenNow = true
+    await u.flush(2000)
+    expect(u.c.wire('c1')).toMatchObject({ state: 'idle', ended: 'banner-lost' })
   })
 })

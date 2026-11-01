@@ -137,8 +137,12 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   turned-down requests in ten minutes lock that phone out for ten, it waits five
   seconds between asks, and it gets six dialogs an hour, a request cancelled by
   hanging up included (otherwise a hostile phone could pop a focus-stealing
-  dialog every five seconds). All phones together get twelve dialogs an hour. The session and the code belong to the connection
-  and the device behind it. The Allow dialog (`allowDialog`) promises no more than
+  dialog every five seconds). All phones together get twelve dialogs an hour (accepted trade-off: a hostile
+  paired phone gets its per-device share, and a second compromised pairing could
+  use all twelve and deny the user's own phone for an hour; the counts reset when
+  the app restarts). The session and the code belong to the connection
+  and the device behind it. The Allow dialog and the Settings paragraph are built from the same
+  words (`shared/remote-control-words.ts`) so they cannot drift, and promise no more than
   the guard delivers, and says what is plainly reachable: Mail and Messages
   (including one-time codes, and sending as you), Finder and every file, AirDrop
   and Share, sites already signed in in a browser (it acts in your accounts
@@ -169,15 +173,21 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   allowed, shells; a paste is refused while the pasteboard is marked by a
   password manager (`clipboardConcealed`: `clipboard.has` on ConcealedType,
   TransientType and two vendor types; `availableFormats()` lists only MIME names on
-  macOS and is no use), by ⌘V and variants, and, while it is marked, by right-clicks
+  macOS and is no use), by ⌘V and variants and Control-V / Control-Shift-V (virtual machines, remote
+  desktops), and, while it is marked, by right-clicks
   and any press in the menu bar (Edit → Paste); the Apple menu (a fixed 50x40
-  region at each display's top left, not detected) and the Dock's menu are not
+  region at each display's top left, not detected; the menu-bar band for a marked
+  clipboard is a fixed `MENU_BAR_BAND` of 40 points whatever the work area says,
+  since that is 0 with a hidden menu bar and about 37 on a notched MacBook) and the Dock's menu are not
   pressed, and the keys that reach them are refused too (`remoteKey`: Control with
   F1-F8 which focus the menu bar and the Dock, Control-Option which is VoiceOver's,
   ⌘F5 and ⌥F5, ⇧⌘/ the Help search that runs menu items). The system prompts are matched by bundle id
   (UserNotificationCenter, CoreServicesUIAgent, universalAccessAuthWarn,
   ScreenCaptureApprovals, SecurityAgent, AuthorizationHost, Passwords, Keychain)
-  and by owner name, since the helper reports the outermost `.app` of a window;
+  (also NetAuthAgent, Keychain Circle Notification, WiFiAgent, AuthKit UI, the TCC
+  AuthorizationPromptService and CoreLocationAgent, each read from its Info.plist
+  under /System/Library; SystemUIServer, the menu bar's host, is deliberately not on
+  it), and by owner name, since the helper reports the outermost `.app` of a window;
   `layout()` reads a window exactly as `appAt` does (`ownerApp`), so a prompt from a
   process outside any `.app` (coreautha) is known by its name. Any window of
   someone else's on layer 1000 or higher (screen saver, shielding; not Superagent's
@@ -206,7 +216,9 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   sub-frame) and ask in a native dialog at the Mac, Cancel the default
   (`mayFlip`); turning off asks nothing. Pairing and removing a phone
   (`companion:pair-decide`, `companion:revoke`) take the same sender check
-  (`onlyTrusted`). The main switch persists across restarts
+  (`onlyTrusted`), as do `companion:pair-start` (the pairing payload and code) and
+  `companion:set-relay`; all of them are registered in `guarded-ipc.ts`, where a
+  test with a fake `ipcMain` checks every channel rejects an untrusted sender. The main switch persists across restarts
   (Settings says so); the shells switch does not. Every `remote.*` method needs
   `hello` (with the device token) to have completed on the connection, not only
   the key probe (`helloDone` in session.ts).
@@ -217,10 +229,18 @@ and maths, `state.ts` for the store slice, `SplitLayer.tsx`, `SplitsSection.tsx`
   Ending after a helper run was cut short lets go of both buttons at the pointer.
   It does not release a modifier key left down by a kill between key-down and
   key-up (the helper has no such action and it was not added); the window is
-  about 18 ms. The banner passes `skipTransformProcessType: true` to
-  `setVisibleOnAllWorkspaces`: without it Superagent's Dock icon disappears the
-  moment the banner is created and does not come back (measured on Electron 39;
-  with it dock visibility is unchanged).
+  about 18 ms. **Dock icon trade-off:** `setVisibleOnAllWorkspaces(true,
+  {visibleOnFullScreen: true})` makes Electron transform the process so the banner
+  can float over full-screen apps and every Space, and that hides Superagent's Dock
+  icon for as long as the banner exists (measured on Electron 39: icon hidden when
+  the banner is created, still hidden after it is destroyed, back after
+  `app.dock.show()`, which `hide()` calls). The banner being seen is the safety
+  property; the icon is cosmetic. Do not pass `skipTransformProcessType`: it keeps
+  the icon and very likely loses the banner over full-screen apps. A banner that is
+  not in front of a full-screen app in the layout scan (`bannerHidden`, checked on
+  every action and every look) ends the session. Whether the banner really shows
+  over a real full-screen app cannot be verified without a real Mac: check it by
+  hand.
   Not verified on a real Mac (the e2e uses a flag for the banner): that
   `type: 'panel'` is not hidden when Superagent loses focus, that it stays above
   full-screen apps, that `ok()` goes false after the app is hidden with ⌘H (it
