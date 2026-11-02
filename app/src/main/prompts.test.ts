@@ -6,6 +6,17 @@ vi.mock('./mail', () => ({ mailConnected: vi.fn(() => false) }))
 
 import { buildAppendedPrompt, setComputerUseProbe } from './prompts'
 
+describe('the background tasks rule', () => {
+  it('tells every agent to dedupe, stop finished watchers and keep to the limit', () => {
+    for (const provider of ['claude', 'codex', 'antigravity'] as const) {
+      const p = buildAppendedPrompt({ provider, workspaceId: 'w1' })
+      expect(p).toContain('already have one for the same thing')
+      expect(p).toContain('stop it with TaskStop')
+      expect(p).toContain('at most 4 at a time')
+    }
+  })
+})
+
 describe('the browser briefing', () => {
   it("tells a project's agent which browser it's on and that it can use the user's own", () => {
     const p = buildAppendedPrompt({ provider: 'claude', workspaceId: 'w1', browser: 'Superagent' })

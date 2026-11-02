@@ -1,6 +1,7 @@
 import { mailConnected } from './mail'
 import { DESKTOP_WORKSPACE_ID } from './store'
 import type { AgentProvider } from '../shared/agent-provider'
+import { MAX_BACKGROUND_TASKS } from '../shared/bg-tasks'
 
 /**
  * What Superagent tells its agent about the room it is working in.
@@ -278,6 +279,16 @@ export const SCRATCH_PROMPT =
   'the user owns), and refer to files by that path. Only what is truly disposable within the ' +
   'turn — a build log, a pipe, a one-off diff — belongs in /tmp.'
 
+// 2026-11-02: one chat showed seven "Running in background" pills, five of them
+// the same deploy watch started again each time the last one seemed to be gone.
+// Each one keeps the agent process (and its memory) alive.
+export const BACKGROUND_PROMPT =
+  'Background tasks (run_in_background, Monitor) are limited: at most ' +
+  MAX_BACKGROUND_TASKS +
+  ' at a time, and Superagent may refuse one more. Before you start a watcher, check whether you already have one for the same thing, ' +
+  'and stop the old one first. The moment what a task waits for has finished, stop it with TaskStop. ' +
+  'Prefer a Monitor with a timeout to a persistent one unless the user asked for it to keep running.'
+
 // A chat in a folder of repos works in a copy of that folder (repo-set.ts).
 // The agent has to be told: nothing about the directory says which of its
 // repos are links to a checkout every conversation shares and which are its
@@ -407,6 +418,7 @@ export function buildAppendedPrompt(ctx: PromptContext): string {
     FILE_OPEN_PROMPT,
     INLINE_IMAGE_PROMPT,
     SIMULATOR_PROMPT,
+    BACKGROUND_PROMPT,
     // The Computer chat has a scratch directory of its own (DESKTOP_PROMPT); a
     // browser project has no code to keep files beside.
     ctx.browserProject || ctx.workspaceId === DESKTOP_WORKSPACE_ID ? '' : SCRATCH_PROMPT,

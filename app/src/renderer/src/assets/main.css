@@ -7370,6 +7370,9 @@ button {
   border-radius: 6px;
   cursor: pointer;
 }
+.easy-runs-clear.easy-runs-sweep {
+  right: 50px;
+}
 .easy-runs-clear:hover {
   color: var(--text-secondary);
   background: var(--hover, rgba(127, 127, 127, 0.12));

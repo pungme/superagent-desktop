@@ -508,6 +508,7 @@ export interface CoveApi {
       startedAt: number
       output?: string
       manual?: boolean
+      kind?: 'task' | 'agent' | 'manual'
     }[]
   ) => void
   onBgStop: (cb: (p: { chatId: string; toolUseId: string }) => void) => () => void

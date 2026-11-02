@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { mergeCoveHooks, removeCoveHooks } from './hooks'
+import {
+  mergeCoveHooks,
+  removeCoveHooks,
+  backgroundCapBeforeTool,
+  setBackgroundCountProbe
+} from './hooks'
+import { MAX_BACKGROUND_TASKS } from '../shared/bg-tasks'
 
 const SCRIPT = '/Users/x/Library/Application Support/SuperAgent/cove-hook.sh'
 
@@ -109,5 +115,26 @@ describe('removeCoveHooks', () => {
     expect((restored.hooks as Record<string, unknown>).Custom).toEqual({ weird: true })
     // The Superagent-only Stop entry is still stripped (array becomes empty → dropped).
     expect(restored.hooks!.Stop).toBeUndefined()
+  })
+})
+
+describe('the background task cap in the PreToolUse hook', () => {
+  it('gates Monitor, so a new one can be refused', () => {
+    const out = mergeCoveHooks({}, SCRIPT)
+    const pre = out.hooks!.PreToolUse as Array<{ matcher?: string }>
+    expect(new RegExp(`^(?:${pre[0].matcher})$`).test('Monitor')).toBe(true)
+  })
+
+  it('denies a new background Bash or Monitor when the chat is full, by the chat count', () => {
+    const counts: Record<string, number> = { full: MAX_BACKGROUND_TASKS, roomy: 1 }
+    setBackgroundCountProbe((id) => counts[id] ?? 0)
+    const bg = { command: 'gh run watch', run_in_background: true }
+    expect(backgroundCapBeforeTool('Bash', bg, 'full')).toContain('TaskStop')
+    expect(backgroundCapBeforeTool('Monitor', { command: 'x' }, 'full')).toContain(
+      `already have ${MAX_BACKGROUND_TASKS}`
+    )
+    expect(backgroundCapBeforeTool('Bash', bg, 'roomy')).toBeNull()
+    expect(backgroundCapBeforeTool('Bash', { command: 'ls' }, 'full')).toBeNull()
+    expect(backgroundCapBeforeTool('Bash', bg, null)).toBeNull()
   })
 })

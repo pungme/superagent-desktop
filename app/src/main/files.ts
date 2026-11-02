@@ -17,6 +17,7 @@ import {
 import { join, relative, basename, dirname, extname, resolve, sep, isAbsolute } from 'path'
 import { homedir } from 'os'
 import { isRepoSet, setMembers } from './repo-set'
+import { setBackgroundCountProbe } from './hooks'
 import { KEPT_WIDTH, keepShownImage, keptShownImage, setShownImagesRoot } from './shown-images'
 
 export const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic'])
@@ -29,8 +30,12 @@ export interface PublishedBackgroundTask {
   startedAt: number
   output?: string
   manual?: boolean
+  /** 'task': a Bash/Monitor task the agent can TaskStop (counts toward the cap); 'agent': a sub-agent; 'manual': neither. */
+  kind?: 'task' | 'agent' | 'manual'
 }
 const backgroundTasks = new Map<string, PublishedBackgroundTask[]>()
+export const countBackgroundTasks = (chatId: string): number =>
+  (backgroundTasks.get(chatId) ?? []).filter((t) => t.kind === 'task').length
 export const listBackgroundTasks = (chatId: string): PublishedBackgroundTask[] =>
   backgroundTasks.get(chatId) ?? []
 export const stopBackgroundTask = (chatId: string, toolUseId: string): boolean => {
@@ -1195,6 +1200,7 @@ export function replyImagePath(
 }
 
 export function registerFilesIpc(): void {
+  setBackgroundCountProbe(countBackgroundTasks)
   setShownImagesRoot(app.getPath('userData'))
   ipcMain.on('bg:sync', (_e, chatId: string, tasks: Omit<PublishedBackgroundTask, 'chatId'>[]) => {
     backgroundTasks.set(

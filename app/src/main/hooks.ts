@@ -18,6 +18,7 @@ import { copyBeforeWrite } from './copy-on-write'
 import { simulatorBeforeShell } from './sim-guard'
 import { computerBeforeShell, computerBeforeWrite } from './computer-guard'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL } from '../shared/agent-provider'
+import { backgroundCapVerdict } from '../shared/bg-tasks'
 import { paneLog, allowUserFocus } from './browser'
 import {
   classifyTool,
@@ -208,6 +209,30 @@ export function resolveGate(
   return true
 }
 
+/**
+ * How many Bash/Monitor background tasks a chat has running, as its window
+ * last reconciled them (bg:sync). Set by files.ts at startup rather than
+ * imported, so this file does not pull in the window layer.
+ */
+let backgroundCount: (chatId: string) => number = () => 0
+export function setBackgroundCountProbe(fn: (chatId: string) => number): void {
+  backgroundCount = fn
+}
+
+/**
+ * Refuses a NEW background Bash or Monitor while the chat already has the
+ * most it may (MAX_BACKGROUND_TASKS). Claude only: Codex and Antigravity have
+ * no such hook for this and get the prompt rule alone.
+ */
+export function backgroundCapBeforeTool(
+  toolName: string,
+  input: unknown,
+  chatId: string | null | undefined
+): string | null {
+  if (!chatId) return null
+  return backgroundCapVerdict(toolName, input, backgroundCount(chatId))
+}
+
 const DENY_JSON = (reason: string): string =>
   JSON.stringify({
     hookSpecificOutput: {
@@ -238,6 +263,9 @@ async function decidePreTool(workspaceId: string, body: Record<string, unknown>)
     typeof body.cwd === 'string' ? body.cwd : undefined
   ).catch(() => null)
   if (held) return DENY_JSON(held)
+  // A watcher too many: the agent is told to stop one first.
+  const crowded = backgroundCapBeforeTool(toolName, body.tool_input, chatId)
+  if (crowded) return DENY_JSON(crowded)
   // Its shell stays off another conversation's simulator (sim-guard.ts).
   const sim = simulatorBeforeShell(toolName, body.tool_input, chatId)
   if (sim) return DENY_JSON(sim)
@@ -565,7 +593,7 @@ export function mergeCoveHooks(settings: HookSettings, scriptPath: string): Hook
   // otherwise pass over every repo it only links to (copy-on-write.ts).
   addEntry('PreToolUse', {
     matcher:
-      'Bash|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|mcp__cove-browser__browser_read_page|mcp__cove-browser__browser_upload_file|mcp__cove-browser__mail_(accounts|search|read|draft|send)',
+      'Bash|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|Monitor|mcp__cove-browser__browser_read_page|mcp__cove-browser__browser_upload_file|mcp__cove-browser__mail_(accounts|search|read|draft|send)',
     hooks: [{ type: 'command', command: `sh ${quoted} PreToolUse`, timeout: 600 }]
   })
   // Real tool approvals, for chats running in the "Ask" mode: Claude Code asks
@@ -624,7 +652,7 @@ export function hooksInstalled(): boolean {
       JSON.stringify(stop ?? '').includes('cove-hook.sh') &&
       JSON.stringify(pre ?? '').includes('cove-hook.sh') &&
       JSON.stringify(pre ?? '').includes('mail_(accounts|search|read|draft|send)') &&
-      JSON.stringify(pre ?? '').includes('|Grep|Glob|') &&
+      JSON.stringify(pre ?? '').includes('|Grep|Glob|Monitor|') &&
       JSON.stringify(perm ?? '').includes('cove-hook.sh')
     )
   } catch {

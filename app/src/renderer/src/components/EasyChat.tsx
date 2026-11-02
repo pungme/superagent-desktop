@@ -29,6 +29,16 @@ import { Choices } from './Choices'
 import { splitAssistant } from './assistantSegments'
 import { replyingTo } from '../../../shared/reply-quote'
 import { loopLabel, splitLoopNote } from '../lib/loop-note'
+import {
+  ageLabel,
+  duplicatesOf,
+  groupTasks,
+  isQuiet,
+  liveShellTasks,
+  reconcileTasks,
+  type BgKind,
+  type LiveTask
+} from '../../../shared/bg-tasks'
 import { useArrivingText } from '../lib/use-arriving-text'
 import { quietRuns } from '../lib/quiet-rounds'
 import { AUTO_RESTART_WINDOW_MS, CARRY_ON_NUDGE, shouldAutoRestart } from '../lib/auto-restart'
@@ -738,6 +748,10 @@ interface BackgroundTask {
   manual?: boolean
   /** When a known-duration job (e.g. `sleep N`) is done, so it auto-clears. */
   expiresAt?: number
+  /** The CLI's id for this task (task_started names our tool_use id), to reconcile against its live list. */
+  taskId?: string
+  /** 'task': a CLI task (run_in_background Bash, Monitor). 'manual': no CLI task behind it. */
+  kind?: BgKind
 }
 
 /** Seconds a `sleep <n>` waits, if the command is (essentially) just that. */
@@ -1903,6 +1917,10 @@ export function EasyChat({
   }, [controlMenu])
   const [bgTasks, setBgTasks] = useState<BackgroundTask[]>([])
   const bgTasksRef = useRef<BackgroundTask[]>([])
+  /** This process has shown that its shell/Monitor tasks carry our tool_use id (task_started). */
+  const bgIdsKnownRef = useRef(false)
+  /** The last live list the CLI sent, to re-check pills against as the clock moves. */
+  const liveTasksRef = useRef<LiveTask[] | null>(null)
   // Sub-agents (the Task tool) currently running. They live inside the same
   // claude process — we can't see their internal steps, but we can show that one
   // is working: a pill appears when Task starts and clears when its result lands.
@@ -1951,13 +1969,26 @@ export function EasyChat({
    * it also meant the age froze at whatever it was when the menu opened.
    */
   const [now, setNow] = useState(() => Date.now())
+  // The clock used to run only while a menu was open, so every pill's age froze at
+  // the moment the chat mounted and read "1s" for as long as it lived. It now
+  // also ticks (slowly: minutes are all the label shows) while any pill is up,
+  // and re-checks the pills against the CLI's last live list, so a task that
+  // never got an id is dropped once its grace period is over.
+  const hasBg = bgTasks.length > 0
   useEffect(() => {
-    if (!bgOpen) return
-    // No synchronous set on open: the first tick is a second away and the age
-    // is already right to the second from the initial value.
-    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    if (!bgOpen && !hasBg) return
+    setNow(Date.now())
+    const t = window.setInterval(
+      () => {
+        const n = Date.now()
+        setNow(n)
+        const live = liveTasksRef.current
+        if (live) setBgTasks((prev) => reconcileTasks(prev, live, n, bgIdsKnownRef.current))
+      },
+      bgOpen ? 1000 : 10_000
+    )
     return () => window.clearInterval(t)
-  }, [bgOpen])
+  }, [bgOpen, hasBg])
   // Retire known-duration jobs (a `sleep N` timer) once they're done — otherwise
   // manual tasks, which have no shell to report completion, pile up forever. Runs
   // whether or not the strip's menu is open, so the pills clear on their own.
@@ -3022,6 +3053,17 @@ export function EasyChat({
       }
       if (type === 'system' && (event.subtype as string) === 'task_started') {
         const toolUseId = event.tool_use_id as string | undefined
+        // A shell or Monitor task: its id is how the strip later knows the CLI
+        // has let it go (background_tasks_changed below).
+        if (toolUseId && event.task_type !== 'local_agent' && typeof event.task_id === 'string') {
+          bgIdsKnownRef.current = true
+          const taskId = event.task_id
+          setBgTasks((prev) =>
+            prev.some((t) => t.toolUseId === toolUseId && !t.taskId)
+              ? prev.map((t) => (t.toolUseId === toolUseId ? { ...t, taskId } : t))
+              : prev
+          )
+        }
         if (toolUseId && event.task_type === 'local_agent')
           setRunningAgents((prev) =>
             prev.map((a) =>
@@ -3038,13 +3080,32 @@ export function EasyChat({
       }
       if (type === 'system' && (event.subtype as string) === 'task_notification') {
         const toolUseId = event.tool_use_id as string | undefined
-        if (toolUseId) setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== toolUseId))
+        if (toolUseId) {
+          setRunningAgents((prev) => prev.filter((a) => a.toolUseId !== toolUseId))
+          setBgTasks((prev) =>
+            prev.some((t) => t.toolUseId === toolUseId && t.kind === 'task')
+              ? prev.filter((t) => t.toolUseId !== toolUseId)
+              : prev
+          )
+        }
+        return
+      }
+      if (type === 'system' && (event.subtype as string) === 'task_updated') {
+        const status = (event.patch as { status?: string } | undefined)?.status
+        const taskId = event.task_id as string | undefined
+        if (taskId && (status === 'completed' || status === 'failed' || status === 'killed'))
+          setBgTasks((prev) =>
+            prev.some((t) => t.taskId === taskId) ? prev.filter((t) => t.taskId !== taskId) : prev
+          )
         return
       }
       if (type === 'system' && (event.subtype as string) === 'background_tasks_changed') {
-        const live = new Set(
-          ((event.tasks as { task_id?: string }[] | undefined) ?? []).map((t) => t.task_id)
-        )
+        const liveTasks = liveShellTasks(event as { tasks?: LiveTask[] })
+        const live = new Set(liveTasks.map((t) => t.task_id))
+        // The full live set, replace semantics: a pill the CLI no longer lists is
+        // a finished (or never-registered) task, not "running".
+        setBgTasks((prev) => reconcileTasks(prev, liveTasks, Date.now(), bgIdsKnownRef.current))
+        liveTasksRef.current = liveTasks
         setRunningAgents((prev) => {
           const next = prev.filter((a) => !a.background || !a.taskId || live.has(a.taskId))
           return next.length === prev.length ? prev : next
@@ -3311,6 +3372,7 @@ export function EasyChat({
                         command,
                         description,
                         startedAt: Date.now(),
+                        kind: manual ? 'manual' : 'task',
                         ...(manual ? { manual: true } : {}),
                         ...(seeded ? { output: seeded, outputAt: Date.now() } : {})
                       }
@@ -3340,6 +3402,7 @@ export function EasyChat({
                   description,
                   startedAt,
                   manual: true,
+                  kind: 'manual',
                   ...(outputPath ? { outputPath } : {}),
                   // A sleep timer finishes at a known time; give it a small
                   // buffer, then it clears itself instead of piling up.
@@ -3348,6 +3411,9 @@ export function EasyChat({
               ])
             } else if (name === 'BashOutput' && typeof inp.bash_id === 'string') {
               pollTargets.current.set(id, inp.bash_id)
+            } else if (name === 'TaskStop' && typeof inp.task_id === 'string') {
+              const stopped = inp.task_id
+              setBgTasks((prev) => prev.filter((t) => t.taskId !== stopped))
             } else if (name === 'KillShell' && typeof inp.shell_id === 'string') {
               const killed = inp.shell_id
               setBgTasks((prev) => prev.filter((t) => t.shellId !== killed))
@@ -3372,6 +3438,7 @@ export function EasyChat({
                   description: label,
                   startedAt,
                   manual: true,
+                  kind: 'task',
                   ...(!persistent && timeoutMs ? { expiresAt: startedAt + timeoutMs + 2000 } : {})
                 }
               ])
@@ -3834,6 +3901,12 @@ export function EasyChat({
           apiMsRef.current = 0
           registerAgent(workspaceId, id)
           // A new process for this chat: whatever the last one did is history.
+          // Its background tasks were its children and died with it; the new
+          // process has none, so no pill of the old one may outlive it.
+          setBgTasks([])
+          setRunningAgents([])
+          bgIdsKnownRef.current = false
+          liveTasksRef.current = null
           setAgentFailed(false)
           // Ready as soon as the process is up — in stream-json input mode claude
           // waits for the first user message before it emits anything.
@@ -4018,16 +4091,30 @@ export function EasyChat({
   // shell only the agent's KillShell can reach), so we ask the agent to kill it —
   // it started it and can. Drops the pill either way; if the session is already
   // gone the job died with it. (The reliable, agent-free version is task #59.)
-  const stopBgTask = (t: BackgroundTask): void => {
+  const stopBgTask = (t: BackgroundTask): void => stopBgTasks([t])
+  // One or several at once ("Stop duplicates", "Stop all"): ONE message to the
+  // agent naming every task, so it does not run a turn per job.
+  const stopBgTasks = (list: BackgroundTask[]): void => {
+    if (list.length === 0) return
     setControlMenu(null)
-    setBgTasks((cur) => cur.filter((x) => x.toolUseId !== t.toolUseId))
+    const gone = new Set(list.map((x) => x.toolUseId))
+    setBgTasks((cur) => cur.filter((x) => !gone.has(x.toolUseId)))
     const id = agentIdRef.current
     if (!id) return // session gone → the job died with it; just cleared the pill
-    const instruction = t.shellId
-      ? `Stop the background job you started earlier (shell ${t.shellId}): \`${t.command}\`. ` +
-        `Kill it with KillShell, then confirm in one short line that it's stopped.`
-      : `Stop the background job you started earlier: \`${t.command}\`. Find its process and ` +
-        `kill it (pkill/kill), then confirm in one short line that it's stopped.`
+    const one = (t: BackgroundTask): string =>
+      t.taskId
+        ? `task ${t.taskId} (\`${t.command.slice(0, 160)}\`): stop it with TaskStop`
+        : t.shellId
+          ? `shell ${t.shellId} (\`${t.command.slice(0, 160)}\`): stop it with KillShell`
+          : `\`${t.command.slice(0, 160)}\`: find its process and kill it (pkill/kill)`
+    const instruction =
+      list.length === 1
+        ? `Stop the background job you started earlier, ${one(list[0])}. Then confirm in one short line that it's stopped.`
+        : `Stop these ${list.length} background jobs you started earlier:\n` +
+          list.map((t) => `- ${one(t)}`).join('\n') +
+          `\nThen confirm in one short line that they are stopped.`
+    const label =
+      list.length === 1 ? list[0].description || bgLabel(list[0].command) : `${list.length} jobs`
     // Show a clean line in the chat so it's clear this was sent (the agent gets
     // the detailed instruction above).
     setItems((prev) => [
@@ -4038,7 +4125,7 @@ export function EasyChat({
           id: `u-stop-${Date.now()}`,
           at: Date.now(),
           role: 'assistant',
-          text: `⏹ Stopping background job: ${t.description || bgLabel(t.command)}`,
+          text: `⏹ Stopping background ${list.length === 1 ? 'job' : 'jobs'}: ${label}`,
           system: true
         }
       }
@@ -4087,7 +4174,15 @@ export function EasyChat({
   // surfaces have identical semantics.
   useEffect(() => {
     window.cove.bgSync(chatId, [
-      ...bgTasks.map(({ outputPath: _path, expiresAt: _expiry, shellId: _shell, ...task }) => task),
+      ...bgTasks.map((t) => ({
+        toolUseId: t.toolUseId,
+        command: t.command,
+        description: t.description,
+        startedAt: t.startedAt,
+        output: t.output,
+        manual: t.manual,
+        kind: t.kind ?? ('manual' as const)
+      })),
       // Background sub-agents too, so the phone's Running strip shows them.
       ...runningAgents
         .filter((a) => a.background)
@@ -4095,7 +4190,8 @@ export function EasyChat({
           toolUseId: a.toolUseId,
           command: a.label,
           description: `Agent: ${a.label}`,
-          startedAt: a.startedAt
+          startedAt: a.startedAt,
+          kind: 'agent' as const
         }))
     ])
   }, [chatId, bgTasks, runningAgents])
@@ -4509,6 +4605,7 @@ export function EasyChat({
       setThinking(false)
       setGenerating(false)
       setRunningAgents([])
+      setBgTasks([])
       await window.cove.agentHardInterrupt?.(id)
       agentIdRef.current = null
       setReady(false)
@@ -6780,7 +6877,12 @@ export function EasyChat({
           : 0
         const remainS = Math.ceil(remainMs / 1000)
         const remainLabel = remainS >= 60 ? `${Math.round(remainS / 60)}m` : `${remainS}s`
-        const count = jobs.length + runningAgents.length + (waits.length ? 1 : 0)
+        const groups = groupTasks(jobs)
+        const dupes = duplicatesOf(jobs)
+        // One quiet action for the strip: copies first (keeps the newest of each),
+        // and only when there is no copy, a way to end a crowd of three or more.
+        const sweep = dupes.length > 0 ? dupes : jobs.length >= 3 ? jobs : []
+        const count = groups.length + runningAgents.length + (waits.length ? 1 : 0)
         if (runsHidden) {
           return (
             <div className="easy-runs collapsed">
@@ -6802,12 +6904,15 @@ export function EasyChat({
               <span className="easy-runs-label-pulse" />
               Running in background
             </span>
-            {jobs.map((t) => {
+            {groups.map((g) => {
+              const t = g.head
+              const copies = g.all.length
               const key = `bg-${t.toolUseId}`
               // The agent's description is what the terminal shows and what a
               // person understands ("Research US indie lane"); else the command.
               const name = t.description || bgLabel(t.command)
-              const age = Math.max(1, Math.round((now - t.startedAt) / 1000))
+              const ageText = ageLabel(t.startedAt, now)
+              const quiet = isQuiet(t, now)
               return (
                 <div className="easy-control" key={t.toolUseId}>
                   <button
@@ -6817,28 +6922,33 @@ export function EasyChat({
                   >
                     <span className="easy-run-dot" />
                     <span className="easy-control-val">{name}</span>
-                    <span className="easy-run-age-inline">
-                      {age < 60 ? `${age}s` : `${Math.round(age / 60)}m`}
-                    </span>
+                    {copies > 1 && <span className="easy-run-age-inline">×{copies}</span>}
+                    <span className="easy-run-age-inline">{ageText}</span>
                   </button>
                   {controlMenu === key && (
                     <div className="easy-control-menu easy-run-menu">
                       {t.description && <div className="easy-run-desc">{t.description}</div>}
                       <div className="easy-run-head">
                         <code>{t.command}</code>
-                        <span className="easy-run-age">
-                          {age < 60 ? `${age}s` : `${Math.round(age / 60)}m`}
-                        </span>
+                        <span className="easy-run-age">{ageText}</span>
                       </div>
+                      {quiet && (
+                        <div className="easy-run-desc">
+                          No output for {Math.round((now - (t.outputAt ?? t.startedAt)) / 60000)}{' '}
+                          min, and nothing tells Superagent whether it is still running.
+                        </div>
+                      )}
                       <pre className="easy-run-out">
                         {t.output?.trim() ||
                           (t.manual ? 'No handle to read its output.' : 'Waiting for output…')}
                       </pre>
                       <button
                         className="easy-control-item easy-run-stop"
-                        onClick={() => stopBgTask(t)}
+                        onClick={() => stopBgTasks(g.all)}
                       >
-                        <span className="easy-control-item-label">⏹ Stop it</span>
+                        <span className="easy-control-item-label">
+                          ⏹ {copies > 1 ? `Stop all ${copies}` : 'Stop it'}
+                        </span>
                         <span className="easy-control-item-hint">Ask the agent to kill it</span>
                       </button>
                     </div>
@@ -6878,6 +6988,19 @@ export function EasyChat({
             )}
             {/* Put the whole strip away. Nothing is stopped or forgotten: it
                 folds to one line with a count, and Show brings it back. */}
+            {sweep.length > 0 && (
+              <button
+                className="easy-runs-clear easy-runs-sweep"
+                title={
+                  dupes.length > 0
+                    ? 'Ask the agent to stop the older copies and keep the newest of each'
+                    : 'Ask the agent to stop all of these'
+                }
+                onClick={() => stopBgTasks(sweep)}
+              >
+                {dupes.length > 0 ? 'Stop duplicates' : 'Stop all'}
+              </button>
+            )}
             <button
               className="easy-runs-clear"
               title="Hide this strip — nothing is stopped; it folds to a one-line count"
