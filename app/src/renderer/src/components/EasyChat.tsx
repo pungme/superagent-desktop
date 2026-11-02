@@ -5924,7 +5924,36 @@ export function EasyChat({
           </div>
         </div>
       )}
-      {myGuardrailAsk && myGuardrailAsk.kind !== 'handoff' && (
+      {myGuardrailAsk?.kind === 'browser' && (
+        // The agent would like the user's own browser. One line and two
+        // buttons; nothing opens or takes focus until "Use Brave".
+        <div
+          ref={guardRef}
+          className="easy-guard easy-browser-ask"
+          role="alertdialog"
+          aria-modal="false"
+          aria-label={`Use your ${myGuardrailAsk.toolName}?`}
+        >
+          <p className="easy-browser-ask-what">
+            {agentName} wants to use your {myGuardrailAsk.toolName}: {myGuardrailAsk.preview}
+          </p>
+          <div className="easy-guard-actions">
+            <button
+              className="easy-guard-deny"
+              onClick={() => resolveGuardrailAsk(myGuardrailAsk.requestId, false, false)}
+            >
+              Stay here
+            </button>
+            <button
+              className="easy-guard-trust"
+              onClick={() => resolveGuardrailAsk(myGuardrailAsk.requestId, true, false)}
+            >
+              Use {myGuardrailAsk.toolName}
+            </button>
+          </div>
+        </div>
+      )}
+      {myGuardrailAsk && myGuardrailAsk.kind !== 'handoff' && myGuardrailAsk.kind !== 'browser' && (
         <div ref={guardRef} className="easy-guard" role="alertdialog" aria-modal="false">
           <div className="easy-guard-head">
             <span className="easy-guard-shield" aria-hidden>

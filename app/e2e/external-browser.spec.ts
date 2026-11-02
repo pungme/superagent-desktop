@@ -168,10 +168,27 @@ test('the project offers the installed browsers and starts on the built-in one',
   )
 })
 
-test("the agent moves to the user's browser by itself, and back", async () => {
+/** Answer the next ask to use the user's browser with "Use", from the window:
+ *  for a chat that is not on screen, whose card is not drawn. Listening has
+ *  started by the time this resolves. */
+async function useWhenAsked(): Promise<void> {
+  await window.evaluate(() => {
+    const off = window.cove.onGuardrailAsk((a) => {
+      if (a.kind !== 'browser') return
+      off()
+      window.cove.guardrailResolve(a.requestId, true, false)
+    })
+  })
+}
+
+test("the agent moves to the user's browser once the user agrees, and back", async () => {
   // The user never names a browser: the agent picks theirs (the Mac's default if
-  // it can drive it, else the first installed of Brave, Chrome, Edge).
-  expect(await tool('browser_use', { which: 'yours' })).toContain('Brave')
+  // it can drive it, else the first installed of Brave, Chrome, Edge), and asks
+  // first (browser-ask.spec.ts covers the card itself).
+  const pending = tool('browser_use', { which: 'yours' })
+  const card = window.locator('.easy-browser-ask:visible')
+  await card.getByRole('button', { name: 'Use Brave' }).click({ timeout: 10_000 })
+  expect(await pending).toContain('Brave')
   expect(await window.evaluate((id) => window.cove.browsersGet(id), `${wsId}::${chatId}`)).toBe(
     'brave'
   )
@@ -244,6 +261,7 @@ test("one chat's browser is its own: another chat in the project stays where it 
   expect(await get(other)).toBe('builtin')
   await tool('browser_use', { which: 'built-in' }, other)
   expect(await get(chatId)).toBe('brave')
+  await useWhenAsked()
   await tool('browser_use', { which: 'yours' }, other)
   expect(await get(other)).toBe('brave')
   await tool('browser_use', { which: 'built-in' }, other)

@@ -15,6 +15,7 @@ import {
   recordEvent
 } from './store'
 import { copyBeforeWrite } from './copy-on-write'
+import { ASK_TIMEOUT_MS } from './browser-ask'
 import { simulatorBeforeShell } from './sim-guard'
 import { computerBeforeShell, computerBeforeWrite } from './computer-guard'
 import { DEFAULT_PROVIDER, PROVIDER_LABEL } from '../shared/agent-provider'
@@ -110,8 +111,10 @@ let gateSeq = 0
 const GATE_TIMEOUT_MS = 120_000
 
 /** `handoff`: the agent is stuck on something only a person can do (a captcha,
- *  a login, a two-factor code) and waits for them to do it and say Done. */
-export type ApprovalKind = 'guardrail' | 'permission' | 'handoff'
+ *  a login, a two-factor code) and waits for them to do it and say Done.
+ *  `browser`: the agent asks to move this conversation to the user's own
+ *  browser (browser_use, browser-ask.ts); no is "Stay here". */
+export type ApprovalKind = 'guardrail' | 'permission' | 'handoff' | 'browser'
 
 // A real permission prompt can wait as long as a person might be away from
 // both screens; the injection gate self-denies sooner (an unattended machine
@@ -130,7 +133,13 @@ export function requestApproval(
     const displaySessionId = getChatIdBySession(sessionId) ?? sessionId
     const requestId = `gate-${++gateSeq}`
     // A person asked to act (answer a prompt, solve a check) gets the long wait.
-    const timeoutMs = kind === 'guardrail' ? GATE_TIMEOUT_MS : PERMISSION_TIMEOUT_MS
+    // Moving to the user's browser is a convenience: unanswered, it stays put.
+    const timeoutMs =
+      kind === 'guardrail'
+        ? GATE_TIMEOUT_MS
+        : kind === 'browser'
+          ? ASK_TIMEOUT_MS
+          : PERMISSION_TIMEOUT_MS
     const timer = setTimeout(() => {
       pendingGates.delete(requestId)
       broadcastToWindows('guardrail:resolved', { requestId })

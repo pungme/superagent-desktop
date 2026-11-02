@@ -110,7 +110,10 @@ export type WireEventData =
       id: string
       toolName: string
       preview: string
-      approvalKind: 'guardrail' | 'permission' | 'handoff'
+      /** 'browser': the agent asks to use the user's own browser (toolName is
+       *  its name, preview the reason). Phones that don't know it show the
+       *  plain yes/no card, which answers it correctly. */
+      approvalKind: 'guardrail' | 'permission' | 'handoff' | 'browser'
       expiresAt: number
     }
   | {

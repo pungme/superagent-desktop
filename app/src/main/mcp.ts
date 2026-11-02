@@ -74,6 +74,18 @@ import { cutRepo } from './chat-copy'
 import { isRepoSet, linkedRepos, setMembers } from './repo-set'
 import { pushOpenFile } from './companion'
 import { requestApproval } from './hooks'
+import {
+  askOnce,
+  decideBrowserUse,
+  forgetStay,
+  lastUserMessage,
+  rememberStay,
+  stayText,
+  stayUntil,
+  stayedText,
+  switchedText,
+  whyLine
+} from './browser-ask'
 import { toolPreview } from './guardrail'
 import { readJsonBody, workspaceIdFromPane, broadcastToWindows } from './util'
 import { isAbsolute, resolve } from 'path'
@@ -931,9 +943,10 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
     }
   )
 
-  // The user shouldn't have to name a browser, or find the pill, for the agent to
-  // use theirs: it switches itself when a site needs their logins. Routines and
-  // the Computer chat always use the built-in browser (externalBrowserForPane).
+  // The agent may move a conversation to the user's own browser when a site
+  // needs their logins, but it asks first (browser-ask.ts): a card in the chat,
+  // and nothing opens or takes focus until the user taps. Routines and the
+  // Computer chat always use the built-in browser (externalBrowserForPane).
   if (!isDesktop && !PANE_ID.endsWith('::routine')) {
     server.registerTool(
       'browser_use',
@@ -941,14 +954,25 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
         description:
           "Choose which browser this project's browser tools drive. 'yours' is the user's real " +
           "browser app (their default if it's Brave, Chrome or Edge, otherwise one of those that's " +
-          'installed) with a Superagent profile of its own. Switch to it, without asking, when the ' +
-          'user asks you to use their browser, or when a site needs their own logins or turns the ' +
-          "built-in browser away (Google sign-in, Cloudflare checks, 'browser not supported'). " +
+          'installed) with a Superagent profile of its own. Call it when the user asks you to use ' +
+          'their browser (it switches at once), or when a site needs their own logins or turns the ' +
+          "built-in browser away (Google sign-in, Cloudflare checks, 'browser not supported'): then " +
+          'Superagent first asks the user in the chat, nothing opens until they agree, and the ' +
+          'answer tells you whether to switch or stay. Give `why` in a few words. ' +
           "'built-in' is Superagent's pane beside the chat, the default. The user can also switch " +
           'with the Browser pill under the composer.',
-        inputSchema: { which: z.enum(['yours', 'built-in']) }
+        inputSchema: {
+          which: z.enum(['yours', 'built-in']),
+          why: z
+            .string()
+            .optional()
+            .describe(
+              'For \'yours\': a few plain words that finish "Claude wants to use your Brave: …", ' +
+                "e.g. 'this site needs your own logins'"
+            )
+        }
       },
-      async ({ which }) => {
+      async ({ which, why }) => {
         const text = (t: string): { content: { type: 'text'; text: string }[] } => ({
           content: [{ type: 'text', text: t }]
         })
@@ -966,17 +990,37 @@ function buildServer(paneId: string, chatId: string | null, proven = false): Mcp
               "only one available (Safari can't be driven). Tell the user one of those would let you " +
               'use their logins.'
           )
+        const name = browserName(id)
+        const now = Date.now()
+        const decision = decideBrowserUse({
+          current,
+          lastUserText: lastUserMessage(CHAT_ID),
+          stayUntil: stayUntil(scope),
+          now
+        })
+        if (decision === 'stayed') return text(stayedText(name, (stayUntil(scope) ?? now) - now))
+        if (decision === 'ask') {
+          const yes = await askOnce(scope, () =>
+            requestApproval(
+              workspaceIdFromPane(PANE_ID),
+              CHAT_ID ?? PANE_ID,
+              name,
+              whyLine(why),
+              'browser'
+            )
+          )
+          // Unanswered counts as no (ASK_TIMEOUT_MS).
+          if (!yes) {
+            rememberStay(scope, Date.now())
+            return text(stayText(name))
+          }
+        }
+        forgetStay(scope)
         if (id !== current) {
           const r = await switchBrowser(scope, id)
-          if (!r.ok) return text(`Couldn't switch to ${browserName(id)}: ${r.error}`)
+          if (!r.ok) return text(`Couldn't switch to ${name}: ${r.error}`)
         }
-        return text(
-          `Browser tools now drive ${browserName(id)}, the user's own browser app, with a ` +
-            'Superagent profile separate from their everyday one: they sign in there once, or use ' +
-            '"Bring sign-ins over…" in the Browser pill to copy chosen sites\' logins from their ' +
-            'everyday browser. It opens on your next browser_navigate. When a page wants a login, ' +
-            'captcha or 2FA, call browser_ask_user rather than asking in chat.'
-        )
+        return text(switchedText(name))
       }
     )
   }

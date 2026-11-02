@@ -58,6 +58,7 @@ import { registerDeskIpc } from './desk'
 import { startHookServer, registerHookIpc } from './hooks'
 import { registerAutomationIpc } from './automation'
 import { registerAgentIpc, killAllAgents, markContextLost, agentBus } from './agent'
+import { noteUserMessage } from './browser-ask'
 import { registerLoops } from './loops'
 import { killAllOneShots } from './kill-tree'
 import { startCompanionLog, forgetChat } from './companion/log'
@@ -384,6 +385,11 @@ app.whenReady().then(async () => {
   // A message from the user, on the Mac or the phone, means they're back from
   // any sign-in window: hand the browser back to the agent without being asked.
   agentBus.on('user', () => finishSignIn())
+  // What the user last said in each chat: their own "use my Brave" lets the
+  // agent's browser_use switch without asking first (browser-ask.ts).
+  agentBus.on('user', ({ chatId, text }: { chatId?: string; text?: string }) =>
+    noteUserMessage(chatId, text)
+  )
   registerSignInsIpc()
   registerResetIpc()
   registerAccountsIpc()

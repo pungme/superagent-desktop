@@ -117,9 +117,11 @@ export function setHandsOff(paneId: string, on: boolean, refused = false): void 
 
 export const SIGN_IN_REFUSED_MESSAGE =
   "Google refused to sign in inside Superagent's built-in browser, even with your browser " +
-  "tools paused. Call browser_use('yours') to move this " +
-  "conversation to the user's own browser, then go to the page again: they sign in there, and " +
-  'you carry on. Do not retry in the built-in browser.'
+  "tools paused. The way through is the user's own browser: call browser_use('yours') with " +
+  "why: 'Google won't sign you in here'. Superagent asks the user first; if they agree, go " +
+  'to the page again: they sign in there, and you carry on. If they stay, tell them in one ' +
+  'line that Google will not sign in in the built-in browser. Do not retry in the built-in ' +
+  'browser.'
 
 export const HANDS_OFF_MESSAGE =
   'The user is signing in to Google in the browser and has not finished. Google refuses sign-in ' +

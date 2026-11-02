@@ -12439,6 +12439,23 @@ button {
   }
 }
 
+/* The agent asks to use the user's own browser: one calm line, two buttons
+   on the same row when there is room. */
+.easy-browser-ask {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px 10px 16px;
+}
+.easy-browser-ask-what {
+  flex: 1 1 220px;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: inherit;
+}
+
 /* --- Settings → Phone ---------------------------------------------------- */
 .phone-intro {
   display: flex;

@@ -167,7 +167,10 @@ export function applyEvent(task: DotTask, chatId: string, data: Record<string, u
         approval: {
           id: s(data.id),
           toolName: s(data.toolName),
-          preview: s(data.preview),
+          preview:
+            data.approvalKind === 'browser'
+              ? `Use your ${s(data.toolName)}? ${s(data.preview)}`
+              : s(data.preview),
           handoff: data.approvalKind === 'handoff'
         }
       }

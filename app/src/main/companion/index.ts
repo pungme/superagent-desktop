@@ -200,7 +200,7 @@ export function startCompanion(): void {
       sessionId: string
       toolName: string
       preview: string
-      kind?: 'guardrail' | 'permission' | 'handoff'
+      kind?: 'guardrail' | 'permission' | 'handoff' | 'browser'
       macOnly?: boolean
       expiresAt: number
     }) => {

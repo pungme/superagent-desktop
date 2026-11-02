@@ -214,8 +214,9 @@ export interface GuardrailAsk {
   sessionId: string
   toolName: string
   preview: string
-  /** 'permission' = a real Ask-mode prompt; 'guardrail' = the prompt-injection gate. */
-  kind?: 'guardrail' | 'permission' | 'handoff'
+  /** 'permission' = a real Ask-mode prompt; 'guardrail' = the prompt-injection gate;
+   *  'browser' = may the agent move to the user's own browser (toolName is its name). */
+  kind?: 'guardrail' | 'permission' | 'handoff' | 'browser'
 }
 
 export interface BoardCard {

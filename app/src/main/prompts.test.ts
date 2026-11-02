@@ -25,6 +25,19 @@ describe('the browser briefing', () => {
     expect(p).toContain("Never tell the user you can't use their browser")
   })
 
+  it('lets the agent ask for the user’s browser, and no longer tells it to switch silently', () => {
+    const p = buildAppendedPrompt({ provider: 'claude', workspaceId: 'w1', browser: 'Superagent' })
+    expect(p).toContain("If the user asks you to use their browser, call browser_use('yours')")
+    expect(p).toContain('Superagent asks the user in the chat first')
+    expect(p).toContain('nothing opens until they agree')
+    expect(p).toContain('`why`')
+    expect(p).toContain('If they stay, keep working in the built-in browser')
+    // Only the browser part: other blocks have their own "never ask".
+    const browser = p.slice(p.indexOf('When this conversation started'))
+    expect(browser).not.toMatch(/never ask/i)
+    expect(browser).not.toMatch(/without asking/i)
+  })
+
   it("names the user's browser when the project is already on it", () => {
     const p = buildAppendedPrompt({ provider: 'codex', workspaceId: 'w1', browser: 'Brave' })
     expect(p).toContain("drove the user's own Brave")

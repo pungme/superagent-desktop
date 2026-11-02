@@ -64,3 +64,33 @@ it('lets only the Mac say yes to using the Mac, while a no can come from the pho
   expect(resolveGate(id, true, false, 'ios')).toBe(true)
   expect(await pending).toBe(true)
 })
+it("asks to use the user's browser on the phone too, and an unanswered card is a no after two minutes", async () => {
+  vi.useFakeTimers()
+  try {
+    const { hookBus } = await import('./hooks')
+    const seen: { kind?: string; expiresAt: number }[] = []
+    const onApproval = (a: { kind?: string; expiresAt: number }): number => seen.push(a)
+    hookBus.on('approval', onApproval)
+    const t0 = Date.now()
+    const yes = requestApproval('ws', 'chat-1', 'Brave', 'this site needs your logins.', 'browser')
+    const [, payload] = vi.mocked(broadcastToWindows).mock.calls.at(-1)!
+    expect(payload).toMatchObject({ kind: 'browser', toolName: 'Brave' })
+    // The phone may answer it: it is not a Mac-only request.
+    expect(gateIsMacOnly((payload as { requestId: string }).requestId)).toBe(false)
+    expect(seen.at(-1)).toMatchObject({ kind: 'browser', expiresAt: t0 + 120_000 })
+    expect(resolveGate((payload as { requestId: string }).requestId, true, false, 'ios')).toBe(true)
+    expect(await yes).toBe(true)
+
+    const unanswered = requestApproval('ws', 'chat-1', 'Brave', 'x.', 'browser')
+    await vi.advanceTimersByTimeAsync(119_000)
+    let settled = false
+    void unanswered.then(() => (settled = true))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(await unanswered).toBe(false)
+    hookBus.off('approval', onApproval)
+  } finally {
+    vi.useRealTimers()
+  }
+})

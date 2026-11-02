@@ -41,10 +41,14 @@ function realBrowserPrompt(current: string): string {
     ' The user can switch that at any time with the Browser pill under the composer, and your ' +
     'tools follow at once: if they say they switched, just use the tools — browser_navigate ' +
     "says which browser it landed in. They can also drive the user's real browser app (Brave, Chrome or Edge), whose logins " +
-    "persist, and where browser_tabs lists every tab in that window, the user's own included: " +
-    "call browser_use('yours') when the user asks you to use their browser, or when a " +
-    'site needs their own accounts or turns the built-in browser away. Never tell the user you ' +
-    "can't use their browser, and never ask them which one: browser_use picks it. It starts " +
+    "persist, and where browser_tabs lists every tab in that window, the user's own included. " +
+    "If the user asks you to use their browser, call browser_use('yours'). When a site needs " +
+    'their own accounts or turns the built-in browser away, you may ask to move there: call ' +
+    "browser_use('yours') with `why`, a few words on why. Superagent asks the user in the chat " +
+    'first and nothing opens until they agree; the tool tells you their answer. If they stay, ' +
+    'keep working in the built-in browser, and call browser_ask_user when a page needs them to ' +
+    'sign in there. Do not move for a site that works in the built-in browser. Never tell the ' +
+    "user you can't use their browser; browser_use picks which one. Their browser starts " +
     "signed out: the user signs in there once, or brings sites' sign-ins over from their " +
     'everyday browser with "Bring sign-ins over…" in the Browser pill under the composer. When a ' +
     'page wants a login, captcha or 2FA, call browser_ask_user. Google refuses to sign anyone in ' +
