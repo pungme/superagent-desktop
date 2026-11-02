@@ -1,4 +1,5 @@
 import { app, ipcMain, safeStorage } from 'electron'
+import { healthLog } from './health'
 import { execFile, spawn } from 'child_process'
 import { randomUUID } from 'crypto'
 import {
@@ -781,16 +782,42 @@ async function claudeLoginToken(): Promise<string | null> {
   }
 }
 
+/** Which windows Anthropic last named for each account, to log only a change. */
+const reportedWindows = new Map<string, string>()
+
+/**
+ * Note in the app's log which usage windows Anthropic sent for an account (their
+ * names only, never a token or a number), once per change. Some accounts come
+ * back with no 5-hour window at all; this is how to tell why from the outside.
+ */
+function noteWindows(who: string, source: string, body: unknown): void {
+  if (!body || typeof body !== 'object') return
+  const named = Object.entries(body as Record<string, unknown>)
+    .filter(([, v]) => v !== null && v !== undefined)
+    .map(([k]) => k)
+    .sort()
+    .join(',')
+  const line = `${source}: ${named || '(nothing)'}`
+  if (reportedWindows.get(who) === line) return
+  reportedWindows.set(who, line)
+  healthLog(`usage windows ${who} ${line}`)
+}
+
 /** Ask Anthropic what `/usage` would say for this token; null if it will not. */
-async function claudeUsage(token: string): Promise<Usage | null> {
+async function claudeUsage(token: string, who = 'claude:login'): Promise<Usage | null> {
   try {
     const res = await fetch('https://api.anthropic.com/api/oauth/usage', {
       headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' },
       signal: AbortSignal.timeout(10_000)
     })
     // A setup-token may not be allowed to ask: its numbers come from its turns.
-    if (!res.ok) return null
-    return usageFromClaudeApi(await res.json())
+    if (!res.ok) {
+      noteWindows(who, `oauth/usage ${res.status}`, {})
+      return null
+    }
+    const body: unknown = await res.json()
+    noteWindows(who, 'oauth/usage', body)
+    return usageFromClaudeApi(body)
   } catch {
     return null
   }
@@ -919,7 +946,7 @@ export function refreshUsage(force = false): Promise<void> {
       const known = load().usage[a.id]
       const fresh = known && Date.now() - known.at < PROBE_EVERY_MS
       jobs.push(
-        claudeUsage(token).then(async (u) =>
+        claudeUsage(token, a.id).then(async (u) =>
           put(a.id, u ?? (fresh ? null : await claudeUsageByMessage(token)))
         )
       )
